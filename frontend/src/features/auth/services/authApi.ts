@@ -1,6 +1,6 @@
 import apiClient from '@/services/apiClient'
 import type { AxiosError } from 'axios'
-import type { FaceRegistrationForm, AuthResponse, ApiError } from '../types'
+import type { FaceRegistrationForm, ProducerRegistrationForm, AuthResponse, ApiError } from '../types'
 
 /**
  * Auth API service
@@ -11,6 +11,14 @@ export const authApi = {
    */
   async registerFace(data: FaceRegistrationForm): Promise<AuthResponse> {
     const response = await apiClient.post<AuthResponse>('/auth/register/face', data)
+    return response.data
+  },
+
+  /**
+   * Register a new Producer user (Agency or Particulier)
+   */
+  async registerProducer(data: ProducerRegistrationForm): Promise<AuthResponse> {
+    const response = await apiClient.post<AuthResponse>('/auth/register/producer', data)
     return response.data
   },
 }
