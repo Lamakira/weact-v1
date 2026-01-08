@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Auth\RegisterFaceController;
+use App\Http\Controllers\Api\V1\Auth\RegisterProducerController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -29,6 +30,10 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/register/face', RegisterFaceController::class)
             ->middleware('throttle:5,1')
             ->name('auth.register.face');
+
+        Route::post('/register/producer', RegisterProducerController::class)
+            ->middleware('throttle:5,1')
+            ->name('auth.register.producer');
     });
 
     // Protected routes
