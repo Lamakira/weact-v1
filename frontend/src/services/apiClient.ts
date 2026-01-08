@@ -7,9 +7,26 @@ import type { ApiError } from '@/features/auth/types'
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
 
 /**
+ * Backend Base URL (without /api/v1) for Sanctum CSRF cookie
+ */
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
+
+/**
  * Storage key for auth token
  */
 const TOKEN_KEY = 'auth_token'
+
+/**
+ * Get XSRF token from cookies
+ */
+function getXsrfTokenFromCookie(): string | null {
+  const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/)
+  if (match && match[1]) {
+    // The cookie value is URL encoded, so decode it
+    return decodeURIComponent(match[1])
+  }
+  return null
+}
 
 /**
  * Create configured Axios instance
@@ -21,22 +38,36 @@ const apiClient: AxiosInstance = axios.create({
     Accept: 'application/json',
   },
   timeout: 30000,
+  withCredentials: true, // Required for CSRF cookies
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
 })
 
 /**
- * Request interceptor to add auth token
+ * Request interceptor to add auth token and XSRF token
  */
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // Add auth token if available
     const token = localStorage.getItem(TOKEN_KEY)
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
     }
+
+    // Manually add XSRF token for non-GET requests
+    // This is needed because axios automatic XSRF handling may not work cross-origin
+    if (config.method && !['get', 'head', 'options'].includes(config.method.toLowerCase())) {
+      const xsrfToken = getXsrfTokenFromCookie()
+      if (xsrfToken && config.headers) {
+        config.headers['X-XSRF-TOKEN'] = xsrfToken
+      }
+    }
+
     return config
   },
   (error: AxiosError) => {
     return Promise.reject(error)
-  }
+  },
 )
 
 /**
@@ -51,8 +82,18 @@ apiClient.interceptors.response.use(
       // Could emit event or redirect to login
     }
     return Promise.reject(error)
-  }
+  },
 )
+
+/**
+ * Fetch CSRF cookie from Sanctum before making stateful requests
+ * Must be called before POST/PUT/PATCH/DELETE requests for unauthenticated users
+ */
+export async function getCsrfCookie(): Promise<void> {
+  await axios.get(`${BACKEND_URL}/sanctum/csrf-cookie`, {
+    withCredentials: true,
+  })
+}
 
 /**
  * Helper to store auth token
