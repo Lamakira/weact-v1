@@ -25,6 +25,7 @@ class ProducerResource extends JsonResource
             'agency_name' => $this->agency_name,
             'first_name' => $this->first_name,
             'last_name' => $this->last_name,
+            'display_name' => $this->display_name,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
