@@ -1,0 +1,189 @@
+# generated: 2026-01-07
+# project: WEACT
+# project_key: weact
+# tracking_system: file-system
+# story_location: "{project-root}/_bmad-output/implementation-artifacts"
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: "2026-01-07"
+project: "WEACT"
+project_key: "weact"
+tracking_system: "file-system"
+story_location: "{project-root}/_bmad-output/implementation-artifacts"
+
+development_status:
+  # Epic 1: Project Initialization (4 stories) - COMPLETE!
+  epic-1: done
+  1-1-initialize-laravel-backend: done
+  1-2-initialize-vue-frontend: done
+  1-3-configure-monorepo-development-environment: done
+  1-4-create-core-database-schema: done
+  epic-1-retrospective: done
+
+  # Epic 2: Authentication & User Accounts (6 stories)
+  epic-2: in-progress
+  2-1-face-registration: done
+  2-2-producer-registration: backlog
+  2-3-user-login: backlog
+  2-4-user-logout: backlog
+  2-5-password-reset: backlog
+  2-6-authentication-frontend-integration: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: Face Profile & Portfolio (11 stories)
+  epic-3: backlog
+  3-1-face-profile-photo-upload: backlog
+  3-2-face-photo-album-management: backlog
+  3-3-face-presentation-video-upload: backlog
+  3-4-face-acting-video-upload: backlog
+  3-5-face-bio-and-location: backlog
+  3-6-face-physical-characteristics: backlog
+  3-7-face-category-and-niche-selection: backlog
+  3-8-face-professional-experiences: backlog
+  3-9-face-tarifs: backlog
+  3-10-face-availability-toggle: backlog
+  3-11-face-profile-completion-indicator: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: Producer Profile (4 stories)
+  epic-4: backlog
+  4-1-producer-profile-photo: backlog
+  4-2-producer-bio: backlog
+  4-3-agency-logo-upload: backlog
+  4-4-producer-profile-display: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5: Mission Management (10 stories)
+  epic-5: backlog
+  5-1-create-mission-database-schema: backlog
+  5-2-publish-mission: backlog
+  5-3-edit-mission: backlog
+  5-4-delete-mission: backlog
+  5-5-producer-missions-list: backlog
+  5-6-close-mission: backlog
+  5-7-mark-mission-as-completed: backlog
+  5-8-face-browse-available-missions: backlog
+  5-9-face-filter-missions: backlog
+  5-10-face-view-mission-detail: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6: Candidature Workflow (9 stories)
+  epic-6: backlog
+  6-1-create-candidature-database-schema: backlog
+  6-2-face-apply-to-mission: backlog
+  6-3-face-view-my-candidatures: backlog
+  6-4-producer-view-mission-candidatures: backlog
+  6-5-producer-view-candidate-full-profile: backlog
+  6-6-producer-accept-candidature: backlog
+  6-7-producer-reject-candidature: backlog
+  6-8-face-confirm-mission: backlog
+  6-9-face-candidature-status-notifications: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Messaging System (7 stories)
+  epic-7: backlog
+  7-1-create-messaging-database-schema: backlog
+  7-2-conditional-chat-unlock: backlog
+  7-3-face-send-message-to-producer: backlog
+  7-4-producer-send-message-to-face: backlog
+  7-5-view-conversation-history: backlog
+  7-6-manual-message-refresh: backlog
+  7-7-conversations-list-view: backlog
+  epic-7-retrospective: optional
+
+  # Epic 8: Rating & Reviews (6 stories)
+  epic-8: backlog
+  8-1-create-ratings-database-schema: backlog
+  8-2-face-rate-producer-after-mission: backlog
+  8-3-producer-rate-face-after-mission: backlog
+  8-4-display-face-average-rating: backlog
+  8-5-display-producer-average-rating: backlog
+  8-6-view-reviews-list: backlog
+  epic-8-retrospective: optional
+
+  # Epic 9: Face Dashboard (5 stories)
+  epic-9: backlog
+  9-1-face-dashboard-kpis: backlog
+  9-2-face-wallet-ui-inactive: backlog
+  9-3-face-dashboard-charts: backlog
+  9-4-face-quick-access-to-missions: backlog
+  9-5-face-dashboard-layout: backlog
+  epic-9-retrospective: optional
+
+  # Epic 10: Producer Dashboard (6 stories)
+  epic-10: backlog
+  10-1-producer-dashboard-kpis: backlog
+  10-2-producer-total-candidatures-received: backlog
+  10-3-producer-collaborators-count: backlog
+  10-4-producer-rating-display: backlog
+  10-5-producer-advanced-stats: backlog
+  10-6-producer-dashboard-layout: backlog
+  epic-10-retrospective: optional
+
+  # Epic 11: Public Access & Discovery (8 stories)
+  epic-11: backlog
+  11-1-landing-page: backlog
+  11-2-landing-page-face-producer-switch: backlog
+  11-3-public-faces-list: backlog
+  11-4-public-face-profile-limited: backlog
+  11-5-public-faces-filters: backlog
+  11-6-public-missions-list: backlog
+  11-7-public-mission-detail: backlog
+  11-8-registration-access-points: backlog
+  epic-11-retrospective: optional
+
+  # Epic 12: Blog & Resources (9 stories)
+  epic-12: backlog
+  12-1-create-articles-database-schema: backlog
+  12-2-admin-create-article: backlog
+  12-3-admin-categorize-article: backlog
+  12-4-admin-set-article-status: backlog
+  12-5-admin-edit-article: backlog
+  12-6-admin-delete-article: backlog
+  12-7-public-articles-list: backlog
+  12-8-public-article-reading: backlog
+  12-9-public-articles-filter-by-category: backlog
+  epic-12-retrospective: optional
+
+  # Epic 13: Administration (10 stories)
+  epic-13: backlog
+  13-1-admin-authentication: backlog
+  13-2-admin-create-other-admins: backlog
+  13-3-admin-dashboard-kpis: backlog
+  13-4-admin-crud-faces: backlog
+  13-5-admin-crud-producers: backlog
+  13-6-admin-crud-admins: backlog
+  13-7-admin-view-detailed-profiles: backlog
+  13-8-admin-view-all-missions: backlog
+  13-9-admin-activate-deactivate-accounts: backlog
+  13-10-admin-dashboard-layout: backlog
+  epic-13-retrospective: optional
+

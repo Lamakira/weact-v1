@@ -1,0 +1,24 @@
+{
+  "name": "weact",
+  "version": "1.0.0",
+  "description": "WEACT - Platform connecting Faces with Producers for creative missions",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && php artisan serve",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "build:check": "cd frontend && npm run build",
+    "install:all": "cd backend && composer install && cd ../frontend && npm install",
+    "lint": "cd frontend && npm run lint",
+    "test:backend": "cd backend && php artisan test",
+    "test:frontend": "cd frontend && npm run test:unit"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
+

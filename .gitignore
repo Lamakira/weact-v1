@@ -1,0 +1,99 @@
+# ============================================
+# WEACT Monorepo .gitignore
+# ============================================
+
+# Dependencies
+node_modules/
+vendor/
+
+# Environment files (never commit secrets)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Build outputs
+dist/
+build/
+
+# IDE and editors
+.claude/
+.idea/
+.vscode/
+.github/
+*.swp
+*.swo
+*~
+.project
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage and testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Laravel specific
+backend/storage/*.key
+backend/storage/logs/*
+!backend/storage/logs/.gitkeep
+backend/bootstrap/cache/*
+!backend/bootstrap/cache/.gitkeep
+backend/.phpunit.result.cache
+backend/Homestead.json
+backend/Homestead.yaml
+backend/npm-debug.log
+backend/yarn-error.log
+
+# Frontend specific
+frontend/dist/
+frontend/dist-ssr/
+frontend/coverage/
+frontend/*.local
+
+# TypeScript
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Misc
+*.bak
+*.tmp
+*.temp
+
+# Vite build output (Laravel)
+public/build/
+public/hot/
+
+# Outils IA & Gestion de projet (BMAD)
+_bmad/
+#_bmad-output/
+CLAUDE.md
+

@@ -1,0 +1,116 @@
+# Workflow Status - WEACT
+# This tracks progress through BMM methodology Analysis, Planning, and Solutioning phases.
+# Implementation phase is tracked separately in sprint-status.yaml
+
+# STATUS DEFINITIONS:
+# ==================
+# Initial Status (before completion):
+#   - required: Must be completed to progress
+#   - optional: Can be completed but not required
+#   - recommended: Strongly suggested but not required
+#   - conditional: Required only if certain conditions met (e.g., if_has_ui)
+#
+# Completion Status:
+#   - {file-path}: File created/found (e.g., "docs/planning-artifacts/prd.md")
+#   - skipped: Optional/conditional workflow that was skipped
+
+generated: "2026-01-06"
+project: "WEACT"
+project_type: "web-platform"
+selected_track: "bmad-method"
+field_type: "greenfield"
+workflow_path: "method-greenfield"
+
+# Discovery workflows (Phase 1) - User selected: none
+discovery:
+  brainstorm: skipped
+  research: skipped
+  product_brief: skipped
+
+# Planning & Solutioning workflow status
+workflow_status:
+  # Phase 2: Planning
+  - phase: 2
+    name: "Planning"
+    workflows:
+      - id: prd
+        name: "Create PRD"
+        status: "docs/planning-artifacts/prd.md"
+        agent: pm
+        command: "/bmad:bmm:workflows:create-prd"
+        output: "docs/planning-artifacts/prd.md"
+        completed: "2026-01-06"
+
+      - id: create-ux-design
+        name: "Create UX Design"
+        status: conditional
+        condition: if_has_ui
+        agent: ux-designer
+        command: "/bmad:bmm:workflows:create-ux-design"
+        output: null
+        note: "WEACT has UI - will be required after PRD"
+
+  # Phase 3: Solutioning
+  - phase: 3
+    name: "Solutioning"
+    workflows:
+      - id: create-architecture
+        name: "Create Architecture"
+        status: "docs/planning-artifacts/architecture.md"
+        agent: architect
+        command: "/bmad:bmm:workflows:create-architecture"
+        output: "docs/planning-artifacts/architecture.md"
+        completed: "2026-01-06"
+
+      - id: create-epics-and-stories
+        name: "Create Epics & Stories"
+        status: "_bmad-output/planning-artifacts/epics.md"
+        agent: pm
+        command: "/bmad:bmm:workflows:create-epics-and-stories"
+        output: "_bmad-output/planning-artifacts/epics.md"
+        completed: "2026-01-07"
+
+      - id: test-design
+        name: "Test Design"
+        status: optional
+        agent: tea
+        command: "/bmad:bmm:workflows:testarch-test-design"
+        output: null
+
+      - id: implementation-readiness
+        name: "Check Implementation Readiness"
+        status: "_bmad-output/planning-artifacts/implementation-readiness-report-2026-01-07.md"
+        agent: architect
+        command: "/bmad:bmm:workflows:check-implementation-readiness"
+        output: "_bmad-output/planning-artifacts/implementation-readiness-report-2026-01-07.md"
+        completed: "2026-01-07"
+
+  # Phase 4: Implementation
+  - phase: 4
+    name: "Implementation"
+    workflows:
+      - id: sprint-planning
+        name: "Sprint Planning"
+        status: "_bmad-output/implementation-artifacts/sprint-status.yaml"
+        agent: sm
+        command: "/bmad:bmm:workflows:sprint-planning"
+        output: "_bmad-output/implementation-artifacts/sprint-status.yaml"
+        completed: "2026-01-07"
+        note: "Creates sprint-status.yaml - subsequent work tracked there"
+
+# Input documents available
+input_documents:
+  brief: "docs/weact-brief.md"
+  prd: "docs/planning-artifacts/prd.md"
+  architecture: "docs/planning-artifacts/architecture.md"
+  epics: "_bmad-output/planning-artifacts/epics.md"
+  project_context: "_bmad-output/project-context.md"
+  ux_design: "https://www.figma.com/design/Y8DJzNp5ztw2z65LiV3XdI/WEACT-Desgin-Files"
+
+# Next action
+next:
+  workflow: create-story
+  agent: sm
+  command: "/bmad:bmm:workflows:create-story"
+  step: null
+  note: "Sprint status initialized. Begin story creation for development - start with Epic 1, Story 1.1"
