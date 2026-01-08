@@ -25,7 +25,7 @@ const router = createRouter({
     {
       path: '/register/producer',
       name: 'register-producer',
-      component: () => import('../pages/auth/RegisterFacePage.vue'), // Placeholder until Producer registration is implemented
+      component: () => import('../pages/auth/RegisterProducerPage.vue'),
       meta: { guest: true },
     },
     {
