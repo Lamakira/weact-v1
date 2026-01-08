@@ -1,6 +1,6 @@
 # Story 2.2: Producer Registration
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -30,63 +30,63 @@ so that **I can access the platform to find talents for my projects**.
 
 ### Backend Tasks
 
-- [ ] **Task 1: Update Producer Model** (AC: #1, #2)
-  - [ ] 1.1 Ensure Producer model has fillable attributes: type, agency_name, first_name, last_name
-  - [ ] 1.2 Verify Producer belongs to User via polymorphic relationship (already from Epic 1)
-  - [ ] 1.3 Create ProducerType PHP enum: `agency`, `particulier`
+- [x] **Task 1: Update Producer Model** (AC: #1, #2)
+  - [x] 1.1 Ensure Producer model has fillable attributes: type, agency_name, first_name, last_name
+  - [x] 1.2 Verify Producer belongs to User via polymorphic relationship (already from Epic 1)
+  - [x] 1.3 Create ProducerType PHP enum: `agency`, `particulier`
 
-- [ ] **Task 2: Create RegisterProducerRequest Form Request** (AC: #1, #2, #3, #4, #5, #6)
-  - [ ] 2.1 Create `app/Http/Requests/Auth/RegisterProducerRequest.php`
-  - [ ] 2.2 Define base validation rules:
+- [x] **Task 2: Create RegisterProducerRequest Form Request** (AC: #1, #2, #3, #4, #5, #6)
+  - [x] 2.1 Create `app/Http/Requests/Auth/RegisterProducerRequest.php`
+  - [x] 2.2 Define base validation rules:
     - type: required, in:agency,particulier
     - email: required, email, unique:users
     - password: required, min:8, regex:/^(?=.*[A-Z])(?=.*\d)/, confirmed
-  - [ ] 2.3 Add conditional validation in `withValidator()`:
+  - [x] 2.3 Add conditional validation in `withValidator()`:
     - If type = 'agency': agency_name required, string, max:255
     - If type = 'particulier': first_name required, string, max:255; last_name required, string, max:255
-  - [ ] 2.4 Add French error messages in `messages()` method
+  - [x] 2.4 Add French error messages in `messages()` method
 
-- [ ] **Task 3: Create ProducerRegistrationService** (AC: #1, #2)
-  - [ ] 3.1 Create `app/Services/Auth/ProducerRegistrationService.php`
-  - [ ] 3.2 Implement `register(array $validated): array` method
-  - [ ] 3.3 Use DB transaction for atomic User + Producer creation
-  - [ ] 3.4 Create Producer with type-specific fields:
+- [x] **Task 3: Create ProducerRegistrationService** (AC: #1, #2)
+  - [x] 3.1 Create `app/Services/Auth/ProducerRegistrationService.php`
+  - [x] 3.2 Implement `register(array $validated): array` method
+  - [x] 3.3 Use DB transaction for atomic User + Producer creation
+  - [x] 3.4 Create Producer with type-specific fields:
     - Agency: type='agency', agency_name
     - Particulier: type='particulier', first_name, last_name
-  - [ ] 3.5 Create User with userable_type = Producer::class, link via userable morph
-  - [ ] 3.6 Generate Sanctum token via `$user->createToken('auth-token')`
-  - [ ] 3.7 Return ['user' => UserResource, 'token' => string]
+  - [x] 3.5 Create User with userable_type = Producer::class, link via userable morph
+  - [x] 3.6 Generate Sanctum token via `$user->createToken('auth-token')`
+  - [x] 3.7 Return ['user' => UserResource, 'token' => string]
 
-- [ ] **Task 4: Create RegisterProducerController** (AC: #1, #2, #3, #4)
-  - [ ] 4.1 Create `app/Http/Controllers/Api/V1/Auth/RegisterProducerController.php`
-  - [ ] 4.2 Implement `__invoke(RegisterProducerRequest $request)` method
-  - [ ] 4.3 Inject ProducerRegistrationService
-  - [ ] 4.4 Return API envelope format with 201 status
+- [x] **Task 4: Create RegisterProducerController** (AC: #1, #2, #3, #4)
+  - [x] 4.1 Create `app/Http/Controllers/Api/V1/Auth/RegisterProducerController.php`
+  - [x] 4.2 Implement `__invoke(RegisterProducerRequest $request)` method
+  - [x] 4.3 Inject ProducerRegistrationService
+  - [x] 4.4 Return API envelope format with 201 status
 
-- [ ] **Task 5: Create ProducerResource** (AC: #1, #2)
-  - [ ] 5.1 Create `app/Http/Resources/ProducerResource.php`
-  - [ ] 5.2 Include fields: id, type, agency_name (if agency), first_name/last_name (if particulier), display_name computed
-  - [ ] 5.3 Update UserResource to include producer data when userable_type is Producer
+- [x] **Task 5: Create ProducerResource** (AC: #1, #2)
+  - [x] 5.1 Create `app/Http/Resources/ProducerResource.php`
+  - [x] 5.2 Include fields: id, type, agency_name (if agency), first_name/last_name (if particulier), display_name computed
+  - [x] 5.3 Update UserResource to include producer data when userable_type is Producer
 
-- [ ] **Task 6: Register API Route** (AC: #1)
-  - [ ] 6.1 Add route in `routes/api.php`: `POST /api/v1/auth/register/producer`
-  - [ ] 6.2 Ensure route is public (no auth middleware)
-  - [ ] 6.3 Apply throttle:5,1 middleware for rate limiting
+- [x] **Task 6: Register API Route** (AC: #1)
+  - [x] 6.1 Add route in `routes/api.php`: `POST /api/v1/auth/register/producer`
+  - [x] 6.2 Ensure route is public (no auth middleware)
+  - [x] 6.3 Apply throttle:5,1 middleware for rate limiting
 
-- [ ] **Task 7: Backend Tests** (AC: #1, #2, #3, #4, #5, #6)
-  - [ ] 7.1 Create `tests/Feature/Auth/ProducerRegistrationTest.php`
-  - [ ] 7.2 Test successful Agency registration returns 201 with token
-  - [ ] 7.3 Test successful Particulier registration returns 201 with token
-  - [ ] 7.4 Test duplicate email returns 422 with error
-  - [ ] 7.5 Test weak password returns 422 with requirements
-  - [ ] 7.6 Test Agency without agency_name returns 422
-  - [ ] 7.7 Test Particulier without first_name/last_name returns 422
-  - [ ] 7.8 Test Producer record is linked to User via polymorphic
+- [x] **Task 7: Backend Tests** (AC: #1, #2, #3, #4, #5, #6)
+  - [x] 7.1 Create `tests/Feature/Auth/ProducerRegistrationTest.php`
+  - [x] 7.2 Test successful Agency registration returns 201 with token
+  - [x] 7.3 Test successful Particulier registration returns 201 with token
+  - [x] 7.4 Test duplicate email returns 422 with error
+  - [x] 7.5 Test weak password returns 422 with requirements
+  - [x] 7.6 Test Agency without agency_name returns 422
+  - [x] 7.7 Test Particulier without first_name/last_name returns 422
+  - [x] 7.8 Test Producer record is linked to User via polymorphic
 
 ### Frontend Tasks
 
-- [ ] **Task 8: Create Registration Types** (AC: #1, #2)
-  - [ ] 8.1 Add types in `frontend/src/features/auth/types.ts`:
+- [x] **Task 8: Create Registration Types** (AC: #1, #2)
+  - [x] 8.1 Add types in `frontend/src/features/auth/types.ts`:
     ```typescript
     type ProducerType = 'agency' | 'particulier';
 
@@ -111,60 +111,60 @@ so that **I can access the platform to find talents for my projects**.
     type ProducerRegistrationForm = AgencyRegistrationForm | ParticulierRegistrationForm;
     ```
 
-- [ ] **Task 9: Create Zod Validation Schema** (AC: #4, #5, #6)
-  - [ ] 9.1 Create `frontend/src/features/auth/schemas/producerRegistration.ts`
-  - [ ] 9.2 Define discriminated union Zod schema with type field
-  - [ ] 9.3 Agency schema: type='agency', email, password, password_confirmation, agency_name required
-  - [ ] 9.4 Particulier schema: type='particulier', email, password, password_confirmation, first_name, last_name required
-  - [ ] 9.5 Add French error messages matching backend
+- [x] **Task 9: Create Zod Validation Schema** (AC: #4, #5, #6)
+  - [x] 9.1 Create `frontend/src/features/auth/schemas/producerRegistration.ts`
+  - [x] 9.2 Define discriminated union Zod schema with type field
+  - [x] 9.3 Agency schema: type='agency', email, password, password_confirmation, agency_name required
+  - [x] 9.4 Particulier schema: type='particulier', email, password, password_confirmation, first_name, last_name required
+  - [x] 9.5 Add French error messages matching backend
 
-- [ ] **Task 10: Update authApi Service** (AC: #1, #2)
-  - [ ] 10.1 Add to `frontend/src/features/auth/services/authApi.ts`:
+- [x] **Task 10: Update authApi Service** (AC: #1, #2)
+  - [x] 10.1 Add to `frontend/src/features/auth/services/authApi.ts`:
     ```typescript
     registerProducer(data: ProducerRegistrationForm): Promise<AuthResponse>
     ```
-  - [ ] 10.2 POST to `/api/v1/auth/register/producer`
-  - [ ] 10.3 Handle error envelope response
+  - [x] 10.2 POST to `/api/v1/auth/register/producer`
+  - [x] 10.3 Handle error envelope response
 
-- [ ] **Task 11: Update useAuth Composable** (AC: #1, #2)
-  - [ ] 11.1 Add `registerProducer(data: ProducerRegistrationForm)` method
-  - [ ] 11.2 Store token in auth store on success
-  - [ ] 11.3 Set user data in auth store (with producer role)
-  - [ ] 11.4 Return success/error for component handling
+- [x] **Task 11: Update useAuth Composable** (AC: #1, #2)
+  - [x] 11.1 Add `registerProducer(data: ProducerRegistrationForm)` method
+  - [x] 11.2 Store token in auth store on success
+  - [x] 11.3 Set user data in auth store (with producer role)
+  - [x] 11.4 Return success/error for component handling
 
-- [ ] **Task 12: Create ProducerRegistrationForm Component** (AC: #1, #2, #3, #4, #5, #6)
-  - [ ] 12.1 Create `frontend/src/features/auth/components/ProducerRegistrationForm.vue`
-  - [ ] 12.2 Use VeeValidate with Zod discriminated union schema
-  - [ ] 12.3 Include type selector (toggle or radio: Agence / Particulier)
-  - [ ] 12.4 Conditionally render fields based on type:
+- [x] **Task 12: Create ProducerRegistrationForm Component** (AC: #1, #2, #3, #4, #5, #6)
+  - [x] 12.1 Create `frontend/src/features/auth/components/ProducerRegistrationForm.vue`
+  - [x] 12.2 Use VeeValidate with Zod discriminated union schema
+  - [x] 12.3 Include type selector (toggle or radio: Agence / Particulier)
+  - [x] 12.4 Conditionally render fields based on type:
     - Agency: agency_name field
     - Particulier: first_name, last_name fields
-  - [ ] 12.5 Common fields: email, password, password_confirmation
-  - [ ] 12.6 Display inline validation errors
-  - [ ] 12.7 Display API errors (email taken, etc.)
-  - [ ] 12.8 Show loading state on submit button
-  - [ ] 12.9 Emit success event on registration
+  - [x] 12.5 Common fields: email, password, password_confirmation
+  - [x] 12.6 Display inline validation errors
+  - [x] 12.7 Display API errors (email taken, etc.)
+  - [x] 12.8 Show loading state on submit button
+  - [x] 12.9 Emit success event on registration
 
-- [ ] **Task 13: Create ProducerRegistrationPage** (AC: #1, #2)
-  - [ ] 13.1 Create `frontend/src/pages/auth/RegisterProducerPage.vue`
-  - [ ] 13.2 Include ProducerRegistrationForm component
-  - [ ] 13.3 Handle success: redirect to /producer/dashboard
-  - [ ] 13.4 Include link to Face registration
-  - [ ] 13.5 Include link to Login page
+- [x] **Task 13: Create ProducerRegistrationPage** (AC: #1, #2)
+  - [x] 13.1 Create `frontend/src/pages/auth/RegisterProducerPage.vue`
+  - [x] 13.2 Include ProducerRegistrationForm component
+  - [x] 13.3 Handle success: redirect to /producer/dashboard
+  - [x] 13.4 Include link to Face registration
+  - [x] 13.5 Include link to Login page
 
-- [ ] **Task 14: Add Route & Guard** (AC: #1)
-  - [ ] 14.1 Add route `/register/producer` in router
-  - [ ] 14.2 Apply guest guard (redirect if already logged in)
-  - [ ] 14.3 Lazy load the page component
+- [x] **Task 14: Add Route & Guard** (AC: #1)
+  - [x] 14.1 Add route `/register/producer` in router
+  - [x] 14.2 Apply guest guard (redirect if already logged in)
+  - [x] 14.3 Lazy load the page component
 
-- [ ] **Task 15: Frontend Tests** (AC: #1, #4, #5, #6)
-  - [ ] 15.1 Create `ProducerRegistrationForm.spec.ts`
-  - [ ] 15.2 Test form renders type selector
-  - [ ] 15.3 Test Agency fields shown when type='agency'
-  - [ ] 15.4 Test Particulier fields shown when type='particulier'
-  - [ ] 15.5 Test validation errors display for each type
-  - [ ] 15.6 Test successful submission calls API
-  - [ ] 15.7 Test loading state during submission
+- [x] **Task 15: Frontend Tests** (AC: #1, #4, #5, #6)
+  - [x] 15.1 Create `ProducerRegistrationForm.spec.ts`
+  - [x] 15.2 Test form renders type selector
+  - [x] 15.3 Test Agency fields shown when type='agency'
+  - [x] 15.4 Test Particulier fields shown when type='particulier'
+  - [x] 15.5 Test validation errors display for each type
+  - [x] 15.6 Test successful submission calls API
+  - [x] 15.7 Test loading state during submission
 
 ## Dev Notes
 
@@ -769,11 +769,48 @@ Route::post('/auth/register/producer', RegisterProducerController::class)
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.5 (claude-opus-4-5-20251101)
 
 ### Debug Log References
 
+- Backend tests: 12 tests passed, 99 assertions
+- Frontend tests: 19 tests passed (12 ProducerRegistrationForm + 7 FaceRegistrationForm)
+
 ### Completion Notes List
 
+1. Created ProducerType PHP enum with Agency/Particulier values
+2. Added display_name accessor to Producer model for computed display name
+3. RegisterProducerRequest uses conditional validation (required_if) for type-specific fields
+4. ProducerRegistrationService follows FaceRegistrationService pattern with DB transactions
+5. ProducerResource includes display_name computed field
+6. Frontend uses dynamic Zod schema based on selected producer type
+7. ProducerRegistrationForm component includes type selector toggle, password visibility toggles
+8. RegisterProducerPage matches design with split-screen layout (form left, branding right)
+9. Route added with guest guard (meta: { guest: true })
+
 ### File List
+
+**Backend Files Created:**
+- `backend/app/Enums/ProducerType.php`
+- `backend/app/Http/Controllers/Api/V1/Auth/RegisterProducerController.php`
+- `backend/app/Http/Requests/Auth/RegisterProducerRequest.php`
+- `backend/app/Services/Auth/ProducerRegistrationService.php`
+- `backend/tests/Feature/Auth/ProducerRegistrationTest.php`
+
+**Backend Files Modified:**
+- `backend/app/Models/Producer.php` (added display_name accessor, type cast to enum)
+- `backend/app/Http/Resources/ProducerResource.php` (added display_name field)
+- `backend/routes/api.php` (added producer registration route)
+
+**Frontend Files Created:**
+- `frontend/src/features/auth/schemas/producerRegistration.ts`
+- `frontend/src/features/auth/components/ProducerRegistrationForm.vue`
+- `frontend/src/features/auth/components/__tests__/ProducerRegistrationForm.spec.ts`
+- `frontend/src/pages/auth/RegisterProducerPage.vue`
+
+**Frontend Files Modified:**
+- `frontend/src/features/auth/types.ts` (added Producer types)
+- `frontend/src/features/auth/services/authApi.ts` (added registerProducer method)
+- `frontend/src/features/auth/composables/useAuth.ts` (added registerProducer method)
+- `frontend/src/router/index.ts` (updated /register/producer route)
 

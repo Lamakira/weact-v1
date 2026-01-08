@@ -51,7 +51,7 @@ development_status:
   # Epic 2: Authentication & User Accounts (6 stories)
   epic-2: in-progress
   2-1-face-registration: done
-  2-2-producer-registration: ready-for-dev
+  2-2-producer-registration: done
   2-3-user-login: backlog
   2-4-user-logout: backlog
   2-5-password-reset: backlog
