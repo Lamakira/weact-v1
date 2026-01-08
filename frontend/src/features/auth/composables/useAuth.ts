@@ -1,10 +1,17 @@
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { authApi, getApiErrorDetails, getApiErrorMessage } from '../services/authApi'
-import type { FaceRegistrationForm } from '../types'
+import type { FaceRegistrationForm, ProducerRegistrationForm } from '../types'
+
+export interface AuthResult {
+  success: boolean
+  errors?: Record<string, string[]>
+  message?: string
+}
 
 export interface UseAuthReturn {
-  registerFace: (data: FaceRegistrationForm) => Promise<{ success: boolean; errors?: Record<string, string[]>; message?: string }>
+  registerFace: (data: FaceRegistrationForm) => Promise<AuthResult>
+  registerProducer: (data: ProducerRegistrationForm) => Promise<AuthResult>
   logout: () => void
   isAuthenticated: ReturnType<typeof useAuthStore>['isAuthenticated']
   isLoading: ReturnType<typeof useAuthStore>['isLoading']
@@ -23,13 +30,35 @@ export function useAuth(): UseAuthReturn {
   /**
    * Register a new Face user
    */
-  async function registerFace(
-    data: FaceRegistrationForm
-  ): Promise<{ success: boolean; errors?: Record<string, string[]>; message?: string }> {
+  async function registerFace(data: FaceRegistrationForm): Promise<AuthResult> {
     authStore.setLoading(true)
 
     try {
       const response = await authApi.registerFace(data)
+
+      // Store token and user data
+      authStore.setToken(response.data.token)
+      authStore.setUser(response.data.user)
+
+      return { success: true }
+    } catch (error) {
+      const errors = getApiErrorDetails(error)
+      const message = getApiErrorMessage(error)
+
+      return { success: false, errors, message }
+    } finally {
+      authStore.setLoading(false)
+    }
+  }
+
+  /**
+   * Register a new Producer user (Agency or Particulier)
+   */
+  async function registerProducer(data: ProducerRegistrationForm): Promise<AuthResult> {
+    authStore.setLoading(true)
+
+    try {
+      const response = await authApi.registerProducer(data)
 
       // Store token and user data
       authStore.setToken(response.data.token)
@@ -56,6 +85,7 @@ export function useAuth(): UseAuthReturn {
 
   return {
     registerFace,
+    registerProducer,
     logout,
     isAuthenticated: authStore.isAuthenticated,
     isLoading: authStore.isLoading,
