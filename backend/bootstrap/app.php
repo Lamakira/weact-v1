@@ -15,6 +15,12 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+
+        // Exclude public API routes from CSRF verification
+        // These routes use token-based auth after registration
+        $middleware->validateCsrfTokens(except: [
+            'api/v1/auth/*',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
