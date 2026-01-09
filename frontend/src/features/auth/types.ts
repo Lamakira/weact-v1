@@ -2,6 +2,12 @@
  * Auth feature types
  */
 
+// Login form data
+export interface LoginForm {
+  email: string
+  password: string
+}
+
 // Registration form data - Face
 export interface FaceRegistrationForm {
   nom: string
@@ -90,10 +96,3 @@ export interface ApiError {
   }
 }
 
-// Auth state
-export interface AuthState {
-  user: User | null
-  token: string | null
-  isAuthenticated: boolean
-  isLoading: boolean
-}
