@@ -31,7 +31,7 @@ const router = createRouter({
     {
       path: '/login',
       name: 'login',
-      component: () => import('../pages/auth/RegisterFacePage.vue'), // Placeholder until Login is implemented
+      component: () => import('../pages/auth/LoginPage.vue'),
       meta: { guest: true },
     },
     // Face routes (auth required + Face role)
@@ -41,12 +41,20 @@ const router = createRouter({
       component: () => import('../views/HomeView.vue'), // Placeholder until Face dashboard is implemented
       meta: { requiresAuth: true, role: 'Face' },
     },
+    {
+      path: '/dashboard/face',
+      redirect: { name: 'face-dashboard' },
+    },
     // Producer routes (auth required + Producer role)
     {
       path: '/producer/dashboard',
       name: 'producer-dashboard',
       component: () => import('../views/HomeView.vue'), // Placeholder until Producer dashboard is implemented
       meta: { requiresAuth: true, role: 'Producer' },
+    },
+    {
+      path: '/dashboard/producer',
+      redirect: { name: 'producer-dashboard' },
     },
   ],
 })
