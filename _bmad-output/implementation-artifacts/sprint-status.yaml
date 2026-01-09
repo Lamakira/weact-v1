@@ -52,7 +52,7 @@ development_status:
   epic-2: in-progress
   2-1-face-registration: done
   2-2-producer-registration: done
-  2-3-user-login: backlog
+  2-3-user-login: done
   2-4-user-logout: backlog
   2-5-password-reset: backlog
   2-6-authentication-frontend-integration: backlog
