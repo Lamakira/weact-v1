@@ -9,13 +9,15 @@ import type {
 
 /**
  * Auth API service
+ * Uses Laravel Sanctum SPA cookie-based authentication
+ * CSRF cookie must be fetched before any state-changing requests
  */
 export const authApi = {
   /**
    * Register a new Face user
    */
   async registerFace(data: FaceRegistrationForm): Promise<AuthResponse> {
-    // Get CSRF cookie before registration (required for stateful SPA auth)
+    // MANDATORY: Get CSRF cookie before registration (Sanctum SPA auth)
     await getCsrfCookie()
     const response = await apiClient.post<AuthResponse>('/auth/register/face', data)
     return response.data
@@ -25,7 +27,7 @@ export const authApi = {
    * Register a new Producer user (Agency or Particulier)
    */
   async registerProducer(data: ProducerRegistrationForm): Promise<AuthResponse> {
-    // Get CSRF cookie before registration (required for stateful SPA auth)
+    // MANDATORY: Get CSRF cookie before registration (Sanctum SPA auth)
     await getCsrfCookie()
     const response = await apiClient.post<AuthResponse>('/auth/register/producer', data)
     return response.data

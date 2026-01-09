@@ -14,13 +14,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Enable Sanctum SPA stateful authentication
+        // This applies EnsureFrontendRequestsAreStateful middleware to API routes
+        // CSRF protection is active for all stateful requests
         $middleware->statefulApi();
-
-        // Exclude public API routes from CSRF verification
-        // These routes use token-based auth after registration
-        $middleware->validateCsrfTokens(except: [
-            'api/v1/auth/*',
-        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

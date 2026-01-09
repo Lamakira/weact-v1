@@ -18,18 +18,24 @@ const TOKEN_KEY = 'auth_token'
 
 /**
  * Get XSRF token from cookies
+ * Required for cross-origin requests where Axios automatic XSRF handling doesn't work
  */
 function getXsrfTokenFromCookie(): string | null {
   const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/)
   if (match && match[1]) {
-    // The cookie value is URL encoded, so decode it
+    // The cookie value is URL encoded, decode it
     return decodeURIComponent(match[1])
   }
   return null
 }
 
 /**
- * Create configured Axios instance
+ * Configure Axios defaults for Sanctum SPA authentication
+ */
+axios.defaults.withCredentials = true
+
+/**
+ * Create configured Axios instance for API requests
  */
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -38,9 +44,7 @@ const apiClient: AxiosInstance = axios.create({
     Accept: 'application/json',
   },
   timeout: 30000,
-  withCredentials: true, // Required for CSRF cookies
-  xsrfCookieName: 'XSRF-TOKEN',
-  xsrfHeaderName: 'X-XSRF-TOKEN',
+  withCredentials: true,
 })
 
 /**
@@ -48,14 +52,14 @@ const apiClient: AxiosInstance = axios.create({
  */
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // Add auth token if available
+    // Add Bearer token if available (for token-based auth after login)
     const token = localStorage.getItem(TOKEN_KEY)
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
     }
 
-    // Manually add XSRF token for non-GET requests
-    // This is needed because axios automatic XSRF handling may not work cross-origin
+    // CRITICAL: Manually add XSRF token for cross-origin requests
+    // Axios automatic XSRF handling does NOT work for cross-origin requests
     if (config.method && !['get', 'head', 'options'].includes(config.method.toLowerCase())) {
       const xsrfToken = getXsrfTokenFromCookie()
       if (xsrfToken && config.headers) {
@@ -87,7 +91,10 @@ apiClient.interceptors.response.use(
 
 /**
  * Fetch CSRF cookie from Sanctum before making stateful requests
- * Must be called before POST/PUT/PATCH/DELETE requests for unauthenticated users
+ * MUST be called before any POST/PUT/PATCH/DELETE requests (login, register, etc.)
+ * This is required for Laravel Sanctum SPA cookie-based authentication
+ *
+ * @throws {Error} If the CSRF cookie request fails
  */
 export async function getCsrfCookie(): Promise<void> {
   await axios.get(`${BACKEND_URL}/sanctum/csrf-cookie`, {
