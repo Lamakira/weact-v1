@@ -3,6 +3,7 @@ import type { AxiosError } from 'axios'
 import type {
   FaceRegistrationForm,
   ProducerRegistrationForm,
+  LoginForm,
   AuthResponse,
   ApiError,
 } from '../types'
@@ -32,6 +33,16 @@ export const authApi = {
     const response = await apiClient.post<AuthResponse>('/auth/register/producer', data)
     return response.data
   },
+
+  /**
+   * Login a user with email and password
+   */
+  async login(data: LoginForm): Promise<AuthResponse> {
+    // MANDATORY: Get CSRF cookie before login (Sanctum SPA auth)
+    await getCsrfCookie()
+    const response = await apiClient.post<AuthResponse>('/auth/login', data)
+    return response.data
+  },
 }
 
 /**
@@ -55,7 +66,7 @@ export function isAxiosError(error: unknown): error is AxiosError {
     typeof error === 'object' &&
     error !== null &&
     'isAxiosError' in error &&
-    (error as AxiosError).isAxiosError === true
+    (error as AxiosError).isAxiosError
   )
 }
 
@@ -86,15 +97,17 @@ export function getApiErrorDetails(error: unknown): Record<string, string[]> {
 export function getApiErrorMessage(error: unknown): string {
   const status = getErrorStatus(error)
 
-  // Handle specific status codes with user-friendly messages
+  // First, try to get the actual message from API error response
+  // This handles cases like login errors where backend returns specific messages
+  if (isApiError(error) && error.response?.data?.error?.message) {
+    return error.response.data.error.message
+  }
+
+  // Handle specific status codes with fallback user-friendly messages
   switch (status) {
     case 419:
       return 'Votre session a expiré, veuillez rafraîchir la page.'
     case 422:
-      // Return the actual validation message from backend
-      if (isApiError(error) && error.response?.data?.error?.message) {
-        return error.response.data.error.message
-      }
       return 'Les données fournies ne sont pas valides.'
     case 429:
       return 'Trop de tentatives. Veuillez réessayer dans quelques instants.'
@@ -109,13 +122,8 @@ export function getApiErrorMessage(error: unknown): string {
     case 404:
       return 'La ressource demandée n\'existe pas.'
     default:
-      // Try to get message from API error response
-      if (isApiError(error) && error.response?.data?.error?.message) {
-        return error.response.data.error.message
-      }
       // Generic error message
       return 'Une erreur est survenue. Veuillez réessayer.'
   }
 }
 
-export default authApi
