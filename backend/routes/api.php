@@ -3,9 +3,13 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Auth\LoginController;
+use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\RegisterFaceController;
 use App\Http\Controllers\Api\V1\Auth\RegisterProducerController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Symfony\Component\HttpFoundation\Response;
+use Laravel\Sanctum\PersonalAccessToken;
 
 /*
 |--------------------------------------------------------------------------
@@ -43,11 +47,28 @@ Route::prefix('v1')->group(function (): void {
 
     // Protected routes
     Route::middleware('auth:sanctum')->group(function (): void {
-        Route::get('/user', fn() => response()->json([
-            'data' => request()->user(),
-            'meta' => [],
-            'message' => 'Authenticated user retrieved'
-        ]));
+        Route::get('/user', function (Request $request) {
+            $plainTextToken = $request->bearerToken();
+            $token = $plainTextToken ? PersonalAccessToken::findToken($plainTextToken) : null;
+
+            if ($token === null) {
+                return response()->json([
+                    'error' => [
+                        'message' => 'Unauthenticated',
+                        'code' => 'UNAUTHENTICATED',
+                    ],
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+
+            return response()->json([
+                'data' => $request->user(),
+                'meta' => [],
+                'message' => 'Authenticated user retrieved'
+            ]);
+        });
+
+        // Logout route (protected - requires authentication)
+        Route::post('/auth/logout', LogoutController::class)
+            ->name('auth.logout');
     });
 });
-

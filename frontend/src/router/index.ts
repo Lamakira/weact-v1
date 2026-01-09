@@ -38,7 +38,7 @@ const router = createRouter({
     {
       path: '/face/dashboard',
       name: 'face-dashboard',
-      component: () => import('../views/HomeView.vue'), // Placeholder until Face dashboard is implemented
+      component: () => import('../pages/dashboard/FaceDashboardPage.vue'),
       meta: { requiresAuth: true, role: 'Face' },
     },
     {
@@ -49,7 +49,7 @@ const router = createRouter({
     {
       path: '/producer/dashboard',
       name: 'producer-dashboard',
-      component: () => import('../views/HomeView.vue'), // Placeholder until Producer dashboard is implemented
+      component: () => import('../pages/dashboard/ProducerDashboardPage.vue'),
       meta: { requiresAuth: true, role: 'Producer' },
     },
     {

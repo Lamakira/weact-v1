@@ -13,7 +13,7 @@ export interface UseAuthReturn {
   login: (data: LoginForm) => Promise<AuthResult>
   registerFace: (data: FaceRegistrationForm) => Promise<AuthResult>
   registerProducer: (data: ProducerRegistrationForm) => Promise<AuthResult>
-  logout: () => void
+  logout: () => Promise<void>
   isAuthenticated: ReturnType<typeof useAuthStore>['isAuthenticated']
   isLoading: ReturnType<typeof useAuthStore>['isLoading']
   user: ReturnType<typeof useAuthStore>['user']
@@ -102,10 +102,24 @@ export function useAuth(): UseAuthReturn {
 
   /**
    * Logout the current user
+   * Calls API to revoke token, then clears local state regardless of API result
    */
-  function logout(): void {
-    authStore.clearAuth()
-    router.push('/login')
+  async function logout(): Promise<void> {
+    authStore.setLoading(true)
+
+    try {
+      await authApi.logout()
+    } catch (error) {
+      console.warn('[Auth] Logout API call failed, clearing local state anyway', error)
+    } finally {
+      authStore.clearAuth()
+      authStore.setLoading(false)
+      // Redirect to login page; guard against undefined push in tests
+      const push = router.push?.bind(router) ?? router.push
+      if (push) {
+        await push('/login')
+      }
+    }
   }
 
   return {
@@ -120,4 +134,3 @@ export function useAuth(): UseAuthReturn {
     isProducer: authStore.isProducer,
   }
 }
-
