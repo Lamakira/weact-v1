@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Auth\ForgotPasswordController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\RegisterFaceController;
 use App\Http\Controllers\Api\V1\Auth\RegisterProducerController;
+use App\Http\Controllers\Api\V1\Auth\ResetPasswordController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -43,6 +45,13 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/login', LoginController::class)
             ->middleware('throttle:5,1')
             ->name('auth.login');
+
+        Route::post('/forgot-password', ForgotPasswordController::class)
+            ->middleware('throttle:5,1')
+            ->name('auth.forgot-password');
+
+        Route::post('/reset-password', ResetPasswordController::class)
+            ->name('auth.reset-password');
     });
 
     // Protected routes
