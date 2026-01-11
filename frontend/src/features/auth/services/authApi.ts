@@ -6,6 +6,7 @@ import type {
   LoginForm,
   AuthResponse,
   ApiError,
+  ResetPasswordData,
 } from '../types'
 
 /**
@@ -51,6 +52,22 @@ export const authApi = {
   async logout(): Promise<void> {
     await getCsrfCookie()
     await apiClient.post('/auth/logout')
+  },
+
+  /**
+   * Request password reset email
+   */
+  async forgotPassword(email: string): Promise<void> {
+    await getCsrfCookie()
+    await apiClient.post('/auth/forgot-password', { email })
+  },
+
+  /**
+   * Reset password with token
+   */
+  async resetPassword(data: ResetPasswordData): Promise<void> {
+    await getCsrfCookie()
+    await apiClient.post('/auth/reset-password', data)
   },
 }
 
