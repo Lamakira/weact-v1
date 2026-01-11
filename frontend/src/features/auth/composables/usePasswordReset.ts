@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { authApi, getApiErrorMessage } from '../services/authApi'
+import { useToast } from '@/composables/useToast'
 import type { ResetPasswordData } from '../types'
 
 /**
@@ -8,6 +9,7 @@ import type { ResetPasswordData } from '../types'
  */
 export function usePasswordReset() {
   const router = useRouter()
+  const toast = useToast()
 
   const isLoading = ref(false)
   const error = ref<string | null>(null)
@@ -24,9 +26,12 @@ export function usePasswordReset() {
     try {
       await authApi.forgotPassword(email)
       successMessage.value = 'Email envoyé'
+      toast.success('Un email de réinitialisation a été envoyé')
       return true
     } catch (err) {
-      error.value = getApiErrorMessage(err)
+      const errorMessage = getApiErrorMessage(err)
+      error.value = errorMessage
+      toast.error(errorMessage)
       return false
     } finally {
       isLoading.value = false
@@ -44,6 +49,7 @@ export function usePasswordReset() {
     try {
       await authApi.resetPassword(data)
       successMessage.value = 'Mot de passe réinitialisé avec succès'
+      toast.success('Mot de passe réinitialisé avec succès')
       // Redirect to login after successful reset
       await router.push({
         path: '/login',
@@ -51,7 +57,9 @@ export function usePasswordReset() {
       })
       return true
     } catch (err) {
-      error.value = getApiErrorMessage(err)
+      const errorMessage = getApiErrorMessage(err)
+      error.value = errorMessage
+      toast.error(errorMessage)
       return false
     } finally {
       isLoading.value = false
