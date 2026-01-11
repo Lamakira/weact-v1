@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 class Face extends Model
@@ -66,5 +67,13 @@ class Face extends Model
                 ? asset('storage/avatars/faces/thumbnails/' . $this->profile_photo_thumbnail)
                 : null,
         );
+    }
+
+    /**
+     * Get the album photos for this Face.
+     */
+    public function photos(): HasMany
+    {
+        return $this->hasMany(FacePhoto::class)->orderBy('position');
     }
 }
