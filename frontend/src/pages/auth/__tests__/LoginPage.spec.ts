@@ -12,6 +12,18 @@ vi.mock('@/features/auth/components/LoginForm.vue', () => ({
   },
 }))
 
+// Mock useToast composable
+const mockToast = {
+  success: vi.fn(),
+  error: vi.fn(),
+  warning: vi.fn(),
+  info: vi.fn(),
+}
+
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => mockToast,
+}))
+
 describe('LoginPage', () => {
   let router: ReturnType<typeof createRouter>
 
@@ -22,8 +34,12 @@ describe('LoginPage', () => {
       history: createMemoryHistory(),
       routes: [
         { path: '/login', name: 'login', component: LoginPage },
-        { path: '/dashboard/face', name: 'face-dashboard', component: { template: '<div>Face Dashboard</div>' } },
-        { path: '/dashboard/producer', name: 'producer-dashboard', component: { template: '<div>Producer Dashboard</div>' } },
+        { path: '/face/dashboard', name: 'face-dashboard', component: { template: '<div>Face Dashboard</div>' } },
+        { path: '/producer/dashboard', name: 'producer-dashboard', component: { template: '<div>Producer Dashboard</div>' } },
+        { path: '/forgot-password', name: 'forgot-password', component: { template: '<div>Forgot Password</div>' } },
+        { path: '/register/face', name: 'register-face', component: { template: '<div>Register Face</div>' } },
+        { path: '/register/producer', name: 'register-producer', component: { template: '<div>Register Producer</div>' } },
+        { path: '/some-protected-route', name: 'protected', component: { template: '<div>Protected</div>' } },
       ],
     })
   })
@@ -69,5 +85,48 @@ describe('LoginPage', () => {
     const link = wrapper.find('a[href="/forgot-password"]')
     expect(link.exists()).toBe(true)
     expect(link.text()).toContain('Mot de passe oublié ?')
+  })
+
+  describe('Session Expired Message', () => {
+    it('displays warning message when redirected with session-expired param', async () => {
+      const wrapper = await mountComponent({ message: 'session-expired' })
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="warning-message"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="warning-message"]').text()).toContain('Session expirée')
+    })
+
+    it('shows toast notification for session expired', async () => {
+      await mountComponent({ message: 'session-expired' })
+      await flushPromises()
+
+      expect(mockToast.warning).toHaveBeenCalledWith('Session expirée, veuillez vous reconnecter')
+    })
+
+    it('does not display warning message without query param', async () => {
+      const wrapper = await mountComponent()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="warning-message"]').exists()).toBe(false)
+    })
+
+    it('preserves redirect param when clearing session-expired message', async () => {
+      await mountComponent({ message: 'session-expired', redirect: '/some-protected-route' })
+      await flushPromises()
+
+      // Should have replaced URL with redirect param preserved
+      expect(router.currentRoute.value.query.redirect).toBe('/some-protected-route')
+      expect(router.currentRoute.value.query.message).toBeUndefined()
+    })
+  })
+
+  describe('Post-Login Redirect', () => {
+    it('preserves redirect query param in URL after session expired cleanup', async () => {
+      await mountComponent({ message: 'session-expired', redirect: '/some-protected-route' })
+      await flushPromises()
+
+      // The redirect param should be preserved for use after login
+      expect(router.currentRoute.value.query.redirect).toBe('/some-protected-route')
+    })
   })
 })
