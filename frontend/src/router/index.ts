@@ -34,6 +34,18 @@ const router = createRouter({
       component: () => import('../pages/auth/LoginPage.vue'),
       meta: { guest: true },
     },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('../pages/auth/ForgotPasswordPage.vue'),
+      meta: { guest: true },
+    },
+    {
+      path: '/reset-password/:token',
+      name: 'reset-password',
+      component: () => import('../pages/auth/ResetPasswordPage.vue'),
+      meta: { guest: true },
+    },
     // Face routes (auth required + Face role)
     {
       path: '/face/dashboard',
