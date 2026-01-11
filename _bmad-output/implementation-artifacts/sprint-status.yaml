@@ -60,7 +60,7 @@ development_status:
 
   # Epic 3: Face Profile & Portfolio (11 stories)
   epic-3: in-progress
-  3-1-face-profile-photo-upload: ready-for-dev
+  3-1-face-profile-photo-upload: done
   3-2-face-photo-album-management: backlog
   3-3-face-presentation-video-upload: backlog
   3-4-face-acting-video-upload: backlog
