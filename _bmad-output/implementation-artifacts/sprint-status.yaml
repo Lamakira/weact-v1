@@ -51,16 +51,16 @@ development_status:
   # Epic 2: Authentication & User Accounts (6 stories)
   epic-2: in-progress
   2-1-face-registration: done
-  2-2-producer-registration: backlog
-  2-3-user-login: backlog
-  2-4-user-logout: backlog
-  2-5-password-reset: backlog
-  2-6-authentication-frontend-integration: backlog
+  2-2-producer-registration: done
+  2-3-user-login: done
+  2-4-user-logout: done
+  2-5-password-reset: done
+  2-6-authentication-frontend-integration: done
   epic-2-retrospective: optional
 
   # Epic 3: Face Profile & Portfolio (11 stories)
-  epic-3: backlog
-  3-1-face-profile-photo-upload: backlog
+  epic-3: in-progress
+  3-1-face-profile-photo-upload: done
   3-2-face-photo-album-management: backlog
   3-3-face-presentation-video-upload: backlog
   3-4-face-acting-video-upload: backlog

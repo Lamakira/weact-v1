@@ -195,7 +195,7 @@ npm run test:frontend
 
 ## 📄 License
 
-[License TBD]
+MIT
 
 ---
 

@@ -1,34 +1,15 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterView } from 'vue-router'
+import AppHeader from '@/components/layout/AppHeader.vue'
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <div class="min-h-screen bg-gray-50 flex flex-col">
     <!-- Header -->
-    <header class="bg-primary-500 text-white shadow-lg">
-      <div class="max-w-7xl mx-auto px-4 py-4">
-        <div class="flex items-center justify-between">
-          <h1 class="text-2xl font-bold">WEACT</h1>
-          <nav class="flex gap-4">
-            <RouterLink
-              to="/"
-              class="px-3 py-2 rounded-md hover:bg-primary-600 transition-colors"
-            >
-              Home
-            </RouterLink>
-            <RouterLink
-              to="/about"
-              class="px-3 py-2 rounded-md hover:bg-primary-600 transition-colors"
-            >
-              About
-            </RouterLink>
-          </nav>
-        </div>
-      </div>
-    </header>
+    <AppHeader />
 
     <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-4 py-8">
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
       <RouterView />
     </main>
 
@@ -40,10 +21,3 @@ import { RouterLink, RouterView } from 'vue-router'
     </footer>
   </div>
 </template>
-
-<style scoped>
-.router-link-exact-active {
-  background-color: var(--color-primary-600);
-}
-</style>
-

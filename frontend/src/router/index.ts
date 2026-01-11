@@ -25,28 +25,54 @@ const router = createRouter({
     {
       path: '/register/producer',
       name: 'register-producer',
-      component: () => import('../pages/auth/RegisterFacePage.vue'), // Placeholder until Producer registration is implemented
+      component: () => import('../pages/auth/RegisterProducerPage.vue'),
       meta: { guest: true },
     },
     {
       path: '/login',
       name: 'login',
-      component: () => import('../pages/auth/RegisterFacePage.vue'), // Placeholder until Login is implemented
+      component: () => import('../pages/auth/LoginPage.vue'),
+      meta: { guest: true },
+    },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('../pages/auth/ForgotPasswordPage.vue'),
+      meta: { guest: true },
+    },
+    {
+      path: '/reset-password/:token',
+      name: 'reset-password',
+      component: () => import('../pages/auth/ResetPasswordPage.vue'),
       meta: { guest: true },
     },
     // Face routes (auth required + Face role)
     {
       path: '/face/dashboard',
       name: 'face-dashboard',
-      component: () => import('../views/HomeView.vue'), // Placeholder until Face dashboard is implemented
+      component: () => import('../pages/dashboard/FaceDashboardPage.vue'),
       meta: { requiresAuth: true, role: 'Face' },
+    },
+    {
+      path: '/face/profile',
+      name: 'face-profile',
+      component: () => import('../pages/face/ProfileEditPage.vue'),
+      meta: { requiresAuth: true, role: 'Face' },
+    },
+    {
+      path: '/dashboard/face',
+      redirect: { name: 'face-dashboard' },
     },
     // Producer routes (auth required + Producer role)
     {
       path: '/producer/dashboard',
       name: 'producer-dashboard',
-      component: () => import('../views/HomeView.vue'), // Placeholder until Producer dashboard is implemented
+      component: () => import('../pages/dashboard/ProducerDashboardPage.vue'),
       meta: { requiresAuth: true, role: 'Producer' },
+    },
+    {
+      path: '/dashboard/producer',
+      redirect: { name: 'producer-dashboard' },
     },
   ],
 })

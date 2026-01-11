@@ -14,6 +14,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Enable Sanctum SPA stateful authentication
+        // This applies EnsureFrontendRequestsAreStateful middleware to API routes
+        // CSRF protection is active for all stateful requests
         $middleware->statefulApi();
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -60,5 +60,16 @@ class Producer extends Model
     {
         return $this->type === ProducerType::Particulier;
     }
+
+    /**
+     * Get the display name for this producer.
+     * Returns agency_name for agencies, or "first_name last_name" for particuliers.
+     */
+    public function getDisplayNameAttribute(): string
+    {
+        return $this->type === ProducerType::Agency
+            ? ($this->agency_name ?? '')
+            : trim("{$this->first_name} {$this->last_name}");
+    }
 }
 

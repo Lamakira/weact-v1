@@ -26,7 +26,9 @@ const router = createRouter({
 // Helper to wait for VeeValidate async validation
 const waitForValidation = async () => {
   await flushPromises()
-  await new Promise((resolve) => setTimeout(resolve, 0))
+  await new Promise((resolve) => setTimeout(resolve, 10))
+  await flushPromises()
+  await new Promise((resolve) => setTimeout(resolve, 10))
   await flushPromises()
 }
 
@@ -104,7 +106,11 @@ describe('FaceRegistrationForm', () => {
   it('displays password confirmation error when passwords do not match', async () => {
     const wrapper = mountComponent()
 
-    // Fill in mismatched passwords
+    // Fill in ALL required fields with mismatched passwords
+    await wrapper.find('[data-testid="nom-input"]').setValue('Doe')
+    await wrapper.find('[data-testid="prenom-input"]').setValue('John')
+    await wrapper.find('[data-testid="username-input"]').setValue('johndoe')
+    await wrapper.find('[data-testid="email-input"]').setValue('john@example.com')
     await wrapper.find('[data-testid="password-input"]').setValue('Password123')
     await wrapper.find('[data-testid="password-confirmation-input"]').setValue('DifferentPassword123')
     await wrapper.find('form').trigger('submit')

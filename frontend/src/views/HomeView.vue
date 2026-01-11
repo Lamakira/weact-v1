@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useCounterStore } from '@/stores/counter'
 import { computed } from 'vue'
+import { Button } from '@/components/ui/button'
 
 const counter = useCounterStore()
 const env = computed(() => import.meta.env)
@@ -56,6 +57,24 @@ const env = computed(() => import.meta.env)
         </button>
       </div>
       <p class="mt-2 text-gray-600">Double count: {{ counter.doubleCount }}</p>
+    </section>
+
+    <!-- shadcn-vue Button Demo -->
+    <section class="bg-white rounded-lg shadow-md p-6">
+      <h3 class="text-2xl font-semibold mb-4">shadcn-vue Button Component</h3>
+      <div class="flex flex-wrap gap-4">
+        <Button>Default</Button>
+        <Button variant="secondary">Secondary</Button>
+        <Button variant="destructive">Destructive</Button>
+        <Button variant="outline">Outline</Button>
+        <Button variant="ghost">Ghost</Button>
+        <Button variant="link">Link</Button>
+      </div>
+      <div class="flex flex-wrap gap-4 mt-4">
+        <Button size="sm">Small</Button>
+        <Button size="default">Default</Button>
+        <Button size="lg">Large</Button>
+      </div>
     </section>
 
     <!-- Environment Variables Demo -->
