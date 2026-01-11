@@ -1,6 +1,6 @@
 # Story 2.4: User Logout
 
-Status: review
+Status: done
 
 ## Story
 
@@ -109,4 +109,35 @@ So that **my session is securely terminated**.
 - frontend/src/features/auth/composables/useAuth.ts
 - frontend/src/features/auth/composables/__tests__/useAuth.spec.ts
 - frontend/src/features/auth/services/authApi.ts
+- frontend/src/services/apiClient.ts
+- frontend/src/stores/auth.ts
 - frontend/src/router/index.ts
+- frontend/src/pages/dashboard/FaceDashboardPage.vue
+- frontend/src/pages/dashboard/ProducerDashboardPage.vue
+
+## Code Review Record
+
+### Review Date: 2026-01-11
+
+### Issues Fixed (8 total):
+
+1. **[CRITICAL] LogoutController** - Refactored to use Sanctum's recommended `$request->user()->currentAccessToken()->delete()` instead of redundant manual token lookup (as per Task 1.3 spec)
+
+2. **[HIGH] authApi.logout()** - Removed redundant try/catch that was swallowing errors. Error handling now properly delegated to caller (useAuth.ts)
+
+3. **[MEDIUM] Dashboard files** - Added `FaceDashboardPage.vue` and `ProducerDashboardPage.vue` to File List (were changed per Task 6 but not documented)
+
+4. **[MEDIUM] Loading state** - Added `isLoading` prop and disabled state to logout buttons in both dashboard pages. Shows spinner during API call, prevents double-clicks
+
+5. **[MEDIUM] Route nesting** - Moved logout route inside proper `prefix('auth')` group for consistency with other auth routes
+
+6. **[MEDIUM] Router guard** - Removed overly defensive `router.push?.bind(router)` pattern in useAuth.ts - simplified to direct `router.push('/login')`
+
+7. **[CRITICAL] User not persisted** - User data was not being saved to localStorage, only token was. This caused `isAuthenticated` to return false after navigation (token existed but user was null). Fixed by adding localStorage persistence for user in auth store.
+
+8. **[HIGH] 401 handler desync** - apiClient 401 interceptor was clearing token but not user from localStorage, causing auth state desync. Now clears both.
+
+### All Tests Passing:
+- Backend: 5/5 LogoutTest assertions pass
+- Backend: 36/36 Auth tests pass
+- Frontend: 4/4 useAuth logout tests pass
