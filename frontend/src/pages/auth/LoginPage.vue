@@ -1,10 +1,24 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import LoginForm from '@/features/auth/components/LoginForm.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
+
+// Success message for password reset redirect
+const successMessage = ref<string | null>(null)
+
+onMounted(() => {
+  // Check for password reset success message from query
+  if (route.query.message === 'password-reset-success') {
+    successMessage.value = 'Mot de passe réinitialisé avec succès. Vous pouvez maintenant vous connecter.'
+    // Clean up the URL
+    router.replace({ path: '/login' })
+  }
+})
 
 function handleLoginSuccess(): void {
   // Redirect based on user role
@@ -39,6 +53,24 @@ function handleLoginSuccess(): void {
 
     <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
       <div class="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <!-- Success Message (e.g., after password reset) -->
+        <div
+          v-if="successMessage"
+          class="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg"
+          data-testid="success-message"
+        >
+          <div class="flex items-center">
+            <svg class="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path
+                fill-rule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                clip-rule="evenodd"
+              />
+            </svg>
+            <span class="text-sm font-medium text-green-800">{{ successMessage }}</span>
+          </div>
+        </div>
+
         <LoginForm @success="handleLoginSuccess" />
 
         <!-- Forgot password link -->
