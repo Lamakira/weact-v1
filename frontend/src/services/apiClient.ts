@@ -1,5 +1,35 @@
 import axios, { type AxiosInstance, type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import type { ApiError } from '@/features/auth/types'
+import type { Router } from 'vue-router'
+import type { Pinia } from 'pinia'
+
+/**
+ * Lazy-loaded router instance to avoid circular dependency issues
+ * Must be set after app initialization via setRouter()
+ */
+let routerInstance: Router | null = null
+
+/**
+ * Lazy-loaded pinia instance to avoid initialization issues
+ * Must be set after app initialization via setPinia()
+ */
+let piniaInstance: Pinia | null = null
+
+/**
+ * Set the router instance for use in interceptors
+ * Must be called after app creation in main.ts
+ */
+export function setRouter(router: Router): void {
+  routerInstance = router
+}
+
+/**
+ * Set the pinia instance for use in interceptors
+ * Must be called after app creation in main.ts
+ */
+export function setPinia(pinia: Pinia): void {
+  piniaInstance = pinia
+}
 
 /**
  * API Base URL from environment
@@ -75,16 +105,48 @@ apiClient.interceptors.request.use(
 )
 
 /**
+ * Auth paths that should NOT trigger redirect on 401
+ * These are pages where 401 is expected (e.g., invalid credentials)
+ */
+const AUTH_PATHS = ['/login', '/register', '/forgot-password', '/reset-password']
+
+/**
+ * Check if current path is an auth page
+ */
+function isOnAuthPage(): boolean {
+  if (!routerInstance) return false
+  const currentPath = routerInstance.currentRoute.value.path
+  return AUTH_PATHS.some((path) => currentPath.startsWith(path))
+}
+
+/**
  * Response interceptor for error handling
  */
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError<ApiError>) => {
-    // Handle 401 Unauthorized - clear ALL auth data (token + user)
-    // This ensures auth state stays consistent when session expires
+    // Handle 401 Unauthorized - clear ALL auth data and redirect to login
     if (error.response?.status === 401) {
+      // Clear localStorage
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem('auth_user')
+
+      // Clear Pinia auth store if available
+      if (piniaInstance) {
+        // Dynamic import to avoid circular dependency
+        import('@/stores/auth').then(({ useAuthStore }) => {
+          const authStore = useAuthStore(piniaInstance!)
+          authStore.clearAuth()
+        })
+      }
+
+      // Redirect to login with session-expired message if not already on auth page
+      if (routerInstance && !isOnAuthPage()) {
+        routerInstance.push({
+          name: 'login',
+          query: { message: 'session-expired' },
+        })
+      }
     }
     return Promise.reject(error)
   },
