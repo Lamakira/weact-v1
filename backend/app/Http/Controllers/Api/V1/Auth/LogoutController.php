@@ -7,29 +7,20 @@ namespace App\Http\Controllers\Api\V1\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Laravel\Sanctum\PersonalAccessToken;
 use Symfony\Component\HttpFoundation\Response;
 
 class LogoutController extends Controller
 {
     /**
      * Handle user logout - revoke current access token.
+     *
+     * Route is protected by auth:sanctum middleware, so $request->user() is always available.
+     * Uses Sanctum's recommended approach: currentAccessToken()->delete()
      */
     public function __invoke(Request $request): JsonResponse
     {
-        $plainTextToken = $request->bearerToken();
-        $token = $plainTextToken ? PersonalAccessToken::findToken($plainTextToken) : null;
-
-        if ($token === null) {
-            return response()->json([
-                'error' => [
-                    'message' => 'Unauthenticated',
-                    'code' => 'UNAUTHENTICATED',
-                ],
-            ], Response::HTTP_UNAUTHORIZED);
-        }
-
-        $token->delete();
+        // Revoke only the current token (allows multi-device sessions)
+        $request->user()->currentAccessToken()->delete();
 
         return response()->json([
             'data' => null,
