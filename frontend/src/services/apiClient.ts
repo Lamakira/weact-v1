@@ -80,10 +80,11 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError<ApiError>) => {
-    // Handle 401 Unauthorized - clear token and redirect to login
+    // Handle 401 Unauthorized - clear ALL auth data (token + user)
+    // This ensures auth state stays consistent when session expires
     if (error.response?.status === 401) {
       localStorage.removeItem(TOKEN_KEY)
-      // Could emit event or redirect to login
+      localStorage.removeItem('auth_user')
     }
     return Promise.reject(error)
   },
