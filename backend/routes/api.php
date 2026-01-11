@@ -8,8 +8,8 @@ use App\Http\Controllers\Api\V1\Auth\RegisterFaceController;
 use App\Http\Controllers\Api\V1\Auth\RegisterProducerController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use Symfony\Component\HttpFoundation\Response;
 use Laravel\Sanctum\PersonalAccessToken;
+use Symfony\Component\HttpFoundation\Response;
 
 /*
 |--------------------------------------------------------------------------
@@ -47,6 +47,9 @@ Route::prefix('v1')->group(function (): void {
 
     // Protected routes
     Route::middleware('auth:sanctum')->group(function (): void {
+        // Note: Explicit token validation is required because Sanctum can use
+        // session-based auth which may cache the user across requests.
+        // This ensures token validity is checked on each request.
         Route::get('/user', function (Request $request) {
             $plainTextToken = $request->bearerToken();
             $token = $plainTextToken ? PersonalAccessToken::findToken($plainTextToken) : null;
@@ -67,8 +70,10 @@ Route::prefix('v1')->group(function (): void {
             ]);
         });
 
-        // Logout route (protected - requires authentication)
-        Route::post('/auth/logout', LogoutController::class)
-            ->name('auth.logout');
+        // Protected auth routes
+        Route::prefix('auth')->group(function (): void {
+            Route::post('/logout', LogoutController::class)
+                ->name('auth.logout');
+        });
     });
 });
