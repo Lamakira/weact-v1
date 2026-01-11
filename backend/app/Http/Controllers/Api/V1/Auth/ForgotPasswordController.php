@@ -21,32 +21,23 @@ class ForgotPasswordController extends Controller
             $request->only('email')
         );
 
-        if ($status === Password::RESET_LINK_SENT) {
+        // OWASP Best Practice: Always return success message to prevent email enumeration.
+        // Only exception is rate limiting (RESET_THROTTLED) which applies to all requests.
+        if ($status === Password::RESET_THROTTLED) {
             return response()->json([
-                'data' => null,
-                'message' => 'Email envoyé',
-                'meta' => [],
-            ], Response::HTTP_OK);
+                'error' => [
+                    'message' => 'Veuillez patienter avant de réessayer',
+                    'code' => 'THROTTLED',
+                ],
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        // Handle various error cases
-        $errorMessage = match ($status) {
-            Password::INVALID_USER => 'Aucun compte associé à cet email',
-            Password::RESET_THROTTLED => 'Veuillez patienter avant de réessayer',
-            default => 'Une erreur est survenue',
-        };
-
-        $errorCode = match ($status) {
-            Password::INVALID_USER => 'USER_NOT_FOUND',
-            Password::RESET_THROTTLED => 'THROTTLED',
-            default => 'UNKNOWN_ERROR',
-        };
-
+        // For all other statuses (RESET_LINK_SENT, INVALID_USER, etc.),
+        // return success to prevent attackers from enumerating valid emails.
         return response()->json([
-            'error' => [
-                'message' => $errorMessage,
-                'code' => $errorCode,
-            ],
-        ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            'data' => null,
+            'message' => 'Email envoyé',
+            'meta' => [],
+        ], Response::HTTP_OK);
     }
 }
