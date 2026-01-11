@@ -3,9 +3,43 @@ import { ref, computed } from 'vue'
 import type { User } from '@/features/auth/types'
 import { getAuthToken, setAuthToken, removeAuthToken } from '@/services/apiClient'
 
+/**
+ * Storage key for user data
+ */
+const USER_KEY = 'auth_user'
+
+/**
+ * Get stored user from localStorage
+ */
+function getStoredUser(): User | null {
+  const stored = localStorage.getItem(USER_KEY)
+  if (stored) {
+    try {
+      return JSON.parse(stored) as User
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
+/**
+ * Store user in localStorage
+ */
+function setStoredUser(user: User): void {
+  localStorage.setItem(USER_KEY, JSON.stringify(user))
+}
+
+/**
+ * Remove user from localStorage
+ */
+function removeStoredUser(): void {
+  localStorage.removeItem(USER_KEY)
+}
+
 export const useAuthStore = defineStore('auth', () => {
-  // State
-  const user = ref<User | null>(null)
+  // State - restore both token AND user from localStorage
+  const user = ref<User | null>(getStoredUser())
   const token = ref<string | null>(getAuthToken())
   const isLoading = ref(false)
 
@@ -18,6 +52,7 @@ export const useAuthStore = defineStore('auth', () => {
   // Actions
   function setUser(newUser: User) {
     user.value = newUser
+    setStoredUser(newUser)
   }
 
   function setToken(newToken: string) {
@@ -33,6 +68,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     token.value = null
     removeAuthToken()
+    removeStoredUser()
   }
 
   function $reset() {
