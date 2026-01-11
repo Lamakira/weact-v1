@@ -46,16 +46,11 @@ export const authApi = {
 
   /**
    * Logout the current user - revokes the server-side token
-   * Note: This should be called before clearing local state
+   * Note: Caller (useAuth) handles errors and clears local state regardless
    */
   async logout(): Promise<void> {
-    try {
-      await getCsrfCookie()
-      await apiClient.post('/auth/logout')
-    } catch {
-      // Silently ignore errors - we'll clear local state regardless
-      console.warn('[Auth] Logout API call failed, clearing local state anyway')
-    }
+    await getCsrfCookie()
+    await apiClient.post('/auth/logout')
   },
 }
 
