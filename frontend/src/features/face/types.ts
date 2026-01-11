@@ -25,3 +25,31 @@ export interface ProfilePhotoResult {
   errors?: Record<string, string[]>
   message?: string
 }
+
+// Album photo from API
+export interface FacePhoto {
+  id: number
+  photo_url: string
+  thumbnail_url: string
+  position: number
+}
+
+// Album photos API response
+export interface FacePhotosResponse {
+  data: FacePhoto[]
+  message?: string
+}
+
+// Single album photo API response
+export interface FacePhotoResponse {
+  data: FacePhoto
+  message?: string
+}
+
+// Album photo operation result
+export interface AlbumPhotoResult {
+  success: boolean
+  data?: FacePhoto
+  errors?: Record<string, string[]>
+  message?: string
+}
