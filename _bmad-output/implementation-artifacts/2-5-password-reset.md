@@ -1,6 +1,6 @@
 # Story 2.5: Password Reset
 
-Status: review
+Status: done
 
 ## Story
 
@@ -274,12 +274,13 @@ From Story 2-4 (User Logout) code review:
 - frontend/src/features/auth/composables/usePasswordReset.ts
 - frontend/src/pages/auth/__tests__/ForgotPasswordPage.spec.ts
 - frontend/src/pages/auth/__tests__/ResetPasswordPage.spec.ts
+- frontend/src/pages/auth/__tests__/LoginPage.spec.ts (added in review)
 
 ### Frontend Files Modified
 - frontend/src/features/auth/services/authApi.ts
 - frontend/src/features/auth/types.ts
 - frontend/src/router/index.ts
-- frontend/src/pages/auth/LoginPage.vue
+- frontend/src/pages/auth/LoginPage.vue (added success message for password reset redirect)
 
 ## Dev Agent Record
 
@@ -298,4 +299,36 @@ N/A
 - Rate limiting applied: 5 requests/minute for forgot-password endpoint
 - Frontend password requirements UI with real-time validation feedback
 - Routes added with guest-only meta for proper auth redirects
+
+## Senior Developer Review (AI)
+
+**Review Date:** 2026-01-11
+**Reviewer:** Claude Opus 4.5 (claude-opus-4-5-20251101)
+**Outcome:** APPROVED (after fixes)
+
+### Issues Found and Fixed
+
+| # | Severity | Issue | Fix Applied |
+|---|----------|-------|-------------|
+| 1 | HIGH | ForgotPasswordRequest `exists:users,email` validation revealed email existence (enumeration vulnerability) | Removed `exists` validation; controller now returns success for all valid email formats |
+| 2 | HIGH | Controller returned different messages for valid vs invalid emails | Updated to always return "Email envoyé" regardless of user existence (OWASP best practice) |
+| 3 | MEDIUM | LoginPage didn't show success message after password reset redirect | Added success message handling for `?message=password-reset-success` query param |
+| 4 | MEDIUM | No test for password reset email URL format | Added `test_reset_email_contains_correct_frontend_url` test |
+| 5 | MEDIUM | No test for LoginPage success message | Created `LoginPage.spec.ts` with 4 tests |
+| 6 | LOW | Unused `onMounted` import in ResetPasswordPage | Removed unused import |
+
+### Test Results After Fixes
+- Backend: 14 tests passing (31 assertions) for password reset
+- Frontend: 23 tests passing for auth pages
+
+### Security Improvements
+- **Email Enumeration Prevention:** The forgot-password endpoint now returns the same success message regardless of whether the email exists in the system. This is an OWASP best practice to prevent attackers from discovering valid user emails.
+
+### Files Modified During Review
+- `backend/app/Http/Requests/Auth/ForgotPasswordRequest.php` - Removed `exists:users,email` validation
+- `backend/app/Http/Controllers/Api/V1/Auth/ForgotPasswordController.php` - Always return success
+- `backend/tests/Feature/Auth/ForgotPasswordTest.php` - Updated test + added email URL format test
+- `frontend/src/pages/auth/LoginPage.vue` - Added password reset success message
+- `frontend/src/pages/auth/ResetPasswordPage.vue` - Removed unused import
+- `frontend/src/pages/auth/__tests__/LoginPage.spec.ts` - New test file
 

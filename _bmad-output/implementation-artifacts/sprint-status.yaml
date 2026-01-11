@@ -54,7 +54,7 @@ development_status:
   2-2-producer-registration: done
   2-3-user-login: done
   2-4-user-logout: done
-  2-5-password-reset: in-progress
+  2-5-password-reset: done
   2-6-authentication-frontend-integration: backlog
   epic-2-retrospective: optional
 
