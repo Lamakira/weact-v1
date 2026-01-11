@@ -86,3 +86,6 @@ Route::prefix('v1')->group(function (): void {
         });
     });
 });
+
+// Include modular route files
+require __DIR__ . '/api/face.php';
