@@ -96,3 +96,11 @@ export interface ApiError {
   }
 }
 
+// Password reset data
+export interface ResetPasswordData {
+  token: string
+  email: string
+  password: string
+  password_confirmation: string
+}
+
