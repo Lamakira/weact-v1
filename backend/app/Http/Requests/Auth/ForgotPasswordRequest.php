@@ -28,8 +28,11 @@ class ForgotPasswordRequest extends FormRequest
      */
     public function rules(): array
     {
+        // NOTE: We intentionally do NOT validate 'exists:users,email' here
+        // to prevent email enumeration attacks. The controller always returns
+        // success regardless of whether the email exists (OWASP best practice).
         return [
-            'email' => ['required', 'string', 'email', 'exists:users,email'],
+            'email' => ['required', 'string', 'email'],
         ];
     }
 
@@ -43,7 +46,6 @@ class ForgotPasswordRequest extends FormRequest
         return [
             'email.required' => "L'email est obligatoire.",
             'email.email' => "L'email doit être une adresse email valide.",
-            'email.exists' => "Aucun compte associé à cet email.",
         ];
     }
 
