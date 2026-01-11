@@ -110,15 +110,12 @@ export function useAuth(): UseAuthReturn {
     try {
       await authApi.logout()
     } catch (error) {
+      // API call failed but we still clear local state (graceful degradation)
       console.warn('[Auth] Logout API call failed, clearing local state anyway', error)
     } finally {
       authStore.clearAuth()
       authStore.setLoading(false)
-      // Redirect to login page; guard against undefined push in tests
-      const push = router.push?.bind(router) ?? router.push
-      if (push) {
-        await push('/login')
-      }
+      await router.push('/login')
     }
   }
 
