@@ -7,8 +7,10 @@ import 'vue-toastification/dist/index.css'
 
 import App from './App.vue'
 import router from './router'
+import { setRouter, setPinia } from './services/apiClient'
 
 const app = createApp(App)
+const pinia = createPinia()
 
 // Toast configuration
 const toastOptions: PluginOptions = {
@@ -26,8 +28,13 @@ const toastOptions: PluginOptions = {
   rtl: false,
 }
 
-app.use(createPinia())
+app.use(pinia)
 app.use(router)
 app.use(Toast, toastOptions)
+
+// Initialize apiClient with router and pinia instances
+// This enables 401 interceptor to redirect and clear auth store
+setRouter(router)
+setPinia(pinia)
 
 app.mount('#app')
