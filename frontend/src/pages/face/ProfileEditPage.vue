@@ -3,7 +3,10 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
+import { usePhotoAlbum } from '@/features/face/composables/usePhotoAlbum'
 import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vue'
+import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
+import AlbumPhotoUpload from '@/features/face/components/AlbumPhotoUpload.vue'
 
 const router = useRouter()
 const { logout, isLoading: isAuthLoading } = useAuth()
@@ -18,12 +21,26 @@ const {
   deletePhoto,
 } = useProfilePhoto()
 
+// Album composable
+const {
+  photos: albumPhotos,
+  isLoading: isAlbumLoading,
+  isUploading: isAlbumUploading,
+  isDeleting: isAlbumDeleting,
+  error: albumError,
+  canAddMore,
+  isFull,
+  fetchPhotos: fetchAlbumPhotos,
+  addPhoto: addAlbumPhoto,
+  deletePhoto: deleteAlbumPhoto,
+} = usePhotoAlbum()
+
 // Success message
 const successMessage = ref<string | null>(null)
 
-// Fetch profile on mount
+// Fetch profile and album on mount
 onMounted(async () => {
-  await fetchProfile()
+  await Promise.all([fetchProfile(), fetchAlbumPhotos()])
 })
 
 /**
@@ -62,6 +79,40 @@ async function handleLogout(): Promise<void> {
  */
 function goBack(): void {
   router.push({ name: 'face-dashboard' })
+}
+
+// File input ref for album upload
+const albumFileInputRef = ref<HTMLInputElement | null>(null)
+
+/**
+ * Handle album photo upload
+ */
+async function handleAlbumUpload(file: File): Promise<void> {
+  successMessage.value = null
+  const result = await addAlbumPhoto(file)
+
+  if (result.success && result.message) {
+    successMessage.value = result.message
+  }
+}
+
+/**
+ * Handle album photo delete
+ */
+async function handleAlbumDelete(photoId: number): Promise<void> {
+  successMessage.value = null
+  const result = await deleteAlbumPhoto(photoId)
+
+  if (result.success && result.message) {
+    successMessage.value = result.message
+  }
+}
+
+/**
+ * Trigger album file input when clicking "add" in grid
+ */
+function handleAlbumAddClick(): void {
+  albumFileInputRef.value?.click()
 }
 </script>
 
@@ -195,6 +246,43 @@ function goBack(): void {
             :error="error"
             @upload="handleUpload"
             @delete="handleDelete"
+          />
+        </div>
+
+        <!-- Album photos section -->
+        <div class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-2">Album photos</h2>
+          <p class="text-sm text-gray-500 mb-6">
+            Ajoutez jusqu'à 4 photos pour montrer votre polyvalence aux producteurs.
+          </p>
+
+          <!-- Album grid -->
+          <PhotoAlbumGrid
+            :photos="albumPhotos"
+            :is-loading="isAlbumLoading"
+            :is-deleting="isAlbumDeleting"
+            :can-add-more="canAddMore"
+            @delete="handleAlbumDelete"
+            @add-click="handleAlbumAddClick"
+          />
+
+          <!-- Album upload -->
+          <div class="mt-6">
+            <AlbumPhotoUpload
+              :is-full="isFull"
+              :is-uploading="isAlbumUploading"
+              :error="albumError"
+              @upload="handleAlbumUpload"
+            />
+          </div>
+
+          <!-- Hidden file input for grid clicks -->
+          <input
+            ref="albumFileInputRef"
+            type="file"
+            accept="image/jpeg,image/png"
+            class="hidden"
+            @change="(e) => { const file = (e.target as HTMLInputElement).files?.[0]; if (file) handleAlbumUpload(file); (e.target as HTMLInputElement).value = ''; }"
           />
         </div>
 
