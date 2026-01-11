@@ -55,7 +55,7 @@ development_status:
   2-3-user-login: done
   2-4-user-logout: done
   2-5-password-reset: done
-  2-6-authentication-frontend-integration: backlog
+  2-6-authentication-frontend-integration: done
   epic-2-retrospective: optional
 
   # Epic 3: Face Profile & Portfolio (11 stories)
