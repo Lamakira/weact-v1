@@ -59,8 +59,8 @@ development_status:
   epic-2-retrospective: optional
 
   # Epic 3: Face Profile & Portfolio (11 stories)
-  epic-3: backlog
-  3-1-face-profile-photo-upload: backlog
+  epic-3: in-progress
+  3-1-face-profile-photo-upload: ready-for-dev
   3-2-face-photo-album-management: backlog
   3-3-face-presentation-video-upload: backlog
   3-4-face-acting-video-upload: backlog
