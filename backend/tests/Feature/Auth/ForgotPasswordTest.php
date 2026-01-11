@@ -15,6 +15,34 @@ class ForgotPasswordTest extends TestCase
     use RefreshDatabase;
 
     /**
+     * Test password reset email contains correct frontend URL format.
+     */
+    public function test_reset_email_contains_correct_frontend_url(): void
+    {
+        Notification::fake();
+
+        $user = User::factory()->create([
+            'email' => 'test@example.com',
+        ]);
+
+        $this->postJson('/api/v1/auth/forgot-password', [
+            'email' => 'test@example.com',
+        ]);
+
+        Notification::assertSentTo($user, ResetPasswordNotification::class, function ($notification) use ($user) {
+            $mailMessage = $notification->toMail($user);
+            $actionUrl = $mailMessage->actionUrl;
+
+            // Verify URL format: {FRONTEND_URL}/reset-password/{token}?email={email}
+            $frontendUrl = config('app.frontend_url', 'http://localhost:5173');
+            $this->assertStringStartsWith($frontendUrl . '/reset-password/', $actionUrl);
+            $this->assertStringContainsString('?email=' . urlencode($user->email), $actionUrl);
+
+            return true;
+        });
+    }
+
+    /**
      * Test forgot password with valid email sends password reset email.
      */
     public function test_forgot_password_sends_email_for_valid_email(): void
@@ -40,22 +68,27 @@ class ForgotPasswordTest extends TestCase
     }
 
     /**
-     * Test forgot password with non-existent email returns 422.
+     * Test forgot password with non-existent email returns 200 (prevents email enumeration).
+     * OWASP Best Practice: Always return success to prevent attackers from discovering valid emails.
      */
-    public function test_forgot_password_with_invalid_email_returns_422(): void
+    public function test_forgot_password_with_nonexistent_email_returns_success(): void
     {
+        Notification::fake();
+
         $response = $this->postJson('/api/v1/auth/forgot-password', [
             'email' => 'nonexistent@example.com',
         ]);
 
-        $response->assertStatus(422)
-            ->assertJsonStructure([
-                'error' => [
-                    'code',
-                    'message',
-                    'details',
-                ],
+        // Should return success to prevent email enumeration
+        $response->assertStatus(200)
+            ->assertJson([
+                'data' => null,
+                'message' => 'Email envoyé',
+                'meta' => [],
             ]);
+
+        // But no notification should be sent
+        Notification::assertNothingSent();
     }
 
     /**
