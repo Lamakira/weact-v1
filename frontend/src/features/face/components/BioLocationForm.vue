@@ -121,7 +121,7 @@ const handleSubmit = () => {
           data-testid="quartier-input"
         />
       </div>
-Album
+
       <div class="space-y-1.5 md:col-span-2">
         <label for="pays" class="text-sm font-medium text-gray-900">Pays</label>
         <input
