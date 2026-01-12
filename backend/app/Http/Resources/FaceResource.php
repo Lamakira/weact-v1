@@ -30,6 +30,11 @@ class FaceResource extends JsonResource
             'presentation_video_thumbnail_url' => $this->presentation_video_thumbnail_url,
             'acting_video_url' => $this->acting_video_url,
             'acting_video_thumbnail_url' => $this->acting_video_thumbnail_url,
+            'bio' => $this->bio,
+            'ville' => $this->ville,
+            'quartier' => $this->quartier,
+            'pays' => $this->pays,
+            'formatted_location' => $this->formatted_location,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

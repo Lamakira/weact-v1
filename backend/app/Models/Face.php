@@ -29,6 +29,10 @@ class Face extends Model
         'presentation_video_thumbnail',
         'acting_video',
         'acting_video_thumbnail',
+        'bio',
+        'ville',
+        'quartier',
+        'pays',
     ];
 
     /**
@@ -43,6 +47,7 @@ class Face extends Model
         'presentation_video_thumbnail_url',
         'acting_video_url',
         'acting_video_thumbnail_url',
+        'formatted_location',
     ];
 
     /**
@@ -130,6 +135,24 @@ class Face extends Model
             get: fn (): ?string => $this->acting_video_thumbnail
                 ? asset('storage/videos/faces/acting/thumbnails/' . $this->acting_video_thumbnail)
                 : null,
+        );
+    }
+
+    /**
+     * Get the formatted location string (Ville, Quartier, Pays).
+     */
+    protected function formattedLocation(): Attribute
+    {
+        return Attribute::make(
+            get: function (): ?string {
+                $parts = array_filter([
+                    $this->ville,
+                    $this->quartier,
+                    $this->pays,
+                ]);
+
+                return count($parts) > 0 ? implode(', ', $parts) : null;
+            },
         );
     }
 }
