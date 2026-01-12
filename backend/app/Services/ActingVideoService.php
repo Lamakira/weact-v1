@@ -53,14 +53,25 @@ class ActingVideoService
             $filename = Str::uuid()->toString() . '.' . $extension;
             $thumbnailFilename = Str::uuid()->toString() . '.jpg';
 
+            // Ensure storage directories exist
+            $disk = Storage::disk('public');
+            $disk->makeDirectory(self::STORAGE_PATH);
+            $disk->makeDirectory(self::THUMBNAIL_PATH);
+
             // Store video using the public disk
-            Storage::disk('public')->putFileAs(self::STORAGE_PATH, $video, $filename);
+            $disk->putFileAs(self::STORAGE_PATH, $video, $filename);
 
             // Generate and save thumbnail from the first frame
-            $this->generateThumbnail(
-                Storage::disk('public')->path(self::STORAGE_PATH . '/' . $filename),
-                $thumbnailFilename
-            );
+            try {
+                $this->generateThumbnail(
+                    $disk->path(self::STORAGE_PATH . '/' . $filename),
+                    $thumbnailFilename
+                );
+            } catch (\Exception $e) {
+                // Clean up uploaded video file on thumbnail generation failure
+                $disk->delete(self::STORAGE_PATH . '/' . $filename);
+                throw $e;
+            }
 
             // Update Face model
             $face->update([
