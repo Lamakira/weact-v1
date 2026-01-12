@@ -22,19 +22,10 @@ class ActingVideoController extends Controller
      */
     public function show(Request $request): JsonResponse
     {
-        $user = $request->user();
-
-        // Authorize: user must be a Face
-        if ($user->userable_type !== Face::class) {
-            return response()->json([
-                'error' => [
-                    'code' => 'FORBIDDEN',
-                    'message' => 'Accès réservé aux Faces',
-                ],
-            ], 403);
+        $face = $this->getAuthenticatedFace($request);
+        if ($face instanceof JsonResponse) {
+            return $face;
         }
-
-        $face = Face::findOrFail($user->userable_id);
 
         return response()->json([
             'data' => [
@@ -71,19 +62,10 @@ class ActingVideoController extends Controller
      */
     public function destroy(Request $request): JsonResponse
     {
-        $user = $request->user();
-
-        // Authorize: user must be a Face
-        if ($user->userable_type !== Face::class) {
-            return response()->json([
-                'error' => [
-                    'code' => 'FORBIDDEN',
-                    'message' => 'Accès réservé aux Faces',
-                ],
-            ], 403);
+        $face = $this->getAuthenticatedFace($request);
+        if ($face instanceof JsonResponse) {
+            return $face;
         }
-
-        $face = Face::findOrFail($user->userable_id);
 
         if (! $face->acting_video) {
             return response()->json([
@@ -99,5 +81,24 @@ class ActingVideoController extends Controller
         return response()->json([
             'message' => 'Vidéo supprimée avec succès',
         ]);
+    }
+
+    /**
+     * Get the authenticated Face or return a forbidden response.
+     */
+    private function getAuthenticatedFace(Request $request): Face|JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->userable_type !== Face::class) {
+            return response()->json([
+                'error' => [
+                    'code' => 'FORBIDDEN',
+                    'message' => 'Accès réservé aux Faces',
+                ],
+            ], 403);
+        }
+
+        return Face::findOrFail($user->userable_id);
     }
 }
