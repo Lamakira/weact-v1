@@ -6,12 +6,14 @@ import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
 import { usePhotoAlbum } from '@/features/face/composables/usePhotoAlbum'
 import { usePresentationVideo } from '@/features/face/composables/usePresentationVideo'
 import { useActingVideo } from '@/features/face/composables/useActingVideo'
+import { useBioLocation } from '@/features/face/composables/useBioLocation'
 import { useToast } from '@/composables/useToast'
 import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vue'
 import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
 import AlbumPhotoUpload from '@/features/face/components/AlbumPhotoUpload.vue'
 import PresentationVideoUpload from '@/features/face/components/PresentationVideoUpload.vue'
 import ActingVideoUpload from '@/features/face/components/ActingVideoUpload.vue'
+import BioLocationForm from '@/features/face/components/BioLocationForm.vue'
 
 const router = useRouter()
 const { logout, isLoading: isAuthLoading } = useAuth()
@@ -66,15 +68,31 @@ const {
   deleteVideo: deleteActingVideo,
 } = useActingVideo()
 
+// Bio and location composable
+const {
+  bioLocationInfo,
+  isLoading: isBioLocationLoading,
+  isSaving: isBioLocationSaving,
+  error: bioLocationError,
+  fetchBioLocation,
+  updateBioLocation,
+} = useBioLocation()
+
 // Toast notifications
 const toast = useToast()
 
 // Success message
 const successMessage = ref<string | null>(null)
 
-// Fetch profile, album, and videos on mount
+// Fetch profile, album, videos, and bio/location on mount
 onMounted(async () => {
-  await Promise.all([fetchProfile(), fetchAlbumPhotos(), fetchVideoInfo(), fetchActingVideoInfo()])
+  await Promise.all([
+    fetchProfile(),
+    fetchAlbumPhotos(),
+    fetchVideoInfo(),
+    fetchActingVideoInfo(),
+    fetchBioLocation(),
+  ])
 })
 
 /**
@@ -192,6 +210,22 @@ async function handleActingVideoDelete(): Promise<void> {
 
   if (result.success) {
     toast.success(result.message || 'Vidéo supprimée avec succès')
+  }
+}
+
+/**
+ * Handle bio/location save
+ */
+async function handleBioLocationSave(data: {
+  bio: string | null
+  ville: string | null
+  quartier: string | null
+  pays: string | null
+}): Promise<void> {
+  const result = await updateBioLocation(data)
+
+  if (result.success) {
+    toast.success(result.message || 'Profil mis à jour avec succès')
   }
 }
 </script>
@@ -399,6 +433,21 @@ async function handleActingVideoDelete(): Promise<void> {
             :upload-progress="actingUploadProgress"
             @upload="handleActingVideoUpload"
             @delete="handleActingVideoDelete"
+          />
+        </div>
+
+        <!-- Bio and location section -->
+        <div class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-2">Bio et Localisation</h2>
+          <p class="text-sm text-gray-500 mb-6">
+            Partagez votre parcours et indiquez votre localisation aux producteurs.
+          </p>
+
+          <BioLocationForm
+            :bio-location-info="bioLocationInfo"
+            :is-saving="isBioLocationSaving"
+            :error="bioLocationError"
+            @save="handleBioLocationSave"
           />
         </div>
 

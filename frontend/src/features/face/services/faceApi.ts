@@ -6,6 +6,7 @@ import type {
   PresentationVideoResponse,
   ActingVideoResponse,
   VideoUploadProgress,
+  BioLocationResponse,
 } from '../types'
 
 /**
@@ -189,6 +190,29 @@ export const faceApi = {
   async deleteActingVideo(): Promise<{ message: string }> {
     await getCsrfCookie()
     const response = await apiClient.delete<{ message: string }>('/face/acting-video')
+    return response.data
+  },
+
+  /**
+   * Get the current bio and location info
+   */
+  async getBioLocation(): Promise<BioLocationResponse> {
+    const response = await apiClient.get<BioLocationResponse>('/face/bio-location')
+    return response.data
+  },
+
+  /**
+   * Update bio and/or location
+   * @param data The bio and location data to update
+   */
+  async updateBioLocation(data: {
+    bio?: string | null
+    ville?: string | null
+    quartier?: string | null
+    pays?: string | null
+  }): Promise<BioLocationResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.put<BioLocationResponse>('/face/bio-location', data)
     return response.data
   },
 }

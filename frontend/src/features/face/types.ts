@@ -100,3 +100,26 @@ export interface ActingVideoResult {
   errors?: Record<string, string[]>
   message?: string
 }
+
+// Bio and location info from API
+export interface BioLocationInfo {
+  bio: string | null
+  ville: string | null
+  quartier: string | null
+  pays: string | null
+  formatted_location: string | null
+}
+
+// Bio and location API response
+export interface BioLocationResponse {
+  data: BioLocationInfo
+  message?: string
+}
+
+// Bio and location operation result
+export interface BioLocationResult {
+  success: boolean
+  data?: BioLocationInfo
+  errors?: Record<string, string[]>
+  message?: string
+}
