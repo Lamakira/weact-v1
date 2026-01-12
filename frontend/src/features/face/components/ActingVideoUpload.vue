@@ -241,7 +241,14 @@ function cancelDelete(): void {
             data-testid="upload-progress"
           >
             <!-- Progress bar -->
-            <div class="w-3/4 bg-gray-200 rounded-full h-2.5 mb-3">
+            <div
+              class="w-3/4 bg-gray-200 rounded-full h-2.5 mb-3"
+              role="progressbar"
+              :aria-valuenow="progressPercentage"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              :aria-label="`Upload progress: ${progressPercentage}%`"
+            >
               <div
                 class="bg-teal-500 h-2.5 rounded-full transition-all duration-300"
                 :style="{ width: `${progressPercentage}%` }"
