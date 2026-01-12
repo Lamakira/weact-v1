@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Face\ActingVideoController;
 use App\Http\Controllers\Api\V1\Face\AlbumController;
 use App\Http\Controllers\Api\V1\Face\PresentationVideoController;
 use App\Http\Controllers\Api\V1\Face\ProfileController;
@@ -35,4 +36,10 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     Route::post('/presentation-video', [PresentationVideoController::class, 'store'])
         ->middleware('throttle:10,1'); // Rate limit: 10 requests per minute
     Route::delete('/presentation-video', [PresentationVideoController::class, 'destroy']);
+
+    // Acting video routes
+    Route::get('/acting-video', [ActingVideoController::class, 'show']);
+    Route::post('/acting-video', [ActingVideoController::class, 'store'])
+        ->middleware('throttle:10,1'); // Rate limit: 10 requests per minute
+    Route::delete('/acting-video', [ActingVideoController::class, 'destroy']);
 });
