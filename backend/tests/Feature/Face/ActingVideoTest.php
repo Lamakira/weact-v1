@@ -320,6 +320,32 @@ class ActingVideoTest extends TestCase
             ->assertJsonValidationErrors(['video']);
     }
 
+    public function test_rejects_wmv_video_format(): void
+    {
+        $file = UploadedFile::fake()->create('video.wmv', 10 * 1024, 'video/x-ms-wmv');
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/acting-video', [
+                'video' => $file,
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['video']);
+    }
+
+    public function test_rejects_webm_video_format(): void
+    {
+        $file = UploadedFile::fake()->create('video.webm', 10 * 1024, 'video/webm');
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/acting-video', [
+                'video' => $file,
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['video']);
+    }
+
     // =========================================================================
     // Delete Video Tests
     // =========================================================================
