@@ -4,6 +4,7 @@ import type {
   FacePhotosResponse,
   FacePhotoResponse,
   PresentationVideoResponse,
+  ActingVideoResponse,
   VideoUploadProgress,
 } from '../types'
 
@@ -140,6 +141,54 @@ export const faceApi = {
   async deletePresentationVideo(): Promise<{ message: string }> {
     await getCsrfCookie()
     const response = await apiClient.delete<{ message: string }>('/face/presentation-video')
+    return response.data
+  },
+
+  /**
+   * Get the current acting video info
+   */
+  async getActingVideo(): Promise<ActingVideoResponse> {
+    const response = await apiClient.get<ActingVideoResponse>('/face/acting-video')
+    return response.data
+  },
+
+  /**
+   * Upload an acting video
+   * @param video The video file to upload
+   * @param onProgress Optional callback for upload progress
+   */
+  async uploadActingVideo(
+    video: File,
+    onProgress?: (progress: VideoUploadProgress) => void,
+  ): Promise<ActingVideoResponse> {
+    await getCsrfCookie()
+
+    const formData = new FormData()
+    formData.append('video', video)
+
+    const response = await apiClient.post<ActingVideoResponse>('/face/acting-video', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          onProgress({
+            loaded: progressEvent.loaded,
+            total: progressEvent.total,
+            percentage: Math.round((progressEvent.loaded * 100) / progressEvent.total),
+          })
+        }
+      },
+    })
+    return response.data
+  },
+
+  /**
+   * Delete the acting video
+   */
+  async deleteActingVideo(): Promise<{ message: string }> {
+    await getCsrfCookie()
+    const response = await apiClient.delete<{ message: string }>('/face/acting-video')
     return response.data
   },
 }

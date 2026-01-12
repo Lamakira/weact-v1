@@ -80,3 +80,23 @@ export interface VideoUploadProgress {
   total: number
   percentage: number
 }
+
+// Acting video info from API
+export interface ActingVideoInfo {
+  acting_video_url: string | null
+  acting_video_thumbnail_url: string | null
+}
+
+// Acting video API response
+export interface ActingVideoResponse {
+  data: ActingVideoInfo
+  message?: string
+}
+
+// Acting video operation result
+export interface ActingVideoResult {
+  success: boolean
+  data?: ActingVideoInfo
+  errors?: Record<string, string[]>
+  message?: string
+}
