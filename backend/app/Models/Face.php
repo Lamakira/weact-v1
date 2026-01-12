@@ -33,6 +33,8 @@ class Face extends Model
         'ville',
         'quartier',
         'pays',
+        'taille',
+        'poids',
     ];
 
     /**

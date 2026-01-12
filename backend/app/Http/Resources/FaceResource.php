@@ -35,6 +35,8 @@ class FaceResource extends JsonResource
             'quartier' => $this->quartier,
             'pays' => $this->pays,
             'formatted_location' => $this->formatted_location,
+            'taille' => $this->taille,
+            'poids' => $this->poids,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

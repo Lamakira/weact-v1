@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\Face\ActingVideoController;
 use App\Http\Controllers\Api\V1\Face\AlbumController;
 use App\Http\Controllers\Api\V1\Face\BioLocationController;
+use App\Http\Controllers\Api\V1\Face\PhysicalCharacteristicsController;
 use App\Http\Controllers\Api\V1\Face\PresentationVideoController;
 use App\Http\Controllers\Api\V1\Face\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -48,5 +49,11 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/bio-location', [BioLocationController::class, 'show'])
         ->middleware('throttle:60,1');
     Route::put('/bio-location', [BioLocationController::class, 'update'])
+        ->middleware('throttle:60,1');
+
+    // Physical characteristics routes
+    Route::get('/physical-characteristics', [PhysicalCharacteristicsController::class, 'show'])
+        ->middleware('throttle:60,1');
+    Route::put('/physical-characteristics', [PhysicalCharacteristicsController::class, 'update'])
         ->middleware('throttle:60,1');
 });
