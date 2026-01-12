@@ -36,7 +36,7 @@ class UploadActingVideoRequest extends FormRequest
                 'required',
                 File::types(['mp4', 'mov', 'avi'])
                     ->max(50 * 1024), // 50MB in KB
-                'mimetypes:video/mp4,video/quicktime,video/x-msvideo,video/avi',
+                'mimetypes:video/mp4,video/quicktime,video/x-msvideo',
             ],
         ];
     }
