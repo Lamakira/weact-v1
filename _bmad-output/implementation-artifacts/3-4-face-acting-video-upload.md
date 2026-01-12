@@ -1,6 +1,6 @@
 # Story 3.4: Face Acting Video Upload
 
-Status: review
+Status: done
 
 ## Story
 
@@ -337,7 +337,7 @@ N/A - No significant debug issues encountered.
 
 1. **Implementation Strategy**: Followed the "COPY, RENAME, and ADAPT" approach from Story 3-3 as recommended. All patterns mirror the PresentationVideoService implementation.
 
-2. **Backend Tests**: Created 17 comprehensive tests covering all acceptance criteria. Tests include upload, delete, validation (size, type, duration), authorization, and rate limiting. All tests passing (116 total backend tests).
+2. **Backend Tests**: Created 19 comprehensive tests covering all acceptance criteria. Tests include upload, delete, validation (size, type, duration, WMV/WebM rejection), authorization, and rate limiting. All tests passing (118 total backend tests).
 
 3. **Frontend Tests**:
    - useActingVideo.spec.ts: 23 tests covering composable functionality
@@ -380,3 +380,4 @@ N/A - No significant debug issues encountered.
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-01-12 | Story 3.4 implemented - Face Acting Video Upload feature complete | Claude Opus 4.5 |
+| 2026-01-12 | Code review fixes: directory creation, FFmpeg error handling, authorization refactor, removed non-standard MIME type, added WMV/WebM rejection tests, accessibility improvements | Claude Opus 4.5 |
