@@ -7,6 +7,7 @@ import type {
   ActingVideoResponse,
   VideoUploadProgress,
   BioLocationResponse,
+  PhysicalCharacteristicsResponse,
 } from '../types'
 
 /**
@@ -213,6 +214,32 @@ export const faceApi = {
   }): Promise<BioLocationResponse> {
     await getCsrfCookie()
     const response = await apiClient.put<BioLocationResponse>('/face/bio-location', data)
+    return response.data
+  },
+
+  /**
+   * Get the current physical characteristics
+   */
+  async getPhysicalCharacteristics(): Promise<PhysicalCharacteristicsResponse> {
+    const response = await apiClient.get<PhysicalCharacteristicsResponse>(
+      '/face/physical-characteristics',
+    )
+    return response.data
+  },
+
+  /**
+   * Update physical characteristics
+   * @param data The physical characteristics data to update
+   */
+  async updatePhysicalCharacteristics(data: {
+    taille?: number | null
+    poids?: number | null
+  }): Promise<PhysicalCharacteristicsResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.put<PhysicalCharacteristicsResponse>(
+      '/face/physical-characteristics',
+      data,
+    )
     return response.data
   },
 }

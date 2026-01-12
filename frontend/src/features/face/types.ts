@@ -123,3 +123,23 @@ export interface BioLocationResult {
   errors?: Record<string, string[]>
   message?: string
 }
+
+// Physical characteristics info from API
+export interface PhysicalCharacteristicsInfo {
+  taille: number | null
+  poids: number | null
+}
+
+// Physical characteristics API response
+export interface PhysicalCharacteristicsResponse {
+  data: PhysicalCharacteristicsInfo
+  message?: string
+}
+
+// Physical characteristics operation result
+export interface PhysicalCharacteristicsResult {
+  success: boolean
+  data?: PhysicalCharacteristicsInfo
+  errors?: Record<string, string[]>
+  message?: string
+}

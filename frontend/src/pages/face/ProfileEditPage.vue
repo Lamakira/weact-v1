@@ -7,6 +7,7 @@ import { usePhotoAlbum } from '@/features/face/composables/usePhotoAlbum'
 import { usePresentationVideo } from '@/features/face/composables/usePresentationVideo'
 import { useActingVideo } from '@/features/face/composables/useActingVideo'
 import { useBioLocation } from '@/features/face/composables/useBioLocation'
+import { usePhysicalCharacteristics } from '@/features/face/composables/usePhysicalCharacteristics'
 import { useToast } from '@/composables/useToast'
 import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vue'
 import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
@@ -14,6 +15,7 @@ import AlbumPhotoUpload from '@/features/face/components/AlbumPhotoUpload.vue'
 import PresentationVideoUpload from '@/features/face/components/PresentationVideoUpload.vue'
 import ActingVideoUpload from '@/features/face/components/ActingVideoUpload.vue'
 import BioLocationForm from '@/features/face/components/BioLocationForm.vue'
+import PhysicalCharacteristicsForm from '@/features/face/components/PhysicalCharacteristicsForm.vue'
 
 const router = useRouter()
 const { logout, isLoading: isAuthLoading } = useAuth()
@@ -78,13 +80,23 @@ const {
   updateBioLocation,
 } = useBioLocation()
 
+// Physical characteristics composable
+const {
+  physicalCharacteristicsInfo,
+  isLoading: isPhysicalCharacteristicsLoading,
+  isSaving: isPhysicalCharacteristicsSaving,
+  error: physicalCharacteristicsError,
+  fetchPhysicalCharacteristics,
+  updatePhysicalCharacteristics,
+} = usePhysicalCharacteristics()
+
 // Toast notifications
 const toast = useToast()
 
 // Success message
 const successMessage = ref<string | null>(null)
 
-// Fetch profile, album, videos, and bio/location on mount
+// Fetch profile, album, videos, bio/location, and physical characteristics on mount
 onMounted(async () => {
   await Promise.all([
     fetchProfile(),
@@ -92,6 +104,7 @@ onMounted(async () => {
     fetchVideoInfo(),
     fetchActingVideoInfo(),
     fetchBioLocation(),
+    fetchPhysicalCharacteristics(),
   ])
 })
 
@@ -223,6 +236,20 @@ async function handleBioLocationSave(data: {
   pays: string | null
 }): Promise<void> {
   const result = await updateBioLocation(data)
+
+  if (result.success) {
+    toast.success(result.message || 'Profil mis à jour avec succès')
+  }
+}
+
+/**
+ * Handle physical characteristics save
+ */
+async function handlePhysicalCharacteristicsSave(data: {
+  taille: number | null
+  poids: number | null
+}): Promise<void> {
+  const result = await updatePhysicalCharacteristics(data)
 
   if (result.success) {
     toast.success(result.message || 'Profil mis à jour avec succès')
@@ -448,6 +475,21 @@ async function handleBioLocationSave(data: {
             :is-saving="isBioLocationSaving"
             :error="bioLocationError"
             @save="handleBioLocationSave"
+          />
+        </div>
+
+        <!-- Physical characteristics section -->
+        <div class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-2">Caractéristiques physiques</h2>
+          <p class="text-sm text-gray-500 mb-6">
+            Indiquez votre taille et poids pour aider les producteurs à trouver des talents correspondant à leurs besoins.
+          </p>
+
+          <PhysicalCharacteristicsForm
+            :physical-characteristics-info="physicalCharacteristicsInfo"
+            :is-saving="isPhysicalCharacteristicsSaving"
+            :error="physicalCharacteristicsError"
+            @save="handlePhysicalCharacteristicsSave"
           />
         </div>
 
