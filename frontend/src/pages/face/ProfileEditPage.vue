@@ -4,9 +4,12 @@ import { useRouter } from 'vue-router'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
 import { usePhotoAlbum } from '@/features/face/composables/usePhotoAlbum'
+import { usePresentationVideo } from '@/features/face/composables/usePresentationVideo'
+import { useToast } from '@/composables/useToast'
 import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vue'
 import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
 import AlbumPhotoUpload from '@/features/face/components/AlbumPhotoUpload.vue'
+import PresentationVideoUpload from '@/features/face/components/PresentationVideoUpload.vue'
 
 const router = useRouter()
 const { logout, isLoading: isAuthLoading } = useAuth()
@@ -35,12 +38,28 @@ const {
   deletePhoto: deleteAlbumPhoto,
 } = usePhotoAlbum()
 
+// Presentation video composable
+const {
+  videoInfo,
+  isLoading: isVideoLoading,
+  isUploading: isVideoUploading,
+  isDeleting: isVideoDeleting,
+  error: videoError,
+  uploadProgress,
+  fetchVideoInfo,
+  uploadVideo,
+  deleteVideo,
+} = usePresentationVideo()
+
+// Toast notifications
+const toast = useToast()
+
 // Success message
 const successMessage = ref<string | null>(null)
 
-// Fetch profile and album on mount
+// Fetch profile, album, and video on mount
 onMounted(async () => {
-  await Promise.all([fetchProfile(), fetchAlbumPhotos()])
+  await Promise.all([fetchProfile(), fetchAlbumPhotos(), fetchVideoInfo()])
 })
 
 /**
@@ -113,6 +132,29 @@ async function handleAlbumDelete(photoId: number): Promise<void> {
  */
 function handleAlbumAddClick(): void {
   albumFileInputRef.value?.click()
+}
+
+/**
+ * Handle video upload
+ */
+async function handleVideoUpload(file: File): Promise<void> {
+  successMessage.value = null
+  const result = await uploadVideo(file)
+
+  if (result.success && result.message) {
+    successMessage.value = result.message
+  }
+}
+
+/**
+ * Handle video delete
+ */
+async function handleVideoDelete(): Promise<void> {
+  const result = await deleteVideo()
+
+  if (result.success) {
+    toast.success(result.message || 'Vidéo supprimée avec succès')
+  }
 }
 </script>
 
@@ -283,6 +325,24 @@ function handleAlbumAddClick(): void {
             accept="image/jpeg,image/png"
             class="hidden"
             @change="(e) => { const file = (e.target as HTMLInputElement).files?.[0]; if (file) handleAlbumUpload(file); (e.target as HTMLInputElement).value = ''; }"
+          />
+        </div>
+
+        <!-- Presentation video section -->
+        <div class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-2">Vidéo de présentation</h2>
+          <p class="text-sm text-gray-500 mb-6">
+            Ajoutez une courte vidéo pour vous présenter aux producteurs.
+          </p>
+
+          <PresentationVideoUpload
+            :video-info="videoInfo"
+            :is-uploading="isVideoUploading"
+            :is-deleting="isVideoDeleting"
+            :error="videoError"
+            :upload-progress="uploadProgress"
+            @upload="handleVideoUpload"
+            @delete="handleVideoDelete"
           />
         </div>
 

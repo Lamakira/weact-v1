@@ -1,5 +1,11 @@
 import apiClient, { getCsrfCookie } from '@/services/apiClient'
-import type { FaceProfileResponse, FacePhotosResponse, FacePhotoResponse } from '../types'
+import type {
+  FaceProfileResponse,
+  FacePhotosResponse,
+  FacePhotoResponse,
+  PresentationVideoResponse,
+  VideoUploadProgress,
+} from '../types'
 
 /**
  * Face API service
@@ -82,6 +88,58 @@ export const faceApi = {
   async reorderAlbumPhotos(order: number[]): Promise<FacePhotosResponse> {
     await getCsrfCookie()
     const response = await apiClient.put<FacePhotosResponse>('/face/album/reorder', { order })
+    return response.data
+  },
+
+  /**
+   * Get the current presentation video info
+   */
+  async getPresentationVideo(): Promise<PresentationVideoResponse> {
+    const response = await apiClient.get<PresentationVideoResponse>('/face/presentation-video')
+    return response.data
+  },
+
+  /**
+   * Upload a presentation video
+   * @param video The video file to upload
+   * @param onProgress Optional callback for upload progress
+   */
+  async uploadPresentationVideo(
+    video: File,
+    onProgress?: (progress: VideoUploadProgress) => void,
+  ): Promise<PresentationVideoResponse> {
+    await getCsrfCookie()
+
+    const formData = new FormData()
+    formData.append('video', video)
+
+    const response = await apiClient.post<PresentationVideoResponse>(
+      '/face/presentation-video',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            onProgress({
+              loaded: progressEvent.loaded,
+              total: progressEvent.total,
+              percentage: Math.round((progressEvent.loaded * 100) / progressEvent.total),
+            })
+          }
+        },
+      },
+    )
+    return response.data
+  },
+
+  /**
+   * Delete the presentation video
+   */
+  async deletePresentationVideo(): Promise<{ message: string }> {
+    await getCsrfCookie()
+    const response = await apiClient.delete<{ message: string }>('/face/presentation-video')
     return response.data
   },
 }

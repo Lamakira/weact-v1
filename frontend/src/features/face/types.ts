@@ -53,3 +53,30 @@ export interface AlbumPhotoResult {
   errors?: Record<string, string[]>
   message?: string
 }
+
+// Presentation video info from API
+export interface PresentationVideoInfo {
+  presentation_video_url: string | null
+  presentation_video_thumbnail_url: string | null
+}
+
+// Presentation video API response
+export interface PresentationVideoResponse {
+  data: PresentationVideoInfo
+  message?: string
+}
+
+// Presentation video operation result
+export interface PresentationVideoResult {
+  success: boolean
+  data?: PresentationVideoInfo
+  errors?: Record<string, string[]>
+  message?: string
+}
+
+// Video upload progress
+export interface VideoUploadProgress {
+  loaded: number
+  total: number
+  percentage: number
+}
