@@ -27,6 +27,8 @@ class Face extends Model
         'profile_photo_thumbnail',
         'presentation_video',
         'presentation_video_thumbnail',
+        'acting_video',
+        'acting_video_thumbnail',
     ];
 
     /**
@@ -39,6 +41,8 @@ class Face extends Model
         'thumbnail_url',
         'presentation_video_url',
         'presentation_video_thumbnail_url',
+        'acting_video_url',
+        'acting_video_thumbnail_url',
     ];
 
     /**
@@ -101,6 +105,30 @@ class Face extends Model
         return Attribute::make(
             get: fn (): ?string => $this->presentation_video_thumbnail
                 ? asset('storage/videos/faces/presentation/thumbnails/' . $this->presentation_video_thumbnail)
+                : null,
+        );
+    }
+
+    /**
+     * Get the full URL for the acting video.
+     */
+    protected function actingVideoUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->acting_video
+                ? asset('storage/videos/faces/acting/' . $this->acting_video)
+                : null,
+        );
+    }
+
+    /**
+     * Get the full URL for the acting video thumbnail.
+     */
+    protected function actingVideoThumbnailUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->acting_video_thumbnail
+                ? asset('storage/videos/faces/acting/thumbnails/' . $this->acting_video_thumbnail)
                 : null,
         );
     }
