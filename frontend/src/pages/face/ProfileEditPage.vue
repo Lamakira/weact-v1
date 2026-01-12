@@ -5,11 +5,13 @@ import { useAuth } from '@/features/auth/composables/useAuth'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
 import { usePhotoAlbum } from '@/features/face/composables/usePhotoAlbum'
 import { usePresentationVideo } from '@/features/face/composables/usePresentationVideo'
+import { useActingVideo } from '@/features/face/composables/useActingVideo'
 import { useToast } from '@/composables/useToast'
 import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vue'
 import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
 import AlbumPhotoUpload from '@/features/face/components/AlbumPhotoUpload.vue'
 import PresentationVideoUpload from '@/features/face/components/PresentationVideoUpload.vue'
+import ActingVideoUpload from '@/features/face/components/ActingVideoUpload.vue'
 
 const router = useRouter()
 const { logout, isLoading: isAuthLoading } = useAuth()
@@ -51,15 +53,28 @@ const {
   deleteVideo,
 } = usePresentationVideo()
 
+// Acting video composable
+const {
+  videoInfo: actingVideoInfo,
+  isLoading: isActingVideoLoading,
+  isUploading: isActingVideoUploading,
+  isDeleting: isActingVideoDeleting,
+  error: actingVideoError,
+  uploadProgress: actingUploadProgress,
+  fetchVideoInfo: fetchActingVideoInfo,
+  uploadVideo: uploadActingVideo,
+  deleteVideo: deleteActingVideo,
+} = useActingVideo()
+
 // Toast notifications
 const toast = useToast()
 
 // Success message
 const successMessage = ref<string | null>(null)
 
-// Fetch profile, album, and video on mount
+// Fetch profile, album, and videos on mount
 onMounted(async () => {
-  await Promise.all([fetchProfile(), fetchAlbumPhotos(), fetchVideoInfo()])
+  await Promise.all([fetchProfile(), fetchAlbumPhotos(), fetchVideoInfo(), fetchActingVideoInfo()])
 })
 
 /**
@@ -151,6 +166,29 @@ async function handleVideoUpload(file: File): Promise<void> {
  */
 async function handleVideoDelete(): Promise<void> {
   const result = await deleteVideo()
+
+  if (result.success) {
+    toast.success(result.message || 'Vidéo supprimée avec succès')
+  }
+}
+
+/**
+ * Handle acting video upload
+ */
+async function handleActingVideoUpload(file: File): Promise<void> {
+  successMessage.value = null
+  const result = await uploadActingVideo(file)
+
+  if (result.success && result.message) {
+    successMessage.value = result.message
+  }
+}
+
+/**
+ * Handle acting video delete
+ */
+async function handleActingVideoDelete(): Promise<void> {
+  const result = await deleteActingVideo()
 
   if (result.success) {
     toast.success(result.message || 'Vidéo supprimée avec succès')
@@ -343,6 +381,24 @@ async function handleVideoDelete(): Promise<void> {
             :upload-progress="uploadProgress"
             @upload="handleVideoUpload"
             @delete="handleVideoDelete"
+          />
+        </div>
+
+        <!-- Acting video section -->
+        <div class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-2">Vidéo d'acting</h2>
+          <p class="text-sm text-gray-500 mb-6">
+            Ajoutez une vidéo démontrant votre talent d'acteur aux producteurs.
+          </p>
+
+          <ActingVideoUpload
+            :video-info="actingVideoInfo"
+            :is-uploading="isActingVideoUploading"
+            :is-deleting="isActingVideoDeleting"
+            :error="actingVideoError"
+            :upload-progress="actingUploadProgress"
+            @upload="handleActingVideoUpload"
+            @delete="handleActingVideoDelete"
           />
         </div>
 
