@@ -25,6 +25,8 @@ class Face extends Model
         'username',
         'profile_photo',
         'profile_photo_thumbnail',
+        'presentation_video',
+        'presentation_video_thumbnail',
     ];
 
     /**
@@ -35,6 +37,8 @@ class Face extends Model
     protected $appends = [
         'profile_photo_url',
         'thumbnail_url',
+        'presentation_video_url',
+        'presentation_video_thumbnail_url',
     ];
 
     /**
@@ -75,5 +79,29 @@ class Face extends Model
     public function photos(): HasMany
     {
         return $this->hasMany(FacePhoto::class)->orderBy('position');
+    }
+
+    /**
+     * Get the full URL for the presentation video.
+     */
+    protected function presentationVideoUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->presentation_video
+                ? asset('storage/videos/faces/presentation/' . $this->presentation_video)
+                : null,
+        );
+    }
+
+    /**
+     * Get the full URL for the presentation video thumbnail.
+     */
+    protected function presentationVideoThumbnailUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->presentation_video_thumbnail
+                ? asset('storage/videos/faces/presentation/thumbnails/' . $this->presentation_video_thumbnail)
+                : null,
+        );
     }
 }

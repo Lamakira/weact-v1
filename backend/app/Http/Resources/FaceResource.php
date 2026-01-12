@@ -26,6 +26,8 @@ class FaceResource extends JsonResource
             'username' => $this->username,
             'profile_photo_url' => $this->profile_photo_url,
             'thumbnail_url' => $this->thumbnail_url,
+            'presentation_video_url' => $this->presentation_video_url,
+            'presentation_video_thumbnail_url' => $this->presentation_video_thumbnail_url,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
