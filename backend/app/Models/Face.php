@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\FaceCategory;
+use App\Enums\FaceNiche;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -35,6 +37,18 @@ class Face extends Model
         'pays',
         'taille',
         'poids',
+        'categorie',
+        'niche',
+    ];
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'categorie' => FaceCategory::class,
+        'niche' => FaceNiche::class,
     ];
 
     /**
