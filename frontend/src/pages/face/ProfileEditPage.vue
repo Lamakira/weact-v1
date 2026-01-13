@@ -8,6 +8,7 @@ import { usePresentationVideo } from '@/features/face/composables/usePresentatio
 import { useActingVideo } from '@/features/face/composables/useActingVideo'
 import { useBioLocation } from '@/features/face/composables/useBioLocation'
 import { usePhysicalCharacteristics } from '@/features/face/composables/usePhysicalCharacteristics'
+import { useCategoryNiche } from '@/features/face/composables/useCategoryNiche'
 import { useToast } from '@/composables/useToast'
 import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vue'
 import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
@@ -16,6 +17,8 @@ import PresentationVideoUpload from '@/features/face/components/PresentationVide
 import ActingVideoUpload from '@/features/face/components/ActingVideoUpload.vue'
 import BioLocationForm from '@/features/face/components/BioLocationForm.vue'
 import PhysicalCharacteristicsForm from '@/features/face/components/PhysicalCharacteristicsForm.vue'
+import CategoryNicheForm from '@/features/face/components/CategoryNicheForm.vue'
+import type { FaceCategory, FaceNiche } from '@/features/face/types'
 
 const router = useRouter()
 const { logout, isLoading: isAuthLoading } = useAuth()
@@ -90,13 +93,27 @@ const {
   updatePhysicalCharacteristics,
 } = usePhysicalCharacteristics()
 
+// Category and niche composable
+const {
+  categoryNicheInfo,
+  categoryOptions,
+  nicheOptions,
+  isLoading: isCategoryNicheLoading,
+  isSaving: isCategoryNicheSaving,
+  error: categoryNicheError,
+  fetchCategoryNiche,
+  fetchCategoryOptions,
+  fetchNicheOptions,
+  updateCategoryNiche,
+} = useCategoryNiche()
+
 // Toast notifications
 const toast = useToast()
 
 // Success message
 const successMessage = ref<string | null>(null)
 
-// Fetch profile, album, videos, bio/location, and physical characteristics on mount
+// Fetch profile, album, videos, bio/location, physical characteristics, and category/niche on mount
 onMounted(async () => {
   await Promise.all([
     fetchProfile(),
@@ -105,6 +122,16 @@ onMounted(async () => {
     fetchActingVideoInfo(),
     fetchBioLocation(),
     fetchPhysicalCharacteristics(),
+    fetchCategoryNiche(),
+    // Fetch options separately with error handling
+    fetchCategoryOptions().catch(() => {
+      // Options failed to load - dropdowns will be empty but form still usable
+      console.warn('Failed to load category options')
+    }),
+    fetchNicheOptions().catch(() => {
+      // Options failed to load - dropdowns will be empty but form still usable
+      console.warn('Failed to load niche options')
+    }),
   ])
 })
 
@@ -250,6 +277,20 @@ async function handlePhysicalCharacteristicsSave(data: {
   poids: number | null
 }): Promise<void> {
   const result = await updatePhysicalCharacteristics(data)
+
+  if (result.success) {
+    toast.success(result.message || 'Profil mis à jour avec succès')
+  }
+}
+
+/**
+ * Handle category/niche save
+ */
+async function handleCategoryNicheSave(data: {
+  categorie: FaceCategory | null
+  niche: FaceNiche | null
+}): Promise<void> {
+  const result = await updateCategoryNiche(data)
 
   if (result.success) {
     toast.success(result.message || 'Profil mis à jour avec succès')
@@ -490,6 +531,48 @@ async function handlePhysicalCharacteristicsSave(data: {
             :is-saving="isPhysicalCharacteristicsSaving"
             :error="physicalCharacteristicsError"
             @save="handlePhysicalCharacteristicsSave"
+          />
+        </div>
+
+        <!-- Category and niche section -->
+        <div class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-2">Catégorie et Niche</h2>
+          <p class="text-sm text-gray-500 mb-6">
+            Sélectionnez votre catégorie et niche pour aider les producteurs à vous trouver selon votre spécialisation.
+          </p>
+
+          <!-- Loading state -->
+          <div v-if="isCategoryNicheLoading" class="flex justify-center py-8">
+            <svg
+              class="animate-spin h-6 w-6 text-teal-600"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+          </div>
+
+          <CategoryNicheForm
+            v-else
+            :category-niche-info="categoryNicheInfo"
+            :category-options="categoryOptions"
+            :niche-options="nicheOptions"
+            :is-saving="isCategoryNicheSaving"
+            :error="categoryNicheError"
+            @save="handleCategoryNicheSave"
           />
         </div>
 
