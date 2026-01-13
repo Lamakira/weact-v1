@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\Face\ActingVideoController;
 use App\Http\Controllers\Api\V1\Face\AlbumController;
 use App\Http\Controllers\Api\V1\Face\BioLocationController;
+use App\Http\Controllers\Api\V1\Face\CategoryNicheController;
+use App\Http\Controllers\Api\V1\Face\CategoryNicheOptionsController;
 use App\Http\Controllers\Api\V1\Face\PhysicalCharacteristicsController;
 use App\Http\Controllers\Api\V1\Face\PresentationVideoController;
 use App\Http\Controllers\Api\V1\Face\ProfileController;
@@ -55,5 +57,28 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/physical-characteristics', [PhysicalCharacteristicsController::class, 'show'])
         ->middleware('throttle:60,1');
     Route::put('/physical-characteristics', [PhysicalCharacteristicsController::class, 'update'])
+        ->middleware('throttle:60,1');
+
+    // Category and niche routes
+    Route::get('/category-niche', [CategoryNicheController::class, 'show'])
+        ->middleware('throttle:60,1');
+    Route::put('/category-niche', [CategoryNicheController::class, 'update'])
+        ->middleware('throttle:60,1');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Public Face API Routes
+|--------------------------------------------------------------------------
+|
+| Routes that do not require authentication.
+|
+*/
+
+Route::prefix('v1/face')->group(function () {
+    // Category and niche options (public - for dropdown population)
+    Route::get('/options/categories', [CategoryNicheOptionsController::class, 'categories'])
+        ->middleware('throttle:60,1');
+    Route::get('/options/niches', [CategoryNicheOptionsController::class, 'niches'])
         ->middleware('throttle:60,1');
 });

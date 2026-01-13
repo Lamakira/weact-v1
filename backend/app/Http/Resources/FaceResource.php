@@ -37,6 +37,10 @@ class FaceResource extends JsonResource
             'formatted_location' => $this->formatted_location,
             'taille' => $this->taille,
             'poids' => $this->poids,
+            'categorie' => $this->categorie?->value,
+            'categorie_label' => $this->categorie?->label(),
+            'niche' => $this->niche?->value,
+            'niche_label' => $this->niche?->label(),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
