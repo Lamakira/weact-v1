@@ -8,6 +8,11 @@ import type {
   VideoUploadProgress,
   BioLocationResponse,
   PhysicalCharacteristicsResponse,
+  CategoryNicheResponse,
+  FaceCategory,
+  FaceNiche,
+  CategoryOption,
+  NicheOption,
 } from '../types'
 
 /**
@@ -240,6 +245,43 @@ export const faceApi = {
       '/face/physical-characteristics',
       data,
     )
+    return response.data
+  },
+
+  /**
+   * Get the current category and niche
+   */
+  async getCategoryNiche(): Promise<CategoryNicheResponse> {
+    const response = await apiClient.get<CategoryNicheResponse>('/face/category-niche')
+    return response.data
+  },
+
+  /**
+   * Update category and/or niche
+   * @param data The category and niche data to update
+   */
+  async updateCategoryNiche(data: {
+    categorie?: FaceCategory | null
+    niche?: FaceNiche | null
+  }): Promise<CategoryNicheResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.put<CategoryNicheResponse>('/face/category-niche', data)
+    return response.data
+  },
+
+  /**
+   * Get category options for dropdown
+   */
+  async getCategoryOptions(): Promise<{ data: CategoryOption[] }> {
+    const response = await apiClient.get<{ data: CategoryOption[] }>('/face/options/categories')
+    return response.data
+  },
+
+  /**
+   * Get niche options for dropdown
+   */
+  async getNicheOptions(): Promise<{ data: NicheOption[] }> {
+    const response = await apiClient.get<{ data: NicheOption[] }>('/face/options/niches')
     return response.data
   },
 }

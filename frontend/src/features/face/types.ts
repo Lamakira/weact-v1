@@ -143,3 +143,43 @@ export interface PhysicalCharacteristicsResult {
   errors?: Record<string, string[]>
   message?: string
 }
+
+// Category enum values
+export type FaceCategory = 'acteur' | 'influenceur' | 'createur' | 'mannequin' | 'figurant'
+
+// Niche enum values
+export type FaceNiche = 'beaute' | 'nourriture' | 'decouverte' | 'mode'
+
+// Category and niche info from API
+export interface CategoryNicheInfo {
+  categorie: FaceCategory | null
+  categorie_label: string | null
+  niche: FaceNiche | null
+  niche_label: string | null
+}
+
+// Category and niche API response
+export interface CategoryNicheResponse {
+  data: CategoryNicheInfo
+  message?: string
+}
+
+// Category and niche operation result
+export interface CategoryNicheResult {
+  success: boolean
+  data?: CategoryNicheInfo
+  errors?: Record<string, string[]>
+  message?: string
+}
+
+// Category option for dropdown
+export interface CategoryOption {
+  value: FaceCategory
+  label: string
+}
+
+// Niche option for dropdown
+export interface NicheOption {
+  value: FaceNiche
+  label: string
+}
