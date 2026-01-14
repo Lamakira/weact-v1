@@ -37,16 +37,18 @@ export function useExperiences(): UseExperiencesReturn {
   }
 
   /**
-   * Sort experiences by year (newest first).
+   * Sort experiences by date (newest first).
    * Used after add/edit operations to maintain sort order locally.
    */
-  function sortByYearDesc(experiencesList: Experience[]): Experience[] {
-    return [...experiencesList].sort((a, b) => b.annee - a.annee)
+  function sortByDateDesc(experiencesList: Experience[]): Experience[] {
+    return [...experiencesList].sort(
+      (a, b) => new Date(b.date_debut).getTime() - new Date(a.date_debut).getTime(),
+    )
   }
 
   /**
    * Fetch all experiences for the authenticated Face.
-   * Backend returns data already sorted by year descending.
+   * Backend returns data already sorted by date descending.
    */
   async function fetchExperiences(): Promise<void> {
     isLoading.value = true
@@ -74,7 +76,7 @@ export function useExperiences(): UseExperiencesReturn {
     try {
       const response = await faceApi.createExperience(data)
       // Add the new experience and re-sort
-      experiences.value = sortByYearDesc([...experiences.value, response.data])
+      experiences.value = sortByDateDesc([...experiences.value, response.data])
 
       return {
         success: true,
@@ -114,7 +116,7 @@ export function useExperiences(): UseExperiencesReturn {
       const index = experiences.value.findIndex((e) => e.id === id)
       if (index !== -1) {
         experiences.value[index] = response.data
-        experiences.value = sortByYearDesc([...experiences.value])
+        experiences.value = sortByDateDesc([...experiences.value])
       }
 
       return {
