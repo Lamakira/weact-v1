@@ -10,6 +10,7 @@ import { useBioLocation } from '@/features/face/composables/useBioLocation'
 import { usePhysicalCharacteristics } from '@/features/face/composables/usePhysicalCharacteristics'
 import { useCategoryNiche } from '@/features/face/composables/useCategoryNiche'
 import { useExperiences } from '@/features/face/composables/useExperiences'
+import { useTarifs } from '@/features/face/composables/useTarifs'
 import { useToast } from '@/composables/useToast'
 import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vue'
 import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
@@ -20,7 +21,8 @@ import BioLocationForm from '@/features/face/components/BioLocationForm.vue'
 import PhysicalCharacteristicsForm from '@/features/face/components/PhysicalCharacteristicsForm.vue'
 import CategoryNicheForm from '@/features/face/components/CategoryNicheForm.vue'
 import ExperiencesList from '@/features/face/components/ExperiencesList.vue'
-import type { FaceCategory, FaceNiche, ExperienceFormData } from '@/features/face/types'
+import TarifsForm from '@/features/face/components/TarifsForm.vue'
+import type { FaceCategory, FaceNiche, ExperienceFormData, TarifsFormData } from '@/features/face/types'
 
 const router = useRouter()
 const { logout, isLoading: isAuthLoading } = useAuth()
@@ -124,6 +126,16 @@ const {
   clearError: clearExperiencesError,
 } = useExperiences()
 
+// Tarifs composable
+const {
+  tarifsInfo,
+  isLoading: isTarifsLoading,
+  isSaving: isTarifsSaving,
+  error: tarifsError,
+  fetchTarifs,
+  updateTarifs,
+} = useTarifs()
+
 // Ref to ExperiencesList component for resetting form states
 const experiencesListRef = ref<InstanceType<typeof ExperiencesList> | null>(null)
 
@@ -133,7 +145,7 @@ const toast = useToast()
 // Success message
 const successMessage = ref<string | null>(null)
 
-// Fetch profile, album, videos, bio/location, physical characteristics, category/niche, and experiences on mount
+// Fetch profile, album, videos, bio/location, physical characteristics, category/niche, experiences, and tarifs on mount
 onMounted(async () => {
   await Promise.all([
     fetchProfile(),
@@ -144,6 +156,7 @@ onMounted(async () => {
     fetchPhysicalCharacteristics(),
     fetchCategoryNiche(),
     fetchExperiences(),
+    fetchTarifs(),
     // Fetch options separately with error handling
     fetchCategoryOptions().catch(() => {
       // Options failed to load - dropdowns will be empty but form still usable
@@ -353,6 +366,17 @@ async function handleExperienceDelete(id: number): Promise<void> {
 
   if (success) {
     toast.success('Expérience supprimée avec succès')
+  }
+}
+
+/**
+ * Handle tarifs save
+ */
+async function handleTarifsSave(data: TarifsFormData): Promise<void> {
+  const result = await updateTarifs(data)
+
+  if (result.success) {
+    toast.success(result.message || 'Tarifs mis à jour avec succès')
   }
 }
 </script>
@@ -648,6 +672,62 @@ async function handleExperienceDelete(id: number): Promise<void> {
             @add="handleExperienceAdd"
             @edit="handleExperienceEdit"
             @delete="handleExperienceDelete"
+          />
+        </div>
+
+        <!-- Tarifs section -->
+        <div class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-2 flex items-center gap-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+              class="w-5 h-5 text-teal-600"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            Tarifs
+          </h2>
+          <p class="text-sm text-gray-500 mb-6">
+            Indiquez vos tarifs horaire et journalier pour informer les producteurs de vos prix.
+          </p>
+
+          <!-- Loading state -->
+          <div v-if="isTarifsLoading" class="flex justify-center py-8">
+            <svg
+              class="animate-spin h-6 w-6 text-teal-600"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+          </div>
+
+          <TarifsForm
+            v-else
+            :tarifs-info="tarifsInfo"
+            :is-saving="isTarifsSaving"
+            :error="tarifsError"
+            @save="handleTarifsSave"
           />
         </div>
 
