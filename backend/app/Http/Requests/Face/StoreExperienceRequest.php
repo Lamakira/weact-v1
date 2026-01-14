@@ -29,7 +29,8 @@ class StoreExperienceRequest extends FormRequest
         return [
             'titre' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:500'],
-            'annee' => ['required', 'integer', 'min:1950', 'max:' . date('Y')],
+            'date_debut' => ['required', 'date', 'before_or_equal:today'],
+            'date_fin' => ['nullable', 'date', 'after_or_equal:date_debut', 'before_or_equal:today'],
         ];
     }
 
@@ -44,10 +45,12 @@ class StoreExperienceRequest extends FormRequest
             'titre.required' => 'Le titre est requis',
             'titre.max' => 'Le titre ne doit pas dépasser 150 caractères',
             'description.max' => 'La description ne doit pas dépasser 500 caractères',
-            'annee.required' => "L'année est requise",
-            'annee.integer' => "L'année doit être un nombre entier",
-            'annee.min' => "L'année doit être supérieure ou égale à 1950",
-            'annee.max' => "L'année ne peut pas être dans le futur",
+            'date_debut.required' => 'La date de début est requise',
+            'date_debut.date' => "La date de début n'est pas valide",
+            'date_debut.before_or_equal' => 'La date de début ne peut pas être dans le futur',
+            'date_fin.date' => "La date de fin n'est pas valide",
+            'date_fin.after_or_equal' => 'La date de fin doit être après la date de début',
+            'date_fin.before_or_equal' => 'La date de fin ne peut pas être dans le futur',
         ];
     }
 }
