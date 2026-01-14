@@ -189,7 +189,10 @@ export interface Experience {
   id: number
   titre: string
   description: string | null
-  annee: number
+  date_debut: string // ISO date string (YYYY-MM-DD)
+  date_fin: string | null // ISO date string or null for ongoing
+  is_ongoing: boolean
+  formatted_period: string // e.g., "15/01/2023 - 20/03/2024" or "15/01/2023 - Présent"
   created_at: string
   updated_at: string
 }
@@ -198,7 +201,8 @@ export interface Experience {
 export interface ExperienceFormData {
   titre: string
   description?: string | null
-  annee: number
+  date_debut: string // YYYY-MM-DD format
+  date_fin?: string | null // YYYY-MM-DD format or null for ongoing
 }
 
 // Single experience API response
