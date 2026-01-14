@@ -20,6 +20,7 @@ import type {
   TarifsFormData,
   AvailabilityResponse,
   AvailabilityFormData,
+  ProfileCompletionResponse,
 } from '../types'
 
 /**
@@ -373,6 +374,14 @@ export const faceApi = {
   async updateAvailability(data: AvailabilityFormData): Promise<AvailabilityResponse> {
     await getCsrfCookie()
     const response = await apiClient.put<AvailabilityResponse>('/face/availability', data)
+    return response.data
+  },
+
+  /**
+   * Get the current profile completion status
+   */
+  async getProfileCompletion(): Promise<ProfileCompletionResponse> {
+    const response = await apiClient.get<ProfileCompletionResponse>('/face/profile-completion')
     return response.data
   },
 }

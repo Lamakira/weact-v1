@@ -281,3 +281,23 @@ export interface AvailabilityResult {
   errors?: Record<string, string[]>
   message?: string
 }
+
+// Profile completion missing item
+export interface ProfileCompletionMissingItem {
+  key: string
+  label: string
+}
+
+// Profile completion info from API
+export interface ProfileCompletionInfo {
+  profile_completion_percentage: number
+  profile_completion_missing: ProfileCompletionMissingItem[]
+  profile_completion_is_complete: boolean
+}
+
+// Profile completion API response
+export interface ProfileCompletionResponse {
+  data: ProfileCompletionInfo
+  message?: string
+}
+
