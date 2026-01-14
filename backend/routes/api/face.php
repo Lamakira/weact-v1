@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Face\ActingVideoController;
 use App\Http\Controllers\Api\V1\Face\AlbumController;
+use App\Http\Controllers\Api\V1\Face\AvailabilityController;
 use App\Http\Controllers\Api\V1\Face\BioLocationController;
 use App\Http\Controllers\Api\V1\Face\CategoryNicheController;
 use App\Http\Controllers\Api\V1\Face\CategoryNicheOptionsController;
@@ -83,6 +84,12 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/tarifs', [TarifsController::class, 'show'])
         ->middleware('throttle:60,1');
     Route::put('/tarifs', [TarifsController::class, 'update'])
+        ->middleware('throttle:60,1');
+
+    // Availability routes
+    Route::get('/availability', [AvailabilityController::class, 'show'])
+        ->middleware('throttle:60,1');
+    Route::put('/availability', [AvailabilityController::class, 'update'])
         ->middleware('throttle:60,1');
 });
 

@@ -41,6 +41,7 @@ class Face extends Model
         'niche',
         'tarif_horaire',
         'tarif_journalier',
+        'is_available',
     ];
 
     /**
@@ -51,6 +52,7 @@ class Face extends Model
     protected $casts = [
         'categorie' => FaceCategory::class,
         'niche' => FaceNiche::class,
+        'is_available' => 'boolean',
     ];
 
     /**
@@ -68,6 +70,8 @@ class Face extends Model
         'formatted_location',
         'formatted_tarif_horaire',
         'formatted_tarif_journalier',
+        'availability_badge',
+        'availability_badge_color',
     ];
 
     /**
@@ -205,6 +209,26 @@ class Face extends Model
             get: fn (): ?string => $this->tarif_journalier !== null
                 ? number_format($this->tarif_journalier, 0, ',', ' ') . ' XOF/jour'
                 : null,
+        );
+    }
+
+    /**
+     * Get the availability badge text ("Disponible" or "Indisponible").
+     */
+    protected function availabilityBadge(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): string => $this->is_available ? 'Disponible' : 'Indisponible',
+        );
+    }
+
+    /**
+     * Get the availability badge color ("green" or "grey").
+     */
+    protected function availabilityBadgeColor(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): string => $this->is_available ? 'green' : 'grey',
         );
     }
 }
