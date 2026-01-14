@@ -11,13 +11,13 @@ use Illuminate\Database\Eloquent\Collection;
 class ExperienceService
 {
     /**
-     * Get all experiences for a Face, ordered by year descending (newest first).
+     * Get all experiences for a Face, ordered by date descending (most recent first).
      *
      * @return Collection<int, Experience>
      */
     public function getExperiences(Face $face): Collection
     {
-        return $face->experiences()->orderedByYear()->get();
+        return $face->experiences()->orderedByDate()->get();
     }
 
     /**
@@ -30,7 +30,8 @@ class ExperienceService
         return $face->experiences()->create([
             'titre' => $data['titre'],
             'description' => $data['description'] ?? null,
-            'annee' => $data['annee'],
+            'date_debut' => $data['date_debut'],
+            'date_fin' => $data['date_fin'] ?? null,
         ]);
     }
 
@@ -44,7 +45,8 @@ class ExperienceService
         $experience->update([
             'titre' => $data['titre'],
             'description' => $data['description'] ?? null,
-            'annee' => $data['annee'],
+            'date_debut' => $data['date_debut'],
+            'date_fin' => $data['date_fin'] ?? null,
         ]);
 
         return $experience->refresh();

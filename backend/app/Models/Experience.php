@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -22,7 +24,8 @@ class Experience extends Model
         'face_id',
         'titre',
         'description',
-        'annee',
+        'date_debut',
+        'date_fin',
     ];
 
     /**
@@ -31,7 +34,8 @@ class Experience extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'annee' => 'integer',
+        'date_debut' => 'date',
+        'date_fin' => 'date',
     ];
 
     /**
@@ -43,10 +47,44 @@ class Experience extends Model
     }
 
     /**
-     * Scope to order experiences by year in descending order (newest first).
+     * Scope to order experiences by date in descending order (most recent first).
      */
-    public function scopeOrderedByYear(Builder $query): Builder
+    public function scopeOrderedByDate(Builder $query): Builder
     {
-        return $query->orderBy('annee', 'desc');
+        return $query->orderBy('date_debut', 'desc');
+    }
+
+    /**
+     * Check if the experience is ongoing (no end date).
+     */
+    protected function isOngoing(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): bool => $this->date_fin === null,
+        );
+    }
+
+    /**
+     * Get the formatted date period string.
+     * Format: "dd/mm/yyyy - dd/mm/yyyy" or "dd/mm/yyyy - Présent"
+     */
+    protected function formattedPeriod(): Attribute
+    {
+        return Attribute::make(
+            get: function (): string {
+                /** @var Carbon $dateDebut */
+                $dateDebut = $this->date_debut;
+                $startFormatted = $dateDebut->format('d/m/Y');
+
+                if ($this->date_fin === null) {
+                    return "{$startFormatted} - Présent";
+                }
+
+                /** @var Carbon $dateFin */
+                $dateFin = $this->date_fin;
+
+                return "{$startFormatted} - {$dateFin->format('d/m/Y')}";
+            },
+        );
     }
 }
