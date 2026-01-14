@@ -252,3 +252,32 @@ export interface TarifsResult {
   errors?: Record<string, string[]>
   message?: string
 }
+
+// Availability badge color type
+export type AvailabilityBadgeColor = 'green' | 'grey'
+
+// Availability info from API
+export interface AvailabilityInfo {
+  is_available: boolean
+  availability_badge: string
+  availability_badge_color: AvailabilityBadgeColor
+}
+
+// Availability API response
+export interface AvailabilityResponse {
+  data: AvailabilityInfo
+  message?: string
+}
+
+// Availability form data for update
+export interface AvailabilityFormData {
+  is_available: boolean
+}
+
+// Availability operation result
+export interface AvailabilityResult {
+  success: boolean
+  data?: AvailabilityInfo
+  errors?: Record<string, string[]>
+  message?: string
+}

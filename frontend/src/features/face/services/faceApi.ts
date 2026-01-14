@@ -18,6 +18,8 @@ import type {
   ExperienceFormData,
   TarifsResponse,
   TarifsFormData,
+  AvailabilityResponse,
+  AvailabilityFormData,
 } from '../types'
 
 /**
@@ -353,6 +355,24 @@ export const faceApi = {
   async updateTarifs(data: TarifsFormData): Promise<TarifsResponse> {
     await getCsrfCookie()
     const response = await apiClient.put<TarifsResponse>('/face/tarifs', data)
+    return response.data
+  },
+
+  /**
+   * Get the current availability status
+   */
+  async getAvailability(): Promise<AvailabilityResponse> {
+    const response = await apiClient.get<AvailabilityResponse>('/face/availability')
+    return response.data
+  },
+
+  /**
+   * Update availability status
+   * @param data The availability data to update
+   */
+  async updateAvailability(data: AvailabilityFormData): Promise<AvailabilityResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.put<AvailabilityResponse>('/face/availability', data)
     return response.data
   },
 }
