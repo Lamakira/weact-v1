@@ -11,6 +11,7 @@ import { usePhysicalCharacteristics } from '@/features/face/composables/usePhysi
 import { useCategoryNiche } from '@/features/face/composables/useCategoryNiche'
 import { useExperiences } from '@/features/face/composables/useExperiences'
 import { useTarifs } from '@/features/face/composables/useTarifs'
+import { useAvailability } from '@/features/face/composables/useAvailability'
 import { useToast } from '@/composables/useToast'
 import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vue'
 import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
@@ -22,6 +23,7 @@ import PhysicalCharacteristicsForm from '@/features/face/components/PhysicalChar
 import CategoryNicheForm from '@/features/face/components/CategoryNicheForm.vue'
 import ExperiencesList from '@/features/face/components/ExperiencesList.vue'
 import TarifsForm from '@/features/face/components/TarifsForm.vue'
+import AvailabilityToggle from '@/features/face/components/AvailabilityToggle.vue'
 import type { FaceCategory, FaceNiche, ExperienceFormData, TarifsFormData } from '@/features/face/types'
 
 const router = useRouter()
@@ -136,6 +138,16 @@ const {
   updateTarifs,
 } = useTarifs()
 
+// Availability composable
+const {
+  availabilityInfo,
+  isLoading: isAvailabilityLoading,
+  isSaving: isAvailabilitySaving,
+  error: availabilityError,
+  fetchAvailability,
+  toggleAvailability,
+} = useAvailability()
+
 // Ref to ExperiencesList component for resetting form states
 const experiencesListRef = ref<InstanceType<typeof ExperiencesList> | null>(null)
 
@@ -145,7 +157,7 @@ const toast = useToast()
 // Success message
 const successMessage = ref<string | null>(null)
 
-// Fetch profile, album, videos, bio/location, physical characteristics, category/niche, experiences, and tarifs on mount
+// Fetch profile, album, videos, bio/location, physical characteristics, category/niche, experiences, tarifs, and availability on mount
 onMounted(async () => {
   await Promise.all([
     fetchProfile(),
@@ -157,6 +169,7 @@ onMounted(async () => {
     fetchCategoryNiche(),
     fetchExperiences(),
     fetchTarifs(),
+    fetchAvailability(),
     // Fetch options separately with error handling
     fetchCategoryOptions().catch(() => {
       // Options failed to load - dropdowns will be empty but form still usable
@@ -379,6 +392,17 @@ async function handleTarifsSave(data: TarifsFormData): Promise<void> {
     toast.success(result.message || 'Tarifs mis à jour avec succès')
   }
 }
+
+/**
+ * Handle availability toggle
+ */
+async function handleAvailabilityToggle(): Promise<void> {
+  const result = await toggleAvailability()
+
+  if (result.success) {
+    toast.success(result.message || 'Disponibilité mise à jour avec succès')
+  }
+}
 </script>
 
 <template>
@@ -474,6 +498,35 @@ async function handleTarifsSave(data: TarifsFormData): Promise<void> {
 
       <!-- Profile content -->
       <div v-else class="bg-white rounded-lg shadow">
+        <!-- Availability section - TOP of profile -->
+        <div class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+              class="w-5 h-5 text-teal-600"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            Disponibilité
+          </h2>
+
+          <AvailabilityToggle
+            :is-available="availabilityInfo?.is_available ?? true"
+            :is-loading="isAvailabilityLoading"
+            :is-saving="isAvailabilitySaving"
+            :error="availabilityError"
+            @toggle="handleAvailabilityToggle"
+          />
+        </div>
+
         <!-- Success message -->
         <div
           v-if="successMessage"
