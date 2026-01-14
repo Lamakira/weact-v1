@@ -16,6 +16,8 @@ import type {
   ExperienceResponse,
   ExperiencesListResponse,
   ExperienceFormData,
+  TarifsResponse,
+  TarifsFormData,
 } from '../types'
 
 /**
@@ -333,6 +335,24 @@ export const faceApi = {
   async deleteExperience(id: number): Promise<{ message: string }> {
     await getCsrfCookie()
     const response = await apiClient.delete<{ message: string }>(`/face/experiences/${id}`)
+    return response.data
+  },
+
+  /**
+   * Get the current tarifs
+   */
+  async getTarifs(): Promise<TarifsResponse> {
+    const response = await apiClient.get<TarifsResponse>('/face/tarifs')
+    return response.data
+  },
+
+  /**
+   * Update tarifs
+   * @param data The tarifs data to update
+   */
+  async updateTarifs(data: TarifsFormData): Promise<TarifsResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.put<TarifsResponse>('/face/tarifs', data)
     return response.data
   },
 }

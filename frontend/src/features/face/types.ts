@@ -224,3 +224,31 @@ export interface ExperienceResult {
   errors?: Record<string, string[]>
   message?: string
 }
+
+// Tarifs info from API
+export interface TarifsInfo {
+  tarif_horaire: number | null
+  tarif_journalier: number | null
+  formatted_tarif_horaire: string | null
+  formatted_tarif_journalier: string | null
+}
+
+// Tarifs API response
+export interface TarifsResponse {
+  data: TarifsInfo
+  message?: string
+}
+
+// Tarifs form data for update
+export interface TarifsFormData {
+  tarif_horaire: number | null
+  tarif_journalier: number | null
+}
+
+// Tarifs operation result
+export interface TarifsResult {
+  success: boolean
+  data?: TarifsInfo
+  errors?: Record<string, string[]>
+  message?: string
+}
