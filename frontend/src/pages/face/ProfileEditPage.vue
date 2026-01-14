@@ -12,6 +12,7 @@ import { useCategoryNiche } from '@/features/face/composables/useCategoryNiche'
 import { useExperiences } from '@/features/face/composables/useExperiences'
 import { useTarifs } from '@/features/face/composables/useTarifs'
 import { useAvailability } from '@/features/face/composables/useAvailability'
+import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
 import { useToast } from '@/composables/useToast'
 import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vue'
 import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
@@ -24,6 +25,7 @@ import CategoryNicheForm from '@/features/face/components/CategoryNicheForm.vue'
 import ExperiencesList from '@/features/face/components/ExperiencesList.vue'
 import TarifsForm from '@/features/face/components/TarifsForm.vue'
 import AvailabilityToggle from '@/features/face/components/AvailabilityToggle.vue'
+import ProfileCompletionIndicator from '@/features/face/components/ProfileCompletionIndicator.vue'
 import type { FaceCategory, FaceNiche, ExperienceFormData, TarifsFormData } from '@/features/face/types'
 
 const router = useRouter()
@@ -148,6 +150,16 @@ const {
   toggleAvailability,
 } = useAvailability()
 
+// Profile completion composable
+const {
+  isLoading: isCompletionLoading,
+  error: completionError,
+  percentage: completionPercentage,
+  missingItems: completionMissingItems,
+  isComplete: isProfileComplete,
+  fetchCompletion,
+} = useProfileCompletion()
+
 // Ref to ExperiencesList component for resetting form states
 const experiencesListRef = ref<InstanceType<typeof ExperiencesList> | null>(null)
 
@@ -157,7 +169,7 @@ const toast = useToast()
 // Success message
 const successMessage = ref<string | null>(null)
 
-// Fetch profile, album, videos, bio/location, physical characteristics, category/niche, experiences, tarifs, and availability on mount
+// Fetch profile, album, videos, bio/location, physical characteristics, category/niche, experiences, tarifs, availability, and completion on mount
 onMounted(async () => {
   await Promise.all([
     fetchProfile(),
@@ -170,6 +182,7 @@ onMounted(async () => {
     fetchExperiences(),
     fetchTarifs(),
     fetchAvailability(),
+    fetchCompletion(),
     // Fetch options separately with error handling
     fetchCategoryOptions().catch(() => {
       // Options failed to load - dropdowns will be empty but form still usable
@@ -191,6 +204,7 @@ async function handleUpload(file: File): Promise<void> {
 
   if (result.success && result.message) {
     successMessage.value = result.message
+    await fetchCompletion() // Refresh completion after profile photo upload
   }
 }
 
@@ -203,6 +217,7 @@ async function handleDelete(): Promise<void> {
 
   if (result.success && result.message) {
     successMessage.value = result.message
+    await fetchCompletion() // Refresh completion after profile photo delete
   }
 }
 
@@ -263,6 +278,7 @@ async function handleVideoUpload(file: File): Promise<void> {
 
   if (result.success && result.message) {
     successMessage.value = result.message
+    await fetchCompletion() // Refresh completion after presentation video upload
   }
 }
 
@@ -274,6 +290,7 @@ async function handleVideoDelete(): Promise<void> {
 
   if (result.success) {
     toast.success(result.message || 'Vidéo supprimée avec succès')
+    await fetchCompletion() // Refresh completion after presentation video delete
   }
 }
 
@@ -286,6 +303,7 @@ async function handleActingVideoUpload(file: File): Promise<void> {
 
   if (result.success && result.message) {
     successMessage.value = result.message
+    await fetchCompletion() // Refresh completion after acting video upload
   }
 }
 
@@ -297,6 +315,7 @@ async function handleActingVideoDelete(): Promise<void> {
 
   if (result.success) {
     toast.success(result.message || 'Vidéo supprimée avec succès')
+    await fetchCompletion() // Refresh completion after acting video delete
   }
 }
 
@@ -313,6 +332,7 @@ async function handleBioLocationSave(data: {
 
   if (result.success) {
     toast.success(result.message || 'Profil mis à jour avec succès')
+    await fetchCompletion() // Refresh completion after bio/location save
   }
 }
 
@@ -341,6 +361,7 @@ async function handleCategoryNicheSave(data: {
 
   if (result.success) {
     toast.success(result.message || 'Profil mis à jour avec succès')
+    await fetchCompletion() // Refresh completion after category/niche save
   }
 }
 
@@ -390,6 +411,7 @@ async function handleTarifsSave(data: TarifsFormData): Promise<void> {
 
   if (result.success) {
     toast.success(result.message || 'Tarifs mis à jour avec succès')
+    await fetchCompletion() // Refresh completion after tarifs save
   }
 }
 
@@ -401,6 +423,31 @@ async function handleAvailabilityToggle(): Promise<void> {
 
   if (result.success) {
     toast.success(result.message || 'Disponibilité mise à jour avec succès')
+  }
+}
+
+/**
+ * Handle click on missing item in completion indicator
+ * Scrolls to the appropriate section
+ */
+function handleCompletionItemClick(itemKey: string): void {
+  // Map missing item keys to section IDs
+  const sectionMap: Record<string, string> = {
+    profile_photo: 'section-profile-photo',
+    presentation_video: 'section-presentation-video',
+    acting_video: 'section-acting-video',
+    bio: 'section-bio-location',
+    ville: 'section-bio-location',
+    categorie: 'section-category-niche',
+    tarifs: 'section-tarifs',
+  }
+
+  const sectionId = sectionMap[itemKey]
+  if (sectionId) {
+    const element = document.getElementById(sectionId)
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
   }
 }
 </script>
@@ -527,6 +574,49 @@ async function handleAvailabilityToggle(): Promise<void> {
           />
         </div>
 
+        <!-- Profile completion section -->
+        <div class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+              class="w-5 h-5 text-teal-600"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z"
+              />
+            </svg>
+            Complétion du profil
+          </h2>
+
+          <ProfileCompletionIndicator
+            :percentage="isCompletionLoading ? undefined : completionPercentage"
+            :missing-items="completionMissingItems"
+            :is-complete="isProfileComplete"
+            variant="full"
+            @click-item="handleCompletionItemClick"
+          />
+
+          <!-- Error message -->
+          <div
+            v-if="completionError"
+            class="mt-4 rounded-md bg-red-50 p-3 border border-red-200"
+            role="alert"
+          >
+            <p class="text-sm text-red-700">{{ completionError }}</p>
+          </div>
+        </div>
+
         <!-- Success message -->
         <div
           v-if="successMessage"
@@ -554,7 +644,7 @@ async function handleAvailabilityToggle(): Promise<void> {
         </div>
 
         <!-- Profile photo section -->
-        <div class="p-6 border-b border-gray-200">
+        <div id="section-profile-photo" class="p-6 border-b border-gray-200">
           <h2 class="text-lg font-medium text-gray-900 mb-6">Photo de profil</h2>
 
           <ProfilePhotoUpload
@@ -605,7 +695,7 @@ async function handleAvailabilityToggle(): Promise<void> {
         </div>
 
         <!-- Presentation video section -->
-        <div class="p-6 border-b border-gray-200">
+        <div id="section-presentation-video" class="p-6 border-b border-gray-200">
           <h2 class="text-lg font-medium text-gray-900 mb-2">Vidéo de présentation</h2>
           <p class="text-sm text-gray-500 mb-6">
             Ajoutez une courte vidéo pour vous présenter aux producteurs.
@@ -623,7 +713,7 @@ async function handleAvailabilityToggle(): Promise<void> {
         </div>
 
         <!-- Acting video section -->
-        <div class="p-6 border-b border-gray-200">
+        <div id="section-acting-video" class="p-6 border-b border-gray-200">
           <h2 class="text-lg font-medium text-gray-900 mb-2">Vidéo d'acting</h2>
           <p class="text-sm text-gray-500 mb-6">
             Ajoutez une vidéo démontrant votre talent d'acteur aux producteurs.
@@ -641,7 +731,7 @@ async function handleAvailabilityToggle(): Promise<void> {
         </div>
 
         <!-- Bio and location section -->
-        <div class="p-6 border-b border-gray-200">
+        <div id="section-bio-location" class="p-6 border-b border-gray-200">
           <h2 class="text-lg font-medium text-gray-900 mb-2">Bio et Localisation</h2>
           <p class="text-sm text-gray-500 mb-6">
             Partagez votre parcours et indiquez votre localisation aux producteurs.
@@ -671,7 +761,7 @@ async function handleAvailabilityToggle(): Promise<void> {
         </div>
 
         <!-- Category and niche section -->
-        <div class="p-6 border-b border-gray-200">
+        <div id="section-category-niche" class="p-6 border-b border-gray-200">
           <h2 class="text-lg font-medium text-gray-900 mb-2">Catégorie et Niche</h2>
           <p class="text-sm text-gray-500 mb-6">
             Sélectionnez votre catégorie et niche pour aider les producteurs à vous trouver selon votre spécialisation.
@@ -729,7 +819,7 @@ async function handleAvailabilityToggle(): Promise<void> {
         </div>
 
         <!-- Tarifs section -->
-        <div class="p-6 border-b border-gray-200">
+        <div id="section-tarifs" class="p-6 border-b border-gray-200">
           <h2 class="text-lg font-medium text-gray-900 mb-2 flex items-center gap-2">
             <svg
               xmlns="http://www.w3.org/2000/svg"
