@@ -9,6 +9,7 @@ import { useActingVideo } from '@/features/face/composables/useActingVideo'
 import { useBioLocation } from '@/features/face/composables/useBioLocation'
 import { usePhysicalCharacteristics } from '@/features/face/composables/usePhysicalCharacteristics'
 import { useCategoryNiche } from '@/features/face/composables/useCategoryNiche'
+import { useExperiences } from '@/features/face/composables/useExperiences'
 import { useToast } from '@/composables/useToast'
 import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vue'
 import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
@@ -18,7 +19,8 @@ import ActingVideoUpload from '@/features/face/components/ActingVideoUpload.vue'
 import BioLocationForm from '@/features/face/components/BioLocationForm.vue'
 import PhysicalCharacteristicsForm from '@/features/face/components/PhysicalCharacteristicsForm.vue'
 import CategoryNicheForm from '@/features/face/components/CategoryNicheForm.vue'
-import type { FaceCategory, FaceNiche } from '@/features/face/types'
+import ExperiencesList from '@/features/face/components/ExperiencesList.vue'
+import type { FaceCategory, FaceNiche, ExperienceFormData } from '@/features/face/types'
 
 const router = useRouter()
 const { logout, isLoading: isAuthLoading } = useAuth()
@@ -107,13 +109,31 @@ const {
   updateCategoryNiche,
 } = useCategoryNiche()
 
+// Experiences composable
+const {
+  experiences,
+  isLoading: isExperiencesLoading,
+  isSaving: isExperiencesSaving,
+  isDeleting: isExperiencesDeleting,
+  error: experiencesError,
+  validationErrors: experiencesValidationErrors,
+  fetchExperiences,
+  addExperience,
+  editExperience,
+  removeExperience,
+  clearError: clearExperiencesError,
+} = useExperiences()
+
+// Ref to ExperiencesList component for resetting form states
+const experiencesListRef = ref<InstanceType<typeof ExperiencesList> | null>(null)
+
 // Toast notifications
 const toast = useToast()
 
 // Success message
 const successMessage = ref<string | null>(null)
 
-// Fetch profile, album, videos, bio/location, physical characteristics, and category/niche on mount
+// Fetch profile, album, videos, bio/location, physical characteristics, category/niche, and experiences on mount
 onMounted(async () => {
   await Promise.all([
     fetchProfile(),
@@ -123,6 +143,7 @@ onMounted(async () => {
     fetchBioLocation(),
     fetchPhysicalCharacteristics(),
     fetchCategoryNiche(),
+    fetchExperiences(),
     // Fetch options separately with error handling
     fetchCategoryOptions().catch(() => {
       // Options failed to load - dropdowns will be empty but form still usable
@@ -294,6 +315,44 @@ async function handleCategoryNicheSave(data: {
 
   if (result.success) {
     toast.success(result.message || 'Profil mis à jour avec succès')
+  }
+}
+
+/**
+ * Handle experience add
+ */
+async function handleExperienceAdd(data: ExperienceFormData): Promise<void> {
+  clearExperiencesError()
+  const result = await addExperience(data)
+
+  if (result.success) {
+    toast.success(result.message || 'Expérience ajoutée avec succès')
+    experiencesListRef.value?.resetFormStates()
+  }
+}
+
+/**
+ * Handle experience edit
+ */
+async function handleExperienceEdit(id: number, data: ExperienceFormData): Promise<void> {
+  clearExperiencesError()
+  const result = await editExperience(id, data)
+
+  if (result.success) {
+    toast.success(result.message || 'Expérience mise à jour avec succès')
+    experiencesListRef.value?.resetFormStates()
+  }
+}
+
+/**
+ * Handle experience delete
+ */
+async function handleExperienceDelete(id: number): Promise<void> {
+  clearExperiencesError()
+  const success = await removeExperience(id)
+
+  if (success) {
+    toast.success('Expérience supprimée avec succès')
   }
 }
 </script>
@@ -573,6 +632,22 @@ async function handleCategoryNicheSave(data: {
             :is-saving="isCategoryNicheSaving"
             :error="categoryNicheError"
             @save="handleCategoryNicheSave"
+          />
+        </div>
+
+        <!-- Experiences section -->
+        <div class="p-6 border-b border-gray-200">
+          <ExperiencesList
+            ref="experiencesListRef"
+            :experiences="experiences"
+            :is-loading="isExperiencesLoading"
+            :is-saving="isExperiencesSaving"
+            :is-deleting="isExperiencesDeleting"
+            :error="experiencesError"
+            :validation-errors="experiencesValidationErrors"
+            @add="handleExperienceAdd"
+            @edit="handleExperienceEdit"
+            @delete="handleExperienceDelete"
           />
         </div>
 

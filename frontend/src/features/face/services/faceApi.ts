@@ -13,6 +13,9 @@ import type {
   FaceNiche,
   CategoryOption,
   NicheOption,
+  ExperienceResponse,
+  ExperiencesListResponse,
+  ExperienceFormData,
 } from '../types'
 
 /**
@@ -282,6 +285,54 @@ export const faceApi = {
    */
   async getNicheOptions(): Promise<{ data: NicheOption[] }> {
     const response = await apiClient.get<{ data: NicheOption[] }>('/face/options/niches')
+    return response.data
+  },
+
+  /**
+   * Get all experiences
+   */
+  async getExperiences(): Promise<ExperiencesListResponse> {
+    const response = await apiClient.get<ExperiencesListResponse>('/face/experiences')
+    return response.data
+  },
+
+  /**
+   * Create a new experience
+   * @param data The experience data to create
+   */
+  async createExperience(data: ExperienceFormData): Promise<ExperienceResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<ExperienceResponse>('/face/experiences', data)
+    return response.data
+  },
+
+  /**
+   * Get a single experience
+   * @param id The experience ID
+   */
+  async getExperience(id: number): Promise<ExperienceResponse> {
+    const response = await apiClient.get<ExperienceResponse>(`/face/experiences/${id}`)
+    return response.data
+  },
+
+  /**
+   * Update an experience
+   * @param id The experience ID
+   * @param data The experience data to update
+   */
+  async updateExperience(id: number, data: ExperienceFormData): Promise<ExperienceResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.put<ExperienceResponse>(`/face/experiences/${id}`, data)
+    return response.data
+  },
+
+  /**
+   * Delete an experience
+   * @param id The experience ID
+   */
+  async deleteExperience(id: number): Promise<{ message: string }> {
+    await getCsrfCookie()
+    const response = await apiClient.delete<{ message: string }>(`/face/experiences/${id}`)
     return response.data
   },
 }

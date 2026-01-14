@@ -183,3 +183,40 @@ export interface NicheOption {
   value: FaceNiche
   label: string
 }
+
+// Experience from API
+export interface Experience {
+  id: number
+  titre: string
+  description: string | null
+  annee: number
+  created_at: string
+  updated_at: string
+}
+
+// Experience form data for create/update
+export interface ExperienceFormData {
+  titre: string
+  description?: string | null
+  annee: number
+}
+
+// Single experience API response
+export interface ExperienceResponse {
+  data: Experience
+  message?: string
+}
+
+// Experiences list API response
+export interface ExperiencesListResponse {
+  data: Experience[]
+  message?: string
+}
+
+// Experience operation result
+export interface ExperienceResult {
+  success: boolean
+  data?: Experience
+  errors?: Record<string, string[]>
+  message?: string
+}
