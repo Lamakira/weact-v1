@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, watch, computed } from 'vue'
+import { reactive, watch, computed, ref } from 'vue'
 import type { Experience, ExperienceFormData } from '../types'
 
 const props = withDefaults(
@@ -20,12 +20,21 @@ const emit = defineEmits<{
   (e: 'cancel'): void
 }>()
 
-const currentYear = new Date().getFullYear()
+// Get today's date in YYYY-MM-DD format for max date
+const today = new Date().toISOString().split('T')[0]
+
+// Store saved date_fin for restoration when unchecking "En cours"
+const savedDateFin = ref<string | null>(null)
+
+// Client-side validation error for date_fin
+const dateFinClientError = ref<string | null>(null)
 
 const form = reactive({
   titre: '',
   description: '',
-  annee: currentYear,
+  date_debut: '',
+  date_fin: '' as string | null,
+  is_ongoing: false,
 })
 
 // Watch for experience changes and update form (for edit mode)
@@ -35,24 +44,61 @@ watch(
     if (exp) {
       form.titre = exp.titre
       form.description = exp.description ?? ''
-      form.annee = exp.annee
+      form.date_debut = exp.date_debut
+      form.date_fin = exp.date_fin
+      form.is_ongoing = exp.is_ongoing
+      savedDateFin.value = exp.date_fin
     } else {
       // Reset form for add mode
       form.titre = ''
       form.description = ''
-      form.annee = currentYear
+      form.date_debut = ''
+      form.date_fin = ''
+      form.is_ongoing = false
+      savedDateFin.value = null
     }
+    dateFinClientError.value = null
   },
   { immediate: true },
+)
+
+// When "En cours" is toggled, save/restore date_fin
+watch(
+  () => form.is_ongoing,
+  (isOngoing, wasOngoing) => {
+    if (isOngoing) {
+      // Save current date_fin before clearing
+      if (form.date_fin) {
+        savedDateFin.value = form.date_fin
+      }
+      form.date_fin = null
+      dateFinClientError.value = null
+    } else if (!isOngoing && wasOngoing && savedDateFin.value) {
+      // Restore saved date_fin when unchecking
+      form.date_fin = savedDateFin.value
+    }
+  },
 )
 
 const isEditMode = computed(() => !!props.experience)
 
 const handleSubmit = () => {
+  // Clear previous client-side error
+  dateFinClientError.value = null
+
+  // Client-side validation: ensure date_fin >= date_debut
+  if (!form.is_ongoing && form.date_fin && form.date_debut) {
+    if (form.date_fin < form.date_debut) {
+      dateFinClientError.value = 'La date de fin doit être après la date de début'
+      return
+    }
+  }
+
   emit('submit', {
     titre: form.titre,
     description: form.description || null,
-    annee: form.annee,
+    date_debut: form.date_debut,
+    date_fin: form.is_ongoing ? null : form.date_fin || null,
   })
 }
 
@@ -61,6 +107,10 @@ const handleCancel = () => {
 }
 
 const getFieldError = (field: string): string | null => {
+  // Check client-side error first for date_fin
+  if (field === 'date_fin' && dateFinClientError.value) {
+    return dateFinClientError.value
+  }
   const errors = props.validationErrors[field]
   return errors && errors.length > 0 ? (errors[0] ?? null) : null
 }
@@ -118,32 +168,76 @@ const getFieldError = (field: string): string | null => {
       </p>
     </div>
 
-    <!-- Year Field -->
-    <div class="space-y-1.5">
-      <label for="annee" class="text-sm font-medium text-gray-900">
-        Année <span class="text-red-500">*</span>
-      </label>
+    <!-- Date Fields Row -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <!-- Start Date Field -->
+      <div class="space-y-1.5">
+        <label for="date_debut" class="text-sm font-medium text-gray-900">
+          Date de début <span class="text-red-500">*</span>
+        </label>
+        <input
+          id="date_debut"
+          v-model="form.date_debut"
+          type="date"
+          :max="today"
+          required
+          class="w-full px-3 py-2 text-sm rounded-lg border shadow-sm transition-colors focus:ring-2 focus:ring-teal-600 focus:border-teal-600"
+          :class="getFieldError('date_debut') ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'"
+          :aria-describedby="getFieldError('date_debut') ? 'date_debut-error' : undefined"
+          :aria-invalid="!!getFieldError('date_debut')"
+          data-testid="date_debut-input"
+        />
+        <p
+          v-if="getFieldError('date_debut')"
+          id="date_debut-error"
+          class="text-sm text-red-600"
+          data-testid="date_debut-error"
+        >
+          {{ getFieldError('date_debut') }}
+        </p>
+      </div>
+
+      <!-- End Date Field -->
+      <div class="space-y-1.5">
+        <label for="date_fin" class="text-sm font-medium text-gray-900">
+          Date de fin <span class="text-gray-400">(optionnel)</span>
+        </label>
+        <input
+          id="date_fin"
+          v-model="form.date_fin"
+          type="date"
+          :max="today"
+          :min="form.date_debut"
+          :disabled="form.is_ongoing"
+          class="w-full px-3 py-2 text-sm rounded-lg border shadow-sm transition-colors focus:ring-2 focus:ring-teal-600 focus:border-teal-600 disabled:bg-gray-100 disabled:cursor-not-allowed"
+          :class="getFieldError('date_fin') ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'"
+          :aria-describedby="getFieldError('date_fin') ? 'date_fin-error' : undefined"
+          :aria-invalid="!!getFieldError('date_fin')"
+          data-testid="date_fin-input"
+        />
+        <p
+          v-if="getFieldError('date_fin')"
+          id="date_fin-error"
+          class="text-sm text-red-600"
+          data-testid="date_fin-error"
+        >
+          {{ getFieldError('date_fin') }}
+        </p>
+      </div>
+    </div>
+
+    <!-- Ongoing Checkbox -->
+    <div class="flex items-center gap-2">
       <input
-        id="annee"
-        v-model.number="form.annee"
-        type="number"
-        min="1950"
-        :max="currentYear"
-        required
-        class="w-full px-3 py-2 text-sm rounded-lg border shadow-sm transition-colors focus:ring-2 focus:ring-teal-600 focus:border-teal-600"
-        :class="getFieldError('annee') ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'"
-        :aria-describedby="getFieldError('annee') ? 'annee-error' : undefined"
-        :aria-invalid="!!getFieldError('annee')"
-        data-testid="annee-input"
+        id="is_ongoing"
+        v-model="form.is_ongoing"
+        type="checkbox"
+        class="h-4 w-4 text-teal-600 border-gray-300 rounded focus:ring-teal-600"
+        data-testid="is_ongoing-checkbox"
       />
-      <p
-        v-if="getFieldError('annee')"
-        id="annee-error"
-        class="text-sm text-red-600"
-        data-testid="annee-error"
-      >
-        {{ getFieldError('annee') }}
-      </p>
+      <label for="is_ongoing" class="text-sm text-gray-700">
+        En cours
+      </label>
     </div>
 
     <!-- Description Field -->
