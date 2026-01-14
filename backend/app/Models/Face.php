@@ -72,6 +72,9 @@ class Face extends Model
         'formatted_tarif_journalier',
         'availability_badge',
         'availability_badge_color',
+        'profile_completion_percentage',
+        'profile_completion_missing',
+        'profile_completion_is_complete',
     ];
 
     /**
@@ -229,6 +232,100 @@ class Face extends Model
     {
         return Attribute::make(
             get: fn (): string => $this->is_available ? 'green' : 'grey',
+        );
+    }
+
+    /**
+     * Get the profile completion percentage (0-100).
+     *
+     * Required fields (7 total):
+     * - profile_photo
+     * - presentation_video
+     * - acting_video
+     * - bio
+     * - ville
+     * - categorie
+     * - tarif_horaire OR tarif_journalier (at least one)
+     */
+    protected function profileCompletionPercentage(): Attribute
+    {
+        return Attribute::make(
+            get: function (): int {
+                $completed = 0;
+                $total = 7;
+
+                if ($this->profile_photo) {
+                    $completed++;
+                }
+                if ($this->presentation_video) {
+                    $completed++;
+                }
+                if ($this->acting_video) {
+                    $completed++;
+                }
+                if ($this->bio) {
+                    $completed++;
+                }
+                if ($this->ville) {
+                    $completed++;
+                }
+                if ($this->categorie) {
+                    $completed++;
+                }
+                if ($this->tarif_horaire !== null || $this->tarif_journalier !== null) {
+                    $completed++;
+                }
+
+                return (int) round(($completed / $total) * 100);
+            },
+        );
+    }
+
+    /**
+     * Get the list of missing profile items.
+     *
+     * @return array<int, array{key: string, label: string}>
+     */
+    protected function profileCompletionMissing(): Attribute
+    {
+        return Attribute::make(
+            get: function (): array {
+                $missing = [];
+
+                if (! $this->profile_photo) {
+                    $missing[] = ['key' => 'profile_photo', 'label' => 'Ajoutez une photo de profil'];
+                }
+                if (! $this->presentation_video) {
+                    $missing[] = ['key' => 'presentation_video', 'label' => 'Ajoutez une vidéo de présentation'];
+                }
+                if (! $this->acting_video) {
+                    $missing[] = ['key' => 'acting_video', 'label' => "Ajoutez une vidéo d'acting"];
+                }
+                if (! $this->bio) {
+                    $missing[] = ['key' => 'bio', 'label' => 'Ajoutez une bio'];
+                }
+                if (! $this->ville) {
+                    $missing[] = ['key' => 'ville', 'label' => 'Ajoutez votre ville'];
+                }
+                if (! $this->categorie) {
+                    $missing[] = ['key' => 'categorie', 'label' => 'Sélectionnez votre catégorie'];
+                }
+                if ($this->tarif_horaire === null && $this->tarif_journalier === null) {
+                    $missing[] = ['key' => 'tarifs', 'label' => 'Ajoutez vos tarifs'];
+                }
+
+                return $missing;
+            },
+        );
+    }
+
+    /**
+     * Check if the profile is complete (100%).
+     */
+    protected function profileCompletionIsComplete(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): bool => $this->profile_completion_percentage === 100,
         );
     }
 }

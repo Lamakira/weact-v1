@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\Face\CategoryNicheOptionsController;
 use App\Http\Controllers\Api\V1\Face\ExperienceController;
 use App\Http\Controllers\Api\V1\Face\PhysicalCharacteristicsController;
 use App\Http\Controllers\Api\V1\Face\PresentationVideoController;
+use App\Http\Controllers\Api\V1\Face\ProfileCompletionController;
 use App\Http\Controllers\Api\V1\Face\ProfileController;
 use App\Http\Controllers\Api\V1\Face\TarifsController;
 use Illuminate\Support\Facades\Route;
@@ -90,6 +91,10 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/availability', [AvailabilityController::class, 'show'])
         ->middleware('throttle:60,1');
     Route::put('/availability', [AvailabilityController::class, 'update'])
+        ->middleware('throttle:60,1');
+
+    // Profile completion route
+    Route::get('/profile-completion', [ProfileCompletionController::class, 'show'])
         ->middleware('throttle:60,1');
 });
 
