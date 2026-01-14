@@ -30,11 +30,11 @@ class ExperienceTest extends TestCase
         ]);
     }
 
-    public function test_can_list_experiences_ordered_by_year_descending(): void
+    public function test_can_list_experiences_ordered_by_date_descending(): void
     {
-        Experience::factory()->forYear(2020)->create(['face_id' => $this->face->id]);
-        Experience::factory()->forYear(2024)->create(['face_id' => $this->face->id]);
-        Experience::factory()->forYear(2022)->create(['face_id' => $this->face->id]);
+        Experience::factory()->withDateRange('2020-03-15', '2020-12-31')->create(['face_id' => $this->face->id]);
+        Experience::factory()->withDateRange('2024-01-10', '2024-06-30')->create(['face_id' => $this->face->id]);
+        Experience::factory()->withDateRange('2022-06-01', '2023-02-28')->create(['face_id' => $this->face->id]);
 
         $response = $this->actingAs($this->faceUser)
             ->getJson('/api/v1/face/experiences');
@@ -42,40 +42,69 @@ class ExperienceTest extends TestCase
         $response->assertOk()
             ->assertJsonStructure([
                 'data' => [
-                    '*' => ['id', 'titre', 'description', 'annee', 'created_at', 'updated_at'],
+                    '*' => ['id', 'titre', 'description', 'date_debut', 'date_fin', 'is_ongoing', 'formatted_period', 'created_at', 'updated_at'],
                 ],
                 'message',
             ])
             ->assertJsonCount(3, 'data')
             ->assertJsonPath('message', 'Expériences récupérées avec succès');
 
-        $years = collect($response->json('data'))->pluck('annee')->toArray();
-        $this->assertEquals([2024, 2022, 2020], $years);
+        $dates = collect($response->json('data'))->pluck('date_debut')->toArray();
+        $this->assertEquals(['2024-01-10', '2022-06-01', '2020-03-15'], $dates);
     }
 
-    public function test_can_create_experience_with_valid_data(): void
+    public function test_can_create_experience_with_valid_dates(): void
     {
         $response = $this->actingAs($this->faceUser)
             ->postJson('/api/v1/face/experiences', [
                 'titre' => 'Publicité Coca-Cola',
                 'description' => 'Rôle principal dans une publicité nationale',
-                'annee' => 2024,
+                'date_debut' => '2023-01-15',
+                'date_fin' => '2023-03-20',
             ]);
 
         $response->assertCreated()
             ->assertJsonStructure([
-                'data' => ['id', 'titre', 'description', 'annee', 'created_at', 'updated_at'],
+                'data' => ['id', 'titre', 'description', 'date_debut', 'date_fin', 'is_ongoing', 'formatted_period', 'created_at', 'updated_at'],
                 'message',
             ])
             ->assertJsonPath('data.titre', 'Publicité Coca-Cola')
             ->assertJsonPath('data.description', 'Rôle principal dans une publicité nationale')
-            ->assertJsonPath('data.annee', 2024)
+            ->assertJsonPath('data.date_debut', '2023-01-15')
+            ->assertJsonPath('data.date_fin', '2023-03-20')
+            ->assertJsonPath('data.is_ongoing', false)
+            ->assertJsonPath('data.formatted_period', '15/01/2023 - 20/03/2023')
             ->assertJsonPath('message', 'Expérience ajoutée avec succès');
 
         $this->assertDatabaseHas('experiences', [
             'face_id' => $this->face->id,
             'titre' => 'Publicité Coca-Cola',
-            'annee' => 2024,
+            'date_debut' => '2023-01-15',
+            'date_fin' => '2023-03-20',
+        ]);
+    }
+
+    public function test_can_create_ongoing_experience(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/experiences', [
+                'titre' => 'Série TV en cours',
+                'description' => 'Rôle récurrent',
+                'date_debut' => '2024-06-01',
+                'date_fin' => null,
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.titre', 'Série TV en cours')
+            ->assertJsonPath('data.date_debut', '2024-06-01')
+            ->assertJsonPath('data.date_fin', null)
+            ->assertJsonPath('data.is_ongoing', true)
+            ->assertJsonPath('data.formatted_period', '01/06/2024 - Présent');
+
+        $this->assertDatabaseHas('experiences', [
+            'face_id' => $this->face->id,
+            'titre' => 'Série TV en cours',
+            'date_fin' => null,
         ]);
     }
 
@@ -84,7 +113,7 @@ class ExperienceTest extends TestCase
         $response = $this->actingAs($this->faceUser)
             ->postJson('/api/v1/face/experiences', [
                 'description' => 'Une description',
-                'annee' => 2024,
+                'date_debut' => '2024-01-01',
             ]);
 
         $response->assertUnprocessable()
@@ -97,7 +126,7 @@ class ExperienceTest extends TestCase
         $response = $this->actingAs($this->faceUser)
             ->postJson('/api/v1/face/experiences', [
                 'titre' => str_repeat('a', 151),
-                'annee' => 2024,
+                'date_debut' => '2024-01-01',
             ]);
 
         $response->assertUnprocessable()
@@ -105,7 +134,7 @@ class ExperienceTest extends TestCase
             ->assertJsonPath('errors.titre.0', 'Le titre ne doit pas dépasser 150 caractères');
     }
 
-    public function test_create_experience_without_year_fails(): void
+    public function test_create_experience_without_start_date_fails(): void
     {
         $response = $this->actingAs($this->faceUser)
             ->postJson('/api/v1/face/experiences', [
@@ -114,36 +143,91 @@ class ExperienceTest extends TestCase
             ]);
 
         $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['annee'])
-            ->assertJsonPath('errors.annee.0', "L'année est requise");
+            ->assertJsonValidationErrors(['date_debut'])
+            ->assertJsonPath('errors.date_debut.0', 'La date de début est requise');
     }
 
-    public function test_create_experience_with_year_before_1950_fails(): void
+    public function test_create_experience_with_invalid_start_date_fails(): void
     {
         $response = $this->actingAs($this->faceUser)
             ->postJson('/api/v1/face/experiences', [
                 'titre' => 'Une expérience',
-                'annee' => 1940,
+                'date_debut' => 'invalid-date',
             ]);
 
         $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['annee'])
-            ->assertJsonPath('errors.annee.0', "L'année doit être supérieure ou égale à 1950");
+            ->assertJsonValidationErrors(['date_debut'])
+            ->assertJsonPath('errors.date_debut.0', "La date de début n'est pas valide");
     }
 
-    public function test_create_experience_with_future_year_fails(): void
+    public function test_create_experience_with_future_start_date_fails(): void
     {
-        $futureYear = (int) date('Y') + 1;
+        $futureDate = now()->addMonth()->format('Y-m-d');
 
         $response = $this->actingAs($this->faceUser)
             ->postJson('/api/v1/face/experiences', [
                 'titre' => 'Une expérience',
-                'annee' => $futureYear,
+                'date_debut' => $futureDate,
             ]);
 
         $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['annee'])
-            ->assertJsonPath('errors.annee.0', "L'année ne peut pas être dans le futur");
+            ->assertJsonValidationErrors(['date_debut'])
+            ->assertJsonPath('errors.date_debut.0', 'La date de début ne peut pas être dans le futur');
+    }
+
+    public function test_create_experience_with_end_date_before_start_date_fails(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/experiences', [
+                'titre' => 'Une expérience',
+                'date_debut' => '2024-06-01',
+                'date_fin' => '2024-01-01',
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['date_fin'])
+            ->assertJsonPath('errors.date_fin.0', 'La date de fin doit être après la date de début');
+    }
+
+    public function test_can_create_experience_with_same_day_start_and_end(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/experiences', [
+                'titre' => 'One day shooting',
+                'description' => 'Tournage d\'une journée',
+                'date_debut' => '2024-01-15',
+                'date_fin' => '2024-01-15',
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.titre', 'One day shooting')
+            ->assertJsonPath('data.date_debut', '2024-01-15')
+            ->assertJsonPath('data.date_fin', '2024-01-15')
+            ->assertJsonPath('data.is_ongoing', false)
+            ->assertJsonPath('data.formatted_period', '15/01/2024 - 15/01/2024');
+
+        $this->assertDatabaseHas('experiences', [
+            'face_id' => $this->face->id,
+            'titre' => 'One day shooting',
+            'date_debut' => '2024-01-15',
+            'date_fin' => '2024-01-15',
+        ]);
+    }
+
+    public function test_create_experience_with_future_end_date_fails(): void
+    {
+        $futureDate = now()->addMonth()->format('Y-m-d');
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/experiences', [
+                'titre' => 'Une expérience',
+                'date_debut' => '2024-01-01',
+                'date_fin' => $futureDate,
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['date_fin'])
+            ->assertJsonPath('errors.date_fin.0', 'La date de fin ne peut pas être dans le futur');
     }
 
     public function test_can_create_experience_with_optional_description(): void
@@ -151,13 +235,14 @@ class ExperienceTest extends TestCase
         $response = $this->actingAs($this->faceUser)
             ->postJson('/api/v1/face/experiences', [
                 'titre' => 'Expérience sans description',
-                'annee' => 2023,
+                'date_debut' => '2023-01-01',
+                'date_fin' => '2023-12-31',
             ]);
 
         $response->assertCreated()
             ->assertJsonPath('data.titre', 'Expérience sans description')
             ->assertJsonPath('data.description', null)
-            ->assertJsonPath('data.annee', 2023);
+            ->assertJsonPath('data.date_debut', '2023-01-01');
 
         $this->assertDatabaseHas('experiences', [
             'face_id' => $this->face->id,
@@ -172,7 +257,7 @@ class ExperienceTest extends TestCase
             ->postJson('/api/v1/face/experiences', [
                 'titre' => 'Une expérience',
                 'description' => str_repeat('a', 501),
-                'annee' => 2024,
+                'date_debut' => '2024-01-01',
             ]);
 
         $response->assertUnprocessable()
@@ -182,10 +267,9 @@ class ExperienceTest extends TestCase
 
     public function test_can_show_single_experience(): void
     {
-        $experience = Experience::factory()->create([
+        $experience = Experience::factory()->withDateRange('2023-01-15', '2023-06-30')->create([
             'face_id' => $this->face->id,
             'titre' => 'Mon expérience',
-            'annee' => 2023,
         ]);
 
         $response = $this->actingAs($this->faceUser)
@@ -193,10 +277,30 @@ class ExperienceTest extends TestCase
 
         $response->assertOk()
             ->assertJsonStructure([
-                'data' => ['id', 'titre', 'description', 'annee', 'created_at', 'updated_at'],
+                'data' => ['id', 'titre', 'description', 'date_debut', 'date_fin', 'is_ongoing', 'formatted_period', 'created_at', 'updated_at'],
             ])
             ->assertJsonPath('data.id', $experience->id)
-            ->assertJsonPath('data.titre', 'Mon expérience');
+            ->assertJsonPath('data.titre', 'Mon expérience')
+            ->assertJsonPath('data.date_debut', '2023-01-15')
+            ->assertJsonPath('data.date_fin', '2023-06-30')
+            ->assertJsonPath('data.is_ongoing', false)
+            ->assertJsonPath('data.formatted_period', '15/01/2023 - 30/06/2023');
+    }
+
+    public function test_show_ongoing_experience_has_correct_format(): void
+    {
+        $experience = Experience::factory()->ongoing()->withDateRange('2024-01-01', null)->create([
+            'face_id' => $this->face->id,
+            'titre' => 'Expérience en cours',
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/experiences/{$experience->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.date_fin', null)
+            ->assertJsonPath('data.is_ongoing', true)
+            ->assertJsonPath('data.formatted_period', '01/01/2024 - Présent');
     }
 
     public function test_show_experience_owned_by_another_face_fails(): void
@@ -212,32 +316,56 @@ class ExperienceTest extends TestCase
             ->assertJsonPath('error.message', "Vous n'êtes pas autorisé à modifier cette expérience");
     }
 
-    public function test_can_update_experience_with_valid_data(): void
+    public function test_can_update_experience_with_valid_dates(): void
     {
-        $experience = Experience::factory()->create([
+        $experience = Experience::factory()->withDateRange('2020-01-01', '2020-12-31')->create([
             'face_id' => $this->face->id,
             'titre' => 'Ancien titre',
-            'annee' => 2020,
         ]);
 
         $response = $this->actingAs($this->faceUser)
             ->putJson("/api/v1/face/experiences/{$experience->id}", [
                 'titre' => 'Nouveau titre',
                 'description' => 'Nouvelle description',
-                'annee' => 2024,
+                'date_debut' => '2024-01-15',
+                'date_fin' => '2024-06-30',
             ]);
 
         $response->assertOk()
             ->assertJsonPath('data.titre', 'Nouveau titre')
             ->assertJsonPath('data.description', 'Nouvelle description')
-            ->assertJsonPath('data.annee', 2024)
+            ->assertJsonPath('data.date_debut', '2024-01-15')
+            ->assertJsonPath('data.date_fin', '2024-06-30')
+            ->assertJsonPath('data.is_ongoing', false)
+            ->assertJsonPath('data.formatted_period', '15/01/2024 - 30/06/2024')
             ->assertJsonPath('message', 'Expérience mise à jour avec succès');
 
         $this->assertDatabaseHas('experiences', [
             'id' => $experience->id,
             'titre' => 'Nouveau titre',
-            'annee' => 2024,
+            'date_debut' => '2024-01-15',
+            'date_fin' => '2024-06-30',
         ]);
+    }
+
+    public function test_can_update_experience_to_ongoing(): void
+    {
+        $experience = Experience::factory()->withDateRange('2023-01-01', '2023-12-31')->create([
+            'face_id' => $this->face->id,
+            'titre' => 'Expérience terminée',
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->putJson("/api/v1/face/experiences/{$experience->id}", [
+                'titre' => 'Expérience maintenant en cours',
+                'date_debut' => '2024-01-01',
+                'date_fin' => null,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.date_fin', null)
+            ->assertJsonPath('data.is_ongoing', true)
+            ->assertJsonPath('data.formatted_period', '01/01/2024 - Présent');
     }
 
     public function test_update_experience_owned_by_another_face_fails(): void
@@ -248,7 +376,7 @@ class ExperienceTest extends TestCase
         $response = $this->actingAs($this->faceUser)
             ->putJson("/api/v1/face/experiences/{$experience->id}", [
                 'titre' => 'Tentative de modification',
-                'annee' => 2024,
+                'date_debut' => '2024-01-01',
             ]);
 
         $response->assertForbidden();
@@ -310,7 +438,7 @@ class ExperienceTest extends TestCase
 
         $this->assertNotNull($experience->id);
         $this->assertNotNull($experience->titre);
-        $this->assertNotNull($experience->annee);
+        $this->assertNotNull($experience->date_debut);
         $this->assertEquals($this->face->id, $experience->face_id);
     }
 
@@ -339,5 +467,33 @@ class ExperienceTest extends TestCase
         $this->face->delete();
 
         $this->assertDatabaseMissing('experiences', ['id' => $experienceId]);
+    }
+
+    public function test_is_ongoing_accessor_returns_true_for_null_end_date(): void
+    {
+        $experience = Experience::factory()->ongoing()->create(['face_id' => $this->face->id]);
+
+        $this->assertTrue($experience->is_ongoing);
+    }
+
+    public function test_is_ongoing_accessor_returns_false_for_non_null_end_date(): void
+    {
+        $experience = Experience::factory()->withDateRange('2023-01-01', '2023-12-31')->create(['face_id' => $this->face->id]);
+
+        $this->assertFalse($experience->is_ongoing);
+    }
+
+    public function test_formatted_period_accessor_with_end_date(): void
+    {
+        $experience = Experience::factory()->withDateRange('2023-01-15', '2023-03-20')->create(['face_id' => $this->face->id]);
+
+        $this->assertEquals('15/01/2023 - 20/03/2023', $experience->formatted_period);
+    }
+
+    public function test_formatted_period_accessor_without_end_date(): void
+    {
+        $experience = Experience::factory()->withDateRange('2024-06-01', null)->create(['face_id' => $this->face->id]);
+
+        $this->assertEquals('01/06/2024 - Présent', $experience->formatted_period);
     }
 }
