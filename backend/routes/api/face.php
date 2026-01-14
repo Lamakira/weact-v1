@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\Face\ExperienceController;
 use App\Http\Controllers\Api\V1\Face\PhysicalCharacteristicsController;
 use App\Http\Controllers\Api\V1\Face\PresentationVideoController;
 use App\Http\Controllers\Api\V1\Face\ProfileController;
+use App\Http\Controllers\Api\V1\Face\TarifsController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -76,6 +77,12 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     Route::put('/experiences/{experience}', [ExperienceController::class, 'update'])
         ->middleware('throttle:60,1');
     Route::delete('/experiences/{experience}', [ExperienceController::class, 'destroy'])
+        ->middleware('throttle:60,1');
+
+    // Tarifs routes
+    Route::get('/tarifs', [TarifsController::class, 'show'])
+        ->middleware('throttle:60,1');
+    Route::put('/tarifs', [TarifsController::class, 'update'])
         ->middleware('throttle:60,1');
 });
 
