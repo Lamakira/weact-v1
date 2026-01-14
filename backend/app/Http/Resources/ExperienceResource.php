@@ -20,7 +20,10 @@ class ExperienceResource extends JsonResource
             'id' => $this->id,
             'titre' => $this->titre,
             'description' => $this->description,
-            'annee' => $this->annee,
+            'date_debut' => $this->date_debut?->format('Y-m-d'),
+            'date_fin' => $this->date_fin?->format('Y-m-d'),
+            'is_ongoing' => $this->is_ongoing,
+            'formatted_period' => $this->formatted_period,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
