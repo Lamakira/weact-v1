@@ -39,6 +39,8 @@ class Face extends Model
         'poids',
         'categorie',
         'niche',
+        'tarif_horaire',
+        'tarif_journalier',
     ];
 
     /**
@@ -64,6 +66,8 @@ class Face extends Model
         'acting_video_url',
         'acting_video_thumbnail_url',
         'formatted_location',
+        'formatted_tarif_horaire',
+        'formatted_tarif_journalier',
     ];
 
     /**
@@ -177,6 +181,30 @@ class Face extends Model
 
                 return count($parts) > 0 ? implode(', ', $parts) : null;
             },
+        );
+    }
+
+    /**
+     * Get the formatted hourly rate (e.g., "75 000 XOF/heure").
+     */
+    protected function formattedTarifHoraire(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->tarif_horaire !== null
+                ? number_format($this->tarif_horaire, 0, ',', ' ') . ' XOF/heure'
+                : null,
+        );
+    }
+
+    /**
+     * Get the formatted daily rate (e.g., "250 000 XOF/jour").
+     */
+    protected function formattedTarifJournalier(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->tarif_journalier !== null
+                ? number_format($this->tarif_journalier, 0, ',', ' ') . ' XOF/jour'
+                : null,
         );
     }
 }
