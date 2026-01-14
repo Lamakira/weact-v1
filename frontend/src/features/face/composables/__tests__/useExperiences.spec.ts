@@ -24,15 +24,18 @@ describe('useExperiences', () => {
     id: 1,
     titre: 'Publicité Coca-Cola',
     description: 'Tournage publicitaire',
-    annee: 2024,
+    date_debut: '2024-01-15',
+    date_fin: '2024-03-20',
+    is_ongoing: false,
+    formatted_period: '15/01/2024 - 20/03/2024',
     created_at: '2024-01-01T00:00:00.000Z',
     updated_at: '2024-01-01T00:00:00.000Z',
   }
 
   const mockExperiences: Experience[] = [
-    { id: 1, titre: 'Publicité Coca-Cola', description: 'Tournage publicitaire', annee: 2024, created_at: '2024-01-01T00:00:00.000Z', updated_at: '2024-01-01T00:00:00.000Z' },
-    { id: 2, titre: 'Film documentaire', description: null, annee: 2023, created_at: '2023-06-15T00:00:00.000Z', updated_at: '2023-06-15T00:00:00.000Z' },
-    { id: 3, titre: 'Série TV locale', description: 'Rôle secondaire', annee: 2022, created_at: '2022-03-20T00:00:00.000Z', updated_at: '2022-03-20T00:00:00.000Z' },
+    { id: 1, titre: 'Publicité Coca-Cola', description: 'Tournage publicitaire', date_debut: '2024-01-15', date_fin: '2024-03-20', is_ongoing: false, formatted_period: '15/01/2024 - 20/03/2024', created_at: '2024-01-01T00:00:00.000Z', updated_at: '2024-01-01T00:00:00.000Z' },
+    { id: 2, titre: 'Film documentaire', description: null, date_debut: '2023-06-15', date_fin: '2023-12-20', is_ongoing: false, formatted_period: '15/06/2023 - 20/12/2023', created_at: '2023-06-15T00:00:00.000Z', updated_at: '2023-06-15T00:00:00.000Z' },
+    { id: 3, titre: 'Série TV locale', description: 'Rôle secondaire', date_debut: '2022-03-20', date_fin: null, is_ongoing: true, formatted_period: '20/03/2022 - Présent', created_at: '2022-03-20T00:00:00.000Z', updated_at: '2022-03-20T00:00:00.000Z' },
   ]
 
   const mockListResponse: ExperiencesListResponse = {
@@ -89,11 +92,11 @@ describe('useExperiences', () => {
     })
 
     it('trusts backend sorting order', async () => {
-      // Backend returns data sorted by year descending
+      // Backend returns data sorted by date_debut descending
       const sortedExperiences: Experience[] = [
-        { id: 2, titre: 'New', description: null, annee: 2024, created_at: '2024-01-01T00:00:00.000Z', updated_at: '2024-01-01T00:00:00.000Z' },
-        { id: 3, titre: 'Middle', description: null, annee: 2022, created_at: '2022-01-01T00:00:00.000Z', updated_at: '2022-01-01T00:00:00.000Z' },
-        { id: 1, titre: 'Old', description: null, annee: 2020, created_at: '2020-01-01T00:00:00.000Z', updated_at: '2020-01-01T00:00:00.000Z' },
+        { id: 2, titre: 'New', description: null, date_debut: '2024-01-15', date_fin: '2024-06-30', is_ongoing: false, formatted_period: '15/01/2024 - 30/06/2024', created_at: '2024-01-01T00:00:00.000Z', updated_at: '2024-01-01T00:00:00.000Z' },
+        { id: 3, titre: 'Middle', description: null, date_debut: '2022-01-01', date_fin: '2022-12-31', is_ongoing: false, formatted_period: '01/01/2022 - 31/12/2022', created_at: '2022-01-01T00:00:00.000Z', updated_at: '2022-01-01T00:00:00.000Z' },
+        { id: 1, titre: 'Old', description: null, date_debut: '2020-01-01', date_fin: '2020-12-31', is_ongoing: false, formatted_period: '01/01/2020 - 31/12/2020', created_at: '2020-01-01T00:00:00.000Z', updated_at: '2020-01-01T00:00:00.000Z' },
       ]
       vi.mocked(faceApi.getExperiences).mockResolvedValue({ data: sortedExperiences })
 
@@ -102,9 +105,9 @@ describe('useExperiences', () => {
       await fetchExperiences()
 
       // Data should be in the same order as returned by backend
-      expect(experiences.value[0].annee).toBe(2024)
-      expect(experiences.value[1].annee).toBe(2022)
-      expect(experiences.value[2].annee).toBe(2020)
+      expect(experiences.value[0].date_debut).toBe('2024-01-15')
+      expect(experiences.value[1].date_debut).toBe('2022-01-01')
+      expect(experiences.value[2].date_debut).toBe('2020-01-01')
     })
 
     it('sets loading state during fetch', async () => {
@@ -146,7 +149,8 @@ describe('useExperiences', () => {
       const result = await addExperience({
         titre: 'Publicité Coca-Cola',
         description: 'Tournage publicitaire',
-        annee: 2024,
+        date_debut: '2024-01-15',
+        date_fin: '2024-03-20',
       })
 
       expect(result.success).toBe(true)
@@ -169,7 +173,7 @@ describe('useExperiences', () => {
       const addPromise = addExperience({
         titre: 'Test',
         description: null,
-        annee: 2024,
+        date_debut: '2024-01-15',
       })
       expect(isSaving.value).toBe(true)
 
@@ -187,7 +191,7 @@ describe('useExperiences', () => {
       const result = await addExperience({
         titre: 'Test',
         description: null,
-        annee: 2024,
+        date_debut: '2024-01-15',
       })
 
       expect(result.success).toBe(false)
@@ -200,7 +204,10 @@ describe('useExperiences', () => {
         id: 1,
         titre: 'Old',
         description: null,
-        annee: 2020,
+        date_debut: '2020-01-15',
+        date_fin: '2020-12-31',
+        is_ongoing: false,
+        formatted_period: '15/01/2020 - 31/12/2020',
         created_at: '2020-01-01T00:00:00.000Z',
         updated_at: '2020-01-01T00:00:00.000Z',
       }
@@ -208,7 +215,10 @@ describe('useExperiences', () => {
         id: 2,
         titre: 'New',
         description: null,
-        annee: 2024,
+        date_debut: '2024-01-15',
+        date_fin: '2024-06-30',
+        is_ongoing: false,
+        formatted_period: '15/01/2024 - 30/06/2024',
         created_at: '2024-01-01T00:00:00.000Z',
         updated_at: '2024-01-01T00:00:00.000Z',
       }
@@ -221,7 +231,7 @@ describe('useExperiences', () => {
       await fetchExperiences()
       expect(experiences.value[0].id).toBe(1)
 
-      await addExperience({ titre: 'New', description: null, annee: 2024 })
+      await addExperience({ titre: 'New', description: null, date_debut: '2024-01-15', date_fin: '2024-06-30' })
 
       // New experience should be first (2024 > 2020)
       expect(experiences.value[0].id).toBe(2)
@@ -240,7 +250,8 @@ describe('useExperiences', () => {
       const result = await editExperience(1, {
         titre: 'Mise à jour titre',
         description: 'Tournage publicitaire',
-        annee: 2024,
+        date_debut: '2024-01-15',
+        date_fin: '2024-03-20',
       })
 
       expect(result.success).toBe(true)
@@ -255,7 +266,10 @@ describe('useExperiences', () => {
         id: 1,
         titre: 'Original',
         description: null,
-        annee: 2024,
+        date_debut: '2024-01-15',
+        date_fin: '2024-06-30',
+        is_ongoing: false,
+        formatted_period: '15/01/2024 - 30/06/2024',
         created_at: '2024-01-01T00:00:00.000Z',
         updated_at: '2024-01-01T00:00:00.000Z',
       }
@@ -263,7 +277,10 @@ describe('useExperiences', () => {
         id: 1,
         titre: 'Updated',
         description: 'New description',
-        annee: 2024,
+        date_debut: '2024-01-15',
+        date_fin: '2024-06-30',
+        is_ongoing: false,
+        formatted_period: '15/01/2024 - 30/06/2024',
         created_at: '2024-01-01T00:00:00.000Z',
         updated_at: '2024-01-01T00:00:00.000Z',
       }
@@ -276,7 +293,7 @@ describe('useExperiences', () => {
       await fetchExperiences()
       expect(experiences.value[0].titre).toBe('Original')
 
-      await editExperience(1, { titre: 'Updated', description: 'New description', annee: 2024 })
+      await editExperience(1, { titre: 'Updated', description: 'New description', date_debut: '2024-01-15', date_fin: '2024-06-30' })
 
       expect(experiences.value[0].titre).toBe('Updated')
       expect(experiences.value[0].description).toBe('New description')
@@ -294,7 +311,7 @@ describe('useExperiences', () => {
       const editPromise = editExperience(1, {
         titre: 'Test',
         description: null,
-        annee: 2024,
+        date_debut: '2024-01-15',
       })
       expect(isSaving.value).toBe(true)
 
@@ -312,7 +329,7 @@ describe('useExperiences', () => {
       const result = await editExperience(1, {
         titre: 'Test',
         description: null,
-        annee: 2024,
+        date_debut: '2024-01-15',
       })
 
       expect(result.success).toBe(false)
@@ -320,17 +337,20 @@ describe('useExperiences', () => {
       expect(error.value).toBe('Une erreur est survenue')
     })
 
-    it('re-sorts list after year change', async () => {
-      // Backend returns data sorted by year descending
+    it('re-sorts list after date change', async () => {
+      // Backend returns data sorted by date_debut descending
       const experiences: Experience[] = [
-        { id: 2, titre: 'New', description: null, annee: 2024, created_at: '2024-01-01T00:00:00.000Z', updated_at: '2024-01-01T00:00:00.000Z' },
-        { id: 1, titre: 'Old', description: null, annee: 2020, created_at: '2020-01-01T00:00:00.000Z', updated_at: '2020-01-01T00:00:00.000Z' },
+        { id: 2, titre: 'New', description: null, date_debut: '2024-01-15', date_fin: '2024-06-30', is_ongoing: false, formatted_period: '15/01/2024 - 30/06/2024', created_at: '2024-01-01T00:00:00.000Z', updated_at: '2024-01-01T00:00:00.000Z' },
+        { id: 1, titre: 'Old', description: null, date_debut: '2020-01-15', date_fin: '2020-12-31', is_ongoing: false, formatted_period: '15/01/2020 - 31/12/2020', created_at: '2020-01-01T00:00:00.000Z', updated_at: '2020-01-01T00:00:00.000Z' },
       ]
       const updatedExperience: Experience = {
         id: 1,
         titre: 'Old updated',
         description: null,
-        annee: 2025, // Now newest
+        date_debut: '2025-01-15', // Now newest
+        date_fin: null,
+        is_ongoing: true,
+        formatted_period: '15/01/2025 - Présent',
         created_at: '2020-01-01T00:00:00.000Z',
         updated_at: '2020-01-01T00:00:00.000Z',
       }
@@ -343,7 +363,7 @@ describe('useExperiences', () => {
       await fetchExperiences()
       expect(exps.value[0].id).toBe(2) // 2024 is first (backend sorted)
 
-      await editExperience(1, { titre: 'Old updated', description: null, annee: 2025 })
+      await editExperience(1, { titre: 'Old updated', description: null, date_debut: '2025-01-15' })
 
       expect(exps.value[0].id).toBe(1) // 2025 is now first (client re-sorted)
     })
@@ -404,7 +424,7 @@ describe('useExperiences', () => {
 
       const { error, validationErrors, addExperience, clearError } = useExperiences()
 
-      await addExperience({ titre: 'Test', description: null, annee: 2024 })
+      await addExperience({ titre: 'Test', description: null, date_debut: '2024-01-15' })
       expect(error.value).not.toBeNull()
 
       clearError()

@@ -8,7 +8,10 @@ describe('ExperienceCard', () => {
     id: 1,
     titre: 'Publicité Coca-Cola',
     description: 'Tournage publicitaire pour campagne nationale',
-    annee: 2024,
+    date_debut: '2024-01-15',
+    date_fin: '2024-03-20',
+    is_ongoing: false,
+    formatted_period: '15/01/2024 - 20/03/2024',
     created_at: '2024-01-01T00:00:00.000Z',
     updated_at: '2024-01-01T00:00:00.000Z',
   }
@@ -17,9 +20,24 @@ describe('ExperienceCard', () => {
     id: 2,
     titre: 'Film documentaire',
     description: null,
-    annee: 2023,
+    date_debut: '2023-06-15',
+    date_fin: '2023-12-20',
+    is_ongoing: false,
+    formatted_period: '15/06/2023 - 20/12/2023',
     created_at: '2023-06-15T00:00:00.000Z',
     updated_at: '2023-06-15T00:00:00.000Z',
+  }
+
+  const mockOngoingExperience: Experience = {
+    id: 3,
+    titre: 'Projet en cours',
+    description: 'Un projet actuellement en cours',
+    date_debut: '2024-06-01',
+    date_fin: null,
+    is_ongoing: true,
+    formatted_period: '01/06/2024 - Présent',
+    created_at: '2024-06-01T00:00:00.000Z',
+    updated_at: '2024-06-01T00:00:00.000Z',
   }
 
   beforeEach(() => {
@@ -35,10 +53,47 @@ describe('ExperienceCard', () => {
     })
 
     expect(wrapper.find('[data-testid="experience-title"]').text()).toBe('Publicité Coca-Cola')
-    expect(wrapper.find('[data-testid="experience-year"]').text()).toBe('2024')
+    expect(wrapper.find('[data-testid="experience-period"]').text()).toContain('15/01/2024 - 20/03/2024')
     expect(wrapper.find('[data-testid="experience-description"]').text()).toBe(
       'Tournage publicitaire pour campagne nationale',
     )
+  })
+
+  it('renders ongoing experience with "Présent"', () => {
+    const wrapper = mount(ExperienceCard, {
+      props: {
+        experience: mockOngoingExperience,
+        isDeleting: false,
+      },
+    })
+
+    expect(wrapper.find('[data-testid="experience-period"]').text()).toContain('01/06/2024 - Présent')
+  })
+
+  it('applies teal styling for ongoing experiences', () => {
+    const wrapper = mount(ExperienceCard, {
+      props: {
+        experience: mockOngoingExperience,
+        isDeleting: false,
+      },
+    })
+
+    const periodBadge = wrapper.find('[data-testid="experience-period"]')
+    expect(periodBadge.classes()).toContain('bg-teal-100')
+    expect(periodBadge.classes()).toContain('text-teal-800')
+  })
+
+  it('applies gray styling for completed experiences', () => {
+    const wrapper = mount(ExperienceCard, {
+      props: {
+        experience: mockExperience,
+        isDeleting: false,
+      },
+    })
+
+    const periodBadge = wrapper.find('[data-testid="experience-period"]')
+    expect(periodBadge.classes()).toContain('bg-gray-100')
+    expect(periodBadge.classes()).toContain('text-gray-700')
   })
 
   it('hides description when null', () => {

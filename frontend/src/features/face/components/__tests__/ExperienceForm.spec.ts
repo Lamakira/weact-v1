@@ -4,15 +4,30 @@ import ExperienceForm from '../ExperienceForm.vue'
 import type { Experience } from '../../types'
 
 describe('ExperienceForm', () => {
-  const currentYear = new Date().getFullYear()
+  const today = new Date().toISOString().split('T')[0]
 
   const mockExperience: Experience = {
     id: 1,
     titre: 'Publicité Coca-Cola',
     description: 'Tournage publicitaire',
-    annee: 2024,
+    date_debut: '2024-01-15',
+    date_fin: '2024-03-20',
+    is_ongoing: false,
+    formatted_period: '15/01/2024 - 20/03/2024',
     created_at: '2024-01-01T00:00:00.000Z',
     updated_at: '2024-01-01T00:00:00.000Z',
+  }
+
+  const mockOngoingExperience: Experience = {
+    id: 2,
+    titre: 'Projet en cours',
+    description: null,
+    date_debut: '2024-06-01',
+    date_fin: null,
+    is_ongoing: true,
+    formatted_period: '01/06/2024 - Présent',
+    created_at: '2024-06-01T00:00:00.000Z',
+    updated_at: '2024-06-01T00:00:00.000Z',
   }
 
   beforeEach(() => {
@@ -31,11 +46,15 @@ describe('ExperienceForm', () => {
       })
 
       const titreInput = wrapper.find('[data-testid="titre-input"]')
-      const anneeInput = wrapper.find('[data-testid="annee-input"]')
+      const dateDebutInput = wrapper.find('[data-testid="date_debut-input"]')
+      const dateFinInput = wrapper.find('[data-testid="date_fin-input"]')
+      const isOngoingCheckbox = wrapper.find('[data-testid="is_ongoing-checkbox"]')
       const descriptionInput = wrapper.find('[data-testid="description-input"]')
 
       expect((titreInput.element as HTMLInputElement).value).toBe('')
-      expect((anneeInput.element as HTMLInputElement).value).toBe(String(currentYear))
+      expect((dateDebutInput.element as HTMLInputElement).value).toBe('')
+      expect((dateFinInput.element as HTMLInputElement).value).toBe('')
+      expect((isOngoingCheckbox.element as HTMLInputElement).checked).toBe(false)
       expect((descriptionInput.element as HTMLTextAreaElement).value).toBe('')
     })
 
@@ -93,12 +112,36 @@ describe('ExperienceForm', () => {
       })
 
       const titreInput = wrapper.find('[data-testid="titre-input"]')
-      const anneeInput = wrapper.find('[data-testid="annee-input"]')
+      const dateDebutInput = wrapper.find('[data-testid="date_debut-input"]')
+      const dateFinInput = wrapper.find('[data-testid="date_fin-input"]')
+      const isOngoingCheckbox = wrapper.find('[data-testid="is_ongoing-checkbox"]')
       const descriptionInput = wrapper.find('[data-testid="description-input"]')
 
       expect((titreInput.element as HTMLInputElement).value).toBe('Publicité Coca-Cola')
-      expect((anneeInput.element as HTMLInputElement).value).toBe('2024')
+      expect((dateDebutInput.element as HTMLInputElement).value).toBe('2024-01-15')
+      expect((dateFinInput.element as HTMLInputElement).value).toBe('2024-03-20')
+      expect((isOngoingCheckbox.element as HTMLInputElement).checked).toBe(false)
       expect((descriptionInput.element as HTMLTextAreaElement).value).toBe('Tournage publicitaire')
+    })
+
+    it('renders form with ongoing experience values', () => {
+      const wrapper = mount(ExperienceForm, {
+        props: {
+          experience: mockOngoingExperience,
+          isSaving: false,
+          error: null,
+          validationErrors: {},
+        },
+      })
+
+      const dateDebutInput = wrapper.find('[data-testid="date_debut-input"]')
+      const dateFinInput = wrapper.find('[data-testid="date_fin-input"]')
+      const isOngoingCheckbox = wrapper.find('[data-testid="is_ongoing-checkbox"]')
+
+      expect((dateDebutInput.element as HTMLInputElement).value).toBe('2024-06-01')
+      expect((dateFinInput.element as HTMLInputElement).value).toBe('')
+      expect((isOngoingCheckbox.element as HTMLInputElement).checked).toBe(true)
+      expect((dateFinInput.element as HTMLInputElement).disabled).toBe(true)
     })
 
     it('shows cancel button in edit mode', () => {
@@ -156,11 +199,13 @@ describe('ExperienceForm', () => {
       })
 
       const titreInput = wrapper.find('[data-testid="titre-input"]')
-      const anneeInput = wrapper.find('[data-testid="annee-input"]')
+      const dateDebutInput = wrapper.find('[data-testid="date_debut-input"]')
+      const dateFinInput = wrapper.find('[data-testid="date_fin-input"]')
       const descriptionInput = wrapper.find('[data-testid="description-input"]')
 
       await titreInput.setValue('Nouvelle expérience')
-      await anneeInput.setValue(2023)
+      await dateDebutInput.setValue('2023-01-15')
+      await dateFinInput.setValue('2023-06-30')
       await descriptionInput.setValue('Ma description')
 
       await wrapper.find('form').trigger('submit')
@@ -171,7 +216,37 @@ describe('ExperienceForm', () => {
       expect(emitted?.[0][0]).toEqual({
         titre: 'Nouvelle expérience',
         description: 'Ma description',
-        annee: 2023,
+        date_debut: '2023-01-15',
+        date_fin: '2023-06-30',
+      })
+    })
+
+    it('emits submit with null date_fin when ongoing', async () => {
+      const wrapper = mount(ExperienceForm, {
+        props: {
+          experience: null,
+          isSaving: false,
+          error: null,
+          validationErrors: {},
+        },
+      })
+
+      const titreInput = wrapper.find('[data-testid="titre-input"]')
+      const dateDebutInput = wrapper.find('[data-testid="date_debut-input"]')
+      const isOngoingCheckbox = wrapper.find('[data-testid="is_ongoing-checkbox"]')
+
+      await titreInput.setValue('Expérience en cours')
+      await dateDebutInput.setValue('2024-01-15')
+      await isOngoingCheckbox.setValue(true)
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      const emitted = wrapper.emitted('submit')
+      expect(emitted?.[0][0]).toMatchObject({
+        titre: 'Expérience en cours',
+        date_debut: '2024-01-15',
+        date_fin: null,
       })
     })
 
@@ -186,7 +261,9 @@ describe('ExperienceForm', () => {
       })
 
       const titreInput = wrapper.find('[data-testid="titre-input"]')
+      const dateDebutInput = wrapper.find('[data-testid="date_debut-input"]')
       await titreInput.setValue('Test')
+      await dateDebutInput.setValue('2024-01-15')
 
       await wrapper.find('form').trigger('submit')
       await flushPromises()
@@ -287,19 +364,34 @@ describe('ExperienceForm', () => {
       expect(titreError.text()).toBe('Le titre est requis')
     })
 
-    it('displays annee validation error', () => {
+    it('displays date_debut validation error', () => {
       const wrapper = mount(ExperienceForm, {
         props: {
           experience: null,
           isSaving: false,
           error: null,
-          validationErrors: { annee: ["L'année doit être entre 1950 et 2024"] },
+          validationErrors: { date_debut: ['La date de début est requise.'] },
         },
       })
 
-      const anneeError = wrapper.find('[data-testid="annee-error"]')
-      expect(anneeError.exists()).toBe(true)
-      expect(anneeError.text()).toBe("L'année doit être entre 1950 et 2024")
+      const dateDebutError = wrapper.find('[data-testid="date_debut-error"]')
+      expect(dateDebutError.exists()).toBe(true)
+      expect(dateDebutError.text()).toBe('La date de début est requise.')
+    })
+
+    it('displays date_fin validation error', () => {
+      const wrapper = mount(ExperienceForm, {
+        props: {
+          experience: null,
+          isSaving: false,
+          error: null,
+          validationErrors: { date_fin: ['La date de fin doit être postérieure ou égale à la date de début.'] },
+        },
+      })
+
+      const dateFinError = wrapper.find('[data-testid="date_fin-error"]')
+      expect(dateFinError.exists()).toBe(true)
+      expect(dateFinError.text()).toBe('La date de fin doit être postérieure ou égale à la date de début.')
     })
 
     it('displays description validation error', () => {
@@ -391,7 +483,7 @@ describe('ExperienceForm', () => {
       expect(descriptionInput.attributes('maxlength')).toBe('500')
     })
 
-    it('annee input has min 1950 and max current year', () => {
+    it('date inputs have max attribute set to today', () => {
       const wrapper = mount(ExperienceForm, {
         props: {
           experience: null,
@@ -401,9 +493,27 @@ describe('ExperienceForm', () => {
         },
       })
 
-      const anneeInput = wrapper.find('[data-testid="annee-input"]')
-      expect(anneeInput.attributes('min')).toBe('1950')
-      expect(anneeInput.attributes('max')).toBe(String(currentYear))
+      const dateDebutInput = wrapper.find('[data-testid="date_debut-input"]')
+      const dateFinInput = wrapper.find('[data-testid="date_fin-input"]')
+      expect(dateDebutInput.attributes('max')).toBe(today)
+      expect(dateFinInput.attributes('max')).toBe(today)
+    })
+
+    it('date_fin input has min attribute linked to date_debut', async () => {
+      const wrapper = mount(ExperienceForm, {
+        props: {
+          experience: null,
+          isSaving: false,
+          error: null,
+          validationErrors: {},
+        },
+      })
+
+      const dateDebutInput = wrapper.find('[data-testid="date_debut-input"]')
+      const dateFinInput = wrapper.find('[data-testid="date_fin-input"]')
+
+      await dateDebutInput.setValue('2024-01-15')
+      expect(dateFinInput.attributes('min')).toBe('2024-01-15')
     })
   })
 
@@ -450,6 +560,9 @@ describe('ExperienceForm', () => {
       expect((wrapper.find('[data-testid="titre-input"]').element as HTMLInputElement).value).toBe(
         'Publicité Coca-Cola',
       )
+      expect((wrapper.find('[data-testid="date_debut-input"]').element as HTMLInputElement).value).toBe(
+        '2024-01-15',
+      )
     })
 
     it('resets form when experience prop becomes null', async () => {
@@ -472,9 +585,158 @@ describe('ExperienceForm', () => {
       await flushPromises()
 
       expect((wrapper.find('[data-testid="titre-input"]').element as HTMLInputElement).value).toBe('')
-      expect((wrapper.find('[data-testid="annee-input"]').element as HTMLInputElement).value).toBe(
-        String(currentYear),
-      )
+      expect((wrapper.find('[data-testid="date_debut-input"]').element as HTMLInputElement).value).toBe('')
+      expect((wrapper.find('[data-testid="date_fin-input"]').element as HTMLInputElement).value).toBe('')
+      expect((wrapper.find('[data-testid="is_ongoing-checkbox"]').element as HTMLInputElement).checked).toBe(false)
+    })
+
+    it('clears date_fin when is_ongoing is checked', async () => {
+      const wrapper = mount(ExperienceForm, {
+        props: {
+          experience: null,
+          isSaving: false,
+          error: null,
+          validationErrors: {},
+        },
+      })
+
+      const dateFinInput = wrapper.find('[data-testid="date_fin-input"]')
+      const isOngoingCheckbox = wrapper.find('[data-testid="is_ongoing-checkbox"]')
+
+      await dateFinInput.setValue('2024-06-30')
+      expect((dateFinInput.element as HTMLInputElement).value).toBe('2024-06-30')
+
+      await isOngoingCheckbox.setValue(true)
+      await flushPromises()
+
+      // date_fin should be cleared and disabled
+      expect((dateFinInput.element as HTMLInputElement).disabled).toBe(true)
+    })
+
+    it('restores date_fin when is_ongoing is unchecked', async () => {
+      const wrapper = mount(ExperienceForm, {
+        props: {
+          experience: null,
+          isSaving: false,
+          error: null,
+          validationErrors: {},
+        },
+      })
+
+      const dateFinInput = wrapper.find('[data-testid="date_fin-input"]')
+      const isOngoingCheckbox = wrapper.find('[data-testid="is_ongoing-checkbox"]')
+
+      // Set date_fin
+      await dateFinInput.setValue('2024-06-30')
+      expect((dateFinInput.element as HTMLInputElement).value).toBe('2024-06-30')
+
+      // Check "En cours" - clears date_fin
+      await isOngoingCheckbox.setValue(true)
+      await flushPromises()
+      expect((dateFinInput.element as HTMLInputElement).disabled).toBe(true)
+
+      // Uncheck "En cours" - should restore date_fin
+      await isOngoingCheckbox.setValue(false)
+      await flushPromises()
+      expect((dateFinInput.element as HTMLInputElement).disabled).toBe(false)
+      expect((dateFinInput.element as HTMLInputElement).value).toBe('2024-06-30')
+    })
+  })
+
+  describe('client-side validation', () => {
+    it('prevents submit when date_fin is before date_debut', async () => {
+      const wrapper = mount(ExperienceForm, {
+        props: {
+          experience: null,
+          isSaving: false,
+          error: null,
+          validationErrors: {},
+        },
+      })
+
+      const titreInput = wrapper.find('[data-testid="titre-input"]')
+      const dateDebutInput = wrapper.find('[data-testid="date_debut-input"]')
+      const dateFinInput = wrapper.find('[data-testid="date_fin-input"]')
+
+      await titreInput.setValue('Test')
+      await dateDebutInput.setValue('2024-06-01')
+      await dateFinInput.setValue('2024-01-01') // Before start date
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      // Should NOT emit submit
+      expect(wrapper.emitted('submit')).toBeFalsy()
+
+      // Should show client-side error
+      const dateFinError = wrapper.find('[data-testid="date_fin-error"]')
+      expect(dateFinError.exists()).toBe(true)
+      expect(dateFinError.text()).toBe('La date de fin doit être après la date de début')
+    })
+
+    it('allows submit when date_fin equals date_debut (same day)', async () => {
+      const wrapper = mount(ExperienceForm, {
+        props: {
+          experience: null,
+          isSaving: false,
+          error: null,
+          validationErrors: {},
+        },
+      })
+
+      const titreInput = wrapper.find('[data-testid="titre-input"]')
+      const dateDebutInput = wrapper.find('[data-testid="date_debut-input"]')
+      const dateFinInput = wrapper.find('[data-testid="date_fin-input"]')
+
+      await titreInput.setValue('One day event')
+      await dateDebutInput.setValue('2024-06-15')
+      await dateFinInput.setValue('2024-06-15') // Same day
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      // Should emit submit
+      const emitted = wrapper.emitted('submit')
+      expect(emitted).toBeTruthy()
+      expect(emitted?.[0][0]).toMatchObject({
+        titre: 'One day event',
+        date_debut: '2024-06-15',
+        date_fin: '2024-06-15',
+      })
+    })
+
+    it('clears client-side error on subsequent valid submit', async () => {
+      const wrapper = mount(ExperienceForm, {
+        props: {
+          experience: null,
+          isSaving: false,
+          error: null,
+          validationErrors: {},
+        },
+      })
+
+      const titreInput = wrapper.find('[data-testid="titre-input"]')
+      const dateDebutInput = wrapper.find('[data-testid="date_debut-input"]')
+      const dateFinInput = wrapper.find('[data-testid="date_fin-input"]')
+
+      await titreInput.setValue('Test')
+      await dateDebutInput.setValue('2024-06-01')
+      await dateFinInput.setValue('2024-01-01') // Invalid
+
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      // Error should be shown
+      expect(wrapper.find('[data-testid="date_fin-error"]').exists()).toBe(true)
+
+      // Fix the date
+      await dateFinInput.setValue('2024-07-01')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      // Error should be cleared and submit should happen
+      expect(wrapper.find('[data-testid="date_fin-error"]').exists()).toBe(false)
+      expect(wrapper.emitted('submit')).toBeTruthy()
     })
   })
 
@@ -490,11 +752,15 @@ describe('ExperienceForm', () => {
       })
 
       expect(wrapper.find('label[for="titre"]').exists()).toBe(true)
-      expect(wrapper.find('label[for="annee"]').exists()).toBe(true)
+      expect(wrapper.find('label[for="date_debut"]').exists()).toBe(true)
+      expect(wrapper.find('label[for="date_fin"]').exists()).toBe(true)
+      expect(wrapper.find('label[for="is_ongoing"]').exists()).toBe(true)
       expect(wrapper.find('label[for="description"]').exists()).toBe(true)
 
       expect(wrapper.find('#titre').exists()).toBe(true)
-      expect(wrapper.find('#annee').exists()).toBe(true)
+      expect(wrapper.find('#date_debut').exists()).toBe(true)
+      expect(wrapper.find('#date_fin').exists()).toBe(true)
+      expect(wrapper.find('#is_ongoing').exists()).toBe(true)
       expect(wrapper.find('#description').exists()).toBe(true)
     })
 
