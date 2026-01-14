@@ -107,6 +107,14 @@ class Face extends Model
     }
 
     /**
+     * Get the professional experiences for this Face.
+     */
+    public function experiences(): HasMany
+    {
+        return $this->hasMany(Experience::class);
+    }
+
+    /**
      * Get the full URL for the presentation video.
      */
     protected function presentationVideoUrl(): Attribute

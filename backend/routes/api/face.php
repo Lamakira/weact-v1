@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\Face\AlbumController;
 use App\Http\Controllers\Api\V1\Face\BioLocationController;
 use App\Http\Controllers\Api\V1\Face\CategoryNicheController;
 use App\Http\Controllers\Api\V1\Face\CategoryNicheOptionsController;
+use App\Http\Controllers\Api\V1\Face\ExperienceController;
 use App\Http\Controllers\Api\V1\Face\PhysicalCharacteristicsController;
 use App\Http\Controllers\Api\V1\Face\PresentationVideoController;
 use App\Http\Controllers\Api\V1\Face\ProfileController;
@@ -63,6 +64,18 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/category-niche', [CategoryNicheController::class, 'show'])
         ->middleware('throttle:60,1');
     Route::put('/category-niche', [CategoryNicheController::class, 'update'])
+        ->middleware('throttle:60,1');
+
+    // Experience routes
+    Route::get('/experiences', [ExperienceController::class, 'index'])
+        ->middleware('throttle:60,1');
+    Route::post('/experiences', [ExperienceController::class, 'store'])
+        ->middleware('throttle:60,1');
+    Route::get('/experiences/{experience}', [ExperienceController::class, 'show'])
+        ->middleware('throttle:60,1');
+    Route::put('/experiences/{experience}', [ExperienceController::class, 'update'])
+        ->middleware('throttle:60,1');
+    Route::delete('/experiences/{experience}', [ExperienceController::class, 'destroy'])
         ->middleware('throttle:60,1');
 });
 
