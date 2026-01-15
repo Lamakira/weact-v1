@@ -71,6 +71,12 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'Producer' },
     },
     {
+      path: '/producer/profile',
+      name: 'producer-profile',
+      component: () => import('../pages/producer/ProfileEditPage.vue'),
+      meta: { requiresAuth: true, role: 'Producer' },
+    },
+    {
       path: '/dashboard/producer',
       redirect: { name: 'producer-dashboard' },
     },
