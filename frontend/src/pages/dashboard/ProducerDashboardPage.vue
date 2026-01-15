@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { RouterLink } from 'vue-router'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 
@@ -23,6 +24,27 @@ async function handleLogout(): Promise<void> {
         </div>
 
         <div class="flex items-center gap-4">
+          <RouterLink
+            :to="{ name: 'producer-profile' }"
+            class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary transition-colors"
+            data-testid="profile-link"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+              class="w-5 h-5"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+              />
+            </svg>
+            Mon profil
+          </RouterLink>
           <span class="text-sm text-gray-600">
             {{ authStore.user?.email }}
           </span>
@@ -65,12 +87,44 @@ async function handleLogout(): Promise<void> {
 
     <!-- Main content placeholder -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div class="bg-white rounded-lg shadow p-6">
+      <div class="bg-white rounded-lg shadow p-6 mb-6">
         <h2 class="text-lg font-medium text-gray-900 mb-4">Bienvenue sur votre Dashboard Producteur</h2>
         <p class="text-gray-600">
           Cette page sera développée dans les prochaines stories.
-          Pour l'instant, vous pouvez vous déconnecter en utilisant le bouton ci-dessus.
+          Pour l'instant, vous pouvez gérer votre profil ou vous déconnecter.
         </p>
+      </div>
+
+      <!-- Quick access cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <RouterLink
+          :to="{ name: 'producer-profile' }"
+          class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow group"
+          data-testid="profile-card"
+        >
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-secondary/10 rounded-full flex items-center justify-center group-hover:bg-secondary/20 transition-colors">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="1.5"
+                stroke="currentColor"
+                class="w-6 h-6 text-secondary"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
+                />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-lg font-medium text-gray-900">Mon profil</h3>
+              <p class="text-sm text-gray-500">Gérer ma photo et mes informations</p>
+            </div>
+          </div>
+        </RouterLink>
       </div>
     </main>
   </div>
@@ -79,6 +133,18 @@ async function handleLogout(): Promise<void> {
 <style scoped>
 .bg-secondary {
   background-color: #E88B51;
+}
+.bg-secondary\/10 {
+  background-color: rgb(232 139 81 / 0.1);
+}
+.bg-secondary\/20 {
+  background-color: rgb(232 139 81 / 0.2);
+}
+.group:hover .group-hover\:bg-secondary\/20 {
+  background-color: rgb(232 139 81 / 0.2);
+}
+.text-secondary {
+  color: #E88B51;
 }
 .focus\:ring-secondary:focus {
   --tw-ring-color: #E88B51;
