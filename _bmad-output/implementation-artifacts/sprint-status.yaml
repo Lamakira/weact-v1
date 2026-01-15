@@ -65,17 +65,18 @@ development_status:
   3-3-face-presentation-video-upload: done
   3-4-face-acting-video-upload: done
   3-5-face-bio-and-location: done
-  3-6-face-physical-characteristics: backlog
-  3-7-face-category-and-niche-selection: backlog
-  3-8-face-professional-experiences: backlog
-  3-9-face-tarifs: backlog
-  3-10-face-availability-toggle: backlog
-  3-11-face-profile-completion-indicator: backlog
+  3-6-face-physical-characteristics: done
+  3-7-face-category-and-niche-selection: done
+  3-8-face-professional-experiences: done
+  3-8-1-face-experience-dates-enhancement: done
+  3-9-face-tarifs: done
+  3-10-face-availability-toggle: done
+  3-11-face-profile-completion-indicator: done
   epic-3-retrospective: optional
 
   # Epic 4: Producer Profile (4 stories)
-  epic-4: backlog
-  4-1-producer-profile-photo: backlog
+  epic-4: in-progress
+  4-1-producer-profile-photo: ready-for-dev
   4-2-producer-bio: backlog
   4-3-agency-logo-upload: backlog
   4-4-producer-profile-display: backlog

@@ -1,11 +1,27 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
+import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
+import ProfileCompletionCard from '@/features/face/components/ProfileCompletionCard.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const { logout, isLoading } = useAuth()
+
+// Profile completion composable
+const {
+  isLoading: isCompletionLoading,
+  percentage: completionPercentage,
+  missingItems: completionMissingItems,
+  fetchCompletion,
+} = useProfileCompletion()
+
+// Fetch profile completion on mount
+onMounted(async () => {
+  await fetchCompletion()
+})
 
 async function handleLogout(): Promise<void> {
   await logout()
@@ -90,8 +106,20 @@ function goToProfile(): void {
       </div>
     </header>
 
-    <!-- Main content placeholder -->
+    <!-- Main content -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- Dashboard cards grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <!-- Profile Completion Card -->
+        <ProfileCompletionCard
+          :percentage="completionPercentage"
+          :missing-count="completionMissingItems.length"
+          :is-loading="isCompletionLoading"
+          data-testid="profile-completion-card"
+        />
+      </div>
+
+      <!-- Welcome message -->
       <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-lg font-medium text-gray-900 mb-4">Bienvenue sur votre Dashboard Face</h2>
         <p class="text-gray-600">

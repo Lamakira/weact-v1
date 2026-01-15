@@ -7,6 +7,20 @@ import type {
   ActingVideoResponse,
   VideoUploadProgress,
   BioLocationResponse,
+  PhysicalCharacteristicsResponse,
+  CategoryNicheResponse,
+  FaceCategory,
+  FaceNiche,
+  CategoryOption,
+  NicheOption,
+  ExperienceResponse,
+  ExperiencesListResponse,
+  ExperienceFormData,
+  TarifsResponse,
+  TarifsFormData,
+  AvailabilityResponse,
+  AvailabilityFormData,
+  ProfileCompletionResponse,
 } from '../types'
 
 /**
@@ -213,6 +227,161 @@ export const faceApi = {
   }): Promise<BioLocationResponse> {
     await getCsrfCookie()
     const response = await apiClient.put<BioLocationResponse>('/face/bio-location', data)
+    return response.data
+  },
+
+  /**
+   * Get the current physical characteristics
+   */
+  async getPhysicalCharacteristics(): Promise<PhysicalCharacteristicsResponse> {
+    const response = await apiClient.get<PhysicalCharacteristicsResponse>(
+      '/face/physical-characteristics',
+    )
+    return response.data
+  },
+
+  /**
+   * Update physical characteristics
+   * @param data The physical characteristics data to update
+   */
+  async updatePhysicalCharacteristics(data: {
+    taille?: number | null
+    poids?: number | null
+  }): Promise<PhysicalCharacteristicsResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.put<PhysicalCharacteristicsResponse>(
+      '/face/physical-characteristics',
+      data,
+    )
+    return response.data
+  },
+
+  /**
+   * Get the current category and niche
+   */
+  async getCategoryNiche(): Promise<CategoryNicheResponse> {
+    const response = await apiClient.get<CategoryNicheResponse>('/face/category-niche')
+    return response.data
+  },
+
+  /**
+   * Update category and/or niche
+   * @param data The category and niche data to update
+   */
+  async updateCategoryNiche(data: {
+    categorie?: FaceCategory | null
+    niche?: FaceNiche | null
+  }): Promise<CategoryNicheResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.put<CategoryNicheResponse>('/face/category-niche', data)
+    return response.data
+  },
+
+  /**
+   * Get category options for dropdown
+   */
+  async getCategoryOptions(): Promise<{ data: CategoryOption[] }> {
+    const response = await apiClient.get<{ data: CategoryOption[] }>('/face/options/categories')
+    return response.data
+  },
+
+  /**
+   * Get niche options for dropdown
+   */
+  async getNicheOptions(): Promise<{ data: NicheOption[] }> {
+    const response = await apiClient.get<{ data: NicheOption[] }>('/face/options/niches')
+    return response.data
+  },
+
+  /**
+   * Get all experiences
+   */
+  async getExperiences(): Promise<ExperiencesListResponse> {
+    const response = await apiClient.get<ExperiencesListResponse>('/face/experiences')
+    return response.data
+  },
+
+  /**
+   * Create a new experience
+   * @param data The experience data to create
+   */
+  async createExperience(data: ExperienceFormData): Promise<ExperienceResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<ExperienceResponse>('/face/experiences', data)
+    return response.data
+  },
+
+  /**
+   * Get a single experience
+   * @param id The experience ID
+   */
+  async getExperience(id: number): Promise<ExperienceResponse> {
+    const response = await apiClient.get<ExperienceResponse>(`/face/experiences/${id}`)
+    return response.data
+  },
+
+  /**
+   * Update an experience
+   * @param id The experience ID
+   * @param data The experience data to update
+   */
+  async updateExperience(id: number, data: ExperienceFormData): Promise<ExperienceResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.put<ExperienceResponse>(`/face/experiences/${id}`, data)
+    return response.data
+  },
+
+  /**
+   * Delete an experience
+   * @param id The experience ID
+   */
+  async deleteExperience(id: number): Promise<{ message: string }> {
+    await getCsrfCookie()
+    const response = await apiClient.delete<{ message: string }>(`/face/experiences/${id}`)
+    return response.data
+  },
+
+  /**
+   * Get the current tarifs
+   */
+  async getTarifs(): Promise<TarifsResponse> {
+    const response = await apiClient.get<TarifsResponse>('/face/tarifs')
+    return response.data
+  },
+
+  /**
+   * Update tarifs
+   * @param data The tarifs data to update
+   */
+  async updateTarifs(data: TarifsFormData): Promise<TarifsResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.put<TarifsResponse>('/face/tarifs', data)
+    return response.data
+  },
+
+  /**
+   * Get the current availability status
+   */
+  async getAvailability(): Promise<AvailabilityResponse> {
+    const response = await apiClient.get<AvailabilityResponse>('/face/availability')
+    return response.data
+  },
+
+  /**
+   * Update availability status
+   * @param data The availability data to update
+   */
+  async updateAvailability(data: AvailabilityFormData): Promise<AvailabilityResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.put<AvailabilityResponse>('/face/availability', data)
+    return response.data
+  },
+
+  /**
+   * Get the current profile completion status
+   */
+  async getProfileCompletion(): Promise<ProfileCompletionResponse> {
+    const response = await apiClient.get<ProfileCompletionResponse>('/face/profile-completion')
     return response.data
   },
 }

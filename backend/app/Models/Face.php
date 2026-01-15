@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\FaceCategory;
+use App\Enums\FaceNiche;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -33,6 +35,24 @@ class Face extends Model
         'ville',
         'quartier',
         'pays',
+        'taille',
+        'poids',
+        'categorie',
+        'niche',
+        'tarif_horaire',
+        'tarif_journalier',
+        'is_available',
+    ];
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'categorie' => FaceCategory::class,
+        'niche' => FaceNiche::class,
+        'is_available' => 'boolean',
     ];
 
     /**
@@ -48,6 +68,13 @@ class Face extends Model
         'acting_video_url',
         'acting_video_thumbnail_url',
         'formatted_location',
+        'formatted_tarif_horaire',
+        'formatted_tarif_journalier',
+        'availability_badge',
+        'availability_badge_color',
+        'profile_completion_percentage',
+        'profile_completion_missing',
+        'profile_completion_is_complete',
     ];
 
     /**
@@ -88,6 +115,14 @@ class Face extends Model
     public function photos(): HasMany
     {
         return $this->hasMany(FacePhoto::class)->orderBy('position');
+    }
+
+    /**
+     * Get the professional experiences for this Face.
+     */
+    public function experiences(): HasMany
+    {
+        return $this->hasMany(Experience::class);
     }
 
     /**
@@ -153,6 +188,144 @@ class Face extends Model
 
                 return count($parts) > 0 ? implode(', ', $parts) : null;
             },
+        );
+    }
+
+    /**
+     * Get the formatted hourly rate (e.g., "75 000 XOF/heure").
+     */
+    protected function formattedTarifHoraire(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->tarif_horaire !== null
+                ? number_format($this->tarif_horaire, 0, ',', ' ') . ' XOF/heure'
+                : null,
+        );
+    }
+
+    /**
+     * Get the formatted daily rate (e.g., "250 000 XOF/jour").
+     */
+    protected function formattedTarifJournalier(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->tarif_journalier !== null
+                ? number_format($this->tarif_journalier, 0, ',', ' ') . ' XOF/jour'
+                : null,
+        );
+    }
+
+    /**
+     * Get the availability badge text ("Disponible" or "Indisponible").
+     */
+    protected function availabilityBadge(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): string => $this->is_available ? 'Disponible' : 'Indisponible',
+        );
+    }
+
+    /**
+     * Get the availability badge color ("green" or "grey").
+     */
+    protected function availabilityBadgeColor(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): string => $this->is_available ? 'green' : 'grey',
+        );
+    }
+
+    /**
+     * Get the profile completion percentage (0-100).
+     *
+     * Required fields (7 total):
+     * - profile_photo
+     * - presentation_video
+     * - acting_video
+     * - bio
+     * - ville
+     * - categorie
+     * - tarif_horaire OR tarif_journalier (at least one)
+     */
+    protected function profileCompletionPercentage(): Attribute
+    {
+        return Attribute::make(
+            get: function (): int {
+                $completed = 0;
+                $total = 7;
+
+                if ($this->profile_photo) {
+                    $completed++;
+                }
+                if ($this->presentation_video) {
+                    $completed++;
+                }
+                if ($this->acting_video) {
+                    $completed++;
+                }
+                if ($this->bio) {
+                    $completed++;
+                }
+                if ($this->ville) {
+                    $completed++;
+                }
+                if ($this->categorie) {
+                    $completed++;
+                }
+                if ($this->tarif_horaire !== null || $this->tarif_journalier !== null) {
+                    $completed++;
+                }
+
+                return (int) round(($completed / $total) * 100);
+            },
+        );
+    }
+
+    /**
+     * Get the list of missing profile items.
+     *
+     * @return array<int, array{key: string, label: string}>
+     */
+    protected function profileCompletionMissing(): Attribute
+    {
+        return Attribute::make(
+            get: function (): array {
+                $missing = [];
+
+                if (! $this->profile_photo) {
+                    $missing[] = ['key' => 'profile_photo', 'label' => 'Ajoutez une photo de profil'];
+                }
+                if (! $this->presentation_video) {
+                    $missing[] = ['key' => 'presentation_video', 'label' => 'Ajoutez une vidéo de présentation'];
+                }
+                if (! $this->acting_video) {
+                    $missing[] = ['key' => 'acting_video', 'label' => "Ajoutez une vidéo d'acting"];
+                }
+                if (! $this->bio) {
+                    $missing[] = ['key' => 'bio', 'label' => 'Ajoutez une bio'];
+                }
+                if (! $this->ville) {
+                    $missing[] = ['key' => 'ville', 'label' => 'Ajoutez votre ville'];
+                }
+                if (! $this->categorie) {
+                    $missing[] = ['key' => 'categorie', 'label' => 'Sélectionnez votre catégorie'];
+                }
+                if ($this->tarif_horaire === null && $this->tarif_journalier === null) {
+                    $missing[] = ['key' => 'tarifs', 'label' => 'Ajoutez vos tarifs'];
+                }
+
+                return $missing;
+            },
+        );
+    }
+
+    /**
+     * Check if the profile is complete (100%).
+     */
+    protected function profileCompletionIsComplete(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): bool => $this->profile_completion_percentage === 100,
         );
     }
 }
