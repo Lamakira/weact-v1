@@ -1,0 +1,106 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Api\V1\Producer;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Producer\UpdateProfilePhotoRequest;
+use App\Http\Resources\ProducerResource;
+use App\Models\Producer;
+use App\Services\ProducerProfilePhotoService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+class ProfileController extends Controller
+{
+    public function __construct(
+        private readonly ProducerProfilePhotoService $profilePhotoService
+    ) {}
+
+    /**
+     * Get the authenticated Producer from the request.
+     *
+     * @param Request $request
+     * @return Producer|null
+     */
+    private function getAuthenticatedProducer(Request $request): ?Producer
+    {
+        $user = $request->user();
+
+        if (!$user || !$user->userable instanceof Producer) {
+            return null;
+        }
+
+        return $user->userable;
+    }
+
+    /**
+     * Get the current Producer's profile.
+     */
+    public function show(Request $request): JsonResponse
+    {
+        $producer = $this->getAuthenticatedProducer($request);
+
+        if (!$producer) {
+            return response()->json([
+                'message' => 'Utilisateur non autorisé',
+            ], 403);
+        }
+
+        return response()->json([
+            'data' => new ProducerResource($producer),
+        ]);
+    }
+
+    /**
+     * Update the Producer's profile photo.
+     */
+    public function updatePhoto(UpdateProfilePhotoRequest $request): JsonResponse
+    {
+        $producer = $this->getAuthenticatedProducer($request);
+
+        if (!$producer) {
+            return response()->json([
+                'message' => 'Utilisateur non autorisé',
+            ], 403);
+        }
+
+        $this->profilePhotoService->uploadProfilePhoto(
+            $producer,
+            $request->file('photo')
+        );
+
+        // Refresh the model to get updated URLs
+        $producer->refresh();
+
+        return response()->json([
+            'data' => new ProducerResource($producer),
+            'message' => 'Photo de profil mise à jour',
+        ]);
+    }
+
+    /**
+     * Delete the Producer's profile photo.
+     */
+    public function deletePhoto(Request $request): JsonResponse
+    {
+        $producer = $this->getAuthenticatedProducer($request);
+
+        if (!$producer) {
+            return response()->json([
+                'message' => 'Utilisateur non autorisé',
+            ], 403);
+        }
+
+        $this->profilePhotoService->deleteProfilePhoto($producer);
+
+        // Refresh the model to get updated (null) URLs
+        $producer->refresh();
+
+        return response()->json([
+            'data' => new ProducerResource($producer),
+            'message' => 'Photo de profil supprimée',
+        ]);
+    }
+}
