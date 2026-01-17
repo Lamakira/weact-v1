@@ -19,4 +19,8 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile/photo', [ProfileController::class, 'updatePhoto']);
     Route::delete('/profile/photo', [ProfileController::class, 'deletePhoto']);
+
+    // Bio routes
+    Route::get('/profile/bio', [ProfileController::class, 'showBio']);
+    Route::put('/profile/bio', [ProfileController::class, 'updateBio']);
 });

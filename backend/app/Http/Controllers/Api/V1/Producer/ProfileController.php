@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Producer;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Producer\ShowBioRequest;
+use App\Http\Requests\Producer\UpdateBioRequest;
 use App\Http\Requests\Producer\UpdateProfilePhotoRequest;
 use App\Http\Resources\ProducerResource;
 use App\Models\Producer;
@@ -101,6 +103,41 @@ class ProfileController extends Controller
         return response()->json([
             'data' => new ProducerResource($producer),
             'message' => 'Photo de profil supprimée',
+        ]);
+    }
+
+    /**
+     * Get the Producer's bio.
+     */
+    public function showBio(ShowBioRequest $request): JsonResponse
+    {
+        /** @var Producer $producer */
+        $producer = $request->user()->userable;
+
+        return response()->json([
+            'data' => [
+                'bio' => $producer->bio,
+            ],
+        ]);
+    }
+
+    /**
+     * Update the Producer's bio.
+     */
+    public function updateBio(UpdateBioRequest $request): JsonResponse
+    {
+        /** @var Producer $producer */
+        $producer = $request->user()->userable;
+
+        $producer->update([
+            'bio' => $request->input('bio'),
+        ]);
+
+        return response()->json([
+            'data' => [
+                'bio' => $producer->bio,
+            ],
+            'message' => 'Bio mise à jour avec succès',
         ]);
     }
 }
