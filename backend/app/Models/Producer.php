@@ -26,6 +26,7 @@ class Producer extends Model
         'last_name',
         'profile_photo',
         'profile_photo_thumbnail',
+        'bio',
     ];
 
     /**
