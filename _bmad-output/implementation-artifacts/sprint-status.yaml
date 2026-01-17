@@ -77,7 +77,7 @@ development_status:
   # Epic 4: Producer Profile (4 stories)
   epic-4: in-progress
   4-1-producer-profile-photo: done
-  4-2-producer-bio: backlog
+  4-2-producer-bio: done
   4-3-agency-logo-upload: backlog
   4-4-producer-profile-display: backlog
   epic-4-retrospective: optional
