@@ -1,5 +1,5 @@
 import apiClient, { getCsrfCookie } from '@/services/apiClient'
-import type { ProducerProfileResponse } from '../types'
+import type { ProducerProfileResponse, ProducerBioResponse } from '../types'
 
 /**
  * Producer API service
@@ -37,6 +37,24 @@ export const producerApi = {
   async deleteProfilePhoto(): Promise<ProducerProfileResponse> {
     await getCsrfCookie()
     const response = await apiClient.delete<ProducerProfileResponse>('/producer/profile/photo')
+    return response.data
+  },
+
+  /**
+   * Get the current producer bio
+   */
+  async getBio(): Promise<ProducerBioResponse> {
+    const response = await apiClient.get<ProducerBioResponse>('/producer/profile/bio')
+    return response.data
+  },
+
+  /**
+   * Update the producer bio
+   * @param bio The bio text (max 500 characters) or null to clear
+   */
+  async updateBio(bio: string | null): Promise<ProducerBioResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.put<ProducerBioResponse>('/producer/profile/bio', { bio })
     return response.data
   },
 }

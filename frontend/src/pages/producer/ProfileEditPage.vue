@@ -3,8 +3,10 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
+import { useProducerBio } from '@/features/producer/composables/useProducerBio'
 import { useToast } from '@/composables/useToast'
 import ProducerProfilePhotoUpload from '@/features/producer/components/ProducerProfilePhotoUpload.vue'
+import ProducerBioEditor from '@/features/producer/components/ProducerBioEditor.vue'
 
 const router = useRouter()
 const { logout, isLoading: isAuthLoading } = useAuth()
@@ -19,15 +21,24 @@ const {
   deletePhoto,
 } = useProducerProfilePhoto()
 
+const {
+  bio,
+  isLoading: isBioLoading,
+  isSaving: isBioSaving,
+  error: bioError,
+  fetchBio,
+  saveBio,
+} = useProducerBio()
+
 // Toast notifications
 const toast = useToast()
 
 // Success message
 const successMessage = ref<string | null>(null)
 
-// Fetch profile on mount
+// Fetch profile and bio on mount
 onMounted(async () => {
-  await fetchProfile()
+  await Promise.all([fetchProfile(), fetchBio()])
 })
 
 /**
@@ -39,6 +50,7 @@ async function handleUpload(file: File): Promise<void> {
 
   if (result.success && result.message) {
     successMessage.value = result.message
+    toast.success(result.message)
   }
 }
 
@@ -51,6 +63,20 @@ async function handleDelete(): Promise<void> {
 
   if (result.success && result.message) {
     successMessage.value = result.message
+    toast.success(result.message)
+  }
+}
+
+/**
+ * Handle bio save
+ */
+async function handleBioSave(newBio: string | null): Promise<void> {
+  successMessage.value = null
+  const result = await saveBio(newBio)
+
+  if (result.success && result.message) {
+    successMessage.value = result.message
+    toast.success(result.message)
   }
 }
 
@@ -199,6 +225,40 @@ function goBack(): void {
             :error="error"
             @upload="handleUpload"
             @delete="handleDelete"
+          />
+        </div>
+
+        <!-- Bio section -->
+        <div id="section-bio" class="p-6 border-b border-gray-200">
+          <!-- Bio loading state -->
+          <div v-if="isBioLoading" class="flex justify-center py-8">
+            <svg
+              class="animate-spin h-6 w-6 text-weact-600"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+          </div>
+          <ProducerBioEditor
+            v-else
+            :bio="bio"
+            :is-saving="isBioSaving"
+            :error="bioError"
+            @save="handleBioSave"
           />
         </div>
 

@@ -13,6 +13,7 @@ export interface Producer {
   first_name: string | null
   last_name: string | null
   display_name: string
+  bio: string | null
   profile_photo_url: string | null
   thumbnail_url: string | null
   created_at: string
@@ -29,6 +30,25 @@ export interface ProducerProfileResponse {
 export interface ProducerProfilePhotoResult {
   success: boolean
   data?: Producer
+  errors?: Record<string, string[]>
+  message?: string
+}
+
+// Bio data from API
+export interface ProducerBioData {
+  bio: string | null
+}
+
+// Bio API response
+export interface ProducerBioResponse {
+  data: ProducerBioData
+  message?: string
+}
+
+// Bio update result
+export interface ProducerBioResult {
+  success: boolean
+  data?: ProducerBioData
   errors?: Record<string, string[]>
   message?: string
 }
