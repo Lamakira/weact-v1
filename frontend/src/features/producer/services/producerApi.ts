@@ -1,5 +1,5 @@
 import apiClient, { getCsrfCookie } from '@/services/apiClient'
-import type { ProducerProfileResponse, ProducerBioResponse } from '../types'
+import type { ProducerProfileResponse, ProducerBioResponse, AgencyLogoResponse } from '../types'
 
 /**
  * Producer API service
@@ -55,6 +55,41 @@ export const producerApi = {
   async updateBio(bio: string | null): Promise<ProducerBioResponse> {
     await getCsrfCookie()
     const response = await apiClient.put<ProducerBioResponse>('/producer/profile/bio', { bio })
+    return response.data
+  },
+
+  /**
+   * Get the agency logo (Agency only)
+   */
+  async getLogo(): Promise<AgencyLogoResponse> {
+    const response = await apiClient.get<AgencyLogoResponse>('/producer/profile/logo')
+    return response.data
+  },
+
+  /**
+   * Upload an agency logo (Agency only)
+   * @param logo The logo file to upload (max 2MB)
+   */
+  async uploadLogo(logo: File): Promise<ProducerProfileResponse> {
+    await getCsrfCookie()
+
+    const formData = new FormData()
+    formData.append('logo', logo)
+
+    const response = await apiClient.post<ProducerProfileResponse>('/producer/profile/logo', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  },
+
+  /**
+   * Delete the agency logo (Agency only)
+   */
+  async deleteLogo(): Promise<ProducerProfileResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.delete<ProducerProfileResponse>('/producer/profile/logo')
     return response.data
   },
 }

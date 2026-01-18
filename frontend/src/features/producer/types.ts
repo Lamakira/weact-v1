@@ -16,6 +16,8 @@ export interface Producer {
   bio: string | null
   profile_photo_url: string | null
   thumbnail_url: string | null
+  agency_logo_url: string | null
+  agency_logo_thumbnail_url: string | null
   created_at: string
   updated_at: string
 }
@@ -49,6 +51,26 @@ export interface ProducerBioResponse {
 export interface ProducerBioResult {
   success: boolean
   data?: ProducerBioData
+  errors?: Record<string, string[]>
+  message?: string
+}
+
+// Agency logo data from API
+export interface AgencyLogoData {
+  agency_logo_url: string | null
+  agency_logo_thumbnail_url: string | null
+}
+
+// Agency logo API response
+export interface AgencyLogoResponse {
+  data: AgencyLogoData
+  message?: string
+}
+
+// Agency logo result
+export interface AgencyLogoResult {
+  success: boolean
+  data?: AgencyLogoData | Producer
   errors?: Record<string, string[]>
   message?: string
 }
