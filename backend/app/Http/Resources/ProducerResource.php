@@ -29,6 +29,8 @@ class ProducerResource extends JsonResource
             'bio' => $this->bio,
             'profile_photo_url' => $this->profile_photo_url,
             'thumbnail_url' => $this->thumbnail_url,
+            'agency_logo_url' => $this->agency_logo_url,
+            'agency_logo_thumbnail_url' => $this->agency_logo_thumbnail_url,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

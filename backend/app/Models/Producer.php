@@ -27,6 +27,8 @@ class Producer extends Model
         'profile_photo',
         'profile_photo_thumbnail',
         'bio',
+        'agency_logo',
+        'agency_logo_thumbnail',
     ];
 
     /**
@@ -38,6 +40,8 @@ class Producer extends Model
         'profile_photo_url',
         'thumbnail_url',
         'display_name',
+        'agency_logo_url',
+        'agency_logo_thumbnail_url',
     ];
 
     /**
@@ -109,6 +113,30 @@ class Producer extends Model
         return Attribute::make(
             get: fn (): ?string => $this->profile_photo_thumbnail
                 ? asset('storage/avatars/producers/thumbnails/' . $this->profile_photo_thumbnail)
+                : null,
+        );
+    }
+
+    /**
+     * Get the full URL for the agency logo.
+     */
+    protected function agencyLogoUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->agency_logo
+                ? asset('storage/logos/agencies/' . $this->agency_logo)
+                : null,
+        );
+    }
+
+    /**
+     * Get the full URL for the agency logo thumbnail.
+     */
+    protected function agencyLogoThumbnailUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->agency_logo_thumbnail
+                ? asset('storage/logos/agencies/thumbnails/' . $this->agency_logo_thumbnail)
                 : null,
         );
     }
