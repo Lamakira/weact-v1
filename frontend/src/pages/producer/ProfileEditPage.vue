@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
 import { useProducerBio } from '@/features/producer/composables/useProducerBio'
+import { useAgencyLogo } from '@/features/producer/composables/useAgencyLogo'
 import { useToast } from '@/composables/useToast'
 import ProducerProfilePhotoUpload from '@/features/producer/components/ProducerProfilePhotoUpload.vue'
 import ProducerBioEditor from '@/features/producer/components/ProducerBioEditor.vue'
+import AgencyLogoUpload from '@/features/producer/components/AgencyLogoUpload.vue'
 
 const router = useRouter()
 const { logout, isLoading: isAuthLoading } = useAuth()
@@ -30,8 +32,14 @@ const {
   saveBio,
 } = useProducerBio()
 
+// Agency logo composable (only used for agency producers)
+const agencyLogo = useAgencyLogo()
+
 // Toast notifications
 const toast = useToast()
+
+// Computed: Check if producer is an agency
+const isAgency = computed(() => profile.value?.type === 'agency')
 
 // Success message
 const successMessage = ref<string | null>(null)
@@ -226,6 +234,17 @@ function goBack(): void {
             @upload="handleUpload"
             @delete="handleDelete"
           />
+        </div>
+
+        <!-- Agency logo section (Agency only) -->
+        <div
+          v-if="isAgency"
+          id="section-agency-logo"
+          class="p-6 border-b border-gray-200"
+          data-testid="agency-logo-section"
+        >
+          <h2 class="text-lg font-medium text-gray-900 mb-6">Logo de l'agence</h2>
+          <AgencyLogoUpload />
         </div>
 
         <!-- Bio section -->
