@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Producer;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Producer\DeleteAgencyLogoRequest;
+use App\Http\Requests\Producer\ShowAgencyLogoRequest;
 use App\Http\Requests\Producer\ShowBioRequest;
+use App\Http\Requests\Producer\UpdateAgencyLogoRequest;
 use App\Http\Requests\Producer\UpdateBioRequest;
 use App\Http\Requests\Producer\UpdateProfilePhotoRequest;
 use App\Http\Resources\ProducerResource;
 use App\Models\Producer;
+use App\Services\AgencyLogoService;
 use App\Services\ProducerProfilePhotoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +21,8 @@ use Illuminate\Http\Request;
 class ProfileController extends Controller
 {
     public function __construct(
-        private readonly ProducerProfilePhotoService $profilePhotoService
+        private readonly ProducerProfilePhotoService $profilePhotoService,
+        private readonly AgencyLogoService $agencyLogoService
     ) {}
 
     /**
@@ -138,6 +143,63 @@ class ProfileController extends Controller
                 'bio' => $producer->bio,
             ],
             'message' => 'Bio mise à jour avec succès',
+        ]);
+    }
+
+    /**
+     * Get the Agency's logo.
+     */
+    public function showLogo(ShowAgencyLogoRequest $request): JsonResponse
+    {
+        /** @var Producer $producer */
+        $producer = $request->user()->userable;
+
+        return response()->json([
+            'data' => [
+                'agency_logo_url' => $producer->agency_logo_url,
+                'agency_logo_thumbnail_url' => $producer->agency_logo_thumbnail_url,
+            ],
+        ]);
+    }
+
+    /**
+     * Update the Agency's logo.
+     */
+    public function updateLogo(UpdateAgencyLogoRequest $request): JsonResponse
+    {
+        /** @var Producer $producer */
+        $producer = $request->user()->userable;
+
+        $this->agencyLogoService->uploadLogo(
+            $producer,
+            $request->file('logo')
+        );
+
+        // Refresh the model to get updated URLs
+        $producer->refresh();
+
+        return response()->json([
+            'data' => new ProducerResource($producer),
+            'message' => 'Logo de l\'agence mis à jour',
+        ]);
+    }
+
+    /**
+     * Delete the Agency's logo.
+     */
+    public function deleteLogo(DeleteAgencyLogoRequest $request): JsonResponse
+    {
+        /** @var Producer $producer */
+        $producer = $request->user()->userable;
+
+        $this->agencyLogoService->deleteLogo($producer);
+
+        // Refresh the model to get updated (null) URLs
+        $producer->refresh();
+
+        return response()->json([
+            'data' => new ProducerResource($producer),
+            'message' => 'Logo de l\'agence supprimé',
         ]);
     }
 }

@@ -23,4 +23,9 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
     // Bio routes
     Route::get('/profile/bio', [ProfileController::class, 'showBio']);
     Route::put('/profile/bio', [ProfileController::class, 'updateBio']);
+
+    // Agency logo routes
+    Route::get('/profile/logo', [ProfileController::class, 'showLogo']);
+    Route::post('/profile/logo', [ProfileController::class, 'updateLogo']);
+    Route::delete('/profile/logo', [ProfileController::class, 'deleteLogo']);
 });
