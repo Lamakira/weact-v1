@@ -80,6 +80,12 @@ const router = createRouter({
       path: '/dashboard/producer',
       redirect: { name: 'producer-dashboard' },
     },
+    // Public routes (no auth required)
+    {
+      path: '/producers/:id',
+      name: 'public-producer-profile',
+      component: () => import('../pages/public/ProducerProfilePage.vue'),
+    },
   ],
 })
 
