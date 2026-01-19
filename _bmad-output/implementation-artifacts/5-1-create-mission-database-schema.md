@@ -1,6 +1,6 @@
 # Story 5.1: Create Mission Database Schema
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -17,47 +17,47 @@ so that **Producers can publish detailed casting calls**.
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create MissionStatus enum (AC: #1, #3)
-  - [ ] Create `app/Enums/MissionStatus.php` with values: draft, published, closed, completed
-  - [ ] Add `label()` method for French display names
+- [x] Task 1: Create MissionStatus enum (AC: #1, #3)
+  - [x] Create `app/Enums/MissionStatus.php` with values: draft, published, closed, completed
+  - [x] Add `label()` method for French display names
 
-- [ ] Task 2: Create MissionType enum (AC: #1)
-  - [ ] Create `app/Enums/MissionType.php` with values: publicite, film, court_metrage, clip_musical, autre
-  - [ ] Add `label()` method for French display names
+- [x] Task 2: Create MissionType enum (AC: #1)
+  - [x] Create `app/Enums/MissionType.php` with values: publicite, film, court_metrage, clip_musical, autre
+  - [x] Add `label()` method for French display names
 
-- [ ] Task 3: Create MissionGender enum (AC: #1)
-  - [ ] Create `app/Enums/MissionGender.php` with values: homme, femme, tous
-  - [ ] Add `label()` method for French display names
+- [x] Task 3: Create MissionGender enum (AC: #1)
+  - [x] Create `app/Enums/MissionGender.php` with values: homme, femme, tous
+  - [x] Add `label()` method for French display names
 
-- [ ] Task 4: Create missions table migration (AC: #1, #2, #3)
-  - [ ] Create migration file `create_missions_table.php`
-  - [ ] Add all required columns with appropriate types
-  - [ ] Add foreign key constraint to `producers` table with cascade delete
-  - [ ] Add indexes for commonly queried columns (producer_id, status, date_tournage, date_limite_candidature)
-  - [ ] Set default value for status column to 'draft'
+- [x] Task 4: Create missions table migration (AC: #1, #2, #3)
+  - [x] Create migration file `create_missions_table.php`
+  - [x] Add all required columns with appropriate types
+  - [x] Add foreign key constraint to `producers` table with cascade delete
+  - [x] Add indexes for commonly queried columns (producer_id, status, date_tournage, date_limite_candidature)
+  - [x] Set default value for status column to 'draft'
 
-- [ ] Task 5: Create Mission model (AC: #1, #2, #4)
-  - [ ] Create `app/Models/Mission.php`
-  - [ ] Define `$fillable` with all editable fields
-  - [ ] Define `$casts` for enums and dates
-  - [ ] Add `producer()` BelongsTo relationship
-  - [ ] Add appropriate scopes for status filtering
+- [x] Task 5: Create Mission model (AC: #1, #2, #4)
+  - [x] Create `app/Models/Mission.php`
+  - [x] Define `$fillable` with all editable fields
+  - [x] Define `$casts` for enums and dates
+  - [x] Add `producer()` BelongsTo relationship
+  - [x] Add appropriate scopes for status filtering
 
-- [ ] Task 6: Update Producer model (AC: #4)
-  - [ ] Add `missions()` HasMany relationship to Producer model
+- [x] Task 6: Update Producer model (AC: #4)
+  - [x] Add `missions()` HasMany relationship to Producer model
 
-- [ ] Task 7: Create Mission factory (for testing)
-  - [ ] Create `database/factories/MissionFactory.php`
-  - [ ] Define realistic default values for all fields
-  - [ ] Add states for different mission statuses
+- [x] Task 7: Create Mission factory (for testing)
+  - [x] Create `database/factories/MissionFactory.php`
+  - [x] Define realistic default values for all fields
+  - [x] Add states for different mission statuses
 
-- [ ] Task 8: Create feature tests (AC: #1, #2, #3, #4)
-  - [ ] Test migration creates table with all columns
-  - [ ] Test foreign key constraint works correctly
-  - [ ] Test status defaults to 'draft'
-  - [ ] Test Producer->missions relationship
-  - [ ] Test Mission->producer relationship
-  - [ ] Test enum casting works correctly
+- [x] Task 8: Create feature tests (AC: #1, #2, #3, #4)
+  - [x] Test migration creates table with all columns
+  - [x] Test foreign key constraint works correctly
+  - [x] Test status defaults to 'draft'
+  - [x] Test Producer->missions relationship
+  - [x] Test Mission->producer relationship
+  - [x] Test enum casting works correctly
 
 ## Dev Notes
 
@@ -163,10 +163,51 @@ backend/app/Models/Producer.php  # Add missions() relationship
 
 ### Agent Model Used
 
-{{agent_model_name_version}}
+Claude Opus 4.5 (claude-opus-4-5-20251101)
 
 ### Debug Log References
 
+- No debug issues encountered
+
 ### Completion Notes List
 
+- Created 3 PHP enums (MissionStatus, MissionType, MissionGender) with French labels
+- Created missions table migration with all 14 required fields plus timestamps
+- Migration includes foreign key to producers with cascade delete
+- Migration includes indexes on status, date_tournage, date_limite_candidature
+- Created Mission model with proper casts for enums and dates
+- Added $attributes default for status = 'draft' in model
+- Added status filtering scopes (draft, published, closed, completed, acceptingCandidatures)
+- Updated Producer model with missions() HasMany relationship
+- Created MissionFactory with realistic defaults and states for all statuses
+- Created comprehensive test suite with 19 tests covering all acceptance criteria
+- All 322 backend tests pass
+- All 757 frontend tests pass
+
+**Code Review Fixes (2026-01-19):**
+- Added composite index on (status, date_limite_candidature) for acceptingCandidatures scope performance
+- Added index on type_mission for future filtering (story 5-9)
+- Updated MissionFactory to use realistic Benin cities instead of random worldwide cities
+- Added values() static helper method to all 3 mission enums for validation rules
+- Added test for enum values() helper
+- All 323 backend tests pass after fixes
+
 ### File List
+
+**Created:**
+- backend/app/Enums/MissionStatus.php
+- backend/app/Enums/MissionType.php
+- backend/app/Enums/MissionGender.php
+- backend/app/Models/Mission.php
+- backend/database/migrations/2026_01_19_130801_create_missions_table.php
+- backend/database/migrations/2026_01_19_171522_add_missions_indexes.php
+- backend/database/factories/MissionFactory.php
+- backend/tests/Feature/Mission/MissionSchemaTest.php
+
+**Modified:**
+- backend/app/Models/Producer.php (added missions() relationship)
+
+## Change Log
+
+- 2026-01-19: Initial implementation of mission database schema (Story 5.1)
+- 2026-01-19: Code review fixes - added performance indexes, values() helper, realistic Benin cities in factory
