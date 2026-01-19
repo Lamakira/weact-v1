@@ -75,11 +75,11 @@ development_status:
   epic-3-retrospective: optional
 
   # Epic 4: Producer Profile (4 stories)
-  epic-4: in-progress
+  epic-4: done
   4-1-producer-profile-photo: done
   4-2-producer-bio: done
   4-3-agency-logo-upload: done
-  4-4-producer-profile-display: backlog
+  4-4-producer-profile-display: done
   epic-4-retrospective: optional
 
   # Epic 5: Mission Management (10 stories)
