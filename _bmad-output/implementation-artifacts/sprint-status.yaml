@@ -80,11 +80,11 @@ development_status:
   4-2-producer-bio: done
   4-3-agency-logo-upload: done
   4-4-producer-profile-display: done
-  epic-4-retrospective: optional
+  epic-4-retrospective: done
 
   # Epic 5: Mission Management (10 stories)
-  epic-5: backlog
-  5-1-create-mission-database-schema: backlog
+  epic-5: in-progress
+  5-1-create-mission-database-schema: ready-for-dev
   5-2-publish-mission: backlog
   5-3-edit-mission: backlog
   5-4-delete-mission: backlog
@@ -94,6 +94,7 @@ development_status:
   5-8-face-browse-available-missions: backlog
   5-9-face-filter-missions: backlog
   5-10-face-view-mission-detail: backlog
+  5-11-producer-mission-count-exposure: backlog
   epic-5-retrospective: optional
 
   # Epic 6: Candidature Workflow (9 stories)
@@ -128,6 +129,7 @@ development_status:
   8-4-display-face-average-rating: backlog
   8-5-display-producer-average-rating: backlog
   8-6-view-reviews-list: backlog
+  8-7-producer-rating-exposure: backlog
   epic-8-retrospective: optional
 
   # Epic 9: Face Dashboard (5 stories)
