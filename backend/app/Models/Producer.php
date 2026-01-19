@@ -8,6 +8,7 @@ use App\Enums\ProducerType;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 class Producer extends Model
@@ -62,6 +63,14 @@ class Producer extends Model
     public function user(): MorphOne
     {
         return $this->morphOne(User::class, 'userable');
+    }
+
+    /**
+     * Get the missions created by this producer.
+     */
+    public function missions(): HasMany
+    {
+        return $this->hasMany(Mission::class);
     }
 
     /**
