@@ -160,6 +160,35 @@ async function handleLogout(): Promise<void> {
             </div>
           </div>
         </RouterLink>
+
+        <RouterLink
+          :to="{ name: 'publish-mission' }"
+          class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow group"
+          data-testid="publish-mission-card"
+        >
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="1.5"
+                stroke="currentColor"
+                class="w-6 h-6 text-primary"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 4.5v15m7.5-7.5h-15"
+                />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-lg font-medium text-gray-900">Publier une mission</h3>
+              <p class="text-sm text-gray-500">Créer un nouveau casting</p>
+            </div>
+          </div>
+        </RouterLink>
       </div>
     </main>
   </div>
