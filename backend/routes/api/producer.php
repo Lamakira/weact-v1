@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Producer\MissionController;
 use App\Http\Controllers\Api\V1\Producer\ProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -28,4 +29,7 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
     Route::get('/profile/logo', [ProfileController::class, 'showLogo']);
     Route::post('/profile/logo', [ProfileController::class, 'updateLogo']);
     Route::delete('/profile/logo', [ProfileController::class, 'deleteLogo']);
+
+    // Mission routes
+    Route::post('/missions', [MissionController::class, 'store']);
 });

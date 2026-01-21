@@ -120,4 +120,13 @@ class Mission extends Model
         return $query->where('status', MissionStatus::Published)
             ->where('date_limite_candidature', '>=', now()->toDateString());
     }
+
+    /**
+     * Check if the mission is currently accepting candidatures.
+     */
+    public function isAcceptingCandidatures(): bool
+    {
+        return $this->status === MissionStatus::Published
+            && $this->date_limite_candidature >= now()->toDateString();
+    }
 }
