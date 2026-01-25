@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
+use App\Enums\MissionStatus;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
@@ -39,7 +40,7 @@ class MissionPolicy
 
     /**
      * Determine whether the user can update the mission.
-     * Only the mission owner (Producer) can update.
+     * Only the mission owner (Producer) can update, and mission must be editable.
      */
     public function update(User $user, Mission $mission): bool
     {
@@ -47,7 +48,13 @@ class MissionPolicy
             return false;
         }
 
-        return $user->userable_id === $mission->producer_id;
+        // Check ownership
+        if ($user->userable_id !== $mission->producer_id) {
+            return false;
+        }
+
+        // Check mission is editable (not closed or completed)
+        return !in_array($mission->status, [MissionStatus::Closed, MissionStatus::Completed], true);
     }
 
     /**
