@@ -1,10 +1,24 @@
 import apiClient, { getCsrfCookie } from '@/services/apiClient'
-import type { CreateMissionData, MissionResponse, UpdateMissionData } from '../types'
+import type {
+  CreateMissionData,
+  MissionResponse,
+  MissionsListResponse,
+  UpdateMissionData,
+} from '../types'
 
 /**
  * Mission API service
  */
 export const missionApi = {
+  /**
+   * Get all missions for the authenticated producer
+   * @returns List of missions ordered by most recent first
+   */
+  async getMissions(): Promise<MissionsListResponse> {
+    const response = await apiClient.get<MissionsListResponse>('/producer/missions')
+    return response.data
+  },
+
   /**
    * Get a mission by ID
    * @param id The mission ID

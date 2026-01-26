@@ -120,6 +120,12 @@ export interface MissionUpdateResult {
   message?: string
 }
 
+// Mission list API response
+export interface MissionsListResponse {
+  data: Mission[]
+  message?: string
+}
+
 // Mission type option for select inputs
 export interface MissionTypeOption {
   value: MissionTypeType

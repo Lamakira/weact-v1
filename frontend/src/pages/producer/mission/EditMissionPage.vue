@@ -75,7 +75,7 @@ async function handleDeleteConfirm(): Promise<void> {
 
   if (result.success) {
     success('Mission supprimée avec succès!')
-    router.push({ name: 'producer-dashboard' })
+    router.push({ name: 'producer-missions' })
   } else {
     toastError(result.message)
     closeDeleteDialog()
