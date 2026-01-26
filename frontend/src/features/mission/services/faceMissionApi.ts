@@ -1,5 +1,5 @@
 import apiClient from '@/services/apiClient'
-import type { MissionFilters, PaginatedMissionsResponse } from '../types'
+import type { MissionFilters, MissionResponse, PaginatedMissionsResponse } from '../types'
 
 /**
  * Face Mission API service
@@ -30,6 +30,16 @@ export const faceMissionApi = {
     const response = await apiClient.get<PaginatedMissionsResponse>('/face/missions', {
       params,
     })
+    return response.data
+  },
+
+  /**
+   * Get a single mission detail by ID
+   * @param id The mission ID
+   * @returns Mission detail with producer info
+   */
+  async getMissionDetail(id: number): Promise<MissionResponse> {
+    const response = await apiClient.get<MissionResponse>(`/face/missions/${id}`)
     return response.data
   },
 }
