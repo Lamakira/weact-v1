@@ -14,6 +14,24 @@ use Illuminate\Http\JsonResponse;
 class MissionController extends Controller
 {
     /**
+     * Display a specific published mission available for Faces.
+     * Returns 404 if mission doesn't exist or is not published.
+     */
+    public function show(Mission $mission): JsonResponse
+    {
+        // Only allow viewing published missions
+        if ($mission->status !== MissionStatus::Published) {
+            abort(404);
+        }
+
+        $mission->load('producer');
+
+        return response()->json([
+            'data' => new MissionResource($mission),
+        ]);
+    }
+
+    /**
      * Display a paginated listing of published missions available for Faces.
      * Shows only published missions, ordered by most recent first.
      * Paginated with 12 missions per page.

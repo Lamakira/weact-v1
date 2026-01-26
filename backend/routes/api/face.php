@@ -101,6 +101,8 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     // Mission routes - browse available missions (Face only)
     Route::get('/missions', [MissionController::class, 'index'])
         ->middleware(['face', 'throttle:60,1']);
+    Route::get('/missions/{mission}', [MissionController::class, 'show'])
+        ->middleware(['face', 'throttle:60,1']);
 });
 
 /*
