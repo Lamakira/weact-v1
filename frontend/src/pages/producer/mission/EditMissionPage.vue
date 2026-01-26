@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from '@/composables/useToast'
-import { MissionForm } from '@/features/mission/components'
-import { useMissionEdit } from '@/features/mission/composables'
+import { MissionForm, DeleteMissionDialog } from '@/features/mission/components'
+import { useMissionEdit, useDeleteMission } from '@/features/mission/composables'
 import type { Mission, CreateMissionData } from '@/features/mission/types'
-import { Loader2, AlertCircle } from 'lucide-vue-next'
+import { Loader2, AlertCircle, Trash2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 
 const route = useRoute()
 const router = useRouter()
-const { success } = useToast()
+const { success, error: toastError } = useToast()
 const { isLoading, isSubmitting, error, mission, loadMission, updateMission } = useMissionEdit()
+const { isDeleting, deleteMission } = useDeleteMission()
+
+const isDeleteDialogOpen = ref(false)
 
 const missionId = computed(() => Number(route.params.id))
 
@@ -58,6 +61,26 @@ async function handleSubmit(data: CreateMissionData): Promise<void> {
 function handleCancel(): void {
   router.push({ name: 'producer-dashboard' })
 }
+
+function openDeleteDialog(): void {
+  isDeleteDialogOpen.value = true
+}
+
+function closeDeleteDialog(): void {
+  isDeleteDialogOpen.value = false
+}
+
+async function handleDeleteConfirm(): Promise<void> {
+  const result = await deleteMission(missionId.value)
+
+  if (result.success) {
+    success('Mission supprimée avec succès!')
+    router.push({ name: 'producer-dashboard' })
+  } else {
+    toastError(result.message)
+    closeDeleteDialog()
+  }
+}
 </script>
 
 <template>
@@ -65,11 +88,22 @@ function handleCancel(): void {
     <!-- Header -->
     <header class="bg-white shadow">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div class="flex items-center gap-4">
-          <div class="w-10 h-10 bg-weact rounded-full flex items-center justify-center">
-            <span class="text-white font-bold">W</span>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-4">
+            <div class="w-10 h-10 bg-weact rounded-full flex items-center justify-center">
+              <span class="text-white font-bold">W</span>
+            </div>
+            <h1 class="text-xl font-semibold text-gray-900">Modifier la mission</h1>
           </div>
-          <h1 class="text-xl font-semibold text-gray-900">Modifier la mission</h1>
+          <Button
+            v-if="mission"
+            variant="outline"
+            class="text-destructive border-destructive hover:bg-destructive/10"
+            @click="openDeleteDialog"
+          >
+            <Trash2 class="w-4 h-4 mr-2" />
+            Supprimer
+          </Button>
         </div>
       </div>
     </header>
@@ -107,6 +141,15 @@ function handleCancel(): void {
         @cancel="handleCancel"
       />
     </main>
+
+    <!-- Delete Confirmation Dialog -->
+    <DeleteMissionDialog
+      :is-open="isDeleteDialogOpen"
+      :mission-title="mission?.titre ?? ''"
+      :is-loading="isDeleting"
+      @cancel="closeDeleteDialog"
+      @confirm="handleDeleteConfirm"
+    />
   </div>
 </template>
 

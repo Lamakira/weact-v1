@@ -36,4 +36,15 @@ export const missionApi = {
     const response = await apiClient.put<MissionResponse>(`/producer/missions/${id}`, data)
     return response.data
   },
+
+  /**
+   * Delete a mission
+   * @param id The mission ID to delete
+   */
+  async deleteMission(id: number): Promise<{ message: string }> {
+    await getCsrfCookie()
+
+    const response = await apiClient.delete<{ message: string }>(`/producer/missions/${id}`)
+    return response.data
+  },
 }
