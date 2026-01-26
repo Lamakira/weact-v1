@@ -1,4 +1,6 @@
 export * from './useMissionCreate'
 export * from './useMissionEdit'
 export * from './useDeleteMission'
+export * from './useCloseMission'
+export * from './useReopenMission'
 export * from './useMissionsList'

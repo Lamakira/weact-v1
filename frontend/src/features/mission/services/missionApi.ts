@@ -61,4 +61,26 @@ export const missionApi = {
     const response = await apiClient.delete<{ message: string }>(`/producer/missions/${id}`)
     return response.data
   },
+
+  /**
+   * Close a mission to stop accepting new candidatures
+   * @param id The mission ID to close
+   */
+  async closeMission(id: number): Promise<MissionResponse> {
+    await getCsrfCookie()
+
+    const response = await apiClient.post<MissionResponse>(`/producer/missions/${id}/close`)
+    return response.data
+  },
+
+  /**
+   * Reopen a closed mission to accept candidatures again
+   * @param id The mission ID to reopen
+   */
+  async reopenMission(id: number): Promise<MissionResponse> {
+    await getCsrfCookie()
+
+    const response = await apiClient.post<MissionResponse>(`/producer/missions/${id}/reopen`)
+    return response.data
+  },
 }

@@ -67,4 +67,34 @@ class MissionService
     {
         $mission->delete();
     }
+
+    /**
+     * Close a mission to stop accepting new candidatures.
+     * Only published missions can be closed.
+     *
+     * @return Mission The closed mission (fresh from database)
+     */
+    public function closeMission(Mission $mission): Mission
+    {
+        $mission->update([
+            'status' => MissionStatus::Closed,
+        ]);
+
+        return $mission->fresh();
+    }
+
+    /**
+     * Reopen a closed mission to accept candidatures again.
+     * Only closed missions can be reopened.
+     *
+     * @return Mission The reopened mission (fresh from database)
+     */
+    public function reopenMission(Mission $mission): Mission
+    {
+        $mission->update([
+            'status' => MissionStatus::Published,
+        ]);
+
+        return $mission->fresh();
+    }
 }

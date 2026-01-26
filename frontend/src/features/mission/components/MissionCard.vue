@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Calendar, Wallet, Users, Pencil, Trash2 } from 'lucide-vue-next'
+import { Calendar, Wallet, Users, Pencil, Trash2, XCircle, RefreshCw } from 'lucide-vue-next'
 import type { Mission, MissionStatusType } from '../types'
 
 const props = defineProps<{
@@ -10,7 +10,15 @@ const props = defineProps<{
 const emit = defineEmits<{
   edit: [id: number]
   delete: [id: number]
+  close: [id: number]
+  reopen: [id: number]
 }>()
+
+// Computed: Only show actions for editable statuses
+const canEdit = computed(() => ['draft', 'published'].includes(props.mission.status))
+const canDelete = computed(() => ['draft', 'published'].includes(props.mission.status))
+const canClose = computed(() => props.mission.status === 'published')
+const canReopen = computed(() => props.mission.status === 'closed')
 
 // Formatters
 function formatDate(dateString: string): string {
@@ -100,6 +108,7 @@ const candidaturesCount = computed(() => props.mission.candidatures_count ?? 0)
       <!-- Right Section: Actions -->
       <div class="flex items-center gap-3 pt-4 md:pt-0 border-t md:border-t-0 border-border">
         <button
+          v-if="canEdit"
           type="button"
           class="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg font-medium transition-all hover:bg-primary/90 active:scale-95 focus:ring-2 focus:ring-primary/20"
           @click="emit('edit', mission.id)"
@@ -109,6 +118,29 @@ const candidaturesCount = computed(() => props.mission.candidatures_count ?? 0)
         </button>
 
         <button
+          v-if="canClose"
+          type="button"
+          class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 text-white rounded-lg font-medium transition-all hover:bg-orange-600 active:scale-95 focus:ring-2 focus:ring-orange-500/20"
+          title="Clôturer les candidatures"
+          @click="emit('close', mission.id)"
+        >
+          <XCircle :size="16" />
+          <span>Clôturer</span>
+        </button>
+
+        <button
+          v-if="canReopen"
+          type="button"
+          class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 text-white rounded-lg font-medium transition-all hover:bg-green-600 active:scale-95 focus:ring-2 focus:ring-green-500/20"
+          title="Réouvrir la mission"
+          @click="emit('reopen', mission.id)"
+        >
+          <RefreshCw :size="16" />
+          <span>Réouvrir</span>
+        </button>
+
+        <button
+          v-if="canDelete"
           type="button"
           class="inline-flex items-center justify-center p-2.5 text-destructive bg-destructive/10 border border-destructive/20 rounded-lg transition-all hover:bg-destructive hover:text-destructive-foreground active:scale-95"
           title="Supprimer la mission"

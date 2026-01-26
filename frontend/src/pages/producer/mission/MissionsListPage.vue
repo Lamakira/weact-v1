@@ -3,8 +3,8 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, AlertCircle, RefreshCw, ClipboardList, Inbox, ArrowRight } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
-import { useMissionsList, useDeleteMission } from '@/features/mission/composables'
-import { MissionCard, DeleteMissionDialog } from '@/features/mission/components'
+import { useMissionsList, useDeleteMission, useCloseMission, useReopenMission } from '@/features/mission/composables'
+import { MissionCard, DeleteMissionDialog, CloseMissionDialog, ReopenMissionDialog } from '@/features/mission/components'
 import type { Mission } from '@/features/mission/types'
 
 /**
@@ -15,9 +15,13 @@ const { success, error: toastError } = useToast()
 const { missions, isLoading, error, isEmpty, fetchMissions, refreshMissions } = useMissionsList()
 
 const { deleteMission, isDeleting } = useDeleteMission()
+const { closeMission, isClosing } = useCloseMission()
+const { reopenMission, isReopening } = useReopenMission()
 
 // Dialog State
 const isDeleteDialogOpen = ref(false)
+const isCloseDialogOpen = ref(false)
+const isReopenDialogOpen = ref(false)
 const selectedMission = ref<Mission | null>(null)
 
 /**
@@ -48,6 +52,32 @@ function closeDeleteDialog(): void {
   selectedMission.value = null
 }
 
+function handleCloseClick(id: number): void {
+  const mission = missions.value.find((m) => m.id === id)
+  if (mission) {
+    selectedMission.value = mission
+    isCloseDialogOpen.value = true
+  }
+}
+
+function closeCloseDialog(): void {
+  isCloseDialogOpen.value = false
+  selectedMission.value = null
+}
+
+function handleReopenClick(id: number): void {
+  const mission = missions.value.find((m) => m.id === id)
+  if (mission) {
+    selectedMission.value = mission
+    isReopenDialogOpen.value = true
+  }
+}
+
+function closeReopenDialog(): void {
+  isReopenDialogOpen.value = false
+  selectedMission.value = null
+}
+
 async function confirmDelete(): Promise<void> {
   if (!selectedMission.value) return
 
@@ -59,6 +89,34 @@ async function confirmDelete(): Promise<void> {
   } else {
     toastError(result.message)
     closeDeleteDialog()
+  }
+}
+
+async function confirmClose(): Promise<void> {
+  if (!selectedMission.value) return
+
+  const result = await closeMission(selectedMission.value.id)
+  if (result.success) {
+    success('Mission clôturée avec succès!')
+    await refreshMissions()
+    closeCloseDialog()
+  } else {
+    toastError(result.message)
+    closeCloseDialog()
+  }
+}
+
+async function confirmReopen(): Promise<void> {
+  if (!selectedMission.value) return
+
+  const result = await reopenMission(selectedMission.value.id)
+  if (result.success) {
+    success('Mission réouverte avec succès!')
+    await refreshMissions()
+    closeReopenDialog()
+  } else {
+    toastError(result.message)
+    closeReopenDialog()
   }
 }
 </script>
@@ -195,6 +253,8 @@ async function confirmDelete(): Promise<void> {
             :mission="mission"
             @edit="handleEdit"
             @delete="handleDeleteClick"
+            @close="handleCloseClick"
+            @reopen="handleReopenClick"
           />
         </TransitionGroup>
       </div>
@@ -207,6 +267,24 @@ async function confirmDelete(): Promise<void> {
       :is-loading="isDeleting"
       @cancel="closeDeleteDialog"
       @confirm="confirmDelete"
+    />
+
+    <!-- Close Confirmation Dialog -->
+    <CloseMissionDialog
+      :is-open="isCloseDialogOpen"
+      :mission-title="selectedMission?.titre || ''"
+      :is-loading="isClosing"
+      @cancel="closeCloseDialog"
+      @confirm="confirmClose"
+    />
+
+    <!-- Reopen Confirmation Dialog -->
+    <ReopenMissionDialog
+      :is-open="isReopenDialogOpen"
+      :mission-title="selectedMission?.titre || ''"
+      :is-loading="isReopening"
+      @cancel="closeReopenDialog"
+      @confirm="confirmReopen"
     />
   </div>
 </template>

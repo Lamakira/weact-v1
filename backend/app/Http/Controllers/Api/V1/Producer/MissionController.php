@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Producer;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Mission\CloseMissionRequest;
 use App\Http\Requests\Mission\DeleteMissionRequest;
+use App\Http\Requests\Mission\ReopenMissionRequest;
 use App\Http\Requests\Mission\StoreMissionRequest;
 use App\Http\Requests\Mission\UpdateMissionRequest;
 use App\Http\Resources\MissionResource;
@@ -123,6 +125,40 @@ class MissionController extends Controller
 
         return response()->json([
             'message' => 'Mission supprimée avec succès',
+        ]);
+    }
+
+    /**
+     * Close a mission to stop accepting new candidatures.
+     * Authorization is handled by CloseMissionRequest::authorize()
+     * Status validation is handled by CloseMissionRequest::withValidator()
+     *
+     * @param CloseMissionRequest $request Type-hint triggers FormRequest validation (not used directly)
+     */
+    public function close(CloseMissionRequest $request, Mission $mission): JsonResponse
+    {
+        $closedMission = $this->missionService->closeMission($mission);
+
+        return response()->json([
+            'data' => new MissionResource($closedMission->load('producer')),
+            'message' => 'Mission clôturée avec succès',
+        ]);
+    }
+
+    /**
+     * Reopen a closed mission to accept candidatures again.
+     * Authorization is handled by ReopenMissionRequest::authorize()
+     * Status validation is handled by ReopenMissionRequest::withValidator()
+     *
+     * @param ReopenMissionRequest $request Type-hint triggers FormRequest validation (not used directly)
+     */
+    public function reopen(ReopenMissionRequest $request, Mission $mission): JsonResponse
+    {
+        $reopenedMission = $this->missionService->reopenMission($mission);
+
+        return response()->json([
+            'data' => new MissionResource($reopenedMission->load('producer')),
+            'message' => 'Mission réouverte avec succès',
         ]);
     }
 }
