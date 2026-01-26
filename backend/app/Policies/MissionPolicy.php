@@ -60,6 +60,8 @@ class MissionPolicy
     /**
      * Determine whether the user can delete the mission.
      * Only the mission owner (Producer) can delete.
+     * Note: Status check is done in DeleteMissionRequest::withValidator() for proper French 422 error message.
+     * Note: Candidature check is also done in DeleteMissionRequest for proper French error message.
      */
     public function delete(User $user, Mission $mission): bool
     {
@@ -67,6 +69,7 @@ class MissionPolicy
             return false;
         }
 
+        // Check ownership only - status validation in FormRequest for proper 422 response
         return $user->userable_id === $mission->producer_id;
     }
 }

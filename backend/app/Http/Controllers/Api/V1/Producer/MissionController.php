@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Producer;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Mission\DeleteMissionRequest;
 use App\Http\Requests\Mission\StoreMissionRequest;
 use App\Http\Requests\Mission\UpdateMissionRequest;
 use App\Http\Resources\MissionResource;
@@ -68,6 +69,22 @@ class MissionController extends Controller
         return response()->json([
             'data' => new MissionResource($updatedMission->load('producer')),
             'message' => 'Mission modifiée avec succès',
+        ]);
+    }
+
+    /**
+     * Delete the specified mission.
+     * Authorization is handled by DeleteMissionRequest::authorize()
+     * Status validation is handled by DeleteMissionRequest::withValidator()
+     *
+     * @param DeleteMissionRequest $request Type-hint triggers FormRequest validation (not used directly)
+     */
+    public function destroy(DeleteMissionRequest $request, Mission $mission): JsonResponse
+    {
+        $this->missionService->deleteMission($mission);
+
+        return response()->json([
+            'message' => 'Mission supprimée avec succès',
         ]);
     }
 }

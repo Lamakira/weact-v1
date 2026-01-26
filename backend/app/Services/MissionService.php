@@ -58,4 +58,13 @@ class MissionService
 
         return $mission->fresh();
     }
+
+    /**
+     * Delete a mission from the database.
+     * This is a hard delete (no soft deletes per PRD).
+     */
+    public function deleteMission(Mission $mission): void
+    {
+        $mission->delete();
+    }
 }

@@ -34,4 +34,5 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
     Route::post('/missions', [MissionController::class, 'store']);
     Route::get('/missions/{mission}', [MissionController::class, 'show']);
     Route::put('/missions/{mission}', [MissionController::class, 'update']);
+    Route::delete('/missions/{mission}', [MissionController::class, 'destroy']);
 });
