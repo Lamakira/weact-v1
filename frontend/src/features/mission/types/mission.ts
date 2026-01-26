@@ -144,6 +144,15 @@ export interface MissionsListResponse {
   message?: string
 }
 
+// Mission filters for Face browse
+export interface MissionFilters {
+  lieu?: string
+  budget_min?: number
+  budget_max?: number
+  date_tournage?: string // Y-m-d format
+  type_mission?: MissionTypeType
+}
+
 // Paginated missions response (for Face browse)
 export interface PaginatedMissionsResponse {
   data: Mission[]
