@@ -93,7 +93,7 @@ development_status:
   5-6b-reopen-mission: done
   5-7-mark-mission-as-completed: done
   5-8-face-browse-available-missions: done
-  5-9-face-filter-missions: backlog
+  5-9-face-filter-missions: done
   5-10-face-view-mission-detail: backlog
   5-11-producer-mission-count-exposure: backlog
   epic-5-retrospective: optional
