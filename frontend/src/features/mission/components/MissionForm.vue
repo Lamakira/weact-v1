@@ -27,14 +27,26 @@ import {
   Loader2,
   ChevronLeft,
   Send,
+  Save,
 } from 'lucide-vue-next'
+
+const props = withDefaults(defineProps<{
+  mode?: 'create' | 'edit'
+  initialValues?: Partial<CreateMissionData>
+  isSubmitting?: boolean
+}>(), {
+  mode: 'create',
+  isSubmitting: false
+})
 
 const emit = defineEmits<{
   success: [mission: Mission]
   cancel: []
+  submit: [data: CreateMissionData]
 }>()
 
-const { createMission, isSubmitting, error, validationErrors } = useMissionCreate()
+const { createMission, isSubmitting: isCreating, error, validationErrors } = useMissionCreate()
+const isProcessing = computed(() => props.isSubmitting || isCreating.value)
 
 const missionTypeOptions = getMissionTypeOptions()
 const genderOptions = getMissionGenderOptions()
@@ -42,17 +54,17 @@ const genderOptions = getMissionGenderOptions()
 const { handleSubmit, errors, setFieldError } = useForm({
   validationSchema: toTypedSchema(missionSchema),
   initialValues: {
-    titre: '',
-    description: '',
-    date_tournage: '',
-    profil_recherche: '',
-    budget: undefined as number | undefined,
-    date_limite_candidature: '',
-    nombre_faces_voulu: 1,
-    type_mission: MissionType.PUBLICITE,
-    genre_voulu: MissionGender.TOUS,
-    lieu: '',
-    duree: '',
+    titre: props.initialValues?.titre ?? '',
+    description: props.initialValues?.description ?? '',
+    date_tournage: props.initialValues?.date_tournage ?? '',
+    profil_recherche: props.initialValues?.profil_recherche ?? '',
+    budget: props.initialValues?.budget ?? undefined,
+    date_limite_candidature: props.initialValues?.date_limite_candidature ?? '',
+    nombre_faces_voulu: props.initialValues?.nombre_faces_voulu ?? 1,
+    type_mission: props.initialValues?.type_mission ?? MissionType.PUBLICITE,
+    genre_voulu: props.initialValues?.genre_voulu ?? MissionGender.TOUS,
+    lieu: props.initialValues?.lieu ?? '',
+    duree: props.initialValues?.duree ?? '',
   },
 })
 
@@ -88,6 +100,13 @@ const onSubmit = handleSubmit(async (values) => {
     duree: values.duree,
   }
 
+  // In edit mode, emit the data to parent for handling
+  if (props.mode === 'edit') {
+    emit('submit', data)
+    return
+  }
+
+  // In create mode, handle the API call directly
   const result = await createMission(data)
 
   if (result.success && result.data) {
@@ -133,8 +152,12 @@ const sectionClasses = 'bg-white rounded-xl border border-gray-100 p-6 shadow-sm
     <!-- Header -->
     <div class="mb-8 flex items-center justify-between">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 tracking-tight">Nouvelle Mission</h1>
-        <p class="text-gray-500 mt-1">Publiez votre casting et trouvez les meilleurs profils.</p>
+        <h1 class="text-3xl font-bold text-gray-900 tracking-tight">
+          {{ props.mode === 'edit' ? 'Modifier la Mission' : 'Nouvelle Mission' }}
+        </h1>
+        <p class="text-gray-500 mt-1">
+          {{ props.mode === 'edit' ? 'Mettez à jour les détails de votre mission.' : 'Publiez votre casting et trouvez les meilleurs profils.' }}
+        </p>
       </div>
       <Button
         variant="ghost"
@@ -473,7 +496,7 @@ const sectionClasses = 'bg-white rounded-xl border border-gray-100 p-6 shadow-sm
           type="button"
           variant="outline"
           @click="emit('cancel')"
-          :disabled="isSubmitting"
+          :disabled="isProcessing"
           class="min-w-[120px]"
           data-testid="cancel-button"
         >
@@ -481,17 +504,17 @@ const sectionClasses = 'bg-white rounded-xl border border-gray-100 p-6 shadow-sm
         </Button>
         <Button
           type="submit"
-          :disabled="isSubmitting"
+          :disabled="isProcessing"
           class="min-w-[180px] bg-weact hover:bg-weact/90 text-white shadow-lg shadow-weact/20"
           data-testid="submit-button"
         >
-          <template v-if="isSubmitting">
+          <template v-if="isProcessing">
             <Loader2 class="w-4 h-4 mr-2 animate-spin" />
-            Publication...
+            {{ props.mode === 'edit' ? 'Enregistrement...' : 'Publication...' }}
           </template>
           <template v-else>
-            <Send class="w-4 h-4 mr-2" />
-            Publier la mission
+            <component :is="props.mode === 'edit' ? Save : Send" class="w-4 h-4 mr-2" />
+            {{ props.mode === 'edit' ? 'Enregistrer les modifications' : 'Publier la mission' }}
           </template>
         </Button>
       </div>

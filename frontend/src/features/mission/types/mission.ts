@@ -109,6 +109,17 @@ export interface MissionCreateResult {
   message?: string
 }
 
+// Data for updating a mission (same as create)
+export type UpdateMissionData = CreateMissionData
+
+// Mission update result
+export interface MissionUpdateResult {
+  success: boolean
+  data?: Mission
+  errors?: Record<string, string[]>
+  message?: string
+}
+
 // Mission type option for select inputs
 export interface MissionTypeOption {
   value: MissionTypeType
