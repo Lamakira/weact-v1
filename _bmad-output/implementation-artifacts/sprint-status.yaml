@@ -89,7 +89,7 @@ development_status:
   5-3-edit-mission: done
   5-4-delete-mission: done
   5-5-producer-missions-list: done
-  5-6-close-mission: backlog
+  5-6-close-mission: ready-for-dev
   5-7-mark-mission-as-completed: backlog
   5-8-face-browse-available-missions: backlog
   5-9-face-filter-missions: backlog
