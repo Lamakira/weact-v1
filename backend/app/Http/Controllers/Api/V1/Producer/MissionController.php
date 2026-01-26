@@ -13,6 +13,7 @@ use App\Models\Mission;
 use App\Models\Producer;
 use App\Services\MissionService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
 class MissionController extends Controller
@@ -20,6 +21,34 @@ class MissionController extends Controller
     public function __construct(
         private readonly MissionService $missionService,
     ) {}
+
+    /**
+     * Display a listing of the producer's missions.
+     * Filtered by authenticated producer, ordered by most recent first.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        // Only Producers can access this endpoint
+        if ($user->userable_type !== Producer::class) {
+            abort(403, 'Cette action n\'est pas autorisée');
+        }
+
+        $missions = Mission::where('producer_id', $user->userable_id)
+            ->with('producer')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $message = $missions->isEmpty()
+            ? 'Aucune mission trouvée'
+            : 'Missions récupérées avec succès';
+
+        return response()->json([
+            'data' => MissionResource::collection($missions),
+            'message' => $message,
+        ]);
+    }
 
     /**
      * Display the specified mission.

@@ -31,6 +31,7 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
     Route::delete('/profile/logo', [ProfileController::class, 'deleteLogo']);
 
     // Mission routes
+    Route::get('/missions', [MissionController::class, 'index']);
     Route::post('/missions', [MissionController::class, 'store']);
     Route::get('/missions/{mission}', [MissionController::class, 'show']);
     Route::put('/missions/{mission}', [MissionController::class, 'update']);
