@@ -60,6 +60,19 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'Face' },
     },
     {
+      path: '/face/missions',
+      name: 'face-missions',
+      component: () => import('../pages/face/mission/FaceMissionsListPage.vue'),
+      meta: { requiresAuth: true, role: 'Face' },
+    },
+    {
+      path: '/face/missions/:id',
+      name: 'face-mission-detail',
+      // TODO: Story 5-10 will create this page
+      component: () => import('../pages/face/mission/FaceMissionsListPage.vue'),
+      meta: { requiresAuth: true, role: 'Face' },
+    },
+    {
       path: '/dashboard/face',
       redirect: { name: 'face-dashboard' },
     },

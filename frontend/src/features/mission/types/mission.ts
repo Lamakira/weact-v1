@@ -56,6 +56,23 @@ export const MissionGenderLabel: Record<MissionGenderType, string> = {
   [MissionGender.TOUS]: 'Homme et Femme',
 }
 
+// Producer data embedded in Mission response
+export interface MissionProducer {
+  id: number
+  type: 'agency' | 'particulier'
+  agency_name: string | null
+  first_name: string | null
+  last_name: string | null
+  display_name: string
+  bio: string | null
+  profile_photo_url: string | null
+  thumbnail_url: string | null
+  agency_logo_url: string | null
+  agency_logo_thumbnail_url: string | null
+  created_at: string
+  updated_at: string
+}
+
 // Mission data from API
 export interface Mission {
   id: number
@@ -76,6 +93,7 @@ export interface Mission {
   status_label: string
   is_accepting_candidatures: boolean
   candidatures_count?: number
+  producer?: MissionProducer
   created_at: string
   updated_at: string
 }
@@ -123,6 +141,24 @@ export interface MissionUpdateResult {
 // Mission list API response
 export interface MissionsListResponse {
   data: Mission[]
+  message?: string
+}
+
+// Paginated missions response (for Face browse)
+export interface PaginatedMissionsResponse {
+  data: Mission[]
+  links: {
+    first: string | null
+    last: string | null
+    prev: string | null
+    next: string | null
+  }
+  meta: {
+    current_page: number
+    last_page: number
+    per_page: number
+    total: number
+  }
   message?: string
 }
 
