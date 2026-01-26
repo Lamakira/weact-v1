@@ -83,4 +83,15 @@ export const missionApi = {
     const response = await apiClient.post<MissionResponse>(`/producer/missions/${id}/reopen`)
     return response.data
   },
+
+  /**
+   * Mark a mission as completed
+   * @param id The mission ID to complete
+   */
+  async completeMission(id: number): Promise<MissionResponse> {
+    await getCsrfCookie()
+
+    const response = await apiClient.post<MissionResponse>(`/producer/missions/${id}/complete`)
+    return response.data
+  },
 }
