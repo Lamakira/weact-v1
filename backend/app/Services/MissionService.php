@@ -97,4 +97,20 @@ class MissionService
 
         return $mission->fresh();
     }
+
+    /**
+     * Mark a mission as completed.
+     * Only published or closed missions can be completed.
+     * Once completed, the mission cannot be modified (FINAL state).
+     *
+     * @return Mission The completed mission (fresh from database)
+     */
+    public function completeMission(Mission $mission): Mission
+    {
+        $mission->update([
+            'status' => MissionStatus::Completed,
+        ]);
+
+        return $mission->fresh();
+    }
 }

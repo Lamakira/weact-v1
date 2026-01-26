@@ -38,4 +38,5 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
     Route::delete('/missions/{mission}', [MissionController::class, 'destroy']);
     Route::post('/missions/{mission}/close', [MissionController::class, 'close']);
     Route::post('/missions/{mission}/reopen', [MissionController::class, 'reopen']);
+    Route::post('/missions/{mission}/complete', [MissionController::class, 'complete']);
 });

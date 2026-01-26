@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1\Producer;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Mission\CloseMissionRequest;
+use App\Http\Requests\Mission\CompleteMissionRequest;
 use App\Http\Requests\Mission\DeleteMissionRequest;
 use App\Http\Requests\Mission\ReopenMissionRequest;
 use App\Http\Requests\Mission\StoreMissionRequest;
@@ -159,6 +160,23 @@ class MissionController extends Controller
         return response()->json([
             'data' => new MissionResource($reopenedMission->load('producer')),
             'message' => 'Mission réouverte avec succès',
+        ]);
+    }
+
+    /**
+     * Mark a mission as completed.
+     * Authorization is handled by CompleteMissionRequest::authorize()
+     * Status validation is handled by CompleteMissionRequest::withValidator()
+     *
+     * @param CompleteMissionRequest $request Type-hint triggers FormRequest validation (not used directly)
+     */
+    public function complete(CompleteMissionRequest $request, Mission $mission): JsonResponse
+    {
+        $completedMission = $this->missionService->completeMission($mission);
+
+        return response()->json([
+            'data' => new MissionResource($completedMission->load('producer')),
+            'message' => 'Mission marquée comme terminée',
         ]);
     }
 }
