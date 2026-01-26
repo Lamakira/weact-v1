@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Face\ActingVideoController;
+use App\Http\Controllers\Api\V1\Face\MissionController;
 use App\Http\Controllers\Api\V1\Face\AlbumController;
 use App\Http\Controllers\Api\V1\Face\AvailabilityController;
 use App\Http\Controllers\Api\V1\Face\BioLocationController;
@@ -96,6 +97,10 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     // Profile completion route
     Route::get('/profile-completion', [ProfileCompletionController::class, 'show'])
         ->middleware('throttle:60,1');
+
+    // Mission routes - browse available missions (Face only)
+    Route::get('/missions', [MissionController::class, 'index'])
+        ->middleware(['face', 'throttle:60,1']);
 });
 
 /*
