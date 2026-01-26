@@ -55,6 +55,8 @@ async function handleSubmit(data: CreateMissionData): Promise<void> {
   if (result.success && result.data) {
     success('Mission modifiée avec succès!')
     router.push({ name: 'producer-dashboard' })
+  } else {
+    toastError(result.message || 'Une erreur est survenue')
   }
 }
 

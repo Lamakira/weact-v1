@@ -14,7 +14,6 @@ use App\Models\Producer;
 use App\Services\MissionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 
 class MissionController extends Controller
 {
@@ -52,10 +51,20 @@ class MissionController extends Controller
 
     /**
      * Display the specified mission.
+     * For producer routes, only the owner can view their mission details.
      */
-    public function show(Mission $mission): JsonResponse
+    public function show(Request $request, Mission $mission): JsonResponse
     {
-        Gate::authorize('view', $mission);
+        $user = $request->user();
+
+        // For producer routes, check ownership
+        if ($user->userable_type !== Producer::class) {
+            abort(403, 'Cette action n\'est pas autorisée');
+        }
+
+        if ($user->userable_id !== $mission->producer_id) {
+            abort(403, 'Cette mission ne vous appartient pas');
+        }
 
         return response()->json([
             'data' => new MissionResource($mission->load('producer')),

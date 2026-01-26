@@ -388,7 +388,7 @@ class EditMissionTest extends TestCase
             ->assertJsonPath('data.titre', 'Original Mission Title');
     }
 
-    public function test_other_producer_can_view_mission(): void
+    public function test_other_producer_cannot_view_mission(): void
     {
         $otherProducer = Producer::factory()->create();
         $otherUser = User::factory()->create([
@@ -399,12 +399,11 @@ class EditMissionTest extends TestCase
         $response = $this->actingAs($otherUser)
             ->getJson("/api/v1/producer/missions/{$this->mission->id}");
 
-        // Mission view is public per MissionPolicy::view()
-        $response->assertOk()
-            ->assertJsonPath('data.id', $this->mission->id);
+        // Producer routes only allow the owner to view their missions
+        $response->assertForbidden();
     }
 
-    public function test_face_can_view_mission(): void
+    public function test_face_cannot_view_mission_via_producer_endpoint(): void
     {
         $face = Face::factory()->create();
         $faceUser = User::factory()->create([
@@ -415,9 +414,8 @@ class EditMissionTest extends TestCase
         $response = $this->actingAs($faceUser)
             ->getJson("/api/v1/producer/missions/{$this->mission->id}");
 
-        // Mission view is public per MissionPolicy::view()
-        $response->assertOk()
-            ->assertJsonPath('data.id', $this->mission->id);
+        // Producer routes are restricted to producers only
+        $response->assertForbidden();
     }
 
     public function test_unauthenticated_cannot_view_mission_via_producer_endpoint(): void
