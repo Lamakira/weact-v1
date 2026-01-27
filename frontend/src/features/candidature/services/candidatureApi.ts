@@ -4,6 +4,7 @@ import type {
   CandidatureResponse,
   CandidatureStatusType,
   FaceCandidatureListResponse,
+  ProducerCandidatureListResponse,
 } from '../types'
 
 /**
@@ -46,6 +47,30 @@ export const candidatureApi = {
 
     const response = await apiClient.get<FaceCandidatureListResponse>(
       `/face/candidatures?${params.toString()}`,
+    )
+    return response.data
+  },
+
+  /**
+   * Get paginated list of candidatures for a Producer's mission
+   * @param missionId The mission ID to get candidatures for
+   * @param page Page number (default 1)
+   * @param status Optional status filter
+   * @returns Paginated candidatures with face data
+   */
+  async getMissionCandidatures(
+    missionId: number,
+    page: number = 1,
+    status?: CandidatureStatusType | '',
+  ): Promise<ProducerCandidatureListResponse> {
+    const params = new URLSearchParams()
+    params.append('page', String(page))
+    if (status) {
+      params.append('status', status)
+    }
+
+    const response = await apiClient.get<ProducerCandidatureListResponse>(
+      `/producer/missions/${missionId}/candidatures?${params.toString()}`,
     )
     return response.data
   },

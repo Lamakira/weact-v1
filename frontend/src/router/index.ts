@@ -113,6 +113,21 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'Producer' },
     },
     {
+      path: '/producer/missions/:id/candidatures',
+      name: 'producer-mission-candidatures',
+      component: () =>
+        import('../pages/producer/candidature/ProducerMissionCandidaturesPage.vue'),
+      meta: { requiresAuth: true, role: 'Producer' },
+    },
+    {
+      path: '/producer/candidates/:id',
+      name: 'producer-candidate-profile',
+      // Placeholder - will be implemented in Story 6-5
+      component: () =>
+        import('../pages/producer/candidature/CandidateProfilePlaceholder.vue'),
+      meta: { requiresAuth: true, role: 'Producer' },
+    },
+    {
       path: '/dashboard/producer',
       redirect: { name: 'producer-dashboard' },
     },

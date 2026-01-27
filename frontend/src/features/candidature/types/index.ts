@@ -117,3 +117,41 @@ export interface StatusFilterOption {
   value: CandidatureStatusType | ''
   label: string
 }
+
+// Face summary for Producer candidature list (nested in ProducerCandidature)
+export interface FaceSummary {
+  id: number
+  display_name: string
+  profile_photo_url: string | null
+  category: string | null
+  city: string | null
+  tarif_horaire: number | null
+  tarif_journalier: number | null
+}
+
+// Producer candidature for list view (includes face summary)
+export interface ProducerCandidature {
+  id: number
+  status: CandidatureStatusType
+  status_label: string
+  message_motivation: string | null
+  created_at: string
+  face: FaceSummary
+}
+
+// Paginated candidatures response for Producer list view
+export interface ProducerCandidatureListResponse {
+  data: ProducerCandidature[]
+  links: {
+    first: string | null
+    last: string | null
+    prev: string | null
+    next: string | null
+  }
+  meta: {
+    current_page: number
+    last_page: number
+    per_page: number
+    total: number
+  }
+}
