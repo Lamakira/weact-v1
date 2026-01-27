@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Producer\CandidatureController;
+use App\Http\Controllers\Api\V1\Producer\FaceController;
 use App\Http\Controllers\Api\V1\Producer\MissionController;
 use App\Http\Controllers\Api\V1\Producer\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -43,4 +44,7 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
 
     // Candidature routes (nested under missions)
     Route::get('/missions/{mission}/candidatures', [CandidatureController::class, 'index']);
+
+    // Candidate profile routes
+    Route::get('/candidates/{face}', [FaceController::class, 'show']);
 });
