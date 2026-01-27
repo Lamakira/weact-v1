@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Loader2,
@@ -8,7 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-vue-next'
-import { useFaceCandidatures } from '@/features/candidature/composables'
+import { useFaceCandidatures, useConfirmCandidature } from '@/features/candidature/composables'
 import { CandidatureCard, StatusFilter } from '@/features/candidature/components'
 import type { CandidatureStatusType } from '@/features/candidature/types'
 import { CandidatureStatusLabel } from '@/features/candidature/types'
@@ -35,7 +35,62 @@ const {
   prevPage,
   goToPage,
   setStatusFilter,
+  refresh,
 } = useFaceCandidatures()
+
+/**
+ * Composable for confirming candidatures
+ */
+const {
+  error: confirmError,
+  successMessage: confirmSuccessMessage,
+  confirmCandidature,
+  reset: resetConfirm,
+} = useConfirmCandidature()
+
+/**
+ * Toast state for notifications
+ */
+const showToast = ref(false)
+const toastMessage = ref('')
+const toastType = ref<'success' | 'error'>('success')
+
+/**
+ * Card refs for resetting loading state
+ */
+const cardRefs = ref<Record<number, InstanceType<typeof CandidatureCard>>>({})
+
+/**
+ * Show toast notification
+ */
+function displayToast(message: string, type: 'success' | 'error'): void {
+  toastMessage.value = message
+  toastType.value = type
+  showToast.value = true
+  setTimeout(() => {
+    showToast.value = false
+  }, 4000)
+}
+
+/**
+ * Handle confirm candidature
+ */
+async function handleConfirm(candidatureId: number): Promise<void> {
+  const result = await confirmCandidature(candidatureId)
+
+  // Reset the card's loading state
+  cardRefs.value[candidatureId]?.resetConfirming()
+
+  if (result) {
+    displayToast(confirmSuccessMessage.value || 'Participation confirmée', 'success')
+    // Refresh the list to show updated status
+    await refresh()
+  } else {
+    displayToast(confirmError.value || 'Erreur lors de la confirmation', 'error')
+  }
+
+  resetConfirm()
+}
 
 /**
  * Sync filter with URL query params
@@ -225,7 +280,9 @@ watch(
           <CandidatureCard
             v-for="candidature in candidatures"
             :key="candidature.id"
+            :ref="(el) => { if (el) cardRefs[candidature.id] = el as InstanceType<typeof CandidatureCard> }"
             :candidature="candidature"
+            @confirm="handleConfirm"
           />
         </div>
 
@@ -271,5 +328,39 @@ watch(
         </div>
       </template>
     </main>
+
+    <!-- Toast Notification -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition-all duration-300 ease-out"
+        enter-from-class="translate-y-2 opacity-0"
+        enter-to-class="translate-y-0 opacity-100"
+        leave-active-class="transition-all duration-200 ease-in"
+        leave-from-class="translate-y-0 opacity-100"
+        leave-to-class="translate-y-2 opacity-0"
+      >
+        <div
+          v-if="showToast"
+          role="alert"
+          aria-live="polite"
+          class="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-lg px-4 py-3 shadow-lg"
+          :class="[
+            toastType === 'success'
+              ? 'bg-green-600 text-white'
+              : 'bg-red-600 text-white',
+          ]"
+        >
+          <span class="text-sm font-medium">{{ toastMessage }}</span>
+          <button
+            type="button"
+            aria-label="Fermer la notification"
+            class="ml-2 text-white/80 hover:text-white text-lg font-bold leading-none"
+            @click="showToast = false"
+          >
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>

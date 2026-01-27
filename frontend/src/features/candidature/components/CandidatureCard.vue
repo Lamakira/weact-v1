@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { Calendar, MapPin, Wallet, User } from 'lucide-vue-next'
+import { Calendar, MapPin, Wallet, User, Check, Loader2 } from 'lucide-vue-next'
 import type { FaceCandidature } from '../types'
-import { CandidatureStatus, CandidatureStatusColor } from '../types'
+import { CandidatureStatusColor } from '../types'
 
 /**
  * Props
@@ -11,6 +11,44 @@ import { CandidatureStatus, CandidatureStatusColor } from '../types'
 const props = defineProps<{
   candidature: FaceCandidature
 }>()
+
+/**
+ * Emits
+ */
+const emit = defineEmits<{
+  confirm: [candidatureId: number]
+}>()
+
+/**
+ * Local state for confirm button
+ */
+const isConfirming = ref(false)
+
+/**
+ * Computed: Show confirm button for accepted candidatures
+ */
+const canConfirm = computed(() => props.candidature.status === 'accepted')
+
+/**
+ * Handle confirm button click
+ */
+function handleConfirm(): void {
+  if (isConfirming.value) return
+  isConfirming.value = true
+  emit('confirm', props.candidature.id)
+}
+
+/**
+ * Reset confirming state (called from parent after API response)
+ */
+function resetConfirming(): void {
+  isConfirming.value = false
+}
+
+/**
+ * Expose methods for parent component
+ */
+defineExpose({ resetConfirming })
 
 /**
  * Computed: Format date for display
@@ -140,6 +178,20 @@ const producerInitials = computed(() => {
         </p>
       </div>
       <User class="h-4 w-4 text-muted-foreground" />
+    </div>
+
+    <!-- Confirm Button (only for accepted candidatures) -->
+    <div v-if="canConfirm" class="mt-4 pt-4 border-t border-border">
+      <button
+        type="button"
+        class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        :disabled="isConfirming"
+        @click.stop.prevent="handleConfirm"
+      >
+        <Loader2 v-if="isConfirming" class="h-4 w-4 animate-spin" />
+        <Check v-else class="h-4 w-4" />
+        {{ isConfirming ? 'Confirmation...' : 'Confirmer ma participation' }}
+      </button>
     </div>
   </RouterLink>
 </template>
