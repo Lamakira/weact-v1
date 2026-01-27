@@ -11,6 +11,7 @@ use App\Http\Resources\CandidatureResource;
 use App\Http\Resources\ProducerCandidatureResource;
 use App\Models\Candidature;
 use App\Models\Mission;
+use App\Models\Notification;
 use App\Models\Producer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -90,6 +91,18 @@ class CandidatureController extends Controller
         $candidature->status = CandidatureStatus::Accepted;
         $candidature->save();
 
+        // Create notification for the Face
+        $candidature->loadMissing('face.user');
+        Notification::create([
+            'user_id' => $candidature->face->user->id,
+            'type' => 'candidature_accepted',
+            'data' => [
+                'mission_title' => $candidature->mission->titre,
+                'candidature_id' => $candidature->id,
+                'message' => 'Votre candidature a été acceptée',
+            ],
+        ]);
+
         return response()->json([
             'data' => new CandidatureResource($candidature),
             'message' => 'Candidature acceptée avec succès',
@@ -135,6 +148,18 @@ class CandidatureController extends Controller
         // Update status
         $candidature->status = CandidatureStatus::Rejected;
         $candidature->save();
+
+        // Create notification for the Face
+        $candidature->loadMissing('face.user');
+        Notification::create([
+            'user_id' => $candidature->face->user->id,
+            'type' => 'candidature_rejected',
+            'data' => [
+                'mission_title' => $candidature->mission->titre,
+                'candidature_id' => $candidature->id,
+                'message' => 'Votre candidature a été refusée',
+            ],
+        ]);
 
         return response()->json([
             'data' => new CandidatureResource($candidature),
