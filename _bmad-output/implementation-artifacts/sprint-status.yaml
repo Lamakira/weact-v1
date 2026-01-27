@@ -103,7 +103,7 @@ development_status:
   6-1-create-candidature-database-schema: done
   6-2-face-apply-to-mission: done
   6-3-face-view-my-candidatures: done
-  6-4-producer-view-mission-candidatures: backlog
+  6-4-producer-view-mission-candidatures: done
   6-5-producer-view-candidate-full-profile: backlog
   6-6-producer-accept-candidature: backlog
   6-7-producer-reject-candidature: backlog
