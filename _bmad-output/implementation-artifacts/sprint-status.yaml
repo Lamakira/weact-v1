@@ -82,9 +82,9 @@ development_status:
   4-4-producer-profile-display: done
   epic-4-retrospective: done
 
-  # Epic 5: Mission Management (10 stories)
-  epic-5: in-progress
-  5-1-creat/e-mission-database-schema: done
+  # Epic 5: Mission Management (11 stories) - COMPLETE!
+  epic-5: done
+  5-1-create-mission-database-schema: done
   5-2-publish-mission: done
   5-3-edit-mission: done
   5-4-delete-mission: done
@@ -96,7 +96,7 @@ development_status:
   5-9-face-filter-missions: done
   5-10-face-view-mission-detail: done
   5-11-producer-mission-count-exposure: done
-  epic-5-retrospective: optional
+  epic-5-retrospective: done
 
   # Epic 6: Candidature Workflow (9 stories)
   epic-6: backlog
