@@ -95,7 +95,7 @@ development_status:
   5-8-face-browse-available-missions: done
   5-9-face-filter-missions: done
   5-10-face-view-mission-detail: done
-  5-11-producer-mission-count-exposure: backlog
+  5-11-producer-mission-count-exposure: done
   epic-5-retrospective: optional
 
   # Epic 6: Candidature Workflow (9 stories)
