@@ -13,6 +13,7 @@ const emit = defineEmits<{
   close: [id: number]
   reopen: [id: number]
   complete: [id: number]
+  viewCandidatures: [id: number]
 }>()
 
 // Computed: Only show actions for editable statuses
@@ -78,12 +79,14 @@ const candidaturesCount = computed(() => props.mission.candidatures_count ?? 0)
             {{ mission.status_label }}
           </span>
 
-          <div
-            class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-muted/50 px-2.5 py-0.5 rounded-full border border-border"
+          <button
+            type="button"
+            class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-muted/50 px-2.5 py-0.5 rounded-full border border-border hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-colors"
+            @click.stop="emit('viewCandidatures', mission.id)"
           >
             <Users :size="14" class="text-primary" />
-            <span>{{ candidaturesCount }} candidatures</span>
-          </div>
+            <span>{{ candidaturesCount }} candidature{{ candidaturesCount > 1 ? 's' : '' }}</span>
+          </button>
         </div>
 
         <div>

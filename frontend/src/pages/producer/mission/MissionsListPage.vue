@@ -41,6 +41,10 @@ function handleEdit(id: number): void {
   router.push({ name: 'edit-mission', params: { id } })
 }
 
+function handleViewCandidatures(id: number): void {
+  router.push({ name: 'producer-mission-candidatures', params: { id } })
+}
+
 function handleDeleteClick(id: number): void {
   const mission = missions.value.find((m) => m.id === id)
   if (mission) {
@@ -285,6 +289,7 @@ async function confirmComplete(): Promise<void> {
             @close="handleCloseClick"
             @reopen="handleReopenClick"
             @complete="handleCompleteClick"
+            @view-candidatures="handleViewCandidatures"
           />
         </TransitionGroup>
       </div>
