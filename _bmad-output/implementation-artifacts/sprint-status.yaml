@@ -99,8 +99,8 @@ development_status:
   epic-5-retrospective: done
 
   # Epic 6: Candidature Workflow (9 stories)
-  epic-6: backlog
-  6-1-create-candidature-database-schema: backlog
+  epic-6: in-progress
+  6-1-create-candidature-database-schema: done
   6-2-face-apply-to-mission: backlog
   6-3-face-view-my-candidatures: backlog
   6-4-producer-view-mission-candidatures: backlog
