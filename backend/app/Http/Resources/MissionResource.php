@@ -34,7 +34,7 @@ class MissionResource extends JsonResource
             'status' => $this->status?->value,
             'status_label' => $this->status?->label(),
             'is_accepting_candidatures' => $this->isAcceptingCandidatures(),
-            'candidatures_count' => $this->whenLoaded('candidatures', fn() => $this->candidatures->count()),
+            'candidatures_count' => $this->candidatures_count ?? ($this->whenLoaded('candidatures') ? $this->candidatures->count() : 0),
             'producer' => new ProducerResource($this->whenLoaded('producer')),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
