@@ -47,6 +47,7 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
 
     // Candidature action routes
     Route::post('/candidatures/{candidature}/accept', [CandidatureController::class, 'accept']);
+    Route::post('/candidatures/{candidature}/reject', [CandidatureController::class, 'reject']);
 
     // Candidate profile routes
     Route::get('/candidates/{face}', [FaceController::class, 'show']);

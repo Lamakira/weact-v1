@@ -95,4 +95,50 @@ class CandidatureController extends Controller
             'message' => 'Candidature acceptée avec succès',
         ]);
     }
+
+    /**
+     * Reject a candidature.
+     *
+     * Changes the candidature status from "pending" to "rejected".
+     * Only the mission owner (Producer) can reject candidatures.
+     * Only pending candidatures can be rejected.
+     */
+    public function reject(Request $request, Candidature $candidature): JsonResponse
+    {
+        $user = $request->user();
+
+        // Verify user is a Producer
+        if ($user->userable_type !== Producer::class) {
+            abort(403, 'Accès réservé aux Producteurs');
+        }
+
+        $producer = $user->userable;
+
+        // Eager load mission to avoid N+1 query
+        $candidature->loadMissing('mission');
+
+        // Verify candidature's mission belongs to this Producer
+        if ($candidature->mission->producer_id !== $producer->id) {
+            abort(403, 'Cette candidature ne concerne pas une de vos missions');
+        }
+
+        // Verify candidature is pending
+        if ($candidature->status !== CandidatureStatus::Pending) {
+            return response()->json([
+                'error' => [
+                    'code' => 'INVALID_STATUS',
+                    'message' => 'Seules les candidatures en attente peuvent être refusées',
+                ],
+            ], 400);
+        }
+
+        // Update status
+        $candidature->status = CandidatureStatus::Rejected;
+        $candidature->save();
+
+        return response()->json([
+            'data' => new CandidatureResource($candidature),
+            'message' => 'Candidature refusée',
+        ]);
+    }
 }
