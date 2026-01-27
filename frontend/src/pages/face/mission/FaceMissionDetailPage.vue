@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -12,8 +12,10 @@ import {
   Target,
   AlertCircle,
   Loader2,
+  CheckCircle,
 } from 'lucide-vue-next'
 import { useMissionDetail } from '@/features/mission/composables'
+import { ApplyToMissionModal } from '@/features/candidature/components'
 
 /**
  * LOGIC & STATE MANAGEMENT
@@ -21,7 +23,10 @@ import { useMissionDetail } from '@/features/mission/composables'
 const route = useRoute()
 const router = useRouter()
 
-const { mission, isLoading, error, notFound, fetchMission } = useMissionDetail()
+const { mission, candidature, isLoading, error, notFound, fetchMission, setCandidature } = useMissionDetail()
+
+// Modal state
+const isApplyModalOpen = ref(false)
 
 // Get mission ID from route params
 const missionId = computed(() => {
@@ -30,6 +35,9 @@ const missionId = computed(() => {
   const parsed = parseInt(id, 10)
   return Number.isNaN(parsed) ? null : parsed
 })
+
+// Computed: Has the user already applied?
+const hasApplied = computed(() => candidature.value !== null)
 
 // Computed helpers
 const producerName = computed(() => {
@@ -89,9 +97,26 @@ function goBack(): void {
   }
 }
 
-function handleApply(): void {
-  // TODO: Story 6-2 will implement candidature
-  // For now, button is visible but functionality pending
+function openApplyModal(): void {
+  isApplyModalOpen.value = true
+}
+
+function closeApplyModal(): void {
+  isApplyModalOpen.value = false
+}
+
+function handleApplySuccess(newCandidature: { id: number; status: string; status_label: string }): void {
+  // Update local candidature state
+  setCandidature({
+    id: newCandidature.id,
+    mission_id: missionId.value!,
+    face_id: 0, // We don't need the exact face_id on frontend
+    status: newCandidature.status,
+    status_label: newCandidature.status_label,
+    message_motivation: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  })
 }
 
 /**
@@ -318,14 +343,27 @@ onMounted(() => {
         <!-- Apply Button (Sticky on mobile) -->
         <div class="fixed bottom-0 left-0 right-0 border-t border-border bg-background/80 backdrop-blur-md p-4 sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
           <div class="container mx-auto max-w-4xl">
+            <!-- State 1: Already Applied -->
+            <div
+              v-if="hasApplied"
+              class="flex items-center justify-center gap-2 rounded-lg border border-green-200 bg-green-50 px-8 py-3 text-green-700 dark:border-green-800 dark:bg-green-900/20 dark:text-green-400"
+            >
+              <CheckCircle class="h-5 w-5" />
+              <span class="font-medium">Candidature envoyée</span>
+              <span class="text-sm opacity-75">({{ candidature?.status_label }})</span>
+            </div>
+
+            <!-- State 2: Can Apply -->
             <button
-              v-if="mission.is_accepting_candidatures"
+              v-else-if="mission.is_accepting_candidatures"
               type="button"
               class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-8 py-3 text-base font-semibold text-white transition-colors hover:bg-primary/90"
-              @click="handleApply"
+              @click="openApplyModal"
             >
               Postuler à cette mission
             </button>
+
+            <!-- State 3: Mission Closed -->
             <div
               v-else
               class="flex items-center justify-center gap-2 rounded-lg border border-muted bg-muted/50 px-8 py-3 text-muted-foreground"
@@ -337,6 +375,16 @@ onMounted(() => {
         </div>
       </div>
     </main>
+
+    <!-- Apply Modal -->
+    <ApplyToMissionModal
+      v-if="mission"
+      :is-open="isApplyModalOpen"
+      :mission-id="mission.id"
+      :mission-title="mission.titre"
+      @close="closeApplyModal"
+      @success="handleApplySuccess"
+    />
   </div>
 </template>
 

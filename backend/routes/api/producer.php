@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Producer\CandidatureController;
+use App\Http\Controllers\Api\V1\Producer\FaceController;
 use App\Http\Controllers\Api\V1\Producer\MissionController;
 use App\Http\Controllers\Api\V1\Producer\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -39,4 +41,14 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
     Route::post('/missions/{mission}/close', [MissionController::class, 'close']);
     Route::post('/missions/{mission}/reopen', [MissionController::class, 'reopen']);
     Route::post('/missions/{mission}/complete', [MissionController::class, 'complete']);
+
+    // Candidature routes (nested under missions)
+    Route::get('/missions/{mission}/candidatures', [CandidatureController::class, 'index']);
+
+    // Candidature action routes
+    Route::post('/candidatures/{candidature}/accept', [CandidatureController::class, 'accept']);
+    Route::post('/candidatures/{candidature}/reject', [CandidatureController::class, 'reject']);
+
+    // Candidate profile routes
+    Route::get('/candidates/{face}', [FaceController::class, 'show']);
 });

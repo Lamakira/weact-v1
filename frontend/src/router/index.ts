@@ -72,6 +72,12 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'Face' },
     },
     {
+      path: '/face/candidatures',
+      name: 'face-candidatures',
+      component: () => import('../pages/face/candidature/FaceCandidaturesPage.vue'),
+      meta: { requiresAuth: true, role: 'Face' },
+    },
+    {
       path: '/dashboard/face',
       redirect: { name: 'face-dashboard' },
     },
@@ -104,6 +110,20 @@ const router = createRouter({
       path: '/producer/missions/:id/edit',
       name: 'edit-mission',
       component: () => import('../pages/producer/mission/EditMissionPage.vue'),
+      meta: { requiresAuth: true, role: 'Producer' },
+    },
+    {
+      path: '/producer/missions/:id/candidatures',
+      name: 'producer-mission-candidatures',
+      component: () =>
+        import('../pages/producer/candidature/ProducerMissionCandidaturesPage.vue'),
+      meta: { requiresAuth: true, role: 'Producer' },
+    },
+    {
+      path: '/producer/candidates/:id',
+      name: 'producer-candidate-profile',
+      component: () =>
+        import('../pages/producer/candidature/CandidateProfilePage.vue'),
       meta: { requiresAuth: true, role: 'Producer' },
     },
     {

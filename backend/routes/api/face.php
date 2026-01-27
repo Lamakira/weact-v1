@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Face\ActingVideoController;
+use App\Http\Controllers\Api\V1\Face\CandidatureController;
 use App\Http\Controllers\Api\V1\Face\MissionController;
+use App\Http\Controllers\Api\V1\Face\NotificationController;
 use App\Http\Controllers\Api\V1\Face\AlbumController;
 use App\Http\Controllers\Api\V1\Face\AvailabilityController;
 use App\Http\Controllers\Api\V1\Face\BioLocationController;
@@ -103,6 +105,28 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
         ->middleware(['face', 'throttle:60,1']);
     Route::get('/missions/{mission}', [MissionController::class, 'show'])
         ->middleware(['face', 'throttle:60,1']);
+
+    // Candidature routes - apply to missions (Face only)
+    Route::post('/missions/{mission}/apply', [CandidatureController::class, 'store'])
+        ->middleware(['face', 'throttle:30,1']);
+
+    // Candidature routes - view my candidatures (Face only)
+    Route::get('/candidatures', [CandidatureController::class, 'index'])
+        ->middleware(['face', 'throttle:60,1']);
+
+    // Candidature routes - confirm participation (Face only)
+    Route::post('/candidatures/{candidature}/confirm', [CandidatureController::class, 'confirm'])
+        ->middleware(['face', 'throttle:30,1']);
+
+    // Notification routes (Face only)
+    Route::get('/notifications', [NotificationController::class, 'index'])
+        ->middleware(['face', 'throttle:60,1']);
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])
+        ->middleware(['face', 'throttle:60,1']);
+    Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
+        ->middleware(['face', 'throttle:60,1']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])
+        ->middleware(['face', 'throttle:30,1']);
 });
 
 /*

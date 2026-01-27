@@ -39,6 +39,7 @@ class MissionController extends Controller
 
         $missions = Mission::where('producer_id', $user->userable_id)
             ->with('producer')
+            ->withCount('candidatures')
             ->orderBy('created_at', 'desc')
             ->get();
 
