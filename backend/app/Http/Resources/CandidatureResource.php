@@ -1,0 +1,32 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class CandidatureResource extends JsonResource
+{
+    /**
+     * Transform the resource into an array.
+     *
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'mission_id' => $this->mission_id,
+            'face_id' => $this->face_id,
+            'status' => $this->status?->value,
+            'status_label' => $this->status?->label(),
+            'message_motivation' => $this->message_motivation,
+            'mission' => new MissionResource($this->whenLoaded('mission')),
+            'face' => new FaceResource($this->whenLoaded('face')),
+            'created_at' => $this->created_at?->toIso8601String(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
+        ];
+    }
+}

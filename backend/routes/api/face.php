@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Face\ActingVideoController;
+use App\Http\Controllers\Api\V1\Face\CandidatureController;
 use App\Http\Controllers\Api\V1\Face\MissionController;
 use App\Http\Controllers\Api\V1\Face\AlbumController;
 use App\Http\Controllers\Api\V1\Face\AvailabilityController;
@@ -103,6 +104,10 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
         ->middleware(['face', 'throttle:60,1']);
     Route::get('/missions/{mission}', [MissionController::class, 'show'])
         ->middleware(['face', 'throttle:60,1']);
+
+    // Candidature routes - apply to missions (Face only)
+    Route::post('/missions/{mission}/apply', [CandidatureController::class, 'store'])
+        ->middleware(['face', 'throttle:30,1']);
 });
 
 /*
