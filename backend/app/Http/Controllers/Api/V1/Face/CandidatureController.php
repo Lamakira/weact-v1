@@ -1,0 +1,140 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Api\V1\Face;
+
+use App\Enums\CandidatureStatus;
+use App\Enums\MissionStatus;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Face\StoreCandidatureRequest;
+use App\Http\Resources\CandidatureResource;
+use App\Http\Resources\FaceCandidatureResource;
+use App\Models\Candidature;
+use App\Models\Face;
+use App\Models\Mission;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+
+class CandidatureController extends Controller
+{
+    /**
+     * List all candidatures for the authenticated Face.
+     *
+     * Returns paginated candidatures with mission and producer details.
+     * Supports optional status filter via query parameter.
+     */
+    public function index(Request $request): AnonymousResourceCollection
+    {
+        $face = $request->user()->userable;
+
+        $query = Candidature::where('face_id', $face->id)
+            ->with(['mission', 'mission.producer'])
+            ->latest();
+
+        // Optional status filter
+        if ($request->has('status') && $request->status !== '') {
+            $status = CandidatureStatus::tryFrom($request->status);
+            if ($status) {
+                $query->where('status', $status);
+            }
+        }
+
+        $candidatures = $query->paginate(15);
+
+        return FaceCandidatureResource::collection($candidatures);
+    }
+
+    /**
+     * Apply to a mission as a Face.
+     *
+     * Creates a candidature with status "pending" if:
+     * - Mission is published and accepting candidatures
+     * - Face hasn't already applied to this mission
+     */
+    public function store(StoreCandidatureRequest $request, Mission $mission): JsonResponse
+    {
+        // Check mission is published
+        if ($mission->status !== MissionStatus::Published) {
+            abort(404);
+        }
+
+        // Check mission is accepting candidatures (published + deadline not passed)
+        if (! $mission->isAcceptingCandidatures()) {
+            return response()->json([
+                'error' => [
+                    'code' => 'MISSION_CLOSED',
+                    'message' => "Cette mission n'accepte plus de candidatures",
+                ],
+            ], 422);
+        }
+
+        // Get Face from authenticated user
+        $face = $request->user()->userable;
+
+        // Check if Face has already applied to this mission
+        if (Candidature::where('face_id', $face->id)->where('mission_id', $mission->id)->exists()) {
+            return response()->json([
+                'error' => [
+                    'code' => 'ALREADY_APPLIED',
+                    'message' => 'Vous avez déjà postulé à cette mission',
+                ],
+            ], 422);
+        }
+
+        // Create the candidature (status defaults to 'pending')
+        $candidature = Candidature::create([
+            'face_id' => $face->id,
+            'mission_id' => $mission->id,
+            'message_motivation' => $request->validated('message_motivation'),
+        ]);
+
+        return response()->json([
+            'data' => new CandidatureResource($candidature),
+            'message' => 'Candidature envoyée avec succès',
+        ], 201);
+    }
+
+    /**
+     * Confirm participation in a mission after candidature is accepted.
+     *
+     * Changes candidature status from "accepted" to "confirmed".
+     * Only the Face who owns the candidature can confirm it.
+     */
+    public function confirm(Request $request, Candidature $candidature): JsonResponse
+    {
+        $user = $request->user();
+
+        // Verify user is a Face
+        if ($user->userable_type !== Face::class) {
+            abort(403, 'Accès réservé aux Faces');
+        }
+
+        $face = $user->userable;
+
+        // Verify candidature belongs to this Face
+        if ($candidature->face_id !== $face->id) {
+            abort(403, 'Cette candidature ne vous appartient pas');
+        }
+
+        // Verify candidature is accepted
+        if ($candidature->status !== CandidatureStatus::Accepted) {
+            return response()->json([
+                'error' => [
+                    'code' => 'INVALID_STATUS',
+                    'message' => 'Seules les candidatures acceptées peuvent être confirmées',
+                ],
+            ], 400);
+        }
+
+        // Update status to confirmed
+        $candidature->status = CandidatureStatus::Confirmed;
+        $candidature->save();
+
+        return response()->json([
+            'data' => new CandidatureResource($candidature),
+            'message' => 'Participation confirmée',
+        ]);
+    }
+}

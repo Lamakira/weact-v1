@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useToast } from '@/composables/useToast'
 import { Button } from '@/components/ui/button'
+import { NotificationBell } from '@/features/notification/components'
 import logoNoir from '@/assets/images/logonoir.svg'
 
 const authStore = useAuthStore()
@@ -87,6 +88,9 @@ async function handleLogout(): Promise<void> {
 
           <!-- Authenticated Navigation -->
           <template v-else>
+            <!-- Notification Bell (Face only) -->
+            <NotificationBell v-if="authStore.isFace" />
+
             <RouterLink
               :to="authStore.isFace ? '/face/dashboard' : '/producer/dashboard'"
               class="text-gray-700 hover:text-primary transition-colors"

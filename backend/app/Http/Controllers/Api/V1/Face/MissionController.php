@@ -7,17 +7,21 @@ namespace App\Http\Controllers\Api\V1\Face;
 use App\Enums\MissionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Mission\FilterMissionsRequest;
+use App\Http\Resources\CandidatureResource;
 use App\Http\Resources\MissionResource;
+use App\Models\Candidature;
 use App\Models\Mission;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class MissionController extends Controller
 {
     /**
      * Display a specific published mission available for Faces.
      * Returns 404 if mission doesn't exist or is not published.
+     * Also returns the Face's candidature for this mission if they have applied.
      */
-    public function show(Mission $mission): JsonResponse
+    public function show(Request $request, Mission $mission): JsonResponse
     {
         // Only allow viewing published missions
         if ($mission->status !== MissionStatus::Published) {
@@ -26,8 +30,15 @@ class MissionController extends Controller
 
         $mission->load('producer');
 
+        // Check if the authenticated Face has already applied to this mission
+        $face = $request->user()->userable;
+        $candidature = Candidature::where('face_id', $face->id)
+            ->where('mission_id', $mission->id)
+            ->first();
+
         return response()->json([
             'data' => new MissionResource($mission),
+            'candidature' => $candidature ? new CandidatureResource($candidature) : null,
         ]);
     }
 

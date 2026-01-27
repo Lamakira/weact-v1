@@ -113,9 +113,22 @@ export interface CreateMissionData {
   duree: string
 }
 
+// Candidature data (minimal version for mission detail response)
+export interface MissionCandidature {
+  id: number
+  mission_id: number
+  face_id: number
+  status: string
+  status_label: string
+  message_motivation: string | null
+  created_at: string
+  updated_at: string
+}
+
 // Mission API response
 export interface MissionResponse {
   data: Mission
+  candidature?: MissionCandidature | null
   message?: string
 }
 

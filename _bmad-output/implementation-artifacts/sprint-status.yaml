@@ -82,9 +82,9 @@ development_status:
   4-4-producer-profile-display: done
   epic-4-retrospective: done
 
-  # Epic 5: Mission Management (10 stories)
-  epic-5: in-progress
-  5-1-creat/e-mission-database-schema: done
+  # Epic 5: Mission Management (11 stories) - COMPLETE!
+  epic-5: done
+  5-1-create-mission-database-schema: done
   5-2-publish-mission: done
   5-3-edit-mission: done
   5-4-delete-mission: done
@@ -96,20 +96,20 @@ development_status:
   5-9-face-filter-missions: done
   5-10-face-view-mission-detail: done
   5-11-producer-mission-count-exposure: done
-  epic-5-retrospective: optional
+  epic-5-retrospective: done
 
-  # Epic 6: Candidature Workflow (9 stories)
-  epic-6: backlog
-  6-1-create-candidature-database-schema: backlog
-  6-2-face-apply-to-mission: backlog
-  6-3-face-view-my-candidatures: backlog
-  6-4-producer-view-mission-candidatures: backlog
-  6-5-producer-view-candidate-full-profile: backlog
-  6-6-producer-accept-candidature: backlog
-  6-7-producer-reject-candidature: backlog
-  6-8-face-confirm-mission: backlog
-  6-9-face-candidature-status-notifications: backlog
-  epic-6-retrospective: optional
+  # Epic 6: Candidature Workflow (9 stories) - COMPLETE!
+  epic-6: done
+  6-1-create-candidature-database-schema: done
+  6-2-face-apply-to-mission: done
+  6-3-face-view-my-candidatures: done
+  6-4-producer-view-mission-candidatures: done
+  6-5-producer-view-candidate-full-profile: done
+  6-6-producer-accept-candidature: done
+  6-7-producer-reject-candidature: done
+  6-8-face-confirm-mission: done
+  6-9-face-candidature-status-notifications: done
+  epic-6-retrospective: done
 
   # Epic 7: Messaging System (7 stories)
   epic-7: backlog
