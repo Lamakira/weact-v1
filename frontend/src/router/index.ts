@@ -122,9 +122,8 @@ const router = createRouter({
     {
       path: '/producer/candidates/:id',
       name: 'producer-candidate-profile',
-      // Placeholder - will be implemented in Story 6-5
       component: () =>
-        import('../pages/producer/candidature/CandidateProfilePlaceholder.vue'),
+        import('../pages/producer/candidature/CandidateProfilePage.vue'),
       meta: { requiresAuth: true, role: 'Producer' },
     },
     {

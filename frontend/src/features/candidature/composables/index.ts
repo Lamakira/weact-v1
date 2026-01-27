@@ -1,3 +1,4 @@
 export { useApplyToMission } from './useApplyToMission'
 export { useFaceCandidatures } from './useFaceCandidatures'
 export { useProducerCandidatures } from './useProducerCandidatures'
+export { useCandidateProfile } from './useCandidateProfile'
