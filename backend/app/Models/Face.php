@@ -126,6 +126,14 @@ class Face extends Model
     }
 
     /**
+     * Get the candidatures submitted by this Face.
+     */
+    public function candidatures(): HasMany
+    {
+        return $this->hasMany(Candidature::class);
+    }
+
+    /**
      * Get the full URL for the presentation video.
      */
     protected function presentationVideoUrl(): Attribute
