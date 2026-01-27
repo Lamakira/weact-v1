@@ -4,16 +4,47 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Face;
 
+use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Face\StoreCandidatureRequest;
 use App\Http\Resources\CandidatureResource;
+use App\Http\Resources\FaceCandidatureResource;
 use App\Models\Candidature;
 use App\Models\Mission;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class CandidatureController extends Controller
 {
+    /**
+     * List all candidatures for the authenticated Face.
+     *
+     * Returns paginated candidatures with mission and producer details.
+     * Supports optional status filter via query parameter.
+     */
+    public function index(Request $request): AnonymousResourceCollection
+    {
+        $face = $request->user()->userable;
+
+        $query = Candidature::where('face_id', $face->id)
+            ->with(['mission', 'mission.producer'])
+            ->latest();
+
+        // Optional status filter
+        if ($request->has('status') && $request->status !== '') {
+            $status = CandidatureStatus::tryFrom($request->status);
+            if ($status) {
+                $query->where('status', $status);
+            }
+        }
+
+        $candidatures = $query->paginate(15);
+
+        return FaceCandidatureResource::collection($candidatures);
+    }
+
     /**
      * Apply to a mission as a Face.
      *

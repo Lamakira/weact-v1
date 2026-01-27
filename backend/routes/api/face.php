@@ -108,6 +108,10 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     // Candidature routes - apply to missions (Face only)
     Route::post('/missions/{mission}/apply', [CandidatureController::class, 'store'])
         ->middleware(['face', 'throttle:30,1']);
+
+    // Candidature routes - view my candidatures (Face only)
+    Route::get('/candidatures', [CandidatureController::class, 'index'])
+        ->middleware(['face', 'throttle:60,1']);
 });
 
 /*

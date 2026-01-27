@@ -56,3 +56,64 @@ export interface ApplyToMissionResult {
     message: string
   }
 }
+
+// Mission summary for candidature list (nested in FaceCandidature)
+export interface MissionSummary {
+  id: number
+  titre: string
+  date_tournage: string
+  lieu: string
+  budget: number
+}
+
+// Producer summary for candidature list (nested in FaceCandidature)
+export interface ProducerSummary {
+  id: number
+  display_name: string
+  type: 'agency' | 'particulier'
+  profile_photo_url: string | null
+}
+
+// Face candidature for list view (includes mission and producer summary)
+export interface FaceCandidature {
+  id: number
+  status: CandidatureStatusType
+  status_label: string
+  message_motivation: string | null
+  created_at: string
+  mission: MissionSummary
+  producer: ProducerSummary
+}
+
+// Paginated candidatures response for Face list view
+export interface FaceCandidatureListResponse {
+  data: FaceCandidature[]
+  links: {
+    first: string | null
+    last: string | null
+    prev: string | null
+    next: string | null
+  }
+  meta: {
+    current_page: number
+    last_page: number
+    per_page: number
+    total: number
+  }
+}
+
+// Status badge color mapping
+export const CandidatureStatusColor: Record<CandidatureStatusType, string> = {
+  [CandidatureStatus.PENDING]: 'yellow',
+  [CandidatureStatus.ACCEPTED]: 'blue',
+  [CandidatureStatus.CONFIRMED]: 'green',
+  [CandidatureStatus.IN_PROGRESS]: 'purple',
+  [CandidatureStatus.COMPLETED]: 'emerald',
+  [CandidatureStatus.REJECTED]: 'red',
+}
+
+// Status filter option
+export interface StatusFilterOption {
+  value: CandidatureStatusType | ''
+  label: string
+}

@@ -72,6 +72,12 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'Face' },
     },
     {
+      path: '/face/candidatures',
+      name: 'face-candidatures',
+      component: () => import('../pages/face/candidature/FaceCandidaturesPage.vue'),
+      meta: { requiresAuth: true, role: 'Face' },
+    },
+    {
       path: '/dashboard/face',
       redirect: { name: 'face-dashboard' },
     },
