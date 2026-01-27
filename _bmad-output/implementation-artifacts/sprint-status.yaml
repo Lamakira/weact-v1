@@ -108,7 +108,7 @@ development_status:
   6-6-producer-accept-candidature: done
   6-7-producer-reject-candidature: done
   6-8-face-confirm-mission: done
-  6-9-face-candidature-status-notifications: backlog
+  6-9-face-candidature-status-notifications: done
   epic-6-retrospective: optional
 
   # Epic 7: Messaging System (7 stories)
