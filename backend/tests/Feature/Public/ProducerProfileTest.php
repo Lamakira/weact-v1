@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Public;
 
+use App\Enums\MissionStatus;
 use App\Enums\ProducerType;
 use App\Models\Face;
+use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -92,7 +94,6 @@ class ProducerProfileTest extends TestCase
             ->assertJsonPath('data.agency_name', 'My Agency')
             ->assertJsonPath('data.display_name', 'My Agency')
             ->assertJsonPath('data.bio', 'We are a creative agency')
-            // MVP placeholders
             ->assertJsonPath('data.missions_count', 0)
             ->assertJsonPath('data.average_rating', null)
             ->assertJsonPath('data.ratings_count', 0);
@@ -120,7 +121,6 @@ class ProducerProfileTest extends TestCase
             ->assertJsonPath('data.agency_name', null)
             ->assertJsonPath('data.display_name', 'Marie Martin')
             ->assertJsonPath('data.bio', 'Independent producer')
-            // MVP placeholders
             ->assertJsonPath('data.missions_count', 0)
             ->assertJsonPath('data.average_rating', null)
             ->assertJsonPath('data.ratings_count', 0)
@@ -167,9 +167,85 @@ class ProducerProfileTest extends TestCase
         $response->assertNotFound();
     }
 
-    public function test_response_includes_missions_count_zero_for_mvp(): void
+    public function test_producer_with_no_missions_shows_missions_count_zero(): void
     {
         $producer = Producer::factory()->create();
+
+        $response = $this->getJson("/api/v1/public/producers/{$producer->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.missions_count', 0);
+    }
+
+    public function test_producer_with_published_missions_shows_correct_count(): void
+    {
+        $producer = Producer::factory()->create();
+
+        // Create 3 published missions
+        Mission::factory()->count(3)->create([
+            'producer_id' => $producer->id,
+            'status' => MissionStatus::Published,
+        ]);
+
+        $response = $this->getJson("/api/v1/public/producers/{$producer->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.missions_count', 3);
+    }
+
+    public function test_producer_with_mixed_status_missions_only_counts_published(): void
+    {
+        $producer = Producer::factory()->create();
+
+        // Create 2 published missions
+        Mission::factory()->count(2)->create([
+            'producer_id' => $producer->id,
+            'status' => MissionStatus::Published,
+        ]);
+
+        // Create 1 draft mission (should not count)
+        Mission::factory()->create([
+            'producer_id' => $producer->id,
+            'status' => MissionStatus::Draft,
+        ]);
+
+        // Create 1 closed mission (should not count)
+        Mission::factory()->create([
+            'producer_id' => $producer->id,
+            'status' => MissionStatus::Closed,
+        ]);
+
+        // Create 1 completed mission (should not count)
+        Mission::factory()->create([
+            'producer_id' => $producer->id,
+            'status' => MissionStatus::Completed,
+        ]);
+
+        $response = $this->getJson("/api/v1/public/producers/{$producer->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.missions_count', 2);
+    }
+
+    public function test_producer_with_only_non_published_missions_shows_zero(): void
+    {
+        $producer = Producer::factory()->create();
+
+        // Create missions in non-published statuses only
+        Mission::factory()->create([
+            'producer_id' => $producer->id,
+            'status' => MissionStatus::Draft,
+        ]);
+
+        Mission::factory()->create([
+            'producer_id' => $producer->id,
+            'status' => MissionStatus::Closed,
+        ]);
+
+        Mission::factory()->create([
+            'producer_id' => $producer->id,
+            'status' => MissionStatus::Completed,
+        ]);
 
         $response = $this->getJson("/api/v1/public/producers/{$producer->id}");
 
