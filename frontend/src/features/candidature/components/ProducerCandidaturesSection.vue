@@ -8,7 +8,7 @@ import {
   ChevronRight,
   Inbox,
 } from 'lucide-vue-next'
-import { useProducerCandidatures, useAcceptCandidature } from '../composables'
+import { useProducerCandidatures, useAcceptCandidature, useRejectCandidature } from '../composables'
 import ProducerCandidatureCard from './ProducerCandidatureCard.vue'
 import StatusFilter from './StatusFilter.vue'
 import { CandidatureStatusLabel } from '../types'
@@ -48,10 +48,20 @@ const {
  */
 const {
   error: acceptError,
-  successMessage,
+  successMessage: acceptSuccessMessage,
   acceptCandidature,
   reset: resetAccept,
 } = useAcceptCandidature()
+
+/**
+ * Composable for rejecting candidatures
+ */
+const {
+  error: rejectError,
+  successMessage: rejectSuccessMessage,
+  rejectCandidature,
+  reset: resetReject,
+} = useRejectCandidature()
 
 /**
  * Toast state for notifications
@@ -87,7 +97,7 @@ async function handleAccept(candidatureId: number): Promise<void> {
   cardRefs.value[candidatureId]?.resetAccepting()
 
   if (result) {
-    displayToast(successMessage.value || 'Candidature acceptée', 'success')
+    displayToast(acceptSuccessMessage.value || 'Candidature acceptée', 'success')
     // Refresh the list to show updated status
     await refresh()
   } else {
@@ -95,6 +105,26 @@ async function handleAccept(candidatureId: number): Promise<void> {
   }
 
   resetAccept()
+}
+
+/**
+ * Handle reject candidature
+ */
+async function handleReject(candidatureId: number): Promise<void> {
+  const result = await rejectCandidature(candidatureId)
+
+  // Reset the card's loading state
+  cardRefs.value[candidatureId]?.resetRejecting()
+
+  if (result) {
+    displayToast(rejectSuccessMessage.value || 'Candidature refusée', 'success')
+    // Refresh the list to show updated status
+    await refresh()
+  } else {
+    displayToast(rejectError.value || 'Erreur lors du refus', 'error')
+  }
+
+  resetReject()
 }
 
 /**
@@ -222,6 +252,7 @@ onMounted(() => {
           :ref="(el) => { if (el) cardRefs[candidature.id] = el as InstanceType<typeof ProducerCandidatureCard> }"
           :candidature="candidature"
           @accept="handleAccept"
+          @reject="handleReject"
         />
       </div>
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { MapPin, Wallet, Calendar, MessageSquare, ArrowUpRight, Check, Loader2 } from 'lucide-vue-next'
+import { MapPin, Wallet, Calendar, MessageSquare, ArrowUpRight, Check, X, Loader2 } from 'lucide-vue-next'
 import type { ProducerCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
 
@@ -17,17 +17,20 @@ const props = defineProps<{
  */
 const emit = defineEmits<{
   accept: [candidatureId: number]
+  reject: [candidatureId: number]
 }>()
 
 /**
- * Local state for accept button
+ * Local state for accept/reject buttons
  */
 const isAccepting = ref(false)
+const isRejecting = ref(false)
+const showRejectConfirmation = ref(false)
 
 /**
- * Computed: Can show accept button (only for pending candidatures)
+ * Computed: Can show action buttons (only for pending candidatures)
  */
-const canAccept = computed(() => props.candidature.status === 'pending')
+const canTakeAction = computed(() => props.candidature.status === 'pending')
 
 /**
  * Handle accept button click
@@ -39,6 +42,44 @@ function handleAccept(): void {
 }
 
 /**
+ * Show reject confirmation dialog
+ */
+function showRejectDialog(): void {
+  showRejectConfirmation.value = true
+  // Focus the cancel button after dialog opens
+  setTimeout(() => {
+    const cancelButton = document.getElementById('reject-dialog-cancel')
+    cancelButton?.focus()
+  }, 50)
+}
+
+/**
+ * Handle Escape key to close dialog
+ */
+function handleDialogKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') {
+    cancelReject()
+  }
+}
+
+/**
+ * Cancel reject action
+ */
+function cancelReject(): void {
+  showRejectConfirmation.value = false
+}
+
+/**
+ * Confirm and execute reject action
+ */
+function confirmReject(): void {
+  if (isRejecting.value) return
+  isRejecting.value = true
+  showRejectConfirmation.value = false
+  emit('reject', props.candidature.id)
+}
+
+/**
  * Reset accepting state (called from parent after API response)
  */
 function resetAccepting(): void {
@@ -46,9 +87,16 @@ function resetAccepting(): void {
 }
 
 /**
+ * Reset rejecting state (called from parent after API response)
+ */
+function resetRejecting(): void {
+  isRejecting.value = false
+}
+
+/**
  * Expose methods for parent component
  */
-defineExpose({ resetAccepting })
+defineExpose({ resetAccepting, resetRejecting })
 
 /**
  * Computed: Status badge class
@@ -243,18 +291,32 @@ const categoryLabel = computed(() => {
 
     <!-- Actions -->
     <div class="mt-4 flex items-center justify-between gap-3">
-      <!-- Accept Button (only for pending) -->
-      <button
-        v-if="canAccept"
-        type="button"
-        class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-        :disabled="isAccepting"
-        @click="handleAccept"
-      >
-        <Loader2 v-if="isAccepting" class="h-4 w-4 animate-spin" />
-        <Check v-else class="h-4 w-4" />
-        {{ isAccepting ? 'Acceptation...' : 'Accepter' }}
-      </button>
+      <!-- Action Buttons (only for pending) -->
+      <div v-if="canTakeAction" class="flex gap-2">
+        <!-- Accept Button -->
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="isAccepting || isRejecting"
+          @click="handleAccept"
+        >
+          <Loader2 v-if="isAccepting" class="h-4 w-4 animate-spin" />
+          <Check v-else class="h-4 w-4" />
+          {{ isAccepting ? 'Acceptation...' : 'Accepter' }}
+        </button>
+
+        <!-- Reject Button -->
+        <button
+          type="button"
+          class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="isAccepting || isRejecting"
+          @click="showRejectDialog"
+        >
+          <Loader2 v-if="isRejecting" class="h-4 w-4 animate-spin" />
+          <X v-else class="h-4 w-4" />
+          {{ isRejecting ? 'Refus...' : 'Refuser' }}
+        </button>
+      </div>
       <div v-else></div>
 
       <!-- Profile Link -->
@@ -266,5 +328,59 @@ const categoryLabel = computed(() => {
         <ArrowUpRight class="h-3 w-3" />
       </RouterLink>
     </div>
+
+    <!-- Reject Confirmation Dialog -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition-all duration-200 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition-all duration-150 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="showRejectConfirmation"
+          class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          @click.self="cancelReject"
+          @keydown="handleDialogKeydown"
+        >
+          <div
+            class="w-full max-w-md rounded-xl bg-card p-6 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reject-dialog-title"
+          >
+            <h3 id="reject-dialog-title" class="text-lg font-semibold text-foreground">
+              Refuser cette candidature ?
+            </h3>
+            <p class="mt-2 text-sm text-muted-foreground">
+              Êtes-vous sûr de vouloir refuser la candidature de
+              <span class="font-medium text-foreground">{{ candidature.face.display_name }}</span> ?
+            </p>
+            <p class="mt-1 text-xs text-red-600">
+              Cette action est irréversible.
+            </p>
+            <div class="mt-6 flex justify-end gap-3">
+              <button
+                id="reject-dialog-cancel"
+                type="button"
+                class="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                @click="cancelReject"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+                @click="confirmReject"
+              >
+                Confirmer le refus
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
