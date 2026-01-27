@@ -114,4 +114,17 @@ export const candidatureApi = {
     )
     return response.data
   },
+
+  /**
+   * Confirm participation in a mission (Face only)
+   * Changes candidature status from "accepted" to "confirmed"
+   * @param candidatureId The candidature ID to confirm
+   * @returns Updated candidature data with success message
+   */
+  async confirmCandidature(candidatureId: number): Promise<CandidatureResponse> {
+    const response = await apiClient.post<CandidatureResponse>(
+      `/face/candidatures/${candidatureId}/confirm`,
+    )
+    return response.data
+  },
 }
