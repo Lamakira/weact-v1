@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import {
   Loader2,
   AlertCircle,
@@ -8,7 +8,7 @@ import {
   ChevronRight,
   Inbox,
 } from 'lucide-vue-next'
-import { useProducerCandidatures } from '../composables'
+import { useProducerCandidatures, useAcceptCandidature } from '../composables'
 import ProducerCandidatureCard from './ProducerCandidatureCard.vue'
 import StatusFilter from './StatusFilter.vue'
 import { CandidatureStatusLabel } from '../types'
@@ -22,7 +22,7 @@ const props = defineProps<{
 }>()
 
 /**
- * Composable
+ * Composable for candidatures list
  */
 const {
   candidatures,
@@ -42,6 +42,60 @@ const {
   setStatusFilter,
   refresh,
 } = useProducerCandidatures(props.missionId)
+
+/**
+ * Composable for accepting candidatures
+ */
+const {
+  error: acceptError,
+  successMessage,
+  acceptCandidature,
+  reset: resetAccept,
+} = useAcceptCandidature()
+
+/**
+ * Toast state for notifications
+ */
+const showToast = ref(false)
+const toastMessage = ref('')
+const toastType = ref<'success' | 'error'>('success')
+
+/**
+ * Card refs for resetting loading state
+ */
+const cardRefs = ref<Record<number, InstanceType<typeof ProducerCandidatureCard>>>({})
+
+/**
+ * Show toast notification
+ */
+function displayToast(message: string, type: 'success' | 'error'): void {
+  toastMessage.value = message
+  toastType.value = type
+  showToast.value = true
+  setTimeout(() => {
+    showToast.value = false
+  }, 4000)
+}
+
+/**
+ * Handle accept candidature
+ */
+async function handleAccept(candidatureId: number): Promise<void> {
+  const result = await acceptCandidature(candidatureId)
+
+  // Reset the card's loading state
+  cardRefs.value[candidatureId]?.resetAccepting()
+
+  if (result) {
+    displayToast(successMessage.value || 'Candidature acceptée', 'success')
+    // Refresh the list to show updated status
+    await refresh()
+  } else {
+    displayToast(acceptError.value || "Erreur lors de l'acceptation", 'error')
+  }
+
+  resetAccept()
+}
 
 /**
  * Handle filter change
@@ -165,7 +219,9 @@ onMounted(() => {
         <ProducerCandidatureCard
           v-for="candidature in candidatures"
           :key="candidature.id"
+          :ref="(el) => { if (el) cardRefs[candidature.id] = el as InstanceType<typeof ProducerCandidatureCard> }"
           :candidature="candidature"
+          @accept="handleAccept"
         />
       </div>
 
@@ -210,5 +266,37 @@ onMounted(() => {
         </button>
       </div>
     </template>
+
+    <!-- Toast Notification -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition-all duration-300 ease-out"
+        enter-from-class="translate-y-2 opacity-0"
+        enter-to-class="translate-y-0 opacity-100"
+        leave-active-class="transition-all duration-200 ease-in"
+        leave-from-class="translate-y-0 opacity-100"
+        leave-to-class="translate-y-2 opacity-0"
+      >
+        <div
+          v-if="showToast"
+          class="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-lg px-4 py-3 shadow-lg"
+          :class="[
+            toastType === 'success'
+              ? 'bg-green-600 text-white'
+              : 'bg-red-600 text-white',
+          ]"
+        >
+          <span class="text-sm font-medium">{{ toastMessage }}</span>
+          <button
+            type="button"
+            aria-label="Fermer"
+            class="ml-2 text-white/80 hover:text-white"
+            @click="showToast = false"
+          >
+            &times;
+          </button>
+        </div>
+      </Transition>
+    </Teleport>
   </section>
 </template>

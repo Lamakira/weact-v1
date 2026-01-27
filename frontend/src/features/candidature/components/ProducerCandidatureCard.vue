@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { MapPin, Wallet, Calendar, MessageSquare, ArrowUpRight } from 'lucide-vue-next'
+import { MapPin, Wallet, Calendar, MessageSquare, ArrowUpRight, Check, Loader2 } from 'lucide-vue-next'
 import type { ProducerCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
 
@@ -11,6 +11,44 @@ import { CandidatureStatusColor } from '../types'
 const props = defineProps<{
   candidature: ProducerCandidature
 }>()
+
+/**
+ * Emits
+ */
+const emit = defineEmits<{
+  accept: [candidatureId: number]
+}>()
+
+/**
+ * Local state for accept button
+ */
+const isAccepting = ref(false)
+
+/**
+ * Computed: Can show accept button (only for pending candidatures)
+ */
+const canAccept = computed(() => props.candidature.status === 'pending')
+
+/**
+ * Handle accept button click
+ */
+function handleAccept(): void {
+  if (isAccepting.value) return
+  isAccepting.value = true
+  emit('accept', props.candidature.id)
+}
+
+/**
+ * Reset accepting state (called from parent after API response)
+ */
+function resetAccepting(): void {
+  isAccepting.value = false
+}
+
+/**
+ * Expose methods for parent component
+ */
+defineExpose({ resetAccepting })
 
 /**
  * Computed: Status badge class
@@ -203,8 +241,23 @@ const categoryLabel = computed(() => {
       </div>
     </div>
 
-    <!-- Action Link -->
-    <div class="mt-4 flex items-center justify-end">
+    <!-- Actions -->
+    <div class="mt-4 flex items-center justify-between gap-3">
+      <!-- Accept Button (only for pending) -->
+      <button
+        v-if="canAccept"
+        type="button"
+        class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+        :disabled="isAccepting"
+        @click="handleAccept"
+      >
+        <Loader2 v-if="isAccepting" class="h-4 w-4 animate-spin" />
+        <Check v-else class="h-4 w-4" />
+        {{ isAccepting ? 'Acceptation...' : 'Accepter' }}
+      </button>
+      <div v-else></div>
+
+      <!-- Profile Link -->
       <RouterLink
         :to="{ name: 'producer-candidate-profile', params: { id: candidature.face.id } }"
         class="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
