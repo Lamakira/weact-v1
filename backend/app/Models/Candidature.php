@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Candidature extends Model
 {
@@ -61,6 +62,22 @@ class Candidature extends Model
     public function mission(): BelongsTo
     {
         return $this->belongsTo(Mission::class);
+    }
+
+    /**
+     * Get the conversation associated with this candidature.
+     */
+    public function conversation(): HasOne
+    {
+        return $this->hasOne(Conversation::class);
+    }
+
+    /**
+     * Check if this candidature has an active conversation.
+     */
+    public function hasConversation(): bool
+    {
+        return $this->conversation()->exists();
     }
 
     /**
