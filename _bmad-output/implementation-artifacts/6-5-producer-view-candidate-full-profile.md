@@ -1,6 +1,6 @@
 # Story 6.5: Producer View Candidate Full Profile
 
-Status: review
+Status: done
 
 ## Story
 
