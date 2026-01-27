@@ -155,3 +155,63 @@ export interface ProducerCandidatureListResponse {
     total: number
   }
 }
+
+// Face photo for photo gallery
+export interface FacePhoto {
+  id: number
+  photo_url: string
+  thumbnail_url: string
+  position: number
+}
+
+// Face experience for experience list
+export interface FaceExperience {
+  id: number
+  titre: string
+  description: string | null
+  date_debut: string | null
+  date_fin: string | null
+  is_ongoing: boolean
+  formatted_period: string | null
+}
+
+// Candidate full profile for Producer view (complete Face data)
+export interface CandidateFullProfile {
+  id: number
+  nom: string
+  prenom: string
+  username: string | null
+  profile_photo_url: string | null
+  thumbnail_url: string | null
+  presentation_video_url: string | null
+  presentation_video_thumbnail_url: string | null
+  acting_video_url: string | null
+  acting_video_thumbnail_url: string | null
+  bio: string | null
+  ville: string | null
+  quartier: string | null
+  pays: string | null
+  formatted_location: string | null
+  taille: number | null
+  poids: number | null
+  categorie: string | null
+  categorie_label: string | null
+  niche: string | null
+  niche_label: string | null
+  tarif_horaire: number | null
+  tarif_journalier: number | null
+  formatted_tarif_horaire: string | null
+  formatted_tarif_journalier: string | null
+  is_available: boolean
+  availability_badge: string
+  availability_badge_color: string
+  profile_completion_percentage: number
+  profile_completion_is_complete: boolean
+  experiences: FaceExperience[]
+  photos: FacePhoto[]
+}
+
+// API response for candidate full profile
+export interface CandidateFullProfileResponse {
+  data: CandidateFullProfile
+}

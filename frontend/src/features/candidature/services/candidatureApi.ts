@@ -5,6 +5,7 @@ import type {
   CandidatureStatusType,
   FaceCandidatureListResponse,
   ProducerCandidatureListResponse,
+  CandidateFullProfileResponse,
 } from '../types'
 
 /**
@@ -71,6 +72,19 @@ export const candidatureApi = {
 
     const response = await apiClient.get<ProducerCandidatureListResponse>(
       `/producer/missions/${missionId}/candidatures?${params.toString()}`,
+    )
+    return response.data
+  },
+
+  /**
+   * Get candidate's full profile (Producer only)
+   * Producers can only view profiles of Faces who applied to their missions
+   * @param faceId The Face ID to get profile for
+   * @returns Full candidate profile data
+   */
+  async getCandidateProfile(faceId: number): Promise<CandidateFullProfileResponse> {
+    const response = await apiClient.get<CandidateFullProfileResponse>(
+      `/producer/candidates/${faceId}`,
     )
     return response.data
   },
