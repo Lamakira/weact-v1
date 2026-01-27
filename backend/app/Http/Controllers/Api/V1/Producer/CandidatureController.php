@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Producer;
 
+use App\Enums\CandidatureStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Producer\IndexMissionCandidaturesRequest;
+use App\Http\Resources\CandidatureResource;
 use App\Http\Resources\ProducerCandidatureResource;
 use App\Models\Candidature;
 use App\Models\Mission;
+use App\Models\Producer;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class CandidatureController extends Controller
@@ -43,5 +48,51 @@ class CandidatureController extends Controller
         $candidatures = $query->paginate(15);
 
         return ProducerCandidatureResource::collection($candidatures);
+    }
+
+    /**
+     * Accept a candidature.
+     *
+     * Changes the candidature status from "pending" to "accepted".
+     * Only the mission owner (Producer) can accept candidatures.
+     * Only pending candidatures can be accepted.
+     */
+    public function accept(Request $request, Candidature $candidature): JsonResponse
+    {
+        $user = $request->user();
+
+        // Verify user is a Producer
+        if ($user->userable_type !== Producer::class) {
+            abort(403, 'Accès réservé aux Producteurs');
+        }
+
+        $producer = $user->userable;
+
+        // Eager load mission to avoid N+1 query
+        $candidature->loadMissing('mission');
+
+        // Verify candidature's mission belongs to this Producer
+        if ($candidature->mission->producer_id !== $producer->id) {
+            abort(403, 'Cette candidature ne concerne pas une de vos missions');
+        }
+
+        // Verify candidature is pending
+        if ($candidature->status !== CandidatureStatus::Pending) {
+            return response()->json([
+                'error' => [
+                    'code' => 'INVALID_STATUS',
+                    'message' => 'Seules les candidatures en attente peuvent être acceptées',
+                ],
+            ], 400);
+        }
+
+        // Update status
+        $candidature->status = CandidatureStatus::Accepted;
+        $candidature->save();
+
+        return response()->json([
+            'data' => new CandidatureResource($candidature),
+            'message' => 'Candidature acceptée avec succès',
+        ]);
     }
 }

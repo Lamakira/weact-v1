@@ -45,6 +45,9 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
     // Candidature routes (nested under missions)
     Route::get('/missions/{mission}/candidatures', [CandidatureController::class, 'index']);
 
+    // Candidature action routes
+    Route::post('/candidatures/{candidature}/accept', [CandidatureController::class, 'accept']);
+
     // Candidate profile routes
     Route::get('/candidates/{face}', [FaceController::class, 'show']);
 });
