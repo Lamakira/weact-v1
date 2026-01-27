@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\MissionStatus;
 use App\Enums\ProducerType;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -147,6 +148,19 @@ class Producer extends Model
             get: fn (): ?string => $this->agency_logo_thumbnail
                 ? asset('storage/logos/agencies/thumbnails/' . $this->agency_logo_thumbnail)
                 : null,
+        );
+    }
+
+    /**
+     * Get the count of published missions for this producer.
+     *
+     * Only counts missions with MissionStatus::Published status.
+     * Excludes draft, closed, and completed missions.
+     */
+    protected function publishedMissionsCount(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): int => $this->missions()->where('status', MissionStatus::Published)->count(),
         );
     }
 }
