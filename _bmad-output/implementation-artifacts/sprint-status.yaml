@@ -61,38 +61,41 @@ development_status:
   # Epic 3: Face Profile & Portfolio (11 stories)
   epic-3: in-progress
   3-1-face-profile-photo-upload: done
-  3-2-face-photo-album-management: backlog
-  3-3-face-presentation-video-upload: backlog
-  3-4-face-acting-video-upload: backlog
-  3-5-face-bio-and-location: backlog
-  3-6-face-physical-characteristics: backlog
-  3-7-face-category-and-niche-selection: backlog
-  3-8-face-professional-experiences: backlog
-  3-9-face-tarifs: backlog
-  3-10-face-availability-toggle: backlog
-  3-11-face-profile-completion-indicator: backlog
+  3-2-face-photo-album-management: done
+  3-3-face-presentation-video-upload: done
+  3-4-face-acting-video-upload: done
+  3-5-face-bio-and-location: done
+  3-6-face-physical-characteristics: done
+  3-7-face-category-and-niche-selection: done
+  3-8-face-professional-experiences: done
+  3-8-1-face-experience-dates-enhancement: done
+  3-9-face-tarifs: done
+  3-10-face-availability-toggle: done
+  3-11-face-profile-completion-indicator: done
   epic-3-retrospective: optional
 
   # Epic 4: Producer Profile (4 stories)
-  epic-4: backlog
-  4-1-producer-profile-photo: backlog
-  4-2-producer-bio: backlog
-  4-3-agency-logo-upload: backlog
-  4-4-producer-profile-display: backlog
-  epic-4-retrospective: optional
+  epic-4: done
+  4-1-producer-profile-photo: done
+  4-2-producer-bio: done
+  4-3-agency-logo-upload: done
+  4-4-producer-profile-display: done
+  epic-4-retrospective: done
 
   # Epic 5: Mission Management (10 stories)
-  epic-5: backlog
-  5-1-create-mission-database-schema: backlog
-  5-2-publish-mission: backlog
-  5-3-edit-mission: backlog
-  5-4-delete-mission: backlog
-  5-5-producer-missions-list: backlog
-  5-6-close-mission: backlog
-  5-7-mark-mission-as-completed: backlog
-  5-8-face-browse-available-missions: backlog
-  5-9-face-filter-missions: backlog
-  5-10-face-view-mission-detail: backlog
+  epic-5: in-progress
+  5-1-creat/e-mission-database-schema: done
+  5-2-publish-mission: done
+  5-3-edit-mission: done
+  5-4-delete-mission: done
+  5-5-producer-missions-list: done
+  5-6-close-mission: done
+  5-6b-reopen-mission: done
+  5-7-mark-mission-as-completed: done
+  5-8-face-browse-available-missions: done
+  5-9-face-filter-missions: done
+  5-10-face-view-mission-detail: done
+  5-11-producer-mission-count-exposure: done
   epic-5-retrospective: optional
 
   # Epic 6: Candidature Workflow (9 stories)
@@ -127,6 +130,7 @@ development_status:
   8-4-display-face-average-rating: backlog
   8-5-display-producer-average-rating: backlog
   8-6-view-reviews-list: backlog
+  8-7-producer-rating-exposure: backlog
   epic-8-retrospective: optional
 
   # Epic 9: Face Dashboard (5 stories)

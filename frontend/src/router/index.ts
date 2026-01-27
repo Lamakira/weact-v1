@@ -60,6 +60,18 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'Face' },
     },
     {
+      path: '/face/missions',
+      name: 'face-missions',
+      component: () => import('../pages/face/mission/FaceMissionsListPage.vue'),
+      meta: { requiresAuth: true, role: 'Face' },
+    },
+    {
+      path: '/face/missions/:id',
+      name: 'face-mission-detail',
+      component: () => import('../pages/face/mission/FaceMissionDetailPage.vue'),
+      meta: { requiresAuth: true, role: 'Face' },
+    },
+    {
       path: '/dashboard/face',
       redirect: { name: 'face-dashboard' },
     },
@@ -71,8 +83,38 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'Producer' },
     },
     {
+      path: '/producer/profile',
+      name: 'producer-profile',
+      component: () => import('../pages/producer/ProfileEditPage.vue'),
+      meta: { requiresAuth: true, role: 'Producer' },
+    },
+    {
+      path: '/producer/missions',
+      name: 'producer-missions',
+      component: () => import('../pages/producer/mission/MissionsListPage.vue'),
+      meta: { requiresAuth: true, role: 'Producer' },
+    },
+    {
+      path: '/producer/missions/publish',
+      name: 'publish-mission',
+      component: () => import('../pages/producer/mission/PublishMissionPage.vue'),
+      meta: { requiresAuth: true, role: 'Producer' },
+    },
+    {
+      path: '/producer/missions/:id/edit',
+      name: 'edit-mission',
+      component: () => import('../pages/producer/mission/EditMissionPage.vue'),
+      meta: { requiresAuth: true, role: 'Producer' },
+    },
+    {
       path: '/dashboard/producer',
       redirect: { name: 'producer-dashboard' },
+    },
+    // Public routes (no auth required)
+    {
+      path: '/producers/:id',
+      name: 'public-producer-profile',
+      component: () => import('../pages/public/ProducerProfilePage.vue'),
     },
   ],
 })

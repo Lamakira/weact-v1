@@ -1,0 +1,235 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature\Mission;
+
+use App\Enums\MissionGender;
+use App\Enums\MissionStatus;
+use App\Enums\MissionType;
+use App\Models\Face;
+use App\Models\Mission;
+use App\Models\Producer;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class DeleteMissionTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private User $producerUser;
+
+    private Producer $producer;
+
+    private Mission $mission;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Create producer with user
+        $this->producer = Producer::factory()->create();
+        $this->producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $this->producer->id,
+        ]);
+
+        // Create a test mission
+        $this->mission = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'titre' => 'Mission to Delete',
+            'status' => MissionStatus::Published,
+        ]);
+    }
+
+    // ===== SUCCESSFUL DELETION TESTS =====
+
+    public function test_producer_can_delete_own_published_mission(): void
+    {
+        $response = $this->actingAs($this->producerUser)
+            ->deleteJson("/api/v1/producer/missions/{$this->mission->id}");
+
+        $response->assertOk()
+            ->assertJson([
+                'message' => 'Mission supprimée avec succès',
+            ]);
+
+        // Verify mission is deleted from database
+        $this->assertDatabaseMissing('missions', [
+            'id' => $this->mission->id,
+        ]);
+    }
+
+    public function test_producer_can_delete_own_draft_mission(): void
+    {
+        $draftMission = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Draft,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->deleteJson("/api/v1/producer/missions/{$draftMission->id}");
+
+        $response->assertOk()
+            ->assertJson([
+                'message' => 'Mission supprimée avec succès',
+            ]);
+
+        $this->assertDatabaseMissing('missions', [
+            'id' => $draftMission->id,
+        ]);
+    }
+
+    // ===== AUTHORIZATION TESTS =====
+
+    public function test_unauthenticated_user_cannot_delete_mission(): void
+    {
+        $response = $this->deleteJson("/api/v1/producer/missions/{$this->mission->id}");
+
+        $response->assertUnauthorized();
+
+        // Mission should still exist
+        $this->assertDatabaseHas('missions', [
+            'id' => $this->mission->id,
+        ]);
+    }
+
+    public function test_other_producer_cannot_delete_mission(): void
+    {
+        $otherProducer = Producer::factory()->create();
+        $otherUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $otherProducer->id,
+        ]);
+
+        $response = $this->actingAs($otherUser)
+            ->deleteJson("/api/v1/producer/missions/{$this->mission->id}");
+
+        $response->assertForbidden();
+
+        // Mission should still exist
+        $this->assertDatabaseHas('missions', [
+            'id' => $this->mission->id,
+        ]);
+    }
+
+    public function test_face_cannot_delete_mission(): void
+    {
+        $face = Face::factory()->create();
+        $faceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+
+        $response = $this->actingAs($faceUser)
+            ->deleteJson("/api/v1/producer/missions/{$this->mission->id}");
+
+        $response->assertForbidden();
+
+        // Mission should still exist
+        $this->assertDatabaseHas('missions', [
+            'id' => $this->mission->id,
+        ]);
+    }
+
+    // ===== STATUS RESTRICTION TESTS =====
+
+    public function test_cannot_delete_closed_mission(): void
+    {
+        $closedMission = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Closed,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->deleteJson("/api/v1/producer/missions/{$closedMission->id}");
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['mission'])
+            ->assertJson([
+                'errors' => [
+                    'mission' => ['Une mission clôturée ou terminée ne peut pas être supprimée'],
+                ],
+            ]);
+
+        // Mission should still exist
+        $this->assertDatabaseHas('missions', [
+            'id' => $closedMission->id,
+        ]);
+    }
+
+    public function test_cannot_delete_completed_mission(): void
+    {
+        $completedMission = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Completed,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->deleteJson("/api/v1/producer/missions/{$completedMission->id}");
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['mission'])
+            ->assertJson([
+                'errors' => [
+                    'mission' => ['Une mission clôturée ou terminée ne peut pas être supprimée'],
+                ],
+            ]);
+
+        // Mission should still exist
+        $this->assertDatabaseHas('missions', [
+            'id' => $completedMission->id,
+        ]);
+    }
+
+    // ===== RESPONSE FORMAT TESTS =====
+
+    public function test_delete_response_has_correct_format(): void
+    {
+        $response = $this->actingAs($this->producerUser)
+            ->deleteJson("/api/v1/producer/missions/{$this->mission->id}");
+
+        $response->assertOk()
+            ->assertJsonStructure([
+                'message',
+            ])
+            ->assertJson([
+                'message' => 'Mission supprimée avec succès',
+            ]);
+    }
+
+    // ===== NON-EXISTENT MISSION TEST =====
+
+    public function test_cannot_delete_non_existent_mission(): void
+    {
+        $response = $this->actingAs($this->producerUser)
+            ->deleteJson('/api/v1/producer/missions/99999');
+
+        $response->assertNotFound();
+    }
+
+    // ===== CANDIDATURE RESTRICTION TEST (STUBBED) =====
+    // Note: Candidature model doesn't exist yet (Epic 6)
+    // This test is commented out but shows the expected behavior
+
+    // public function test_cannot_delete_mission_with_active_candidatures(): void
+    // {
+    //     // Create candidature (when model exists)
+    //     // Candidature::factory()->create([
+    //     //     'mission_id' => $this->mission->id,
+    //     //     'status' => 'pending',
+    //     // ]);
+    //
+    //     $response = $this->actingAs($this->producerUser)
+    //         ->deleteJson("/api/v1/producer/missions/{$this->mission->id}");
+    //
+    //     $response->assertUnprocessable()
+    //         ->assertJsonValidationErrors(['mission'])
+    //         ->assertJson([
+    //             'errors' => [
+    //                 'mission' => ['Impossible de supprimer une mission avec des candidatures actives'],
+    //             ],
+    //         ]);
+    // }
+}

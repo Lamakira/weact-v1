@@ -3,7 +3,30 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
+import { usePhotoAlbum } from '@/features/face/composables/usePhotoAlbum'
+import { usePresentationVideo } from '@/features/face/composables/usePresentationVideo'
+import { useActingVideo } from '@/features/face/composables/useActingVideo'
+import { useBioLocation } from '@/features/face/composables/useBioLocation'
+import { usePhysicalCharacteristics } from '@/features/face/composables/usePhysicalCharacteristics'
+import { useCategoryNiche } from '@/features/face/composables/useCategoryNiche'
+import { useExperiences } from '@/features/face/composables/useExperiences'
+import { useTarifs } from '@/features/face/composables/useTarifs'
+import { useAvailability } from '@/features/face/composables/useAvailability'
+import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
+import { useToast } from '@/composables/useToast'
 import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vue'
+import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
+import AlbumPhotoUpload from '@/features/face/components/AlbumPhotoUpload.vue'
+import PresentationVideoUpload from '@/features/face/components/PresentationVideoUpload.vue'
+import ActingVideoUpload from '@/features/face/components/ActingVideoUpload.vue'
+import BioLocationForm from '@/features/face/components/BioLocationForm.vue'
+import PhysicalCharacteristicsForm from '@/features/face/components/PhysicalCharacteristicsForm.vue'
+import CategoryNicheForm from '@/features/face/components/CategoryNicheForm.vue'
+import ExperiencesList from '@/features/face/components/ExperiencesList.vue'
+import TarifsForm from '@/features/face/components/TarifsForm.vue'
+import AvailabilityToggle from '@/features/face/components/AvailabilityToggle.vue'
+import ProfileCompletionIndicator from '@/features/face/components/ProfileCompletionIndicator.vue'
+import type { FaceCategory, FaceNiche, ExperienceFormData, TarifsFormData } from '@/features/face/types'
 
 const router = useRouter()
 const { logout, isLoading: isAuthLoading } = useAuth()
@@ -18,12 +41,158 @@ const {
   deletePhoto,
 } = useProfilePhoto()
 
+// Album composable
+const {
+  photos: albumPhotos,
+  isLoading: isAlbumLoading,
+  isUploading: isAlbumUploading,
+  isDeleting: isAlbumDeleting,
+  error: albumError,
+  canAddMore,
+  isFull,
+  fetchPhotos: fetchAlbumPhotos,
+  addPhoto: addAlbumPhoto,
+  deletePhoto: deleteAlbumPhoto,
+} = usePhotoAlbum()
+
+// Presentation video composable
+const {
+  videoInfo,
+  isLoading: isVideoLoading,
+  isUploading: isVideoUploading,
+  isDeleting: isVideoDeleting,
+  error: videoError,
+  uploadProgress,
+  fetchVideoInfo,
+  uploadVideo,
+  deleteVideo,
+} = usePresentationVideo()
+
+// Acting video composable
+const {
+  videoInfo: actingVideoInfo,
+  isLoading: isActingVideoLoading,
+  isUploading: isActingVideoUploading,
+  isDeleting: isActingVideoDeleting,
+  error: actingVideoError,
+  uploadProgress: actingUploadProgress,
+  fetchVideoInfo: fetchActingVideoInfo,
+  uploadVideo: uploadActingVideo,
+  deleteVideo: deleteActingVideo,
+} = useActingVideo()
+
+// Bio and location composable
+const {
+  bioLocationInfo,
+  isLoading: isBioLocationLoading,
+  isSaving: isBioLocationSaving,
+  error: bioLocationError,
+  fetchBioLocation,
+  updateBioLocation,
+} = useBioLocation()
+
+// Physical characteristics composable
+const {
+  physicalCharacteristicsInfo,
+  isLoading: isPhysicalCharacteristicsLoading,
+  isSaving: isPhysicalCharacteristicsSaving,
+  error: physicalCharacteristicsError,
+  fetchPhysicalCharacteristics,
+  updatePhysicalCharacteristics,
+} = usePhysicalCharacteristics()
+
+// Category and niche composable
+const {
+  categoryNicheInfo,
+  categoryOptions,
+  nicheOptions,
+  isLoading: isCategoryNicheLoading,
+  isSaving: isCategoryNicheSaving,
+  error: categoryNicheError,
+  fetchCategoryNiche,
+  fetchCategoryOptions,
+  fetchNicheOptions,
+  updateCategoryNiche,
+} = useCategoryNiche()
+
+// Experiences composable
+const {
+  experiences,
+  isLoading: isExperiencesLoading,
+  isSaving: isExperiencesSaving,
+  isDeleting: isExperiencesDeleting,
+  error: experiencesError,
+  validationErrors: experiencesValidationErrors,
+  fetchExperiences,
+  addExperience,
+  editExperience,
+  removeExperience,
+  clearError: clearExperiencesError,
+} = useExperiences()
+
+// Tarifs composable
+const {
+  tarifsInfo,
+  isLoading: isTarifsLoading,
+  isSaving: isTarifsSaving,
+  error: tarifsError,
+  fetchTarifs,
+  updateTarifs,
+} = useTarifs()
+
+// Availability composable
+const {
+  availabilityInfo,
+  isLoading: isAvailabilityLoading,
+  isSaving: isAvailabilitySaving,
+  error: availabilityError,
+  fetchAvailability,
+  toggleAvailability,
+} = useAvailability()
+
+// Profile completion composable
+const {
+  isLoading: isCompletionLoading,
+  error: completionError,
+  percentage: completionPercentage,
+  missingItems: completionMissingItems,
+  isComplete: isProfileComplete,
+  fetchCompletion,
+} = useProfileCompletion()
+
+// Ref to ExperiencesList component for resetting form states
+const experiencesListRef = ref<InstanceType<typeof ExperiencesList> | null>(null)
+
+// Toast notifications
+const toast = useToast()
+
 // Success message
 const successMessage = ref<string | null>(null)
 
-// Fetch profile on mount
+// Fetch profile, album, videos, bio/location, physical characteristics, category/niche, experiences, tarifs, availability, and completion on mount
 onMounted(async () => {
-  await fetchProfile()
+  await Promise.all([
+    fetchProfile(),
+    fetchAlbumPhotos(),
+    fetchVideoInfo(),
+    fetchActingVideoInfo(),
+    fetchBioLocation(),
+    fetchPhysicalCharacteristics(),
+    fetchCategoryNiche(),
+    fetchExperiences(),
+    fetchTarifs(),
+    fetchAvailability(),
+    fetchCompletion(),
+    // Fetch options separately with error handling
+    fetchCategoryOptions().catch(() => {
+      // Options failed to load - dropdowns will be empty but form still usable
+      console.warn('Failed to load category options')
+    }),
+    fetchNicheOptions().catch(() => {
+      // Options failed to load - dropdowns will be empty but form still usable
+      console.warn('Failed to load niche options')
+    }),
+  ])
 })
 
 /**
@@ -35,6 +204,7 @@ async function handleUpload(file: File): Promise<void> {
 
   if (result.success && result.message) {
     successMessage.value = result.message
+    await fetchCompletion() // Refresh completion after profile photo upload
   }
 }
 
@@ -47,6 +217,7 @@ async function handleDelete(): Promise<void> {
 
   if (result.success && result.message) {
     successMessage.value = result.message
+    await fetchCompletion() // Refresh completion after profile photo delete
   }
 }
 
@@ -62,6 +233,222 @@ async function handleLogout(): Promise<void> {
  */
 function goBack(): void {
   router.push({ name: 'face-dashboard' })
+}
+
+// File input ref for album upload
+const albumFileInputRef = ref<HTMLInputElement | null>(null)
+
+/**
+ * Handle album photo upload
+ */
+async function handleAlbumUpload(file: File): Promise<void> {
+  successMessage.value = null
+  const result = await addAlbumPhoto(file)
+
+  if (result.success && result.message) {
+    successMessage.value = result.message
+  }
+}
+
+/**
+ * Handle album photo delete
+ */
+async function handleAlbumDelete(photoId: number): Promise<void> {
+  successMessage.value = null
+  const result = await deleteAlbumPhoto(photoId)
+
+  if (result.success && result.message) {
+    successMessage.value = result.message
+  }
+}
+
+/**
+ * Trigger album file input when clicking "add" in grid
+ */
+function handleAlbumAddClick(): void {
+  albumFileInputRef.value?.click()
+}
+
+/**
+ * Handle video upload
+ */
+async function handleVideoUpload(file: File): Promise<void> {
+  successMessage.value = null
+  const result = await uploadVideo(file)
+
+  if (result.success && result.message) {
+    successMessage.value = result.message
+    await fetchCompletion() // Refresh completion after presentation video upload
+  }
+}
+
+/**
+ * Handle video delete
+ */
+async function handleVideoDelete(): Promise<void> {
+  const result = await deleteVideo()
+
+  if (result.success) {
+    toast.success(result.message || 'Vidéo supprimée avec succès')
+    await fetchCompletion() // Refresh completion after presentation video delete
+  }
+}
+
+/**
+ * Handle acting video upload
+ */
+async function handleActingVideoUpload(file: File): Promise<void> {
+  successMessage.value = null
+  const result = await uploadActingVideo(file)
+
+  if (result.success && result.message) {
+    successMessage.value = result.message
+    await fetchCompletion() // Refresh completion after acting video upload
+  }
+}
+
+/**
+ * Handle acting video delete
+ */
+async function handleActingVideoDelete(): Promise<void> {
+  const result = await deleteActingVideo()
+
+  if (result.success) {
+    toast.success(result.message || 'Vidéo supprimée avec succès')
+    await fetchCompletion() // Refresh completion after acting video delete
+  }
+}
+
+/**
+ * Handle bio/location save
+ */
+async function handleBioLocationSave(data: {
+  bio: string | null
+  ville: string | null
+  quartier: string | null
+  pays: string | null
+}): Promise<void> {
+  const result = await updateBioLocation(data)
+
+  if (result.success) {
+    toast.success(result.message || 'Profil mis à jour avec succès')
+    await fetchCompletion() // Refresh completion after bio/location save
+  }
+}
+
+/**
+ * Handle physical characteristics save
+ */
+async function handlePhysicalCharacteristicsSave(data: {
+  taille: number | null
+  poids: number | null
+}): Promise<void> {
+  const result = await updatePhysicalCharacteristics(data)
+
+  if (result.success) {
+    toast.success(result.message || 'Profil mis à jour avec succès')
+  }
+}
+
+/**
+ * Handle category/niche save
+ */
+async function handleCategoryNicheSave(data: {
+  categorie: FaceCategory | null
+  niche: FaceNiche | null
+}): Promise<void> {
+  const result = await updateCategoryNiche(data)
+
+  if (result.success) {
+    toast.success(result.message || 'Profil mis à jour avec succès')
+    await fetchCompletion() // Refresh completion after category/niche save
+  }
+}
+
+/**
+ * Handle experience add
+ */
+async function handleExperienceAdd(data: ExperienceFormData): Promise<void> {
+  clearExperiencesError()
+  const result = await addExperience(data)
+
+  if (result.success) {
+    toast.success(result.message || 'Expérience ajoutée avec succès')
+    experiencesListRef.value?.resetFormStates()
+  }
+}
+
+/**
+ * Handle experience edit
+ */
+async function handleExperienceEdit(id: number, data: ExperienceFormData): Promise<void> {
+  clearExperiencesError()
+  const result = await editExperience(id, data)
+
+  if (result.success) {
+    toast.success(result.message || 'Expérience mise à jour avec succès')
+    experiencesListRef.value?.resetFormStates()
+  }
+}
+
+/**
+ * Handle experience delete
+ */
+async function handleExperienceDelete(id: number): Promise<void> {
+  clearExperiencesError()
+  const success = await removeExperience(id)
+
+  if (success) {
+    toast.success('Expérience supprimée avec succès')
+  }
+}
+
+/**
+ * Handle tarifs save
+ */
+async function handleTarifsSave(data: TarifsFormData): Promise<void> {
+  const result = await updateTarifs(data)
+
+  if (result.success) {
+    toast.success(result.message || 'Tarifs mis à jour avec succès')
+    await fetchCompletion() // Refresh completion after tarifs save
+  }
+}
+
+/**
+ * Handle availability toggle
+ */
+async function handleAvailabilityToggle(): Promise<void> {
+  const result = await toggleAvailability()
+
+  if (result.success) {
+    toast.success(result.message || 'Disponibilité mise à jour avec succès')
+  }
+}
+
+/**
+ * Handle click on missing item in completion indicator
+ * Scrolls to the appropriate section
+ */
+function handleCompletionItemClick(itemKey: string): void {
+  // Map missing item keys to section IDs
+  const sectionMap: Record<string, string> = {
+    profile_photo: 'section-profile-photo',
+    presentation_video: 'section-presentation-video',
+    acting_video: 'section-acting-video',
+    bio: 'section-bio-location',
+    ville: 'section-bio-location',
+    categorie: 'section-category-niche',
+    tarifs: 'section-tarifs',
+  }
+
+  const sectionId = sectionMap[itemKey]
+  if (sectionId) {
+    const element = document.getElementById(sectionId)
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
 }
 </script>
 
@@ -158,6 +545,78 @@ function goBack(): void {
 
       <!-- Profile content -->
       <div v-else class="bg-white rounded-lg shadow">
+        <!-- Availability section - TOP of profile -->
+        <div class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+              class="w-5 h-5 text-teal-600"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            Disponibilité
+          </h2>
+
+          <AvailabilityToggle
+            :is-available="availabilityInfo?.is_available ?? true"
+            :is-loading="isAvailabilityLoading"
+            :is-saving="isAvailabilitySaving"
+            :error="availabilityError"
+            @toggle="handleAvailabilityToggle"
+          />
+        </div>
+
+        <!-- Profile completion section -->
+        <div class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+              class="w-5 h-5 text-teal-600"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z"
+              />
+            </svg>
+            Complétion du profil
+          </h2>
+
+          <ProfileCompletionIndicator
+            :percentage="isCompletionLoading ? undefined : completionPercentage"
+            :missing-items="completionMissingItems"
+            :is-complete="isProfileComplete"
+            variant="full"
+            @click-item="handleCompletionItemClick"
+          />
+
+          <!-- Error message -->
+          <div
+            v-if="completionError"
+            class="mt-4 rounded-md bg-red-50 p-3 border border-red-200"
+            role="alert"
+          >
+            <p class="text-sm text-red-700">{{ completionError }}</p>
+          </div>
+        </div>
+
         <!-- Success message -->
         <div
           v-if="successMessage"
@@ -185,7 +644,7 @@ function goBack(): void {
         </div>
 
         <!-- Profile photo section -->
-        <div class="p-6 border-b border-gray-200">
+        <div id="section-profile-photo" class="p-6 border-b border-gray-200">
           <h2 class="text-lg font-medium text-gray-900 mb-6">Photo de profil</h2>
 
           <ProfilePhotoUpload
@@ -195,6 +654,223 @@ function goBack(): void {
             :error="error"
             @upload="handleUpload"
             @delete="handleDelete"
+          />
+        </div>
+
+        <!-- Album photos section -->
+        <div class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-2">Album photos</h2>
+          <p class="text-sm text-gray-500 mb-6">
+            Ajoutez jusqu'à 4 photos pour montrer votre polyvalence aux producteurs.
+          </p>
+
+          <!-- Album grid -->
+          <PhotoAlbumGrid
+            :photos="albumPhotos"
+            :is-loading="isAlbumLoading"
+            :is-deleting="isAlbumDeleting"
+            :can-add-more="canAddMore"
+            @delete="handleAlbumDelete"
+            @add-click="handleAlbumAddClick"
+          />
+
+          <!-- Album upload -->
+          <div class="mt-6">
+            <AlbumPhotoUpload
+              :is-full="isFull"
+              :is-uploading="isAlbumUploading"
+              :error="albumError"
+              @upload="handleAlbumUpload"
+            />
+          </div>
+
+          <!-- Hidden file input for grid clicks -->
+          <input
+            ref="albumFileInputRef"
+            type="file"
+            accept="image/jpeg,image/png"
+            class="hidden"
+            @change="(e) => { const file = (e.target as HTMLInputElement).files?.[0]; if (file) handleAlbumUpload(file); (e.target as HTMLInputElement).value = ''; }"
+          />
+        </div>
+
+        <!-- Presentation video section -->
+        <div id="section-presentation-video" class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-2">Vidéo de présentation</h2>
+          <p class="text-sm text-gray-500 mb-6">
+            Ajoutez une courte vidéo pour vous présenter aux producteurs.
+          </p>
+
+          <PresentationVideoUpload
+            :video-info="videoInfo"
+            :is-uploading="isVideoUploading"
+            :is-deleting="isVideoDeleting"
+            :error="videoError"
+            :upload-progress="uploadProgress"
+            @upload="handleVideoUpload"
+            @delete="handleVideoDelete"
+          />
+        </div>
+
+        <!-- Acting video section -->
+        <div id="section-acting-video" class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-2">Vidéo d'acting</h2>
+          <p class="text-sm text-gray-500 mb-6">
+            Ajoutez une vidéo démontrant votre talent d'acteur aux producteurs.
+          </p>
+
+          <ActingVideoUpload
+            :video-info="actingVideoInfo"
+            :is-uploading="isActingVideoUploading"
+            :is-deleting="isActingVideoDeleting"
+            :error="actingVideoError"
+            :upload-progress="actingUploadProgress"
+            @upload="handleActingVideoUpload"
+            @delete="handleActingVideoDelete"
+          />
+        </div>
+
+        <!-- Bio and location section -->
+        <div id="section-bio-location" class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-2">Bio et Localisation</h2>
+          <p class="text-sm text-gray-500 mb-6">
+            Partagez votre parcours et indiquez votre localisation aux producteurs.
+          </p>
+
+          <BioLocationForm
+            :bio-location-info="bioLocationInfo"
+            :is-saving="isBioLocationSaving"
+            :error="bioLocationError"
+            @save="handleBioLocationSave"
+          />
+        </div>
+
+        <!-- Physical characteristics section -->
+        <div class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-2">Caractéristiques physiques</h2>
+          <p class="text-sm text-gray-500 mb-6">
+            Indiquez votre taille et poids pour aider les producteurs à trouver des talents correspondant à leurs besoins.
+          </p>
+
+          <PhysicalCharacteristicsForm
+            :physical-characteristics-info="physicalCharacteristicsInfo"
+            :is-saving="isPhysicalCharacteristicsSaving"
+            :error="physicalCharacteristicsError"
+            @save="handlePhysicalCharacteristicsSave"
+          />
+        </div>
+
+        <!-- Category and niche section -->
+        <div id="section-category-niche" class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-2">Catégorie et Niche</h2>
+          <p class="text-sm text-gray-500 mb-6">
+            Sélectionnez votre catégorie et niche pour aider les producteurs à vous trouver selon votre spécialisation.
+          </p>
+
+          <!-- Loading state -->
+          <div v-if="isCategoryNicheLoading" class="flex justify-center py-8">
+            <svg
+              class="animate-spin h-6 w-6 text-teal-600"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+          </div>
+
+          <CategoryNicheForm
+            v-else
+            :category-niche-info="categoryNicheInfo"
+            :category-options="categoryOptions"
+            :niche-options="nicheOptions"
+            :is-saving="isCategoryNicheSaving"
+            :error="categoryNicheError"
+            @save="handleCategoryNicheSave"
+          />
+        </div>
+
+        <!-- Experiences section -->
+        <div class="p-6 border-b border-gray-200">
+          <ExperiencesList
+            ref="experiencesListRef"
+            :experiences="experiences"
+            :is-loading="isExperiencesLoading"
+            :is-saving="isExperiencesSaving"
+            :is-deleting="isExperiencesDeleting"
+            :error="experiencesError"
+            :validation-errors="experiencesValidationErrors"
+            @add="handleExperienceAdd"
+            @edit="handleExperienceEdit"
+            @delete="handleExperienceDelete"
+          />
+        </div>
+
+        <!-- Tarifs section -->
+        <div id="section-tarifs" class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-2 flex items-center gap-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+              class="w-5 h-5 text-teal-600"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            Tarifs
+          </h2>
+          <p class="text-sm text-gray-500 mb-6">
+            Indiquez vos tarifs horaire et journalier pour informer les producteurs de vos prix.
+          </p>
+
+          <!-- Loading state -->
+          <div v-if="isTarifsLoading" class="flex justify-center py-8">
+            <svg
+              class="animate-spin h-6 w-6 text-teal-600"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+          </div>
+
+          <TarifsForm
+            v-else
+            :tarifs-info="tarifsInfo"
+            :is-saving="isTarifsSaving"
+            :error="tarifsError"
+            @save="handleTarifsSave"
           />
         </div>
 
