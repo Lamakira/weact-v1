@@ -201,14 +201,11 @@ onMounted(() => {
       </div>
 
       <!-- Footer -->
-      <div class="px-4 py-2.5 bg-muted/30 border-t border-border text-center">
-        <button
-          type="button"
-          class="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          @click="emit('close')"
-        >
-          Fermer
-        </button>
+      <div
+        class="px-4 py-2.5 bg-muted/30 border-t border-border text-center cursor-pointer hover:bg-muted/50 transition-colors"
+        @click="emit('close')"
+      >
+        <span class="text-xs text-muted-foreground">Fermer</span>
       </div>
     </div>
   </Transition>
