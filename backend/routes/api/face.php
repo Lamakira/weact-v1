@@ -112,6 +112,10 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     // Candidature routes - view my candidatures (Face only)
     Route::get('/candidatures', [CandidatureController::class, 'index'])
         ->middleware(['face', 'throttle:60,1']);
+
+    // Candidature routes - confirm participation (Face only)
+    Route::post('/candidatures/{candidature}/confirm', [CandidatureController::class, 'confirm'])
+        ->middleware(['face', 'throttle:30,1']);
 });
 
 /*

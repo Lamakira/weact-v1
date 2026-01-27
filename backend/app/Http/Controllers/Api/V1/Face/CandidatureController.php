@@ -11,6 +11,7 @@ use App\Http\Requests\Face\StoreCandidatureRequest;
 use App\Http\Resources\CandidatureResource;
 use App\Http\Resources\FaceCandidatureResource;
 use App\Models\Candidature;
+use App\Models\Face;
 use App\Models\Mission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -93,5 +94,47 @@ class CandidatureController extends Controller
             'data' => new CandidatureResource($candidature),
             'message' => 'Candidature envoyée avec succès',
         ], 201);
+    }
+
+    /**
+     * Confirm participation in a mission after candidature is accepted.
+     *
+     * Changes candidature status from "accepted" to "confirmed".
+     * Only the Face who owns the candidature can confirm it.
+     */
+    public function confirm(Request $request, Candidature $candidature): JsonResponse
+    {
+        $user = $request->user();
+
+        // Verify user is a Face
+        if ($user->userable_type !== Face::class) {
+            abort(403, 'Accès réservé aux Faces');
+        }
+
+        $face = $user->userable;
+
+        // Verify candidature belongs to this Face
+        if ($candidature->face_id !== $face->id) {
+            abort(403, 'Cette candidature ne vous appartient pas');
+        }
+
+        // Verify candidature is accepted
+        if ($candidature->status !== CandidatureStatus::Accepted) {
+            return response()->json([
+                'error' => [
+                    'code' => 'INVALID_STATUS',
+                    'message' => 'Seules les candidatures acceptées peuvent être confirmées',
+                ],
+            ], 400);
+        }
+
+        // Update status to confirmed
+        $candidature->status = CandidatureStatus::Confirmed;
+        $candidature->save();
+
+        return response()->json([
+            'data' => new CandidatureResource($candidature),
+            'message' => 'Participation confirmée',
+        ]);
     }
 }
