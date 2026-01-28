@@ -78,6 +78,12 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'Face' },
     },
     {
+      path: '/face/conversations/:conversationId',
+      name: 'face-conversation',
+      component: () => import('../features/messaging/components/ConversationView.vue'),
+      meta: { requiresAuth: true, role: 'Face' },
+    },
+    {
       path: '/dashboard/face',
       redirect: { name: 'face-dashboard' },
     },
