@@ -83,6 +83,7 @@ export interface FaceCandidature {
   created_at: string
   mission: MissionSummary
   producer: ProducerSummary
+  conversation_id: number | null
 }
 
 // Paginated candidatures response for Face list view
@@ -136,6 +137,7 @@ export interface ProducerCandidature {
   status_label: string
   message_motivation: string | null
   created_at: string
+  conversation_id: number | null
   face: FaceSummary
 }
 

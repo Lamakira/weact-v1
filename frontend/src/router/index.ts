@@ -78,6 +78,18 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'Face' },
     },
     {
+      path: '/face/messages',
+      name: 'face-messages',
+      component: () => import('../pages/face/messaging/FaceConversationsPage.vue'),
+      meta: { requiresAuth: true, role: 'Face' },
+    },
+    {
+      path: '/face/conversations/:conversationId',
+      name: 'face-conversation',
+      component: () => import('../features/messaging/components/ConversationView.vue'),
+      meta: { requiresAuth: true, role: 'Face' },
+    },
+    {
       path: '/dashboard/face',
       redirect: { name: 'face-dashboard' },
     },
@@ -124,6 +136,18 @@ const router = createRouter({
       name: 'producer-candidate-profile',
       component: () =>
         import('../pages/producer/candidature/CandidateProfilePage.vue'),
+      meta: { requiresAuth: true, role: 'Producer' },
+    },
+    {
+      path: '/producer/messages',
+      name: 'producer-messages',
+      component: () => import('../pages/producer/messaging/ProducerConversationsPage.vue'),
+      meta: { requiresAuth: true, role: 'Producer' },
+    },
+    {
+      path: '/producer/conversations/:conversationId',
+      name: 'producer-conversation',
+      component: () => import('../features/messaging/components/ProducerConversationView.vue'),
       meta: { requiresAuth: true, role: 'Producer' },
     },
     {

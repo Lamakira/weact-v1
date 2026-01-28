@@ -47,6 +47,7 @@ class FaceCandidatureResource extends JsonResource
                     'profile_photo_url' => $this->mission->producer->profile_photo_url,
                 ]
             ),
+            'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->id),
         ];
     }
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { Calendar, MapPin, Wallet, User, Check, Loader2 } from 'lucide-vue-next'
+import { Calendar, MapPin, Wallet, User, Check, Loader2, MessageCircle } from 'lucide-vue-next'
 import type { FaceCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
 
@@ -28,6 +28,14 @@ const isConfirming = ref(false)
  * Computed: Show confirm button for accepted candidatures
  */
 const canConfirm = computed(() => props.candidature.status === 'accepted')
+
+/**
+ * Computed: Show chat button when candidature allows chat and has conversation
+ */
+const canChat = computed(() => {
+  const chatStatuses = ['accepted', 'confirmed', 'in_progress', 'completed']
+  return chatStatuses.includes(props.candidature.status) && props.candidature.conversation_id != null
+})
 
 /**
  * Handle confirm button click
@@ -180,9 +188,14 @@ const producerInitials = computed(() => {
       <User class="h-4 w-4 text-muted-foreground" />
     </div>
 
-    <!-- Confirm Button (only for accepted candidatures) -->
-    <div v-if="canConfirm" class="mt-4 pt-4 border-t border-border">
+    <!-- Actions Section -->
+    <div
+      v-if="canConfirm || canChat"
+      class="mt-4 flex flex-col gap-2 border-t border-border pt-4"
+    >
+      <!-- Confirm Button -->
       <button
+        v-if="canConfirm"
         type="button"
         class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
         :disabled="isConfirming"
@@ -192,6 +205,17 @@ const producerInitials = computed(() => {
         <Check v-else class="h-4 w-4" />
         {{ isConfirming ? 'Confirmation...' : 'Confirmer ma participation' }}
       </button>
+
+      <!-- Chat Button -->
+      <RouterLink
+        v-if="canChat"
+        :to="{ name: 'face-conversation', params: { conversationId: candidature.conversation_id } }"
+        class="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+        @click.stop
+      >
+        <MessageCircle class="h-4 w-4 text-muted-foreground" />
+        Discuter avec le producteur
+      </RouterLink>
     </div>
   </RouterLink>
 </template>

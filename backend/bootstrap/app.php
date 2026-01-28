@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\EnsureUserIsFace;
+use App\Http\Middleware\EnsureUserIsProducer;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -23,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Register custom role-based middlewares
         $middleware->alias([
             'face' => EnsureUserIsFace::class,
+            'producer' => EnsureUserIsProducer::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
