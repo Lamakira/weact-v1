@@ -116,7 +116,7 @@ development_status:
   7-1-create-messaging-database-schema: done
   7-2-conditional-chat-unlock: done
   7-3-face-send-message-to-producer: done
-  7-4-producer-send-message-to-face: backlog
+  7-4-producer-send-message-to-face: done
   7-5-view-conversation-history: backlog
   7-6-manual-message-refresh: backlog
   7-7-conversations-list-view: backlog
