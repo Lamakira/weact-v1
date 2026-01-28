@@ -120,7 +120,7 @@ development_status:
   7-5-view-conversation-history: done
   7-6-manual-message-refresh: done
   7-7-conversations-list-view: done
-  epic-7-retrospective: optional
+  epic-7-retrospective: done
 
   # Epic 8: Rating & Reviews (6 stories)
   epic-8: backlog
