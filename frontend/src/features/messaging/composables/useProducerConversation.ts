@@ -9,7 +9,9 @@ import type { Conversation, Message } from '../types'
 export function useProducerConversation() {
   const conversation = ref<Conversation | null>(null)
   const isLoading = ref(false)
+  const isRefreshing = ref(false)
   const error = ref<string | null>(null)
+  const refreshError = ref<string | null>(null)
 
   // Computed properties
   const messages = computed(() => conversation.value?.messages ?? [])
@@ -63,11 +65,45 @@ export function useProducerConversation() {
   }
 
   /**
+   * Refresh conversation messages without showing full loading skeleton
+   * Keeps existing messages visible during refresh
+   * @param conversationId The conversation ID to refresh
+   */
+  async function refreshConversation(conversationId: number): Promise<boolean> {
+    // Prevent double refresh
+    if (isRefreshing.value) return false
+
+    isRefreshing.value = true
+    refreshError.value = null
+
+    try {
+      const response = await messagingApi.getProducerConversation(conversationId)
+      conversation.value = response.data
+      return true
+    } catch (err: unknown) {
+      // Don't clear existing messages on refresh failure
+      refreshError.value = 'Impossible de rafraîchir les messages'
+      console.error('Failed to refresh conversation:', err)
+      return false
+    } finally {
+      isRefreshing.value = false
+    }
+  }
+
+  /**
+   * Clear refresh error state
+   */
+  function clearRefreshError(): void {
+    refreshError.value = null
+  }
+
+  /**
    * Reset conversation state
    */
   function reset(): void {
     conversation.value = null
     error.value = null
+    refreshError.value = null
   }
 
   return {
@@ -77,9 +113,13 @@ export function useProducerConversation() {
     missionTitle,
     unreadCount,
     isLoading,
+    isRefreshing,
     error,
+    refreshError,
     loadConversation,
+    refreshConversation,
     addMessage,
+    clearRefreshError,
     reset,
   }
 }
