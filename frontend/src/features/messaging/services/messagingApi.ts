@@ -1,11 +1,28 @@
 import apiClient from '@/services/apiClient'
-import type { ConversationResponse, MessageResponse, SendMessageData } from '../types'
+import type {
+  ConversationResponse,
+  ConversationsListResponse,
+  MessageResponse,
+  SendMessageData,
+} from '../types'
 
 /**
  * Messaging API service
  * Endpoints for Face users to manage conversations and messages
  */
 export const messagingApi = {
+  /**
+   * Get list of all conversations for Face user
+   * @param page Optional page number for pagination
+   * @returns Paginated list of conversations
+   */
+  async getConversations(page = 1): Promise<ConversationsListResponse> {
+    const response = await apiClient.get<ConversationsListResponse>('/face/conversations', {
+      params: { page },
+    })
+    return response.data
+  },
+
   /**
    * Get a conversation with its messages (Face)
    * Also marks unread messages from other participant as read
@@ -36,6 +53,18 @@ export const messagingApi = {
   // ==========================================================================
   // Producer Endpoints
   // ==========================================================================
+
+  /**
+   * Get list of all conversations for Producer user
+   * @param page Optional page number for pagination
+   * @returns Paginated list of conversations
+   */
+  async getProducerConversations(page = 1): Promise<ConversationsListResponse> {
+    const response = await apiClient.get<ConversationsListResponse>('/producer/conversations', {
+      params: { page },
+    })
+    return response.data
+  },
 
   /**
    * Get a conversation with its messages (Producer)
