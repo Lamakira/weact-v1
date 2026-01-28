@@ -55,7 +55,10 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
     Route::get('/candidates/{face}', [FaceController::class, 'show']);
 
     // Conversation routes (Producer messaging)
-    // Note: GET inherits throttle:60,1 from parent group
+    // Note: GET list inherits throttle:60,1 from parent group
+    // The list endpoint is role-restricted, but show/store use participant-based authorization via policy
+    Route::get('/conversations', [ConversationController::class, 'index'])
+        ->middleware('producer');
     Route::get('/conversations/{conversation}', [ConversationController::class, 'show']);
     Route::post('/conversations/{conversation}/messages', [MessageController::class, 'store'])
         ->middleware('throttle:30,1'); // Override: stricter rate limit for message creation
