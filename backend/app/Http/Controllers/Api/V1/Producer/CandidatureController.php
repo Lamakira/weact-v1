@@ -10,6 +10,7 @@ use App\Http\Requests\Producer\IndexMissionCandidaturesRequest;
 use App\Http\Resources\CandidatureResource;
 use App\Http\Resources\ProducerCandidatureResource;
 use App\Models\Candidature;
+use App\Models\Conversation;
 use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
@@ -102,6 +103,9 @@ class CandidatureController extends Controller
                 'message' => 'Votre candidature a été acceptée',
             ],
         ]);
+
+        // Create conversation for chat (idempotent - won't duplicate if already exists)
+        Conversation::firstOrCreate(['candidature_id' => $candidature->id]);
 
         return response()->json([
             'data' => new CandidatureResource($candidature),
