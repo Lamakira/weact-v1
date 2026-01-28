@@ -137,6 +137,7 @@ export interface ProducerCandidature {
   status_label: string
   message_motivation: string | null
   created_at: string
+  conversation_id: number | null
   face: FaceSummary
 }
 

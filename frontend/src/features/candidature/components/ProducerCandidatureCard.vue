@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { MapPin, Wallet, Calendar, MessageSquare, ArrowUpRight, Check, X, Loader2 } from 'lucide-vue-next'
+import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, Check, X, Loader2 } from 'lucide-vue-next'
 import type { ProducerCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
 
@@ -31,6 +31,14 @@ const showRejectConfirmation = ref(false)
  * Computed: Can show action buttons (only for pending candidatures)
  */
 const canTakeAction = computed(() => props.candidature.status === 'pending')
+
+/**
+ * Computed: Can show chat button (accepted, confirmed, in_progress, completed + has conversation)
+ */
+const canChat = computed(() => {
+  const chatStatuses = ['accepted', 'confirmed', 'in_progress', 'completed']
+  return chatStatuses.includes(props.candidature.status) && props.candidature.conversation_id != null
+})
 
 /**
  * Handle accept button click
@@ -316,6 +324,17 @@ const categoryLabel = computed(() => {
           <X v-else class="h-4 w-4" />
           {{ isRejecting ? 'Refus...' : 'Refuser' }}
         </button>
+      </div>
+
+      <!-- Chat Button (for accepted/confirmed/in_progress/completed candidatures) -->
+      <div v-else-if="canChat">
+        <RouterLink
+          :to="{ name: 'producer-conversation', params: { conversationId: candidature.conversation_id } }"
+          class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          <MessageCircle class="h-4 w-4 text-muted-foreground" />
+          Discuter
+        </RouterLink>
       </div>
       <div v-else></div>
 
