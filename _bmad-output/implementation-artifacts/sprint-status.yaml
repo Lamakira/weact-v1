@@ -126,7 +126,7 @@ development_status:
   epic-8: in-progress
   8-1-create-ratings-database-schema: done
   8-2-face-rate-producer-after-mission: done
-  8-3-producer-rate-face-after-mission: backlog
+  8-3-producer-rate-face-after-mission: done
   8-4-display-face-average-rating: backlog
   8-5-display-producer-average-rating: backlog
   8-6-view-reviews-list: backlog
