@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Producer\FaceController;
 use App\Http\Controllers\Api\V1\Producer\MessageController;
 use App\Http\Controllers\Api\V1\Producer\MissionController;
 use App\Http\Controllers\Api\V1\Producer\ProfileController;
+use App\Http\Controllers\Api\V1\Producer\RatingController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -50,6 +51,10 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
     // Candidature action routes
     Route::post('/candidatures/{candidature}/accept', [CandidatureController::class, 'accept']);
     Route::post('/candidatures/{candidature}/reject', [CandidatureController::class, 'reject']);
+
+    // Rating routes - rate Face after completed mission (Producer only)
+    Route::post('/candidatures/{candidature}/rate', [RatingController::class, 'store'])
+        ->middleware(['producer', 'throttle:30,1']);
 
     // Candidate profile routes
     Route::get('/candidates/{face}', [FaceController::class, 'show']);
