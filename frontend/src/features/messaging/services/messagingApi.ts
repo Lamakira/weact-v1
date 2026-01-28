@@ -32,4 +32,38 @@ export const messagingApi = {
     )
     return response.data
   },
+
+  // ==========================================================================
+  // Producer Endpoints
+  // ==========================================================================
+
+  /**
+   * Get a conversation with its messages (Producer)
+   * Also marks unread messages from Face as read
+   * @param conversationId The conversation ID to fetch
+   * @returns Conversation data with messages
+   */
+  async getProducerConversation(conversationId: number): Promise<ConversationResponse> {
+    const response = await apiClient.get<ConversationResponse>(
+      `/producer/conversations/${conversationId}`,
+    )
+    return response.data
+  },
+
+  /**
+   * Send a message in a conversation (Producer)
+   * @param conversationId The conversation ID to send message to
+   * @param data Message content
+   * @returns Created message data
+   */
+  async sendProducerMessage(
+    conversationId: number,
+    data: SendMessageData,
+  ): Promise<MessageResponse> {
+    const response = await apiClient.post<MessageResponse>(
+      `/producer/conversations/${conversationId}/messages`,
+      data,
+    )
+    return response.data
+  },
 }

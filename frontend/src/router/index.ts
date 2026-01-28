@@ -133,6 +133,12 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'Producer' },
     },
     {
+      path: '/producer/conversations/:conversationId',
+      name: 'producer-conversation',
+      component: () => import('../features/messaging/components/ProducerConversationView.vue'),
+      meta: { requiresAuth: true, role: 'Producer' },
+    },
+    {
       path: '/dashboard/producer',
       redirect: { name: 'producer-dashboard' },
     },
