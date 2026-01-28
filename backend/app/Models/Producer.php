@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 class Producer extends Model
@@ -161,6 +162,38 @@ class Producer extends Model
     {
         return Attribute::make(
             get: fn (): int => $this->missions()->where('status', MissionStatus::Published)->count(),
+        );
+    }
+
+    /**
+     * Get the ratings received by this Producer.
+     */
+    public function ratingsReceived(): MorphMany
+    {
+        return $this->morphMany(Rating::class, 'rated');
+    }
+
+    /**
+     * Get the average rating score for this Producer.
+     */
+    protected function averageRating(): Attribute
+    {
+        return Attribute::make(
+            get: function (): ?float {
+                $avg = $this->ratingsReceived()->avg('score');
+
+                return $avg !== null ? (float) $avg : null;
+            },
+        );
+    }
+
+    /**
+     * Get the total count of ratings received by this Producer.
+     */
+    protected function ratingsCount(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): int => $this->ratingsReceived()->count(),
         );
     }
 }

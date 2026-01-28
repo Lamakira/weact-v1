@@ -94,6 +94,6 @@ public/hot/
 
 # Outils IA & Gestion de projet (BMAD)
 _bmad/
-#_bmad-output/
+_bmad-output/implementation-artifacts/
 CLAUDE.md
 
