@@ -78,6 +78,12 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'Face' },
     },
     {
+      path: '/face/messages',
+      name: 'face-messages',
+      component: () => import('../pages/face/messaging/FaceConversationsPage.vue'),
+      meta: { requiresAuth: true, role: 'Face' },
+    },
+    {
       path: '/face/conversations/:conversationId',
       name: 'face-conversation',
       component: () => import('../features/messaging/components/ConversationView.vue'),
@@ -130,6 +136,12 @@ const router = createRouter({
       name: 'producer-candidate-profile',
       component: () =>
         import('../pages/producer/candidature/CandidateProfilePage.vue'),
+      meta: { requiresAuth: true, role: 'Producer' },
+    },
+    {
+      path: '/producer/messages',
+      name: 'producer-messages',
+      component: () => import('../pages/producer/messaging/ProducerConversationsPage.vue'),
       meta: { requiresAuth: true, role: 'Producer' },
     },
     {
