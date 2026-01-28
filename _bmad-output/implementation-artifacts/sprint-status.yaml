@@ -125,7 +125,7 @@ development_status:
   # Epic 8: Rating & Reviews (6 stories)
   epic-8: in-progress
   8-1-create-ratings-database-schema: done
-  8-2-face-rate-producer-after-mission: backlog
+  8-2-face-rate-producer-after-mission: done
   8-3-producer-rate-face-after-mission: backlog
   8-4-display-face-average-rating: backlog
   8-5-display-producer-average-rating: backlog

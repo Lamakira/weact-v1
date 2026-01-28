@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Face\ConversationController;
 use App\Http\Controllers\Api\V1\Face\MessageController;
 use App\Http\Controllers\Api\V1\Face\MissionController;
 use App\Http\Controllers\Api\V1\Face\NotificationController;
+use App\Http\Controllers\Api\V1\Face\RatingController;
 use App\Http\Controllers\Api\V1\Face\AlbumController;
 use App\Http\Controllers\Api\V1\Face\AvailabilityController;
 use App\Http\Controllers\Api\V1\Face\BioLocationController;
@@ -118,6 +119,10 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
 
     // Candidature routes - confirm participation (Face only)
     Route::post('/candidatures/{candidature}/confirm', [CandidatureController::class, 'confirm'])
+        ->middleware(['face', 'throttle:30,1']);
+
+    // Rating routes - rate Producer after completed mission (Face only)
+    Route::post('/candidatures/{candidature}/rate', [RatingController::class, 'store'])
         ->middleware(['face', 'throttle:30,1']);
 
     // Notification routes (Face only)
