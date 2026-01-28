@@ -111,15 +111,15 @@ development_status:
   6-9-face-candidature-status-notifications: done
   epic-6-retrospective: done
 
-  # Epic 7: Messaging System (7 stories)
-  epic-7: in-progress
+  # Epic 7: Messaging System (7 stories) - COMPLETE!
+  epic-7: done
   7-1-create-messaging-database-schema: done
   7-2-conditional-chat-unlock: done
   7-3-face-send-message-to-producer: done
   7-4-producer-send-message-to-face: done
   7-5-view-conversation-history: done
   7-6-manual-message-refresh: done
-  7-7-conversations-list-view: backlog
+  7-7-conversations-list-view: done
   epic-7-retrospective: optional
 
   # Epic 8: Rating & Reviews (6 stories)
