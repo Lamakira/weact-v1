@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Face\ActingVideoController;
 use App\Http\Controllers\Api\V1\Face\CandidatureController;
+use App\Http\Controllers\Api\V1\Face\ConversationController;
+use App\Http\Controllers\Api\V1\Face\MessageController;
 use App\Http\Controllers\Api\V1\Face\MissionController;
 use App\Http\Controllers\Api\V1\Face\NotificationController;
 use App\Http\Controllers\Api\V1\Face\AlbumController;
@@ -126,6 +128,12 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
         ->middleware(['face', 'throttle:60,1']);
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])
+        ->middleware(['face', 'throttle:30,1']);
+
+    // Conversation routes (Face only)
+    Route::get('/conversations/{conversation}', [ConversationController::class, 'show'])
+        ->middleware(['face', 'throttle:60,1']);
+    Route::post('/conversations/{conversation}/messages', [MessageController::class, 'store'])
         ->middleware(['face', 'throttle:30,1']);
 });
 
