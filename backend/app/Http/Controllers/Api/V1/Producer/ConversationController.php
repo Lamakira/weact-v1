@@ -40,8 +40,9 @@ class ConversationController extends Controller
             ->where('sender_id', '!=', $user->id)
             ->update(['read_at' => now()]);
 
-        // Load relationships for the resource
+        // Load relationships for the resource with explicit chronological ordering
         $conversation->load([
+            'messages' => fn ($query) => $query->orderBy('created_at', 'asc')->orderBy('id', 'asc'),
             'messages.sender.userable',
             'candidature.mission.producer',
             'candidature.face',
