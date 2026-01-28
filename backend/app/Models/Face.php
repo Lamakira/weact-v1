@@ -63,6 +63,7 @@ class Face extends Model
     protected $appends = [
         'profile_photo_url',
         'thumbnail_url',
+        'display_name',
         'presentation_video_url',
         'presentation_video_thumbnail_url',
         'acting_video_url',
@@ -83,6 +84,21 @@ class Face extends Model
     public function user(): MorphOne
     {
         return $this->morphOne(User::class, 'userable');
+    }
+
+    /**
+     * Get the display name for this Face.
+     * Returns "prenom nom" or username if neither are set.
+     */
+    protected function displayName(): Attribute
+    {
+        return Attribute::make(
+            get: function (): string {
+                $fullName = trim("{$this->prenom} {$this->nom}");
+
+                return $fullName !== '' ? $fullName : ($this->username ?? 'Face');
+            },
+        );
     }
 
     /**

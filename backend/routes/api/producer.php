@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Producer\CandidatureController;
+use App\Http\Controllers\Api\V1\Producer\ConversationController;
 use App\Http\Controllers\Api\V1\Producer\FaceController;
+use App\Http\Controllers\Api\V1\Producer\MessageController;
 use App\Http\Controllers\Api\V1\Producer\MissionController;
 use App\Http\Controllers\Api\V1\Producer\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -51,4 +53,13 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
 
     // Candidate profile routes
     Route::get('/candidates/{face}', [FaceController::class, 'show']);
+
+    // Conversation routes (Producer messaging)
+    // Note: GET list inherits throttle:60,1 from parent group
+    // The list endpoint is role-restricted, but show/store use participant-based authorization via policy
+    Route::get('/conversations', [ConversationController::class, 'index'])
+        ->middleware('producer');
+    Route::get('/conversations/{conversation}', [ConversationController::class, 'show']);
+    Route::post('/conversations/{conversation}/messages', [MessageController::class, 'store'])
+        ->middleware('throttle:30,1'); // Override: stricter rate limit for message creation
 });

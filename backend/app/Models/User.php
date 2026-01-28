@@ -7,6 +7,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Notifications\ResetPasswordNotification;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -58,6 +59,14 @@ class User extends Authenticatable
     public function userable(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    /**
+     * Get all messages sent by this user.
+     */
+    public function sentMessages(): MorphMany
+    {
+        return $this->morphMany(Message::class, 'sender');
     }
 
     /**

@@ -31,6 +31,7 @@ class ProducerCandidatureResource extends JsonResource
                 ? Str::limit($this->message_motivation, 150)
                 : null,
             'created_at' => $this->created_at?->toIso8601String(),
+            'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->id),
             'face' => $this->whenLoaded('face', fn () => [
                 'id' => $this->face->id,
                 'display_name' => trim($this->face->prenom . ' ' . $this->face->nom),
