@@ -81,6 +81,32 @@ class Candidature extends Model
     }
 
     /**
+     * Check if chat can be accessed for this candidature.
+     *
+     * Chat is unlocked when candidature is accepted or beyond.
+     */
+    public function canAccessChat(): bool
+    {
+        return $this->status->allowsChatAccess();
+    }
+
+    /**
+     * Get the conversation or fail with 404.
+     *
+     * @throws \Symfony\Component\HttpKernel\Exception\NotFoundHttpException
+     */
+    public function getConversationOrFail(): Conversation
+    {
+        $conversation = $this->conversation;
+
+        if (!$conversation) {
+            abort(404, 'Aucune conversation pour cette candidature');
+        }
+
+        return $conversation;
+    }
+
+    /**
      * Scope a query to only include pending candidatures.
      */
     public function scopePending(Builder $query): Builder
