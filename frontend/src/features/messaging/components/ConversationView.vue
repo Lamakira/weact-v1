@@ -16,9 +16,13 @@ const {
   otherParticipant,
   missionTitle,
   isLoading,
+  isRefreshing,
   error: loadError,
+  refreshError,
   loadConversation,
+  refreshConversation,
   addMessage,
+  clearRefreshError,
 } = useConversation()
 
 const {
@@ -69,6 +73,14 @@ const retryLoading = () => {
   loadConversation(getConversationId())
 }
 
+const handleRefresh = async () => {
+  clearRefreshError()
+  const success = await refreshConversation(getConversationId())
+  if (success) {
+    scrollToBottom('smooth')
+  }
+}
+
 // Initial load
 onMounted(async () => {
   const conversationId = getConversationId()
@@ -88,6 +100,15 @@ watch(
   },
   { deep: true },
 )
+
+// Auto-dismiss refresh error after 5 seconds
+watch(refreshError, (newError) => {
+  if (newError) {
+    setTimeout(() => {
+      clearRefreshError()
+    }, 5000)
+  }
+})
 </script>
 
 <template>
@@ -97,8 +118,18 @@ watch(
       v-if="!isLoading && !loadError && otherParticipant"
       :participant="otherParticipant"
       :mission-title="missionTitle"
+      :is-refreshing="isRefreshing"
       @back="handleBack"
+      @refresh="handleRefresh"
     />
+
+    <!-- Refresh Error Toast -->
+    <div
+      v-if="refreshError"
+      class="absolute left-1/2 top-20 z-30 -translate-x-1/2 transform rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground shadow-lg"
+    >
+      {{ refreshError }}
+    </div>
 
     <!-- Main Chat Area -->
     <main ref="scrollContainer" class="relative flex-1 space-y-4 overflow-y-auto px-4 py-6 md:px-6">

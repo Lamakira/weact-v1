@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ChevronLeft } from 'lucide-vue-next'
+import { ChevronLeft, RefreshCw } from 'lucide-vue-next'
 import type { OtherParticipant } from '../types'
 
 const props = defineProps<{
   participant: OtherParticipant
   missionTitle: string
+  isRefreshing?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'back'): void
+  (e: 'refresh'): void
 }>()
 
 const initials = computed(() => {
@@ -65,5 +67,16 @@ const participantLabel = computed(() => {
         </p>
       </div>
     </div>
+
+    <!-- Refresh Button -->
+    <button
+      type="button"
+      :disabled="isRefreshing"
+      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/5 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+      aria-label="Actualiser les messages"
+      @click="emit('refresh')"
+    >
+      <RefreshCw :class="['size-5', isRefreshing && 'animate-spin']" />
+    </button>
   </header>
 </template>
