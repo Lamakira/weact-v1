@@ -122,8 +122,8 @@ development_status:
   7-7-conversations-list-view: done
   epic-7-retrospective: done
 
-  # Epic 8: Rating & Reviews (6 stories)
-  epic-8: in-progress
+  # Epic 8: Rating & Reviews (7 stories) - COMPLETE!
+  epic-8: done
   8-1-create-ratings-database-schema: done
   8-2-face-rate-producer-after-mission: done
   8-3-producer-rate-face-after-mission: done
@@ -131,7 +131,7 @@ development_status:
   8-5-display-producer-average-rating: done
   8-6-view-reviews-list: done
   8-7-producer-rating-exposure: done
-  epic-8-retrospective: optional
+  epic-8-retrospective: done
 
   # Epic 9: Face Dashboard (5 stories)
   epic-9: backlog
