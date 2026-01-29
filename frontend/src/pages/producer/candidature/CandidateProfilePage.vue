@@ -8,6 +8,7 @@ import CandidateVideosSection from '@/features/candidature/components/CandidateV
 import CandidatePhotoGallery from '@/features/candidature/components/CandidatePhotoGallery.vue'
 import CandidateInfoSection from '@/features/candidature/components/CandidateInfoSection.vue'
 import CandidateExperiencesSection from '@/features/candidature/components/CandidateExperiencesSection.vue'
+import RatingDisplay from '@/components/RatingDisplay.vue'
 
 /**
  * Router and route
@@ -98,6 +99,14 @@ function goBack(): void {
       <div v-else-if="candidate" class="space-y-6">
         <!-- Profile Header -->
         <CandidateProfileHeader :candidate="candidate" />
+
+        <!-- Rating Display -->
+        <div class="px-6">
+          <RatingDisplay
+            :average-rating="candidate.average_rating"
+            :review-count="candidate.ratings_count"
+          />
+        </div>
 
         <!-- Videos Section -->
         <CandidateVideosSection :candidate="candidate" />
