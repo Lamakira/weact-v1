@@ -76,7 +76,7 @@ describe('RatingDisplay', () => {
       expect(text.text()).toBe('Aucun avis')
     })
 
-    it('shows no filled stars when reviewCount is 0', () => {
+    it('hides stars completely when reviewCount is 0 (AC#3: avoid empty stars confusion)', () => {
       const wrapper = mount(RatingDisplay, {
         props: {
           averageRating: null,
@@ -84,10 +84,9 @@ describe('RatingDisplay', () => {
         },
       })
 
-      for (let i = 1; i <= 5; i++) {
-        const star = wrapper.find(`[data-testid="rating-star-${i}"]`)
-        expect(star.attributes('data-filled')).toBe('false')
-      }
+      // Stars container should not exist when there are no reviews
+      const starsContainer = wrapper.find('[data-testid="rating-stars"]')
+      expect(starsContainer.exists()).toBe(false)
     })
 
     it('applies italic styling for "Aucun avis" text', () => {
@@ -173,7 +172,7 @@ describe('RatingDisplay', () => {
       expect(wrapper.find('[data-testid="rating-star-5"]').attributes('data-filled')).toBe('false')
     })
 
-    it('fills no stars for rating 0', () => {
+    it('hides stars when rating is 0 and reviewCount is 0', () => {
       const wrapper = mount(RatingDisplay, {
         props: {
           averageRating: 0,
@@ -181,10 +180,9 @@ describe('RatingDisplay', () => {
         },
       })
 
-      for (let i = 1; i <= 5; i++) {
-        const star = wrapper.find(`[data-testid="rating-star-${i}"]`)
-        expect(star.attributes('data-filled')).toBe('false')
-      }
+      // Stars container should not exist when there are no reviews
+      const starsContainer = wrapper.find('[data-testid="rating-stars"]')
+      expect(starsContainer.exists()).toBe(false)
     })
 
     it('rounds 4.5 to 5 filled stars', () => {

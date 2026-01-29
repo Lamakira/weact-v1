@@ -45,8 +45,8 @@ const ariaLabel = computed(() => {
     role="img"
     data-testid="rating-display"
   >
-    <!-- Stars Container -->
-    <div class="flex items-center -space-x-px" data-testid="rating-stars">
+    <!-- Stars Container - Only show when there are ratings (AC#3: avoid empty stars confusion) -->
+    <div v-if="props.reviewCount > 0" class="flex items-center -space-x-px" data-testid="rating-stars">
       <Star
         v-for="i in 5"
         :key="i"
