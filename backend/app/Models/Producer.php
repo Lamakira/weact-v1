@@ -45,6 +45,8 @@ class Producer extends Model
         'display_name',
         'agency_logo_url',
         'agency_logo_thumbnail_url',
+        'average_rating',
+        'ratings_count',
     ];
 
     /**
