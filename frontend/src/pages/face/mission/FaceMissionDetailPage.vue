@@ -16,6 +16,7 @@ import {
 } from 'lucide-vue-next'
 import { useMissionDetail } from '@/features/mission/composables'
 import { ApplyToMissionModal } from '@/features/candidature/components'
+import RatingDisplay from '@/components/RatingDisplay.vue'
 
 /**
  * LOGIC & STATE MANAGEMENT
@@ -63,6 +64,10 @@ const producerTypeLabel = computed(() => {
   if (!mission.value?.producer) return ''
   return mission.value.producer.type === 'agency' ? 'Agence' : 'Particulier'
 })
+
+// Producer rating data
+const producerRating = computed(() => mission.value?.producer?.average_rating ?? null)
+const producerRatingsCount = computed(() => mission.value?.producer?.ratings_count ?? 0)
 
 /**
  * FORMAT HELPERS
@@ -318,8 +323,13 @@ onMounted(() => {
         <!-- Producer Card -->
         <div class="mb-8 rounded-lg border border-border bg-card p-6">
           <h2 class="text-lg font-semibold text-foreground mb-4">Producteur</h2>
-          <div class="flex items-center gap-4">
-            <div class="relative h-16 w-16 overflow-hidden rounded-full border-2 border-border bg-muted">
+          <router-link
+            v-if="mission.producer?.id"
+            :to="`/producers/${mission.producer.id}`"
+            class="flex items-center gap-4 rounded-lg p-2 -m-2 transition-colors hover:bg-muted/50"
+            :aria-label="`Voir le profil de ${producerName}`"
+          >
+            <div class="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-full border-2 border-border bg-muted">
               <img
                 v-if="producerAvatarUrl"
                 :src="producerAvatarUrl"
@@ -333,9 +343,28 @@ onMounted(() => {
                 {{ producerInitials }}
               </div>
             </div>
-            <div>
+            <div class="flex flex-col gap-1">
               <p class="text-lg font-semibold text-foreground">{{ producerName }}</p>
               <p class="text-sm text-muted-foreground">{{ producerTypeLabel }}</p>
+              <RatingDisplay
+                :average-rating="producerRating"
+                :review-count="producerRatingsCount"
+              />
+            </div>
+          </router-link>
+          <div v-else class="flex items-center gap-4">
+            <div class="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-full border-2 border-border bg-muted">
+              <div class="flex h-full w-full items-center justify-center bg-primary/10 text-xl font-bold uppercase text-primary">
+                {{ producerInitials }}
+              </div>
+            </div>
+            <div class="flex flex-col gap-1">
+              <p class="text-lg font-semibold text-foreground">{{ producerName }}</p>
+              <p class="text-sm text-muted-foreground">{{ producerTypeLabel }}</p>
+              <RatingDisplay
+                :average-rating="producerRating"
+                :review-count="producerRatingsCount"
+              />
             </div>
           </div>
         </div>
