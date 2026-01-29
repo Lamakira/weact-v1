@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, toRef } from 'vue'
+import { computed, toRef, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Loader2, AlertCircle } from 'lucide-vue-next'
 import { useCandidateProfile } from '@/features/candidature/composables'
@@ -9,6 +9,9 @@ import CandidatePhotoGallery from '@/features/candidature/components/CandidatePh
 import CandidateInfoSection from '@/features/candidature/components/CandidateInfoSection.vue'
 import CandidateExperiencesSection from '@/features/candidature/components/CandidateExperiencesSection.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
+import ReviewsList from '@/components/ReviewsList.vue'
+import { publicApi } from '@/features/public/services/publicApi'
+import type { Review } from '@/features/rating/types'
 
 /**
  * Router and route
@@ -32,6 +35,62 @@ const {
   isLoading,
   error,
 } = useCandidateProfile(toRef(faceId))
+
+/**
+ * Reviews state
+ */
+const reviews = ref<Review[]>([])
+const reviewsLoading = ref(false)
+const reviewsCurrentPage = ref(1)
+const reviewsLastPage = ref(1)
+const reviewsTotal = ref(0)
+const reviewsError = ref(false)
+
+/**
+ * Fetch reviews for the Face
+ */
+async function fetchReviews(id: number, page: number = 1): Promise<void> {
+  reviewsLoading.value = true
+  reviewsError.value = false
+  try {
+    const response = await publicApi.getFaceReviews(id, page)
+    reviews.value = response.data
+    reviewsCurrentPage.value = response.meta.current_page
+    reviewsLastPage.value = response.meta.last_page
+    reviewsTotal.value = response.meta.total
+  } catch {
+    // Show error state for reviews section
+    reviews.value = []
+    reviewsError.value = true
+  } finally {
+    reviewsLoading.value = false
+  }
+}
+
+/**
+ * Handle page change for reviews
+ */
+function handleReviewsPageChange(page: number): void {
+  if (faceId.value) {
+    fetchReviews(faceId.value, page)
+  }
+}
+
+/**
+ * Watch for faceId changes to fetch reviews
+ */
+watch(
+  faceId,
+  async (newId) => {
+    reviews.value = []
+    reviewsCurrentPage.value = 1
+    reviewsError.value = false
+    if (newId > 0) {
+      await fetchReviews(newId)
+    }
+  },
+  { immediate: true }
+)
 
 /**
  * Navigate back
@@ -119,6 +178,37 @@ function goBack(): void {
 
         <!-- Experiences -->
         <CandidateExperiencesSection :experiences="candidate.experiences" />
+
+        <!-- Reviews Section -->
+        <div class="rounded-2xl border border-border bg-card p-6">
+          <h2 class="mb-4 text-lg font-semibold text-foreground">Avis et évaluations</h2>
+          <!-- Reviews Error State -->
+          <div
+            v-if="reviewsError"
+            class="text-center py-6"
+            data-testid="reviews-error"
+          >
+            <p class="text-muted-foreground text-sm">Impossible de charger les avis.</p>
+            <button
+              type="button"
+              class="mt-2 text-sm text-primary hover:text-primary/80 underline"
+              data-testid="reviews-retry"
+              @click="fetchReviews(faceId)"
+            >
+              Réessayer
+            </button>
+          </div>
+          <!-- Reviews List -->
+          <ReviewsList
+            v-else
+            :reviews="reviews"
+            :current-page="reviewsCurrentPage"
+            :last-page="reviewsLastPage"
+            :total="reviewsTotal"
+            :loading="reviewsLoading"
+            @page-change="handleReviewsPageChange"
+          />
+        </div>
       </div>
     </main>
   </div>
