@@ -284,4 +284,70 @@ class FaceViewMissionDetailTest extends TestCase
         $this->assertEquals('Publicité', $data['type_mission_label']);
         $this->assertEquals('Femme', $data['genre_voulu_label']);
     }
+
+    // ========================================
+    // Producer Rating Exposure Tests (Story 8-7)
+    // ========================================
+
+    public function test_producer_rating_included_in_mission_detail(): void
+    {
+        $producer = Producer::factory()->create([
+            'type' => 'agency',
+            'agency_name' => 'Rated Studio',
+        ]);
+
+        $mission = Mission::factory()->create([
+            'producer_id' => $producer->id,
+            'status' => MissionStatus::Published,
+        ]);
+
+        // Create ratings for the producer (average should be 4.5)
+        \App\Models\Rating::factory()
+            ->faceRatingProducer()
+            ->ratingProducer($producer)
+            ->score(5)
+            ->create();
+        \App\Models\Rating::factory()
+            ->faceRatingProducer()
+            ->ratingProducer($producer)
+            ->score(4)
+            ->create();
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/missions/{$mission->id}");
+
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                'data' => [
+                    'producer' => [
+                        'id',
+                        'type',
+                        'display_name',
+                        'average_rating',
+                        'ratings_count',
+                    ],
+                ],
+            ])
+            ->assertJsonPath('data.producer.ratings_count', 2);
+
+        // Check average rating value (4.5 = average of 5 and 4)
+        $this->assertEquals(4.5, $response->json('data.producer.average_rating'));
+    }
+
+    public function test_producer_with_no_ratings_returns_null_in_detail(): void
+    {
+        $producer = Producer::factory()->create();
+
+        $mission = Mission::factory()->create([
+            'producer_id' => $producer->id,
+            'status' => MissionStatus::Published,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/missions/{$mission->id}");
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.producer.average_rating', null)
+            ->assertJsonPath('data.producer.ratings_count', 0);
+    }
 }
