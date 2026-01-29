@@ -4,6 +4,25 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import { ref, computed } from 'vue'
 import ProducerProfilePage from '../ProducerProfilePage.vue'
 import type { PublicProducer } from '@/features/public/types'
+import type { ReviewsListResponse } from '@/features/rating/types'
+
+// Mock publicApi for reviews
+const mockGetProducerReviews = vi.fn()
+vi.mock('@/features/public/services/publicApi', () => ({
+  publicApi: {
+    getProducerReviews: (...args: unknown[]) => mockGetProducerReviews(...args),
+  },
+}))
+
+const emptyReviewsResponse: ReviewsListResponse = {
+  data: [],
+  meta: {
+    current_page: 1,
+    last_page: 1,
+    per_page: 10,
+    total: 0,
+  },
+}
 
 const mockParticulierProducer: PublicProducer = {
   id: 1,
@@ -69,6 +88,7 @@ describe('ProducerProfilePage', () => {
     errorRef.value = null
     notFoundRef.value = false
     mockFetchProducer.mockResolvedValue({ success: true })
+    mockGetProducerReviews.mockResolvedValue(emptyReviewsResponse)
 
     router = createRouter({
       history: createMemoryHistory(),
@@ -325,7 +345,8 @@ describe('ProducerProfilePage', () => {
       const wrapper = await mountComponent(1)
       await flushPromises()
 
-      expect(wrapper.find('[data-testid="no-ratings-message"]').exists()).toBe(true)
+      // The ReviewsList component shows the empty state
+      expect(wrapper.find('[data-testid="reviews-empty"]').exists()).toBe(true)
       expect(wrapper.text()).toContain('Aucune note pour le moment')
     })
   })
