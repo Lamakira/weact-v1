@@ -77,6 +77,8 @@ class Face extends Model
         'profile_completion_percentage',
         'profile_completion_missing',
         'profile_completion_is_complete',
+        'average_rating',
+        'ratings_count',
     ];
 
     /**
