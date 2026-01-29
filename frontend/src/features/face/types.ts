@@ -10,6 +10,8 @@ export interface FaceProfile {
   username: string
   profile_photo_url: string | null
   thumbnail_url: string | null
+  average_rating: number | null
+  ratings_count: number
 }
 
 // Face profile API response
