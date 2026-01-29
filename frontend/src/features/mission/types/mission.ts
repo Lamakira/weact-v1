@@ -69,6 +69,8 @@ export interface MissionProducer {
   thumbnail_url: string | null
   agency_logo_url: string | null
   agency_logo_thumbnail_url: string | null
+  average_rating: number | null
+  ratings_count: number
   created_at: string
   updated_at: string
 }
