@@ -68,6 +68,18 @@ vi.mock('@/features/dashboard', () => ({
     `,
     props: ['title', 'value', 'icon', 'color', 'isLoading'],
   },
+  WalletCard: {
+    name: 'WalletCard',
+    template: `
+      <div
+        data-testid="wallet-card"
+        data-component="wallet-card"
+      >
+        <span>0 XOF</span>
+        <span>Bientôt disponible</span>
+      </div>
+    `,
+  },
   FACE_KPI_CONFIGS: [
     { key: 'pending', title: 'En attente', color: 'amber-500', bgColor: 'amber-50', icon: 'clock' },
     { key: 'accepted', title: 'Acceptées', color: 'green-500', bgColor: 'green-50', icon: 'check' },
@@ -297,6 +309,43 @@ describe('FaceDashboardPage', () => {
       await flushPromises()
 
       expect(wrapper.text()).toContain('Mes candidatures')
+    })
+  })
+
+  describe('WalletCard integration', () => {
+    it('renders WalletCard component', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const walletCard = wrapper.find('[data-testid="wallet-card"]')
+      expect(walletCard.exists()).toBe(true)
+    })
+
+    it('displays WalletCard in the dashboard cards grid', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const walletCard = wrapper.find('[data-component="wallet-card"]')
+      expect(walletCard.exists()).toBe(true)
+    })
+
+    it('displays WalletCard as first item in dashboard cards grid', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      // Find the dashboard cards grid (not KPI grid)
+      const dashboardCardsGrid = wrapper.findAll('.grid')[1] // Second grid is dashboard cards
+      const firstChild = dashboardCardsGrid.element.children[0]
+      expect(firstChild.getAttribute('data-component')).toBe('wallet-card')
+    })
+
+    it('displays static wallet content without API calls', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const walletCard = wrapper.find('[data-component="wallet-card"]')
+      expect(walletCard.text()).toContain('0 XOF')
+      expect(walletCard.text()).toContain('Bientôt disponible')
     })
   })
 })

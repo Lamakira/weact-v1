@@ -5,7 +5,7 @@ import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
 import ProfileCompletionCard from '@/features/face/components/ProfileCompletionCard.vue'
-import { useDashboardStats, KpiCard, FACE_KPI_CONFIGS } from '@/features/dashboard'
+import { useDashboardStats, KpiCard, WalletCard, FACE_KPI_CONFIGS } from '@/features/dashboard'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -184,7 +184,10 @@ function goToMessages(): void {
       </section>
 
       <!-- Dashboard cards grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <!-- Wallet Card (Inactive MVP placeholder) -->
+        <WalletCard />
+
         <!-- Profile Completion Card -->
         <ProfileCompletionCard
           :percentage="completionPercentage"
