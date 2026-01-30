@@ -5,6 +5,7 @@ import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
 import ProfileCompletionCard from '@/features/face/components/ProfileCompletionCard.vue'
+import { useDashboardStats, KpiCard, FACE_KPI_CONFIGS } from '@/features/dashboard'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -18,9 +19,18 @@ const {
   fetchCompletion,
 } = useProfileCompletion()
 
-// Fetch profile completion on mount
+// Dashboard stats composable
+const {
+  stats,
+  isLoading: isStatsLoading,
+  error: statsError,
+  fetchStats,
+  retry: retryStats,
+} = useDashboardStats()
+
+// Fetch data on mount
 onMounted(async () => {
-  await fetchCompletion()
+  await Promise.all([fetchCompletion(), fetchStats()])
 })
 
 async function handleLogout(): Promise<void> {
@@ -116,6 +126,63 @@ function goToMessages(): void {
 
     <!-- Main content -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- KPI Cards Section -->
+      <section class="mb-8" aria-labelledby="kpi-section-title">
+        <h2 id="kpi-section-title" class="text-lg font-semibold text-gray-900 mb-4">
+          Mes candidatures
+        </h2>
+
+        <!-- Error State -->
+        <div
+          v-if="statsError"
+          class="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between"
+          data-testid="stats-error"
+        >
+          <div class="flex items-center gap-3">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke-width="1.5"
+              stroke="currentColor"
+              class="w-5 h-5 text-red-500"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+              />
+            </svg>
+            <span class="text-sm text-red-700">{{ statsError }}</span>
+          </div>
+          <button
+            @click="retryStats"
+            class="text-sm font-medium text-red-600 hover:text-red-800 underline"
+            data-testid="retry-stats-button"
+          >
+            Réessayer
+          </button>
+        </div>
+
+        <!-- KPI Cards Grid -->
+        <div
+          v-else
+          class="grid grid-cols-2 lg:grid-cols-4 gap-4"
+          data-testid="kpi-cards-grid"
+        >
+          <KpiCard
+            v-for="kpi in FACE_KPI_CONFIGS"
+            :key="kpi.key"
+            :title="kpi.title"
+            :value="stats?.[kpi.key] ?? 0"
+            :icon="kpi.icon"
+            :color="kpi.color"
+            :is-loading="isStatsLoading"
+            :data-testid="'kpi-card-' + kpi.key"
+          />
+        </div>
+      </section>
+
       <!-- Dashboard cards grid -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         <!-- Profile Completion Card -->
@@ -191,8 +258,8 @@ function goToMessages(): void {
       <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-lg font-medium text-gray-900 mb-4">Bienvenue sur votre Dashboard Face</h2>
         <p class="text-gray-600">
-          Cette page sera développée dans les prochaines stories.
-          Pour l'instant, vous pouvez vous déconnecter en utilisant le bouton ci-dessus.
+          Suivez vos candidatures et découvrez de nouvelles opportunités.
+          Plus de fonctionnalités seront ajoutées prochainement.
         </p>
       </div>
     </main>
