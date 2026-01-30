@@ -52,6 +52,11 @@ const mockChartsError = ref<string | null>(null)
 const mockFetchChartStats = vi.fn().mockResolvedValue(undefined)
 const mockRetryCharts = vi.fn().mockResolvedValue(undefined)
 
+// Mock missions count composable
+const mockMissionsCount = ref(0)
+const mockIsMissionsCountLoading = ref(false)
+const mockFetchMissionsCount = vi.fn().mockResolvedValue(undefined)
+
 vi.mock('@/features/dashboard', () => ({
   useDashboardStats: () => ({
     stats: mockStats,
@@ -67,6 +72,11 @@ vi.mock('@/features/dashboard', () => ({
     error: mockChartsError,
     fetchChartStats: mockFetchChartStats,
     retry: mockRetryCharts,
+  }),
+  useMissionsCount: () => ({
+    count: mockMissionsCount,
+    isLoading: mockIsMissionsCountLoading,
+    fetchMissionsCount: mockFetchMissionsCount,
   }),
   KpiCard: {
     name: 'KpiCard',
@@ -111,6 +121,23 @@ vi.mock('@/features/dashboard', () => ({
     props: ['candidaturesByMonth', 'missionsCompletedByMonth', 'isLoading', 'error'],
     emits: ['retry'],
   },
+  MissionsQuickAccessCard: {
+    name: 'MissionsQuickAccessCard',
+    template: `
+      <div
+        data-testid="browse-missions-card"
+        data-component="missions-quick-access-card"
+        :data-count="count"
+        :data-loading="isLoading"
+        @click="$emit('click')"
+      >
+        <span>Voir les missions</span>
+        <span v-if="count > 0" data-testid="missions-count-badge">{{ count }}</span>
+      </div>
+    `,
+    props: ['count', 'isLoading'],
+    emits: ['click'],
+  },
   FACE_KPI_CONFIGS: [
     { key: 'pending', title: 'En attente', color: 'amber-500', bgColor: 'amber-50', icon: 'clock' },
     { key: 'accepted', title: 'Acceptées', color: 'green-500', bgColor: 'green-50', icon: 'check' },
@@ -143,6 +170,10 @@ describe('FaceDashboardPage', () => {
     mockChartsError.value = null
     mockFetchChartStats.mockClear()
     mockRetryCharts.mockClear()
+    // Reset missions count mocks
+    mockMissionsCount.value = 0
+    mockIsMissionsCountLoading.value = false
+    mockFetchMissionsCount.mockClear()
   })
 
   describe('KPI cards rendering', () => {
@@ -429,6 +460,82 @@ describe('FaceDashboardPage', () => {
 
       const activityChart = wrapper.find('[data-component="activity-chart"]')
       expect(activityChart.attributes('data-error')).toBe('Erreur réseau')
+    })
+  })
+
+  describe('MissionsQuickAccessCard integration', () => {
+    it('renders MissionsQuickAccessCard component', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const missionsCard = wrapper.find('[data-testid="browse-missions-card"]')
+      expect(missionsCard.exists()).toBe(true)
+    })
+
+    it('displays MissionsQuickAccessCard in the dashboard cards grid', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const missionsCard = wrapper.find('[data-component="missions-quick-access-card"]')
+      expect(missionsCard.exists()).toBe(true)
+    })
+
+    it('calls fetchMissionsCount on mount', async () => {
+      mount(FaceDashboardPage)
+      await flushPromises()
+
+      expect(mockFetchMissionsCount).toHaveBeenCalled()
+    })
+
+    it('passes count to MissionsQuickAccessCard', async () => {
+      mockMissionsCount.value = 12
+
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const missionsCard = wrapper.find('[data-component="missions-quick-access-card"]')
+      expect(missionsCard.attributes('data-count')).toBe('12')
+    })
+
+    it('displays count badge when missions are available', async () => {
+      mockMissionsCount.value = 5
+
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const badge = wrapper.find('[data-testid="missions-count-badge"]')
+      expect(badge.exists()).toBe(true)
+      expect(badge.text()).toBe('5')
+    })
+
+    it('does not display count badge when no missions available', async () => {
+      mockMissionsCount.value = 0
+
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const badge = wrapper.find('[data-testid="missions-count-badge"]')
+      expect(badge.exists()).toBe(false)
+    })
+
+    it('passes loading state to MissionsQuickAccessCard', async () => {
+      mockIsMissionsCountLoading.value = true
+
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const missionsCard = wrapper.find('[data-component="missions-quick-access-card"]')
+      expect(missionsCard.attributes('data-loading')).toBe('true')
+    })
+
+    it('navigates to missions page when card is clicked', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const missionsCard = wrapper.find('[data-testid="browse-missions-card"]')
+      await missionsCard.trigger('click')
+
+      expect(mockRouter.push).toHaveBeenCalledWith({ name: 'face-missions' })
     })
   })
 })

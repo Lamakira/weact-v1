@@ -8,9 +8,11 @@ import ProfileCompletionCard from '@/features/face/components/ProfileCompletionC
 import {
   useDashboardStats,
   useDashboardCharts,
+  useMissionsCount,
   KpiCard,
   WalletCard,
   ActivityChart,
+  MissionsQuickAccessCard,
   FACE_KPI_CONFIGS,
 } from '@/features/dashboard'
 
@@ -45,9 +47,16 @@ const {
   retry: retryCharts,
 } = useDashboardCharts()
 
+// Missions count composable (for quick access card)
+const {
+  count: missionsCount,
+  isLoading: isMissionsCountLoading,
+  fetchMissionsCount,
+} = useMissionsCount()
+
 // Fetch data on mount
 onMounted(async () => {
-  await Promise.all([fetchCompletion(), fetchStats(), fetchChartStats()])
+  await Promise.all([fetchCompletion(), fetchStats(), fetchChartStats(), fetchMissionsCount()])
 })
 
 async function handleLogout(): Promise<void> {
@@ -213,35 +222,13 @@ function goToMessages(): void {
           data-testid="profile-completion-card"
         />
 
-        <!-- Browse Missions Card -->
-        <div
-          class="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-md transition-shadow border-l-4 border-primary"
-          @click="goToMissions"
+        <!-- Missions Quick Access Card -->
+        <MissionsQuickAccessCard
+          :count="missionsCount"
+          :is-loading="isMissionsCountLoading"
           data-testid="browse-missions-card"
-        >
-          <div class="flex items-center gap-4">
-            <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="1.5"
-                stroke="currentColor"
-                class="w-6 h-6 text-primary"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-                />
-              </svg>
-            </div>
-            <div>
-              <h3 class="text-lg font-semibold text-gray-900">Voir les missions</h3>
-              <p class="text-sm text-gray-500">Découvrez les opportunités disponibles</p>
-            </div>
-          </div>
-        </div>
+          @click="goToMissions"
+        />
 
         <!-- Messages Card -->
         <div
