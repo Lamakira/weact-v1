@@ -1,5 +1,5 @@
 import apiClient from '@/services/apiClient'
-import type { DashboardStatsResponse } from '../types'
+import type { DashboardStatsResponse, ChartStatsResponse } from '../types'
 
 /**
  * Dashboard API service
@@ -13,6 +13,18 @@ export const dashboardApi = {
    */
   async getStats(): Promise<DashboardStatsResponse> {
     const response = await apiClient.get<DashboardStatsResponse>('/face/dashboard/stats')
+    return response.data
+  },
+
+  /**
+   * Get Face dashboard chart statistics
+   * Returns aggregated data for the last 6 months:
+   * - candidatures_by_month: Candidatures grouped by month and status
+   * - missions_completed_by_month: Completed missions grouped by month
+   * @returns Chart stats for activity evolution charts
+   */
+  async getChartStats(): Promise<ChartStatsResponse> {
+    const response = await apiClient.get<ChartStatsResponse>('/face/dashboard/chart-stats')
     return response.data
   },
 }

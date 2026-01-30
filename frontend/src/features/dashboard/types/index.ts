@@ -14,6 +14,46 @@ export interface DashboardStats {
 }
 
 /**
+ * Monthly candidature statistics grouped by status
+ * Used for candidatures_by_month chart data
+ */
+export interface MonthlyStats {
+  month: string // Format: "YYYY-MM"
+  pending: number
+  accepted: number
+  confirmed: number
+  in_progress: number
+  completed: number
+  rejected: number
+}
+
+/**
+ * Monthly count for completed missions
+ * Used for missions_completed_by_month chart data
+ */
+export interface MonthlyCount {
+  month: string // Format: "YYYY-MM"
+  count: number
+}
+
+/**
+ * Chart statistics data returned from the API
+ * Contains last 6 months of aggregated data
+ */
+export interface ChartStats {
+  candidatures_by_month: MonthlyStats[]
+  missions_completed_by_month: MonthlyCount[]
+}
+
+/**
+ * API response for chart stats
+ */
+export interface ChartStatsResponse {
+  data: ChartStats
+  message: string
+}
+
+/**
  * API response for dashboard stats
  */
 export interface DashboardStatsResponse {
