@@ -39,6 +39,8 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     // Same pattern as ProfileCompletionController.
     Route::get('/dashboard/stats', [FaceDashboardController::class, 'stats'])
         ->middleware('throttle:60,1');
+    Route::get('/dashboard/chart-stats', [FaceDashboardController::class, 'chartStats'])
+        ->middleware('throttle:60,1');
 
     // Profile routes
     Route::get('/profile', [ProfileController::class, 'show']);
