@@ -1,5 +1,5 @@
 import apiClient from '@/services/apiClient'
-import type { DashboardStatsResponse, ChartStatsResponse } from '../types'
+import type { DashboardStatsResponse, ChartStatsResponse, MissionsCountResponse } from '../types'
 
 /**
  * Dashboard API service
@@ -25,6 +25,16 @@ export const dashboardApi = {
    */
   async getChartStats(): Promise<ChartStatsResponse> {
     const response = await apiClient.get<ChartStatsResponse>('/face/dashboard/chart-stats')
+    return response.data
+  },
+
+  /**
+   * Get available missions count
+   * Returns count of published missions with open candidature deadlines
+   * @returns Available missions count for quick access card
+   */
+  async getAvailableMissionsCount(): Promise<MissionsCountResponse> {
+    const response = await apiClient.get<MissionsCountResponse>('/face/dashboard/available-missions-count')
     return response.data
   },
 }

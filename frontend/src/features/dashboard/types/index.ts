@@ -62,6 +62,21 @@ export interface DashboardStatsResponse {
 }
 
 /**
+ * Available missions count data
+ */
+export interface MissionsCount {
+  count: number
+}
+
+/**
+ * API response for available missions count
+ */
+export interface MissionsCountResponse {
+  data: MissionsCount
+  message: string
+}
+
+/**
  * KPI card color type
  */
 export type KpiColor = 'amber-500' | 'green-500' | 'blue-500' | 'primary'
