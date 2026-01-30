@@ -136,7 +136,7 @@ development_status:
   # Epic 9: Face Dashboard (5 stories)
   epic-9: in-progress
   9-1-face-dashboard-kpis: done
-  9-2-face-wallet-ui-inactive: backlog
+  9-2-face-wallet-ui-inactive: done
   9-3-face-dashboard-charts: backlog
   9-4-face-quick-access-to-missions: backlog
   9-5-face-dashboard-layout: backlog
