@@ -5,7 +5,14 @@ import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
 import ProfileCompletionCard from '@/features/face/components/ProfileCompletionCard.vue'
-import { useDashboardStats, KpiCard, WalletCard, FACE_KPI_CONFIGS } from '@/features/dashboard'
+import {
+  useDashboardStats,
+  useDashboardCharts,
+  KpiCard,
+  WalletCard,
+  ActivityChart,
+  FACE_KPI_CONFIGS,
+} from '@/features/dashboard'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -28,9 +35,19 @@ const {
   retry: retryStats,
 } = useDashboardStats()
 
+// Dashboard charts composable
+const {
+  candidaturesByMonth,
+  missionsCompletedByMonth,
+  isLoading: isChartsLoading,
+  error: chartsError,
+  fetchChartStats,
+  retry: retryCharts,
+} = useDashboardCharts()
+
 // Fetch data on mount
 onMounted(async () => {
-  await Promise.all([fetchCompletion(), fetchStats()])
+  await Promise.all([fetchCompletion(), fetchStats(), fetchChartStats()])
 })
 
 async function handleLogout(): Promise<void> {
@@ -256,6 +273,16 @@ function goToMessages(): void {
           </div>
         </div>
       </div>
+
+      <!-- Charts Section -->
+      <ActivityChart
+        :candidatures-by-month="candidaturesByMonth"
+        :missions-completed-by-month="missionsCompletedByMonth"
+        :is-loading="isChartsLoading"
+        :error="chartsError"
+        @retry="retryCharts"
+        class="mb-8"
+      />
 
       <!-- Welcome message -->
       <div class="bg-white rounded-lg shadow p-6">

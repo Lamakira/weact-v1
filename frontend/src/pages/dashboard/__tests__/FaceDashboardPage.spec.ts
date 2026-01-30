@@ -44,6 +44,14 @@ const mockStatsError = ref<string | null>(null)
 const mockFetchStats = vi.fn().mockResolvedValue(undefined)
 const mockRetryStats = vi.fn().mockResolvedValue(undefined)
 
+// Mock dashboard charts composable
+const mockCandidaturesByMonth = ref([])
+const mockMissionsCompletedByMonth = ref([])
+const mockIsChartsLoading = ref(false)
+const mockChartsError = ref<string | null>(null)
+const mockFetchChartStats = vi.fn().mockResolvedValue(undefined)
+const mockRetryCharts = vi.fn().mockResolvedValue(undefined)
+
 vi.mock('@/features/dashboard', () => ({
   useDashboardStats: () => ({
     stats: mockStats,
@@ -51,6 +59,14 @@ vi.mock('@/features/dashboard', () => ({
     error: mockStatsError,
     fetchStats: mockFetchStats,
     retry: mockRetryStats,
+  }),
+  useDashboardCharts: () => ({
+    candidaturesByMonth: mockCandidaturesByMonth,
+    missionsCompletedByMonth: mockMissionsCompletedByMonth,
+    isLoading: mockIsChartsLoading,
+    error: mockChartsError,
+    fetchChartStats: mockFetchChartStats,
+    retry: mockRetryCharts,
   }),
   KpiCard: {
     name: 'KpiCard',
@@ -80,6 +96,21 @@ vi.mock('@/features/dashboard', () => ({
       </div>
     `,
   },
+  ActivityChart: {
+    name: 'ActivityChart',
+    template: `
+      <div
+        data-testid="activity-chart"
+        data-component="activity-chart"
+        :data-loading="isLoading"
+        :data-error="error"
+      >
+        <span>Mon évolution</span>
+      </div>
+    `,
+    props: ['candidaturesByMonth', 'missionsCompletedByMonth', 'isLoading', 'error'],
+    emits: ['retry'],
+  },
   FACE_KPI_CONFIGS: [
     { key: 'pending', title: 'En attente', color: 'amber-500', bgColor: 'amber-50', icon: 'clock' },
     { key: 'accepted', title: 'Acceptées', color: 'green-500', bgColor: 'green-50', icon: 'check' },
@@ -105,6 +136,13 @@ describe('FaceDashboardPage', () => {
     mockFetchStats.mockClear()
     mockRetryStats.mockClear()
     mockRouter.push.mockClear()
+    // Reset chart mocks
+    mockCandidaturesByMonth.value = []
+    mockMissionsCompletedByMonth.value = []
+    mockIsChartsLoading.value = false
+    mockChartsError.value = null
+    mockFetchChartStats.mockClear()
+    mockRetryCharts.mockClear()
   })
 
   describe('KPI cards rendering', () => {
@@ -346,6 +384,51 @@ describe('FaceDashboardPage', () => {
       const walletCard = wrapper.find('[data-component="wallet-card"]')
       expect(walletCard.text()).toContain('0 XOF')
       expect(walletCard.text()).toContain('Bientôt disponible')
+    })
+  })
+
+  describe('ActivityChart integration', () => {
+    it('renders ActivityChart component', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const activityChart = wrapper.find('[data-testid="activity-chart"]')
+      expect(activityChart.exists()).toBe(true)
+    })
+
+    it('displays ActivityChart in the dashboard layout', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const activityChart = wrapper.find('[data-component="activity-chart"]')
+      expect(activityChart.exists()).toBe(true)
+    })
+
+    it('calls fetchChartStats on mount', async () => {
+      mount(FaceDashboardPage)
+      await flushPromises()
+
+      expect(mockFetchChartStats).toHaveBeenCalled()
+    })
+
+    it('passes loading state to ActivityChart', async () => {
+      mockIsChartsLoading.value = true
+
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const activityChart = wrapper.find('[data-component="activity-chart"]')
+      expect(activityChart.attributes('data-loading')).toBe('true')
+    })
+
+    it('passes error state to ActivityChart', async () => {
+      mockChartsError.value = 'Erreur réseau'
+
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const activityChart = wrapper.find('[data-component="activity-chart"]')
+      expect(activityChart.attributes('data-error')).toBe('Erreur réseau')
     })
   })
 })
