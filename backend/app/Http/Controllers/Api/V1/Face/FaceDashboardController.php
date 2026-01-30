@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Face;
 
 use App\Enums\CandidatureStatus;
+use App\Enums\MissionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ChartStatsResource;
 use App\Http\Resources\FaceDashboardStatsResource;
 use App\Models\Candidature;
 use App\Models\Face;
+use App\Models\Mission;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -181,6 +183,36 @@ class FaceDashboardController extends Controller
         }
 
         return $months;
+    }
+
+    /**
+     * Get the count of available missions on the platform.
+     *
+     * Returns count of missions that are:
+     * - Published (status = 'published')
+     * - Candidature deadline not passed (date_limite_candidature >= today)
+     *
+     * (FR54 - Dashboard Face Quick Access to Missions)
+     */
+    public function availableMissionsCount(Request $request): JsonResponse
+    {
+        $result = $this->getAuthenticatedFace($request);
+
+        if ($result instanceof JsonResponse) {
+            return $result;
+        }
+
+        // Count available missions (published, candidature deadline not passed)
+        $count = Mission::where('status', MissionStatus::Published)
+            ->where('date_limite_candidature', '>=', Carbon::today())
+            ->count();
+
+        return response()->json([
+            'data' => [
+                'count' => $count,
+            ],
+            'message' => 'Available missions count retrieved successfully',
+        ]);
     }
 
     /**

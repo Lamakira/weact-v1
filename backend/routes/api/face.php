@@ -41,6 +41,8 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
         ->middleware('throttle:60,1');
     Route::get('/dashboard/chart-stats', [FaceDashboardController::class, 'chartStats'])
         ->middleware('throttle:60,1');
+    Route::get('/dashboard/available-missions-count', [FaceDashboardController::class, 'availableMissionsCount'])
+        ->middleware('throttle:60,1');
 
     // Profile routes
     Route::get('/profile', [ProfileController::class, 'show']);
