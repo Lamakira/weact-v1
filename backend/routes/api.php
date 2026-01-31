@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\ForgotPasswordController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
@@ -52,6 +53,10 @@ Route::prefix('v1')->group(function (): void {
 
         Route::post('/reset-password', ResetPasswordController::class)
             ->name('auth.reset-password');
+
+        // Email verification (public - signature validation handled in controller)
+        Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
+            ->name('verification.verify');
     });
 
     // Protected routes
@@ -72,8 +77,19 @@ Route::prefix('v1')->group(function (): void {
                 ], Response::HTTP_UNAUTHORIZED);
             }
 
+            $user = $request->user();
+
             return response()->json([
-                'data' => $request->user(),
+                'data' => [
+                    'id' => $user->id,
+                    'email' => $user->email,
+                    'email_verified' => $user->hasVerifiedEmail(),
+                    'email_verified_at' => $user->email_verified_at?->toIso8601String(),
+                    'userable_type' => $user->userable_type,
+                    'userable_id' => $user->userable_id,
+                    'created_at' => $user->created_at?->toIso8601String(),
+                    'updated_at' => $user->updated_at?->toIso8601String(),
+                ],
                 'meta' => [],
                 'message' => 'Authenticated user retrieved'
             ]);
@@ -83,6 +99,16 @@ Route::prefix('v1')->group(function (): void {
         Route::prefix('auth')->group(function (): void {
             Route::post('/logout', LogoutController::class)
                 ->name('auth.logout');
+        });
+
+        // Email verification routes (authenticated)
+        Route::prefix('email')->group(function (): void {
+            Route::post('/verification-notification', [EmailVerificationController::class, 'sendVerificationNotification'])
+                ->middleware('throttle:1,1')
+                ->name('verification.send');
+
+            Route::get('/verification-status', [EmailVerificationController::class, 'status'])
+                ->name('verification.status');
         });
     });
 });

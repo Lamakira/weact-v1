@@ -28,6 +28,7 @@ class UserResource extends JsonResource
             'userable' => $this->whenLoaded('userable', function () {
                 return $this->transformUserable();
             }),
+            'email_verified' => $this->hasVerifiedEmail(),
             'email_verified_at' => $this->email_verified_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
