@@ -189,20 +189,18 @@ watch(
 </script>
 
 <template>
-  <div class="min-h-screen bg-background pb-8">
-    <!-- Header Section -->
-    <header class="border-b border-border bg-card">
-      <div class="container mx-auto px-4 py-6 sm:px-6">
-        <h1 class="text-2xl font-bold text-foreground sm:text-3xl">
-          Mes candidatures
-        </h1>
-        <p class="mt-1 text-muted-foreground">
-          Suivez l'état de vos candidatures aux missions
-        </p>
-      </div>
-    </header>
+  <div>
+    <!-- Page Header -->
+    <div class="mb-8">
+      <h1 class="text-2xl font-bold text-slate-800">
+        Mes candidatures
+      </h1>
+      <p class="mt-1 text-slate-500">
+        Suivez l'état de vos candidatures aux missions
+      </p>
+    </div>
 
-    <main class="container mx-auto mt-6 px-4 sm:px-6">
+    <div>
       <!-- Status Filter -->
       <div class="mb-6">
         <StatusFilter
@@ -327,7 +325,7 @@ watch(
           </button>
         </div>
       </template>
-    </main>
+    </div>
 
     <!-- Toast Notification -->
     <Teleport to="body">
