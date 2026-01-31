@@ -6,7 +6,9 @@ namespace Tests\Feature\Auth;
 
 use App\Models\Face;
 use App\Models\User;
+use App\Notifications\VerifyEmailNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class FaceRegistrationTest extends TestCase
@@ -18,6 +20,7 @@ class FaceRegistrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Notification::fake();
 
         $this->validData = [
             'nom' => 'Doe',
@@ -228,5 +231,28 @@ class FaceRegistrationTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonPath('error.details.password.0', 'La confirmation du mot de passe ne correspond pas');
+    }
+
+    public function test_sends_verification_email_on_successful_registration(): void
+    {
+        $response = $this->postJson('/api/v1/auth/register/face', $this->validData);
+
+        $response->assertStatus(201);
+
+        $user = User::where('email', 'john@example.com')->first();
+
+        Notification::assertSentTo($user, VerifyEmailNotification::class);
+    }
+
+    public function test_new_user_has_unverified_email(): void
+    {
+        $response = $this->postJson('/api/v1/auth/register/face', $this->validData);
+
+        $response->assertStatus(201);
+
+        $user = User::where('email', 'john@example.com')->first();
+
+        $this->assertNull($user->email_verified_at);
+        $this->assertFalse($user->hasVerifiedEmail());
     }
 }
