@@ -46,48 +46,52 @@ const router = createRouter({
       component: () => import('../pages/auth/ResetPasswordPage.vue'),
       meta: { guest: true },
     },
-    // Face routes (auth required + Face role)
+    // Face routes (auth required + Face role) - nested under FaceLayout
     {
-      path: '/face/dashboard',
-      name: 'face-dashboard',
-      component: () => import('../pages/dashboard/FaceDashboardPage.vue'),
+      path: '/face',
+      component: () => import('../pages/face/FaceLayout.vue'),
       meta: { requiresAuth: true, role: 'Face' },
-    },
-    {
-      path: '/face/profile',
-      name: 'face-profile',
-      component: () => import('../pages/face/ProfileEditPage.vue'),
-      meta: { requiresAuth: true, role: 'Face' },
-    },
-    {
-      path: '/face/missions',
-      name: 'face-missions',
-      component: () => import('../pages/face/mission/FaceMissionsListPage.vue'),
-      meta: { requiresAuth: true, role: 'Face' },
-    },
-    {
-      path: '/face/missions/:id',
-      name: 'face-mission-detail',
-      component: () => import('../pages/face/mission/FaceMissionDetailPage.vue'),
-      meta: { requiresAuth: true, role: 'Face' },
-    },
-    {
-      path: '/face/candidatures',
-      name: 'face-candidatures',
-      component: () => import('../pages/face/candidature/FaceCandidaturesPage.vue'),
-      meta: { requiresAuth: true, role: 'Face' },
-    },
-    {
-      path: '/face/messages',
-      name: 'face-messages',
-      component: () => import('../pages/face/messaging/FaceConversationsPage.vue'),
-      meta: { requiresAuth: true, role: 'Face' },
-    },
-    {
-      path: '/face/conversations/:conversationId',
-      name: 'face-conversation',
-      component: () => import('../features/messaging/components/ConversationView.vue'),
-      meta: { requiresAuth: true, role: 'Face' },
+      children: [
+        {
+          path: '',
+          redirect: { name: 'face-dashboard' },
+        },
+        {
+          path: 'dashboard',
+          name: 'face-dashboard',
+          component: () => import('../pages/dashboard/FaceDashboardPage.vue'),
+        },
+        {
+          path: 'profile',
+          name: 'face-profile',
+          component: () => import('../pages/face/ProfileEditPage.vue'),
+        },
+        {
+          path: 'missions',
+          name: 'face-missions',
+          component: () => import('../pages/face/mission/FaceMissionsListPage.vue'),
+        },
+        {
+          path: 'missions/:id',
+          name: 'face-mission-detail',
+          component: () => import('../pages/face/mission/FaceMissionDetailPage.vue'),
+        },
+        {
+          path: 'candidatures',
+          name: 'face-candidatures',
+          component: () => import('../pages/face/candidature/FaceCandidaturesPage.vue'),
+        },
+        {
+          path: 'messages',
+          name: 'face-messages',
+          component: () => import('../pages/face/messaging/FaceConversationsPage.vue'),
+        },
+        {
+          path: 'conversations/:conversationId',
+          name: 'face-conversation',
+          component: () => import('../features/messaging/components/ConversationView.vue'),
+        },
+      ],
     },
     {
       path: '/dashboard/face',
