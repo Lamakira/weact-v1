@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Candidature extends Model
@@ -152,5 +153,32 @@ class Candidature extends Model
     public function scopeRejected(Builder $query): Builder
     {
         return $query->where('status', CandidatureStatus::Rejected);
+    }
+
+    /**
+     * Get the ratings associated with this candidature.
+     */
+    public function ratings(): HasMany
+    {
+        return $this->hasMany(Rating::class);
+    }
+
+    /**
+     * Check if this candidature can be rated.
+     *
+     * Delegates to CandidatureStatus::allowsRatings() which returns true
+     * only when status is 'completed'.
+     */
+    public function canBeRated(): bool
+    {
+        return $this->status->allowsRatings();
+    }
+
+    /**
+     * Check if a user has already rated in this candidature context.
+     */
+    public function hasRatingFrom(User $user): bool
+    {
+        return $this->ratings()->where('rater_id', $user->id)->exists();
     }
 }

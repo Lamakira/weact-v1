@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { X, Loader2, CheckCircle, AlertCircle } from 'lucide-vue-next'
+import { X, Loader2, CheckCircle, AlertCircle, Mail, ShieldAlert } from 'lucide-vue-next'
 import { useApplyToMission } from '../composables/useApplyToMission'
+import { authApi } from '@/features/auth/services/authApi'
+import { useToast } from '@/composables/useToast'
 
 /**
  * Props
@@ -26,7 +28,14 @@ const emit = defineEmits<{
 const motivation = ref('')
 const MAX_CHARS = 2000
 
-const { isLoading, error, isSuccess, apply, reset } = useApplyToMission()
+const { isLoading, error, errorCode, isSuccess, apply, reset } = useApplyToMission()
+const toast = useToast()
+
+// Email verification resend state
+const isResendingVerification = ref(false)
+
+// Check if error is email not verified
+const isEmailNotVerified = computed(() => errorCode.value === 'EMAIL_NOT_VERIFIED')
 
 /**
  * Computed
@@ -45,6 +54,7 @@ watch(
       // Reset state when modal closes
       setTimeout(() => {
         motivation.value = ''
+        isResendingVerification.value = false
         reset()
       }, 300) // Wait for animation
     }
@@ -76,6 +86,30 @@ async function handleSubmit(): Promise<void> {
 function handleClose(): void {
   if (!isLoading.value) {
     emit('close')
+  }
+}
+
+/**
+ * Resend verification email
+ */
+async function handleResendVerification(): Promise<void> {
+  isResendingVerification.value = true
+  try {
+    const result = await authApi.resendVerificationEmail()
+    if (result.sent) {
+      toast.success('Un email de vérification a été envoyé.')
+    } else if (result.verified) {
+      toast.success('Votre email est déjà vérifié. Vous pouvez réessayer.')
+      reset()
+    }
+  } catch (err) {
+    if ((err as { response?: { status?: number } })?.response?.status === 429) {
+      toast.warning('Veuillez patienter avant de renvoyer un email.')
+    } else {
+      toast.error("Impossible d'envoyer l'email. Veuillez réessayer.")
+    }
+  } finally {
+    isResendingVerification.value = false
   }
 }
 
@@ -154,9 +188,39 @@ function handleBackdropClick(event: MouseEvent): void {
                   Vous postulez pour la mission : <span class="font-medium text-foreground">{{ missionTitle }}</span>
                 </p>
 
-                <!-- Error Alert -->
+                <!-- Email Not Verified Alert -->
                 <div
-                  v-if="error"
+                  v-if="isEmailNotVerified"
+                  class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4"
+                  data-testid="email-not-verified-alert"
+                >
+                  <div class="flex items-start gap-3">
+                    <div class="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                      <ShieldAlert class="h-5 w-5 text-amber-600" />
+                    </div>
+                    <div class="flex-1">
+                      <h4 class="text-sm font-semibold text-amber-800">Email non vérifié</h4>
+                      <p class="mt-1 text-sm text-amber-700">
+                        Vous devez vérifier votre adresse email avant de pouvoir postuler à une mission.
+                      </p>
+                      <button
+                        type="button"
+                        class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        :disabled="isResendingVerification"
+                        @click="handleResendVerification"
+                        data-testid="resend-verification-button"
+                      >
+                        <Mail v-if="!isResendingVerification" class="h-4 w-4" />
+                        <Loader2 v-else class="h-4 w-4 animate-spin" />
+                        {{ isResendingVerification ? 'Envoi en cours...' : "Renvoyer l'email de vérification" }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Generic Error Alert -->
+                <div
+                  v-else-if="error"
                   class="mb-4 flex items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-destructive"
                 >
                   <AlertCircle class="h-5 w-5 flex-shrink-0" />

@@ -2,6 +2,7 @@
 import { RouterLink } from 'vue-router'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
+import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 
 const authStore = useAuthStore()
 const { logout, isLoading } = useAuth()
@@ -87,6 +88,12 @@ async function handleLogout(): Promise<void> {
 
     <!-- Main content placeholder -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- Email verification banner (shown if email not verified) -->
+      <EmailVerificationBanner
+        v-if="!authStore.isEmailVerified"
+        data-testid="email-verification-banner"
+      />
+
       <div class="bg-white rounded-lg shadow p-6 mb-6">
         <h2 class="text-lg font-medium text-gray-900 mb-4">Bienvenue sur votre Dashboard Producteur</h2>
         <p class="text-gray-600">

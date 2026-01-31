@@ -83,6 +83,17 @@ export function useApplyToMission() {
         }
 
         if (err.response?.status === 403) {
+          // Check for email verification error
+          if (err.response?.data?.error?.code === 'EMAIL_NOT_VERIFIED') {
+            const apiError = err.response.data.error
+            error.value = apiError.message
+            errorCode.value = 'EMAIL_NOT_VERIFIED'
+            return {
+              success: false,
+              error: apiError,
+            }
+          }
+
           error.value = 'Vous devez être connecté en tant que Face pour postuler'
           return {
             success: false,

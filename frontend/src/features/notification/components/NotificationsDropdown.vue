@@ -116,7 +116,7 @@ onMounted(() => {
     leave-to-class="translate-y-2 opacity-0 scale-95"
   >
     <div
-      class="absolute right-0 mt-2 w-80 sm:w-96 bg-popover border border-border rounded-xl shadow-lg z-50 overflow-hidden flex flex-col"
+      class="fixed sm:absolute inset-x-4 sm:inset-x-auto sm:right-0 top-16 sm:top-auto sm:mt-2 w-auto sm:w-96 bg-popover border border-border rounded-xl shadow-lg z-50 overflow-hidden flex flex-col"
       role="menu"
       aria-label="Notifications"
     >

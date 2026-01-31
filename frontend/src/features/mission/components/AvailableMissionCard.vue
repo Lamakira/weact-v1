@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { Calendar, Wallet, MapPin, Users } from 'lucide-vue-next'
+import RatingDisplay from '@/components/RatingDisplay.vue'
 import type { Mission } from '../types'
 
 const props = defineProps<{
   mission: Mission
 }>()
+
+const router = useRouter()
 
 const emit = defineEmits<{
   click: [id: number]
@@ -62,6 +66,18 @@ function formatCurrency(amount: number): string {
 function handleClick(): void {
   emit('click', props.mission.id)
 }
+
+// Producer rating data
+const producerRating = computed(() => props.mission.producer?.average_rating ?? null)
+const producerRatingsCount = computed(() => props.mission.producer?.ratings_count ?? 0)
+
+// Navigate to producer profile
+function handleProducerClick(event: MouseEvent | KeyboardEvent): void {
+  event.stopPropagation()
+  if (props.mission.producer?.id) {
+    router.push(`/producers/${props.mission.producer.id}`)
+  }
+}
 </script>
 
 <template>
@@ -114,8 +130,15 @@ function handleClick(): void {
     <div class="mb-4 h-px w-full bg-border"></div>
 
     <!-- Footer: Producer -->
-    <div class="flex items-center gap-3">
-      <div class="relative h-8 w-8 overflow-hidden rounded-full border border-border bg-muted">
+    <div
+      class="flex cursor-pointer items-center gap-3 rounded-md p-1 -m-1 transition-colors hover:bg-muted/50"
+      role="button"
+      tabindex="0"
+      :aria-label="`Voir le profil de ${producerName}`"
+      @click="handleProducerClick"
+      @keydown.enter="handleProducerClick"
+    >
+      <div class="relative h-8 w-8 flex-shrink-0 overflow-hidden rounded-full border border-border bg-muted">
         <img
           v-if="producerAvatarUrl"
           :src="producerAvatarUrl"
@@ -129,9 +152,13 @@ function handleClick(): void {
           {{ producerInitials }}
         </div>
       </div>
-      <div class="flex min-w-0 flex-col">
-        <span class="text-xs text-muted-foreground">Producteur</span>
+      <div class="flex min-w-0 flex-col gap-0.5">
         <span class="truncate text-sm font-medium text-foreground">{{ producerName }}</span>
+        <RatingDisplay
+          :average-rating="producerRating"
+          :review-count="producerRatingsCount"
+          class="text-xs"
+        />
       </div>
     </div>
   </div>

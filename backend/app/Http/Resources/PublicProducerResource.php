@@ -38,9 +38,9 @@ class PublicProducerResource extends JsonResource
             'agency_logo_thumbnail_url' => $this->agency_logo_thumbnail_url,
             // missions_count uses real data from database (Story 5-11)
             'missions_count' => $this->published_missions_count,
-            // MVP placeholders - will be updated when Epic 8 (Ratings) is implemented
-            'average_rating' => null,
-            'ratings_count' => 0,
+            // Rating data from Producer model (Story 8-5)
+            'average_rating' => $this->average_rating,
+            'ratings_count' => $this->ratings_count,
             // French formatted date: "janvier 2026"
             'member_since' => $this->created_at?->translatedFormat('F Y'),
         ];

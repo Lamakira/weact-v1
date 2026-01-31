@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Producer\FaceController;
 use App\Http\Controllers\Api\V1\Producer\MessageController;
 use App\Http\Controllers\Api\V1\Producer\MissionController;
 use App\Http\Controllers\Api\V1\Producer\ProfileController;
+use App\Http\Controllers\Api\V1\Producer\RatingController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -36,7 +37,8 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
 
     // Mission routes
     Route::get('/missions', [MissionController::class, 'index']);
-    Route::post('/missions', [MissionController::class, 'store']);
+    Route::post('/missions', [MissionController::class, 'store'])
+        ->middleware('verified'); // Email verification required to post missions
     Route::get('/missions/{mission}', [MissionController::class, 'show']);
     Route::put('/missions/{mission}', [MissionController::class, 'update']);
     Route::delete('/missions/{mission}', [MissionController::class, 'destroy']);
@@ -50,6 +52,10 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
     // Candidature action routes
     Route::post('/candidatures/{candidature}/accept', [CandidatureController::class, 'accept']);
     Route::post('/candidatures/{candidature}/reject', [CandidatureController::class, 'reject']);
+
+    // Rating routes - rate Face after completed mission (Producer only)
+    Route::post('/candidatures/{candidature}/rate', [RatingController::class, 'store'])
+        ->middleware(['producer', 'throttle:30,1']);
 
     // Candidate profile routes
     Route::get('/candidates/{face}', [FaceController::class, 'show']);

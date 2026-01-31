@@ -1,11 +1,12 @@
 import { ref, type Ref } from 'vue'
 import { missionApi } from '../services/missionApi'
 import type { Mission, MissionCreateResult, CreateMissionData } from '../types'
-import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
+import { getApiErrorDetails, getApiErrorMessage, getApiErrorCode } from '@/features/auth/services/authApi'
 
 export interface UseMissionCreateReturn {
   isSubmitting: Ref<boolean>
   error: Ref<string | null>
+  errorCode: Ref<string | null>
   validationErrors: Ref<Record<string, string[]>>
   createdMission: Ref<Mission | null>
   createMission: (data: CreateMissionData) => Promise<MissionCreateResult>
@@ -19,6 +20,7 @@ export interface UseMissionCreateReturn {
 export function useMissionCreate(): UseMissionCreateReturn {
   const isSubmitting = ref(false)
   const error = ref<string | null>(null)
+  const errorCode = ref<string | null>(null)
   const validationErrors = ref<Record<string, string[]>>({})
   const createdMission = ref<Mission | null>(null)
 
@@ -27,6 +29,7 @@ export function useMissionCreate(): UseMissionCreateReturn {
    */
   function clearError(): void {
     error.value = null
+    errorCode.value = null
     validationErrors.value = {}
   }
 
@@ -36,6 +39,7 @@ export function useMissionCreate(): UseMissionCreateReturn {
   function reset(): void {
     isSubmitting.value = false
     error.value = null
+    errorCode.value = null
     validationErrors.value = {}
     createdMission.value = null
   }
@@ -46,6 +50,7 @@ export function useMissionCreate(): UseMissionCreateReturn {
   async function createMission(data: CreateMissionData): Promise<MissionCreateResult> {
     isSubmitting.value = true
     error.value = null
+    errorCode.value = null
     validationErrors.value = {}
 
     try {
@@ -60,13 +65,16 @@ export function useMissionCreate(): UseMissionCreateReturn {
     } catch (err) {
       const errors = getApiErrorDetails(err)
       const message = getApiErrorMessage(err)
+      const code = getApiErrorCode(err)
       error.value = message
+      errorCode.value = code
       validationErrors.value = errors
 
       return {
         success: false,
         errors,
         message,
+        errorCode: code,
       }
     } finally {
       isSubmitting.value = false
@@ -76,6 +84,7 @@ export function useMissionCreate(): UseMissionCreateReturn {
   return {
     isSubmitting,
     error,
+    errorCode,
     validationErrors,
     createdMission,
     createMission,

@@ -3,11 +3,15 @@ import { computed } from 'vue'
 import { ChevronLeft, RefreshCw } from 'lucide-vue-next'
 import type { OtherParticipant } from '../types'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   participant: OtherParticipant
   missionTitle: string
   isRefreshing?: boolean
-}>()
+  showBack?: boolean
+}>(), {
+  isRefreshing: false,
+  showBack: true,
+})
 
 const emit = defineEmits<{
   (e: 'back'): void
@@ -34,6 +38,7 @@ const participantLabel = computed(() => {
   >
     <!-- Back Button -->
     <button
+      v-if="showBack"
       type="button"
       class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary/5 hover:text-foreground"
       aria-label="Retour"

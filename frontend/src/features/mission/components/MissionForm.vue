@@ -28,7 +28,11 @@ import {
   ChevronLeft,
   Send,
   Save,
+  ShieldAlert,
+  Mail,
 } from 'lucide-vue-next'
+import { authApi } from '@/features/auth/services/authApi'
+import { useToast } from '@/composables/useToast'
 
 const props = withDefaults(defineProps<{
   mode?: 'create' | 'edit'
@@ -45,8 +49,36 @@ const emit = defineEmits<{
   submit: [data: CreateMissionData]
 }>()
 
-const { createMission, isSubmitting: isCreating, error, validationErrors } = useMissionCreate()
+const { createMission, isSubmitting: isCreating, error, errorCode, validationErrors } = useMissionCreate()
 const isProcessing = computed(() => props.isSubmitting || isCreating.value)
+const toast = useToast()
+
+// Email verification state
+const isResendingVerification = ref(false)
+const isEmailNotVerified = computed(() => errorCode.value === 'EMAIL_NOT_VERIFIED')
+
+/**
+ * Resend verification email
+ */
+async function handleResendVerification(): Promise<void> {
+  isResendingVerification.value = true
+  try {
+    const result = await authApi.resendVerificationEmail()
+    if (result.sent) {
+      toast.success('Un email de vérification a été envoyé.')
+    } else if (result.verified) {
+      toast.success('Votre email est déjà vérifié. Vous pouvez réessayer.')
+    }
+  } catch (err) {
+    if ((err as { response?: { status?: number } })?.response?.status === 429) {
+      toast.warning('Veuillez patienter avant de renvoyer un email.')
+    } else {
+      toast.error("Impossible d'envoyer l'email. Veuillez réessayer.")
+    }
+  } finally {
+    isResendingVerification.value = false
+  }
+}
 
 const missionTypeOptions = getMissionTypeOptions()
 const genderOptions = getMissionGenderOptions()
@@ -171,9 +203,39 @@ const sectionClasses = 'bg-white rounded-xl border border-gray-100 p-6 shadow-sm
       </Button>
     </div>
 
-    <!-- API Errors -->
+    <!-- Email Not Verified Error -->
     <div
-      v-if="apiError"
+      v-if="isEmailNotVerified"
+      class="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4"
+      data-testid="email-not-verified-alert"
+    >
+      <div class="flex items-start gap-3">
+        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+          <ShieldAlert class="h-5 w-5 text-amber-600" />
+        </div>
+        <div class="flex-1">
+          <h4 class="text-sm font-semibold text-amber-800">Email non vérifié</h4>
+          <p class="mt-1 text-sm text-amber-700">
+            Vous devez vérifier votre adresse email avant de pouvoir publier une mission.
+          </p>
+          <button
+            type="button"
+            class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="isResendingVerification"
+            @click="handleResendVerification"
+            data-testid="resend-verification-button"
+          >
+            <Mail v-if="!isResendingVerification" class="h-4 w-4" />
+            <Loader2 v-else class="h-4 w-4 animate-spin" />
+            {{ isResendingVerification ? 'Envoi en cours...' : "Renvoyer l'email de vérification" }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Generic API Errors -->
+    <div
+      v-else-if="apiError"
       class="mb-6 p-4 bg-red-50 border border-red-100 rounded-lg flex items-start gap-3 text-red-700"
       role="alert"
       data-testid="api-error"

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 class Face extends Model
@@ -76,6 +77,8 @@ class Face extends Model
         'profile_completion_percentage',
         'profile_completion_missing',
         'profile_completion_is_complete',
+        'average_rating',
+        'ratings_count',
     ];
 
     /**
@@ -350,6 +353,38 @@ class Face extends Model
     {
         return Attribute::make(
             get: fn (): bool => $this->profile_completion_percentage === 100,
+        );
+    }
+
+    /**
+     * Get the ratings received by this Face.
+     */
+    public function ratingsReceived(): MorphMany
+    {
+        return $this->morphMany(Rating::class, 'rated');
+    }
+
+    /**
+     * Get the average rating score for this Face.
+     */
+    protected function averageRating(): Attribute
+    {
+        return Attribute::make(
+            get: function (): ?float {
+                $avg = $this->ratingsReceived()->avg('score');
+
+                return $avg !== null ? (float) $avg : null;
+            },
+        );
+    }
+
+    /**
+     * Get the total count of ratings received by this Face.
+     */
+    protected function ratingsCount(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): int => $this->ratingsReceived()->count(),
         );
     }
 }

@@ -7,7 +7,9 @@ namespace Tests\Feature\Auth;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
+use App\Notifications\VerifyEmailNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class ProducerRegistrationTest extends TestCase
@@ -20,6 +22,7 @@ class ProducerRegistrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Notification::fake();
 
         $this->validAgencyData = [
             'type' => 'agency',
@@ -309,5 +312,28 @@ class ProducerRegistrationTest extends TestCase
         $response->assertStatus(422)
             ->assertJsonPath('error.code', 'validation_error')
             ->assertJsonPath('error.details.type.0', 'Veuillez choisir un type de compte');
+    }
+
+    public function test_sends_verification_email_on_successful_registration(): void
+    {
+        $response = $this->postJson('/api/v1/auth/register/producer', $this->validAgencyData);
+
+        $response->assertStatus(201);
+
+        $user = User::where('email', 'agency@example.com')->first();
+
+        Notification::assertSentTo($user, VerifyEmailNotification::class);
+    }
+
+    public function test_new_producer_has_unverified_email(): void
+    {
+        $response = $this->postJson('/api/v1/auth/register/producer', $this->validAgencyData);
+
+        $response->assertStatus(201);
+
+        $user = User::where('email', 'agency@example.com')->first();
+
+        $this->assertNull($user->email_verified_at);
+        $this->assertFalse($user->hasVerifiedEmail());
     }
 }

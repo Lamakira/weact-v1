@@ -1,7 +1,12 @@
 <script setup lang="ts">
-import { RouterLink } from 'vue-router'
-import { Check } from 'lucide-vue-next'
-import ProfileCompletionIndicator from './ProfileCompletionIndicator.vue'
+/**
+ * ProfileCompletionCard Component
+ * Compact card showing profile completion status.
+ * Pattern matched to WalletCard and MissionsQuickAccessCard styles.
+ */
+import { computed } from 'vue'
+import { UserCheck, ChevronRight } from 'lucide-vue-next'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface Props {
   percentage?: number
@@ -9,61 +14,134 @@ interface Props {
   isLoading?: boolean
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   percentage: 0,
   missingCount: 0,
   isLoading: false,
+})
+
+const emit = defineEmits<{
+  click: []
+}>()
+
+/** Emit click event for parent navigation handling */
+function handleClick(): void {
+  emit('click')
+}
+
+/** Get badge color classes based on percentage */
+const badgeClasses = computed(() => {
+  if (props.percentage === 100) {
+    return 'bg-green-100 text-green-700'
+  } else if (props.percentage >= 80) {
+    return 'bg-orange-100 text-orange-700'
+  } else if (props.percentage >= 50) {
+    return 'bg-yellow-100 text-yellow-700'
+  } else {
+    return 'bg-red-100 text-red-700'
+  }
 })
 </script>
 
 <template>
   <div
-    class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex flex-col h-full"
+    class="relative overflow-hidden bg-white rounded-2xl p-4 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md hover:border-primary/30 transition-all group"
+    role="button"
+    tabindex="0"
+    aria-label="Compléter mon profil"
     data-testid="profile-completion-card"
+    @click="handleClick"
+    @keydown.enter="handleClick"
+    @keydown.space.prevent="handleClick"
   >
-    <h3 class="text-sm font-semibold text-foreground mb-6">Complétion du profil</h3>
-
-    <div class="flex flex-col items-center justify-center flex-1 gap-5">
-      <ProfileCompletionIndicator
-        :percentage="isLoading ? undefined : percentage"
-        :is-complete="percentage === 100"
-        variant="compact"
-      />
-
-      <div class="text-center">
-        <!-- Loading state -->
-        <div v-if="isLoading" class="animate-pulse">
-          <div class="h-4 w-32 bg-muted rounded mx-auto mb-4" />
-          <div class="h-9 w-36 bg-muted rounded-lg mx-auto" />
+    <div class="flex flex-col gap-3">
+      <!-- Header Row: Icon & Badge -->
+      <div class="flex items-center justify-between">
+        <!-- Icon Container -->
+        <div
+          class="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20"
+          data-testid="profile-completion-icon"
+        >
+          <UserCheck class="h-5 w-5 text-primary" />
         </div>
 
-        <!-- Has missing items -->
-        <template v-else-if="missingCount > 0">
-          <p class="text-sm text-muted-foreground mb-4" data-testid="missing-count">
-            {{ missingCount }} {{ missingCount > 1 ? 'éléments manquants' : 'élément manquant' }}
-          </p>
-          <RouterLink
-            to="/face/profile"
-            class="inline-flex items-center justify-center px-5 py-2 text-sm font-medium text-white bg-[var(--color-weact)] hover:bg-[var(--color-weact-600)] rounded-lg transition-colors shadow-sm"
-            data-testid="complete-profile-link"
-          >
-            Compléter mon profil
-          </RouterLink>
+        <!-- Percentage Badge -->
+        <template v-if="isLoading">
+          <Skeleton class="h-7 w-12 rounded-full" data-testid="profile-completion-badge-loading" />
         </template>
-
-        <!-- Profile complete -->
         <template v-else>
-          <div
-            class="flex items-center justify-center gap-2 text-[var(--color-weact)] font-semibold py-2"
-            data-testid="complete-badge"
+          <span
+            class="inline-flex items-center justify-center min-w-[2.5rem] h-7 px-2 rounded-full text-xs font-bold"
+            :class="badgeClasses"
+            data-testid="profile-completion-badge"
           >
-            <div class="bg-[var(--color-weact-50)] p-1 rounded-full">
-              <Check class="w-4 h-4" stroke-width="3" />
-            </div>
-            <span class="text-sm">Profil complet</span>
-          </div>
+            {{ percentage }}%
+          </span>
         </template>
       </div>
+
+      <!-- Content Row -->
+      <div class="flex items-end justify-between">
+        <div class="space-y-0.5">
+          <h3
+            class="text-base font-semibold text-gray-900"
+            data-testid="profile-completion-title"
+          >
+            Complétion du profil
+          </h3>
+
+          <template v-if="isLoading">
+            <Skeleton class="h-4 w-32" data-testid="profile-completion-subtitle-loading" />
+          </template>
+          <p
+            v-else
+            class="text-sm text-gray-500"
+            data-testid="profile-completion-subtitle"
+          >
+            <template v-if="percentage === 100">
+              Profil complet
+            </template>
+            <template v-else>
+              {{ missingCount }} {{ missingCount > 1 ? 'éléments manquants' : 'élément manquant' }}
+            </template>
+          </p>
+        </div>
+
+        <!-- Clickable indicator -->
+        <div
+          class="flex items-center gap-1 text-xs font-medium text-primary group-hover:translate-x-0.5 transition-transform"
+          data-testid="profile-completion-action"
+        >
+          <span>Voir</span>
+          <ChevronRight class="h-4 w-4" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Decorative Background Icon -->
+    <div class="absolute -bottom-2 -right-2 opacity-5 pointer-events-none">
+      <UserCheck class="h-16 w-16 text-gray-900" />
     </div>
   </div>
 </template>
+
+<style scoped>
+.text-primary {
+  color: var(--color-weact, #198496);
+}
+.bg-primary {
+  background-color: var(--color-weact, #198496);
+}
+.bg-primary\/10 {
+  background-color: rgba(25, 132, 150, 0.1);
+}
+.border-primary\/20 {
+  border-color: rgba(25, 132, 150, 0.2);
+}
+.border-primary\/30 {
+  border-color: rgba(25, 132, 150, 0.3);
+}
+.hover\:border-primary\/30:hover {
+  border-color: rgba(25, 132, 150, 0.3);
+}
+</style>

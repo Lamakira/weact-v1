@@ -2,6 +2,9 @@
 import { watch, computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePublicProducer } from '@/features/public/composables/usePublicProducer'
+import { publicApi } from '@/features/public/services/publicApi'
+import type { Review } from '@/features/rating/types'
+import ReviewsList from '@/components/ReviewsList.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -10,6 +13,40 @@ const { producer, isLoading, error, notFound, isAgency, fetchProducer } = usePub
 // Track if profile photo failed to load
 const profilePhotoError = ref(false)
 const agencyLogoError = ref(false)
+
+// Reviews state
+const reviews = ref<Review[]>([])
+const reviewsLoading = ref(false)
+const reviewsCurrentPage = ref(1)
+const reviewsLastPage = ref(1)
+const reviewsTotal = ref(0)
+const reviewsError = ref(false)
+
+// Fetch reviews for the producer
+async function fetchReviews(producerId: number, page: number = 1): Promise<void> {
+  reviewsLoading.value = true
+  reviewsError.value = false
+  try {
+    const response = await publicApi.getProducerReviews(producerId, page)
+    reviews.value = response.data
+    reviewsCurrentPage.value = response.meta.current_page
+    reviewsLastPage.value = response.meta.last_page
+    reviewsTotal.value = response.meta.total
+  } catch {
+    // Show error state for reviews section
+    reviews.value = []
+    reviewsError.value = true
+  } finally {
+    reviewsLoading.value = false
+  }
+}
+
+// Handle page change for reviews
+function handleReviewsPageChange(page: number): void {
+  if (producerId.value) {
+    fetchReviews(producerId.value, page)
+  }
+}
 
 // Get producer ID from route params with NaN validation
 const producerId = computed(() => {
@@ -26,9 +63,14 @@ watch(
     // Reset image error states on new producer
     profilePhotoError.value = false
     agencyLogoError.value = false
+    reviews.value = []
+    reviewsCurrentPage.value = 1
+    reviewsError.value = false
 
     if (newId) {
       await fetchProducer(newId)
+      // Fetch reviews after producer is loaded
+      await fetchReviews(newId)
     }
   },
   { immediate: true }
@@ -343,35 +385,35 @@ const defaultAvatar = computed(() => {
           </p>
         </div>
 
-        <!-- Rating Section (MVP placeholder) -->
+        <!-- Reviews Section -->
         <div class="bg-white rounded-xl shadow-sm p-6">
           <h2 class="text-lg font-semibold text-gray-900 mb-4">Avis et évaluations</h2>
+          <!-- Reviews Error State -->
           <div
-            v-if="producer.average_rating === null"
-            class="text-center py-8"
-            data-testid="no-ratings-message"
+            v-if="reviewsError"
+            class="text-center py-6"
+            data-testid="reviews-error"
           >
-            <div class="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="1.5"
-                stroke="currentColor"
-                class="w-6 h-6 text-gray-400"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"
-                />
-              </svg>
-            </div>
-            <p class="text-gray-500">Aucune note pour le moment</p>
-            <p class="text-sm text-gray-400 mt-1">
-              Les avis apparaîtront ici après la réalisation de missions.
-            </p>
+            <p class="text-gray-500 text-sm">Impossible de charger les avis.</p>
+            <button
+              type="button"
+              class="mt-2 text-sm text-weact-600 hover:text-weact-700 underline"
+              data-testid="reviews-retry"
+              @click="fetchReviews(producerId!)"
+            >
+              Réessayer
+            </button>
           </div>
+          <!-- Reviews List -->
+          <ReviewsList
+            v-else
+            :reviews="reviews"
+            :current-page="reviewsCurrentPage"
+            :last-page="reviewsLastPage"
+            :total="reviewsTotal"
+            :loading="reviewsLoading"
+            @page-change="handleReviewsPageChange"
+          />
         </div>
       </div>
     </main>

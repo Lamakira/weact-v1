@@ -209,6 +209,8 @@ export interface CandidateFullProfile {
   availability_badge_color: string
   profile_completion_percentage: number
   profile_completion_is_complete: boolean
+  average_rating: number | null
+  ratings_count: number
   experiences: FaceExperience[]
   photos: FacePhoto[]
 }
