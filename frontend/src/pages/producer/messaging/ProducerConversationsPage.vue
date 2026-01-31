@@ -2,13 +2,16 @@
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Loader2, AlertCircle, MessageSquare, RefreshCw } from 'lucide-vue-next'
+import { useAuthStore } from '@/stores/auth'
 import { useProducerConversationsList } from '@/features/messaging/composables/useProducerConversationsList'
 import ConversationListItem from '@/features/messaging/components/ConversationListItem.vue'
+import EmailVerificationRequired from '@/components/EmailVerificationRequired.vue'
 
 /**
  * LOGIC & STATE MANAGEMENT
  */
 const router = useRouter()
+const authStore = useAuthStore()
 
 const {
   conversations,
@@ -51,6 +54,14 @@ onMounted(() => {
 
 <template>
   <div class="min-h-screen bg-background pb-8" data-testid="producer-conversations-page">
+    <!-- Email verification required -->
+    <EmailVerificationRequired
+      v-if="!authStore.isEmailVerified"
+      title="Messagerie non disponible"
+      message="Vous devez vérifier votre adresse email pour accéder à vos messages."
+    />
+
+    <template v-else>
     <!-- Header Section -->
     <header class="border-b border-border bg-card">
       <div class="container mx-auto flex items-center justify-between px-4 py-6 sm:px-6">
@@ -147,5 +158,6 @@ onMounted(() => {
         </div>
       </template>
     </main>
+    </template>
   </div>
 </template>

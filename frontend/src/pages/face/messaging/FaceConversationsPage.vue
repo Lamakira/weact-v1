@@ -2,13 +2,17 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Loader2, AlertCircle, MessageSquare, RefreshCw, ArrowLeft } from 'lucide-vue-next'
+import { useAuthStore } from '@/stores/auth'
 import { useConversationsList } from '@/features/messaging/composables/useConversationsList'
 import { useConversation } from '@/features/messaging/composables/useConversation'
 import { useSendMessage } from '@/features/messaging/composables/useSendMessage'
 import ConversationHeader from '@/features/messaging/components/ConversationHeader.vue'
 import MessageBubble from '@/features/messaging/components/MessageBubble.vue'
 import MessageInput from '@/features/messaging/components/MessageInput.vue'
+import EmailVerificationRequired from '@/components/EmailVerificationRequired.vue'
 import type { ConversationListItem } from '@/features/messaging/types'
+
+const authStore = useAuthStore()
 
 const route = useRoute()
 const router = useRouter()
@@ -183,6 +187,14 @@ watch(refreshError, (newError) => {
 
 <template>
   <div data-testid="face-conversations-page">
+    <!-- Email verification required -->
+    <EmailVerificationRequired
+      v-if="!authStore.isEmailVerified"
+      title="Messagerie non disponible"
+      message="Vous devez vérifier votre adresse email pour accéder à vos messages."
+    />
+
+    <template v-else>
     <!-- Page Header -->
     <div class="mb-6 flex items-center justify-between">
       <div>
@@ -396,6 +408,7 @@ watch(refreshError, (newError) => {
         </template>
       </div>
     </div>
+    </template>
   </div>
 </template>
 

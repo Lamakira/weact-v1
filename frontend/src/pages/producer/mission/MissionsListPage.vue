@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, AlertCircle, RefreshCw, ClipboardList, Inbox, ArrowRight } from 'lucide-vue-next'
+import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useMissionsList, useDeleteMission, useCloseMission, useReopenMission, useCompleteMission } from '@/features/mission/composables'
 import { MissionCard, DeleteMissionDialog, CloseMissionDialog, ReopenMissionDialog, CompleteMissionDialog } from '@/features/mission/components'
@@ -11,6 +12,7 @@ import type { Mission } from '@/features/mission/types'
  * LOGIC & STATE MANAGEMENT
  */
 const router = useRouter()
+const authStore = useAuthStore()
 const { success, error: toastError } = useToast()
 const { missions, isLoading, error, isEmpty, fetchMissions, refreshMissions } = useMissionsList()
 
@@ -169,6 +171,7 @@ async function confirmComplete(): Promise<void> {
         </div>
 
         <button
+          v-if="authStore.isEmailVerified"
           type="button"
           class="group relative flex items-center gap-2 overflow-hidden rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:ring-2 hover:ring-primary/20 active:scale-[0.98]"
           @click="navigateToPublish"
@@ -244,6 +247,7 @@ async function confirmComplete(): Promise<void> {
           Commencez à collaborer avec des talents en publiant votre première mission sur WEACT.
         </p>
         <button
+          v-if="authStore.isEmailVerified"
           type="button"
           class="mt-8 flex items-center gap-2 rounded-full bg-primary px-8 py-3 text-base font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/30 active:scale-95"
           @click="navigateToPublish"
@@ -251,6 +255,9 @@ async function confirmComplete(): Promise<void> {
           Publier ma première mission
           <ArrowRight class="h-5 w-5" />
         </button>
+        <p v-else class="mt-4 text-sm text-amber-600">
+          Veuillez vérifier votre email pour publier des missions.
+        </p>
       </div>
 
       <!-- Content List -->
@@ -284,6 +291,7 @@ async function confirmComplete(): Promise<void> {
             v-for="mission in missions"
             :key="mission.id"
             :mission="mission"
+            :email-verified="authStore.isEmailVerified"
             @edit="handleEdit"
             @delete="handleDeleteClick"
             @close="handleCloseClick"
