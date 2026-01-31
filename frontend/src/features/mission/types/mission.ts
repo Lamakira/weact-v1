@@ -140,6 +140,7 @@ export interface MissionCreateResult {
   data?: Mission
   errors?: Record<string, string[]>
   message?: string
+  errorCode?: string | null
 }
 
 // Data for updating a mission (same as create)

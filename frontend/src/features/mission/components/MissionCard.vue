@@ -3,9 +3,12 @@ import { computed } from 'vue'
 import { Calendar, Wallet, Users, Pencil, Trash2, XCircle, RefreshCw, CheckCircle2 } from 'lucide-vue-next'
 import type { Mission, MissionStatusType } from '../types'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   mission: Mission
-}>()
+  emailVerified?: boolean
+}>(), {
+  emailVerified: true, // Default to true for backwards compatibility
+})
 
 const emit = defineEmits<{
   edit: [id: number]
@@ -17,11 +20,12 @@ const emit = defineEmits<{
 }>()
 
 // Computed: Only show actions for editable statuses
-const canEdit = computed(() => ['draft', 'published'].includes(props.mission.status))
+// Note: When email is not verified, only delete is allowed
+const canEdit = computed(() => props.emailVerified && ['draft', 'published'].includes(props.mission.status))
 const canDelete = computed(() => ['draft', 'published'].includes(props.mission.status))
-const canClose = computed(() => props.mission.status === 'published')
-const canReopen = computed(() => props.mission.status === 'closed')
-const canComplete = computed(() => props.mission.status === 'closed')
+const canClose = computed(() => props.emailVerified && props.mission.status === 'published')
+const canReopen = computed(() => props.emailVerified && props.mission.status === 'closed')
+const canComplete = computed(() => props.emailVerified && props.mission.status === 'closed')
 
 // Formatters
 function formatDate(dateString: string): string {

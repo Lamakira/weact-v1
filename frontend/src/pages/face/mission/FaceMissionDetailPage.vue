@@ -13,21 +13,31 @@ import {
   AlertCircle,
   Loader2,
   CheckCircle,
+  ShieldAlert,
+  Mail,
 } from 'lucide-vue-next'
+import { useAuthStore } from '@/stores/auth'
 import { useMissionDetail } from '@/features/mission/composables'
 import { ApplyToMissionModal } from '@/features/candidature/components'
 import RatingDisplay from '@/components/RatingDisplay.vue'
+import { authApi } from '@/features/auth/services/authApi'
+import { useToast } from '@/composables/useToast'
 
 /**
  * LOGIC & STATE MANAGEMENT
  */
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
+const toast = useToast()
 
 const { mission, candidature, isLoading, error, notFound, fetchMission, setCandidature } = useMissionDetail()
 
 // Modal state
 const isApplyModalOpen = ref(false)
+
+// Email verification resend state
+const isResendingVerification = ref(false)
 
 // Get mission ID from route params
 const missionId = computed(() => {
@@ -39,6 +49,9 @@ const missionId = computed(() => {
 
 // Computed: Has the user already applied?
 const hasApplied = computed(() => candidature.value !== null)
+
+// Computed: Can the user apply? (must have verified email)
+const canApply = computed(() => authStore.isEmailVerified)
 
 // Computed helpers
 const producerName = computed(() => {
@@ -122,6 +135,28 @@ function handleApplySuccess(newCandidature: { id: number; status: string; status
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   })
+}
+
+async function handleResendVerification(): Promise<void> {
+  isResendingVerification.value = true
+  try {
+    const result = await authApi.resendVerificationEmail()
+    if (result.sent) {
+      toast.success('Un email de vérification a été envoyé.')
+    } else if (result.verified) {
+      toast.success('Votre email est déjà vérifié.')
+      // Refresh user data to update the UI
+      await authStore.refreshUser()
+    }
+  } catch (err) {
+    if ((err as { response?: { status?: number } })?.response?.status === 429) {
+      toast.warning('Veuillez patienter avant de renvoyer un email.')
+    } else {
+      toast.error("Impossible d'envoyer l'email. Veuillez réessayer.")
+    }
+  } finally {
+    isResendingVerification.value = false
+  }
 }
 
 /**
@@ -382,7 +417,36 @@ onMounted(() => {
               <span class="text-sm opacity-75">({{ candidature?.status_label }})</span>
             </div>
 
-            <!-- State 2: Can Apply -->
+            <!-- State 2: Email not verified - Show blocked state -->
+            <div
+              v-else-if="!canApply && mission.is_accepting_candidatures"
+              class="rounded-lg border border-amber-200 bg-amber-50 p-4"
+              data-testid="email-verification-apply-block"
+            >
+              <div class="flex flex-col sm:flex-row items-center gap-4">
+                <div class="flex items-center gap-3">
+                  <div class="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                    <ShieldAlert class="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div class="text-center sm:text-left">
+                    <p class="text-sm font-medium text-amber-800">Vérification email requise</p>
+                    <p class="text-xs text-amber-700">Vous devez vérifier votre email pour postuler.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  :disabled="isResendingVerification"
+                  class="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  @click="handleResendVerification"
+                >
+                  <Mail v-if="!isResendingVerification" class="h-4 w-4" />
+                  <Loader2 v-else class="h-4 w-4 animate-spin" />
+                  {{ isResendingVerification ? 'Envoi...' : "Renvoyer l'email" }}
+                </button>
+              </div>
+            </div>
+
+            <!-- State 3: Can Apply (email verified) -->
             <button
               v-else-if="mission.is_accepting_candidatures"
               type="button"
@@ -392,7 +456,7 @@ onMounted(() => {
               Postuler à cette mission
             </button>
 
-            <!-- State 3: Mission Closed -->
+            <!-- State 4: Mission Closed -->
             <div
               v-else
               class="flex items-center justify-center gap-2 rounded-lg border border-muted bg-muted/50 px-8 py-3 text-muted-foreground"
