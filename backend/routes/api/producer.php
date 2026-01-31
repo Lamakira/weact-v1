@@ -37,7 +37,8 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
 
     // Mission routes
     Route::get('/missions', [MissionController::class, 'index']);
-    Route::post('/missions', [MissionController::class, 'store']);
+    Route::post('/missions', [MissionController::class, 'store'])
+        ->middleware('verified'); // Email verification required to post missions
     Route::get('/missions/{mission}', [MissionController::class, 'show']);
     Route::put('/missions/{mission}', [MissionController::class, 'update']);
     Route::delete('/missions/{mission}', [MissionController::class, 'destroy']);

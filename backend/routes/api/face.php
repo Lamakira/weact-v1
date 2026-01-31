@@ -121,9 +121,9 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/missions/{mission}', [MissionController::class, 'show'])
         ->middleware(['face', 'throttle:60,1']);
 
-    // Candidature routes - apply to missions (Face only)
+    // Candidature routes - apply to missions (Face only, verified email required)
     Route::post('/missions/{mission}/apply', [CandidatureController::class, 'store'])
-        ->middleware(['face', 'throttle:30,1']);
+        ->middleware(['face', 'verified', 'throttle:30,1']);
 
     // Candidature routes - view my candidatures (Face only)
     Route::get('/candidatures', [CandidatureController::class, 'index'])
