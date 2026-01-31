@@ -1,9 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { createTestingPinia } from '@pinia/testing'
 import { ref } from 'vue'
 import FaceMissionDetailPage from '../FaceMissionDetailPage.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import type { Mission, MissionProducer } from '@/features/mission/types'
+
+// Mock useToast
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => ({
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn(),
+  }),
+}))
+
+// Mock authApi
+vi.mock('@/features/auth/services/authApi', () => ({
+  authApi: {
+    resendVerificationEmail: vi.fn(),
+  },
+}))
 
 // Mock vue-router
 const mockRoute = {
@@ -111,6 +129,7 @@ describe('FaceMissionDetailPage', () => {
 
       const wrapper = mount(FaceMissionDetailPage, {
         global: {
+          plugins: [createTestingPinia()],
           stubs: {
             ApplyToMissionModal: true,
             RatingDisplay: true,
@@ -137,6 +156,7 @@ describe('FaceMissionDetailPage', () => {
 
       const wrapper = mount(FaceMissionDetailPage, {
         global: {
+          plugins: [createTestingPinia()],
           stubs: {
             ApplyToMissionModal: true,
             RatingDisplay: true,
@@ -164,6 +184,7 @@ describe('FaceMissionDetailPage', () => {
 
       const wrapper = mount(FaceMissionDetailPage, {
         global: {
+          plugins: [createTestingPinia()],
           stubs: {
             ApplyToMissionModal: true,
             RatingDisplay: true,
@@ -191,6 +212,7 @@ describe('FaceMissionDetailPage', () => {
 
       const wrapper = mount(FaceMissionDetailPage, {
         global: {
+          plugins: [createTestingPinia()],
           stubs: {
             ApplyToMissionModal: true,
             RatingDisplay: true,
@@ -218,6 +240,7 @@ describe('FaceMissionDetailPage', () => {
 
       const wrapper = mount(FaceMissionDetailPage, {
         global: {
+          plugins: [createTestingPinia()],
           stubs: {
             ApplyToMissionModal: true,
             RatingDisplay: true,
@@ -247,6 +270,7 @@ describe('FaceMissionDetailPage', () => {
 
       const wrapper = mount(FaceMissionDetailPage, {
         global: {
+          plugins: [createTestingPinia()],
           stubs: {
             ApplyToMissionModal: true,
             RatingDisplay: true,
@@ -276,6 +300,7 @@ describe('FaceMissionDetailPage', () => {
 
       const wrapper = mount(FaceMissionDetailPage, {
         global: {
+          plugins: [createTestingPinia()],
           stubs: {
             ApplyToMissionModal: true,
             RatingDisplay: true,
@@ -301,6 +326,7 @@ describe('FaceMissionDetailPage', () => {
 
       const wrapper = mount(FaceMissionDetailPage, {
         global: {
+          plugins: [createTestingPinia()],
           stubs: {
             ApplyToMissionModal: true,
             RatingDisplay: true,
@@ -330,6 +356,7 @@ describe('FaceMissionDetailPage', () => {
 
       const wrapper = mount(FaceMissionDetailPage, {
         global: {
+          plugins: [createTestingPinia()],
           stubs: {
             ApplyToMissionModal: true,
             RatingDisplay: true,
@@ -354,6 +381,7 @@ describe('FaceMissionDetailPage', () => {
 
       const wrapper = mount(FaceMissionDetailPage, {
         global: {
+          plugins: [createTestingPinia()],
           stubs: {
             ApplyToMissionModal: true,
             RatingDisplay: true,
@@ -369,6 +397,7 @@ describe('FaceMissionDetailPage', () => {
 
       const wrapper = mount(FaceMissionDetailPage, {
         global: {
+          plugins: [createTestingPinia()],
           stubs: {
             ApplyToMissionModal: true,
             RatingDisplay: true,
@@ -384,6 +413,7 @@ describe('FaceMissionDetailPage', () => {
 
       const wrapper = mount(FaceMissionDetailPage, {
         global: {
+          plugins: [createTestingPinia()],
           stubs: {
             ApplyToMissionModal: true,
             RatingDisplay: true,
