@@ -143,6 +143,9 @@ development_status:
   9-6-shared-dashboard-layout: done
   epic-9-retrospective: optional
 
+  # Cross-cutting: Email Verification (inserted before Epic 10)
+  email-verification: done
+
   # Epic 10: Producer Dashboard (6 stories)
   epic-10: backlog
   10-1-producer-dashboard-kpis: backlog
