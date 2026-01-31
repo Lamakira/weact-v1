@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { User } from '@/features/auth/types'
-import { getAuthToken, setAuthToken, removeAuthToken } from '@/services/apiClient'
+import apiClient, { getAuthToken, setAuthToken, removeAuthToken } from '@/services/apiClient'
 
 /**
  * Storage key for user data
@@ -48,6 +48,8 @@ export const useAuthStore = defineStore('auth', () => {
   const userType = computed(() => user.value?.userable_type ?? null)
   const isFace = computed(() => userType.value === 'Face')
   const isProducer = computed(() => userType.value === 'Producer')
+  const isEmailVerified = computed(() => user.value?.email_verified ?? false)
+  const emailVerifiedAt = computed(() => user.value?.email_verified_at ?? null)
 
   // Actions
   function setUser(newUser: User) {
@@ -71,6 +73,23 @@ export const useAuthStore = defineStore('auth', () => {
     removeStoredUser()
   }
 
+  /**
+   * Refresh user data from the API
+   * Useful after email verification or other profile updates
+   */
+  async function refreshUser(): Promise<boolean> {
+    if (!token.value) return false
+
+    try {
+      const response = await apiClient.get('/user')
+      const userData = response.data.data as User
+      setUser(userData)
+      return true
+    } catch {
+      return false
+    }
+  }
+
   function $reset() {
     clearAuth()
     isLoading.value = false
@@ -86,11 +105,14 @@ export const useAuthStore = defineStore('auth', () => {
     userType,
     isFace,
     isProducer,
+    isEmailVerified,
+    emailVerifiedAt,
     // Actions
     setUser,
     setToken,
     setLoading,
     clearAuth,
+    refreshUser,
     $reset,
   }
 })

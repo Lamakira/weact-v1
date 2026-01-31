@@ -69,6 +69,48 @@ export const authApi = {
     await getCsrfCookie()
     await apiClient.post('/auth/reset-password', data)
   },
+
+  /**
+   * Resend email verification notification
+   * Returns { sent: true } if email was sent, { verified: true } if already verified
+   */
+  async resendVerificationEmail(): Promise<{ sent?: boolean; verified?: boolean }> {
+    await getCsrfCookie()
+    const response = await apiClient.post<{
+      data: { sent?: boolean; verified?: boolean }
+      message: string
+    }>('/email/verification-notification')
+    return response.data.data
+  },
+
+  /**
+   * Verify email with signed URL parameters
+   */
+  async verifyEmail(
+    id: string,
+    hash: string,
+    expires: string,
+    signature: string
+  ): Promise<{ verified: boolean; already_verified?: boolean }> {
+    const response = await apiClient.get<{
+      data: { verified: boolean; already_verified?: boolean }
+      message: string
+    }>(`/auth/email/verify/${id}/${hash}`, {
+      params: { expires, signature },
+    })
+    return response.data.data
+  },
+
+  /**
+   * Get email verification status
+   */
+  async getVerificationStatus(): Promise<{ verified: boolean; email_verified_at: string | null }> {
+    const response = await apiClient.get<{
+      data: { verified: boolean; email_verified_at: string | null }
+      message: string
+    }>('/email/verification-status')
+    return response.data.data
+  },
 }
 
 /**
@@ -114,6 +156,16 @@ export function getApiErrorDetails(error: unknown): Record<string, string[]> {
     return error.response.data.error.details
   }
   return {}
+}
+
+/**
+ * Extract error code from API error response
+ */
+export function getApiErrorCode(error: unknown): string | null {
+  if (isApiError(error) && error.response?.data?.error?.code) {
+    return error.response.data.error.code
+  }
+  return null
 }
 
 /**
