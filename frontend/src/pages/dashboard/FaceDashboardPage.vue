@@ -5,6 +5,7 @@ import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
 import ProfileCompletionCard from '@/features/face/components/ProfileCompletionCard.vue'
+import { User, LogOut, Loader2, AlertCircle } from 'lucide-vue-next'
 import {
   useDashboardStats,
   useDashboardCharts,
@@ -13,6 +14,7 @@ import {
   WalletCard,
   ActivityChart,
   MissionsQuickAccessCard,
+  MessagesCard,
   FACE_KPI_CONFIGS,
 } from '@/features/dashboard'
 
@@ -80,72 +82,48 @@ function goToMessages(): void {
   <div class="min-h-screen bg-gray-50">
     <!-- Header with logout -->
     <header class="bg-white shadow">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-        <div class="flex items-center gap-4">
-          <div class="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
-            <span class="text-white font-bold">W</span>
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <!-- Logo and Title -->
+          <div class="flex items-center gap-3">
+            <div
+              class="w-10 h-10 bg-primary rounded-full flex items-center justify-center"
+              aria-hidden="true"
+            >
+              <span class="text-white font-bold text-lg">W</span>
+            </div>
+            <h1 class="text-xl font-semibold text-gray-900">Dashboard Face</h1>
           </div>
-          <h1 class="text-xl font-semibold text-gray-900">Dashboard Face</h1>
-        </div>
 
-        <div class="flex items-center gap-4">
-          <span class="text-sm text-gray-600">
-            {{ authStore.user?.email }}
-          </span>
-          <button
-            @click="goToProfile"
-            class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors"
-            data-testid="profile-button"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-              class="w-5 h-5"
+          <!-- User Actions -->
+          <div class="flex items-center gap-3 sm:gap-4 flex-wrap">
+            <span
+              class="text-sm text-gray-600 hidden sm:inline"
+              data-testid="user-email"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-              />
-            </svg>
-            Mon profil
-          </button>
-          <button
-            @click="handleLogout"
-            :disabled="isLoading"
-            class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            data-testid="logout-button"
-          >
-            <svg
-              v-if="!isLoading"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-              class="w-5 h-5"
+              {{ authStore.user?.email }}
+            </span>
+            <button
+              @click="goToProfile"
+              class="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors"
+              data-testid="profile-button"
+              aria-label="Accéder à mon profil"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
-              />
-            </svg>
-            <svg
-              v-else
-              class="w-5 h-5 animate-spin"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
+              <User class="w-5 h-5" aria-hidden="true" />
+              <span class="hidden sm:inline">Mon profil</span>
+            </button>
+            <button
+              @click="handleLogout"
+              :disabled="isLoading"
+              class="inline-flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="logout-button"
+              aria-label="Se déconnecter"
             >
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            {{ isLoading ? 'Déconnexion...' : 'Déconnexion' }}
-          </button>
+              <LogOut v-if="!isLoading" class="w-5 h-5" aria-hidden="true" />
+              <Loader2 v-else class="w-5 h-5 animate-spin" aria-hidden="true" />
+              <span class="hidden sm:inline">{{ isLoading ? 'Déconnexion...' : 'Déconnexion' }}</span>
+            </button>
+          </div>
         </div>
       </div>
     </header>
@@ -165,20 +143,7 @@ function goToMessages(): void {
           data-testid="stats-error"
         >
           <div class="flex items-center gap-3">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-              class="w-5 h-5 text-red-500"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-              />
-            </svg>
+            <AlertCircle class="w-5 h-5 text-red-500" aria-hidden="true" />
             <span class="text-sm text-red-700">{{ statsError }}</span>
           </div>
           <button
@@ -193,7 +158,7 @@ function goToMessages(): void {
         <!-- KPI Cards Grid -->
         <div
           v-else
-          class="grid grid-cols-2 lg:grid-cols-4 gap-4"
+          class="grid grid-cols-2 lg:grid-cols-4 gap-6"
           data-testid="kpi-cards-grid"
         >
           <KpiCard
@@ -209,76 +174,53 @@ function goToMessages(): void {
         </div>
       </section>
 
-      <!-- Dashboard cards grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <!-- Wallet Card (Inactive MVP placeholder) -->
-        <WalletCard />
-
-        <!-- Profile Completion Card -->
-        <ProfileCompletionCard
-          :percentage="completionPercentage"
-          :missing-count="completionMissingItems.length"
-          :is-loading="isCompletionLoading"
-          data-testid="profile-completion-card"
-        />
-
-        <!-- Missions Quick Access Card -->
-        <MissionsQuickAccessCard
-          :count="missionsCount"
-          :is-loading="isMissionsCountLoading"
-          data-testid="browse-missions-card"
-          @click="goToMissions"
-        />
-
-        <!-- Messages Card -->
+      <!-- Quick Access Cards Section -->
+      <section class="mb-8" aria-labelledby="quick-access-section-title">
+        <h2 id="quick-access-section-title" class="text-lg font-semibold text-gray-900 mb-4">
+          Accès rapides
+        </h2>
         <div
-          class="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-md transition-shadow border-l-4 border-blue-500"
-          @click="goToMessages"
-          data-testid="messages-card"
+          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
+          data-testid="quick-access-cards-grid"
         >
-          <div class="flex items-center gap-4">
-            <div class="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="1.5"
-                stroke="currentColor"
-                class="w-6 h-6 text-blue-500"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"
-                />
-              </svg>
-            </div>
-            <div>
-              <h3 class="text-lg font-semibold text-gray-900">Messages</h3>
-              <p class="text-sm text-gray-500">Discussions avec les producteurs</p>
-            </div>
-          </div>
+          <!-- Wallet Card (Inactive MVP placeholder) -->
+          <WalletCard />
+
+          <!-- Profile Completion Card -->
+          <ProfileCompletionCard
+            :percentage="completionPercentage"
+            :missing-count="completionMissingItems.length"
+            :is-loading="isCompletionLoading"
+            data-testid="profile-completion-card"
+            @click="goToProfile"
+          />
+
+          <!-- Missions Quick Access Card -->
+          <MissionsQuickAccessCard
+            :count="missionsCount"
+            :is-loading="isMissionsCountLoading"
+            data-testid="browse-missions-card"
+            @click="goToMissions"
+          />
+
+          <!-- Messages Card -->
+          <MessagesCard
+            data-testid="messages-card"
+            @click="goToMessages"
+          />
         </div>
-      </div>
+      </section>
 
       <!-- Charts Section -->
-      <ActivityChart
-        :candidatures-by-month="candidaturesByMonth"
-        :missions-completed-by-month="missionsCompletedByMonth"
-        :is-loading="isChartsLoading"
-        :error="chartsError"
-        @retry="retryCharts"
-        class="mb-8"
-      />
-
-      <!-- Welcome message -->
-      <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">Bienvenue sur votre Dashboard Face</h2>
-        <p class="text-gray-600">
-          Suivez vos candidatures et découvrez de nouvelles opportunités.
-          Plus de fonctionnalités seront ajoutées prochainement.
-        </p>
-      </div>
+      <section>
+        <ActivityChart
+          :candidatures-by-month="candidaturesByMonth"
+          :missions-completed-by-month="missionsCompletedByMonth"
+          :is-loading="isChartsLoading"
+          :error="chartsError"
+          @retry="retryCharts"
+        />
+      </section>
     </main>
   </div>
 </template>
