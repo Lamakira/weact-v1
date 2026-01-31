@@ -8,8 +8,13 @@ import type { DashboardStats } from '@/features/dashboard/types'
 const mockRouter = {
   push: vi.fn(),
 }
+const mockRoute = {
+  path: '/face/dashboard',
+  name: 'face-dashboard',
+}
 vi.mock('vue-router', () => ({
   useRouter: () => mockRouter,
+  useRoute: () => mockRoute,
 }))
 
 // Mock auth store
@@ -604,34 +609,8 @@ describe('FaceDashboardPage', () => {
     })
   })
 
-  describe('header', () => {
-    it('renders profile button with aria-label', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const profileButton = wrapper.find('[data-testid="profile-button"]')
-      expect(profileButton.exists()).toBe(true)
-      expect(profileButton.attributes('aria-label')).toBe('Accéder à mon profil')
-    })
-
-    it('renders logout button with aria-label', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const logoutButton = wrapper.find('[data-testid="logout-button"]')
-      expect(logoutButton.exists()).toBe(true)
-      expect(logoutButton.attributes('aria-label')).toBe('Se déconnecter')
-    })
-
-    it('displays user email on desktop', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const userEmail = wrapper.find('[data-testid="user-email"]')
-      expect(userEmail.exists()).toBe(true)
-      expect(userEmail.text()).toBe('test@example.com')
-    })
-  })
+  // Note: Header tests moved to FaceLayout.spec.ts
+  // FaceDashboardPage is now content-only (rendered inside FaceLayout)
 
   describe('layout structure', () => {
     it('renders quick access cards grid container', async () => {
