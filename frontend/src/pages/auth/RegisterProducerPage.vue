@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import ProducerRegistrationForm from '@/features/auth/components/ProducerRegistrationForm.vue'
+import { useToast } from '@/composables/useToast'
 
 const router = useRouter()
+const toast = useToast()
 
 function handleSuccess() {
+  // Show email verification reminder
+  toast.info(
+    'Un email de vérification a été envoyé. Veuillez vérifier votre boîte de réception.',
+    { timeout: 8000 }
+  )
   // Redirect to Producer dashboard after successful registration
   router.push('/producer/dashboard')
 }
