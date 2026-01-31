@@ -138,6 +138,20 @@ vi.mock('@/features/dashboard', () => ({
     props: ['count', 'isLoading'],
     emits: ['click'],
   },
+  MessagesCard: {
+    name: 'MessagesCard',
+    template: `
+      <div
+        data-testid="messages-card"
+        data-component="messages-card"
+        @click="$emit('click')"
+      >
+        <span>Messages</span>
+        <span>Discussions avec les producteurs</span>
+      </div>
+    `,
+    emits: ['click'],
+  },
   FACE_KPI_CONFIGS: [
     { key: 'pending', title: 'En attente', color: 'amber-500', bgColor: 'amber-50', icon: 'clock' },
     { key: 'accepted', title: 'Acceptées', color: 'green-500', bgColor: 'green-50', icon: 'check' },
@@ -372,12 +386,35 @@ describe('FaceDashboardPage', () => {
     })
   })
 
-  describe('section header', () => {
+  describe('section headers', () => {
     it('displays "Mes candidatures" section title', async () => {
       const wrapper = mount(FaceDashboardPage)
       await flushPromises()
 
       expect(wrapper.text()).toContain('Mes candidatures')
+    })
+
+    it('displays "Accès rapides" section title', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Accès rapides')
+    })
+
+    it('displays "Mon évolution" section title', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Mon évolution')
+    })
+
+    it('has proper section accessibility attributes', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      // Check for aria-labelledby attributes on sections
+      const sections = wrapper.findAll('section')
+      expect(sections.length).toBeGreaterThanOrEqual(3)
     })
   })
 
@@ -536,6 +573,88 @@ describe('FaceDashboardPage', () => {
       await missionsCard.trigger('click')
 
       expect(mockRouter.push).toHaveBeenCalledWith({ name: 'face-missions' })
+    })
+  })
+
+  describe('MessagesCard integration', () => {
+    it('renders MessagesCard component', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const messagesCard = wrapper.find('[data-testid="messages-card"]')
+      expect(messagesCard.exists()).toBe(true)
+    })
+
+    it('displays MessagesCard in the quick access cards grid', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const messagesCard = wrapper.find('[data-component="messages-card"]')
+      expect(messagesCard.exists()).toBe(true)
+    })
+
+    it('navigates to messages page when card is clicked', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const messagesCard = wrapper.find('[data-testid="messages-card"]')
+      await messagesCard.trigger('click')
+
+      expect(mockRouter.push).toHaveBeenCalledWith({ name: 'face-messages' })
+    })
+  })
+
+  describe('header', () => {
+    it('renders profile button with aria-label', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const profileButton = wrapper.find('[data-testid="profile-button"]')
+      expect(profileButton.exists()).toBe(true)
+      expect(profileButton.attributes('aria-label')).toBe('Accéder à mon profil')
+    })
+
+    it('renders logout button with aria-label', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const logoutButton = wrapper.find('[data-testid="logout-button"]')
+      expect(logoutButton.exists()).toBe(true)
+      expect(logoutButton.attributes('aria-label')).toBe('Se déconnecter')
+    })
+
+    it('displays user email on desktop', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const userEmail = wrapper.find('[data-testid="user-email"]')
+      expect(userEmail.exists()).toBe(true)
+      expect(userEmail.text()).toBe('test@example.com')
+    })
+  })
+
+  describe('layout structure', () => {
+    it('renders quick access cards grid container', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const grid = wrapper.find('[data-testid="quick-access-cards-grid"]')
+      expect(grid.exists()).toBe(true)
+    })
+
+    it('renders all 4 quick access cards', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      const grid = wrapper.find('[data-testid="quick-access-cards-grid"]')
+      expect(grid.element.children.length).toBe(4)
+    })
+
+    it('does not display welcome message (removed)', async () => {
+      const wrapper = mount(FaceDashboardPage)
+      await flushPromises()
+
+      expect(wrapper.text()).not.toContain('Bienvenue sur votre Dashboard Face')
     })
   })
 })

@@ -76,9 +76,6 @@ function handleClick(): void {
       </div>
     </div>
 
-    <!-- Decorative Border -->
-    <div class="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-l-2xl"></div>
-
     <!-- Subdued Decorative Element -->
     <div class="absolute -bottom-2 -right-2 opacity-5 pointer-events-none">
       <Search class="h-16 w-16 text-gray-900" />
