@@ -20,7 +20,7 @@ class ProducerRegistrationService
      */
     public function register(array $validated): array
     {
-        return DB::transaction(function () use ($validated): array {
+        $result = DB::transaction(function () use ($validated): array {
             // Create Producer record first
             $producerData = [
                 'type' => $validated['type'],
@@ -56,5 +56,16 @@ class ProducerRegistrationService
                 'token' => $token,
             ];
         });
+
+        // Send email verification notification outside transaction
+        // This ensures registration succeeds even if email fails
+        try {
+            $result['user']->sendEmailVerificationNotification();
+        } catch (\Throwable $e) {
+            // Log the error but don't fail registration
+            \Log::warning('Failed to send verification email: '.$e->getMessage());
+        }
+
+        return $result;
     }
 }
