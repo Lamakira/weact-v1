@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuth } from '@/features/auth/composables/useAuth'
+import { Loader2 } from 'lucide-vue-next'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
 import { usePhotoAlbum } from '@/features/face/composables/usePhotoAlbum'
 import { usePresentationVideo } from '@/features/face/composables/usePresentationVideo'
@@ -28,9 +27,6 @@ import AvailabilityToggle from '@/features/face/components/AvailabilityToggle.vu
 import ProfileCompletionIndicator from '@/features/face/components/ProfileCompletionIndicator.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import type { FaceCategory, FaceNiche, ExperienceFormData, TarifsFormData } from '@/features/face/types'
-
-const router = useRouter()
-const { logout, isLoading: isAuthLoading } = useAuth()
 const {
   profile,
   isLoading,
@@ -220,20 +216,6 @@ async function handleDelete(): Promise<void> {
     successMessage.value = result.message
     await fetchCompletion() // Refresh completion after profile photo delete
   }
-}
-
-/**
- * Handle logout
- */
-async function handleLogout(): Promise<void> {
-  await logout()
-}
-
-/**
- * Navigate back to dashboard
- */
-function goBack(): void {
-  router.push({ name: 'face-dashboard' })
 }
 
 // File input ref for album upload
@@ -454,235 +436,128 @@ function handleCompletionItemClick(itemKey: string): void {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
-    <!-- Header -->
-    <header class="bg-white shadow">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-        <div class="flex items-center gap-4">
-          <button
-            @click="goBack"
-            class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            aria-label="Retour"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-              class="w-5 h-5"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-              />
-            </svg>
-          </button>
-          <h1 class="text-xl font-semibold text-gray-900">Mon profil</h1>
-        </div>
+  <div>
+    <!-- Page Header -->
+    <div class="mb-8">
+      <h1 class="text-2xl font-bold text-slate-800">Mon profil</h1>
+      <p class="mt-1 text-slate-500">Gérez vos informations et paramètres</p>
+    </div>
 
-        <button
-          @click="handleLogout"
-          :disabled="isAuthLoading"
-          class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          data-testid="logout-button"
-        >
-          <svg
-            v-if="!isAuthLoading"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke-width="1.5"
-            stroke="currentColor"
-            class="w-5 h-5"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
+    <!-- Loading state -->
+    <div v-if="isLoading" class="flex justify-center py-12">
+      <Loader2 class="h-8 w-8 animate-spin text-primary" />
+    </div>
+
+    <!-- Profile content - Two column layout on desktop -->
+    <div v-else class="flex flex-col lg:flex-row gap-6">
+      <!-- Left Sidebar (sticky on desktop) -->
+      <div class="lg:w-80 flex-shrink-0">
+        <div class="lg:sticky lg:top-6 space-y-6">
+          <!-- Profile photo card -->
+          <div id="section-profile-photo" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-lg font-medium text-gray-900 mb-6">Photo de profil</h2>
+            <ProfilePhotoUpload
+              :profile="profile"
+              :is-uploading="isUploading"
+              :is-deleting="isDeleting"
+              :error="error"
+              @upload="handleUpload"
+              @delete="handleDelete"
             />
-          </svg>
-          <svg
-            v-else
-            class="w-5 h-5 animate-spin"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          {{ isAuthLoading ? 'Déconnexion...' : 'Déconnexion' }}
-        </button>
-      </div>
-    </header>
+          </div>
 
-    <!-- Main content -->
-    <main class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <!-- Loading state -->
-      <div v-if="isLoading" class="flex justify-center py-12">
-        <svg
-          class="animate-spin h-8 w-8 text-teal-600"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            class="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            stroke-width="4"
-          ></circle>
-          <path
-            class="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          ></path>
-        </svg>
-      </div>
+          <!-- Availability card -->
+          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-base font-medium text-gray-900 mb-4 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-teal-600">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Disponibilité
+            </h2>
+            <AvailabilityToggle
+              :is-available="availabilityInfo?.is_available ?? true"
+              :is-loading="isAvailabilityLoading"
+              :is-saving="isAvailabilitySaving"
+              :error="availabilityError"
+              @toggle="handleAvailabilityToggle"
+            />
+          </div>
 
-      <!-- Profile content -->
-      <div v-else class="bg-white rounded-lg shadow">
-        <!-- Availability section - TOP of profile -->
-        <div class="p-6 border-b border-gray-200">
-          <h2 class="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-              class="w-5 h-5 text-teal-600"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            Disponibilité
-          </h2>
+          <!-- Profile completion card -->
+          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-base font-medium text-gray-900 mb-4 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-teal-600">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z" />
+              </svg>
+              Complétion
+            </h2>
+            <ProfileCompletionIndicator
+              :percentage="isCompletionLoading ? undefined : completionPercentage"
+              :missing-items="completionMissingItems"
+              :is-complete="isProfileComplete"
+              variant="full"
+              @click-item="handleCompletionItemClick"
+            />
+            <div v-if="completionError" class="mt-4 rounded-md bg-red-50 p-3 border border-red-200" role="alert">
+              <p class="text-sm text-red-700">{{ completionError }}</p>
+            </div>
+          </div>
 
-          <AvailabilityToggle
-            :is-available="availabilityInfo?.is_available ?? true"
-            :is-loading="isAvailabilityLoading"
-            :is-saving="isAvailabilitySaving"
-            :error="availabilityError"
-            @toggle="handleAvailabilityToggle"
-          />
-        </div>
+          <!-- Rating card -->
+          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-base font-medium text-gray-900 mb-4 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-teal-600">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+              </svg>
+              Ma note
+            </h2>
+            <RatingDisplay
+              :average-rating="profile?.average_rating ?? null"
+              :review-count="profile?.ratings_count ?? 0"
+            />
+          </div>
 
-        <!-- Profile completion section -->
-        <div class="p-6 border-b border-gray-200">
-          <h2 class="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-              class="w-5 h-5 text-teal-600"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z"
-              />
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z"
-              />
-            </svg>
-            Complétion du profil
-          </h2>
-
-          <ProfileCompletionIndicator
-            :percentage="isCompletionLoading ? undefined : completionPercentage"
-            :missing-items="completionMissingItems"
-            :is-complete="isProfileComplete"
-            variant="full"
-            @click-item="handleCompletionItemClick"
-          />
-
-          <!-- Error message -->
-          <div
-            v-if="completionError"
-            class="mt-4 rounded-md bg-red-50 p-3 border border-red-200"
-            role="alert"
-          >
-            <p class="text-sm text-red-700">{{ completionError }}</p>
+          <!-- Profile info card -->
+          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-base font-medium text-gray-900 mb-4">Informations</h2>
+            <dl class="space-y-3 text-sm">
+              <div class="flex justify-between">
+                <dt class="text-gray-500">Nom</dt>
+                <dd class="text-gray-900 font-medium">{{ profile?.nom ?? '-' }}</dd>
+              </div>
+              <div class="flex justify-between">
+                <dt class="text-gray-500">Prénom</dt>
+                <dd class="text-gray-900 font-medium">{{ profile?.prenom ?? '-' }}</dd>
+              </div>
+              <div class="flex justify-between">
+                <dt class="text-gray-500">Pseudo</dt>
+                <dd class="text-gray-900 font-medium">@{{ profile?.username ?? '-' }}</dd>
+              </div>
+            </dl>
           </div>
         </div>
+      </div>
 
-        <!-- Rating section -->
-        <div class="p-6 border-b border-gray-200">
-          <h2 class="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-              class="w-5 h-5 text-teal-600"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"
-              />
-            </svg>
-            Ma note
-          </h2>
-
-          <RatingDisplay
-            :average-rating="profile?.average_rating ?? null"
-            :review-count="profile?.ratings_count ?? 0"
-          />
-        </div>
-
+      <!-- Right Main Content -->
+      <div class="flex-1 min-w-0">
         <!-- Success message -->
         <div
           v-if="successMessage"
-          class="mx-6 mt-6 rounded-md bg-green-50 p-4 border border-green-200"
+          class="mb-6 rounded-xl bg-green-50 p-4 border border-green-200"
           role="status"
           data-testid="success-message"
         >
           <div class="flex items-center gap-2">
-            <svg
-              class="w-5 h-5 text-green-600"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
+            <svg class="w-5 h-5 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <p class="text-sm text-green-700">{{ successMessage }}</p>
           </div>
         </div>
 
-        <!-- Profile photo section -->
-        <div id="section-profile-photo" class="p-6 border-b border-gray-200">
-          <h2 class="text-lg font-medium text-gray-900 mb-6">Photo de profil</h2>
-
-          <ProfilePhotoUpload
-            :profile="profile"
-            :is-uploading="isUploading"
-            :is-deleting="isDeleting"
-            :error="error"
-            @upload="handleUpload"
-            @delete="handleDelete"
-          />
-        </div>
+        <!-- Main form sections -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100">
 
         <!-- Album photos section -->
         <div class="p-6 border-b border-gray-200">
@@ -900,38 +775,14 @@ function handleCompletionItemClick(itemKey: string): void {
             @save="handleTarifsSave"
           />
         </div>
-
-        <!-- Profile info section -->
-        <div class="p-6">
-          <h2 class="text-lg font-medium text-gray-900 mb-4">Informations</h2>
-
-          <dl class="space-y-4">
-            <div class="flex flex-col sm:flex-row sm:gap-4">
-              <dt class="text-sm font-medium text-gray-500 sm:w-32">Nom</dt>
-              <dd class="text-sm text-gray-900">{{ profile?.nom ?? '-' }}</dd>
-            </div>
-
-            <div class="flex flex-col sm:flex-row sm:gap-4">
-              <dt class="text-sm font-medium text-gray-500 sm:w-32">Prénom</dt>
-              <dd class="text-sm text-gray-900">{{ profile?.prenom ?? '-' }}</dd>
-            </div>
-
-            <div class="flex flex-col sm:flex-row sm:gap-4">
-              <dt class="text-sm font-medium text-gray-500 sm:w-32">Pseudo</dt>
-              <dd class="text-sm text-gray-900">@{{ profile?.username ?? '-' }}</dd>
-            </div>
-          </dl>
         </div>
       </div>
-    </main>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.bg-primary {
-  background-color: #198496;
-}
-.focus\:ring-primary:focus {
-  --tw-ring-color: #198496;
+.text-primary {
+  color: var(--color-weact, #198496);
 }
 </style>
