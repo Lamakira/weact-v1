@@ -46,6 +46,12 @@ const router = createRouter({
       component: () => import('../pages/auth/ResetPasswordPage.vue'),
       meta: { guest: true },
     },
+    {
+      path: '/verify-email/:id/:hash',
+      name: 'verify-email',
+      component: () => import('../pages/auth/VerifyEmailPage.vue'),
+      // No auth required - user may click link when logged out
+    },
     // Face routes (auth required + Face role) - nested under FaceLayout
     {
       path: '/face',
