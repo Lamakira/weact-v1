@@ -133,13 +133,14 @@ development_status:
   8-7-producer-rating-exposure: done
   epic-8-retrospective: done
 
-  # Epic 9: Face Dashboard (5 stories)
+  # Epic 9: Face Dashboard (6 stories)
   epic-9: in-progress
   9-1-face-dashboard-kpis: done
   9-2-face-wallet-ui-inactive: done
   9-3-face-dashboard-charts: done
   9-4-face-quick-access-to-missions: done
-  9-5-face-dashboard-layout: backlog
+  9-5-face-dashboard-layout: done
+  9-6-shared-dashboard-layout: in-progress
   epic-9-retrospective: optional
 
   # Epic 10: Producer Dashboard (6 stories)
