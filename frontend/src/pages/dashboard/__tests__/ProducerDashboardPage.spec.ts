@@ -91,6 +91,16 @@ vi.mock('lucide-vue-next', () => ({
     template: '<svg data-testid="star-icon"></svg>',
     props: ['size'],
   },
+  Check: {
+    name: 'Check',
+    template: '<svg data-testid="check-icon"></svg>',
+    props: ['size'],
+  },
+  Clock: {
+    name: 'Clock',
+    template: '<svg data-testid="clock-icon"></svg>',
+    props: ['size'],
+  },
 }))
 
 describe('ProducerDashboardPage', () => {
@@ -115,6 +125,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 12,
         average_rating: 4.5,
         ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: 4.5,
+        completed_missions_count: 1,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -134,6 +147,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 0,
         average_rating: null,
         ratings_count: 0,
+        acceptance_rate: 0,
+        average_response_time_hours: null,
+        completed_missions_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -154,6 +170,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 0,
         average_rating: null,
         ratings_count: 0,
+        acceptance_rate: 0,
+        average_response_time_hours: null,
+        completed_missions_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -174,6 +193,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 0,
         average_rating: null,
         ratings_count: 0,
+        acceptance_rate: 0,
+        average_response_time_hours: null,
+        completed_missions_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -194,6 +216,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 0,
         average_rating: null,
         ratings_count: 0,
+        acceptance_rate: 0,
+        average_response_time_hours: null,
+        completed_missions_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -214,6 +239,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 0,
         average_rating: null,
         ratings_count: 0,
+        acceptance_rate: 0,
+        average_response_time_hours: null,
+        completed_missions_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -234,6 +262,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 23,
         average_rating: null,
         ratings_count: 0,
+        acceptance_rate: 0,
+        average_response_time_hours: null,
+        completed_missions_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -254,6 +285,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 0,
         average_rating: null,
         ratings_count: 0,
+        acceptance_rate: 0,
+        average_response_time_hours: null,
+        completed_missions_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -279,6 +313,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 5,
         average_rating: 4.0,
         ratings_count: 3,
+        acceptance_rate: 60.0,
+        average_response_time_hours: 2.5,
+        completed_missions_count: 1,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -298,6 +335,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 5,
         average_rating: 4.0,
         ratings_count: 3,
+        acceptance_rate: 60.0,
+        average_response_time_hours: 2.5,
+        completed_missions_count: 1,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -332,6 +372,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 5,
         average_rating: 4.0,
         ratings_count: 3,
+        acceptance_rate: 60.0,
+        average_response_time_hours: 2.5,
+        completed_missions_count: 1,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -472,6 +515,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 999,
         average_rating: 4.5,
         ratings_count: 10,
+        acceptance_rate: 80.0,
+        average_response_time_hours: 3.0,
+        completed_missions_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -497,6 +543,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 5,
         average_rating: 4.5,
         ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: 4.5,
+        completed_missions_count: 1,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -520,6 +569,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 5,
         average_rating: 4.5,
         ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: 4.5,
+        completed_missions_count: 1,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -538,6 +590,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 5,
         average_rating: 4.5,
         ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: 4.5,
+        completed_missions_count: 1,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -558,6 +613,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 5,
         average_rating: null,
         ratings_count: 0,
+        acceptance_rate: 0,
+        average_response_time_hours: null,
+        completed_missions_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -578,6 +636,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 5,
         average_rating: null,
         ratings_count: 0,
+        acceptance_rate: 0,
+        average_response_time_hours: null,
+        completed_missions_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -598,6 +659,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 5,
         average_rating: 4.5,
         ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: 4.5,
+        completed_missions_count: 1,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -618,6 +682,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 5,
         average_rating: 5.0,
         ratings_count: 1,
+        acceptance_rate: 100.0,
+        average_response_time_hours: 1.0,
+        completed_missions_count: 1,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -638,6 +705,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 5,
         average_rating: 5,
         ratings_count: 3,
+        acceptance_rate: 90.0,
+        average_response_time_hours: 2.0,
+        completed_missions_count: 3,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -658,6 +728,9 @@ describe('ProducerDashboardPage', () => {
         unique_collaborators: 5,
         average_rating: 4.5,
         ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: 4.5,
+        completed_missions_count: 1,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -691,6 +764,304 @@ describe('ProducerDashboardPage', () => {
 
       const ratingCard = wrapper.find('[data-testid="kpi-card-rating"]')
       expect(ratingCard.exists()).toBe(false)
+    })
+  })
+
+  describe('advanced stats display (FR59)', () => {
+    it('renders advanced stats section', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 4.5,
+        ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: 4.5,
+        completed_missions_count: 1,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const advancedStatsSection = wrapper.find('[data-testid="advanced-stats-section"]')
+      expect(advancedStatsSection.exists()).toBe(true)
+    })
+
+    it('displays "Statistiques avancées" section title', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 4.5,
+        ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: 4.5,
+        completed_missions_count: 1,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Statistiques avancées')
+    })
+
+    it('displays acceptance rate card', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 4.5,
+        ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: 4.5,
+        completed_missions_count: 1,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const acceptanceRateCard = wrapper.find('[data-testid="kpi-card-acceptance_rate"]')
+      expect(acceptanceRateCard.exists()).toBe(true)
+    })
+
+    it('displays formatted acceptance rate with percentage', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 4.5,
+        ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: 4.5,
+        completed_missions_count: 1,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const acceptanceRateValue = wrapper.find('[data-testid="kpi-card-acceptance_rate-value"]')
+      expect(acceptanceRateValue.exists()).toBe(true)
+      expect(acceptanceRateValue.text()).toBe('75.0%')
+    })
+
+    it('displays "--" for acceptance rate when value is null/undefined', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 0,
+        unique_collaborators: 0,
+        average_rating: null,
+        ratings_count: 0,
+        acceptance_rate: 0,
+        average_response_time_hours: null,
+        completed_missions_count: 0,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const acceptanceRateValue = wrapper.find('[data-testid="kpi-card-acceptance_rate-value"]')
+      expect(acceptanceRateValue.exists()).toBe(true)
+      // When acceptance_rate is 0, it should display "0.0%"
+      expect(acceptanceRateValue.text()).toBe('0.0%')
+    })
+
+    it('displays "Taux d\'acceptation" title label', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 4.5,
+        ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: 4.5,
+        completed_missions_count: 1,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const acceptanceRateTitle = wrapper.find('[data-testid="kpi-card-acceptance_rate-title"]')
+      expect(acceptanceRateTitle.exists()).toBe(true)
+      expect(acceptanceRateTitle.text()).toBe("Taux d'acceptation")
+    })
+
+    it('displays response time card', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 4.5,
+        ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: 4.5,
+        completed_missions_count: 1,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const responseTimeCard = wrapper.find('[data-testid="kpi-card-average_response_time_hours"]')
+      expect(responseTimeCard.exists()).toBe(true)
+    })
+
+    it('displays formatted response time with hours suffix', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 4.5,
+        ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: 4.5,
+        completed_missions_count: 1,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const responseTimeValue = wrapper.find('[data-testid="kpi-card-average_response_time_hours-value"]')
+      expect(responseTimeValue.exists()).toBe(true)
+      expect(responseTimeValue.text()).toBe('4.5h')
+    })
+
+    it('displays "N/A" for response time when no decisions made', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 4.5,
+        ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: null,
+        completed_missions_count: 0,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const responseTimeValue = wrapper.find('[data-testid="kpi-card-average_response_time_hours-value"]')
+      expect(responseTimeValue.exists()).toBe(true)
+      expect(responseTimeValue.text()).toBe('N/A')
+    })
+
+    it('displays "Temps de réponse" title label', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 4.5,
+        ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: 4.5,
+        completed_missions_count: 1,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const responseTimeTitle = wrapper.find('[data-testid="kpi-card-average_response_time_hours-title"]')
+      expect(responseTimeTitle.exists()).toBe(true)
+      expect(responseTimeTitle.text()).toBe('Temps de réponse')
+    })
+
+    it('displays "Délai moyen" subtitle when response time has value', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 4.5,
+        ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: 4.5,
+        completed_missions_count: 1,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const responseTimeSubtitle = wrapper.find('[data-testid="kpi-card-average_response_time_hours-subtitle"]')
+      expect(responseTimeSubtitle.exists()).toBe(true)
+      expect(responseTimeSubtitle.text()).toBe('Délai moyen')
+    })
+
+    it('displays "Aucune décision" subtitle when no decisions made', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 4.5,
+        ratings_count: 8,
+        acceptance_rate: 75.0,
+        average_response_time_hours: null,
+        completed_missions_count: 0,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const responseTimeSubtitle = wrapper.find('[data-testid="kpi-card-average_response_time_hours-subtitle"]')
+      expect(responseTimeSubtitle.exists()).toBe(true)
+      expect(responseTimeSubtitle.text()).toBe('Aucune décision')
+    })
+
+    it('shows skeletons while loading', async () => {
+      mockIsStatsLoading.value = true
+      mockStats.value = null
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const acceptanceRateSkeleton = wrapper.find('[data-testid="kpi-card-acceptance-rate-skeleton"]')
+      expect(acceptanceRateSkeleton.exists()).toBe(true)
+
+      const responseTimeSkeleton = wrapper.find('[data-testid="kpi-card-response-time-skeleton"]')
+      expect(responseTimeSkeleton.exists()).toBe(true)
+    })
+
+    it('hides advanced stats section when error occurs', async () => {
+      mockStatsError.value = 'Erreur réseau'
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const advancedStatsSection = wrapper.find('[data-testid="advanced-stats-section"]')
+      expect(advancedStatsSection.exists()).toBe(false)
     })
   })
 })
