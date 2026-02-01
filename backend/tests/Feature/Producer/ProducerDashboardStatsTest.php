@@ -45,6 +45,7 @@ class ProducerDashboardStatsTest extends TestCase
                     'in_progress',
                     'closed',
                     'completed',
+                    'total_candidatures',
                 ],
                 'message',
             ]);
@@ -229,5 +230,102 @@ class ProducerDashboardStatsTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.in_progress', 0);
+    }
+
+    // ============================================
+    // Tests for total_candidatures (FR56)
+    // ============================================
+
+    public function test_stats_includes_total_candidatures_count(): void
+    {
+        // Create missions for this Producer
+        $mission1 = Mission::factory()->published()->create(['producer_id' => $this->producer->id]);
+        $mission2 = Mission::factory()->closed()->create(['producer_id' => $this->producer->id]);
+
+        // Create candidatures with various statuses - ALL should be counted
+        // Note: unique constraint on (face_id, mission_id) means one face per mission
+        $face1 = Face::factory()->create();
+        $face2 = Face::factory()->create();
+        $face3 = Face::factory()->create();
+        Candidature::factory()->pending()->create(['face_id' => $face1->id, 'mission_id' => $mission1->id]);
+        Candidature::factory()->accepted()->create(['face_id' => $face2->id, 'mission_id' => $mission1->id]);
+        Candidature::factory()->rejected()->create(['face_id' => $face3->id, 'mission_id' => $mission2->id]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.total_candidatures', 3); // All 3 candidatures counted
+    }
+
+    public function test_total_candidatures_includes_all_statuses(): void
+    {
+        $mission = Mission::factory()->published()->create(['producer_id' => $this->producer->id]);
+
+        // Create candidatures with ALL possible statuses
+        $faces = Face::factory()->count(6)->create();
+
+        Candidature::factory()->pending()->create(['face_id' => $faces[0]->id, 'mission_id' => $mission->id]);
+        Candidature::factory()->accepted()->create(['face_id' => $faces[1]->id, 'mission_id' => $mission->id]);
+        Candidature::factory()->confirmed()->create(['face_id' => $faces[2]->id, 'mission_id' => $mission->id]);
+        Candidature::factory()->inProgress()->create(['face_id' => $faces[3]->id, 'mission_id' => $mission->id]);
+        Candidature::factory()->completed()->create(['face_id' => $faces[4]->id, 'mission_id' => $mission->id]);
+        Candidature::factory()->rejected()->create(['face_id' => $faces[5]->id, 'mission_id' => $mission->id]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.total_candidatures', 6); // All 6 statuses counted
+    }
+
+    public function test_total_candidatures_returns_zero_when_no_candidatures(): void
+    {
+        // Create missions but no candidatures
+        Mission::factory()->published()->create(['producer_id' => $this->producer->id]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.total_candidatures', 0);
+    }
+
+    public function test_total_candidatures_only_counts_own_missions(): void
+    {
+        // Create candidature for this Producer's mission
+        $myMission = Mission::factory()->published()->create(['producer_id' => $this->producer->id]);
+        $face = Face::factory()->create();
+        Candidature::factory()->pending()->create(['face_id' => $face->id, 'mission_id' => $myMission->id]);
+
+        // Create candidatures for another Producer's mission (should NOT be counted)
+        $otherProducer = Producer::factory()->create();
+        $otherMission = Mission::factory()->published()->create(['producer_id' => $otherProducer->id]);
+        Candidature::factory()->count(5)->create(['mission_id' => $otherMission->id]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.total_candidatures', 1); // Only my candidature
+    }
+
+    public function test_total_candidatures_aggregates_across_multiple_missions(): void
+    {
+        // Create multiple missions for this Producer
+        $mission1 = Mission::factory()->published()->create(['producer_id' => $this->producer->id]);
+        $mission2 = Mission::factory()->closed()->create(['producer_id' => $this->producer->id]);
+        $mission3 = Mission::factory()->completed()->create(['producer_id' => $this->producer->id]);
+
+        // Create candidatures across all missions (factory creates unique faces automatically)
+        Candidature::factory()->count(3)->create(['mission_id' => $mission1->id]);
+        Candidature::factory()->count(2)->create(['mission_id' => $mission2->id]);
+        Candidature::factory()->count(4)->create(['mission_id' => $mission3->id]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.total_candidatures', 9); // 3 + 2 + 4 = 9
     }
 }
