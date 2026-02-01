@@ -9,6 +9,7 @@ import { useToast } from '@/composables/useToast'
 import ProducerProfilePhotoUpload from '@/features/producer/components/ProducerProfilePhotoUpload.vue'
 import ProducerBioEditor from '@/features/producer/components/ProducerBioEditor.vue'
 import AgencyLogoUpload from '@/features/producer/components/AgencyLogoUpload.vue'
+import BasicInfoSection from '@/features/producer/components/BasicInfoSection.vue'
 
 const router = useRouter()
 const { logout, isLoading: isAuthLoading } = useAuth()
@@ -279,6 +280,11 @@ function goBack(): void {
             :error="bioError"
             @save="handleBioSave"
           />
+        </div>
+
+        <!-- Basic info section (agency_name or first_name/last_name) -->
+        <div id="section-basic-info" class="p-6 border-b border-gray-200" data-testid="basic-info-section">
+          <BasicInfoSection />
         </div>
 
         <!-- Profile info section -->
