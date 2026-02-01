@@ -151,7 +151,7 @@ development_status:
 
   # Epic 10: Producer Dashboard (6 stories)
   epic-10: in-progress
-  10-1-producer-dashboard-kpis: ready-for-dev
+  10-1-producer-dashboard-kpis: done
   10-2-producer-total-candidatures-received: backlog
   10-3-producer-collaborators-count: backlog
   10-4-producer-rating-display: backlog
