@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import { RefreshCw } from 'lucide-vue-next'
+import { RefreshCw, Star } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { useProducerDashboardStats } from '@/features/dashboard/composables/useProducerDashboardStats'
 import { PRODUCER_KPI_CONFIGS, PRODUCER_CANDIDATURES_KPI, PRODUCER_COLLABORATORS_KPI } from '@/features/dashboard/types'
+import { Skeleton } from '@/components/ui/skeleton'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 import KpiCard from '@/features/dashboard/components/KpiCard.vue'
 
@@ -20,6 +21,22 @@ onMounted(() => {
 async function handleLogout(): Promise<void> {
   await logout()
 }
+
+// Computed values for rating display (FR58)
+const formattedRating = computed(() => {
+  if (stats.value?.average_rating === null || stats.value?.average_rating === undefined) {
+    return '--'
+  }
+  return stats.value.average_rating.toFixed(1)
+})
+
+const ratingSubtitle = computed(() => {
+  const count = stats.value?.ratings_count ?? 0
+  if (count === 0) {
+    return 'Aucun avis'
+  }
+  return `${count} avis`
+})
 </script>
 
 <template>
@@ -148,9 +165,9 @@ async function handleLogout(): Promise<void> {
         </div>
       </div>
 
-      <!-- Candidatures KPI Section (FR56 + FR57) -->
+      <!-- Candidatures & Réputation KPI Section (FR56 + FR57 + FR58) -->
       <div v-if="!statsError" class="mb-6" data-testid="candidatures-kpi-section">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">Candidatures</h2>
+        <h2 class="text-lg font-medium text-gray-900 mb-4">Candidatures & Réputation</h2>
 
         <div
           class="grid grid-cols-2 lg:grid-cols-4 gap-4"
@@ -172,6 +189,57 @@ async function handleLogout(): Promise<void> {
             :is-loading="statsLoading"
             data-testid="kpi-card-unique_collaborators"
           />
+
+          <!-- Rating card with custom display for decimal values (FR58) -->
+          <div
+            v-if="statsLoading"
+            class="bg-white border border-gray-100 rounded-2xl p-4"
+            data-testid="kpi-card-rating-skeleton"
+          >
+            <div class="flex items-center gap-3">
+              <Skeleton class="h-11 w-11 rounded-xl" />
+              <div class="space-y-2">
+                <Skeleton class="h-6 w-14" />
+                <Skeleton class="h-4 w-20" />
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-else
+            class="bg-white border border-gray-100 rounded-2xl p-4 transition-all duration-200 hover:shadow-md"
+            :aria-label="`Ma note: ${formattedRating}`"
+            data-testid="kpi-card-rating"
+          >
+            <div class="flex items-center gap-3">
+              <div
+                class="flex h-11 w-11 items-center justify-center rounded-xl shrink-0 bg-amber-50 text-amber-500"
+              >
+                <Star :size="20" stroke-width="2" />
+              </div>
+
+              <div class="flex flex-col min-w-0">
+                <span
+                  class="text-xl font-bold text-gray-900 leading-none"
+                  data-testid="kpi-card-rating-value"
+                >
+                  {{ formattedRating }}
+                </span>
+                <span
+                  class="mt-1 text-sm text-gray-500 truncate"
+                  data-testid="kpi-card-rating-title"
+                >
+                  Ma note
+                </span>
+                <span
+                  class="text-xs text-gray-400 truncate"
+                  data-testid="kpi-card-rating-subtitle"
+                >
+                  {{ ratingSubtitle }}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
