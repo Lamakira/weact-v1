@@ -60,8 +60,17 @@ class ProducerDashboardController extends Controller
             $query->where('producer_id', $producer->id);
         })->count();
 
+        // Count unique Faces the producer has worked with (FR57)
+        // Only counts completed candidatures - represents actual collaborations
+        $uniqueCollaborators = Candidature::whereHas('mission', function ($query) use ($producer) {
+            $query->where('producer_id', $producer->id);
+        })
+            ->where('status', CandidatureStatus::Completed->value)
+            ->distinct()
+            ->count('face_id');
+
         return response()->json([
-            'data' => new ProducerDashboardStatsResource($statusCounts, $inProgressCount, $totalCandidatures),
+            'data' => new ProducerDashboardStatsResource($statusCounts, $inProgressCount, $totalCandidatures, $uniqueCollaborators),
             'message' => 'Dashboard stats retrieved successfully',
         ]);
     }
