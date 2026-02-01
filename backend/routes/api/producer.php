@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Producer\BasicInfoController;
 use App\Http\Controllers\Api\V1\Producer\CandidatureController;
 use App\Http\Controllers\Api\V1\Producer\ConversationController;
 use App\Http\Controllers\Api\V1\Producer\FaceController;
@@ -21,6 +22,10 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
+    // Basic info routes (agency_name or first_name/last_name based on type)
+    Route::get('/basic-info', [BasicInfoController::class, 'show']);
+    Route::put('/basic-info', [BasicInfoController::class, 'update']);
+
     // Profile routes
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile/photo', [ProfileController::class, 'updatePhoto']);
