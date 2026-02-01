@@ -10,6 +10,7 @@ use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
 use App\Models\Producer;
+use App\Models\Rating;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -47,6 +48,8 @@ class ProducerDashboardStatsTest extends TestCase
                     'completed',
                     'total_candidatures',
                     'unique_collaborators',
+                    'average_rating',
+                    'ratings_count',
                 ],
                 'message',
             ]);
@@ -474,5 +477,196 @@ class ProducerDashboardStatsTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.unique_collaborators', 3); // Face1 + Face2 + Face3 = 3 unique
+    }
+
+    // ============================================
+    // Tests for average_rating and ratings_count (FR58)
+    // ============================================
+
+    public function test_stats_includes_average_rating_and_ratings_count(): void
+    {
+        // Create a Face with User to rate the Producer
+        $face = Face::factory()->create();
+        $faceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+
+        // Create a completed mission and candidature
+        $mission = Mission::factory()->completed()->create(['producer_id' => $this->producer->id]);
+        $candidature = Candidature::factory()->completed()->create([
+            'face_id' => $face->id,
+            'mission_id' => $mission->id,
+        ]);
+
+        // Create a rating from Face to Producer
+        Rating::factory()->create([
+            'candidature_id' => $candidature->id,
+            'rater_id' => $faceUser->id,
+            'rated_id' => $this->producer->id,
+            'rated_type' => Producer::class,
+            'score' => 4,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.ratings_count', 1);
+
+        // Check average_rating is 4 (integer or float comparison)
+        $this->assertEquals(4, $response->json('data.average_rating'));
+    }
+
+    public function test_stats_returns_null_average_rating_when_no_ratings(): void
+    {
+        // Producer has no ratings
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.average_rating', null)
+            ->assertJsonPath('data.ratings_count', 0);
+    }
+
+    public function test_average_rating_is_calculated_correctly(): void
+    {
+        // Create 2 Faces to rate the Producer
+        $face1 = Face::factory()->create();
+        $faceUser1 = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face1->id,
+        ]);
+        $face2 = Face::factory()->create();
+        $faceUser2 = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face2->id,
+        ]);
+
+        // Create a completed mission with 2 candidatures
+        $mission = Mission::factory()->completed()->create(['producer_id' => $this->producer->id]);
+        $candidature1 = Candidature::factory()->completed()->create([
+            'face_id' => $face1->id,
+            'mission_id' => $mission->id,
+        ]);
+        $candidature2 = Candidature::factory()->completed()->create([
+            'face_id' => $face2->id,
+            'mission_id' => $mission->id,
+        ]);
+
+        // Create ratings: 3 stars + 5 stars = average 4.0
+        Rating::factory()->create([
+            'candidature_id' => $candidature1->id,
+            'rater_id' => $faceUser1->id,
+            'rated_id' => $this->producer->id,
+            'rated_type' => Producer::class,
+            'score' => 3,
+        ]);
+        Rating::factory()->create([
+            'candidature_id' => $candidature2->id,
+            'rater_id' => $faceUser2->id,
+            'rated_id' => $this->producer->id,
+            'rated_type' => Producer::class,
+            'score' => 5,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.ratings_count', 2);
+
+        // Check average_rating is 4 (3+5)/2 = 4
+        $this->assertEquals(4, $response->json('data.average_rating'));
+    }
+
+    public function test_stats_excludes_ratings_for_other_producers(): void
+    {
+        // Create a Face with User to rate the Producer
+        $face = Face::factory()->create();
+        $faceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+
+        // Create a rating for this Producer (5 stars)
+        $mission = Mission::factory()->completed()->create(['producer_id' => $this->producer->id]);
+        $candidature = Candidature::factory()->completed()->create([
+            'face_id' => $face->id,
+            'mission_id' => $mission->id,
+        ]);
+        Rating::factory()->create([
+            'candidature_id' => $candidature->id,
+            'rater_id' => $faceUser->id,
+            'rated_id' => $this->producer->id,
+            'rated_type' => Producer::class,
+            'score' => 5,
+        ]);
+
+        // Create a rating for ANOTHER Producer (1 star - should NOT be counted)
+        $otherProducer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $otherProducer->id,
+        ]);
+        $otherMission = Mission::factory()->completed()->create(['producer_id' => $otherProducer->id]);
+        $face2 = Face::factory()->create();
+        $faceUser2 = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face2->id,
+        ]);
+        $otherCandidature = Candidature::factory()->completed()->create([
+            'face_id' => $face2->id,
+            'mission_id' => $otherMission->id,
+        ]);
+        Rating::factory()->create([
+            'candidature_id' => $otherCandidature->id,
+            'rater_id' => $faceUser2->id,
+            'rated_id' => $otherProducer->id,
+            'rated_type' => Producer::class,
+            'score' => 1,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.ratings_count', 1);
+
+        // Check average_rating is 5 (only my 5-star rating)
+        $this->assertEquals(5, $response->json('data.average_rating'));
+    }
+
+    public function test_average_rating_with_multiple_ratings(): void
+    {
+        // Create 4 Faces to rate the Producer with different scores
+        $mission = Mission::factory()->completed()->create(['producer_id' => $this->producer->id]);
+        $scores = [2, 3, 4, 5]; // Average = 3.5
+
+        foreach ($scores as $score) {
+            $face = Face::factory()->create();
+            $faceUser = User::factory()->create([
+                'userable_type' => Face::class,
+                'userable_id' => $face->id,
+            ]);
+            $candidature = Candidature::factory()->completed()->create([
+                'face_id' => $face->id,
+                'mission_id' => $mission->id,
+            ]);
+            Rating::factory()->create([
+                'candidature_id' => $candidature->id,
+                'rater_id' => $faceUser->id,
+                'rated_id' => $this->producer->id,
+                'rated_type' => Producer::class,
+                'score' => $score,
+            ]);
+        }
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.average_rating', 3.5) // (2+3+4+5)/4 = 3.5
+            ->assertJsonPath('data.ratings_count', 4);
     }
 }
