@@ -5,7 +5,7 @@ import { RefreshCw } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { useProducerDashboardStats } from '@/features/dashboard/composables/useProducerDashboardStats'
-import { PRODUCER_KPI_CONFIGS, PRODUCER_CANDIDATURES_KPI } from '@/features/dashboard/types'
+import { PRODUCER_KPI_CONFIGS, PRODUCER_CANDIDATURES_KPI, PRODUCER_COLLABORATORS_KPI } from '@/features/dashboard/types'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 import KpiCard from '@/features/dashboard/components/KpiCard.vue'
 
@@ -148,7 +148,7 @@ async function handleLogout(): Promise<void> {
         </div>
       </div>
 
-      <!-- Candidatures KPI Section (FR56) -->
+      <!-- Candidatures KPI Section (FR56 + FR57) -->
       <div v-if="!statsError" class="mb-6" data-testid="candidatures-kpi-section">
         <h2 class="text-lg font-medium text-gray-900 mb-4">Candidatures</h2>
 
@@ -164,8 +164,16 @@ async function handleLogout(): Promise<void> {
             :is-loading="statsLoading"
             data-testid="kpi-card-total_candidatures"
           />
+          <KpiCard
+            :title="PRODUCER_COLLABORATORS_KPI.title"
+            :value="stats?.unique_collaborators ?? 0"
+            :icon="PRODUCER_COLLABORATORS_KPI.icon"
+            :color="PRODUCER_COLLABORATORS_KPI.color"
+            :is-loading="statsLoading"
+            data-testid="kpi-card-unique_collaborators"
+          />
+        </div>
       </div>
-    </div>
 
       <!-- Quick access cards -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
