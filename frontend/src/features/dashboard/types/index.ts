@@ -84,7 +84,7 @@ export type KpiColor = 'amber-500' | 'green-500' | 'blue-500' | 'primary' | 'pur
 /**
  * KPI card icon type
  */
-export type KpiIcon = 'clock' | 'check' | 'play' | 'checkCircle' | 'users'
+export type KpiIcon = 'clock' | 'check' | 'play' | 'checkCircle' | 'users' | 'userCheck'
 
 /**
  * KPI card configuration
@@ -134,7 +134,7 @@ export const FACE_KPI_CONFIGS: KpiConfig[] = [
 
 /**
  * Producer Dashboard statistics
- * Mission counts grouped by status + total candidatures received (FR56)
+ * Mission counts grouped by status + total candidatures received (FR56) + unique collaborators (FR57)
  */
 export interface ProducerDashboardStats {
   published: number
@@ -142,6 +142,7 @@ export interface ProducerDashboardStats {
   closed: number
   completed: number
   total_candidatures: number
+  unique_collaborators: number
 }
 
 /**
@@ -207,4 +208,15 @@ export const PRODUCER_CANDIDATURES_KPI: ProducerKpiConfig = {
   color: 'purple-500',
   bgColor: 'violet-50',
   icon: 'users',
+}
+
+/**
+ * KPI configuration for Producer unique collaborators (FR57)
+ */
+export const PRODUCER_COLLABORATORS_KPI: ProducerKpiConfig = {
+  key: 'unique_collaborators',
+  title: 'Collaborateurs',
+  color: 'green-500',
+  bgColor: 'green-50',
+  icon: 'userCheck',
 }
