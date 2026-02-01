@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Clock, Check, Play, CheckCircle2, Users, UserCheck } from 'lucide-vue-next'
+import { Clock, Check, Play, CheckCircle2, Users, UserCheck, Star } from 'lucide-vue-next'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { KpiColor, KpiIcon } from '../types'
 
@@ -28,6 +28,7 @@ const iconComponent = computed(() => {
     checkCircle: CheckCircle2,
     users: Users,
     userCheck: UserCheck,
+    star: Star,
   }
   return icons[props.icon] || Clock
 })

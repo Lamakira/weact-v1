@@ -84,7 +84,7 @@ export type KpiColor = 'amber-500' | 'green-500' | 'blue-500' | 'primary' | 'pur
 /**
  * KPI card icon type
  */
-export type KpiIcon = 'clock' | 'check' | 'play' | 'checkCircle' | 'users' | 'userCheck'
+export type KpiIcon = 'clock' | 'check' | 'play' | 'checkCircle' | 'users' | 'userCheck' | 'star'
 
 /**
  * KPI card configuration
@@ -134,7 +134,7 @@ export const FACE_KPI_CONFIGS: KpiConfig[] = [
 
 /**
  * Producer Dashboard statistics
- * Mission counts grouped by status + total candidatures received (FR56) + unique collaborators (FR57)
+ * Mission counts grouped by status + total candidatures received (FR56) + unique collaborators (FR57) + rating (FR58)
  */
 export interface ProducerDashboardStats {
   published: number
@@ -143,6 +143,8 @@ export interface ProducerDashboardStats {
   completed: number
   total_candidatures: number
   unique_collaborators: number
+  average_rating: number | null
+  ratings_count: number
 }
 
 /**
@@ -219,4 +221,17 @@ export const PRODUCER_COLLABORATORS_KPI: ProducerKpiConfig = {
   color: 'green-500',
   bgColor: 'green-50',
   icon: 'userCheck',
+}
+
+/**
+ * KPI configuration for Producer rating (FR58)
+ * Note: Rating card uses custom display (not KpiCard) for decimal formatting.
+ * This config is exported for reference and potential future use.
+ */
+export const PRODUCER_RATING_KPI: ProducerKpiConfig = {
+  key: 'ratings_count',
+  title: 'Ma note',
+  color: 'amber-500',
+  bgColor: 'amber-50',
+  icon: 'star',
 }
