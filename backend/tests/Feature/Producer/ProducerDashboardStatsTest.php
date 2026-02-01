@@ -46,6 +46,7 @@ class ProducerDashboardStatsTest extends TestCase
                     'closed',
                     'completed',
                     'total_candidatures',
+                    'unique_collaborators',
                 ],
                 'message',
             ]);
@@ -327,5 +328,151 @@ class ProducerDashboardStatsTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.total_candidatures', 9); // 3 + 2 + 4 = 9
+    }
+
+    // ============================================
+    // Tests for unique_collaborators (FR57)
+    // ============================================
+
+    public function test_stats_includes_unique_collaborators_count(): void
+    {
+        $mission = Mission::factory()->completed()->create(['producer_id' => $this->producer->id]);
+        $face = Face::factory()->create();
+
+        // Create a completed candidature
+        Candidature::factory()->completed()->create([
+            'face_id' => $face->id,
+            'mission_id' => $mission->id,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.unique_collaborators', 1);
+    }
+
+    public function test_unique_collaborators_only_counts_completed_candidatures(): void
+    {
+        $mission = Mission::factory()->published()->create(['producer_id' => $this->producer->id]);
+        $faces = Face::factory()->count(6)->create();
+
+        // Create candidatures with ALL possible statuses
+        Candidature::factory()->pending()->create(['face_id' => $faces[0]->id, 'mission_id' => $mission->id]);
+        Candidature::factory()->accepted()->create(['face_id' => $faces[1]->id, 'mission_id' => $mission->id]);
+        Candidature::factory()->confirmed()->create(['face_id' => $faces[2]->id, 'mission_id' => $mission->id]);
+        Candidature::factory()->inProgress()->create(['face_id' => $faces[3]->id, 'mission_id' => $mission->id]);
+        Candidature::factory()->completed()->create(['face_id' => $faces[4]->id, 'mission_id' => $mission->id]); // Only this counts
+        Candidature::factory()->rejected()->create(['face_id' => $faces[5]->id, 'mission_id' => $mission->id]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.unique_collaborators', 1); // Only the completed one
+    }
+
+    public function test_unique_collaborators_counts_same_face_only_once(): void
+    {
+        // Create multiple missions
+        $mission1 = Mission::factory()->completed()->create(['producer_id' => $this->producer->id]);
+        $mission2 = Mission::factory()->completed()->create(['producer_id' => $this->producer->id]);
+        $mission3 = Mission::factory()->completed()->create(['producer_id' => $this->producer->id]);
+
+        // Same Face worked on all 3 missions
+        $face = Face::factory()->create();
+        Candidature::factory()->completed()->create(['face_id' => $face->id, 'mission_id' => $mission1->id]);
+        Candidature::factory()->completed()->create(['face_id' => $face->id, 'mission_id' => $mission2->id]);
+        Candidature::factory()->completed()->create(['face_id' => $face->id, 'mission_id' => $mission3->id]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.unique_collaborators', 1); // Same Face = 1 collaborator
+    }
+
+    public function test_unique_collaborators_counts_multiple_distinct_faces(): void
+    {
+        $mission1 = Mission::factory()->completed()->create(['producer_id' => $this->producer->id]);
+        $mission2 = Mission::factory()->completed()->create(['producer_id' => $this->producer->id]);
+
+        // 3 different Faces worked with the Producer
+        $face1 = Face::factory()->create();
+        $face2 = Face::factory()->create();
+        $face3 = Face::factory()->create();
+
+        Candidature::factory()->completed()->create(['face_id' => $face1->id, 'mission_id' => $mission1->id]);
+        Candidature::factory()->completed()->create(['face_id' => $face2->id, 'mission_id' => $mission1->id]);
+        Candidature::factory()->completed()->create(['face_id' => $face3->id, 'mission_id' => $mission2->id]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.unique_collaborators', 3); // 3 unique Faces
+    }
+
+    public function test_unique_collaborators_returns_zero_when_no_completed_candidatures(): void
+    {
+        $mission = Mission::factory()->published()->create(['producer_id' => $this->producer->id]);
+        $face = Face::factory()->create();
+
+        // Create non-completed candidatures
+        Candidature::factory()->pending()->create(['face_id' => $face->id, 'mission_id' => $mission->id]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.unique_collaborators', 0);
+    }
+
+    public function test_unique_collaborators_only_counts_own_missions(): void
+    {
+        // Create completed candidature for this Producer's mission
+        $myMission = Mission::factory()->completed()->create(['producer_id' => $this->producer->id]);
+        $face = Face::factory()->create();
+        Candidature::factory()->completed()->create(['face_id' => $face->id, 'mission_id' => $myMission->id]);
+
+        // Create completed candidatures for another Producer's mission (should NOT be counted)
+        $otherProducer = Producer::factory()->create();
+        $otherMission = Mission::factory()->completed()->create(['producer_id' => $otherProducer->id]);
+        $otherFaces = Face::factory()->count(5)->create();
+        foreach ($otherFaces as $otherFace) {
+            Candidature::factory()->completed()->create(['face_id' => $otherFace->id, 'mission_id' => $otherMission->id]);
+        }
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.unique_collaborators', 1); // Only my collaborator
+    }
+
+    public function test_unique_collaborators_aggregates_across_multiple_missions(): void
+    {
+        // Create multiple missions
+        $mission1 = Mission::factory()->completed()->create(['producer_id' => $this->producer->id]);
+        $mission2 = Mission::factory()->completed()->create(['producer_id' => $this->producer->id]);
+
+        // Face1 worked on mission1
+        $face1 = Face::factory()->create();
+        Candidature::factory()->completed()->create(['face_id' => $face1->id, 'mission_id' => $mission1->id]);
+
+        // Face2 worked on both missions (should count only once)
+        $face2 = Face::factory()->create();
+        Candidature::factory()->completed()->create(['face_id' => $face2->id, 'mission_id' => $mission1->id]);
+        Candidature::factory()->completed()->create(['face_id' => $face2->id, 'mission_id' => $mission2->id]);
+
+        // Face3 worked only on mission2
+        $face3 = Face::factory()->create();
+        Candidature::factory()->completed()->create(['face_id' => $face3->id, 'mission_id' => $mission2->id]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk()
+            ->assertJsonPath('data.unique_collaborators', 3); // Face1 + Face2 + Face3 = 3 unique
     }
 }
