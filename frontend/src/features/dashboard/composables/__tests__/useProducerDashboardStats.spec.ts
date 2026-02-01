@@ -21,6 +21,8 @@ describe('useProducerDashboardStats', () => {
       completed: 10,
       total_candidatures: 47, // Total candidatures received across all missions (FR56)
       unique_collaborators: 12, // Unique Faces worked with (FR57)
+      average_rating: 4.5, // Producer's average rating (FR58)
+      ratings_count: 8, // Total ratings received (FR58)
     },
     message: 'Dashboard stats retrieved successfully',
   }
@@ -33,6 +35,8 @@ describe('useProducerDashboardStats', () => {
       completed: 0,
       total_candidatures: 0,
       unique_collaborators: 0,
+      average_rating: null,
+      ratings_count: 0,
     },
     message: 'Dashboard stats retrieved successfully',
   }
@@ -80,6 +84,8 @@ describe('useProducerDashboardStats', () => {
       expect(stats.value?.completed).toBe(0)
       expect(stats.value?.total_candidatures).toBe(0)
       expect(stats.value?.unique_collaborators).toBe(0)
+      expect(stats.value?.average_rating).toBeNull()
+      expect(stats.value?.ratings_count).toBe(0)
     })
 
     it('fetches stats successfully with total_candidatures (FR56)', async () => {
@@ -100,6 +106,26 @@ describe('useProducerDashboardStats', () => {
       await fetchStats()
 
       expect(stats.value?.unique_collaborators).toBe(12)
+    })
+
+    it('fetches stats successfully with average_rating (FR58)', async () => {
+      vi.mocked(dashboardApi.getProducerStats).mockResolvedValue(mockStatsResponse)
+
+      const { stats, fetchStats } = useProducerDashboardStats()
+
+      await fetchStats()
+
+      expect(stats.value?.average_rating).toBe(4.5)
+    })
+
+    it('fetches stats successfully with ratings_count (FR58)', async () => {
+      vi.mocked(dashboardApi.getProducerStats).mockResolvedValue(mockStatsResponse)
+
+      const { stats, fetchStats } = useProducerDashboardStats()
+
+      await fetchStats()
+
+      expect(stats.value?.ratings_count).toBe(8)
     })
 
     it('sets loading state during fetch', async () => {

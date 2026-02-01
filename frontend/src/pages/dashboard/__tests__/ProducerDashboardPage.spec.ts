@@ -86,6 +86,11 @@ vi.mock('lucide-vue-next', () => ({
     template: '<svg data-testid="refresh-icon"></svg>',
     props: ['size', 'class'],
   },
+  Star: {
+    name: 'Star',
+    template: '<svg data-testid="star-icon"></svg>',
+    props: ['size'],
+  },
 }))
 
 describe('ProducerDashboardPage', () => {
@@ -108,6 +113,8 @@ describe('ProducerDashboardPage', () => {
         completed: 10,
         total_candidatures: 47,
         unique_collaborators: 12,
+        average_rating: 4.5,
+        ratings_count: 8,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -125,6 +132,8 @@ describe('ProducerDashboardPage', () => {
         completed: 0,
         total_candidatures: 0,
         unique_collaborators: 0,
+        average_rating: null,
+        ratings_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -143,6 +152,8 @@ describe('ProducerDashboardPage', () => {
         completed: 0,
         total_candidatures: 0,
         unique_collaborators: 0,
+        average_rating: null,
+        ratings_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -161,6 +172,8 @@ describe('ProducerDashboardPage', () => {
         completed: 0,
         total_candidatures: 0,
         unique_collaborators: 0,
+        average_rating: null,
+        ratings_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -179,6 +192,8 @@ describe('ProducerDashboardPage', () => {
         completed: 15,
         total_candidatures: 0,
         unique_collaborators: 0,
+        average_rating: null,
+        ratings_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -197,6 +212,8 @@ describe('ProducerDashboardPage', () => {
         completed: 0,
         total_candidatures: 47,
         unique_collaborators: 0,
+        average_rating: null,
+        ratings_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -215,6 +232,8 @@ describe('ProducerDashboardPage', () => {
         completed: 0,
         total_candidatures: 0,
         unique_collaborators: 23,
+        average_rating: null,
+        ratings_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -233,6 +252,8 @@ describe('ProducerDashboardPage', () => {
         completed: 0,
         total_candidatures: 0,
         unique_collaborators: 0,
+        average_rating: null,
+        ratings_count: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -256,6 +277,8 @@ describe('ProducerDashboardPage', () => {
         completed: 1,
         total_candidatures: 10,
         unique_collaborators: 5,
+        average_rating: 4.0,
+        ratings_count: 3,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -273,6 +296,8 @@ describe('ProducerDashboardPage', () => {
         completed: 1,
         total_candidatures: 10,
         unique_collaborators: 5,
+        average_rating: 4.0,
+        ratings_count: 3,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -305,6 +330,8 @@ describe('ProducerDashboardPage', () => {
         completed: 1,
         total_candidatures: 10,
         unique_collaborators: 5,
+        average_rating: 4.0,
+        ratings_count: 3,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -416,11 +443,11 @@ describe('ProducerDashboardPage', () => {
       expect(wrapper.text()).toContain('Mes missions')
     })
 
-    it('displays "Candidatures" section title (FR56)', async () => {
+    it('displays "Candidatures & Réputation" section title (FR56, FR57, FR58)', async () => {
       const wrapper = mount(ProducerDashboardPage)
       await flushPromises()
 
-      expect(wrapper.text()).toContain('Candidatures')
+      expect(wrapper.text()).toContain('Candidatures & Réputation')
     })
   })
 
@@ -443,6 +470,8 @@ describe('ProducerDashboardPage', () => {
         completed: 0,
         total_candidatures: 56789,
         unique_collaborators: 999,
+        average_rating: 4.5,
+        ratings_count: 10,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -454,6 +483,214 @@ describe('ProducerDashboardPage', () => {
       expect(publishedCard.exists()).toBe(true)
       // Value is passed correctly to the card
       expect(publishedCard.attributes('data-value')).toBe('1234')
+    })
+  })
+
+  describe('rating display (FR58)', () => {
+    it('renders rating card in candidatures section', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 4.5,
+        ratings_count: 8,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      // Rating card is now integrated in the candidatures section
+      const candidaturesSection = wrapper.find('[data-testid="candidatures-kpi-section"]')
+      expect(candidaturesSection.exists()).toBe(true)
+
+      const ratingCard = wrapper.find('[data-testid="kpi-card-rating"]')
+      expect(ratingCard.exists()).toBe(true)
+    })
+
+    it('displays "Candidatures & Réputation" section title', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 4.5,
+        ratings_count: 8,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Candidatures & Réputation')
+    })
+
+    it('displays formatted rating value with one decimal', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 4.5,
+        ratings_count: 8,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const ratingValue = wrapper.find('[data-testid="kpi-card-rating-value"]')
+      expect(ratingValue.exists()).toBe(true)
+      expect(ratingValue.text()).toBe('4.5')
+    })
+
+    it('displays "--" when average_rating is null', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: null,
+        ratings_count: 0,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const ratingValue = wrapper.find('[data-testid="kpi-card-rating-value"]')
+      expect(ratingValue.exists()).toBe(true)
+      expect(ratingValue.text()).toBe('--')
+    })
+
+    it('displays "Aucun avis" when ratings_count is 0', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: null,
+        ratings_count: 0,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const ratingSubtitle = wrapper.find('[data-testid="kpi-card-rating-subtitle"]')
+      expect(ratingSubtitle.exists()).toBe(true)
+      expect(ratingSubtitle.text()).toBe('Aucun avis')
+    })
+
+    it('displays correct pluralized avis count', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 4.5,
+        ratings_count: 8,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const ratingSubtitle = wrapper.find('[data-testid="kpi-card-rating-subtitle"]')
+      expect(ratingSubtitle.exists()).toBe(true)
+      expect(ratingSubtitle.text()).toBe('8 avis')
+    })
+
+    it('displays "1 avis" for single rating', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 5.0,
+        ratings_count: 1,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const ratingSubtitle = wrapper.find('[data-testid="kpi-card-rating-subtitle"]')
+      expect(ratingSubtitle.exists()).toBe(true)
+      expect(ratingSubtitle.text()).toBe('1 avis')
+    })
+
+    it('displays whole number rating with one decimal (5.0 not 5)', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 5,
+        ratings_count: 3,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const ratingValue = wrapper.find('[data-testid="kpi-card-rating-value"]')
+      expect(ratingValue.exists()).toBe(true)
+      expect(ratingValue.text()).toBe('5.0')
+    })
+
+    it('displays "Ma note" title label', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+        unique_collaborators: 5,
+        average_rating: 4.5,
+        ratings_count: 8,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const ratingTitle = wrapper.find('[data-testid="kpi-card-rating-title"]')
+      expect(ratingTitle.exists()).toBe(true)
+      expect(ratingTitle.text()).toBe('Ma note')
+    })
+
+    it('shows skeleton while loading', async () => {
+      mockIsStatsLoading.value = true
+      mockStats.value = null
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const ratingSkeleton = wrapper.find('[data-testid="kpi-card-rating-skeleton"]')
+      expect(ratingSkeleton.exists()).toBe(true)
+    })
+
+    it('hides rating card when error occurs', async () => {
+      mockStatsError.value = 'Erreur réseau'
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      // Candidatures section (with rating) is hidden on error
+      const candidaturesSection = wrapper.find('[data-testid="candidatures-kpi-section"]')
+      expect(candidaturesSection.exists()).toBe(false)
+
+      const ratingCard = wrapper.find('[data-testid="kpi-card-rating"]')
+      expect(ratingCard.exists()).toBe(false)
     })
   })
 })
