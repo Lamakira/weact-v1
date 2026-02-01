@@ -79,12 +79,12 @@ export interface MissionsCountResponse {
 /**
  * KPI card color type
  */
-export type KpiColor = 'amber-500' | 'green-500' | 'blue-500' | 'primary'
+export type KpiColor = 'amber-500' | 'green-500' | 'blue-500' | 'primary' | 'purple-500'
 
 /**
  * KPI card icon type
  */
-export type KpiIcon = 'clock' | 'check' | 'play' | 'checkCircle'
+export type KpiIcon = 'clock' | 'check' | 'play' | 'checkCircle' | 'users'
 
 /**
  * KPI card configuration
@@ -134,13 +134,14 @@ export const FACE_KPI_CONFIGS: KpiConfig[] = [
 
 /**
  * Producer Dashboard statistics
- * Mission counts grouped by status
+ * Mission counts grouped by status + total candidatures received (FR56)
  */
 export interface ProducerDashboardStats {
   published: number
   in_progress: number
   closed: number
   completed: number
+  total_candidatures: number
 }
 
 /**
@@ -163,7 +164,7 @@ export interface ProducerKpiConfig {
 }
 
 /**
- * KPI configurations for Producer dashboard
+ * KPI configurations for Producer dashboard (missions stats)
  * Matches the French labels from FR55
  */
 export const PRODUCER_KPI_CONFIGS: ProducerKpiConfig[] = [
@@ -196,3 +197,14 @@ export const PRODUCER_KPI_CONFIGS: ProducerKpiConfig[] = [
     icon: 'checkCircle',
   },
 ]
+
+/**
+ * KPI configuration for Producer candidatures (FR56)
+ */
+export const PRODUCER_CANDIDATURES_KPI: ProducerKpiConfig = {
+  key: 'total_candidatures',
+  title: 'Candidatures reçues',
+  color: 'purple-500',
+  bgColor: 'violet-50',
+  icon: 'users',
+}
