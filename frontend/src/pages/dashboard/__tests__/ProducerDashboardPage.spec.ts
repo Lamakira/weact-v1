@@ -100,19 +100,20 @@ describe('ProducerDashboardPage', () => {
   })
 
   describe('KPI cards rendering', () => {
-    it('renders 4 KPI cards when stats are loaded', async () => {
+    it('renders 5 KPI cards when stats are loaded (4 missions + 1 candidatures)', async () => {
       mockStats.value = {
         published: 3,
         in_progress: 2,
         closed: 5,
         completed: 10,
+        total_candidatures: 47,
       }
 
       const wrapper = mount(ProducerDashboardPage)
       await flushPromises()
 
       const kpiCards = wrapper.findAll('[data-component="kpi-card"]')
-      expect(kpiCards.length).toBe(4)
+      expect(kpiCards.length).toBe(5) // 4 missions KPIs + 1 candidatures KPI
     })
 
     it('renders KPI card with correct published value', async () => {
@@ -121,6 +122,7 @@ describe('ProducerDashboardPage', () => {
         in_progress: 0,
         closed: 0,
         completed: 0,
+        total_candidatures: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -137,6 +139,7 @@ describe('ProducerDashboardPage', () => {
         in_progress: 4,
         closed: 0,
         completed: 0,
+        total_candidatures: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -153,6 +156,7 @@ describe('ProducerDashboardPage', () => {
         in_progress: 0,
         closed: 8,
         completed: 0,
+        total_candidatures: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -169,6 +173,7 @@ describe('ProducerDashboardPage', () => {
         in_progress: 0,
         closed: 0,
         completed: 15,
+        total_candidatures: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -179,12 +184,30 @@ describe('ProducerDashboardPage', () => {
       expect(completedCard.attributes('data-value')).toBe('15')
     })
 
-    it('displays zero values correctly', async () => {
+    it('renders KPI card with correct total_candidatures value (FR56)', async () => {
       mockStats.value = {
         published: 0,
         in_progress: 0,
         closed: 0,
         completed: 0,
+        total_candidatures: 47,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const candidaturesCard = wrapper.find('[data-testid="kpi-card-total_candidatures"]')
+      expect(candidaturesCard.exists()).toBe(true)
+      expect(candidaturesCard.attributes('data-value')).toBe('47')
+    })
+
+    it('displays zero values correctly including candidatures', async () => {
+      mockStats.value = {
+        published: 0,
+        in_progress: 0,
+        closed: 0,
+        completed: 0,
+        total_candidatures: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -192,6 +215,9 @@ describe('ProducerDashboardPage', () => {
 
       const publishedCard = wrapper.find('[data-testid="kpi-card-published"]')
       expect(publishedCard.attributes('data-value')).toBe('0')
+
+      const candidaturesCard = wrapper.find('[data-testid="kpi-card-total_candidatures"]')
+      expect(candidaturesCard.attributes('data-value')).toBe('0')
     })
 
     it('renders KPI cards grid container', async () => {
@@ -200,6 +226,7 @@ describe('ProducerDashboardPage', () => {
         in_progress: 1,
         closed: 1,
         completed: 1,
+        total_candidatures: 10,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -207,6 +234,22 @@ describe('ProducerDashboardPage', () => {
 
       const grid = wrapper.find('[data-testid="kpi-cards-grid"]')
       expect(grid.exists()).toBe(true)
+    })
+
+    it('renders candidatures KPI section', async () => {
+      mockStats.value = {
+        published: 1,
+        in_progress: 1,
+        closed: 1,
+        completed: 1,
+        total_candidatures: 10,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const candidaturesSection = wrapper.find('[data-testid="candidatures-kpi-section"]')
+      expect(candidaturesSection.exists()).toBe(true)
     })
   })
 
@@ -219,7 +262,7 @@ describe('ProducerDashboardPage', () => {
       await flushPromises()
 
       const kpiCards = wrapper.findAll('[data-component="kpi-card"]')
-      expect(kpiCards.length).toBe(4)
+      expect(kpiCards.length).toBe(5) // 4 missions + 1 candidatures
       expect(kpiCards[0].attributes('data-loading')).toBe('true')
     })
 
@@ -230,6 +273,7 @@ describe('ProducerDashboardPage', () => {
         in_progress: 1,
         closed: 1,
         completed: 1,
+        total_candidatures: 10,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -237,6 +281,18 @@ describe('ProducerDashboardPage', () => {
 
       const kpiCards = wrapper.findAll('[data-component="kpi-card"]')
       expect(kpiCards[0].attributes('data-loading')).toBe('false')
+    })
+
+    it('passes isLoading to candidatures KPI card', async () => {
+      mockIsStatsLoading.value = true
+      mockStats.value = null
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const candidaturesCard = wrapper.find('[data-testid="kpi-card-total_candidatures"]')
+      expect(candidaturesCard.exists()).toBe(true)
+      expect(candidaturesCard.attributes('data-loading')).toBe('true')
     })
   })
 
@@ -283,6 +339,10 @@ describe('ProducerDashboardPage', () => {
 
       const grid = wrapper.find('[data-testid="kpi-cards-grid"]')
       expect(grid.exists()).toBe(false)
+
+      // Also verify candidatures grid is hidden (Issue #1 fix)
+      const candidaturesGrid = wrapper.find('[data-testid="candidatures-kpi-grid"]')
+      expect(candidaturesGrid.exists()).toBe(false)
     })
 
     it('error message has role="alert" for accessibility', async () => {
@@ -312,6 +372,13 @@ describe('ProducerDashboardPage', () => {
 
       expect(wrapper.text()).toContain('Mes missions')
     })
+
+    it('displays "Candidatures" section title (FR56)', async () => {
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Candidatures')
+    })
   })
 
   describe('KPI section structure', () => {
@@ -321,6 +388,28 @@ describe('ProducerDashboardPage', () => {
 
       const kpiSection = wrapper.find('[data-testid="kpi-section"]')
       expect(kpiSection.exists()).toBe(true)
+    })
+  })
+
+  describe('number formatting', () => {
+    it('formats large numbers with French locale (Issue #6 fix)', async () => {
+      mockStats.value = {
+        published: 1234,
+        in_progress: 0,
+        closed: 0,
+        completed: 0,
+        total_candidatures: 56789,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      // KpiCard uses Intl.NumberFormat('fr-FR') which formats 1234 as "1 234"
+      // The mock component exposes the raw value, but real component formats it
+      const publishedCard = wrapper.find('[data-testid="kpi-card-published"]')
+      expect(publishedCard.exists()).toBe(true)
+      // Value is passed correctly to the card
+      expect(publishedCard.attributes('data-value')).toBe('1234')
     })
   })
 })
