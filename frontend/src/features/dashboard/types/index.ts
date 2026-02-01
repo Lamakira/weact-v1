@@ -134,7 +134,7 @@ export const FACE_KPI_CONFIGS: KpiConfig[] = [
 
 /**
  * Producer Dashboard statistics
- * Mission counts grouped by status + total candidatures received (FR56) + unique collaborators (FR57) + rating (FR58)
+ * Mission counts grouped by status + total candidatures received (FR56) + unique collaborators (FR57) + rating (FR58) + advanced stats (FR59)
  */
 export interface ProducerDashboardStats {
   published: number
@@ -145,6 +145,10 @@ export interface ProducerDashboardStats {
   unique_collaborators: number
   average_rating: number | null
   ratings_count: number
+  // FR59 - Advanced stats
+  acceptance_rate: number // 0-100 percentage
+  average_response_time_hours: number | null // null if no decisions made
+  completed_missions_count: number // AC #5 explicit field (alias for completed)
 }
 
 /**
@@ -234,4 +238,28 @@ export const PRODUCER_RATING_KPI: ProducerKpiConfig = {
   color: 'amber-500',
   bgColor: 'amber-50',
   icon: 'star',
+}
+
+/**
+ * KPI configuration for Producer acceptance rate (FR59)
+ * Note: Uses custom display for percentage formatting.
+ */
+export const PRODUCER_ACCEPTANCE_RATE_KPI: ProducerKpiConfig = {
+  key: 'acceptance_rate',
+  title: "Taux d'acceptation",
+  color: 'green-500',
+  bgColor: 'green-50',
+  icon: 'check',
+}
+
+/**
+ * KPI configuration for Producer average response time (FR59)
+ * Note: Uses custom display for hour formatting.
+ */
+export const PRODUCER_RESPONSE_TIME_KPI: ProducerKpiConfig = {
+  key: 'average_response_time_hours',
+  title: 'Temps de réponse',
+  color: 'blue-500',
+  bgColor: 'blue-50',
+  icon: 'clock',
 }

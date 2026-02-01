@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import { RefreshCw, Star } from 'lucide-vue-next'
+import { RefreshCw, Star, Check, Clock } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { useProducerDashboardStats } from '@/features/dashboard/composables/useProducerDashboardStats'
-import { PRODUCER_KPI_CONFIGS, PRODUCER_CANDIDATURES_KPI, PRODUCER_COLLABORATORS_KPI } from '@/features/dashboard/types'
+import {
+  PRODUCER_KPI_CONFIGS,
+  PRODUCER_CANDIDATURES_KPI,
+  PRODUCER_COLLABORATORS_KPI,
+  PRODUCER_ACCEPTANCE_RATE_KPI,
+  PRODUCER_RESPONSE_TIME_KPI,
+} from '@/features/dashboard/types'
 import { Skeleton } from '@/components/ui/skeleton'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 import KpiCard from '@/features/dashboard/components/KpiCard.vue'
@@ -36,6 +42,31 @@ const ratingSubtitle = computed(() => {
     return 'Aucun avis'
   }
   return `${count} avis`
+})
+
+// Computed values for advanced stats (FR59)
+const formattedAcceptanceRate = computed(() => {
+  const rate = stats.value?.acceptance_rate
+  if (rate === null || rate === undefined) {
+    return '--'
+  }
+  return `${rate.toFixed(1)}%`
+})
+
+const formattedResponseTime = computed(() => {
+  const hours = stats.value?.average_response_time_hours
+  if (hours === null || hours === undefined) {
+    return 'N/A'
+  }
+  return `${hours.toFixed(1)}h`
+})
+
+const responseTimeSubtitle = computed(() => {
+  const hours = stats.value?.average_response_time_hours
+  if (hours === null || hours === undefined) {
+    return 'Aucune décision'
+  }
+  return 'Délai moyen'
 })
 </script>
 
@@ -236,6 +267,112 @@ const ratingSubtitle = computed(() => {
                   data-testid="kpi-card-rating-subtitle"
                 >
                   {{ ratingSubtitle }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Statistiques avancées Section (FR59) -->
+      <div v-if="!statsError" class="mb-6" data-testid="advanced-stats-section">
+        <h2 class="text-lg font-medium text-gray-900 mb-4">Statistiques avancées</h2>
+
+        <div
+          class="grid grid-cols-2 lg:grid-cols-4 gap-4"
+          data-testid="advanced-stats-grid"
+        >
+          <!-- Acceptance rate card with custom display for percentage -->
+          <div
+            v-if="statsLoading"
+            class="bg-white border border-gray-100 rounded-2xl p-4"
+            data-testid="kpi-card-acceptance-rate-skeleton"
+          >
+            <div class="flex items-center gap-3">
+              <Skeleton class="h-11 w-11 rounded-xl" />
+              <div class="space-y-2">
+                <Skeleton class="h-6 w-14" />
+                <Skeleton class="h-4 w-20" />
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-else
+            class="bg-white border border-gray-100 rounded-2xl p-4 transition-all duration-200 hover:shadow-md"
+            :aria-label="`${PRODUCER_ACCEPTANCE_RATE_KPI.title}: ${formattedAcceptanceRate}`"
+            data-testid="kpi-card-acceptance_rate"
+          >
+            <div class="flex items-center gap-3">
+              <div
+                class="flex h-11 w-11 items-center justify-center rounded-xl shrink-0 bg-green-50 text-green-500"
+              >
+                <Check :size="20" stroke-width="2" />
+              </div>
+
+              <div class="flex flex-col min-w-0">
+                <span
+                  class="text-xl font-bold text-gray-900 leading-none"
+                  data-testid="kpi-card-acceptance_rate-value"
+                >
+                  {{ formattedAcceptanceRate }}
+                </span>
+                <span
+                  class="mt-1 text-sm text-gray-500 truncate"
+                  data-testid="kpi-card-acceptance_rate-title"
+                >
+                  {{ PRODUCER_ACCEPTANCE_RATE_KPI.title }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Average response time card with custom display for hours -->
+          <div
+            v-if="statsLoading"
+            class="bg-white border border-gray-100 rounded-2xl p-4"
+            data-testid="kpi-card-response-time-skeleton"
+          >
+            <div class="flex items-center gap-3">
+              <Skeleton class="h-11 w-11 rounded-xl" />
+              <div class="space-y-2">
+                <Skeleton class="h-6 w-14" />
+                <Skeleton class="h-4 w-20" />
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-else
+            class="bg-white border border-gray-100 rounded-2xl p-4 transition-all duration-200 hover:shadow-md"
+            :aria-label="`${PRODUCER_RESPONSE_TIME_KPI.title}: ${formattedResponseTime}`"
+            data-testid="kpi-card-average_response_time_hours"
+          >
+            <div class="flex items-center gap-3">
+              <div
+                class="flex h-11 w-11 items-center justify-center rounded-xl shrink-0 bg-blue-50 text-blue-500"
+              >
+                <Clock :size="20" stroke-width="2" />
+              </div>
+
+              <div class="flex flex-col min-w-0">
+                <span
+                  class="text-xl font-bold text-gray-900 leading-none"
+                  data-testid="kpi-card-average_response_time_hours-value"
+                >
+                  {{ formattedResponseTime }}
+                </span>
+                <span
+                  class="mt-1 text-sm text-gray-500 truncate"
+                  data-testid="kpi-card-average_response_time_hours-title"
+                >
+                  {{ PRODUCER_RESPONSE_TIME_KPI.title }}
+                </span>
+                <span
+                  class="text-xs text-gray-400 truncate"
+                  data-testid="kpi-card-average_response_time_hours-subtitle"
+                >
+                  {{ responseTimeSubtitle }}
                 </span>
               </div>
             </div>
