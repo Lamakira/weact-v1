@@ -1,9 +1,14 @@
 import apiClient from '@/services/apiClient'
-import type { DashboardStatsResponse, ChartStatsResponse, MissionsCountResponse } from '../types'
+import type {
+  DashboardStatsResponse,
+  ChartStatsResponse,
+  MissionsCountResponse,
+  ProducerDashboardStatsResponse,
+} from '../types'
 
 /**
  * Dashboard API service
- * Endpoints for Face users to get their dashboard statistics
+ * Endpoints for Face and Producer users to get their dashboard statistics
  */
 export const dashboardApi = {
   /**
@@ -35,6 +40,16 @@ export const dashboardApi = {
    */
   async getAvailableMissionsCount(): Promise<MissionsCountResponse> {
     const response = await apiClient.get<MissionsCountResponse>('/face/dashboard/available-missions-count')
+    return response.data
+  },
+
+  /**
+   * Get Producer dashboard statistics
+   * Returns mission counts grouped by status
+   * @returns Dashboard stats with published, in_progress, closed, completed counts
+   */
+  async getProducerStats(): Promise<ProducerDashboardStatsResponse> {
+    const response = await apiClient.get<ProducerDashboardStatsResponse>('/producer/dashboard/stats')
     return response.data
   },
 }
