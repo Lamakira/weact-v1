@@ -1,11 +1,21 @@
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
+import { RefreshCw } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
+import { useProducerDashboardStats } from '@/features/dashboard/composables/useProducerDashboardStats'
+import { PRODUCER_KPI_CONFIGS } from '@/features/dashboard/types'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
+import KpiCard from '@/features/dashboard/components/KpiCard.vue'
 
 const authStore = useAuthStore()
 const { logout, isLoading } = useAuth()
+const { stats, isLoading: statsLoading, error: statsError, fetchStats, retry } = useProducerDashboardStats()
+
+onMounted(() => {
+  fetchStats()
+})
 
 async function handleLogout(): Promise<void> {
   await logout()
@@ -94,12 +104,48 @@ async function handleLogout(): Promise<void> {
         data-testid="email-verification-banner"
       />
 
-      <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">Bienvenue sur votre Dashboard Producteur</h2>
-        <p class="text-gray-600">
-          Cette page sera développée dans les prochaines stories.
-          Pour l'instant, vous pouvez gérer votre profil ou vous déconnecter.
-        </p>
+      <!-- KPI Section: Mes missions -->
+      <div class="mb-6" data-testid="kpi-section">
+        <h2 class="text-lg font-medium text-gray-900 mb-4">Mes missions</h2>
+
+        <!-- Error state -->
+        <div
+          v-if="statsError"
+          class="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between"
+          data-testid="stats-error"
+          role="alert"
+        >
+          <div class="flex items-center gap-2 text-red-700">
+            <span>{{ statsError }}</span>
+          </div>
+          <button
+            @click="retry"
+            :disabled="statsLoading"
+            class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
+            data-testid="retry-button"
+          >
+            <RefreshCw :class="{ 'animate-spin': statsLoading }" :size="16" />
+            Réessayer
+          </button>
+        </div>
+
+        <!-- KPI cards grid -->
+        <div
+          v-else
+          class="grid grid-cols-2 lg:grid-cols-4 gap-4"
+          data-testid="kpi-cards-grid"
+        >
+          <KpiCard
+            v-for="kpi in PRODUCER_KPI_CONFIGS"
+            :key="kpi.key"
+            :title="kpi.title"
+            :value="stats?.[kpi.key] ?? 0"
+            :icon="kpi.icon"
+            :color="kpi.color"
+            :is-loading="statsLoading"
+            :data-testid="'kpi-card-' + kpi.key"
+          />
+        </div>
       </div>
 
       <!-- Quick access cards -->
