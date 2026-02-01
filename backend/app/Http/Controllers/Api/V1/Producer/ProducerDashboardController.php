@@ -74,6 +74,39 @@ class ProducerDashboardController extends Controller
         $averageRating = $producer->average_rating;
         $ratingsCount = $producer->ratings_count;
 
+        // Calculate acceptance rate (FR59)
+        // Accepted = candidatures that moved past pending (accepted, confirmed, in_progress, completed)
+        $acceptedStatuses = [
+            CandidatureStatus::Accepted->value,
+            CandidatureStatus::Confirmed->value,
+            CandidatureStatus::InProgress->value,
+            CandidatureStatus::Completed->value,
+        ];
+
+        $acceptedCount = Candidature::whereHas('mission', function ($query) use ($producer) {
+            $query->where('producer_id', $producer->id);
+        })->whereIn('status', $acceptedStatuses)->count();
+
+        $acceptanceRate = $totalCandidatures > 0
+            ? round(($acceptedCount / $totalCandidatures) * 100, 1)
+            : 0.0;
+
+        // Calculate average response time in hours (FR59)
+        // Response time = time from candidature creation to decision (accepted or rejected)
+        $decidedCandidatures = Candidature::whereHas('mission', function ($query) use ($producer) {
+            $query->where('producer_id', $producer->id);
+        })
+            ->whereIn('status', [CandidatureStatus::Accepted->value, CandidatureStatus::Rejected->value])
+            ->whereColumn('updated_at', '!=', 'created_at')
+            ->get(['created_at', 'updated_at']);
+
+        $averageResponseTimeHours = null;
+        if ($decidedCandidatures->isNotEmpty()) {
+            // Use absolute diff to handle any timestamp ordering issues
+            $totalMinutes = $decidedCandidatures->sum(fn ($c) => abs($c->updated_at->diffInMinutes($c->created_at)));
+            $averageResponseTimeHours = round(($totalMinutes / 60) / $decidedCandidatures->count(), 1);
+        }
+
         return response()->json([
             'data' => new ProducerDashboardStatsResource(
                 $statusCounts,
@@ -81,7 +114,9 @@ class ProducerDashboardController extends Controller
                 $totalCandidatures,
                 $uniqueCollaborators,
                 $averageRating,
-                $ratingsCount
+                $ratingsCount,
+                $acceptanceRate,
+                $averageResponseTimeHours
             ),
             'message' => 'Dashboard stats retrieved successfully',
         ]);

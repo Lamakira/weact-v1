@@ -43,6 +43,16 @@ class ProducerDashboardStatsResource extends JsonResource
     private int $ratingsCount;
 
     /**
+     * Producer's candidature acceptance rate (0-100 percentage, FR59).
+     */
+    private float $acceptanceRate;
+
+    /**
+     * Average response time in hours for candidature decisions (FR59).
+     */
+    private ?float $averageResponseTimeHours;
+
+    /**
      * Create a new resource instance.
      *
      * @param  array<string, int>  $statusCounts  Mission counts by status
@@ -51,6 +61,8 @@ class ProducerDashboardStatsResource extends JsonResource
      * @param  int  $uniqueCollaborators  Unique Faces worked with (FR57)
      * @param  float|null  $averageRating  Producer's average rating (FR58)
      * @param  int  $ratingsCount  Total ratings received (FR58)
+     * @param  float  $acceptanceRate  Candidature acceptance rate percentage (FR59)
+     * @param  float|null  $averageResponseTimeHours  Average response time in hours (FR59)
      */
     public function __construct(
         array $statusCounts,
@@ -58,7 +70,9 @@ class ProducerDashboardStatsResource extends JsonResource
         int $totalCandidatures = 0,
         int $uniqueCollaborators = 0,
         ?float $averageRating = null,
-        int $ratingsCount = 0
+        int $ratingsCount = 0,
+        float $acceptanceRate = 0.0,
+        ?float $averageResponseTimeHours = null
     ) {
         parent::__construct($statusCounts);
         $this->inProgressCount = $inProgressCount;
@@ -66,6 +80,8 @@ class ProducerDashboardStatsResource extends JsonResource
         $this->uniqueCollaborators = $uniqueCollaborators;
         $this->averageRating = $averageRating;
         $this->ratingsCount = $ratingsCount;
+        $this->acceptanceRate = $acceptanceRate;
+        $this->averageResponseTimeHours = $averageResponseTimeHours;
     }
 
     /**
@@ -99,6 +115,10 @@ class ProducerDashboardStatsResource extends JsonResource
             'unique_collaborators' => $this->uniqueCollaborators,
             'average_rating' => $this->averageRating,
             'ratings_count' => $this->ratingsCount,
+            'acceptance_rate' => $this->acceptanceRate,
+            'average_response_time_hours' => $this->averageResponseTimeHours,
+            // AC #5 requires this explicit field name (alias for 'completed')
+            'completed_missions_count' => $completed,
         ];
     }
 }
