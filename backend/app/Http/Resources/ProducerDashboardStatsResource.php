@@ -23,15 +23,22 @@ class ProducerDashboardStatsResource extends JsonResource
     private int $inProgressCount;
 
     /**
+     * Total number of candidatures received across all missions.
+     */
+    private int $totalCandidatures;
+
+    /**
      * Create a new resource instance.
      *
      * @param  array<string, int>  $statusCounts  Mission counts by status
      * @param  int  $inProgressCount  Count of missions with active candidatures
+     * @param  int  $totalCandidatures  Total candidatures received (FR56)
      */
-    public function __construct(array $statusCounts, int $inProgressCount = 0)
+    public function __construct(array $statusCounts, int $inProgressCount = 0, int $totalCandidatures = 0)
     {
         parent::__construct($statusCounts);
         $this->inProgressCount = $inProgressCount;
+        $this->totalCandidatures = $totalCandidatures;
     }
 
     /**
@@ -61,6 +68,7 @@ class ProducerDashboardStatsResource extends JsonResource
             'in_progress' => $this->inProgressCount,
             'closed' => $closed,
             'completed' => $completed,
+            'total_candidatures' => $this->totalCandidatures,
         ];
     }
 }

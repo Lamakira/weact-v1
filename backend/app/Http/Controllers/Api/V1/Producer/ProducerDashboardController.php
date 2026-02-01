@@ -54,8 +54,14 @@ class ProducerDashboardController extends Controller
             })
             ->count();
 
+        // Count total candidatures received across all Producer's missions (FR56)
+        // Includes ALL statuses: pending, accepted, confirmed, in_progress, completed, rejected
+        $totalCandidatures = Candidature::whereHas('mission', function ($query) use ($producer) {
+            $query->where('producer_id', $producer->id);
+        })->count();
+
         return response()->json([
-            'data' => new ProducerDashboardStatsResource($statusCounts, $inProgressCount),
+            'data' => new ProducerDashboardStatsResource($statusCounts, $inProgressCount, $totalCandidatures),
             'message' => 'Dashboard stats retrieved successfully',
         ]);
     }
