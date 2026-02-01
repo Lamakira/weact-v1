@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Face\ActingVideoController;
+use App\Http\Controllers\Api\V1\Face\BasicInfoController;
 use App\Http\Controllers\Api\V1\Face\CandidatureController;
 use App\Http\Controllers\Api\V1\Face\FaceDashboardController;
 use App\Http\Controllers\Api\V1\Face\ConversationController;
@@ -42,6 +43,12 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/dashboard/chart-stats', [FaceDashboardController::class, 'chartStats'])
         ->middleware('throttle:60,1');
     Route::get('/dashboard/available-missions-count', [FaceDashboardController::class, 'availableMissionsCount'])
+        ->middleware('throttle:60,1');
+
+    // Basic info routes (nom, prenom, username)
+    Route::get('/basic-info', [BasicInfoController::class, 'show'])
+        ->middleware('throttle:60,1');
+    Route::put('/basic-info', [BasicInfoController::class, 'update'])
         ->middleware('throttle:60,1');
 
     // Profile routes
