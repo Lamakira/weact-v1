@@ -33,19 +33,39 @@ class ProducerDashboardStatsResource extends JsonResource
     private int $uniqueCollaborators;
 
     /**
+     * Producer's average rating score (1-5 scale, nullable if no ratings).
+     */
+    private ?float $averageRating;
+
+    /**
+     * Total number of ratings received by the Producer.
+     */
+    private int $ratingsCount;
+
+    /**
      * Create a new resource instance.
      *
      * @param  array<string, int>  $statusCounts  Mission counts by status
      * @param  int  $inProgressCount  Count of missions with active candidatures
      * @param  int  $totalCandidatures  Total candidatures received (FR56)
      * @param  int  $uniqueCollaborators  Unique Faces worked with (FR57)
+     * @param  float|null  $averageRating  Producer's average rating (FR58)
+     * @param  int  $ratingsCount  Total ratings received (FR58)
      */
-    public function __construct(array $statusCounts, int $inProgressCount = 0, int $totalCandidatures = 0, int $uniqueCollaborators = 0)
-    {
+    public function __construct(
+        array $statusCounts,
+        int $inProgressCount = 0,
+        int $totalCandidatures = 0,
+        int $uniqueCollaborators = 0,
+        ?float $averageRating = null,
+        int $ratingsCount = 0
+    ) {
         parent::__construct($statusCounts);
         $this->inProgressCount = $inProgressCount;
         $this->totalCandidatures = $totalCandidatures;
         $this->uniqueCollaborators = $uniqueCollaborators;
+        $this->averageRating = $averageRating;
+        $this->ratingsCount = $ratingsCount;
     }
 
     /**
@@ -77,6 +97,8 @@ class ProducerDashboardStatsResource extends JsonResource
             'completed' => $completed,
             'total_candidatures' => $this->totalCandidatures,
             'unique_collaborators' => $this->uniqueCollaborators,
+            'average_rating' => $this->averageRating,
+            'ratings_count' => $this->ratingsCount,
         ];
     }
 }

@@ -69,8 +69,20 @@ class ProducerDashboardController extends Controller
             ->distinct()
             ->count('face_id');
 
+        // Get Producer's average rating and ratings count (FR58)
+        // Uses existing model accessors for rating calculations
+        $averageRating = $producer->average_rating;
+        $ratingsCount = $producer->ratings_count;
+
         return response()->json([
-            'data' => new ProducerDashboardStatsResource($statusCounts, $inProgressCount, $totalCandidatures, $uniqueCollaborators),
+            'data' => new ProducerDashboardStatsResource(
+                $statusCounts,
+                $inProgressCount,
+                $totalCandidatures,
+                $uniqueCollaborators,
+                $averageRating,
+                $ratingsCount
+            ),
             'message' => 'Dashboard stats retrieved successfully',
         ]);
     }
