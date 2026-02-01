@@ -100,20 +100,21 @@ describe('ProducerDashboardPage', () => {
   })
 
   describe('KPI cards rendering', () => {
-    it('renders 5 KPI cards when stats are loaded (4 missions + 1 candidatures)', async () => {
+    it('renders 6 KPI cards when stats are loaded (4 missions + 2 candidatures section)', async () => {
       mockStats.value = {
         published: 3,
         in_progress: 2,
         closed: 5,
         completed: 10,
         total_candidatures: 47,
+        unique_collaborators: 12,
       }
 
       const wrapper = mount(ProducerDashboardPage)
       await flushPromises()
 
       const kpiCards = wrapper.findAll('[data-component="kpi-card"]')
-      expect(kpiCards.length).toBe(5) // 4 missions KPIs + 1 candidatures KPI
+      expect(kpiCards.length).toBe(6) // 4 missions KPIs + 2 candidatures section KPIs
     })
 
     it('renders KPI card with correct published value', async () => {
@@ -123,6 +124,7 @@ describe('ProducerDashboardPage', () => {
         closed: 0,
         completed: 0,
         total_candidatures: 0,
+        unique_collaborators: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -140,6 +142,7 @@ describe('ProducerDashboardPage', () => {
         closed: 0,
         completed: 0,
         total_candidatures: 0,
+        unique_collaborators: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -157,6 +160,7 @@ describe('ProducerDashboardPage', () => {
         closed: 8,
         completed: 0,
         total_candidatures: 0,
+        unique_collaborators: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -174,6 +178,7 @@ describe('ProducerDashboardPage', () => {
         closed: 0,
         completed: 15,
         total_candidatures: 0,
+        unique_collaborators: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -191,6 +196,7 @@ describe('ProducerDashboardPage', () => {
         closed: 0,
         completed: 0,
         total_candidatures: 47,
+        unique_collaborators: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -201,13 +207,32 @@ describe('ProducerDashboardPage', () => {
       expect(candidaturesCard.attributes('data-value')).toBe('47')
     })
 
-    it('displays zero values correctly including candidatures', async () => {
+    it('renders KPI card with correct unique_collaborators value (FR57)', async () => {
       mockStats.value = {
         published: 0,
         in_progress: 0,
         closed: 0,
         completed: 0,
         total_candidatures: 0,
+        unique_collaborators: 23,
+      }
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const collaboratorsCard = wrapper.find('[data-testid="kpi-card-unique_collaborators"]')
+      expect(collaboratorsCard.exists()).toBe(true)
+      expect(collaboratorsCard.attributes('data-value')).toBe('23')
+    })
+
+    it('displays zero values correctly including candidatures and collaborators', async () => {
+      mockStats.value = {
+        published: 0,
+        in_progress: 0,
+        closed: 0,
+        completed: 0,
+        total_candidatures: 0,
+        unique_collaborators: 0,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -218,6 +243,9 @@ describe('ProducerDashboardPage', () => {
 
       const candidaturesCard = wrapper.find('[data-testid="kpi-card-total_candidatures"]')
       expect(candidaturesCard.attributes('data-value')).toBe('0')
+
+      const collaboratorsCard = wrapper.find('[data-testid="kpi-card-unique_collaborators"]')
+      expect(collaboratorsCard.attributes('data-value')).toBe('0')
     })
 
     it('renders KPI cards grid container', async () => {
@@ -227,6 +255,7 @@ describe('ProducerDashboardPage', () => {
         closed: 1,
         completed: 1,
         total_candidatures: 10,
+        unique_collaborators: 5,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -243,6 +272,7 @@ describe('ProducerDashboardPage', () => {
         closed: 1,
         completed: 1,
         total_candidatures: 10,
+        unique_collaborators: 5,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -262,7 +292,7 @@ describe('ProducerDashboardPage', () => {
       await flushPromises()
 
       const kpiCards = wrapper.findAll('[data-component="kpi-card"]')
-      expect(kpiCards.length).toBe(5) // 4 missions + 1 candidatures
+      expect(kpiCards.length).toBe(6) // 4 missions + 2 candidatures section
       expect(kpiCards[0].attributes('data-loading')).toBe('true')
     })
 
@@ -274,6 +304,7 @@ describe('ProducerDashboardPage', () => {
         closed: 1,
         completed: 1,
         total_candidatures: 10,
+        unique_collaborators: 5,
       }
 
       const wrapper = mount(ProducerDashboardPage)
@@ -293,6 +324,18 @@ describe('ProducerDashboardPage', () => {
       const candidaturesCard = wrapper.find('[data-testid="kpi-card-total_candidatures"]')
       expect(candidaturesCard.exists()).toBe(true)
       expect(candidaturesCard.attributes('data-loading')).toBe('true')
+    })
+
+    it('passes isLoading to collaborators KPI card (FR57)', async () => {
+      mockIsStatsLoading.value = true
+      mockStats.value = null
+
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+
+      const collaboratorsCard = wrapper.find('[data-testid="kpi-card-unique_collaborators"]')
+      expect(collaboratorsCard.exists()).toBe(true)
+      expect(collaboratorsCard.attributes('data-loading')).toBe('true')
     })
   })
 
@@ -399,6 +442,7 @@ describe('ProducerDashboardPage', () => {
         closed: 0,
         completed: 0,
         total_candidatures: 56789,
+        unique_collaborators: 999,
       }
 
       const wrapper = mount(ProducerDashboardPage)

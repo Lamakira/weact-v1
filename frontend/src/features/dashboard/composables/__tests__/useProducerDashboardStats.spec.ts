@@ -20,6 +20,7 @@ describe('useProducerDashboardStats', () => {
       closed: 3, // Missions no longer accepting candidatures
       completed: 10,
       total_candidatures: 47, // Total candidatures received across all missions (FR56)
+      unique_collaborators: 12, // Unique Faces worked with (FR57)
     },
     message: 'Dashboard stats retrieved successfully',
   }
@@ -31,6 +32,7 @@ describe('useProducerDashboardStats', () => {
       closed: 0,
       completed: 0,
       total_candidatures: 0,
+      unique_collaborators: 0,
     },
     message: 'Dashboard stats retrieved successfully',
   }
@@ -77,6 +79,7 @@ describe('useProducerDashboardStats', () => {
       expect(stats.value?.closed).toBe(0)
       expect(stats.value?.completed).toBe(0)
       expect(stats.value?.total_candidatures).toBe(0)
+      expect(stats.value?.unique_collaborators).toBe(0)
     })
 
     it('fetches stats successfully with total_candidatures (FR56)', async () => {
@@ -87,6 +90,16 @@ describe('useProducerDashboardStats', () => {
       await fetchStats()
 
       expect(stats.value?.total_candidatures).toBe(47)
+    })
+
+    it('fetches stats successfully with unique_collaborators (FR57)', async () => {
+      vi.mocked(dashboardApi.getProducerStats).mockResolvedValue(mockStatsResponse)
+
+      const { stats, fetchStats } = useProducerDashboardStats()
+
+      await fetchStats()
+
+      expect(stats.value?.unique_collaborators).toBe(12)
     })
 
     it('sets loading state during fetch', async () => {
