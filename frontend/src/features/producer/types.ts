@@ -74,3 +74,45 @@ export interface AgencyLogoResult {
   errors?: Record<string, string[]>
   message?: string
 }
+
+// Producer basic info from API (type-dependent)
+export interface ProducerBasicInfoAgency {
+  type: 'agency'
+  agency_name: string
+}
+
+export interface ProducerBasicInfoParticulier {
+  type: 'particulier'
+  first_name: string
+  last_name: string
+}
+
+export type ProducerBasicInfo = ProducerBasicInfoAgency | ProducerBasicInfoParticulier
+
+// Producer basic info API response
+export interface ProducerBasicInfoResponse {
+  data: ProducerBasicInfo
+  message?: string
+}
+
+// Producer basic info form data (type-dependent)
+export interface ProducerBasicInfoAgencyFormData {
+  agency_name: string
+}
+
+export interface ProducerBasicInfoParticulierFormData {
+  first_name?: string
+  last_name?: string
+}
+
+export type ProducerBasicInfoFormData =
+  | ProducerBasicInfoAgencyFormData
+  | ProducerBasicInfoParticulierFormData
+
+// Producer basic info operation result
+export interface ProducerBasicInfoResult {
+  success: boolean
+  data?: ProducerBasicInfo
+  errors?: Record<string, string[]>
+  message?: string
+}
