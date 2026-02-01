@@ -5,7 +5,7 @@ import { RefreshCw } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { useProducerDashboardStats } from '@/features/dashboard/composables/useProducerDashboardStats'
-import { PRODUCER_KPI_CONFIGS } from '@/features/dashboard/types'
+import { PRODUCER_KPI_CONFIGS, PRODUCER_CANDIDATURES_KPI } from '@/features/dashboard/types'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 import KpiCard from '@/features/dashboard/components/KpiCard.vue'
 
@@ -147,6 +147,25 @@ async function handleLogout(): Promise<void> {
           />
         </div>
       </div>
+
+      <!-- Candidatures KPI Section (FR56) -->
+      <div v-if="!statsError" class="mb-6" data-testid="candidatures-kpi-section">
+        <h2 class="text-lg font-medium text-gray-900 mb-4">Candidatures</h2>
+
+        <div
+          class="grid grid-cols-2 lg:grid-cols-4 gap-4"
+          data-testid="candidatures-kpi-grid"
+        >
+          <KpiCard
+            :title="PRODUCER_CANDIDATURES_KPI.title"
+            :value="stats?.total_candidatures ?? 0"
+            :icon="PRODUCER_CANDIDATURES_KPI.icon"
+            :color="PRODUCER_CANDIDATURES_KPI.color"
+            :is-loading="statsLoading"
+            data-testid="kpi-card-total_candidatures"
+          />
+      </div>
+    </div>
 
       <!-- Quick access cards -->
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
