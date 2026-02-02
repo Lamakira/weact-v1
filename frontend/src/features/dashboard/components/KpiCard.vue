@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Clock, Check, Play, CheckCircle2 } from 'lucide-vue-next'
+import { Clock, Check, Play, CheckCircle2, Users, UserCheck, Star } from 'lucide-vue-next'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { KpiColor, KpiIcon } from '../types'
 
@@ -26,6 +26,9 @@ const iconComponent = computed(() => {
     check: Check,
     play: Play,
     checkCircle: CheckCircle2,
+    users: Users,
+    userCheck: UserCheck,
+    star: Star,
   }
   return icons[props.icon] || Clock
 })
@@ -37,8 +40,8 @@ const colorClasses = computed(() => {
       text: 'text-pink-500',
     },
     'amber-500': {
-      bg: 'bg-purple-50',
-      text: 'text-purple-500',
+      bg: 'bg-amber-50',
+      text: 'text-amber-500',
     },
     'green-500': {
       bg: 'bg-green-50',
@@ -48,6 +51,10 @@ const colorClasses = computed(() => {
       bg: 'bg-blue-50',
       text: 'text-blue-500',
     },
+    'purple-500': {
+      bg: 'bg-violet-50',
+      text: 'text-violet-500',
+    },
   }
   return mapping[props.color] || mapping['primary']
 })
@@ -55,7 +62,7 @@ const colorClasses = computed(() => {
 
 <template>
   <div
-    class="bg-white border border-gray-100 rounded-2xl p-4 transition-all duration-200 hover:shadow-md"
+    class="bg-white rounded-2xl p-4 shadow-sm transition-all duration-200 hover:shadow-md"
     :aria-label="`${title}: ${formattedValue}`"
     data-testid="kpi-card"
   >

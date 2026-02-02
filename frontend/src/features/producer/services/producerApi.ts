@@ -1,5 +1,11 @@
 import apiClient, { getCsrfCookie } from '@/services/apiClient'
-import type { ProducerProfileResponse, ProducerBioResponse, AgencyLogoResponse } from '../types'
+import type {
+  ProducerProfileResponse,
+  ProducerBioResponse,
+  AgencyLogoResponse,
+  ProducerBasicInfoResponse,
+  ProducerBasicInfoFormData,
+} from '../types'
 
 /**
  * Producer API service
@@ -90,6 +96,25 @@ export const producerApi = {
   async deleteLogo(): Promise<ProducerProfileResponse> {
     await getCsrfCookie()
     const response = await apiClient.delete<ProducerProfileResponse>('/producer/profile/logo')
+    return response.data
+  },
+
+  /**
+   * Get the current basic info (agency_name or first_name/last_name based on type)
+   */
+  async getBasicInfo(): Promise<ProducerBasicInfoResponse> {
+    const response = await apiClient.get<ProducerBasicInfoResponse>('/producer/basic-info')
+    return response.data
+  },
+
+  /**
+   * Update basic info
+   * For agency: { agency_name: string }
+   * For particulier: { first_name?: string, last_name?: string }
+   */
+  async updateBasicInfo(data: ProducerBasicInfoFormData): Promise<ProducerBasicInfoResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.put<ProducerBasicInfoResponse>('/producer/basic-info', data)
     return response.data
   },
 }

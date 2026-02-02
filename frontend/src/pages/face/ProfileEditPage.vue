@@ -26,6 +26,7 @@ import TarifsForm from '@/features/face/components/TarifsForm.vue'
 import AvailabilityToggle from '@/features/face/components/AvailabilityToggle.vue'
 import ProfileCompletionIndicator from '@/features/face/components/ProfileCompletionIndicator.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
+import BasicInfoSection from '@/features/face/components/BasicInfoSection.vue'
 import type { FaceCategory, FaceNiche, ExperienceFormData, TarifsFormData } from '@/features/face/types'
 const {
   profile,
@@ -554,6 +555,11 @@ function handleCompletionItemClick(itemKey: string): void {
             </svg>
             <p class="text-sm text-green-700">{{ successMessage }}</p>
           </div>
+        </div>
+
+        <!-- Basic info section (name/username) -->
+        <div class="mb-6">
+          <BasicInfoSection />
         </div>
 
         <!-- Main form sections -->

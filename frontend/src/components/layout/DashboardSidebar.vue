@@ -29,9 +29,9 @@ const props = withDefaults(defineProps<Props>(), {
 const route = useRoute()
 const { isExpanded, toggle } = useSidebarState()
 
-/** Check if a route is active */
+/** Check if a route is active (exact match only) */
 const isActive = (path: string) => {
-  return route.path === path || route.path.startsWith(path + '/')
+  return route.path === path
 }
 
 /** Get item classes based on active state */

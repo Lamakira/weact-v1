@@ -303,3 +303,31 @@ export interface ProfileCompletionResponse {
   message?: string
 }
 
+// Basic info (nom, prenom, username) from API
+export interface BasicInfo {
+  nom: string
+  prenom: string
+  username: string
+}
+
+// Basic info API response
+export interface BasicInfoResponse {
+  data: BasicInfo
+  message?: string
+}
+
+// Basic info form data for update
+export interface BasicInfoFormData {
+  nom?: string
+  prenom?: string
+  username?: string
+}
+
+// Basic info operation result
+export interface BasicInfoResult {
+  success: boolean
+  data?: BasicInfo
+  errors?: Record<string, string[]>
+  message?: string
+}
+

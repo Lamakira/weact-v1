@@ -81,7 +81,7 @@ async function handleDrop(event: DragEvent) {
 </script>
 
 <template>
-  <div class="space-y-4" data-testid="agency-logo-upload">
+  <div class="space-y-3" data-testid="agency-logo-upload">
     <!-- Logo Preview Area -->
     <div
       class="relative w-32 h-32 rounded-xl overflow-hidden border-2 transition-colors duration-200"
@@ -145,7 +145,7 @@ async function handleDrop(event: DragEvent) {
     />
 
     <!-- Action Buttons -->
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-2">
       <button
         type="button"
         class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-weact-500 rounded-lg hover:bg-weact-600 focus:outline-none focus:ring-2 focus:ring-weact-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"

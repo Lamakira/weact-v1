@@ -1,22 +1,38 @@
 import { ref, computed } from 'vue'
 import { missionApi } from '../services/missionApi'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
-import type { Mission } from '../types'
+import type { Mission, MissionStatusType } from '../types'
 
 /**
  * Composable for managing the producer's missions list
- * Handles fetching, loading states, and error handling
+ * Handles fetching, loading states, error handling, and filtering
  */
 export function useMissionsList() {
   const missions = ref<Mission[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const message = ref<string | null>(null)
+  const statusFilter = ref<MissionStatusType | ''>('')
 
   /**
-   * Whether the missions list is empty
+   * Filtered missions based on status filter
    */
-  const isEmpty = computed(() => missions.value.length === 0)
+  const filteredMissions = computed(() => {
+    if (!statusFilter.value) {
+      return missions.value
+    }
+    return missions.value.filter((m) => m.status === statusFilter.value)
+  })
+
+  /**
+   * Whether the filtered missions list is empty
+   */
+  const isEmpty = computed(() => filteredMissions.value.length === 0)
+
+  /**
+   * Whether the original missions list is empty (no missions at all)
+   */
+  const hasNoMissions = computed(() => missions.value.length === 0)
 
   /**
    * Whether missions have been successfully loaded
@@ -62,6 +78,13 @@ export function useMissionsList() {
   }
 
   /**
+   * Set the status filter
+   */
+  function setStatusFilter(status: MissionStatusType | ''): void {
+    statusFilter.value = status
+  }
+
+  /**
    * Reset all state
    */
   function reset(): void {
@@ -70,21 +93,26 @@ export function useMissionsList() {
     error.value = null
     message.value = null
     hasLoaded.value = false
+    statusFilter.value = ''
   }
 
   return {
     // State
-    missions,
+    missions: filteredMissions,
+    allMissions: missions,
     isLoading,
     error,
     message,
     isEmpty,
+    hasNoMissions,
     hasLoaded,
+    statusFilter,
 
     // Actions
     fetchMissions,
     refreshMissions,
     removeMissionFromList,
+    setStatusFilter,
     reset,
   }
 }

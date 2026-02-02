@@ -146,18 +146,23 @@ development_status:
   # Cross-cutting: Email Verification (inserted before Epic 10)
   email-verification: done
 
-  # Epic 10: Producer Dashboard (6 stories)
-  epic-10: backlog
-  10-1-producer-dashboard-kpis: backlog
-  10-2-producer-total-candidatures-received: backlog
-  10-3-producer-collaborators-count: backlog
-  10-4-producer-rating-display: backlog
-  10-5-producer-advanced-stats: backlog
-  10-6-producer-dashboard-layout: backlog
-  epic-10-retrospective: optional
+  # Cross-cutting: User Profile Edit (name/username) - from Epic 9 retrospective action items
+  user-profile-edit: done
 
-  # Epic 11: Public Access & Discovery (8 stories)
+  # Epic 10: Producer Dashboard (6 stories) - COMPLETE!
+  epic-10: done
+  10-1-producer-dashboard-kpis: done
+  10-2-producer-total-candidatures-received: done
+  10-3-producer-collaborators-count: done
+  10-4-producer-rating-display: done
+  10-5-producer-advanced-stats: done
+  10-6-producer-dashboard-layout: done
+  epic-10-retrospective: done
+
+  # Epic 11: Public Access & Discovery (10 stories)
   epic-11: backlog
+  11-0a-public-header-refactoring: backlog
+  11-0b-public-footer-creation: backlog
   11-1-landing-page: backlog
   11-2-landing-page-face-producer-switch: backlog
   11-3-public-faces-list: backlog

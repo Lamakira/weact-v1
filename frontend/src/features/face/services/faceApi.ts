@@ -21,6 +21,8 @@ import type {
   AvailabilityResponse,
   AvailabilityFormData,
   ProfileCompletionResponse,
+  BasicInfoResponse,
+  BasicInfoFormData,
 } from '../types'
 
 /**
@@ -382,6 +384,24 @@ export const faceApi = {
    */
   async getProfileCompletion(): Promise<ProfileCompletionResponse> {
     const response = await apiClient.get<ProfileCompletionResponse>('/face/profile-completion')
+    return response.data
+  },
+
+  /**
+   * Get the current basic info (nom, prenom, username)
+   */
+  async getBasicInfo(): Promise<BasicInfoResponse> {
+    const response = await apiClient.get<BasicInfoResponse>('/face/basic-info')
+    return response.data
+  },
+
+  /**
+   * Update basic info (nom, prenom, username)
+   * @param data The basic info data to update
+   */
+  async updateBasicInfo(data: BasicInfoFormData): Promise<BasicInfoResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.put<BasicInfoResponse>('/face/basic-info', data)
     return response.data
   },
 }

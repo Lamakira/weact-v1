@@ -1,4 +1,9 @@
 <script setup lang="ts">
+/**
+ * PublishMissionPage
+ * Page for creating and publishing a new mission.
+ * This component is rendered inside ProducerLayout via nested routing.
+ */
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
@@ -12,16 +17,16 @@ const { success } = useToast()
 
 function handleSuccess(mission: Mission): void {
   success('Mission publiée avec succès!')
-  router.push({ name: 'producer-dashboard' })
+  router.push({ name: 'producer-missions' })
 }
 
 function handleCancel(): void {
-  router.push({ name: 'producer-dashboard' })
+  router.push({ name: 'producer-missions' })
 }
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
+  <div>
     <!-- Email verification required -->
     <EmailVerificationRequired
       v-if="!authStore.isEmailVerified"
@@ -29,29 +34,11 @@ function handleCancel(): void {
       message="Vous devez vérifier votre adresse email pour publier une mission."
     />
 
-    <template v-else>
-    <!-- Header -->
-    <header class="bg-white shadow">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div class="flex items-center gap-4">
-          <div class="w-10 h-10 bg-weact rounded-full flex items-center justify-center">
-            <span class="text-white font-bold">W</span>
-          </div>
-          <h1 class="text-xl font-semibold text-gray-900">Publier une mission</h1>
-        </div>
-      </div>
-    </header>
-
-    <!-- Main content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <MissionForm @success="handleSuccess" @cancel="handleCancel" />
-    </main>
-    </template>
+    <!-- Mission form -->
+    <MissionForm
+      v-else
+      @success="handleSuccess"
+      @cancel="handleCancel"
+    />
   </div>
 </template>
-
-<style scoped>
-.bg-weact {
-  background-color: #198496;
-}
-</style>

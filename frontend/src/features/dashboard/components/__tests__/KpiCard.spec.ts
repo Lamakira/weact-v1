@@ -109,8 +109,8 @@ describe('KpiCard', () => {
       })
 
       const iconContainer = wrapper.find('.rounded-xl')
-      expect(iconContainer.classes()).toContain('bg-purple-50')
-      expect(iconContainer.classes()).toContain('text-purple-500')
+      expect(iconContainer.classes()).toContain('bg-amber-50')
+      expect(iconContainer.classes()).toContain('text-amber-500')
     })
 
     it('applies green-500 color classes to icon container', () => {
