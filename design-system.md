@@ -316,6 +316,50 @@ onUnmounted(() => {
 
 ---
 
+## Footer Layout (User-Defined)
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│  WEACT (logo)                   TROUVER DES FACES    ENTREPRISE    RESSOURCES        │
+│  Marketplace béninoise          • Parcourir les      • Légal       • Blog            │
+│  du casting.                      profils            • À propos    • FAQ             │
+│                                 • Publier une        • Contact     • Guide de        │
+│  [IG] [FB] [X] [YT]               mission                            démarrage       │
+│                                 • Tarifs                           • Support         │
+│                                   producteurs                                         │
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│  © 2026 WeAct. Tous droits réservés.                    Made with ❤️ in Benin        │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Structure:**
+- **Left column:** Logo, tagline, social icons (Instagram, Facebook, Twitter, YouTube)
+- **3 Navigation columns:** TROUVER DES FACES, ENTREPRISE, RESSOURCES
+- **Bottom bar:** Copyright left, "Made with ❤️ in Benin" right
+
+### Footer Design Tokens
+
+| Element | Classes |
+|---------|---------|
+| Footer container | `bg-white border-t border-gray-200` |
+| Footer padding | `py-12 lg:py-16` |
+| Column grid | `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8` |
+| Column heading | `text-sm font-bold text-gray-900 tracking-wider` |
+| Footer links | `text-sm text-gray-700 hover:text-[#198496] transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-[#198496]` |
+| Social icons | `text-gray-500 hover:text-[#198496] transition-colors duration-200` |
+| Bottom bar | `border-t border-gray-100 flex flex-col md:flex-row justify-between` |
+| Copyright/attribution | `text-sm text-gray-500` |
+
+### Footer Accessibility
+
+- `role="contentinfo"` on footer element
+- `aria-label` on all social icon links (e.g., "Suivez-nous sur Instagram")
+- `aria-hidden="true"` on decorative emoji with `.sr-only` alternative text
+- `focus-visible:ring-2` on all interactive elements
+- `target="_blank" rel="noopener noreferrer"` on external social links
+
+---
+
 ## Usage Guidelines
 
 1. **Respect the exact button order:** Poster une mission (primary) → Devenir une face (outline) → Se connecter (text)
