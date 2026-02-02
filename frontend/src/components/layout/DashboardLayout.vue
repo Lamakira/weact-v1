@@ -79,6 +79,7 @@ onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
   window.addEventListener('resize', handleResize)
   handleResize() // Initial check
+  closeMobile() // Ensure mobile sidebar is closed on mount/navigation
 })
 
 onUnmounted(() => {

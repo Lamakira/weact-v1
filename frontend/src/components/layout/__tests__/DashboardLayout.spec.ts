@@ -172,6 +172,14 @@ describe('DashboardLayout', () => {
              wrapper.find('[data-testid="sidebar-backdrop"]').exists() ||
              mockIsMobileOpen.value === true).toBe(true)
     })
+
+    // Regression test: Ensure mobile sidebar is closed on mount/navigation
+    // Bug: When navigating to dashboard from public header, sidebar was open
+    it('closes mobile sidebar on mount to prevent stale state', () => {
+      mockCloseMobile.mockClear()
+      mountLayout()
+      expect(mockCloseMobile).toHaveBeenCalled()
+    })
   })
 
   describe('Keyboard Navigation', () => {

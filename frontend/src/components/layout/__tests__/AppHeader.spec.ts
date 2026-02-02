@@ -394,25 +394,6 @@ describe('AppHeader', () => {
       expect(wrapper.find('[data-testid="header-mobile-menu"]').exists()).toBe(true)
     })
 
-    it('mobile menu shows NotificationBell for authenticated user', async () => {
-      const faceUser = {
-        user: {
-          id: 1,
-          email: 'face@test.com',
-          userable_type: 'Face',
-          userable_id: 1,
-        },
-        token: 'test-token',
-      }
-      const wrapper = mountHeader(faceUser)
-
-      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
-      await mobileMenuButton.trigger('click')
-
-      const mobileNotifications = wrapper.find('[data-testid="mobile-notifications"]')
-      expect(mobileNotifications.exists()).toBe(true)
-    })
-
     it('mobile logout button has aria-label', async () => {
       const faceUser = {
         user: {
@@ -431,6 +412,82 @@ describe('AppHeader', () => {
       const mobileMenu = wrapper.find('[data-testid="header-mobile-menu"]')
       const logoutButton = mobileMenu.find('button[aria-label="Se déconnecter"]')
       expect(logoutButton.exists()).toBe(true)
+    })
+
+    // =====================================================================
+    // REGRESSION TESTS: Remove redundant elements from mobile menu
+    // These elements are already present in the dashboard header/menu,
+    // so showing them again in the public header's mobile menu is redundant.
+    // These tests should FAIL until the fix is implemented.
+    // =====================================================================
+
+    // Bug #1: NotificationBell should NOT appear in mobile menu for authenticated users
+    // Reason: The NotificationBell is already displayed in the dashboard header,
+    // so showing it again in the public header's mobile menu creates redundancy.
+    it('mobile menu should NOT show NotificationBell for authenticated users (redundant - already in dashboard header)', async () => {
+      const faceUser = {
+        user: {
+          id: 1,
+          email: 'face@test.com',
+          userable_type: 'Face',
+          userable_id: 1,
+        },
+        token: 'test-token',
+      }
+      const wrapper = mountHeader(faceUser)
+
+      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
+      await mobileMenuButton.trigger('click')
+
+      const mobileNotifications = wrapper.find('[data-testid="mobile-notifications"]')
+      // Should NOT exist - it's redundant with dashboard header
+      expect(mobileNotifications.exists()).toBe(false)
+    })
+
+    // Bug #2: "Mes candidatures" link should NOT appear in mobile menu for Face users
+    // Reason: This link is already available in the Face dashboard sidebar menu,
+    // so showing it in the public header's mobile menu is redundant.
+    it('mobile menu should NOT show "Mes candidatures" link for Face users (redundant - already in dashboard menu)', async () => {
+      const faceUser = {
+        user: {
+          id: 1,
+          email: 'face@test.com',
+          userable_type: 'Face',
+          userable_id: 1,
+        },
+        token: 'test-token',
+      }
+      const wrapper = mountHeader(faceUser)
+
+      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
+      await mobileMenuButton.trigger('click')
+
+      const mobileMenu = wrapper.find('[data-testid="header-mobile-menu"]')
+      // Should NOT contain "Mes candidatures" - it's redundant with dashboard menu
+      expect(mobileMenu.text()).not.toContain('Mes candidatures')
+    })
+
+    // Bug #3: "Mes missions" link should NOT appear in mobile menu for Producer users
+    // Reason: This link is already available in the Producer dashboard sidebar menu,
+    // so showing it in the public header's mobile menu is redundant.
+    it('mobile menu should NOT show "Mes missions" link for Producer users (redundant - already in dashboard menu)', async () => {
+      const producerUser = {
+        user: {
+          id: 2,
+          email: 'producer@test.com',
+          userable_type: 'Producer',
+          userable_id: 1,
+        },
+        token: 'test-token',
+      }
+      const wrapper = mountHeader(producerUser)
+
+      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
+      await mobileMenuButton.trigger('click')
+
+      const mobileMenu = wrapper.find('[data-testid="header-mobile-menu"]')
+      // Should NOT contain "Mes missions" - it's redundant with dashboard menu
+      expect(mobileMenu.text()).not.toContain('Mes missions')
     })
   })
 
