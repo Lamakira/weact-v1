@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Plus, AlertCircle, RefreshCw, ClipboardList, Inbox, ArrowRight } from 'lucide-vue-next'
+import { AlertCircle, RefreshCw, ClipboardList, Inbox, ArrowRight } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useMissionsList, useDeleteMission, useCloseMission, useReopenMission, useCompleteMission } from '@/features/mission/composables'
-import { MissionCard, DeleteMissionDialog, CloseMissionDialog, ReopenMissionDialog, CompleteMissionDialog } from '@/features/mission/components'
+import { MissionCard, DeleteMissionDialog, CloseMissionDialog, ReopenMissionDialog, CompleteMissionDialog, MissionStatusFilter } from '@/features/mission/components'
+import type { MissionStatusType } from '@/features/mission/types'
 import type { Mission } from '@/features/mission/types'
 
 /**
@@ -14,7 +15,25 @@ import type { Mission } from '@/features/mission/types'
 const router = useRouter()
 const authStore = useAuthStore()
 const { success, error: toastError } = useToast()
-const { missions, isLoading, error, isEmpty, fetchMissions, refreshMissions } = useMissionsList()
+const {
+  missions,
+  allMissions,
+  isLoading,
+  error,
+  isEmpty,
+  hasNoMissions,
+  statusFilter,
+  fetchMissions,
+  refreshMissions,
+  setStatusFilter,
+} = useMissionsList()
+
+/**
+ * Handle status filter change
+ */
+function handleFilterChange(status: MissionStatusType | ''): void {
+  setStatusFilter(status)
+}
 
 const { deleteMission, isDeleting } = useDeleteMission()
 const { closeMission, isClosing } = useCloseMission()
@@ -157,36 +176,26 @@ async function confirmComplete(): Promise<void> {
 </script>
 
 <template>
-  <div class="min-h-screen bg-background pb-20">
-    <!-- Header Section -->
-    <header class="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur-md">
-      <div class="container mx-auto flex h-20 items-center justify-between px-4 sm:px-6">
-        <div>
-          <h1 class="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            Mes missions
-          </h1>
-          <p class="hidden text-sm text-muted-foreground sm:block">
-            Gérez vos annonces et suivez les candidatures
-          </p>
-        </div>
+  <div class="pb-10">
+    <!-- Page Header Section -->
+    <section class="mb-6">
+      <h1 class="text-2xl font-bold tracking-tight text-slate-800 sm:text-3xl">
+        Mes missions
+      </h1>
+      <p class="mt-1 text-sm text-slate-500">
+        Gérez vos annonces et suivez les candidatures
+      </p>
+    </section>
 
-        <button
-          v-if="authStore.isEmailVerified"
-          type="button"
-          class="group relative flex items-center gap-2 overflow-hidden rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-all hover:ring-2 hover:ring-primary/20 active:scale-[0.98]"
-          @click="navigateToPublish"
-        >
-          <Plus class="h-5 w-5 transition-transform group-hover:rotate-90" />
-          <span class="hidden sm:inline">Publier une mission</span>
-          <span class="sm:hidden">Publier</span>
-          <div
-            class="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent transition-transform duration-500 group-hover:translate-x-full"
-          />
-        </button>
-      </div>
-    </header>
+    <!-- Status Filter -->
+    <div class="mb-6">
+      <MissionStatusFilter
+        :model-value="statusFilter"
+        @update:model-value="handleFilterChange"
+      />
+    </div>
 
-    <main class="container mx-auto mt-8 px-4 sm:px-6">
+    <div>
       <!-- Loading State -->
       <div v-if="isLoading && !missions.length" class="grid gap-6 md:grid-cols-2 lg:grid-cols-1">
         <div
@@ -232,8 +241,8 @@ async function confirmComplete(): Promise<void> {
         </button>
       </div>
 
-      <!-- Empty State -->
-      <div v-else-if="isEmpty" class="flex flex-col items-center justify-center py-24 text-center">
+      <!-- Empty State: No missions at all -->
+      <div v-else-if="hasNoMissions" class="flex flex-col items-center justify-center py-24 text-center">
         <div class="relative mb-6">
           <div class="absolute -inset-4 animate-pulse rounded-full bg-primary/5 blur-2xl" />
           <div
@@ -260,12 +269,39 @@ async function confirmComplete(): Promise<void> {
         </p>
       </div>
 
+      <!-- Empty State: No missions matching filter -->
+      <div v-else-if="isEmpty" class="flex flex-col items-center justify-center py-24 text-center">
+        <div class="relative mb-6">
+          <div
+            class="relative flex h-24 w-24 items-center justify-center rounded-full bg-muted text-muted-foreground"
+          >
+            <Inbox class="h-12 w-12 opacity-50" />
+          </div>
+        </div>
+        <h3 class="text-xl font-bold text-foreground">Aucune mission trouvée</h3>
+        <p class="mt-3 max-w-sm text-muted-foreground">
+          Aucune mission ne correspond à ce filtre.
+        </p>
+        <button
+          type="button"
+          class="mt-6 flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-2 text-sm font-medium transition-colors hover:bg-muted"
+          @click="handleFilterChange('')"
+        >
+          Voir toutes les missions
+        </button>
+      </div>
+
       <!-- Content List -->
       <div v-else>
         <div class="mb-6 flex items-center justify-between">
           <div class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <ClipboardList class="h-4 w-4" />
-            <span>{{ missions.length }} mission{{ missions.length > 1 ? 's' : '' }} au total</span>
+            <span>
+              {{ missions.length }} mission{{ missions.length > 1 ? 's' : '' }}
+              <template v-if="statusFilter && missions.length !== allMissions.length">
+                sur {{ allMissions.length }}
+              </template>
+            </span>
           </div>
           <button
             type="button"
@@ -301,7 +337,7 @@ async function confirmComplete(): Promise<void> {
           />
         </TransitionGroup>
       </div>
-    </main>
+    </div>
 
     <!-- Delete Confirmation Dialog -->
     <DeleteMissionDialog
