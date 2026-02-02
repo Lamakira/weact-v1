@@ -101,6 +101,11 @@ vi.mock('lucide-vue-next', () => ({
     template: '<svg data-testid="clock-icon"></svg>',
     props: ['size'],
   },
+  AlertCircle: {
+    name: 'AlertCircle',
+    template: '<svg data-testid="alert-circle-icon"></svg>',
+    props: ['class'],
+  },
 }))
 
 describe('ProducerDashboardPage', () => {

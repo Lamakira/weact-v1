@@ -1,8 +1,12 @@
 <script setup lang="ts">
+/**
+ * ProducerDashboardPage
+ * Dashboard content for Producer users - KPIs, quick access cards.
+ * This component is rendered inside ProducerLayout via nested routing.
+ */
 import { computed, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
-import { RefreshCw, Star, Check, Clock } from 'lucide-vue-next'
-import { useAuth } from '@/features/auth/composables/useAuth'
+import { useRouter } from 'vue-router'
+import { RefreshCw, Star, Check, Clock, AlertCircle } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useProducerDashboardStats } from '@/features/dashboard/composables/useProducerDashboardStats'
 import {
@@ -13,20 +17,15 @@ import {
   PRODUCER_RESPONSE_TIME_KPI,
 } from '@/features/dashboard/types'
 import { Skeleton } from '@/components/ui/skeleton'
-import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 import KpiCard from '@/features/dashboard/components/KpiCard.vue'
 
+const router = useRouter()
 const authStore = useAuthStore()
-const { logout, isLoading } = useAuth()
 const { stats, isLoading: statsLoading, error: statsError, fetchStats, retry } = useProducerDashboardStats()
 
 onMounted(() => {
   fetchStats()
 })
-
-async function handleLogout(): Promise<void> {
-  await logout()
-}
 
 // Computed values for rating display (FR58)
 const formattedRating = computed(() => {
@@ -68,334 +67,303 @@ const responseTimeSubtitle = computed(() => {
   }
   return 'Délai moyen'
 })
+
+// Navigation functions for quick access cards
+function goToProfile(): void {
+  router.push({ name: 'producer-profile' })
+}
+
+function goToPublicProfile(): void {
+  if (authStore.user?.userable?.id) {
+    router.push({ name: 'public-producer-profile', params: { id: authStore.user.userable.id } })
+  }
+}
+
+function goToMissions(): void {
+  router.push({ name: 'producer-missions' })
+}
+
+function goToPublishMission(): void {
+  router.push({ name: 'publish-mission' })
+}
+
+function goToMessages(): void {
+  router.push({ name: 'producer-messages' })
+}
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
-    <!-- Header with logout -->
-    <header class="bg-white shadow">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-        <div class="flex items-center gap-4">
-          <div class="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
-            <span class="text-white font-bold">W</span>
-          </div>
-          <h1 class="text-xl font-semibold text-gray-900">Dashboard Producteur</h1>
+  <div>
+    <!-- KPI Section: Mes missions -->
+    <section class="mb-10" aria-labelledby="kpi-section-title" data-testid="kpi-section">
+      <h2 id="kpi-section-title" class="text-lg font-semibold text-slate-800 mb-4">
+        Mes missions
+      </h2>
+
+      <!-- Error state -->
+      <div
+        v-if="statsError"
+        class="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center justify-between"
+        data-testid="stats-error"
+        role="alert"
+      >
+        <div class="flex items-center gap-3">
+          <AlertCircle class="w-5 h-5 text-red-500" aria-hidden="true" />
+          <span class="text-sm text-red-700">{{ statsError }}</span>
         </div>
-
-        <div class="flex items-center gap-4">
-          <RouterLink
-            :to="{ name: 'producer-profile' }"
-            class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary transition-colors"
-            data-testid="profile-link"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-              class="w-5 h-5"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-              />
-            </svg>
-            Mon profil
-          </RouterLink>
-          <span class="text-sm text-gray-600">
-            {{ authStore.user?.email }}
-          </span>
-          <button
-            @click="handleLogout"
-            :disabled="isLoading"
-            class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            data-testid="logout-button"
-          >
-            <svg
-              v-if="!isLoading"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-              class="w-5 h-5"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
-              />
-            </svg>
-            <svg
-              v-else
-              class="w-5 h-5 animate-spin"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            {{ isLoading ? 'Déconnexion...' : 'Déconnexion' }}
-          </button>
-        </div>
-      </div>
-    </header>
-
-    <!-- Main content placeholder -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <!-- Email verification banner (shown if email not verified) -->
-      <EmailVerificationBanner
-        v-if="!authStore.isEmailVerified"
-        data-testid="email-verification-banner"
-      />
-
-      <!-- KPI Section: Mes missions -->
-      <div class="mb-6" data-testid="kpi-section">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">Mes missions</h2>
-
-        <!-- Error state -->
-        <div
-          v-if="statsError"
-          class="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between"
-          data-testid="stats-error"
-          role="alert"
+        <button
+          @click="retry"
+          :disabled="statsLoading"
+          class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
+          data-testid="retry-button"
         >
-          <div class="flex items-center gap-2 text-red-700">
-            <span>{{ statsError }}</span>
+          <RefreshCw :class="{ 'animate-spin': statsLoading }" :size="16" />
+          Réessayer
+        </button>
+      </div>
+
+      <!-- KPI cards grid -->
+      <div
+        v-else
+        class="grid grid-cols-2 lg:grid-cols-4 gap-6"
+        data-testid="kpi-cards-grid"
+      >
+        <KpiCard
+          v-for="kpi in PRODUCER_KPI_CONFIGS"
+          :key="kpi.key"
+          :title="kpi.title"
+          :value="stats?.[kpi.key] ?? 0"
+          :icon="kpi.icon"
+          :color="kpi.color"
+          :is-loading="statsLoading"
+          :data-testid="'kpi-card-' + kpi.key"
+        />
+      </div>
+    </section>
+
+    <!-- Candidatures & Réputation KPI Section (FR56 + FR57 + FR58) -->
+    <section
+      v-if="!statsError"
+      class="mb-10"
+      aria-labelledby="candidatures-section-title"
+      data-testid="candidatures-kpi-section"
+    >
+      <h2 id="candidatures-section-title" class="text-lg font-semibold text-slate-800 mb-4">
+        Candidatures & Réputation
+      </h2>
+
+      <div
+        class="grid grid-cols-2 lg:grid-cols-4 gap-6"
+        data-testid="candidatures-kpi-grid"
+      >
+        <KpiCard
+          :title="PRODUCER_CANDIDATURES_KPI.title"
+          :value="stats?.total_candidatures ?? 0"
+          :icon="PRODUCER_CANDIDATURES_KPI.icon"
+          :color="PRODUCER_CANDIDATURES_KPI.color"
+          :is-loading="statsLoading"
+          data-testid="kpi-card-total_candidatures"
+        />
+        <KpiCard
+          :title="PRODUCER_COLLABORATORS_KPI.title"
+          :value="stats?.unique_collaborators ?? 0"
+          :icon="PRODUCER_COLLABORATORS_KPI.icon"
+          :color="PRODUCER_COLLABORATORS_KPI.color"
+          :is-loading="statsLoading"
+          data-testid="kpi-card-unique_collaborators"
+        />
+
+        <!-- Rating card with custom display for decimal values (FR58) -->
+        <div
+          v-if="statsLoading"
+          class="bg-white rounded-2xl p-4 shadow-sm"
+          data-testid="kpi-card-rating-skeleton"
+        >
+          <div class="flex items-center gap-3">
+            <Skeleton class="h-11 w-11 rounded-xl" />
+            <div class="space-y-2">
+              <Skeleton class="h-6 w-14" />
+              <Skeleton class="h-4 w-20" />
+            </div>
           </div>
-          <button
-            @click="retry"
-            :disabled="statsLoading"
-            class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
-            data-testid="retry-button"
-          >
-            <RefreshCw :class="{ 'animate-spin': statsLoading }" :size="16" />
-            Réessayer
-          </button>
         </div>
 
-        <!-- KPI cards grid -->
         <div
           v-else
-          class="grid grid-cols-2 lg:grid-cols-4 gap-4"
-          data-testid="kpi-cards-grid"
+          class="bg-white rounded-2xl p-4 shadow-sm transition-all duration-200 hover:shadow-md"
+          :aria-label="`Ma note: ${formattedRating}`"
+          data-testid="kpi-card-rating"
         >
-          <KpiCard
-            v-for="kpi in PRODUCER_KPI_CONFIGS"
-            :key="kpi.key"
-            :title="kpi.title"
-            :value="stats?.[kpi.key] ?? 0"
-            :icon="kpi.icon"
-            :color="kpi.color"
-            :is-loading="statsLoading"
-            :data-testid="'kpi-card-' + kpi.key"
-          />
+          <div class="flex items-center gap-3">
+            <div
+              class="flex h-11 w-11 items-center justify-center rounded-xl shrink-0 bg-amber-50 text-amber-500"
+            >
+              <Star :size="20" stroke-width="2" />
+            </div>
+
+            <div class="flex flex-col min-w-0">
+              <span
+                class="text-xl font-bold text-gray-900 leading-none"
+                data-testid="kpi-card-rating-value"
+              >
+                {{ formattedRating }}
+              </span>
+              <span
+                class="mt-1 text-sm text-gray-500 truncate"
+                data-testid="kpi-card-rating-title"
+              >
+                Ma note
+              </span>
+              <span
+                class="text-xs text-gray-400 truncate"
+                data-testid="kpi-card-rating-subtitle"
+              >
+                {{ ratingSubtitle }}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
+    </section>
 
-      <!-- Candidatures & Réputation KPI Section (FR56 + FR57 + FR58) -->
-      <div v-if="!statsError" class="mb-6" data-testid="candidatures-kpi-section">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">Candidatures & Réputation</h2>
+    <!-- Statistiques avancées Section (FR59) -->
+    <section
+      v-if="!statsError"
+      class="mb-10"
+      aria-labelledby="advanced-stats-section-title"
+      data-testid="advanced-stats-section"
+    >
+      <h2 id="advanced-stats-section-title" class="text-lg font-semibold text-slate-800 mb-4">
+        Statistiques avancées
+      </h2>
+
+      <div
+        class="grid grid-cols-2 lg:grid-cols-4 gap-6"
+        data-testid="advanced-stats-grid"
+      >
+        <!-- Acceptance rate card with custom display for percentage -->
+        <div
+          v-if="statsLoading"
+          class="bg-white rounded-2xl p-4 shadow-sm"
+          data-testid="kpi-card-acceptance-rate-skeleton"
+        >
+          <div class="flex items-center gap-3">
+            <Skeleton class="h-11 w-11 rounded-xl" />
+            <div class="space-y-2">
+              <Skeleton class="h-6 w-14" />
+              <Skeleton class="h-4 w-20" />
+            </div>
+          </div>
+        </div>
 
         <div
-          class="grid grid-cols-2 lg:grid-cols-4 gap-4"
-          data-testid="candidatures-kpi-grid"
+          v-else
+          class="bg-white rounded-2xl p-4 shadow-sm transition-all duration-200 hover:shadow-md"
+          :aria-label="`${PRODUCER_ACCEPTANCE_RATE_KPI.title}: ${formattedAcceptanceRate}`"
+          data-testid="kpi-card-acceptance_rate"
         >
-          <KpiCard
-            :title="PRODUCER_CANDIDATURES_KPI.title"
-            :value="stats?.total_candidatures ?? 0"
-            :icon="PRODUCER_CANDIDATURES_KPI.icon"
-            :color="PRODUCER_CANDIDATURES_KPI.color"
-            :is-loading="statsLoading"
-            data-testid="kpi-card-total_candidatures"
-          />
-          <KpiCard
-            :title="PRODUCER_COLLABORATORS_KPI.title"
-            :value="stats?.unique_collaborators ?? 0"
-            :icon="PRODUCER_COLLABORATORS_KPI.icon"
-            :color="PRODUCER_COLLABORATORS_KPI.color"
-            :is-loading="statsLoading"
-            data-testid="kpi-card-unique_collaborators"
-          />
-
-          <!-- Rating card with custom display for decimal values (FR58) -->
-          <div
-            v-if="statsLoading"
-            class="bg-white border border-gray-100 rounded-2xl p-4"
-            data-testid="kpi-card-rating-skeleton"
-          >
-            <div class="flex items-center gap-3">
-              <Skeleton class="h-11 w-11 rounded-xl" />
-              <div class="space-y-2">
-                <Skeleton class="h-6 w-14" />
-                <Skeleton class="h-4 w-20" />
-              </div>
+          <div class="flex items-center gap-3">
+            <div
+              class="flex h-11 w-11 items-center justify-center rounded-xl shrink-0 bg-green-50 text-green-500"
+            >
+              <Check :size="20" stroke-width="2" />
             </div>
-          </div>
 
-          <div
-            v-else
-            class="bg-white border border-gray-100 rounded-2xl p-4 transition-all duration-200 hover:shadow-md"
-            :aria-label="`Ma note: ${formattedRating}`"
-            data-testid="kpi-card-rating"
-          >
-            <div class="flex items-center gap-3">
-              <div
-                class="flex h-11 w-11 items-center justify-center rounded-xl shrink-0 bg-amber-50 text-amber-500"
+            <div class="flex flex-col min-w-0">
+              <span
+                class="text-xl font-bold text-gray-900 leading-none"
+                data-testid="kpi-card-acceptance_rate-value"
               >
-                <Star :size="20" stroke-width="2" />
-              </div>
-
-              <div class="flex flex-col min-w-0">
-                <span
-                  class="text-xl font-bold text-gray-900 leading-none"
-                  data-testid="kpi-card-rating-value"
-                >
-                  {{ formattedRating }}
-                </span>
-                <span
-                  class="mt-1 text-sm text-gray-500 truncate"
-                  data-testid="kpi-card-rating-title"
-                >
-                  Ma note
-                </span>
-                <span
-                  class="text-xs text-gray-400 truncate"
-                  data-testid="kpi-card-rating-subtitle"
-                >
-                  {{ ratingSubtitle }}
-                </span>
-              </div>
+                {{ formattedAcceptanceRate }}
+              </span>
+              <span
+                class="mt-1 text-sm text-gray-500 truncate"
+                data-testid="kpi-card-acceptance_rate-title"
+              >
+                {{ PRODUCER_ACCEPTANCE_RATE_KPI.title }}
+              </span>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Statistiques avancées Section (FR59) -->
-      <div v-if="!statsError" class="mb-6" data-testid="advanced-stats-section">
-        <h2 class="text-lg font-medium text-gray-900 mb-4">Statistiques avancées</h2>
+        <!-- Average response time card with custom display for hours -->
+        <div
+          v-if="statsLoading"
+          class="bg-white rounded-2xl p-4 shadow-sm"
+          data-testid="kpi-card-response-time-skeleton"
+        >
+          <div class="flex items-center gap-3">
+            <Skeleton class="h-11 w-11 rounded-xl" />
+            <div class="space-y-2">
+              <Skeleton class="h-6 w-14" />
+              <Skeleton class="h-4 w-20" />
+            </div>
+          </div>
+        </div>
 
         <div
-          class="grid grid-cols-2 lg:grid-cols-4 gap-4"
-          data-testid="advanced-stats-grid"
+          v-else
+          class="bg-white rounded-2xl p-4 shadow-sm transition-all duration-200 hover:shadow-md"
+          :aria-label="`${PRODUCER_RESPONSE_TIME_KPI.title}: ${formattedResponseTime}`"
+          data-testid="kpi-card-average_response_time_hours"
         >
-          <!-- Acceptance rate card with custom display for percentage -->
-          <div
-            v-if="statsLoading"
-            class="bg-white border border-gray-100 rounded-2xl p-4"
-            data-testid="kpi-card-acceptance-rate-skeleton"
-          >
-            <div class="flex items-center gap-3">
-              <Skeleton class="h-11 w-11 rounded-xl" />
-              <div class="space-y-2">
-                <Skeleton class="h-6 w-14" />
-                <Skeleton class="h-4 w-20" />
-              </div>
+          <div class="flex items-center gap-3">
+            <div
+              class="flex h-11 w-11 items-center justify-center rounded-xl shrink-0 bg-blue-50 text-blue-500"
+            >
+              <Clock :size="20" stroke-width="2" />
             </div>
-          </div>
 
-          <div
-            v-else
-            class="bg-white border border-gray-100 rounded-2xl p-4 transition-all duration-200 hover:shadow-md"
-            :aria-label="`${PRODUCER_ACCEPTANCE_RATE_KPI.title}: ${formattedAcceptanceRate}`"
-            data-testid="kpi-card-acceptance_rate"
-          >
-            <div class="flex items-center gap-3">
-              <div
-                class="flex h-11 w-11 items-center justify-center rounded-xl shrink-0 bg-green-50 text-green-500"
+            <div class="flex flex-col min-w-0">
+              <span
+                class="text-xl font-bold text-gray-900 leading-none"
+                data-testid="kpi-card-average_response_time_hours-value"
               >
-                <Check :size="20" stroke-width="2" />
-              </div>
-
-              <div class="flex flex-col min-w-0">
-                <span
-                  class="text-xl font-bold text-gray-900 leading-none"
-                  data-testid="kpi-card-acceptance_rate-value"
-                >
-                  {{ formattedAcceptanceRate }}
-                </span>
-                <span
-                  class="mt-1 text-sm text-gray-500 truncate"
-                  data-testid="kpi-card-acceptance_rate-title"
-                >
-                  {{ PRODUCER_ACCEPTANCE_RATE_KPI.title }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Average response time card with custom display for hours -->
-          <div
-            v-if="statsLoading"
-            class="bg-white border border-gray-100 rounded-2xl p-4"
-            data-testid="kpi-card-response-time-skeleton"
-          >
-            <div class="flex items-center gap-3">
-              <Skeleton class="h-11 w-11 rounded-xl" />
-              <div class="space-y-2">
-                <Skeleton class="h-6 w-14" />
-                <Skeleton class="h-4 w-20" />
-              </div>
-            </div>
-          </div>
-
-          <div
-            v-else
-            class="bg-white border border-gray-100 rounded-2xl p-4 transition-all duration-200 hover:shadow-md"
-            :aria-label="`${PRODUCER_RESPONSE_TIME_KPI.title}: ${formattedResponseTime}`"
-            data-testid="kpi-card-average_response_time_hours"
-          >
-            <div class="flex items-center gap-3">
-              <div
-                class="flex h-11 w-11 items-center justify-center rounded-xl shrink-0 bg-blue-50 text-blue-500"
+                {{ formattedResponseTime }}
+              </span>
+              <span
+                class="mt-1 text-sm text-gray-500 truncate"
+                data-testid="kpi-card-average_response_time_hours-title"
               >
-                <Clock :size="20" stroke-width="2" />
-              </div>
-
-              <div class="flex flex-col min-w-0">
-                <span
-                  class="text-xl font-bold text-gray-900 leading-none"
-                  data-testid="kpi-card-average_response_time_hours-value"
-                >
-                  {{ formattedResponseTime }}
-                </span>
-                <span
-                  class="mt-1 text-sm text-gray-500 truncate"
-                  data-testid="kpi-card-average_response_time_hours-title"
-                >
-                  {{ PRODUCER_RESPONSE_TIME_KPI.title }}
-                </span>
-                <span
-                  class="text-xs text-gray-400 truncate"
-                  data-testid="kpi-card-average_response_time_hours-subtitle"
-                >
-                  {{ responseTimeSubtitle }}
-                </span>
-              </div>
+                {{ PRODUCER_RESPONSE_TIME_KPI.title }}
+              </span>
+              <span
+                class="text-xs text-gray-400 truncate"
+                data-testid="kpi-card-average_response_time_hours-subtitle"
+              >
+                {{ responseTimeSubtitle }}
+              </span>
             </div>
           </div>
         </div>
       </div>
+    </section>
 
-      <!-- Quick access cards -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <RouterLink
-          :to="{ name: 'producer-profile' }"
-          class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow group"
+    <!-- Quick Access Cards Section -->
+    <section aria-labelledby="quick-access-section-title">
+      <h2 id="quick-access-section-title" class="text-lg font-semibold text-slate-800 mb-4">
+        Accès rapides
+      </h2>
+      <div
+        class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+        data-testid="quick-access-cards-grid"
+      >
+        <!-- Profile Card -->
+        <button
+          @click="goToProfile"
+          class="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200 group text-left"
+          aria-label="Accéder à mon profil"
           data-testid="profile-card"
         >
           <div class="flex items-center gap-4">
-            <div class="w-12 h-12 bg-secondary/10 rounded-full flex items-center justify-center group-hover:bg-secondary/20 transition-colors">
+            <div class="w-12 h-12 bg-teal-50 rounded-xl flex items-center justify-center group-hover:bg-teal-100 transition-colors">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke-width="1.5"
                 stroke="currentColor"
-                class="w-6 h-6 text-secondary"
+                class="w-6 h-6 text-teal-600"
               >
                 <path
                   stroke-linecap="round"
@@ -405,27 +373,29 @@ const responseTimeSubtitle = computed(() => {
               </svg>
             </div>
             <div>
-              <h3 class="text-lg font-medium text-gray-900">Mon profil</h3>
-              <p class="text-sm text-gray-500">Gérer ma photo et mes informations</p>
+              <h3 class="text-base font-medium text-slate-800">Mon profil</h3>
+              <p class="text-sm text-slate-500">Gérer ma photo et mes informations</p>
             </div>
           </div>
-        </RouterLink>
+        </button>
 
-        <RouterLink
+        <!-- Public Profile Card -->
+        <button
           v-if="authStore.user?.userable?.id"
-          :to="{ name: 'public-producer-profile', params: { id: authStore.user.userable.id } }"
-          class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow group"
+          @click="goToPublicProfile"
+          class="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200 group text-left"
+          aria-label="Voir mon profil public"
           data-testid="public-profile-card"
         >
           <div class="flex items-center gap-4">
-            <div class="w-12 h-12 bg-secondary/10 rounded-full flex items-center justify-center group-hover:bg-secondary/20 transition-colors">
+            <div class="w-12 h-12 bg-teal-50 rounded-xl flex items-center justify-center group-hover:bg-teal-100 transition-colors">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke-width="1.5"
                 stroke="currentColor"
-                class="w-6 h-6 text-secondary"
+                class="w-6 h-6 text-teal-600"
               >
                 <path
                   stroke-linecap="round"
@@ -440,19 +410,21 @@ const responseTimeSubtitle = computed(() => {
               </svg>
             </div>
             <div>
-              <h3 class="text-lg font-medium text-gray-900">Voir mon profil public</h3>
-              <p class="text-sm text-gray-500">Comment les Faces voient mon profil</p>
+              <h3 class="text-base font-medium text-slate-800">Voir mon profil public</h3>
+              <p class="text-sm text-slate-500">Comment les Faces voient mon profil</p>
             </div>
           </div>
-        </RouterLink>
+        </button>
 
-        <RouterLink
-          :to="{ name: 'producer-missions' }"
-          class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow group"
+        <!-- Missions List Card -->
+        <button
+          @click="goToMissions"
+          class="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200 group text-left"
+          aria-label="Accéder à mes missions"
           data-testid="missions-list-card"
         >
           <div class="flex items-center gap-4">
-            <div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+            <div class="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center group-hover:bg-primary/20 transition-colors">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
@@ -469,19 +441,21 @@ const responseTimeSubtitle = computed(() => {
               </svg>
             </div>
             <div>
-              <h3 class="text-lg font-medium text-gray-900">Mes missions</h3>
-              <p class="text-sm text-gray-500">Gérer mes castings en cours</p>
+              <h3 class="text-base font-medium text-slate-800">Mes missions</h3>
+              <p class="text-sm text-slate-500">Gérer mes castings en cours</p>
             </div>
           </div>
-        </RouterLink>
+        </button>
 
-        <RouterLink
-          :to="{ name: 'publish-mission' }"
-          class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow group"
+        <!-- Publish Mission Card -->
+        <button
+          @click="goToPublishMission"
+          class="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200 group text-left"
+          aria-label="Publier une nouvelle mission"
           data-testid="publish-mission-card"
         >
           <div class="flex items-center gap-4">
-            <div class="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+            <div class="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center group-hover:bg-primary/20 transition-colors">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
@@ -498,19 +472,21 @@ const responseTimeSubtitle = computed(() => {
               </svg>
             </div>
             <div>
-              <h3 class="text-lg font-medium text-gray-900">Publier une mission</h3>
-              <p class="text-sm text-gray-500">Créer un nouveau casting</p>
+              <h3 class="text-base font-medium text-slate-800">Publier une mission</h3>
+              <p class="text-sm text-slate-500">Créer un nouveau casting</p>
             </div>
           </div>
-        </RouterLink>
+        </button>
 
-        <RouterLink
-          :to="{ name: 'producer-messages' }"
-          class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow group"
+        <!-- Messages Card -->
+        <button
+          @click="goToMessages"
+          class="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200 group text-left"
+          aria-label="Accéder à mes messages"
           data-testid="messages-card"
         >
           <div class="flex items-center gap-4">
-            <div class="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+            <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center group-hover:bg-blue-100 transition-colors">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
@@ -527,34 +503,27 @@ const responseTimeSubtitle = computed(() => {
               </svg>
             </div>
             <div>
-              <h3 class="text-lg font-medium text-gray-900">Messages</h3>
-              <p class="text-sm text-gray-500">Discussions avec les Faces</p>
+              <h3 class="text-base font-medium text-slate-800">Messages</h3>
+              <p class="text-sm text-slate-500">Discussions avec les Faces</p>
             </div>
           </div>
-        </RouterLink>
+        </button>
       </div>
-    </main>
+    </section>
   </div>
 </template>
 
 <style scoped>
-.bg-secondary {
-  background-color: #E88B51;
+.text-primary {
+  color: var(--color-weact, #198496);
 }
-.bg-secondary\/10 {
-  background-color: rgb(232 139 81 / 0.1);
+.bg-primary {
+  background-color: var(--color-weact, #198496);
 }
-.bg-secondary\/20 {
-  background-color: rgb(232 139 81 / 0.2);
+.bg-primary\/10 {
+  background-color: rgb(25 132 150 / 0.1);
 }
-.group:hover .group-hover\:bg-secondary\/20 {
-  background-color: rgb(232 139 81 / 0.2);
-}
-.text-secondary {
-  color: #E88B51;
-}
-.focus\:ring-secondary:focus {
-  --tw-ring-color: #E88B51;
+.bg-primary\/20 {
+  background-color: rgb(25 132 150 / 0.2);
 }
 </style>
-

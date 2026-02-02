@@ -62,7 +62,7 @@ const colorClasses = computed(() => {
 
 <template>
   <div
-    class="bg-white border border-gray-100 rounded-2xl p-4 transition-all duration-200 hover:shadow-md"
+    class="bg-white rounded-2xl p-4 shadow-sm transition-all duration-200 hover:shadow-md"
     :aria-label="`${title}: ${formattedValue}`"
     data-testid="kpi-card"
   >

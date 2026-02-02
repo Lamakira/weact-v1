@@ -103,62 +103,64 @@ const router = createRouter({
       path: '/dashboard/face',
       redirect: { name: 'face-dashboard' },
     },
-    // Producer routes (auth required + Producer role)
+    // Producer routes (auth required + Producer role) - nested under ProducerLayout
     {
-      path: '/producer/dashboard',
-      name: 'producer-dashboard',
-      component: () => import('../pages/dashboard/ProducerDashboardPage.vue'),
+      path: '/producer',
+      component: () => import('../pages/producer/ProducerLayout.vue'),
       meta: { requiresAuth: true, role: 'Producer' },
-    },
-    {
-      path: '/producer/profile',
-      name: 'producer-profile',
-      component: () => import('../pages/producer/ProfileEditPage.vue'),
-      meta: { requiresAuth: true, role: 'Producer' },
-    },
-    {
-      path: '/producer/missions',
-      name: 'producer-missions',
-      component: () => import('../pages/producer/mission/MissionsListPage.vue'),
-      meta: { requiresAuth: true, role: 'Producer' },
-    },
-    {
-      path: '/producer/missions/publish',
-      name: 'publish-mission',
-      component: () => import('../pages/producer/mission/PublishMissionPage.vue'),
-      meta: { requiresAuth: true, role: 'Producer' },
-    },
-    {
-      path: '/producer/missions/:id/edit',
-      name: 'edit-mission',
-      component: () => import('../pages/producer/mission/EditMissionPage.vue'),
-      meta: { requiresAuth: true, role: 'Producer' },
-    },
-    {
-      path: '/producer/missions/:id/candidatures',
-      name: 'producer-mission-candidatures',
-      component: () =>
-        import('../pages/producer/candidature/ProducerMissionCandidaturesPage.vue'),
-      meta: { requiresAuth: true, role: 'Producer' },
-    },
-    {
-      path: '/producer/candidates/:id',
-      name: 'producer-candidate-profile',
-      component: () =>
-        import('../pages/producer/candidature/CandidateProfilePage.vue'),
-      meta: { requiresAuth: true, role: 'Producer' },
-    },
-    {
-      path: '/producer/messages',
-      name: 'producer-messages',
-      component: () => import('../pages/producer/messaging/ProducerConversationsPage.vue'),
-      meta: { requiresAuth: true, role: 'Producer' },
-    },
-    {
-      path: '/producer/conversations/:conversationId',
-      name: 'producer-conversation',
-      component: () => import('../features/messaging/components/ProducerConversationView.vue'),
-      meta: { requiresAuth: true, role: 'Producer' },
+      children: [
+        {
+          path: '',
+          redirect: { name: 'producer-dashboard' },
+        },
+        {
+          path: 'dashboard',
+          name: 'producer-dashboard',
+          component: () => import('../pages/dashboard/ProducerDashboardPage.vue'),
+        },
+        {
+          path: 'profile',
+          name: 'producer-profile',
+          component: () => import('../pages/producer/ProfileEditPage.vue'),
+        },
+        {
+          path: 'missions',
+          name: 'producer-missions',
+          component: () => import('../pages/producer/mission/MissionsListPage.vue'),
+        },
+        {
+          path: 'missions/publish',
+          name: 'publish-mission',
+          component: () => import('../pages/producer/mission/PublishMissionPage.vue'),
+        },
+        {
+          path: 'missions/:id/edit',
+          name: 'edit-mission',
+          component: () => import('../pages/producer/mission/EditMissionPage.vue'),
+        },
+        {
+          path: 'missions/:id/candidatures',
+          name: 'producer-mission-candidatures',
+          component: () =>
+            import('../pages/producer/candidature/ProducerMissionCandidaturesPage.vue'),
+        },
+        {
+          path: 'candidates/:id',
+          name: 'producer-candidate-profile',
+          component: () =>
+            import('../pages/producer/candidature/CandidateProfilePage.vue'),
+        },
+        {
+          path: 'messages',
+          name: 'producer-messages',
+          component: () => import('../pages/producer/messaging/ProducerConversationsPage.vue'),
+        },
+        {
+          path: 'conversations/:conversationId',
+          name: 'producer-conversation',
+          component: () => import('../features/messaging/components/ProducerConversationView.vue'),
+        },
+      ],
     },
     {
       path: '/dashboard/producer',
