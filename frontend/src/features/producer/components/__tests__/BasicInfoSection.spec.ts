@@ -285,10 +285,25 @@ describe('BasicInfoSection (Producer)', () => {
       expect(wrapper.find('[data-testid="success-message"]').exists()).toBe(false)
     })
 
-    it('renders header section with correct title', () => {
+    it('renders header section with correct title for particulier', () => {
+      mockBasicInfo.value = {
+        type: 'particulier',
+        first_name: 'Jean',
+        last_name: 'Dupont',
+      }
       const wrapper = mount(BasicInfoSection)
 
-      expect(wrapper.find('h2').text()).toBe("Informations de l'entreprise")
+      expect(wrapper.find('h2').text()).toBe('Votre nom')
+    })
+
+    it('renders header section with correct title for agency', () => {
+      mockBasicInfo.value = {
+        type: 'agency',
+        agency_name: 'Production ABC',
+      }
+      const wrapper = mount(BasicInfoSection)
+
+      expect(wrapper.find('h2').text()).toBe("Nom de l'agence")
     })
   })
 

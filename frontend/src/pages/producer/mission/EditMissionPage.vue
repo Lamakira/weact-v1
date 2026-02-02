@@ -1,10 +1,15 @@
 <script setup lang="ts">
+/**
+ * EditMissionPage
+ * Page for editing an existing mission.
+ * This component is rendered inside ProducerLayout via nested routing.
+ */
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useToast } from '@/composables/useToast'
 import { MissionForm, DeleteMissionDialog } from '@/features/mission/components'
 import { useMissionEdit, useDeleteMission } from '@/features/mission/composables'
-import type { Mission, CreateMissionData } from '@/features/mission/types'
+import type { CreateMissionData } from '@/features/mission/types'
 import { Loader2, AlertCircle, Trash2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 
@@ -54,14 +59,14 @@ async function handleSubmit(data: CreateMissionData): Promise<void> {
 
   if (result.success && result.data) {
     success('Mission modifiée avec succès!')
-    router.push({ name: 'producer-dashboard' })
+    router.push({ name: 'producer-missions' })
   } else {
     toastError(result.message || 'Une erreur est survenue')
   }
 }
 
 function handleCancel(): void {
-  router.push({ name: 'producer-dashboard' })
+  router.push({ name: 'producer-missions' })
 }
 
 function openDeleteDialog(): void {
@@ -86,63 +91,50 @@ async function handleDeleteConfirm(): Promise<void> {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
-    <!-- Header -->
-    <header class="bg-white shadow">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-4">
-            <div class="w-10 h-10 bg-weact rounded-full flex items-center justify-center">
-              <span class="text-white font-bold">W</span>
-            </div>
-            <h1 class="text-xl font-semibold text-gray-900">Modifier la mission</h1>
-          </div>
-          <Button
-            v-if="mission"
-            variant="outline"
-            class="text-destructive border-destructive hover:bg-destructive/10"
-            @click="openDeleteDialog"
-          >
-            <Trash2 class="w-4 h-4 mr-2" />
-            Supprimer
-          </Button>
-        </div>
-      </div>
-    </header>
+  <div>
+    <!-- Loading state -->
+    <div v-if="isLoading" class="flex flex-col items-center justify-center py-20">
+      <Loader2 class="w-8 h-8 text-primary animate-spin mb-4" />
+      <p class="text-slate-500">Chargement de la mission...</p>
+    </div>
 
-    <!-- Main content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <!-- Loading state -->
-      <div v-if="isLoading" class="flex flex-col items-center justify-center py-20">
-        <Loader2 class="w-8 h-8 text-weact animate-spin mb-4" />
-        <p class="text-gray-500">Chargement de la mission...</p>
+    <!-- Error state -->
+    <div
+      v-else-if="error && !mission"
+      class="flex flex-col items-center justify-center py-20"
+    >
+      <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+        <AlertCircle class="w-8 h-8 text-red-500" />
       </div>
+      <h2 class="text-lg font-semibold text-slate-800 mb-2">Erreur de chargement</h2>
+      <p class="text-slate-500 mb-4">{{ error }}</p>
+      <Button variant="outline" @click="router.push({ name: 'producer-missions' })">
+        Retour aux missions
+      </Button>
+    </div>
 
-      <!-- Error state -->
-      <div
-        v-else-if="error && !mission"
-        class="flex flex-col items-center justify-center py-20"
-      >
-        <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-          <AlertCircle class="w-8 h-8 text-red-500" />
-        </div>
-        <h2 class="text-lg font-semibold text-gray-900 mb-2">Erreur de chargement</h2>
-        <p class="text-gray-500 mb-4">{{ error }}</p>
-        <Button variant="outline" @click="router.push({ name: 'producer-dashboard' })">
-          Retour au tableau de bord
+    <!-- Form with delete action -->
+    <template v-else-if="mission && initialValues">
+      <!-- Delete action bar -->
+      <div class="flex justify-end mb-6">
+        <Button
+          variant="outline"
+          class="text-destructive border-destructive hover:bg-destructive/10"
+          @click="openDeleteDialog"
+        >
+          <Trash2 class="w-4 h-4 mr-2" />
+          Supprimer la mission
         </Button>
       </div>
 
-      <!-- Form -->
       <MissionForm
-        v-else-if="mission && initialValues"
         mode="edit"
         :initial-values="initialValues"
         :is-submitting="isSubmitting"
         @submit="handleSubmit"
         @cancel="handleCancel"
       />
-    </main>
+    </template>
 
     <!-- Delete Confirmation Dialog -->
     <DeleteMissionDialog
@@ -156,7 +148,7 @@ async function handleDeleteConfirm(): Promise<void> {
 </template>
 
 <style scoped>
-.bg-weact {
-  background-color: #198496;
+.text-primary {
+  color: var(--color-weact, #198496);
 }
 </style>

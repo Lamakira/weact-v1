@@ -25,7 +25,6 @@ import {
   UserCircle,
   AlertCircle,
   Loader2,
-  ChevronLeft,
   Send,
   Save,
   ShieldAlert,
@@ -174,34 +173,13 @@ const inputClasses = (hasError: boolean) => [
     : 'border-gray-300 focus:border-weact focus:ring-4 focus:ring-weact/20',
 ]
 
-const labelClasses = 'block text-sm font-medium text-gray-700 mb-1.5 flex items-center gap-2'
-const sectionClasses = 'bg-white rounded-xl border border-gray-100 p-6 shadow-sm mb-6'
+const labelClasses = 'block text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-2'
+const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
 </script>
 
 <template>
-  <form @submit.prevent="onSubmit" class="max-w-4xl mx-auto pb-24" data-testid="mission-form">
+  <form @submit.prevent="onSubmit" class="pb-24" data-testid="mission-form">
     <fieldset :disabled="isSubmitting" class="contents">
-    <!-- Header -->
-    <div class="mb-8 flex items-center justify-between">
-      <div>
-        <h1 class="text-3xl font-bold text-gray-900 tracking-tight">
-          {{ props.mode === 'edit' ? 'Modifier la Mission' : 'Nouvelle Mission' }}
-        </h1>
-        <p class="text-gray-500 mt-1">
-          {{ props.mode === 'edit' ? 'Mettez à jour les détails de votre mission.' : 'Publiez votre casting et trouvez les meilleurs profils.' }}
-        </p>
-      </div>
-      <Button
-        variant="ghost"
-        type="button"
-        @click="emit('cancel')"
-        class="text-gray-500 hover:text-gray-700"
-        data-testid="cancel-button-top"
-      >
-        <ChevronLeft class="w-4 h-4 mr-2" />
-        Retour
-      </Button>
-    </div>
 
     <!-- Email Not Verified Error -->
     <div
@@ -550,36 +528,32 @@ const sectionClasses = 'bg-white rounded-xl border border-gray-100 p-6 shadow-sm
     </fieldset>
 
     <!-- Actions -->
-    <div
-      class="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-lg border-t border-gray-100 flex justify-center z-50"
-    >
-      <div class="max-w-4xl w-full flex justify-end gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          @click="emit('cancel')"
-          :disabled="isProcessing"
-          class="min-w-[120px]"
-          data-testid="cancel-button"
-        >
-          Annuler
-        </Button>
-        <Button
-          type="submit"
-          :disabled="isProcessing"
-          class="min-w-[180px] bg-weact hover:bg-weact/90 text-white shadow-lg shadow-weact/20"
-          data-testid="submit-button"
-        >
-          <template v-if="isProcessing">
-            <Loader2 class="w-4 h-4 mr-2 animate-spin" />
-            {{ props.mode === 'edit' ? 'Enregistrement...' : 'Publication...' }}
-          </template>
-          <template v-else>
-            <component :is="props.mode === 'edit' ? Save : Send" class="w-4 h-4 mr-2" />
-            {{ props.mode === 'edit' ? 'Enregistrer les modifications' : 'Publier la mission' }}
-          </template>
-        </Button>
-      </div>
+    <div class="flex justify-end gap-3 mt-8">
+      <Button
+        type="button"
+        variant="outline"
+        @click="emit('cancel')"
+        :disabled="isProcessing"
+        class="min-w-[120px]"
+        data-testid="cancel-button"
+      >
+        Annuler
+      </Button>
+      <Button
+        type="submit"
+        :disabled="isProcessing"
+        class="min-w-[180px] bg-weact hover:bg-weact/90 text-white shadow-lg shadow-weact/20"
+        data-testid="submit-button"
+      >
+        <template v-if="isProcessing">
+          <Loader2 class="w-4 h-4 mr-2 animate-spin" />
+          {{ props.mode === 'edit' ? 'Enregistrement...' : 'Publication...' }}
+        </template>
+        <template v-else>
+          <component :is="props.mode === 'edit' ? Save : Send" class="w-4 h-4 mr-2" />
+          {{ props.mode === 'edit' ? 'Enregistrer les modifications' : 'Publier la mission' }}
+        </template>
+      </Button>
     </div>
   </form>
 </template>
@@ -598,9 +572,5 @@ input::-webkit-inner-spin-button {
 }
 input[type='number'] {
   -moz-appearance: textfield;
-}
-
-.fixed {
-  box-shadow: 0 -4px 20px -5px rgba(0, 0, 0, 0.05);
 }
 </style>

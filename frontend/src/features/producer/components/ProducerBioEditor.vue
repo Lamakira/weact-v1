@@ -51,10 +51,10 @@ function handleReset() {
 </script>
 
 <template>
-  <div class="bg-white rounded-lg shadow p-6" data-testid="bio-editor">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4">Bio</h2>
+  <div data-testid="bio-editor">
+    <h2 class="text-base font-semibold text-slate-800 mb-1">Bio</h2>
 
-    <p class="text-sm text-gray-600 mb-4">
+    <p class="text-sm text-slate-500 mb-3">
       Décrivez-vous en quelques mots. Les Faces verront cette description sur votre profil.
     </p>
 
@@ -113,7 +113,7 @@ function handleReset() {
     </div>
 
     <!-- Action buttons -->
-    <div class="flex items-center gap-3 mt-4">
+    <div class="flex items-center gap-2 mt-3">
       <button
         type="button"
         @click="handleSave"
@@ -137,3 +137,15 @@ function handleReset() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.bg-weact-600 {
+  background-color: var(--color-weact, #198496);
+}
+.bg-weact-700:hover {
+  background-color: #147585;
+}
+.focus\:ring-weact-500:focus {
+  --tw-ring-color: var(--color-weact, #198496);
+}
+</style>

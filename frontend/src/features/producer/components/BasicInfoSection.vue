@@ -74,25 +74,22 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-    <!-- Header -->
-    <div class="px-6 py-4 border-b border-gray-100">
-      <h2 class="text-lg font-semibold text-gray-900">Informations de l'entreprise</h2>
-      <p class="text-sm text-gray-500 mt-1">
-        {{ isAgency ? "Modifiez le nom de votre agence" : 'Modifiez votre nom' }}
-      </p>
-    </div>
+  <div data-testid="basic-info-editor">
+    <h2 class="text-base font-semibold text-slate-800 mb-1">
+      {{ isAgency ? "Nom de l'agence" : 'Votre nom' }}
+    </h2>
+    <p class="text-sm text-slate-500 mb-3">
+      {{ isAgency ? "Modifiez le nom de votre agence" : 'Modifiez votre nom' }}
+    </p>
 
-    <!-- Content -->
-    <div class="p-6">
-      <!-- Loading State -->
+    <!-- Loading State -->
       <div
         v-if="isLoading"
         class="flex items-center justify-center py-8"
         data-testid="loading-state"
       >
         <svg
-          class="animate-spin h-8 w-8 text-secondary"
+          class="animate-spin h-8 w-8 text-weact-500"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -114,7 +111,7 @@ const handleSubmit = async () => {
       </div>
 
       <!-- Form -->
-      <form v-else @submit.prevent="handleSubmit" class="space-y-4">
+      <form v-else @submit.prevent="handleSubmit" class="space-y-3">
         <!-- Success Message -->
         <div
           v-if="successMessage.show"
@@ -168,7 +165,7 @@ const handleSubmit = async () => {
             v-model="form.agency_name"
             required
             placeholder="Production ABC"
-            class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-secondary focus:border-secondary transition-colors"
+            class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-weact-500 focus:border-weact-500 transition-colors"
             data-testid="agency-name-input"
           />
         </div>
@@ -183,7 +180,7 @@ const handleSubmit = async () => {
               v-model="form.first_name"
               required
               placeholder="Marie"
-              class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-secondary focus:border-secondary transition-colors"
+              class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-weact-500 focus:border-weact-500 transition-colors"
               data-testid="first-name-input"
             />
           </div>
@@ -196,18 +193,18 @@ const handleSubmit = async () => {
               v-model="form.last_name"
               required
               placeholder="Martin"
-              class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-secondary focus:border-secondary transition-colors"
+              class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-weact-500 focus:border-weact-500 transition-colors"
               data-testid="last-name-input"
             />
           </div>
         </div>
 
         <!-- Action Button -->
-        <div class="pt-4 flex justify-end">
+        <div class="pt-2">
           <button
             type="submit"
             :disabled="isSaving"
-            class="inline-flex items-center justify-center px-6 py-2.5 bg-secondary text-white text-sm font-medium rounded-lg hover:bg-secondary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-secondary disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+            class="inline-flex items-center justify-center px-4 py-2 bg-weact-600 text-white text-sm font-medium rounded-lg hover:bg-weact-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-weact-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             data-testid="save-button"
           >
             <svg
@@ -234,24 +231,23 @@ const handleSubmit = async () => {
           </button>
         </div>
       </form>
-    </div>
   </div>
 </template>
 
 <style scoped>
-.bg-secondary {
-  background-color: #e88b51;
+.bg-weact-600 {
+  background-color: var(--color-weact, #198496);
 }
-.bg-secondary\/90:hover {
-  background-color: rgb(232 139 81 / 0.9);
+.bg-weact-700:hover {
+  background-color: #147585;
 }
-.text-secondary {
-  color: #e88b51;
+.text-weact-500 {
+  color: var(--color-weact, #198496);
 }
-.focus\:ring-secondary:focus {
-  --tw-ring-color: #e88b51;
+.focus\:ring-weact-500:focus {
+  --tw-ring-color: var(--color-weact, #198496);
 }
-.focus\:border-secondary:focus {
-  border-color: #e88b51;
+.focus\:border-weact-500:focus {
+  border-color: var(--color-weact, #198496);
 }
 </style>
