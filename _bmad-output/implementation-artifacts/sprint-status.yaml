@@ -162,7 +162,7 @@ development_status:
   # Epic 11: Public Access & Discovery (10 stories)
   epic-11: in-progress
   11-0a-public-header-refactoring: done
-  11-0b-public-footer-creation: backlog
+  11-0b-public-footer-creation: done
   11-1-landing-page: backlog
   11-2-landing-page-face-producer-switch: backlog
   11-3-public-faces-list: backlog
