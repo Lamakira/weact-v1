@@ -24,8 +24,8 @@ vi.mock('@/composables/useToast', () => ({
 }))
 
 // Mock the logo import
-vi.mock('@/assets/images/logonoir.svg', () => ({
-  default: '/mock-logo.svg',
+vi.mock('@/assets/images/logonoir.png', () => ({
+  default: '/mock-logo.png',
 }))
 
 describe('AppHeader', () => {
@@ -67,6 +67,9 @@ describe('AppHeader', () => {
           Button: {
             template: '<button><slot /></button>',
             props: ['variant', 'size', 'disabled', 'asChild'],
+          },
+          NotificationBell: {
+            template: '<div data-testid="notification-bell-stub">NotificationBell</div>',
           },
         },
       },
@@ -241,6 +244,234 @@ describe('AppHeader', () => {
 
       const logoLink = wrapper.find('a[href="/"]')
       expect(logoLink.exists()).toBe(true)
+    })
+  })
+
+  describe('Mobile Menu', () => {
+    it('displays mobile menu button', () => {
+      const wrapper = mountHeader()
+
+      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
+      expect(mobileMenuButton.exists()).toBe(true)
+    })
+
+    it('mobile menu button has correct accessibility attributes', () => {
+      const wrapper = mountHeader()
+
+      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
+      expect(mobileMenuButton.attributes('aria-label')).toBe('Ouvrir le menu de navigation')
+      expect(mobileMenuButton.attributes('aria-controls')).toBe('mobile-menu')
+      expect(mobileMenuButton.attributes('aria-expanded')).toBe('false')
+    })
+
+    it('mobile menu is hidden by default', () => {
+      const wrapper = mountHeader()
+
+      const mobileMenu = wrapper.find('[data-testid="header-mobile-menu"]')
+      expect(mobileMenu.exists()).toBe(false)
+    })
+
+    it('clicking mobile menu button opens the menu', async () => {
+      const wrapper = mountHeader()
+
+      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
+      await mobileMenuButton.trigger('click')
+
+      const mobileMenu = wrapper.find('[data-testid="header-mobile-menu"]')
+      expect(mobileMenu.exists()).toBe(true)
+    })
+
+    it('updates aria-expanded when menu is opened', async () => {
+      const wrapper = mountHeader()
+
+      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
+      await mobileMenuButton.trigger('click')
+
+      expect(mobileMenuButton.attributes('aria-expanded')).toBe('true')
+    })
+
+    it('clicking mobile menu button again closes the menu', async () => {
+      const wrapper = mountHeader()
+
+      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
+      // Open menu
+      await mobileMenuButton.trigger('click')
+      expect(wrapper.find('[data-testid="header-mobile-menu"]').exists()).toBe(true)
+
+      // Close menu
+      await mobileMenuButton.trigger('click')
+      expect(wrapper.find('[data-testid="header-mobile-menu"]').exists()).toBe(false)
+    })
+
+    it('mobile menu contains navigation links for guest', async () => {
+      const wrapper = mountHeader()
+
+      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
+      await mobileMenuButton.trigger('click')
+
+      const mobileMenu = wrapper.find('[data-testid="header-mobile-menu"]')
+      expect(mobileMenu.text()).toContain('Trouver des faces')
+      expect(mobileMenu.text()).toContain('Missions')
+      expect(mobileMenu.text()).toContain('Ressources')
+    })
+
+    it('mobile menu contains CTAs for guest', async () => {
+      const wrapper = mountHeader()
+
+      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
+      await mobileMenuButton.trigger('click')
+
+      const mobileMenu = wrapper.find('[data-testid="header-mobile-menu"]')
+      expect(mobileMenu.text()).toContain('Poster une mission')
+      expect(mobileMenu.text()).toContain('Devenir une face')
+      expect(mobileMenu.text()).toContain('Se connecter')
+    })
+
+    it('mobile menu contains Dashboard for authenticated user', async () => {
+      const faceUser = {
+        user: {
+          id: 1,
+          email: 'face@test.com',
+          userable_type: 'Face',
+          userable_id: 1,
+        },
+        token: 'test-token',
+      }
+      const wrapper = mountHeader(faceUser)
+
+      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
+      await mobileMenuButton.trigger('click')
+
+      const mobileMenu = wrapper.find('[data-testid="header-mobile-menu"]')
+      expect(mobileMenu.text()).toContain('Dashboard')
+      expect(mobileMenu.text()).toContain('Déconnexion')
+    })
+
+    it('mobile menu closes on route change', async () => {
+      const wrapper = mountHeader()
+
+      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
+      await mobileMenuButton.trigger('click')
+      expect(wrapper.find('[data-testid="header-mobile-menu"]').exists()).toBe(true)
+
+      // Navigate to a different route
+      await router.push('/missions')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="header-mobile-menu"]').exists()).toBe(false)
+    })
+
+    it('mobile menu closes on Escape key press', async () => {
+      const wrapper = mountHeader()
+
+      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
+      await mobileMenuButton.trigger('click')
+      expect(wrapper.find('[data-testid="header-mobile-menu"]').exists()).toBe(true)
+
+      // Press Escape key
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="header-mobile-menu"]').exists()).toBe(false)
+    })
+
+    // Regression test: Bug fix for menu not opening on first click
+    // Issue: Click event bubbled to document, triggering handleClickOutside
+    // Fix: Added @click.stop to prevent event propagation
+    it('mobile menu opens on first click without being immediately closed', async () => {
+      const wrapper = mountHeader()
+
+      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
+
+      // Menu should be closed initially
+      expect(wrapper.find('[data-testid="header-mobile-menu"]').exists()).toBe(false)
+
+      // Single click should open the menu
+      await mobileMenuButton.trigger('click')
+      await flushPromises()
+
+      // Menu should be open after ONE click (regression: was requiring multiple clicks)
+      expect(wrapper.find('[data-testid="header-mobile-menu"]').exists()).toBe(true)
+    })
+
+    it('mobile menu shows NotificationBell for authenticated user', async () => {
+      const faceUser = {
+        user: {
+          id: 1,
+          email: 'face@test.com',
+          userable_type: 'Face',
+          userable_id: 1,
+        },
+        token: 'test-token',
+      }
+      const wrapper = mountHeader(faceUser)
+
+      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
+      await mobileMenuButton.trigger('click')
+
+      const mobileNotifications = wrapper.find('[data-testid="mobile-notifications"]')
+      expect(mobileNotifications.exists()).toBe(true)
+    })
+
+    it('mobile logout button has aria-label', async () => {
+      const faceUser = {
+        user: {
+          id: 1,
+          email: 'face@test.com',
+          userable_type: 'Face',
+          userable_id: 1,
+        },
+        token: 'test-token',
+      }
+      const wrapper = mountHeader(faceUser)
+
+      const mobileMenuButton = wrapper.find('[data-testid="header-mobile-menu-button"]')
+      await mobileMenuButton.trigger('click')
+
+      const mobileMenu = wrapper.find('[data-testid="header-mobile-menu"]')
+      const logoutButton = mobileMenu.find('button[aria-label="Se déconnecter"]')
+      expect(logoutButton.exists()).toBe(true)
+    })
+  })
+
+  describe('NotificationBell', () => {
+    it('displays NotificationBell for authenticated Face user', () => {
+      const faceUser = {
+        user: {
+          id: 1,
+          email: 'face@test.com',
+          userable_type: 'Face',
+          userable_id: 1,
+        },
+        token: 'test-token',
+      }
+      const wrapper = mountHeader(faceUser)
+
+      const notificationBell = wrapper.find('[data-testid="header-notifications"]')
+      expect(notificationBell.exists()).toBe(true)
+    })
+
+    it('displays NotificationBell for authenticated Producer user', () => {
+      const producerUser = {
+        user: {
+          id: 2,
+          email: 'producer@test.com',
+          userable_type: 'Producer',
+          userable_id: 1,
+        },
+        token: 'test-token',
+      }
+      const wrapper = mountHeader(producerUser)
+
+      const notificationBell = wrapper.find('[data-testid="header-notifications"]')
+      expect(notificationBell.exists()).toBe(true)
+    })
+
+    it('does not display NotificationBell for guest user', () => {
+      const wrapper = mountHeader()
+
+      const notificationBell = wrapper.find('[data-testid="header-notifications"]')
+      expect(notificationBell.exists()).toBe(false)
     })
   })
 })
