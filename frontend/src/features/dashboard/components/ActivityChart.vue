@@ -67,31 +67,33 @@ const monthNames = [
 /**
  * Format month string "YYYY-MM" to French label "janv. 26"
  */
-const formatMonthLabel = (monthStr: string) => {
-  const [year, month] = monthStr.split('-')
+const formatMonthLabel = (monthStr: string): string => {
+  const parts = monthStr.split('-')
+  const year = parts[0] ?? ''
+  const month = parts[1] ?? '01'
   const monthIdx = parseInt(month, 10) - 1
   return `${monthNames[monthIdx]} ${year.slice(-2)}`
 }
 
-// Chart options shared between both charts
-const baseOptions: ChartOptions<'bar' | 'line'> = {
+// Base chart configuration (shared between bar and line charts)
+const baseConfig = {
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
     legend: {
       display: false,
-      position: 'bottom',
+      position: 'bottom' as const,
       labels: {
         usePointStyle: true,
         padding: 20,
-        font: { size: 12, weight: 500 },
+        font: { size: 12, weight: 500 as const },
       },
     },
     tooltip: {
       backgroundColor: '#1f2937',
       padding: 12,
       cornerRadius: 8,
-      titleFont: { size: 13, weight: 'bold' },
+      titleFont: { size: 13, weight: 'bold' as const },
       bodyFont: { size: 12 },
     },
   },
@@ -142,15 +144,20 @@ const barData = computed<ChartData<'bar'>>(() => ({
 
 // Bar chart options with stacking enabled
 const barOptions: ChartOptions<'bar'> = {
-  ...baseOptions,
+  ...baseConfig,
   plugins: {
-    ...baseOptions.plugins,
-    legend: { ...baseOptions.plugins?.legend, display: true },
+    ...baseConfig.plugins,
+    legend: { ...baseConfig.plugins.legend, display: true },
   },
   scales: {
-    x: { ...baseOptions.scales?.x, stacked: true },
-    y: { ...baseOptions.scales?.y, stacked: true },
+    x: { ...baseConfig.scales.x, stacked: true },
+    y: { ...baseConfig.scales.y, stacked: true },
   },
+}
+
+// Line chart options
+const lineOptions: ChartOptions<'line'> = {
+  ...baseConfig,
 }
 
 // Line chart data (missions completed by month)
@@ -305,7 +312,7 @@ function handleRetry() {
 
           <!-- Chart -->
           <template v-else>
-            <Line :data="lineData" :options="baseOptions" data-testid="missions-line-chart" />
+            <Line :data="lineData" :options="lineOptions" data-testid="missions-line-chart" />
           </template>
         </div>
       </div>
