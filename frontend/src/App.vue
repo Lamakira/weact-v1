@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import AppHeader from '@/components/layout/AppHeader.vue'
+import AppFooter from '@/components/layout/AppFooter.vue'
 
 const route = useRoute()
 
@@ -29,11 +30,7 @@ const isDashboardRoute = computed(() => {
       </main>
 
       <!-- Footer -->
-      <footer class="bg-gray-100 border-t mt-auto">
-        <div class="max-w-7xl mx-auto px-4 py-4 text-center text-gray-600">
-          <p>&copy; 2026 WEACT - Connecting Faces with Producers</p>
-        </div>
-      </footer>
+      <AppFooter />
     </div>
   </template>
 </template>

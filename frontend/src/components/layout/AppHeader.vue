@@ -257,25 +257,6 @@ async function handleLogout(): Promise<void> {
               Ressources
             </RouterLink>
 
-            <!-- Face-specific links -->
-            <RouterLink
-              v-if="authStore.isAuthenticated && authStore.isFace"
-              to="/face/candidatures"
-              class="text-sm text-gray-700 hover:text-[#198496] transition-colors"
-              @click="closeMobileMenu"
-            >
-              Mes candidatures
-            </RouterLink>
-
-            <!-- Producer-specific links -->
-            <RouterLink
-              v-if="authStore.isAuthenticated && authStore.isProducer"
-              to="/producer/missions"
-              class="text-sm text-gray-700 hover:text-[#198496] transition-colors"
-              @click="closeMobileMenu"
-            >
-              Mes missions
-            </RouterLink>
           </nav>
 
           <!-- Divider -->
@@ -310,10 +291,6 @@ async function handleLogout(): Promise<void> {
 
             <!-- Authenticated CTAs -->
             <template v-else>
-              <!-- Notification Bell for mobile -->
-              <div class="flex items-center justify-center py-2">
-                <NotificationBell data-testid="mobile-notifications" />
-              </div>
               <RouterLink
                 :to="authStore.isFace ? '/face/dashboard' : '/producer/dashboard'"
                 class="w-full text-center py-3 text-sm font-medium bg-[#198496] text-white rounded-md hover:bg-[#146c7a] transition-colors"

@@ -316,6 +316,63 @@ onUnmounted(() => {
 
 ---
 
+## Footer Layout (User-Defined)
+
+```
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│  WEACT (logo)                   TROUVER DES FACES    ENTREPRISE    RESSOURCES        │
+│  Marketplace béninoise          • Parcourir les      • Légal       • Blog            │
+│  du casting.                      profils            • À propos    • FAQ             │
+│                                 • Publier une        • Contact     • Guide de        │
+│  [IG] [FB] [X] [YT]               mission                            démarrage       │
+│                                 • Tarifs                           • Support         │
+│                                   producteurs                                         │
+├──────────────────────────────────────────────────────────────────────────────────────┤
+│                        © 2026 WeAct. Tous droits réservés.                           │
+└──────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Structure:**
+- **Left column:** Logo (white version), tagline, social icons (Instagram, Facebook, Twitter, YouTube)
+- **3 Navigation columns:** TROUVER DES FACES, ENTREPRISE, RESSOURCES
+- **Bottom bar:** Centered copyright text
+
+### Footer Design Tokens
+
+| Element | Classes |
+|---------|---------|
+| Footer container | `bg-[#101828]` (dark navy) |
+| Footer padding | `py-12 lg:py-16` |
+| Column grid | `grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8` |
+| Column heading | `text-sm font-bold text-[#6A7282] tracking-wider` |
+| Footer links | `text-sm text-[#99A1AF] hover:text-white transition-colors duration-200` |
+| Social icons | `text-[#99A1AF] hover:text-white transition-colors duration-200` |
+| Tagline | `text-sm text-[#99A1AF]` |
+| Bottom bar | `border-t border-[#1F2937] flex justify-center` |
+| Copyright | `text-sm text-[#6A7282]` |
+| Logo | `logoblanc.png` (white version for dark background) |
+
+### Footer Color Palette
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| Background | `#101828` | Dark navy footer background |
+| Border | `#1F2937` | Subtle divider above copyright |
+| Menu Titles | `#6A7282` | Column headings (muted) |
+| Links | `#99A1AF` | Navigation links, social icons, tagline |
+| Hover | `white` | Link hover state |
+| Focus Ring | `#198496` | Brand teal for keyboard focus |
+
+### Footer Accessibility
+
+- `role="contentinfo"` on footer element
+- `aria-label` on all social icon links (e.g., "Suivez-nous sur Instagram")
+- `focus-visible:ring-2 focus-visible:ring-[#198496]` on all interactive elements
+- `focus-visible:ring-offset-[#101828]` for proper contrast on dark background
+- `target="_blank" rel="noopener noreferrer"` on external social links
+
+---
+
 ## Usage Guidelines
 
 1. **Respect the exact button order:** Poster une mission (primary) → Devenir une face (outline) → Se connecter (text)
