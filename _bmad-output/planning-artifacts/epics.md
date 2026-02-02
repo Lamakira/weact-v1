@@ -1702,6 +1702,54 @@ So that **I can manage my casting activities efficiently**.
 
 ## Epic 11: Public Access & Discovery
 
+### Story 11.0a: Public Header Refactoring
+
+As a **visitor**,
+I want **a responsive, well-designed header**,
+So that **I can navigate the site easily on any device**.
+
+**Acceptance Criteria:**
+
+**Given** I visit any public page on mobile, tablet, or desktop
+**When** the page loads
+**Then** I see a responsive header with logo, navigation, and mobile menu
+
+**Given** I am on mobile (< 768px)
+**When** I tap the menu icon
+**Then** I see a mobile navigation menu with all links
+
+**Given** I am a visitor or logged-in user
+**When** I view the header
+**Then** I see appropriate CTAs (Login/Register for visitors, Dashboard for users)
+
+**(Identified in Epic 10 Retrospective - prerequisite for Landing Page)**
+
+---
+
+### Story 11.0b: Public Footer Creation
+
+As a **visitor**,
+I want **a footer with useful links and information**,
+So that **I can find legal pages, contact info, and social links**.
+
+**Acceptance Criteria:**
+
+**Given** I visit any public page
+**When** I scroll to the bottom
+**Then** I see a footer with navigation links, legal pages, and social links
+
+**Given** I want to find legal information
+**When** I look at the footer
+**Then** I see links to Terms of Service, Privacy Policy, and other legal pages
+
+**Given** I want to connect on social media
+**When** I look at the footer
+**Then** I see links to WEACT social media profiles
+
+**(Identified in Epic 10 Retrospective - prerequisite for Landing Page)**
+
+---
+
 ### Story 11.1: Landing Page
 
 As a **visitor**,

@@ -159,8 +159,10 @@ development_status:
   10-6-producer-dashboard-layout: done
   epic-10-retrospective: done
 
-  # Epic 11: Public Access & Discovery (8 stories)
+  # Epic 11: Public Access & Discovery (10 stories)
   epic-11: backlog
+  11-0a-public-header-refactoring: backlog
+  11-0b-public-footer-creation: backlog
   11-1-landing-page: backlog
   11-2-landing-page-face-producer-switch: backlog
   11-3-public-faces-list: backlog
