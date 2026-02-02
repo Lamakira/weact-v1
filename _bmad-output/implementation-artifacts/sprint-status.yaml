@@ -157,7 +157,7 @@ development_status:
   10-4-producer-rating-display: done
   10-5-producer-advanced-stats: done
   10-6-producer-dashboard-layout: done
-  epic-10-retrospective: optional
+  epic-10-retrospective: done
 
   # Epic 11: Public Access & Discovery (8 stories)
   epic-11: backlog
