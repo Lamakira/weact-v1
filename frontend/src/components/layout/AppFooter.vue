@@ -6,7 +6,7 @@
  */
 import { RouterLink } from 'vue-router'
 import { Instagram, Facebook, Twitter, Youtube } from 'lucide-vue-next'
-import logoNoir from '@/assets/images/logonoir.png'
+import logoBlanc from '@/assets/images/logoblanc.png'
 
 const footerLinks = {
   faces: {
@@ -46,7 +46,7 @@ const socialLinks = [
 
 <template>
   <footer
-    class="bg-white border-t border-gray-200"
+    class="bg-[#101828]"
     role="contentinfo"
     data-testid="app-footer"
   >
@@ -57,13 +57,13 @@ const socialLinks = [
         <div class="space-y-6">
           <RouterLink to="/" class="inline-block" data-testid="footer-logo-link">
             <img
-              :src="logoNoir"
+              :src="logoBlanc"
               alt="WEACT Logo"
               class="h-8 w-auto"
               data-testid="footer-logo"
             />
           </RouterLink>
-          <p class="text-sm text-gray-500 max-w-xs leading-relaxed" data-testid="footer-tagline">
+          <p class="text-sm text-[#99A1AF] max-w-xs leading-relaxed" data-testid="footer-tagline">
             Marketplace béninoise du casting.
           </p>
           <div class="flex items-center gap-4" data-testid="footer-social-icons">
@@ -73,7 +73,7 @@ const socialLinks = [
               :href="social.href"
               :aria-label="social.label"
               :data-testid="social.testId"
-              class="text-gray-500 hover:text-[#198496] transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2 rounded"
+              class="text-[#99A1AF] hover:text-white transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2 focus-visible:ring-offset-[#101828] rounded"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -89,7 +89,7 @@ const socialLinks = [
           class="flex flex-col space-y-4"
           :data-testid="`footer-column-${key}`"
         >
-          <h3 class="text-sm font-bold text-gray-900 tracking-wider">
+          <h3 class="text-sm font-bold text-[#6A7282] tracking-wider">
             {{ group.title }}
           </h3>
           <ul class="flex flex-col space-y-3">
@@ -97,7 +97,7 @@ const socialLinks = [
               <RouterLink
                 :to="link.to"
                 :data-testid="link.testId"
-                class="text-sm text-gray-700 hover:text-[#198496] transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2 rounded"
+                class="text-sm text-[#99A1AF] hover:text-white transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2 focus-visible:ring-offset-[#101828] rounded"
               >
                 {{ link.label }}
               </RouterLink>
@@ -108,14 +108,11 @@ const socialLinks = [
 
       <!-- Bottom Bar -->
       <div
-        class="mt-12 lg:mt-16 pt-8 border-t border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4"
+        class="mt-12 lg:mt-16 pt-8 border-t border-[#1F2937] flex justify-center"
         data-testid="footer-bottom-bar"
       >
-        <p class="text-sm text-gray-500" data-testid="footer-copyright">
+        <p class="text-sm text-[#6A7282]" data-testid="footer-copyright">
           © 2026 WeAct. Tous droits réservés.
-        </p>
-        <p class="text-sm text-gray-500" data-testid="footer-attribution">
-          Made with <span class="text-red-500" aria-hidden="true">❤️</span><span class="sr-only">love</span> in Benin
         </p>
       </div>
     </div>

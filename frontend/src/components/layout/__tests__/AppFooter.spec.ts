@@ -4,7 +4,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import AppFooter from '../AppFooter.vue'
 
 // Mock the logo import
-vi.mock('@/assets/images/logonoir.png', () => ({
+vi.mock('@/assets/images/logoblanc.png', () => ({
   default: '/mock-logo.png',
 }))
 
@@ -233,19 +233,17 @@ describe('AppFooter', () => {
       expect(wrapper.find('[data-testid="footer-bottom-bar"]').exists()).toBe(true)
     })
 
-    it('renders copyright text', () => {
+    it('renders copyright text centered', () => {
       const wrapper = mountFooter()
       const copyright = wrapper.find('[data-testid="footer-copyright"]')
       expect(copyright.exists()).toBe(true)
       expect(copyright.text()).toBe('© 2026 WeAct. Tous droits réservés.')
     })
 
-    it('renders "Made with ❤️ in Benin" attribution', () => {
+    it('bottom bar uses justify-center for centered copyright', () => {
       const wrapper = mountFooter()
-      const attribution = wrapper.find('[data-testid="footer-attribution"]')
-      expect(attribution.exists()).toBe(true)
-      expect(attribution.text()).toContain('Made with')
-      expect(attribution.text()).toContain('in Benin')
+      const bottomBar = wrapper.find('[data-testid="footer-bottom-bar"]')
+      expect(bottomBar.classes()).toContain('justify-center')
     })
   })
 
@@ -259,11 +257,10 @@ describe('AppFooter', () => {
       expect(grid.classes()).toContain('lg:grid-cols-4')
     })
 
-    it('bottom bar has responsive flex direction', () => {
+    it('footer has dark background color', () => {
       const wrapper = mountFooter()
-      const bottomBar = wrapper.find('[data-testid="footer-bottom-bar"]')
-      expect(bottomBar.classes()).toContain('flex-col')
-      expect(bottomBar.classes()).toContain('md:flex-row')
+      const footer = wrapper.find('[data-testid="app-footer"]')
+      expect(footer.classes()).toContain('bg-[#101828]')
     })
   })
 
@@ -301,20 +298,10 @@ describe('AppFooter', () => {
       expect(link.classes()).toContain('focus-visible:ring-[#198496]')
     })
 
-    it('heart emoji is hidden from screen readers with aria-hidden', () => {
+    it('footer uses dark theme colors', () => {
       const wrapper = mountFooter()
-      const attribution = wrapper.find('[data-testid="footer-attribution"]')
-      const heartSpan = attribution.find('span[aria-hidden="true"]')
-      expect(heartSpan.exists()).toBe(true)
-      expect(heartSpan.text()).toContain('❤️')
-    })
-
-    it('has sr-only text for screen reader accessibility', () => {
-      const wrapper = mountFooter()
-      const attribution = wrapper.find('[data-testid="footer-attribution"]')
-      const srOnly = attribution.find('.sr-only')
-      expect(srOnly.exists()).toBe(true)
-      expect(srOnly.text()).toBe('love')
+      const footer = wrapper.find('[data-testid="app-footer"]')
+      expect(footer.classes()).toContain('bg-[#101828]')
     })
   })
 })
