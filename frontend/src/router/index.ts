@@ -21,6 +21,17 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: HomeView,
+      meta: {
+        title: 'WEACT - Monétisez votre image au Bénin',
+        description:
+          'Rejoignez la première plateforme de casting au Bénin. Connectez-vous avec des producteurs et monétisez votre talent en jouant dans des films, séries, publicités et clips.',
+        ogTitle: 'WEACT - La première plateforme de casting au Bénin',
+        ogDescription:
+          'Monétisez votre image en jouant dans des films, séries, publicités et clips. Rejoignez +500 talents sur WEACT.',
+        ogImage: '/og-image.jpg', // TODO: Add actual OG image asset
+        ogType: 'website',
+        twitterCard: 'summary_large_image',
+      },
     },
     {
       path: '/about',

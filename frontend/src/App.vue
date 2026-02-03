@@ -10,6 +10,11 @@ const route = useRoute()
 const isDashboardRoute = computed(() => {
   return route.path.startsWith('/face/') || route.path.startsWith('/producer/')
 })
+
+/** Check if current route is landing page (needs full-width sections) */
+const isLandingPage = computed(() => {
+  return route.name === 'home'
+})
 </script>
 
 <template>
@@ -18,7 +23,23 @@ const isDashboardRoute = computed(() => {
     <RouterView />
   </template>
 
-  <!-- Regular routes: with header/footer -->
+  <!-- Landing page: full-width sections with header/footer -->
+  <template v-else-if="isLandingPage">
+    <div class="min-h-screen bg-white flex flex-col">
+      <!-- Header -->
+      <AppHeader />
+
+      <!-- Main Content - Full width for landing page -->
+      <main class="flex-1">
+        <RouterView />
+      </main>
+
+      <!-- Footer -->
+      <AppFooter />
+    </div>
+  </template>
+
+  <!-- Regular routes: with header/footer and constrained width -->
   <template v-else>
     <div class="min-h-screen bg-gray-50 flex flex-col">
       <!-- Header -->
