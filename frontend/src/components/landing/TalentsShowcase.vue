@@ -2,6 +2,9 @@
 import { RouterLink } from 'vue-router'
 import { ArrowRight, Zap } from 'lucide-vue-next'
 
+// Shared constant for talent count display
+const TALENT_COUNT_DISPLAY = '+500 talents'
+
 interface Talent {
   id: number
   name: string
@@ -104,7 +107,7 @@ const mockTalents: Talent[] = [
           <div
             v-for="(talent, index) in [...mockTalents, ...mockTalents]"
             :key="`${talent.id}-${index}`"
-            :data-testid="index < mockTalents.length ? `talent-card-${talent.id}` : undefined"
+            :data-testid="index < mockTalents.length ? `talent-card-${talent.id}` : `talent-card-${talent.id}-duplicate`"
             class="w-[160px] sm:w-[240px] lg:w-[300px] flex-none group/card relative overflow-hidden rounded-[24px] border border-teal-50 bg-white shadow-sm hover:shadow-md hover:border-[#198496]/20 transition-all duration-500 hover:-translate-y-2"
           >
             <!-- Talent Portrait -->
@@ -143,7 +146,7 @@ const mockTalents: Talent[] = [
           <ArrowRight class="w-5 h-5 group-hover:translate-x-1 transition-transform" />
         </RouterLink>
         <p class="mt-4 text-sm text-gray-500 font-medium">
-          +500 talents disponibles sur la plateforme
+          {{ TALENT_COUNT_DISPLAY }} disponibles sur la plateforme
         </p>
       </div>
     </div>
@@ -162,5 +165,12 @@ const mockTalents: Talent[] = [
 
 .animate-marquee-loop {
   animation: marquee-loop 40s linear infinite;
+}
+
+/* Accessibility: Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee-loop {
+    animation: none;
+  }
 }
 </style>

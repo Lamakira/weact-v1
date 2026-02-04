@@ -3,6 +3,9 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ArrowRight } from 'lucide-vue-next'
 
+// Shared constant for talent count display
+const TALENT_COUNT_DISPLAY = '+500 talents'
+
 // --- Dynamic Text Animation ---
 const words = ['acteur', 'créateur de contenu', 'influenceur', 'modèle photo']
 const currentWordIndex = ref(0)
@@ -131,7 +134,7 @@ onUnmounted(() => {
             />
           </div>
         </div>
-        <span class="ml-2 text-sm text-gray-500 font-medium">+500 talents</span>
+        <span class="ml-2 text-sm text-gray-500 font-medium">{{ TALENT_COUNT_DISPLAY }}</span>
       </div>
 
       <!-- CTA Button -->
