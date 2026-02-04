@@ -46,30 +46,28 @@ describe('HomeView', () => {
     })
 
     it('cycles through words every 2.5 seconds', async () => {
-      const animatedWord = wrapper.find('[data-testid="hero-animated-word"]')
-
       // Initial word should be 'film'
-      expect(animatedWord.text()).toBe('film')
+      expect(wrapper.find('[data-testid="hero-animated-word"]').text()).toBe('film')
 
-      // Advance timer by 2.5 seconds
+      // Advance timer by 2.5 seconds - re-query element after each transition
       vi.advanceTimersByTime(2500)
       await wrapper.vm.$nextTick()
-      expect(animatedWord.text()).toBe('série télévisée')
-
-      // Advance timer again
-      vi.advanceTimersByTime(2500)
-      await wrapper.vm.$nextTick()
-      expect(animatedWord.text()).toBe('vidéo publicitaire')
+      expect(wrapper.find('[data-testid="hero-animated-word"]').text()).toBe('série télévisée')
 
       // Advance timer again
       vi.advanceTimersByTime(2500)
       await wrapper.vm.$nextTick()
-      expect(animatedWord.text()).toBe('clip musical')
+      expect(wrapper.find('[data-testid="hero-animated-word"]').text()).toBe('vidéo publicitaire')
+
+      // Advance timer again
+      vi.advanceTimersByTime(2500)
+      await wrapper.vm.$nextTick()
+      expect(wrapper.find('[data-testid="hero-animated-word"]').text()).toBe('clip musical')
 
       // Should loop back to first word
       vi.advanceTimersByTime(2500)
       await wrapper.vm.$nextTick()
-      expect(animatedWord.text()).toBe('film')
+      expect(wrapper.find('[data-testid="hero-animated-word"]').text()).toBe('film')
     })
 
     it('renders the hero CTA button linking to face registration', () => {

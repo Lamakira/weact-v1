@@ -171,10 +171,10 @@ function getStatusBadge(status: string): { class: string; label: string } {
     <div
       ref="toggleContainerRef"
       :class="[
-        'left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 py-4 transition-shadow duration-200',
-        isToggleSticky ? 'fixed top-0 shadow-md' : 'absolute',
+        'left-0 right-0 bg-white/95 backdrop-blur-sm border-b border-gray-100 py-4 transition-shadow duration-200',
+        isToggleSticky ? 'fixed top-0 z-50 shadow-md' : 'relative',
       ]"
-      :style="isToggleSticky ? {} : { top: '0px', position: 'relative', marginTop: '-72px' }"
+      :style="isToggleSticky ? {} : { marginTop: '-72px' }"
       data-testid="perspective-toggle-container"
     >
       <div class="flex justify-center">

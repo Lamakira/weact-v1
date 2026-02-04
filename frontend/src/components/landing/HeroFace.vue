@@ -54,24 +54,29 @@ onUnmounted(() => {
       <div class="flex items-start justify-between gap-12">
         <!-- Left: Text Content -->
         <div class="max-w-2xl text-center lg:text-left">
-          <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-[1.1] mb-6">
-            Monétisez votre image
-            <br />
-            en jouant dans :
-            <br />
-            <span
-              class="text-[#198496] inline-block min-w-[300px] sm:min-w-[400px] lg:min-w-[580px] h-[1.2em] relative overflow-hidden align-bottom whitespace-nowrap"
-              data-testid="hero-animated-word"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              <Transition name="slide-up" mode="out-in">
-                <span :key="activeWordIndex" class="absolute left-1/2 -translate-x-1/2 lg:left-0 lg:translate-x-0 whitespace-nowrap">
+          <!-- Hero Title -->
+          <div>
+            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
+              Monétisez votre image
+              <br />
+              en jouant dans :
+            </h1>
+
+            <!-- Dynamic Animated Word -->
+            <div class="h-[50px] sm:h-[60px] lg:h-[70px] relative flex justify-center lg:justify-start items-center overflow-hidden">
+              <Transition name="slide-up">
+                <span
+                  :key="words[activeWordIndex]"
+                  class="absolute text-4xl sm:text-5xl lg:text-6xl font-bold text-[#198496]"
+                  data-testid="hero-animated-word"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
                   {{ words[activeWordIndex] }}
                 </span>
               </Transition>
-            </span>
-          </h1>
+            </div>
+          </div>
           <p class="text-gray-500 text-lg lg:text-xl max-w-lg mx-auto lg:mx-0 mb-10 leading-relaxed">
             La première plateforme qui met en relation marques et créateurs pour des castings
             sécurisés au Bénin.
@@ -139,12 +144,13 @@ onUnmounted(() => {
 
 <style scoped>
 /* Slide-up transition for word cycling */
+/* Both enter and leave happen simultaneously for smooth sliding effect */
 .slide-up-enter-active,
 .slide-up-leave-active {
-  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* New word enters from below */
+/* Entering word: starts below, slides up into view */
 .slide-up-enter-from {
   opacity: 0;
   transform: translateY(100%);
@@ -155,7 +161,7 @@ onUnmounted(() => {
   transform: translateY(0);
 }
 
-/* Current word exits upward */
+/* Leaving word: slides up and out of view */
 .slide-up-leave-from {
   opacity: 1;
   transform: translateY(0);
