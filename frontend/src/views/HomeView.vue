@@ -1,19 +1,47 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { MapPin, ChevronRight, ChevronLeft, CheckCircle } from 'lucide-vue-next'
 
 // Landing page components
 import HeroFace from '@/components/landing/HeroFace.vue'
+import HeroProducer from '@/components/landing/HeroProducer.vue'
 import FacesCarousel from '@/components/landing/FacesCarousel.vue'
+import TalentsShowcase from '@/components/landing/TalentsShowcase.vue'
+import PerspectiveToggle from '@/components/landing/PerspectiveToggle.vue'
 
 // Content configuration
 import { getContent } from '@/components/landing/content'
 import type { Perspective, Mission } from '@/components/landing/types'
 
-// --- Perspective State (for future Face/Producer switch - Story 11-2) ---
+// --- Perspective State ---
 const perspective = ref<Perspective>('face')
 const content = computed(() => getContent(perspective.value))
+
+// --- Sticky Toggle State ---
+const isToggleSticky = ref(false)
+const toggleContainerRef = ref<HTMLElement | null>(null)
+const togglePlaceholderRef = ref<HTMLElement | null>(null)
+
+function handleScroll(): void {
+  if (!togglePlaceholderRef.value) return
+  const rect = togglePlaceholderRef.value.getBoundingClientRect()
+  isToggleSticky.value = rect.top <= 0
+}
+
+onMounted(() => {
+  window.addEventListener('scroll', handleScroll, { passive: true })
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll)
+})
+
+// Dynamic component resolution
+const heroComponent = computed(() => (perspective.value === 'face' ? HeroFace : HeroProducer))
+const showcaseComponent = computed(() =>
+  perspective.value === 'face' ? FacesCarousel : TalentsShowcase
+)
 
 // --- Loading States (for future API integration) ---
 const isLoadingMissions = ref(false)
@@ -135,9 +163,32 @@ function getStatusBadge(status: string): { class: string; label: string } {
 
 <template>
   <div class="overflow-x-hidden">
+    <!-- ===== PERSPECTIVE TOGGLE (Sticky after header) ===== -->
+    <!-- Placeholder to detect scroll position -->
+    <div ref="togglePlaceholderRef" class="h-[72px]"></div>
+
+    <!-- Fixed toggle when scrolling -->
+    <div
+      ref="toggleContainerRef"
+      :class="[
+        'left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 py-4 transition-shadow duration-200',
+        isToggleSticky ? 'fixed top-0 shadow-md' : 'absolute',
+      ]"
+      :style="isToggleSticky ? {} : { top: '0px', position: 'relative', marginTop: '-72px' }"
+      data-testid="perspective-toggle-container"
+    >
+      <div class="flex justify-center">
+        <PerspectiveToggle v-model="perspective" />
+      </div>
+    </div>
+
     <!-- ===== SECTION 1: HERO (Component-based - different per perspective) ===== -->
-    <HeroFace v-if="perspective === 'face'" />
-    <!-- HeroProducer v-else / (Story 11-2) -->
+    <div class="relative">
+      <!-- Hero Component -->
+      <Transition name="perspective" mode="out-in">
+        <component :is="heroComponent" :key="perspective" />
+      </Transition>
+    </div>
 
     <!-- ===== SECTION 2: COMMENT ÇA MARCHE (Data-driven) ===== -->
     <section class="py-16 bg-white relative overflow-hidden">
@@ -366,9 +417,10 @@ function getStatusBadge(status: string): { class: string; label: string } {
       </div>
     </section>
 
-    <!-- ===== SECTION 3: FACES CAROUSEL (Component-based - different per perspective) ===== -->
-    <FacesCarousel v-if="perspective === 'face'" />
-    <!-- ProducersShowcase v-else / (Story 11-2) -->
+    <!-- ===== SECTION 3: FACES/TALENTS SHOWCASE (Component-based - different per perspective) ===== -->
+    <Transition name="perspective" mode="out-in">
+      <component :is="showcaseComponent" :key="perspective" />
+    </Transition>
 
     <!-- ===== SECTION 4: MISSIONS EN COURS (Data-driven) ===== -->
     <section id="missions" class="py-16 bg-gray-50">
@@ -742,5 +794,21 @@ function getStatusBadge(status: string): { class: string; label: string } {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Perspective transition (300ms fade/slide) */
+.perspective-enter-active,
+.perspective-leave-active {
+  transition: all 0.3s ease-in-out;
+}
+
+.perspective-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.perspective-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
 }
 </style>

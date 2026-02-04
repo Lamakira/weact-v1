@@ -152,8 +152,9 @@ describe('HomeView', () => {
       expect(section.exists()).toBe(true)
     })
 
-    it('renders 6 mission cards', () => {
-      const cards = wrapper.findAll('[data-testid^="mission-card-"]')
+    it('renders 6 mission cards (desktop)', () => {
+      // Only count desktop cards (not mobile ones)
+      const cards = wrapper.findAll('[data-testid^="mission-card-"]:not([data-testid*="mobile"])')
       expect(cards.length).toBe(6)
     })
 
@@ -258,6 +259,99 @@ describe('HomeView', () => {
 
       // Initial state (no scroll) should be 0deg
       expect(silhouette.attributes('style')).toContain('rotate(0deg)')
+    })
+  })
+
+  describe('Perspective Toggle (Story 11-2)', () => {
+    it('renders the perspective toggle', () => {
+      const toggle = wrapper.find('[data-testid="perspective-toggle"]')
+      expect(toggle.exists()).toBe(true)
+    })
+
+    it('defaults to Face perspective', () => {
+      // Verify Face is selected by default
+      const faceTab = wrapper.find('[data-testid="toggle-face"]')
+      expect(faceTab.exists()).toBe(true)
+      expect(faceTab.attributes('aria-selected')).toBe('true')
+      expect(faceTab.classes()).toContain('bg-[#198496]')
+
+      // Verify HeroFace is rendered (check for Face-specific content)
+      expect(wrapper.text()).toContain('Monétisez votre image')
+    })
+
+    it('toggle has accessibility attributes', () => {
+      const toggle = wrapper.find('[data-testid="perspective-toggle"]')
+      // The tablist role is on the inner container
+      const tablist = toggle.find('[role="tablist"]')
+      expect(tablist.exists()).toBe(true)
+      expect(tablist.attributes('aria-label')).toBe('Choisir votre profil')
+    })
+
+    it('switches to Producer perspective when clicked', async () => {
+      const producerTab = wrapper.find('[data-testid="toggle-producer"]')
+      await producerTab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      // Verify Producer is now selected
+      expect(producerTab.attributes('aria-selected')).toBe('true')
+
+      // Verify HeroProducer content is shown
+      expect(wrapper.text()).toContain('Trouvez votre prochain')
+    })
+
+    it('updates How It Works section when switching perspectives', async () => {
+      // Face perspective default
+      expect(wrapper.find('[data-testid="how-it-works-title"]').text()).toContain('Comment ça marche')
+
+      // Switch to Producer
+      const producerTab = wrapper.find('[data-testid="toggle-producer"]')
+      await producerTab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      // Title should still say "Comment ça marche" (both perspectives have this)
+      expect(wrapper.find('[data-testid="how-it-works-title"]').text()).toContain('Comment ça marche')
+    })
+
+    it('updates final CTA when switching perspectives', async () => {
+      // Face perspective: "S'inscrire comme Face"
+      expect(wrapper.find('[data-testid="final-cta-button"]').text()).toContain("S'inscrire comme Face")
+
+      // Switch to Producer
+      const producerTab = wrapper.find('[data-testid="toggle-producer"]')
+      await producerTab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      // Producer perspective: "S'inscrire comme Producteur"
+      expect(wrapper.find('[data-testid="final-cta-button"]').text()).toContain("S'inscrire comme Producteur")
+    })
+
+    it('switches showcase component when perspective changes', async () => {
+      // Face perspective: FacesCarousel
+      expect(wrapper.find('[data-testid="faces-carousel"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="talents-showcase"]').exists()).toBe(false)
+
+      // Switch to Producer
+      const producerTab = wrapper.find('[data-testid="toggle-producer"]')
+      await producerTab.trigger('click')
+      await wrapper.vm.$nextTick()
+
+      // Producer perspective: TalentsShowcase
+      expect(wrapper.find('[data-testid="talents-showcase"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="faces-carousel"]').exists()).toBe(false)
+    })
+
+    it('can switch back to Face perspective', async () => {
+      // Switch to Producer first
+      const producerTab = wrapper.find('[data-testid="toggle-producer"]')
+      await producerTab.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.text()).toContain('Trouvez votre prochain')
+
+      // Switch back to Face
+      const faceTab = wrapper.find('[data-testid="toggle-face"]')
+      await faceTab.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.text()).toContain('Monétisez votre image')
     })
   })
 })
