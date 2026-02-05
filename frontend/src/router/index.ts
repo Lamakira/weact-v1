@@ -191,6 +191,21 @@ const router = createRouter({
     },
     // Public routes (no auth required)
     {
+      path: '/faces',
+      name: 'public-faces-list',
+      component: () => import('../views/PublicFacesView.vue'),
+      meta: {
+        title: 'Nos Talents - WEACT',
+        description:
+          'Découvrez notre vivier de talents béninois pour tous vos projets audiovisuels. Acteurs, mannequins, influenceurs et créateurs.',
+      },
+    },
+    {
+      path: '/faces/:id',
+      name: 'public-face-profile',
+      component: () => import('../views/PublicFacesView.vue'), // TODO: Create public face profile page (Story 11-4)
+    },
+    {
       path: '/producers/:id',
       name: 'public-producer-profile',
       component: () => import('../pages/public/ProducerProfilePage.vue'),
