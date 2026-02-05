@@ -69,9 +69,16 @@ describe('FaceCard', () => {
 
     it('displays placeholder when no photo provided', () => {
       const wrapper = mountCard({ profile_photo_thumbnail_url: null })
-      const img = wrapper.find('img')
 
-      expect(img.attributes('src')).toBe('/placeholder-avatar.png')
+      // Should not render img element
+      expect(wrapper.find('img').exists()).toBe(false)
+
+      // Should show placeholder with "Pas de photo" text
+      expect(wrapper.text()).toContain('Pas de photo')
+
+      // Should have aria-label for accessibility
+      const placeholder = wrapper.find('[aria-label="Pas de photo pour Adjoua"]')
+      expect(placeholder.exists()).toBe(true)
     })
 
     it('displays category badge with categorie_label', () => {

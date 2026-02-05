@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
+import { User } from 'lucide-vue-next'
 import type { PublicFace } from '../services/publicFacesApi'
 
 interface Props {
@@ -20,9 +21,9 @@ const availabilityLabel = computed(() => {
   return props.face.is_available ? 'Disponible' : 'Indisponible'
 })
 
-// Default placeholder image when no photo
-const imageUrl = computed(() => {
-  return props.face.profile_photo_thumbnail_url || '/placeholder-avatar.png'
+// Check if face has a profile photo
+const hasPhoto = computed(() => {
+  return !!props.face.profile_photo_thumbnail_url
 })
 </script>
 
@@ -33,14 +34,30 @@ const imageUrl = computed(() => {
     class="group/card relative block overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-lg hover:border-[#198496]/30 transition-all duration-300 hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"
     :aria-label="`Voir le profil de ${face.prenom}`"
   >
-    <!-- Portrait Image -->
+    <!-- Portrait Image or Placeholder -->
     <div class="relative aspect-[4/5] overflow-hidden bg-gray-100">
+      <!-- Actual Photo -->
       <img
-        :src="imageUrl"
+        v-if="hasPhoto"
+        :src="face.profile_photo_thumbnail_url!"
         :alt="`Photo de ${face.prenom}`"
         class="h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-110"
         loading="lazy"
       />
+
+      <!-- Placeholder when no photo -->
+      <div
+        v-else
+        class="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200"
+        :aria-label="`Pas de photo pour ${face.prenom}`"
+      >
+        <div class="flex flex-col items-center gap-2">
+          <div class="rounded-full bg-white/80 p-4 shadow-sm">
+            <User class="h-12 w-12 text-gray-400" />
+          </div>
+          <span class="text-xs font-medium text-gray-400">Pas de photo</span>
+        </div>
+      </div>
 
       <!-- Gradient Overlay -->
       <div
