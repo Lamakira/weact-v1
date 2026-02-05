@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Public\FaceController;
 use App\Http\Controllers\Api\V1\Public\FaceReviewController;
 use App\Http\Controllers\Api\V1\Public\ProducerController;
 use App\Http\Controllers\Api\V1\Public\ProducerReviewController;
@@ -18,6 +19,9 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
+    // Public Faces list (paginated)
+    Route::get('/faces', [FaceController::class, 'index']);
+
     // Producer public profile
     Route::get('/producers/{id}', [ProducerController::class, 'show'])
         ->whereNumber('id');
