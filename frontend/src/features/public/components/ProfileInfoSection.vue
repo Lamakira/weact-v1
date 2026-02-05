@@ -1,0 +1,134 @@
+<script setup lang="ts">
+import { MapPin, Star, Video, Lock, ChevronRight } from 'lucide-vue-next'
+
+interface Props {
+  prenom: string
+  ville: string | null
+  categorie: string
+  categorieLabel: string
+  niche: string | null
+  nicheLabel: string | null
+  averageRating: number | null
+  ratingsCount: number
+  hasVideos: boolean
+  videosCount: number
+}
+
+defineProps<Props>()
+</script>
+
+<template>
+  <div class="flex flex-col gap-6 p-1 bg-white" data-testid="profile-info-section">
+    <!-- Header Section -->
+    <div class="space-y-1">
+      <h1
+        class="text-3xl font-bold text-gray-900 tracking-tight"
+        data-testid="face-prenom"
+      >
+        {{ prenom }}
+      </h1>
+      <div
+        v-if="ville"
+        class="flex items-center text-gray-500 text-sm"
+        data-testid="face-ville"
+      >
+        <MapPin class="w-4 h-4 mr-1" aria-hidden="true" />
+        <span>{{ ville }}</span>
+      </div>
+    </div>
+
+    <!-- Badges Row -->
+    <div class="flex flex-wrap gap-2" data-testid="face-badges">
+      <span
+        class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#198496]/10 text-[#198496]"
+        data-testid="categorie-badge"
+      >
+        {{ categorieLabel }}
+      </span>
+      <span
+        v-if="nicheLabel"
+        class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200/50"
+        data-testid="niche-badge"
+      >
+        {{ nicheLabel }}
+      </span>
+    </div>
+
+    <!-- Rating Section -->
+    <div
+      class="flex items-center gap-2"
+      data-testid="rating-section"
+      :aria-label="`Note moyenne: ${averageRating?.toFixed(1) || '0'} étoiles sur 5, basée sur ${ratingsCount} avis`"
+    >
+      <div class="flex items-center" aria-hidden="true">
+        <Star
+          v-for="i in 5"
+          :key="i"
+          class="w-4 h-4"
+          :class="
+            i <= Math.round(averageRating || 0)
+              ? 'fill-amber-400 text-amber-400'
+              : 'text-gray-200'
+          "
+        />
+      </div>
+      <span class="text-sm font-medium text-gray-900">{{
+        averageRating?.toFixed(1) || '0.0'
+      }}</span>
+      <span class="text-sm text-gray-500">({{ ratingsCount }} avis)</span>
+    </div>
+
+    <hr class="border-gray-100" />
+
+    <!-- Video Teaser Section -->
+    <div
+      v-if="hasVideos"
+      class="relative group cursor-default overflow-hidden rounded-xl border border-gray-100 bg-gray-50 p-4"
+      data-testid="video-teaser"
+      aria-label="Vidéos disponibles, réservées aux producteurs inscrits"
+    >
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2 text-gray-900 font-medium">
+          <Video class="w-4 h-4 text-[#198496]" aria-hidden="true" />
+          <span class="text-sm">Vidéos disponibles ({{ videosCount }})</span>
+        </div>
+        <Lock class="w-4 h-4 text-gray-400" aria-hidden="true" />
+      </div>
+
+      <!-- Locked Visual Placeholder -->
+      <div class="grid grid-cols-3 gap-2 opacity-40 grayscale">
+        <div
+          v-for="n in 3"
+          :key="n"
+          class="aspect-square bg-gray-300 rounded-lg"
+        ></div>
+      </div>
+
+      <!-- Overlay text -->
+      <div
+        class="absolute inset-0 flex items-center justify-center bg-white/30 backdrop-blur-[1px]"
+      >
+        <span
+          class="text-xs font-semibold text-gray-600 bg-white px-3 py-1 rounded-full shadow-sm border border-gray-100"
+        >
+          Inscrivez-vous pour voir
+        </span>
+      </div>
+    </div>
+
+    <!-- Conversion CTA -->
+    <div class="mt-4">
+      <RouterLink
+        to="/register/producer"
+        class="flex items-center justify-center gap-2 w-full text-sm font-semibold bg-[#198496] text-white px-6 py-3 rounded-md hover:bg-[#146c7a] transition-all transform active:scale-[0.98] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#198496]/20"
+        data-testid="producer-cta"
+      >
+        Créer un compte producteur pour accéder au profil complet
+        <ChevronRight class="w-4 h-4" aria-hidden="true" />
+      </RouterLink>
+      <p class="text-center text-[11px] text-gray-400 mt-3 uppercase tracking-widest font-medium">
+        Réservé aux professionnels vérifiés
+      </p>
+    </div>
+  </div>
+</template>

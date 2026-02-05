@@ -1,4 +1,4 @@
-import axios from 'axios'
+import axios, { AxiosError } from 'axios'
 
 /**
  * Public Face data exposed by the API
@@ -13,6 +13,39 @@ export interface PublicFace {
   is_available: boolean
   profile_photo_thumbnail_url: string | null
   average_rating: number | null
+}
+
+/**
+ * Public Face Profile data (extended for profile detail view)
+ * Includes additional fields like niche, photo URL, and content indicators
+ */
+export interface PublicFaceProfile extends PublicFace {
+  niche: string | null
+  niche_label: string | null
+  profile_photo_url: string | null // Full size, not thumbnail
+  ratings_count: number
+  has_album_photos: boolean
+  album_photos_count: number
+  has_presentation_video: boolean
+  has_acting_video: boolean
+}
+
+/**
+ * API response format for a single face profile
+ */
+export interface PublicFaceProfileResponse {
+  data: PublicFaceProfile
+  message: string
+}
+
+/**
+ * Result type for face profile fetch with error handling
+ */
+export interface PublicFaceProfileResult {
+  success: boolean
+  profile?: PublicFaceProfile
+  error?: string
+  notFound?: boolean
 }
 
 /**
@@ -67,4 +100,42 @@ export async function fetchPublicFaces(
   })
 
   return response.data
+}
+
+/**
+ * Fetch a single public face profile by ID
+ *
+ * @param id - Face ID
+ * @returns Promise with face profile data or error result
+ */
+export async function fetchPublicFaceProfile(
+  id: number
+): Promise<PublicFaceProfileResult> {
+  try {
+    const response = await apiClient.get<PublicFaceProfileResponse>(
+      `/v1/public/faces/${id}`
+    )
+
+    return {
+      success: true,
+      profile: response.data.data,
+    }
+  } catch (err) {
+    const axiosError = err as AxiosError
+
+    // Handle 404 - Face not found
+    if (axiosError.response?.status === 404) {
+      return {
+        success: false,
+        notFound: true,
+        error: 'Face non trouvée',
+      }
+    }
+
+    // Handle network or other errors
+    return {
+      success: false,
+      error: 'Une erreur est survenue. Veuillez réessayer.',
+    }
+  }
 }

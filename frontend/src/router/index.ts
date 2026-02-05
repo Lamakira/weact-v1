@@ -203,7 +203,11 @@ const router = createRouter({
     {
       path: '/faces/:id',
       name: 'public-face-profile',
-      component: () => import('../views/PublicFacesView.vue'), // TODO: Create public face profile page (Story 11-4)
+      component: () => import('../views/PublicFaceProfileView.vue'),
+      meta: {
+        title: 'Profil | WEACT',
+        description: 'Découvrez le profil de ce talent sur WEACT.',
+      },
     },
     {
       path: '/producers/:id',
