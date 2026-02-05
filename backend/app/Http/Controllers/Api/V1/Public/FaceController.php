@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1\Public;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Public\ListFacesRequest;
+use App\Http\Resources\PublicFaceProfileResource;
 use App\Http\Resources\PublicFaceResource;
 use App\Models\Face;
 use Illuminate\Http\JsonResponse;
@@ -37,6 +38,31 @@ class FaceController extends Controller
                 'total' => $faces->total(),
             ],
             'message' => 'Faces retrieved successfully',
+        ]);
+    }
+
+    /**
+     * Display a public Face profile.
+     *
+     * No authentication required - this is a PUBLIC endpoint.
+     * Returns limited profile information for visitors.
+     */
+    public function show(int $id): JsonResponse
+    {
+        $face = Face::with('photos')->find($id);
+
+        if (! $face) {
+            return response()->json([
+                'error' => [
+                    'code' => 'FACE_NOT_FOUND',
+                    'message' => 'Face non trouvée',
+                ],
+            ], 404);
+        }
+
+        return response()->json([
+            'data' => new PublicFaceProfileResource($face),
+            'message' => 'Face profile retrieved successfully',
         ]);
     }
 }

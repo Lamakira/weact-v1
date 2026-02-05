@@ -22,6 +22,10 @@ Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
     // Public Faces list (paginated)
     Route::get('/faces', [FaceController::class, 'index']);
 
+    // Public Face profile (limited info)
+    Route::get('/faces/{id}', [FaceController::class, 'show'])
+        ->whereNumber('id');
+
     // Producer public profile
     Route::get('/producers/{id}', [ProducerController::class, 'show'])
         ->whereNumber('id');
