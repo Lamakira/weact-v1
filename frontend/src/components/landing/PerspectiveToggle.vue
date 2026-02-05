@@ -37,7 +37,10 @@ function handleKeydown(event: KeyboardEvent, currentValue: Perspective): void {
   }
 
   if (newIndex !== currentIndex) {
-    emit('update:modelValue', options[newIndex].value)
+    const option = options[newIndex]
+    if (option) {
+      emit('update:modelValue', option.value)
+    }
   }
 }
 </script>

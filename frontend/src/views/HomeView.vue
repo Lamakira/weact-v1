@@ -220,16 +220,16 @@ function getStatusBadge(status: string): { class: string; label: string } {
                   <div
                     class="absolute -top-4 -left-4 w-10 h-10 bg-[#198496] text-white flex items-center justify-center rounded-md font-bold text-sm"
                   >
-                    {{ content.howItWorks.steps[0].number }}
+                    {{ content.howItWorks.steps[0]!.number }}
                   </div>
                   <div
                     class="w-14 h-14 bg-[#198496]/10 rounded-xl flex items-center justify-center text-[#198496] mb-6"
                   >
-                    <component :is="content.howItWorks.steps[0].icon" class="w-7 h-7" />
+                    <component :is="content.howItWorks.steps[0]!.icon" class="w-7 h-7" />
                   </div>
-                  <h3 class="text-lg font-bold mb-3">{{ content.howItWorks.steps[0].title }}</h3>
+                  <h3 class="text-lg font-bold mb-3">{{ content.howItWorks.steps[0]!.title }}</h3>
                   <p class="text-gray-500 text-sm leading-relaxed">
-                    {{ content.howItWorks.steps[0].description }}
+                    {{ content.howItWorks.steps[0]!.description }}
                   </p>
                 </div>
               </div>
@@ -266,16 +266,16 @@ function getStatusBadge(status: string): { class: string; label: string } {
                   <div
                     class="absolute -top-4 -left-4 w-10 h-10 bg-[#198496] text-white flex items-center justify-center rounded-md font-bold text-sm"
                   >
-                    {{ content.howItWorks.steps[1].number }}
+                    {{ content.howItWorks.steps[1]!.number }}
                   </div>
                   <div
                     class="w-14 h-14 bg-[#198496]/10 rounded-xl flex items-center justify-center text-[#198496] mb-6"
                   >
-                    <component :is="content.howItWorks.steps[1].icon" class="w-7 h-7" />
+                    <component :is="content.howItWorks.steps[1]!.icon" class="w-7 h-7" />
                   </div>
-                  <h3 class="text-lg font-bold mb-3">{{ content.howItWorks.steps[1].title }}</h3>
+                  <h3 class="text-lg font-bold mb-3">{{ content.howItWorks.steps[1]!.title }}</h3>
                   <p class="text-gray-500 text-sm leading-relaxed">
-                    {{ content.howItWorks.steps[1].description }}
+                    {{ content.howItWorks.steps[1]!.description }}
                   </p>
                 </div>
               </div>
@@ -312,16 +312,16 @@ function getStatusBadge(status: string): { class: string; label: string } {
                   <div
                     class="absolute -top-4 -left-4 w-10 h-10 bg-[#198496] text-white flex items-center justify-center rounded-md font-bold text-sm"
                   >
-                    {{ content.howItWorks.steps[2].number }}
+                    {{ content.howItWorks.steps[2]!.number }}
                   </div>
                   <div
                     class="w-14 h-14 bg-[#198496]/10 rounded-xl flex items-center justify-center text-[#198496] mb-6"
                   >
-                    <component :is="content.howItWorks.steps[2].icon" class="w-7 h-7" />
+                    <component :is="content.howItWorks.steps[2]!.icon" class="w-7 h-7" />
                   </div>
-                  <h3 class="text-lg font-bold mb-3">{{ content.howItWorks.steps[2].title }}</h3>
+                  <h3 class="text-lg font-bold mb-3">{{ content.howItWorks.steps[2]!.title }}</h3>
                   <p class="text-gray-500 text-sm leading-relaxed">
-                    {{ content.howItWorks.steps[2].description }}
+                    {{ content.howItWorks.steps[2]!.description }}
                   </p>
                 </div>
               </div>
@@ -358,16 +358,16 @@ function getStatusBadge(status: string): { class: string; label: string } {
                   <div
                     class="absolute -top-4 -left-4 w-10 h-10 bg-[#198496] text-white flex items-center justify-center rounded-md font-bold text-sm"
                   >
-                    {{ content.howItWorks.steps[3].number }}
+                    {{ content.howItWorks.steps[3]!.number }}
                   </div>
                   <div
                     class="w-14 h-14 bg-[#198496]/10 rounded-xl flex items-center justify-center text-[#198496] mb-6"
                   >
-                    <component :is="content.howItWorks.steps[3].icon" class="w-7 h-7" />
+                    <component :is="content.howItWorks.steps[3]!.icon" class="w-7 h-7" />
                   </div>
-                  <h3 class="text-lg font-bold mb-3">{{ content.howItWorks.steps[3].title }}</h3>
+                  <h3 class="text-lg font-bold mb-3">{{ content.howItWorks.steps[3]!.title }}</h3>
                   <p class="text-gray-500 text-sm leading-relaxed">
-                    {{ content.howItWorks.steps[3].description }}
+                    {{ content.howItWorks.steps[3]!.description }}
                   </p>
                 </div>
               </div>
