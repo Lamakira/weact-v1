@@ -16,12 +16,7 @@ const niches = ['Publicité', 'Cinéma', 'Mode', 'Télévision', 'Digital']
 // Placeholder function - will trigger actual filtering in Story 11-5
 function handleFilterChange(): void {
   // Filtering logic will be implemented in Story 11-5
-  console.log('Filters:', {
-    search: searchQuery.value,
-    city: selectedCity.value,
-    category: selectedCategory.value,
-    niche: selectedNiche.value,
-  })
+  // Currently disabled - all filter inputs are non-functional
 }
 </script>
 
