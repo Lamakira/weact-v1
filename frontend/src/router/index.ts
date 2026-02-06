@@ -201,6 +201,16 @@ const router = createRouter({
       },
     },
     {
+      path: '/missions',
+      name: 'public-missions-list',
+      component: () => import('../views/PublicMissionsView.vue'),
+      meta: {
+        title: 'Missions - WEACT',
+        description:
+          'Découvrez les opportunités de casting disponibles au Bénin. Publicités, films, courts-métrages et clips musicaux.',
+      },
+    },
+    {
       path: '/faces/:id',
       name: 'public-face-profile',
       component: () => import('../views/PublicFaceProfileView.vue'),
