@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { watch, computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { watch, computed, watchEffect, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useTitle } from '@vueuse/core'
-import { ChevronLeft, AlertCircle, RefreshCw, UserX } from 'lucide-vue-next'
+import { ChevronLeft, AlertCircle, RefreshCw, UserX, FileText, Banknote } from 'lucide-vue-next'
 import { useFaceProfile } from '@/features/public/composables/useFaceProfile'
 import ProfilePhotoSection from '@/features/public/components/ProfilePhotoSection.vue'
 import ProfileInfoSection from '@/features/public/components/ProfileInfoSection.vue'
+import LockedContentTeaser from '@/features/public/components/LockedContentTeaser.vue'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const route = useRoute()
-const router = useRouter()
 const {
   face,
   isLoading,
@@ -52,43 +52,67 @@ const pageTitle = computed(() => {
 
 useTitle(pageTitle)
 
+// SEO - Dynamic meta tags (description + Open Graph)
+const metaTags: HTMLMetaElement[] = []
+
+function setMetaTag(name: string, content: string, isProperty = false): void {
+  const attr = isProperty ? 'property' : 'name'
+  let tag = document.querySelector(`meta[${attr}="${name}"]`) as HTMLMetaElement | null
+  if (!tag) {
+    tag = document.createElement('meta')
+    tag.setAttribute(attr, name)
+    document.head.appendChild(tag)
+    metaTags.push(tag)
+  }
+  tag.content = content
+}
+
+watchEffect(() => {
+  if (face.value) {
+    const description = `Découvrez le profil de ${face.value.prenom}, ${face.value.categorie_label}${face.value.ville ? ` à ${face.value.ville}` : ''}. Inscrivez-vous sur WEACT pour accéder au profil complet.`
+    setMetaTag('description', description)
+    setMetaTag('og:title', `${face.value.prenom} - ${face.value.categorie_label} | WEACT`, true)
+    setMetaTag('og:description', 'Profil de talent sur WEACT', true)
+    if (face.value.profile_photo_url) {
+      setMetaTag('og:image', face.value.profile_photo_url, true)
+    }
+  }
+})
+
+onUnmounted(() => {
+  metaTags.forEach(tag => tag.remove())
+})
+
 // Retry handler for errors
 async function handleRetry(): Promise<void> {
   if (faceId.value) {
     await fetchFace(faceId.value)
   }
 }
-
-// Navigate back to faces list
-function handleBackToList(): void {
-  router.push({ name: 'public-faces-list' })
-}
 </script>
 
 <template>
   <div class="min-h-screen bg-gray-50" data-testid="public-face-profile-view">
-    <!-- Navigation Header -->
+    <!-- Breadcrumb Navigation -->
     <nav
       aria-label="Breadcrumb"
-      class="bg-white border-b border-gray-100"
+      class="max-w-7xl mx-auto px-4 md:px-6 pt-8 md:pt-10"
     >
-      <div class="max-w-7xl mx-auto px-4 md:px-6 py-4">
-        <RouterLink
-          to="/faces"
-          class="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-[#198496] transition-colors group"
-          data-testid="back-to-list"
-        >
-          <ChevronLeft
-            :size="18"
-            class="transition-transform group-hover:-translate-x-1"
-            aria-hidden="true"
-          />
-          Retour aux talents
-        </RouterLink>
-      </div>
+      <RouterLink
+        to="/faces"
+        class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#198496] transition-all duration-200 group"
+        data-testid="back-to-list"
+      >
+        <ChevronLeft
+          :size="16"
+          class="transition-transform group-hover:-translate-x-0.5"
+          aria-hidden="true"
+        />
+        Retour aux talents
+      </RouterLink>
     </nav>
 
-    <main id="main-content" class="max-w-7xl mx-auto px-4 md:px-6 py-8 md:py-12">
+    <main id="main-content" class="max-w-7xl mx-auto px-4 md:px-6 pt-6 pb-8 md:pt-8 md:pb-12">
       <!-- LOADING STATE -->
       <div
         v-if="isLoading"
@@ -175,48 +199,61 @@ function handleBackToList(): void {
       <!-- SUCCESS STATE -->
       <div
         v-else-if="face"
-        class="lg:grid lg:grid-cols-[35%_1fr] lg:gap-12 xl:gap-16 items-start"
+        class="space-y-8"
         data-testid="face-profile"
       >
-        <!-- Photo Section (Left on desktop, top on mobile) -->
-        <aside class="mb-8 lg:mb-0 lg:sticky lg:top-8">
-          <ProfilePhotoSection
-            :photo-url="face.profile_photo_url"
-            :prenom="face.prenom"
-            :is-available="face.is_available"
-            :has-album-photos="face.has_album_photos"
-            :album-photos-count="face.album_photos_count"
-          />
-        </aside>
+        <div class="lg:grid lg:grid-cols-[35%_1fr] lg:gap-12 xl:gap-16 items-start">
+          <!-- Photo Section (Left on desktop, top on mobile) -->
+          <aside class="mb-8 lg:mb-0 lg:sticky lg:top-8">
+            <ProfilePhotoSection
+              :photo-url="face.profile_photo_url"
+              :prenom="face.prenom"
+              :is-available="face.is_available"
+              :has-album-photos="face.has_album_photos"
+              :album-photos-count="face.album_photos_count"
+            />
+          </aside>
 
-        <!-- Info Section (Right on desktop, bottom on mobile) -->
-        <article class="bg-white rounded-2xl p-6 md:p-8 border border-gray-100 shadow-sm">
-          <ProfileInfoSection
-            :prenom="face.prenom"
-            :ville="face.ville"
-            :categorie="face.categorie"
-            :categorie-label="face.categorie_label"
-            :niche="face.niche"
-            :niche-label="face.niche_label"
-            :average-rating="face.average_rating"
-            :ratings-count="face.ratings_count"
-            :has-videos="hasVideos"
-            :videos-count="videosCount"
+          <!-- Info Section (Right on desktop, bottom on mobile) -->
+          <article class="bg-white rounded-2xl p-6 md:p-8 border border-gray-100 shadow-sm">
+            <ProfileInfoSection
+              :prenom="face.prenom"
+              :ville="face.ville"
+              :categorie="face.categorie"
+              :categorie-label="face.categorie_label"
+              :niche="face.niche"
+              :niche-label="face.niche_label"
+              :average-rating="face.average_rating"
+              :ratings-count="face.ratings_count"
+              :has-videos="hasVideos"
+              :videos-count="videosCount"
+            />
+          </article>
+        </div>
+
+        <!-- Locked Content Teasers -->
+        <div class="grid md:grid-cols-2 gap-6" data-testid="locked-teasers">
+          <LockedContentTeaser
+            title="Bio & Expériences professionnelles"
+            description="Découvrez le parcours complet et les expériences de ce talent."
+            cta-text="S'inscrire pour voir"
+            cta-link="/register/producer"
+            :icon="FileText"
           />
-        </article>
+          <LockedContentTeaser
+            title="Tarifs & Caractéristiques"
+            description="Accédez aux tarifs, mensurations et détails physiques."
+            cta-text="S'inscrire pour voir"
+            cta-link="/register/producer"
+            :icon="Banknote"
+          />
+        </div>
       </div>
     </main>
   </div>
 </template>
 
 <style scoped>
-/* Ensure the layout respects the 35/65 split on large screens */
-@media (min-width: 1024px) {
-  .lg\:grid-cols-\[35\%_1fr\] {
-    grid-template-columns: 35% 1fr;
-  }
-}
-
 /* Subtle fade-in animation */
 main {
   animation: fadeIn 0.3s ease-out;
