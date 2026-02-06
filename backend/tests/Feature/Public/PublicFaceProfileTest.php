@@ -327,4 +327,19 @@ class PublicFaceProfileTest extends TestCase
         $response->assertOk();
         $this->assertEquals('Face profile retrieved successfully', $response->json('message'));
     }
+
+    public function test_rate_limiting_headers_are_present(): void
+    {
+        $face = Face::factory()->create(['is_available' => true]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+
+        $response = $this->getJson("/api/v1/public/faces/{$face->id}");
+
+        $response->assertOk();
+        $response->assertHeader('X-RateLimit-Limit');
+        $response->assertHeader('X-RateLimit-Remaining');
+    }
 }

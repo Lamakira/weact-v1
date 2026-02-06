@@ -25,11 +25,6 @@ class PublicFaceProfileResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        // Load photos relationship if not loaded to check album count
-        if (! $this->relationLoaded('photos')) {
-            $this->load('photos');
-        }
-
         $albumPhotosCount = $this->photos->count();
 
         return [
