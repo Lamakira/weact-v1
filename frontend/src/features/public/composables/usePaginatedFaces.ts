@@ -4,15 +4,16 @@ import {
   fetchPublicFaces,
   type PublicFace,
   type PaginationMeta,
+  type FacesFilterParams,
 } from '../services/publicFacesApi'
 
 /**
- * Composable for managing paginated faces list with URL sync
+ * Composable for managing paginated faces list with URL sync and filters
  *
  * Features:
  * - Reactive loading, error, and data states
- * - URL query param sync for pagination
- * - Automatic fetch on page change
+ * - URL query param sync for pagination and filters
+ * - Automatic fetch on page/filter change
  */
 export function usePaginatedFaces(perPage: number = 15) {
   const route = useRoute()
@@ -23,12 +24,24 @@ export function usePaginatedFaces(perPage: number = 15) {
   const meta = ref<PaginationMeta | null>(null)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  let requestId = 0 // Counter to discard stale responses
 
-  // Computed properties
+  // Computed: read current page from URL
   const currentPage = computed(() => {
     const page = Number(route.query.page) || 1
     return Math.max(1, page)
   })
+
+  // Computed: read current filters from URL
+  const filters = computed<FacesFilterParams>(() => ({
+    categorie: (route.query.categorie as string) || undefined,
+    niche: (route.query.niche as string) || undefined,
+    ville: (route.query.ville as string) || undefined,
+  }))
+
+  const hasActiveFilters = computed(() =>
+    Boolean(filters.value.categorie || filters.value.niche || filters.value.ville)
+  )
 
   const totalPages = computed(() => meta.value?.last_page ?? 1)
   const totalItems = computed(() => meta.value?.total ?? 0)
@@ -37,64 +50,83 @@ export function usePaginatedFaces(perPage: number = 15) {
   const isEmpty = computed(() => !isLoading.value && faces.value.length === 0)
 
   /**
-   * Load faces for a specific page
+   * Load faces for a specific page with current filters
    */
   async function loadPage(page: number): Promise<void> {
-    // Validate page number
     const validPage = Math.max(1, page)
 
-    // Update URL if different from current
+    // Update URL if page differs from current
     if (validPage !== currentPage.value) {
       await router.push({
-        query: { ...route.query, page: validPage > 1 ? String(validPage) : undefined },
+        query: {
+          ...route.query,
+          page: validPage > 1 ? String(validPage) : undefined,
+        },
       })
       return // Watch will trigger load
     }
 
     isLoading.value = true
     error.value = null
+    const currentRequestId = ++requestId
 
     try {
-      const response = await fetchPublicFaces(validPage, perPage)
+      const response = await fetchPublicFaces(validPage, perPage, filters.value)
+      // Discard stale responses from superseded requests
+      if (currentRequestId !== requestId) return
       faces.value = response.data
       meta.value = response.meta
-    } catch (err) {
+    } catch (err: unknown) {
+      if (currentRequestId !== requestId) return
       console.error('Failed to fetch faces:', err)
       error.value = 'Une erreur est survenue lors du chargement des talents. Veuillez réessayer.'
       faces.value = []
     } finally {
-      isLoading.value = false
+      if (currentRequestId === requestId) {
+        isLoading.value = false
+      }
     }
   }
 
   /**
-   * Go to next page
+   * Update filters and reset to page 1
    */
+  async function updateFilters(newFilters: FacesFilterParams): Promise<void> {
+    const query: Record<string, string> = {}
+    if (newFilters.categorie) query.categorie = newFilters.categorie
+    if (newFilters.niche) query.niche = newFilters.niche
+    if (newFilters.ville) query.ville = newFilters.ville
+    // Reset page to 1 when filters change (omit page param)
+
+    await router.push({ query })
+  }
+
+  /**
+   * Clear all filters and reset to page 1
+   */
+  async function clearFilters(): Promise<void> {
+    await router.push({ query: {} })
+  }
+
   function nextPage(): void {
     if (hasNextPage.value) {
       loadPage(currentPage.value + 1)
     }
   }
 
-  /**
-   * Go to previous page
-   */
   function previousPage(): void {
     if (hasPreviousPage.value) {
       loadPage(currentPage.value - 1)
     }
   }
 
-  /**
-   * Retry loading current page after error
-   */
   function retry(): void {
     loadPage(currentPage.value)
   }
 
-  // Watch for URL changes and reload data
+  // Watch for URL changes (page or filters) and reload data
   watch(
-    () => route.query.page,
+    () => [route.query.page, route.query.categorie, route.query.niche, route.query.ville],
     () => {
       loadPage(currentPage.value)
     }
@@ -119,11 +151,15 @@ export function usePaginatedFaces(perPage: number = 15) {
     hasNextPage,
     hasPreviousPage,
     isEmpty,
+    filters,
+    hasActiveFilters,
 
     // Methods
     loadPage,
     nextPage,
     previousPage,
     retry,
+    updateFilters,
+    clearFilters,
   }
 }

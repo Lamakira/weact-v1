@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Public;
 
+use App\Enums\FaceCategory;
+use App\Enums\FaceNiche;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Public\ListFacesRequest;
 use App\Http\Resources\PublicFaceProfileResource;
 use App\Http\Resources\PublicFaceResource;
 use App\Models\Face;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 
 class FaceController extends Controller
 {
@@ -23,9 +26,16 @@ class FaceController extends Controller
         // Get validated per_page from form request
         $perPage = $request->getPerPage();
 
-        // Query faces - paginate all faces for MVP
-        // In the future, we might filter by is_available or profile completion
+        // Query faces with optional filters and eager-loaded average rating
         $faces = Face::query()
+            ->withAvg('ratingsReceived', 'score')
+            ->when($request->validated('categorie'), fn ($q, $cat) => $q->where('categorie', $cat))
+            ->when($request->validated('niche'), fn ($q, $niche) => $q->where('niche', $niche))
+            ->when($request->validated('ville'), function ($q, $ville) {
+                $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $ville);
+
+                return $q->where('ville', 'like', "%{$escaped}%");
+            })
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
@@ -38,6 +48,44 @@ class FaceController extends Controller
                 'total' => $faces->total(),
             ],
             'message' => 'Faces retrieved successfully',
+        ]);
+    }
+
+    /**
+     * Return available filter options for the public faces list.
+     *
+     * Categories and niches from enums, cities aggregated from database.
+     */
+    public function filterOptions(): JsonResponse
+    {
+        $categories = array_map(
+            fn (FaceCategory $cat) => ['value' => $cat->value, 'label' => $cat->label()],
+            FaceCategory::cases()
+        );
+
+        $niches = array_map(
+            fn (FaceNiche $niche) => ['value' => $niche->value, 'label' => $niche->label()],
+            FaceNiche::cases()
+        );
+
+        $cities = Cache::remember('public_faces_cities', 3600, function () {
+            return Face::query()
+                ->whereNotNull('ville')
+                ->where('ville', '!=', '')
+                ->distinct()
+                ->pluck('ville')
+                ->sort()
+                ->values()
+                ->all();
+        });
+
+        return response()->json([
+            'data' => [
+                'categories' => $categories,
+                'niches' => $niches,
+                'cities' => $cities,
+            ],
+            'message' => 'Filter options retrieved successfully',
         ]);
     }
 

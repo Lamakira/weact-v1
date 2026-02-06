@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import { Users, AlertCircle, RefreshCw } from 'lucide-vue-next'
 import { usePaginatedFaces } from '@/features/public/composables/usePaginatedFaces'
+import { fetchFilterOptions, type FilterOption, type FacesFilterParams } from '@/features/public/services/publicFacesApi'
 import FaceCard from '@/features/public/components/FaceCard.vue'
 import FilterBar from '@/features/public/components/FilterBar.vue'
 import { Pagination } from '@/components/ui/pagination'
@@ -15,9 +17,39 @@ const {
   currentPage,
   totalPages,
   totalItems,
+  filters,
+  hasActiveFilters,
   loadPage,
+  updateFilters,
   retry,
 } = usePaginatedFaces(15)
+
+// Filter options from API
+const categories = ref<FilterOption[]>([])
+const niches = ref<FilterOption[]>([])
+const cities = ref<string[]>([])
+const filterOptionsError = ref(false)
+
+async function loadFilterOptions(): Promise<void> {
+  filterOptionsError.value = false
+  try {
+    const options = await fetchFilterOptions()
+    categories.value = options.data.categories
+    niches.value = options.data.niches
+    cities.value = options.data.cities
+  } catch {
+    filterOptionsError.value = true
+    console.error('Failed to load filter options')
+  }
+}
+
+onMounted(() => {
+  loadFilterOptions()
+})
+
+function handleFilterChange(newFilters: FacesFilterParams): void {
+  updateFilters(newFilters)
+}
 
 function handlePageChange(page: number): void {
   loadPage(page)
@@ -50,7 +82,26 @@ function handlePageChange(page: number): void {
 
     <!-- Filter Bar -->
     <div class="mb-8">
-      <FilterBar />
+      <FilterBar
+        :categories="categories"
+        :niches="niches"
+        :cities="cities"
+        :current-filters="filters"
+        @filter-change="handleFilterChange"
+      />
+      <p
+        v-if="filterOptionsError"
+        class="mt-2 text-center text-xs text-amber-600"
+      >
+        Les options de filtres n'ont pas pu être chargées.
+        <button
+          type="button"
+          class="underline hover:text-amber-800"
+          @click="loadFilterOptions"
+        >
+          Réessayer
+        </button>
+      </p>
     </div>
 
     <!-- Loading State -->
@@ -107,11 +158,13 @@ function handlePageChange(page: number): void {
         <Users class="w-8 h-8" />
       </div>
       <h2 class="text-xl font-bold text-gray-900 mb-2">
-        Aucun talent disponible
+        {{ hasActiveFilters ? 'Aucun talent ne correspond à vos critères' : 'Aucun talent disponible' }}
       </h2>
       <p class="text-gray-600 max-w-md mx-auto">
-        Il n'y a pas encore de talents inscrits sur la plateforme.
-        Revenez bientôt !
+        {{ hasActiveFilters
+          ? 'Essayez d\'élargir vos filtres pour voir plus de résultats.'
+          : 'Il n\'y a pas encore de talents inscrits sur la plateforme. Revenez bientôt !'
+        }}
       </p>
     </div>
 

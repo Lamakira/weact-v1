@@ -371,6 +371,13 @@ class Face extends Model
     {
         return Attribute::make(
             get: function (): ?float {
+                // Use eager-loaded aggregate when available (withAvg)
+                if (array_key_exists('ratings_received_avg_score', $this->attributes)) {
+                    $avg = $this->attributes['ratings_received_avg_score'];
+
+                    return $avg !== null ? (float) $avg : null;
+                }
+
                 $avg = $this->ratingsReceived()->avg('score');
 
                 return $avg !== null ? (float) $avg : null;
