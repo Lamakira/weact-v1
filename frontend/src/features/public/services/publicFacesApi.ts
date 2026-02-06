@@ -1,4 +1,5 @@
-import axios, { AxiosError } from 'axios'
+import { AxiosError } from 'axios'
+import { publicApiClient } from './apiClient'
 
 /**
  * Public Face data exposed by the API
@@ -97,17 +98,6 @@ export interface PublicFacesResponse {
 }
 
 /**
- * API client instance configured for public endpoints
- */
-const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
-  headers: {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-  },
-})
-
-/**
  * Fetch paginated list of public faces with optional filters
  *
  * @param page - Page number (1-indexed)
@@ -132,7 +122,7 @@ export async function fetchPublicFaces(
   if (filters.niche) params.niche = filters.niche
   if (filters.ville) params.ville = filters.ville
 
-  const response = await apiClient.get<PublicFacesResponse>('/v1/public/faces', {
+  const response = await publicApiClient.get<PublicFacesResponse>('/v1/public/faces', {
     params,
   })
 
@@ -145,7 +135,7 @@ export async function fetchPublicFaces(
  * @returns Promise with filter options data
  */
 export async function fetchFilterOptions(): Promise<FilterOptionsResponse> {
-  const response = await apiClient.get<FilterOptionsResponse>('/v1/public/faces/options')
+  const response = await publicApiClient.get<FilterOptionsResponse>('/v1/public/faces/options')
 
   return response.data
 }
@@ -160,7 +150,7 @@ export async function fetchPublicFaceProfile(
   id: number
 ): Promise<PublicFaceProfileResult> {
   try {
-    const response = await apiClient.get<PublicFaceProfileResponse>(
+    const response = await publicApiClient.get<PublicFaceProfileResponse>(
       `/v1/public/faces/${id}`
     )
 
