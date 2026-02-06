@@ -59,6 +59,35 @@ export interface PaginationMeta {
 }
 
 /**
+ * Filter parameters for the public faces list
+ */
+export interface FacesFilterParams {
+  categorie?: string
+  niche?: string
+  ville?: string
+}
+
+/**
+ * A filter option with value and display label
+ */
+export interface FilterOption {
+  value: string
+  label: string
+}
+
+/**
+ * API response for filter options endpoint
+ */
+export interface FilterOptionsResponse {
+  data: {
+    categories: FilterOption[]
+    niches: FilterOption[]
+    cities: string[]
+  }
+  message: string
+}
+
+/**
  * API response format for paginated faces list
  */
 export interface PublicFacesResponse {
@@ -79,25 +108,44 @@ const apiClient = axios.create({
 })
 
 /**
- * Fetch paginated list of public faces
+ * Fetch paginated list of public faces with optional filters
  *
  * @param page - Page number (1-indexed)
  * @param perPage - Items per page (default: 15, max: 30)
+ * @param filters - Optional filter parameters
  * @returns Promise with faces data and pagination meta
  */
 export async function fetchPublicFaces(
   page: number = 1,
-  perPage: number = 15
+  perPage: number = 15,
+  filters: FacesFilterParams = {}
 ): Promise<PublicFacesResponse> {
   // Clamp perPage to max 30
   const validPerPage = Math.min(Math.max(1, perPage), 30)
 
+  // Build params, only including non-empty filter values
+  const params: Record<string, string | number> = {
+    page,
+    per_page: validPerPage,
+  }
+  if (filters.categorie) params.categorie = filters.categorie
+  if (filters.niche) params.niche = filters.niche
+  if (filters.ville) params.ville = filters.ville
+
   const response = await apiClient.get<PublicFacesResponse>('/v1/public/faces', {
-    params: {
-      page,
-      per_page: validPerPage,
-    },
+    params,
   })
+
+  return response.data
+}
+
+/**
+ * Fetch available filter options (categories, niches, cities)
+ *
+ * @returns Promise with filter options data
+ */
+export async function fetchFilterOptions(): Promise<FilterOptionsResponse> {
+  const response = await apiClient.get<FilterOptionsResponse>('/v1/public/faces/options')
 
   return response.data
 }

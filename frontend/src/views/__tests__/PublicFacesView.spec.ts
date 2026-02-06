@@ -272,7 +272,11 @@ describe('PublicFacesView', () => {
       await mountView()
       await flushPromises()
 
-      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(1, 15)
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(1, 15, {
+        categorie: undefined,
+        niche: undefined,
+        ville: undefined,
+      })
     })
 
     it('uses page from URL query param', async () => {
@@ -281,7 +285,11 @@ describe('PublicFacesView', () => {
       await mountView('/faces?page=2')
       await flushPromises()
 
-      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(2, 15)
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(2, 15, {
+        categorie: undefined,
+        niche: undefined,
+        ville: undefined,
+      })
     })
   })
 

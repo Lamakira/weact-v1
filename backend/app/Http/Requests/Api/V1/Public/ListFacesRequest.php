@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\Public;
 
+use App\Enums\FaceCategory;
+use App\Enums\FaceNiche;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Form Request for public faces list endpoint.
  *
- * Validates pagination parameters for the public faces listing.
+ * Validates pagination and filter parameters for the public faces listing.
  * No authentication required as this is a public endpoint.
  */
 class ListFacesRequest extends FormRequest
@@ -33,6 +36,9 @@ class ListFacesRequest extends FormRequest
         return [
             'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', 'min:1'],
+            'categorie' => ['sometimes', 'nullable', Rule::enum(FaceCategory::class)],
+            'niche' => ['sometimes', 'nullable', Rule::enum(FaceNiche::class)],
+            'ville' => ['sometimes', 'nullable', 'string', 'max:255'],
         ];
     }
 

@@ -105,12 +105,16 @@ describe('usePaginatedFaces', () => {
   })
 
   describe('loadPage', () => {
-    it('calls API with correct page and perPage', async () => {
+    it('calls API with correct page, perPage and filters', async () => {
       const { loadPage } = usePaginatedFaces(15)
 
       await loadPage(1)
 
-      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(1, 15)
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(1, 15, {
+        categorie: undefined,
+        niche: undefined,
+        ville: undefined,
+      })
     })
 
     it('sets loading state during fetch', async () => {

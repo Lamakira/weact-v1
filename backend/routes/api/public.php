@@ -22,6 +22,9 @@ Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
     // Public Faces list (paginated)
     Route::get('/faces', [FaceController::class, 'index']);
 
+    // Public Faces filter options (categories, niches, cities)
+    Route::get('/faces/options', [FaceController::class, 'filterOptions']);
+
     // Public Face profile (limited info)
     Route::get('/faces/{id}', [FaceController::class, 'show'])
         ->whereNumber('id');
