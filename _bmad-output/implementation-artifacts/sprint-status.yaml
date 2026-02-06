@@ -159,7 +159,7 @@ development_status:
   10-6-producer-dashboard-layout: done
   epic-10-retrospective: done
 
-  # Epic 11: Public Access & Discovery (10 stories)
+  # Epic 11: Public Access & Discovery (11 stories)
   epic-11: in-progress
   11-0a-public-header-refactoring: done
   11-0b-public-footer-creation: done
@@ -167,10 +167,11 @@ development_status:
   11-2-landing-page-face-producer-switch: done
   11-3-public-faces-list: done
   11-4-public-face-profile-limited: done
-  11-5-public-faces-filters: backlog
+  11-5-public-faces-filters: done
   11-6-public-missions-list: backlog
   11-7-public-mission-detail: backlog
   11-8-registration-access-points: backlog
+  11-9-public-faces-search: ready-for-dev
   epic-11-retrospective: optional
 
   # Epic 12: Blog & Resources (9 stories)

@@ -1878,6 +1878,22 @@ So that **I can easily join the platform**.
 
 ---
 
+### Story 11.9: Public Faces Search
+
+As a **visitor**,
+I want **to search for talents by name or keyword on the public Faces list**,
+So that **I can quickly find a specific talent without scrolling through all results**.
+
+**Acceptance Criteria:**
+
+**Given** I am on the `/faces` page
+**When** I type at least 2 characters in the search input
+**Then** the list updates to show only Faces matching my query (debounced, case-insensitive partial match across name, username, and bio)
+
+**(Added post-planning: search complement to FR79 filters)**
+
+---
+
 ## Epic 12: Blog & Resources
 
 ### Story 12.1: Create Articles Database Schema
