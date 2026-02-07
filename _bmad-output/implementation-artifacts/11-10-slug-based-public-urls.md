@@ -1,6 +1,6 @@
 # Story 11.10: Slug-Based Public URLs
 
-Status: review
+Status: done
 
 ## Story
 
