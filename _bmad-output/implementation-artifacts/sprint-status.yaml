@@ -172,7 +172,7 @@ development_status:
   11-7-public-mission-detail: done
   11-8-registration-access-points: backlog
   11-9-public-faces-search: done
-  11-10-slug-based-public-urls: ready-for-dev
+  11-10-slug-based-public-urls: done
   epic-11-retrospective: optional
 
   # Epic 12: Blog & Resources (9 stories)
