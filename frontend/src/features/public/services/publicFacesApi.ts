@@ -7,6 +7,7 @@ import { publicApiClient } from './apiClient'
  */
 export interface PublicFace {
   id: number
+  username: string
   prenom: string
   nom: string
   ville: string | null
@@ -144,17 +145,17 @@ export async function fetchFilterOptions(): Promise<FilterOptionsResponse> {
 }
 
 /**
- * Fetch a single public face profile by ID
+ * Fetch a single public face profile by username
  *
- * @param id - Face ID
+ * @param username - Face username
  * @returns Promise with face profile data or error result
  */
 export async function fetchPublicFaceProfile(
-  id: number
+  username: string
 ): Promise<PublicFaceProfileResult> {
   try {
     const response = await publicApiClient.get<PublicFaceProfileResponse>(
-      `/v1/public/faces/${id}`
+      `/v1/public/faces/${username}`
     )
 
     return {

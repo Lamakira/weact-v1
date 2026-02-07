@@ -13,6 +13,7 @@ vi.mock('@/features/public/services/publicFacesApi', () => ({
 const mockFaces: PublicFace[] = [
   {
     id: 1,
+    username: 'adjoua-dossou',
     prenom: 'Adjoua',
     nom: 'Dossou',
     ville: 'Cotonou',
@@ -24,6 +25,7 @@ const mockFaces: PublicFace[] = [
   },
   {
     id: 2,
+    username: 'koffi-agbangla',
     prenom: 'Koffi',
     nom: 'Agbangla',
     ville: 'Porto-Novo',
@@ -54,7 +56,7 @@ describe('PublicFacesView', () => {
       history: createMemoryHistory(),
       routes: [
         { path: '/faces', name: 'public-faces-list', component: PublicFacesView },
-        { path: '/faces/:id', name: 'public-face-profile', component: { template: '<div>Profile</div>' } },
+        { path: '/faces/:username', name: 'public-face-profile', component: { template: '<div>Profile</div>' } },
       ],
     })
 

@@ -8,6 +8,7 @@ import type { PaginationMeta } from './publicFacesApi'
  */
 export interface PublicMission {
   id: number
+  slug: string
   titre: string
   description: string
   date_tournage: string | null
@@ -91,17 +92,17 @@ export async function fetchPublicMissions(
 }
 
 /**
- * Fetch a single public mission by ID
+ * Fetch a single public mission by slug
  *
- * @param id - Mission ID
+ * @param slug - Mission slug
  * @returns Promise with mission data or error result
  */
 export async function fetchPublicMissionDetail(
-  id: number
+  slug: string
 ): Promise<PublicMissionDetailResult> {
   try {
     const response = await publicApiClient.get<PublicMissionDetailResponse>(
-      `/v1/public/missions/${id}`
+      `/v1/public/missions/${slug}`
     )
 
     return {

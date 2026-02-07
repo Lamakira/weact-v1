@@ -28,6 +28,7 @@ vi.mock('../../services/publicFacesApi', () => ({
 const mockFaces: PublicFace[] = [
   {
     id: 1,
+    username: 'adjoua-dossou',
     prenom: 'Adjoua',
     nom: 'Dossou',
     ville: 'Cotonou',
@@ -39,6 +40,7 @@ const mockFaces: PublicFace[] = [
   },
   {
     id: 2,
+    username: 'koffi-agbangla',
     prenom: 'Koffi',
     nom: 'Agbangla',
     ville: 'Porto-Novo',

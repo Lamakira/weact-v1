@@ -5,7 +5,7 @@ import * as publicFacesApi from '@/features/public/services/publicFacesApi'
 import type { PublicFaceProfile } from '@/features/public/services/publicFacesApi'
 
 // Mock route params - mutable for different test scenarios
-const mockParams: Record<string, string> = { id: '1' }
+const mockParams: Record<string, string> = { username: 'adjoua' }
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({
@@ -33,7 +33,9 @@ vi.mock('@/components/ui/skeleton', () => ({
 
 const mockProfile: PublicFaceProfile = {
   id: 1,
+  username: 'adjoua',
   prenom: 'Adjoua',
+  nom: 'Dossou',
   ville: 'Cotonou',
   categorie: 'acteur',
   categorie_label: 'Acteur',
@@ -67,7 +69,7 @@ function mountView() {
 describe('PublicFaceProfileView (Integration)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockParams.id = '1'
+    mockParams.username = 'adjoua'
   })
 
   afterEach(() => {
@@ -88,7 +90,7 @@ describe('PublicFaceProfileView (Integration)', () => {
 
     expect(wrapper.find('[data-testid="face-profile"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Adjoua')
-    expect(publicFacesApi.fetchPublicFaceProfile).toHaveBeenCalledWith(1)
+    expect(publicFacesApi.fetchPublicFaceProfile).toHaveBeenCalledWith('adjoua')
   })
 
   it('shows not found state on 404 response', async () => {

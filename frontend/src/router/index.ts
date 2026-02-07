@@ -211,7 +211,7 @@ const router = createRouter({
       },
     },
     {
-      path: '/missions/:id',
+      path: '/missions/:slug',
       name: 'public-mission-detail',
       component: () => import('../views/PublicMissionDetailView.vue'),
       meta: {
@@ -220,7 +220,7 @@ const router = createRouter({
       },
     },
     {
-      path: '/faces/:id',
+      path: '/faces/:username',
       name: 'public-face-profile',
       component: () => import('../views/PublicFaceProfileView.vue'),
       meta: {

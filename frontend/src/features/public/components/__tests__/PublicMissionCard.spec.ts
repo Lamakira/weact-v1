@@ -9,12 +9,13 @@ const router = createRouter({
   history: createMemoryHistory(),
   routes: [
     { path: '/', name: 'home', component: { template: '<div>Home</div>' } },
-    { path: '/missions/:id', name: 'public-mission-detail', component: { template: '<div>Mission</div>' } },
+    { path: '/missions/:slug', name: 'public-mission-detail', component: { template: '<div>Mission</div>' } },
   ],
 })
 
 const mockMission: PublicMission = {
   id: 42,
+  slug: 'publicite-coca-cola-benin',
   titre: 'Publicité Coca-Cola Bénin',
   description: 'Nous recherchons des acteurs et figurants pour une publicité télévisée Coca-Cola au Bénin.',
   date_tournage: '2025-03-15',
@@ -159,7 +160,7 @@ describe('PublicMissionCard', () => {
   describe('Navigation', () => {
     it('links to the correct mission detail page', () => {
       const wrapper = mountCard()
-      expect(wrapper.attributes('href')).toBe('/missions/42')
+      expect(wrapper.attributes('href')).toBe('/missions/publicite-coca-cola-benin')
     })
 
     it('renders as an anchor element via RouterLink', () => {

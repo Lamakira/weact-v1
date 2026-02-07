@@ -9,12 +9,13 @@ const router = createRouter({
   history: createMemoryHistory(),
   routes: [
     { path: '/', name: 'home', component: { template: '<div>Home</div>' } },
-    { path: '/faces/:id', name: 'public-face-profile', component: { template: '<div>Face Profile</div>' } },
+    { path: '/faces/:username', name: 'public-face-profile', component: { template: '<div>Face Profile</div>' } },
   ],
 })
 
 const mockFace: PublicFace = {
   id: 1,
+  username: 'adjoua-dossou',
   prenom: 'Adjoua',
   nom: 'Dossou',
   ville: 'Cotonou',
@@ -118,7 +119,7 @@ describe('FaceCard', () => {
     it('links to the correct face profile page', () => {
       const wrapper = mountCard()
 
-      expect(wrapper.attributes('href')).toBe('/faces/1')
+      expect(wrapper.attributes('href')).toBe('/faces/adjoua-dossou')
     })
 
     it('is keyboard accessible with RouterLink', () => {

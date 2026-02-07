@@ -19,16 +19,16 @@ export function useMissionDetail() {
   const notFound = ref(false)
 
   /**
-   * Fetch a mission's public detail by ID
+   * Fetch a mission's public detail by slug
    */
-  async function fetchMission(id: number): Promise<PublicMissionDetailResult> {
+  async function fetchMission(slug: string): Promise<PublicMissionDetailResult> {
     isLoading.value = true
     error.value = null
     notFound.value = false
     mission.value = null
 
     try {
-      const result = await fetchPublicMissionDetail(id)
+      const result = await fetchPublicMissionDetail(slug)
 
       if (result.success && result.mission) {
         mission.value = result.mission

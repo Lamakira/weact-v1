@@ -15,7 +15,9 @@ vi.mock('../../services/publicFacesApi', async () => {
 
 const mockFaceProfile: PublicFaceProfile = {
   id: 1,
+  username: 'adjoua',
   prenom: 'Adjoua',
+  nom: 'Dossou',
   ville: 'Cotonou',
   categorie: 'acteur',
   categorie_label: 'Acteur',
@@ -34,7 +36,9 @@ const mockFaceProfile: PublicFaceProfile = {
 
 const mockFaceWithoutMedia: PublicFaceProfile = {
   id: 2,
+  username: 'kofi',
   prenom: 'Kofi',
+  nom: 'Mensah',
   ville: null,
   categorie: 'mannequin',
   categorie_label: 'Mannequin',
@@ -107,7 +111,7 @@ describe('useFaceProfile', () => {
 
       const { face, fetchFace, isLoading } = useFaceProfile()
 
-      const promise = fetchFace(1)
+      const promise = fetchFace('adjoua')
       expect(isLoading.value).toBe(true)
 
       const result = await promise
@@ -128,7 +132,7 @@ describe('useFaceProfile', () => {
 
       const { face, fetchFace, notFound, error } = useFaceProfile()
 
-      const result = await fetchFace(99999)
+      const result = await fetchFace('nonexistent-user')
       await flushPromises()
 
       expect(face.value).toBeNull()
@@ -146,7 +150,7 @@ describe('useFaceProfile', () => {
 
       const { face, fetchFace, error, notFound } = useFaceProfile()
 
-      const result = await fetchFace(1)
+      const result = await fetchFace('adjoua')
       await flushPromises()
 
       expect(face.value).toBeNull()
@@ -165,7 +169,7 @@ describe('useFaceProfile', () => {
 
       const { fetchFace, notFound, error, face } = useFaceProfile()
 
-      await fetchFace(1)
+      await fetchFace('adjoua')
       expect(notFound.value).toBe(true)
 
       // Now fetch successfully
@@ -174,7 +178,7 @@ describe('useFaceProfile', () => {
         profile: mockFaceProfile,
       })
 
-      await fetchFace(2)
+      await fetchFace('kofi')
       await flushPromises()
 
       expect(notFound.value).toBe(false)
@@ -192,7 +196,7 @@ describe('useFaceProfile', () => {
 
       const { face, fetchFace, clearFace, error, notFound } = useFaceProfile()
 
-      await fetchFace(1)
+      await fetchFace('adjoua')
       await flushPromises()
 
       expect(face.value).not.toBeNull()
@@ -214,7 +218,7 @@ describe('useFaceProfile', () => {
 
       const { fetchFace, hasAlbumPhotos, albumPhotosCount } = useFaceProfile()
 
-      await fetchFace(1)
+      await fetchFace('adjoua')
       await flushPromises()
 
       expect(hasAlbumPhotos.value).toBe(true)
@@ -229,7 +233,7 @@ describe('useFaceProfile', () => {
 
       const { fetchFace, hasAlbumPhotos, albumPhotosCount } = useFaceProfile()
 
-      await fetchFace(2)
+      await fetchFace('kofi')
       await flushPromises()
 
       expect(hasAlbumPhotos.value).toBe(false)
@@ -244,7 +248,7 @@ describe('useFaceProfile', () => {
 
       const { fetchFace, hasVideos, videosCount } = useFaceProfile()
 
-      await fetchFace(1)
+      await fetchFace('adjoua')
       await flushPromises()
 
       expect(hasVideos.value).toBe(true)
@@ -264,7 +268,7 @@ describe('useFaceProfile', () => {
 
       const { fetchFace, hasVideos, videosCount } = useFaceProfile()
 
-      await fetchFace(1)
+      await fetchFace('adjoua')
       await flushPromises()
 
       expect(hasVideos.value).toBe(true)
@@ -279,7 +283,7 @@ describe('useFaceProfile', () => {
 
       const { fetchFace, hasVideos, videosCount } = useFaceProfile()
 
-      await fetchFace(2)
+      await fetchFace('kofi')
       await flushPromises()
 
       expect(hasVideos.value).toBe(false)

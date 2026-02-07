@@ -29,7 +29,7 @@ const hasPhoto = computed(() => {
 
 <template>
   <RouterLink
-    :to="`/faces/${face.id}`"
+    :to="`/faces/${face.username}`"
     :data-testid="`face-card-${face.id}`"
     class="group/card relative block overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm hover:shadow-lg hover:border-[#198496]/30 transition-all duration-300 hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"
     :aria-label="`Voir le profil de ${face.prenom}`"

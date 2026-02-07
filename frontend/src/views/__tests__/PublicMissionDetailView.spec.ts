@@ -5,7 +5,7 @@ import * as publicMissionsApi from '@/features/public/services/publicMissionsApi
 import type { PublicMission } from '@/features/public/services/publicMissionsApi'
 
 // Mock route params - mutable for different test scenarios
-const mockParams: Record<string, string> = { id: '42' }
+const mockParams: Record<string, string> = { slug: 'casting-publicite-mtn' }
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({
@@ -33,6 +33,7 @@ vi.mock('@/components/ui/skeleton', () => ({
 
 const mockMission: PublicMission = {
   id: 42,
+  slug: 'casting-publicite-mtn',
   titre: 'Casting publicité MTN',
   description: 'Recherche comédien(ne) pour spot TV',
   date_tournage: '2026-03-15',
@@ -75,7 +76,7 @@ function mountView() {
 describe('PublicMissionDetailView (Integration)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockParams.id = '42'
+    mockParams.slug = 'casting-publicite-mtn'
   })
 
   it('renders mission detail on successful load', async () => {
@@ -89,7 +90,7 @@ describe('PublicMissionDetailView (Integration)', () => {
 
     expect(wrapper.find('[data-testid="mission-detail"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Casting publicité MTN')
-    expect(publicMissionsApi.fetchPublicMissionDetail).toHaveBeenCalledWith(42)
+    expect(publicMissionsApi.fetchPublicMissionDetail).toHaveBeenCalledWith('casting-publicite-mtn')
   })
 
   it('shows loading state initially', async () => {
@@ -310,8 +311,8 @@ describe('PublicMissionDetailView (Integration)', () => {
     expect(backCta.attributes('href')).toBe('/missions')
   })
 
-  it('does not call API when route param is non-numeric', async () => {
-    mockParams.id = 'abc'
+  it('does not call API when route param is empty', async () => {
+    mockParams.slug = ''
 
     vi.mocked(publicMissionsApi.fetchPublicMissionDetail).mockResolvedValue({
       success: true,

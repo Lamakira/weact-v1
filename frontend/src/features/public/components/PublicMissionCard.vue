@@ -51,7 +51,7 @@ function formatCurrency(amount: number): string {
 
 <template>
   <router-link
-    :to="`/missions/${mission.id}`"
+    :to="`/missions/${mission.slug}`"
     class="group relative flex h-full cursor-pointer flex-col rounded-lg border border-border bg-card p-5 transition-all duration-200 hover:border-primary/30 hover:shadow-md"
     :aria-label="`Mission : ${mission.titre}`"
     :data-testid="`mission-card-${mission.id}`"

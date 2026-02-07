@@ -40,16 +40,16 @@ export function useFaceProfile() {
   })
 
   /**
-   * Fetch a Face's public profile by ID
+   * Fetch a Face's public profile by username
    */
-  async function fetchFace(id: number): Promise<PublicFaceProfileResult> {
+  async function fetchFace(username: string): Promise<PublicFaceProfileResult> {
     isLoading.value = true
     error.value = null
     notFound.value = false
     face.value = null
 
     try {
-      const result = await fetchPublicFaceProfile(id)
+      const result = await fetchPublicFaceProfile(username)
 
       if (result.success && result.profile) {
         face.value = result.profile

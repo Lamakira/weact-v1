@@ -15,6 +15,7 @@ vi.mock('../../services/publicMissionsApi', async () => {
 
 const mockMission: PublicMission = {
   id: 42,
+  slug: 'casting-publicite-mtn',
   titre: 'Casting publicité MTN',
   description: 'Recherche comédien(ne) pour spot TV',
   date_tournage: '2026-03-15',
@@ -76,7 +77,7 @@ describe('useMissionDetail', () => {
 
       const { mission, fetchMission, isLoading } = useMissionDetail()
 
-      const promise = fetchMission(42)
+      const promise = fetchMission('casting-publicite-mtn')
       expect(isLoading.value).toBe(true)
 
       const result = await promise
@@ -97,7 +98,7 @@ describe('useMissionDetail', () => {
 
       const { mission, fetchMission, notFound, error } = useMissionDetail()
 
-      const result = await fetchMission(99999)
+      const result = await fetchMission('nonexistent-slug')
       await flushPromises()
 
       expect(mission.value).toBeNull()
@@ -115,7 +116,7 @@ describe('useMissionDetail', () => {
 
       const { mission, fetchMission, error, notFound } = useMissionDetail()
 
-      const result = await fetchMission(42)
+      const result = await fetchMission('casting-publicite-mtn')
       await flushPromises()
 
       expect(mission.value).toBeNull()
@@ -134,7 +135,7 @@ describe('useMissionDetail', () => {
 
       const { fetchMission, notFound, error, mission } = useMissionDetail()
 
-      await fetchMission(99999)
+      await fetchMission('nonexistent-slug')
       expect(notFound.value).toBe(true)
 
       // Now fetch successfully
@@ -143,7 +144,7 @@ describe('useMissionDetail', () => {
         mission: mockMission,
       })
 
-      await fetchMission(42)
+      await fetchMission('casting-publicite-mtn')
       await flushPromises()
 
       expect(notFound.value).toBe(false)
@@ -165,7 +166,7 @@ describe('useMissionDetail', () => {
 
       expect(isLoading.value).toBe(false)
 
-      const fetchPromise = fetchMission(42)
+      const fetchPromise = fetchMission('casting-publicite-mtn')
       expect(isLoading.value).toBe(true)
 
       resolvePromise!({ success: true, mission: mockMission })
@@ -182,9 +183,9 @@ describe('useMissionDetail', () => {
       })
 
       const { fetchMission } = useMissionDetail()
-      await fetchMission(42)
+      await fetchMission('casting-publicite-mtn')
 
-      expect(publicMissionsApi.fetchPublicMissionDetail).toHaveBeenCalledWith(42)
+      expect(publicMissionsApi.fetchPublicMissionDetail).toHaveBeenCalledWith('casting-publicite-mtn')
     })
   })
 })

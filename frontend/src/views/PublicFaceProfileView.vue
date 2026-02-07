@@ -20,20 +20,18 @@ const {
   fetchFace,
 } = useFaceProfile()
 
-// Get face ID from route params with validation
-const faceId = computed(() => {
-  const id = route.params.id
-  if (typeof id !== 'string') return null
-  const parsed = parseInt(id, 10)
-  return Number.isNaN(parsed) ? null : parsed
+// Get face username from route params with validation
+const faceUsername = computed(() => {
+  const username = route.params.username
+  return typeof username === 'string' && username.length > 0 ? username : null
 })
 
-// Fetch face on mount and when ID changes
+// Fetch face on mount and when username changes
 watch(
-  faceId,
-  async (newId) => {
-    if (newId) {
-      await fetchFace(newId)
+  faceUsername,
+  async (newUsername) => {
+    if (newUsername) {
+      await fetchFace(newUsername)
     }
   },
   { immediate: true }

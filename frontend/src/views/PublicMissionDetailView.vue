@@ -20,20 +20,18 @@ import { Skeleton } from '@/components/ui/skeleton'
 const route = useRoute()
 const { mission, isLoading, error, notFound, fetchMission } = useMissionDetail()
 
-// Get mission ID from route params with validation
-const missionId = computed(() => {
-  const id = route.params.id
-  if (typeof id !== 'string') return null
-  const parsed = parseInt(id, 10)
-  return Number.isNaN(parsed) ? null : parsed
+// Get mission slug from route params with validation
+const missionSlug = computed(() => {
+  const slug = route.params.slug
+  return typeof slug === 'string' && slug.length > 0 ? slug : null
 })
 
-// Fetch mission on mount and when ID changes
+// Fetch mission on mount and when slug changes
 watch(
-  missionId,
-  async (newId) => {
-    if (newId) {
-      await fetchMission(newId)
+  missionSlug,
+  async (newSlug) => {
+    if (newSlug) {
+      await fetchMission(newSlug)
     }
   },
   { immediate: true }
@@ -112,8 +110,8 @@ const producerInitials = computed(() => {
 
 // Retry handler
 async function handleRetry(): Promise<void> {
-  if (missionId.value) {
-    await fetchMission(missionId.value)
+  if (missionSlug.value) {
+    await fetchMission(missionSlug.value)
   }
 }
 </script>
