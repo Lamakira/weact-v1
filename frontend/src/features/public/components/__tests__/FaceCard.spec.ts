@@ -16,6 +16,7 @@ const router = createRouter({
 const mockFace: PublicFace = {
   id: 1,
   prenom: 'Adjoua',
+  nom: 'Dossou',
   ville: 'Cotonou',
   categorie: 'acteur',
   categorie_label: 'Acteur',

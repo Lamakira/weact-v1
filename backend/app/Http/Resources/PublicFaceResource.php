@@ -11,7 +11,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Resource for PUBLIC Face listing display.
  *
  * This resource exposes only public-safe fields for unauthenticated visitors.
- * Sensitive data like full name, tariffs, bio, etc. are excluded.
+ * Sensitive data like tariffs, bio, etc. are excluded.
  *
  * @mixin \App\Models\Face
  */
@@ -27,6 +27,7 @@ class PublicFaceResource extends JsonResource
         return [
             'id' => $this->id,
             'prenom' => $this->prenom,
+            'nom' => $this->nom,
             'ville' => $this->ville,
             'categorie' => $this->categorie?->value,
             'categorie_label' => $this->categorie?->label(),
