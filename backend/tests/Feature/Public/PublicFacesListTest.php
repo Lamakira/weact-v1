@@ -33,6 +33,7 @@ class PublicFacesListTest extends TestCase
                 'data' => [
                     '*' => [
                         'id',
+                        'username',
                         'prenom',
                         'ville',
                         'categorie',
@@ -97,8 +98,10 @@ class PublicFacesListTest extends TestCase
         // nom is now public (needed for search result context)
         $this->assertArrayHasKey('nom', $faceData);
 
+        // username is now public (needed for slug-based URLs)
+        $this->assertArrayHasKey('username', $faceData);
+
         // Should NOT include sensitive fields
-        $this->assertArrayNotHasKey('username', $faceData);
         $this->assertArrayNotHasKey('bio', $faceData);
         $this->assertArrayNotHasKey('tarif_horaire', $faceData);
         $this->assertArrayNotHasKey('tarif_journalier', $faceData);

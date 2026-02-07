@@ -12,10 +12,54 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Mission extends Model
 {
     use HasFactory;
+
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        static::creating(function (Mission $mission): void {
+            if (empty($mission->slug)) {
+                $mission->slug = self::generateUniqueSlug($mission->titre);
+            }
+        });
+
+        static::updating(function (Mission $mission): void {
+            if ($mission->isDirty('titre')) {
+                $mission->slug = self::generateUniqueSlug($mission->titre, $mission->id);
+            }
+        });
+    }
+
+    /**
+     * Generate a unique slug from the given title.
+     */
+    public static function generateUniqueSlug(string $title, ?int $excludeId = null): string
+    {
+        $slug = Str::slug($title);
+
+        if ($slug === '') {
+            $slug = 'mission';
+        }
+
+        $original = $slug;
+        $counter = 2;
+
+        while (static::query()
+            ->where('slug', $slug)
+            ->when($excludeId, fn ($q) => $q->where('id', '!=', $excludeId))
+            ->exists()
+        ) {
+            $slug = "{$original}-{$counter}";
+            $counter++;
+        }
+
+        return $slug;
+    }
 
     /**
      * The model's default values for attributes.
@@ -34,6 +78,7 @@ class Mission extends Model
     protected $fillable = [
         'producer_id',
         'titre',
+        'slug',
         'description',
         'date_tournage',
         'profil_recherche',

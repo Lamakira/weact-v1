@@ -61,9 +61,11 @@ class MissionController extends Controller
      * Only returns missions with status = published.
      * Non-published missions (draft/closed/completed) return 404.
      */
-    public function show(int $id): JsonResponse
+    public function show(string $slug): JsonResponse
     {
-        $mission = $this->publishedWithProducer()->find($id);
+        $mission = $this->publishedWithProducer()
+            ->where('slug', $slug)
+            ->first();
 
         if (! $mission) {
             return response()->json([

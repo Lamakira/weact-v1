@@ -105,9 +105,12 @@ class FaceController extends Controller
      * No authentication required - this is a PUBLIC endpoint.
      * Returns limited profile information for visitors.
      */
-    public function show(int $id): JsonResponse
+    public function show(string $username): JsonResponse
     {
-        $face = Face::with('photos')->find($id);
+        $face = Face::query()
+            ->where('username', $username)
+            ->with('photos')
+            ->first();
 
         if (! $face) {
             return response()->json([

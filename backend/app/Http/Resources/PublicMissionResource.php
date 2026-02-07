@@ -26,6 +26,7 @@ class PublicMissionResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'slug' => $this->slug,
             'titre' => $this->titre,
             'description' => $this->description,
             'date_tournage' => $this->date_tournage?->toDateString(),

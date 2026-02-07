@@ -57,6 +57,7 @@ class PublicMissionsListTest extends TestCase
                 'data' => [
                     '*' => [
                         'id',
+                        'slug',
                         'titre',
                         'description',
                         'date_tournage',

@@ -26,6 +26,7 @@ class PublicFaceResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'username' => $this->username,
             'prenom' => $this->prenom,
             'nom' => $this->nom,
             'ville' => $this->ville,

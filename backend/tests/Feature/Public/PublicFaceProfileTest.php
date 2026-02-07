@@ -16,7 +16,7 @@ class PublicFaceProfileTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_returns_face_profile_by_id_without_authentication(): void
+    public function test_returns_face_profile_by_username_without_authentication(): void
     {
         $face = Face::factory()->create([
             'prenom' => 'Adjoua',
@@ -31,12 +31,13 @@ class PublicFaceProfileTest extends TestCase
             'userable_id' => $face->id,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$face->id}");
+        $response = $this->getJson("/api/v1/public/faces/{$face->username}");
 
         $response->assertOk()
             ->assertJsonStructure([
                 'data' => [
                     'id',
+                    'username',
                     'prenom',
                     'ville',
                     'categorie',
@@ -62,7 +63,7 @@ class PublicFaceProfileTest extends TestCase
 
     public function test_returns_404_for_non_existent_face(): void
     {
-        $response = $this->getJson('/api/v1/public/faces/99999');
+        $response = $this->getJson('/api/v1/public/faces/nonexistent-user');
 
         $response->assertNotFound()
             ->assertJsonStructure([
@@ -104,7 +105,7 @@ class PublicFaceProfileTest extends TestCase
             'email' => 'adjoua@example.com',
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$face->id}");
+        $response = $this->getJson("/api/v1/public/faces/{$face->username}");
 
         $response->assertOk();
 
@@ -127,9 +128,11 @@ class PublicFaceProfileTest extends TestCase
         $this->assertArrayHasKey('has_presentation_video', $data);
         $this->assertArrayHasKey('has_acting_video', $data);
 
+        // Should include username (public for slug-based URLs)
+        $this->assertArrayHasKey('username', $data);
+
         // Should NOT include sensitive fields
         $this->assertArrayNotHasKey('nom', $data);
-        $this->assertArrayNotHasKey('username', $data);
         $this->assertArrayNotHasKey('bio', $data);
         $this->assertArrayNotHasKey('tarif_horaire', $data);
         $this->assertArrayNotHasKey('tarif_journalier', $data);
@@ -153,7 +156,7 @@ class PublicFaceProfileTest extends TestCase
         // Add album photos with sequential positions
         FacePhoto::factory()->createSequentialForFace($faceWithPhotos, 3);
 
-        $response = $this->getJson("/api/v1/public/faces/{$faceWithPhotos->id}");
+        $response = $this->getJson("/api/v1/public/faces/{$faceWithPhotos->username}");
 
         $response->assertOk();
         $this->assertTrue($response->json('data.has_album_photos'));
@@ -166,7 +169,7 @@ class PublicFaceProfileTest extends TestCase
             'userable_id' => $faceWithoutPhotos->id,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$faceWithoutPhotos->id}");
+        $response = $this->getJson("/api/v1/public/faces/{$faceWithoutPhotos->username}");
 
         $response->assertOk();
         $this->assertFalse($response->json('data.has_album_photos'));
@@ -184,7 +187,7 @@ class PublicFaceProfileTest extends TestCase
             'userable_id' => $faceWithVideo->id,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$faceWithVideo->id}");
+        $response = $this->getJson("/api/v1/public/faces/{$faceWithVideo->username}");
 
         $response->assertOk();
         $this->assertTrue($response->json('data.has_presentation_video'));
@@ -199,7 +202,7 @@ class PublicFaceProfileTest extends TestCase
             'userable_id' => $faceWithoutVideo->id,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$faceWithoutVideo->id}");
+        $response = $this->getJson("/api/v1/public/faces/{$faceWithoutVideo->username}");
 
         $response->assertOk();
         $this->assertFalse($response->json('data.has_presentation_video'));
@@ -216,7 +219,7 @@ class PublicFaceProfileTest extends TestCase
             'userable_id' => $faceWithVideo->id,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$faceWithVideo->id}");
+        $response = $this->getJson("/api/v1/public/faces/{$faceWithVideo->username}");
 
         $response->assertOk();
         $this->assertTrue($response->json('data.has_acting_video'));
@@ -231,7 +234,7 @@ class PublicFaceProfileTest extends TestCase
             'userable_id' => $faceWithoutVideo->id,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$faceWithoutVideo->id}");
+        $response = $this->getJson("/api/v1/public/faces/{$faceWithoutVideo->username}");
 
         $response->assertOk();
         $this->assertFalse($response->json('data.has_acting_video'));
@@ -246,7 +249,7 @@ class PublicFaceProfileTest extends TestCase
         ]);
 
         // No auth token, no actingAs - should still work
-        $response = $this->getJson("/api/v1/public/faces/{$face->id}");
+        $response = $this->getJson("/api/v1/public/faces/{$face->username}");
 
         $response->assertOk();
     }
@@ -266,7 +269,7 @@ class PublicFaceProfileTest extends TestCase
             'userable_id' => $face->id,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$face->id}");
+        $response = $this->getJson("/api/v1/public/faces/{$face->username}");
 
         $response->assertOk();
 
@@ -300,7 +303,7 @@ class PublicFaceProfileTest extends TestCase
             'userable_id' => $face->id,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$face->id}");
+        $response = $this->getJson("/api/v1/public/faces/{$face->username}");
 
         $response->assertOk();
 
@@ -322,7 +325,7 @@ class PublicFaceProfileTest extends TestCase
             'userable_id' => $face->id,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$face->id}");
+        $response = $this->getJson("/api/v1/public/faces/{$face->username}");
 
         $response->assertOk();
         $this->assertEquals('Face profile retrieved successfully', $response->json('message'));
@@ -336,7 +339,7 @@ class PublicFaceProfileTest extends TestCase
             'userable_id' => $face->id,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$face->id}");
+        $response = $this->getJson("/api/v1/public/faces/{$face->username}");
 
         $response->assertOk();
         $response->assertHeader('X-RateLimit-Limit');

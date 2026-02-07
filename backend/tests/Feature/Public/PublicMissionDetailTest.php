@@ -61,12 +61,13 @@ class PublicMissionDetailTest extends TestCase
             'profil_recherche' => 'Jeune femme 20-30 ans',
         ]);
 
-        $response = $this->getJson("/api/v1/public/missions/{$mission->id}");
+        $response = $this->getJson("/api/v1/public/missions/{$mission->slug}");
 
         $response->assertOk()
             ->assertJsonStructure([
                 'data' => [
                     'id',
+                    'slug',
                     'titre',
                     'description',
                     'date_tournage',
@@ -153,7 +154,7 @@ class PublicMissionDetailTest extends TestCase
             'comment' => 'Excellent',
         ]);
 
-        $response = $this->getJson("/api/v1/public/missions/{$mission->id}");
+        $response = $this->getJson("/api/v1/public/missions/{$mission->slug}");
 
         $response->assertOk();
 
@@ -169,7 +170,7 @@ class PublicMissionDetailTest extends TestCase
 
     public function test_returns_404_for_non_existent_mission_id(): void
     {
-        $response = $this->getJson('/api/v1/public/missions/99999');
+        $response = $this->getJson('/api/v1/public/missions/nonexistent-slug');
 
         $response->assertNotFound()
             ->assertJsonStructure([
@@ -191,7 +192,7 @@ class PublicMissionDetailTest extends TestCase
         $producer = $this->createProducerWithUser();
         $mission = Mission::factory()->draft()->create(['producer_id' => $producer->id]);
 
-        $response = $this->getJson("/api/v1/public/missions/{$mission->id}");
+        $response = $this->getJson("/api/v1/public/missions/{$mission->slug}");
 
         $response->assertNotFound()
             ->assertJson([
@@ -206,7 +207,7 @@ class PublicMissionDetailTest extends TestCase
         $producer = $this->createProducerWithUser();
         $mission = Mission::factory()->closed()->create(['producer_id' => $producer->id]);
 
-        $response = $this->getJson("/api/v1/public/missions/{$mission->id}");
+        $response = $this->getJson("/api/v1/public/missions/{$mission->slug}");
 
         $response->assertNotFound()
             ->assertJson([
@@ -221,7 +222,7 @@ class PublicMissionDetailTest extends TestCase
         $producer = $this->createProducerWithUser();
         $mission = Mission::factory()->completed()->create(['producer_id' => $producer->id]);
 
-        $response = $this->getJson("/api/v1/public/missions/{$mission->id}");
+        $response = $this->getJson("/api/v1/public/missions/{$mission->slug}");
 
         $response->assertNotFound()
             ->assertJson([
@@ -238,7 +239,7 @@ class PublicMissionDetailTest extends TestCase
         $mission = $this->createPublishedMission();
 
         // No auth token, no actingAs
-        $response = $this->getJson("/api/v1/public/missions/{$mission->id}");
+        $response = $this->getJson("/api/v1/public/missions/{$mission->slug}");
 
         $response->assertOk();
     }
@@ -254,7 +255,7 @@ class PublicMissionDetailTest extends TestCase
             'nombre_faces_voulu' => 2,
         ]);
 
-        $response = $this->getJson("/api/v1/public/missions/{$mission->id}");
+        $response = $this->getJson("/api/v1/public/missions/{$mission->slug}");
 
         $response->assertOk();
 
@@ -291,7 +292,7 @@ class PublicMissionDetailTest extends TestCase
             'date_limite_candidature' => '2026-02-28',
         ]);
 
-        $response = $this->getJson("/api/v1/public/missions/{$mission->id}");
+        $response = $this->getJson("/api/v1/public/missions/{$mission->slug}");
 
         $response->assertOk();
 
@@ -312,7 +313,7 @@ class PublicMissionDetailTest extends TestCase
             'budget' => 250000,
         ]);
 
-        $response = $this->getJson("/api/v1/public/missions/{$mission->id}");
+        $response = $this->getJson("/api/v1/public/missions/{$mission->slug}");
 
         $response->assertOk();
         $this->assertIsInt($response->json('data.budget'));
@@ -325,7 +326,7 @@ class PublicMissionDetailTest extends TestCase
     {
         $mission = $this->createPublishedMission();
 
-        $response = $this->getJson("/api/v1/public/missions/{$mission->id}");
+        $response = $this->getJson("/api/v1/public/missions/{$mission->slug}");
 
         $response->assertOk();
 
@@ -337,7 +338,7 @@ class PublicMissionDetailTest extends TestCase
     {
         $mission = $this->createPublishedMission();
 
-        $response = $this->getJson("/api/v1/public/missions/{$mission->id}");
+        $response = $this->getJson("/api/v1/public/missions/{$mission->slug}");
 
         $response->assertOk();
         $this->assertEquals('Mission retrieved successfully', $response->json('message'));

@@ -27,8 +27,7 @@ Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
     Route::get('/faces/options', [FaceController::class, 'filterOptions']);
 
     // Public Face profile (limited info)
-    Route::get('/faces/{id}', [FaceController::class, 'show'])
-        ->whereNumber('id');
+    Route::get('/faces/{username}', [FaceController::class, 'show']);
 
     // Producer public profile
     Route::get('/producers/{id}', [ProducerController::class, 'show'])
@@ -46,6 +45,5 @@ Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
     Route::get('/missions', [MissionController::class, 'index']);
 
     // Public Mission detail
-    Route::get('/missions/{id}', [MissionController::class, 'show'])
-        ->whereNumber('id');
+    Route::get('/missions/{slug}', [MissionController::class, 'show']);
 });
