@@ -78,7 +78,6 @@ class Mission extends Model
     protected $fillable = [
         'producer_id',
         'titre',
-        'slug',
         'description',
         'date_tournage',
         'profil_recherche',

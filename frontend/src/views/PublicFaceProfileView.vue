@@ -83,8 +83,8 @@ onUnmounted(() => {
 
 // Retry handler for errors
 async function handleRetry(): Promise<void> {
-  if (faceId.value) {
-    await fetchFace(faceId.value)
+  if (faceUsername.value) {
+    await fetchFace(faceUsername.value)
   }
 }
 </script>

@@ -155,7 +155,7 @@ export async function fetchPublicFaceProfile(
 ): Promise<PublicFaceProfileResult> {
   try {
     const response = await publicApiClient.get<PublicFaceProfileResponse>(
-      `/v1/public/faces/${username}`
+      `/v1/public/faces/${encodeURIComponent(username)}`
     )
 
     return {

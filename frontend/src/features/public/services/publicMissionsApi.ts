@@ -102,7 +102,7 @@ export async function fetchPublicMissionDetail(
 ): Promise<PublicMissionDetailResult> {
   try {
     const response = await publicApiClient.get<PublicMissionDetailResponse>(
-      `/v1/public/missions/${slug}`
+      `/v1/public/missions/${encodeURIComponent(slug)}`
     )
 
     return {
