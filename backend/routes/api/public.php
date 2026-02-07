@@ -44,4 +44,8 @@ Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
 
     // Public Missions list (paginated)
     Route::get('/missions', [MissionController::class, 'index']);
+
+    // Public Mission detail
+    Route::get('/missions/{id}', [MissionController::class, 'show'])
+        ->whereNumber('id');
 });

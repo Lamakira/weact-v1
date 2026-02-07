@@ -42,15 +42,15 @@ class PublicMissionResource extends JsonResource
             'status' => $this->status?->value,
             'status_label' => $this->status?->label(),
             'created_at' => $this->created_at?->toIso8601String(),
-            'producer' => [
-                'id' => $this->producer?->id,
-                'display_name' => $this->producer?->display_name,
-                'profile_photo_thumbnail_url' => $this->producer?->thumbnail_url,
-                'average_rating' => $this->producer?->ratings_received_avg_score
+            'producer' => $this->producer ? [
+                'id' => $this->producer->id,
+                'display_name' => $this->producer->display_name,
+                'profile_photo_thumbnail_url' => $this->producer->thumbnail_url,
+                'average_rating' => $this->producer->ratings_received_avg_score
                     ? round((float) $this->producer->ratings_received_avg_score, 1)
                     : null,
-                'ratings_count' => (int) ($this->producer?->ratings_received_count ?? 0),
-            ],
+                'ratings_count' => (int) ($this->producer->ratings_received_count ?? 0),
+            ] : null,
         ];
     }
 }

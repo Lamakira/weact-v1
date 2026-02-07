@@ -211,6 +211,15 @@ const router = createRouter({
       },
     },
     {
+      path: '/missions/:id',
+      name: 'public-mission-detail',
+      component: () => import('../views/PublicMissionDetailView.vue'),
+      meta: {
+        title: 'Mission | WEACT',
+        description: 'Découvrez les détails de cette mission sur WEACT.',
+      },
+    },
+    {
       path: '/faces/:id',
       name: 'public-face-profile',
       component: () => import('../views/PublicFaceProfileView.vue'),

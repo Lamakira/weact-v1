@@ -1,3 +1,4 @@
+import { AxiosError } from 'axios'
 import { publicApiClient } from './apiClient'
 import type { PaginationMeta } from './publicFacesApi'
 
@@ -47,6 +48,24 @@ export interface PublicMissionsResponse {
 }
 
 /**
+ * API response format for a single mission detail
+ */
+export interface PublicMissionDetailResponse {
+  data: PublicMission
+  message: string
+}
+
+/**
+ * Result type for mission detail fetch with error handling
+ */
+export interface PublicMissionDetailResult {
+  success: boolean
+  mission?: PublicMission
+  error?: string
+  notFound?: boolean
+}
+
+/**
  * Fetch paginated list of public missions
  *
  * @param page - Page number (1-indexed)
@@ -69,4 +88,42 @@ export async function fetchPublicMissions(
   })
 
   return response.data
+}
+
+/**
+ * Fetch a single public mission by ID
+ *
+ * @param id - Mission ID
+ * @returns Promise with mission data or error result
+ */
+export async function fetchPublicMissionDetail(
+  id: number
+): Promise<PublicMissionDetailResult> {
+  try {
+    const response = await publicApiClient.get<PublicMissionDetailResponse>(
+      `/v1/public/missions/${id}`
+    )
+
+    return {
+      success: true,
+      mission: response.data.data,
+    }
+  } catch (err) {
+    const axiosError = err as AxiosError
+
+    // Handle 404 - Mission not found
+    if (axiosError.response?.status === 404) {
+      return {
+        success: false,
+        notFound: true,
+        error: 'Mission non trouvée',
+      }
+    }
+
+    // Handle network or other errors
+    return {
+      success: false,
+      error: 'Une erreur est survenue. Veuillez réessayer.',
+    }
+  }
 }
