@@ -5,6 +5,7 @@ import { usePaginatedFaces } from '@/features/public/composables/usePaginatedFac
 import { fetchFilterOptions, type FilterOption, type FacesFilterParams } from '@/features/public/services/publicFacesApi'
 import FaceCard from '@/features/public/components/FaceCard.vue'
 import FilterBar from '@/features/public/components/FilterBar.vue'
+import RegistrationCta from '@/features/public/components/RegistrationCta.vue'
 import { Pagination } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -166,6 +167,7 @@ function handlePageChange(page: number): void {
           : 'Il n\'y a pas encore de talents inscrits sur la plateforme. Revenez bientôt !'
         }}
       </p>
+      <RegistrationCta variant="faces" class="mt-8" />
     </div>
 
     <!-- Faces Grid -->
@@ -189,6 +191,9 @@ function handlePageChange(page: number): void {
           :face="face"
         />
       </div>
+
+      <!-- Registration CTA -->
+      <RegistrationCta variant="faces" />
 
       <!-- Pagination -->
       <div

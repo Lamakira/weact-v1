@@ -79,6 +79,8 @@ describe('PublicMissionsView', () => {
       routes: [
         { path: '/missions', name: 'public-missions-list', component: PublicMissionsView },
         { path: '/missions/:id', name: 'public-mission-detail', component: { template: '<div>Detail</div>' } },
+        { path: '/register/face', name: 'register-face', component: { template: '<div>Register Face</div>' } },
+        { path: '/register/producer', name: 'register-producer', component: { template: '<div>Register Producer</div>' } },
       ],
     })
 
@@ -304,6 +306,71 @@ describe('PublicMissionsView', () => {
       await flushPromises()
 
       expect(publicMissionsApi.fetchPublicMissions).toHaveBeenCalledWith(2, 15)
+    })
+  })
+
+  describe('Registration CTA', () => {
+    it('renders registration CTA section after data loads', async () => {
+      vi.mocked(publicMissionsApi.fetchPublicMissions).mockResolvedValue(mockResponse)
+
+      const wrapper = await mountView()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="registration-cta"]').exists()).toBe(true)
+    })
+
+    it('renders face registration link to /register/face', async () => {
+      vi.mocked(publicMissionsApi.fetchPublicMissions).mockResolvedValue(mockResponse)
+
+      const wrapper = await mountView()
+      await flushPromises()
+
+      const link = wrapper.find('[data-testid="register-face-cta"]')
+      expect(link.exists()).toBe(true)
+      expect(link.attributes('href')).toBe('/register/face')
+    })
+
+    it('renders producer registration link to /register/producer', async () => {
+      vi.mocked(publicMissionsApi.fetchPublicMissions).mockResolvedValue(mockResponse)
+
+      const wrapper = await mountView()
+      await flushPromises()
+
+      const link = wrapper.find('[data-testid="register-producer-cta"]')
+      expect(link.exists()).toBe(true)
+      expect(link.attributes('href')).toBe('/register/producer')
+    })
+
+    it('does not render CTA in loading state', async () => {
+      vi.mocked(publicMissionsApi.fetchPublicMissions).mockReturnValue(
+        new Promise(() => {})
+      )
+
+      const wrapper = await mountView()
+
+      expect(wrapper.find('[data-testid="registration-cta"]').exists()).toBe(false)
+    })
+
+    it('does not render CTA in error state', async () => {
+      vi.mocked(publicMissionsApi.fetchPublicMissions).mockRejectedValue(new Error('Network error'))
+
+      const wrapper = await mountView()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="registration-cta"]').exists()).toBe(false)
+    })
+
+    it('renders CTA in empty state', async () => {
+      vi.mocked(publicMissionsApi.fetchPublicMissions).mockResolvedValue({
+        ...mockResponse,
+        data: [],
+        meta: { ...mockResponse.meta, total: 0 },
+      })
+
+      const wrapper = await mountView()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="registration-cta"]').exists()).toBe(true)
     })
   })
 
