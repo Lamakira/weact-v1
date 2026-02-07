@@ -39,6 +39,7 @@ class ListFacesRequest extends FormRequest
             'categorie' => ['sometimes', 'nullable', Rule::enum(FaceCategory::class)],
             'niche' => ['sometimes', 'nullable', Rule::enum(FaceNiche::class)],
             'ville' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'search' => ['sometimes', 'nullable', 'string', 'min:2', 'max:255'],
         ];
     }
 

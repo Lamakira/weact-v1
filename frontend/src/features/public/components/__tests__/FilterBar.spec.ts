@@ -1,7 +1,16 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import FilterBar from '../FilterBar.vue'
 import type { FilterOption, FacesFilterParams } from '../../services/publicFacesApi'
+
+// Mock @vueuse/core watchDebounced to fire immediately in tests
+vi.mock('@vueuse/core', () => ({
+  watchDebounced: (source: any, cb: any, _opts?: any) => {
+    // Use a standard watch that fires immediately (no debounce in tests)
+    const { watch } = require('vue')
+    return watch(source, cb)
+  },
+}))
 
 const mockCategories: FilterOption[] = [
   { value: 'acteur', label: 'Acteur' },
@@ -83,10 +92,10 @@ describe('FilterBar', () => {
       expect(nicheSelect.attributes('disabled')).toBeUndefined()
     })
 
-    it('search input is still disabled', () => {
+    it('search input is enabled (not disabled)', () => {
       const wrapper = mountFilterBar()
       const searchInput = wrapper.find('[data-testid="filter-search"]')
-      expect(searchInput.attributes('disabled')).toBeDefined()
+      expect(searchInput.attributes('disabled')).toBeUndefined()
     })
 
     it('advanced filters button is still disabled', () => {
@@ -185,6 +194,114 @@ describe('FilterBar', () => {
     })
   })
 
+  // ─── Search Tests (Task 8) ───────────────────────────────────────
+
+  describe('Search functionality', () => {
+    it('search input has correct placeholder', () => {
+      const wrapper = mountFilterBar()
+      const searchInput = wrapper.find('[data-testid="filter-search"]')
+      expect(searchInput.attributes('placeholder')).toBe('Rechercher un talent...')
+    })
+
+    it('typing in search emits filter-change with search param', async () => {
+      const wrapper = mountFilterBar()
+      const searchInput = wrapper.find('[data-testid="filter-search"]')
+
+      await searchInput.setValue('Adjoua')
+
+      // watchDebounced is mocked to fire immediately
+      const emitted = wrapper.emitted('filter-change')
+      expect(emitted).toBeTruthy()
+
+      const lastEmit = emitted![emitted!.length - 1][0] as FacesFilterParams
+      expect(lastEmit.search).toBe('Adjoua')
+    })
+
+    it('clearing search emits filter-change with search undefined', async () => {
+      const wrapper = mountFilterBar({
+        ...defaultProps,
+        currentFilters: { search: 'Adjoua' },
+      })
+      const searchInput = wrapper.find('[data-testid="filter-search"]')
+
+      await searchInput.setValue('')
+
+      const emitted = wrapper.emitted('filter-change')
+      expect(emitted).toBeTruthy()
+
+      const lastEmit = emitted![emitted!.length - 1][0] as FacesFilterParams
+      expect(lastEmit.search).toBeUndefined()
+    })
+
+    it('search input syncs from currentFilters prop', () => {
+      const wrapper = mountFilterBar({
+        ...defaultProps,
+        currentFilters: { search: 'Kofi' },
+      })
+      const searchInput = wrapper.find('[data-testid="filter-search"]')
+      expect((searchInput.element as HTMLInputElement).value).toBe('Kofi')
+    })
+
+    it('clear button appears when search is not empty', () => {
+      const wrapper = mountFilterBar({
+        ...defaultProps,
+        currentFilters: { search: 'test' },
+      })
+      expect(wrapper.find('[data-testid="filter-search-clear"]').exists()).toBe(true)
+    })
+
+    it('clear button is hidden when search is empty', () => {
+      const wrapper = mountFilterBar()
+      expect(wrapper.find('[data-testid="filter-search-clear"]').exists()).toBe(false)
+    })
+
+    it('clicking clear button empties the search input', async () => {
+      const wrapper = mountFilterBar({
+        ...defaultProps,
+        currentFilters: { search: 'test' },
+      })
+
+      await wrapper.find('[data-testid="filter-search-clear"]').trigger('click')
+
+      const searchInput = wrapper.find('[data-testid="filter-search"]')
+      expect((searchInput.element as HTMLInputElement).value).toBe('')
+    })
+
+    it('does not emit filter-change for single character (minlength guard)', async () => {
+      const wrapper = mountFilterBar()
+      const searchInput = wrapper.find('[data-testid="filter-search"]')
+
+      await searchInput.setValue('A')
+
+      // Should NOT emit filter-change because single char is below min:2
+      const emitted = wrapper.emitted('filter-change')
+      expect(emitted).toBeFalsy()
+    })
+
+    it('search input has maxlength attribute', () => {
+      const wrapper = mountFilterBar()
+      const searchInput = wrapper.find('[data-testid="filter-search"]')
+      expect(searchInput.attributes('maxlength')).toBe('255')
+    })
+
+    it('search works alongside dropdown filters', async () => {
+      const wrapper = mountFilterBar({
+        ...defaultProps,
+        currentFilters: { categorie: 'acteur' },
+      })
+
+      const searchInput = wrapper.find('[data-testid="filter-search"]')
+      await searchInput.setValue('Adjoua')
+
+      const emitted = wrapper.emitted('filter-change')
+      expect(emitted).toBeTruthy()
+
+      const lastEmit = emitted![emitted!.length - 1][0] as FacesFilterParams
+      expect(lastEmit.search).toBe('Adjoua')
+      expect(lastEmit.categorie).toBe('acteur')
+    })
+  })
+
   describe('Accessibility', () => {
     it('search input has placeholder text', () => {
       const wrapper = mountFilterBar()
@@ -192,10 +309,19 @@ describe('FilterBar', () => {
       expect(searchInput.attributes('placeholder')).toBe('Rechercher un talent...')
     })
 
-    it('search input has title explaining unavailability', () => {
+    it('search input has aria-label', () => {
       const wrapper = mountFilterBar()
       const searchInput = wrapper.find('[data-testid="filter-search"]')
-      expect(searchInput.attributes('title')).toContain('prochainement')
+      expect(searchInput.attributes('aria-label')).toBe('Rechercher un talent')
+    })
+
+    it('clear button has aria-label', () => {
+      const wrapper = mountFilterBar({
+        ...defaultProps,
+        currentFilters: { search: 'test' },
+      })
+      const clearBtn = wrapper.find('[data-testid="filter-search-clear"]')
+      expect(clearBtn.attributes('aria-label')).toBe('Effacer la recherche')
     })
   })
 

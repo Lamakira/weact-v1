@@ -94,8 +94,10 @@ class PublicFacesListTest extends TestCase
         $this->assertArrayHasKey('profile_photo_thumbnail_url', $faceData);
         $this->assertArrayHasKey('average_rating', $faceData);
 
+        // nom is now public (needed for search result context)
+        $this->assertArrayHasKey('nom', $faceData);
+
         // Should NOT include sensitive fields
-        $this->assertArrayNotHasKey('nom', $faceData);
         $this->assertArrayNotHasKey('username', $faceData);
         $this->assertArrayNotHasKey('bio', $faceData);
         $this->assertArrayNotHasKey('tarif_horaire', $faceData);
@@ -362,5 +364,189 @@ class PublicFacesListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(5, $response->json('meta.total'));
+    }
+
+    // ─── Search Tests ─────────────────────────────────────────────────
+
+    public function test_search_by_prenom_returns_matching_faces(): void
+    {
+        $adjoua = Face::factory()->create(['prenom' => 'Adjoua']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $adjoua->id]);
+
+        $kofi = Face::factory()->create(['prenom' => 'Kofi']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $kofi->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?search=Adjoua');
+
+        $response->assertOk();
+        $this->assertEquals(1, $response->json('meta.total'));
+        $this->assertEquals($adjoua->id, $response->json('data.0.id'));
+    }
+
+    public function test_search_by_nom_returns_matching_faces(): void
+    {
+        $face = Face::factory()->create(['nom' => 'Dossou']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+
+        $other = Face::factory()->create(['nom' => 'Agbangla']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $other->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?search=Dossou');
+
+        $response->assertOk();
+        $this->assertEquals(1, $response->json('meta.total'));
+        $this->assertEquals($face->id, $response->json('data.0.id'));
+    }
+
+    public function test_search_by_username_returns_matching_faces(): void
+    {
+        $face = Face::factory()->create(['username' => 'talent_adjoua']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+
+        $other = Face::factory()->create(['username' => 'star_kofi']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $other->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?search=talent_adjoua');
+
+        $response->assertOk();
+        $this->assertEquals(1, $response->json('meta.total'));
+        $this->assertEquals($face->id, $response->json('data.0.id'));
+    }
+
+    public function test_search_by_bio_keyword_returns_matching_faces(): void
+    {
+        $face = Face::factory()->create(['bio' => 'Passionnée de beauté et de mode']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+
+        $other = Face::factory()->create(['bio' => 'Comédien professionnel']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $other->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?search=beauté');
+
+        $response->assertOk();
+        $this->assertEquals(1, $response->json('meta.total'));
+        $this->assertEquals($face->id, $response->json('data.0.id'));
+    }
+
+    public function test_search_is_case_insensitive(): void
+    {
+        $face = Face::factory()->create(['prenom' => 'Adjoua']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?search=adjoua');
+
+        $response->assertOk();
+        $this->assertEquals(1, $response->json('meta.total'));
+        $this->assertEquals($face->id, $response->json('data.0.id'));
+    }
+
+    public function test_search_with_partial_match_works(): void
+    {
+        $face = Face::factory()->create(['prenom' => 'Adjoua']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?search=Adj');
+
+        $response->assertOk();
+        $this->assertEquals(1, $response->json('meta.total'));
+        $this->assertEquals($face->id, $response->json('data.0.id'));
+    }
+
+    public function test_search_combined_with_category_filter_uses_and_logic(): void
+    {
+        $match = Face::factory()->create([
+            'prenom' => 'Adjoua',
+            'categorie' => FaceCategory::ACTEUR,
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $match->id]);
+
+        $nameMatchOnly = Face::factory()->create([
+            'prenom' => 'Adjoua',
+            'categorie' => FaceCategory::MANNEQUIN,
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $nameMatchOnly->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?search=Adjoua&categorie=acteur');
+
+        $response->assertOk();
+        $this->assertEquals(1, $response->json('meta.total'));
+        $this->assertEquals($match->id, $response->json('data.0.id'));
+    }
+
+    public function test_search_with_no_results_returns_empty_array(): void
+    {
+        $face = Face::factory()->create(['prenom' => 'Kofi']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?search=ZZNONEXISTENT');
+
+        $response->assertOk();
+        $this->assertEquals(0, $response->json('meta.total'));
+        $this->assertEmpty($response->json('data'));
+    }
+
+    public function test_search_is_accent_insensitive(): void
+    {
+        $face = Face::factory()->create(['bio' => 'Passionnée de beauté et de mode']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+
+        // Search without accent should match text with accent (utf8mb4_unicode_ci collation)
+        $response = $this->getJson('/api/v1/public/faces?search=beaute');
+
+        $response->assertOk();
+        $this->assertEquals(1, $response->json('meta.total'));
+        $this->assertEquals($face->id, $response->json('data.0.id'));
+    }
+
+    public function test_search_with_less_than_2_chars_returns_422(): void
+    {
+        $response = $this->getJson('/api/v1/public/faces?search=A');
+
+        $response->assertUnprocessable();
+    }
+
+    public function test_search_with_special_characters_is_safe(): void
+    {
+        $face = Face::factory()->create(['prenom' => 'Test']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+
+        // These should not cause SQL errors - % and _ are escaped
+        $response = $this->getJson('/api/v1/public/faces?search=%25test');
+        $response->assertOk();
+
+        $response = $this->getJson('/api/v1/public/faces?search=test_injection');
+        $response->assertOk();
+    }
+
+    public function test_pagination_works_with_active_search(): void
+    {
+        for ($i = 0; $i < 20; $i++) {
+            $face = Face::factory()->create(['prenom' => 'Adjoua']);
+            User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+        }
+
+        // Add a non-matching face
+        $other = Face::factory()->create(['prenom' => 'Kofi']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $other->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?search=Adjoua&per_page=10&page=2');
+
+        $response->assertOk();
+        $this->assertEquals(20, $response->json('meta.total'));
+        $this->assertEquals(2, $response->json('meta.current_page'));
+        $this->assertCount(10, $response->json('data'));
+    }
+
+    public function test_no_search_param_returns_all_faces_backward_compatible(): void
+    {
+        for ($i = 0; $i < 3; $i++) {
+            $face = Face::factory()->create();
+            User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+        }
+
+        $response = $this->getJson('/api/v1/public/faces');
+
+        $response->assertOk();
+        $this->assertEquals(3, $response->json('meta.total'));
     }
 }

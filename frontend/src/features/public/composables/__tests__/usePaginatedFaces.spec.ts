@@ -29,6 +29,7 @@ const mockFaces: PublicFace[] = [
   {
     id: 1,
     prenom: 'Adjoua',
+    nom: 'Dossou',
     ville: 'Cotonou',
     categorie: 'acteur',
     categorie_label: 'Acteur',
@@ -39,6 +40,7 @@ const mockFaces: PublicFace[] = [
   {
     id: 2,
     prenom: 'Koffi',
+    nom: 'Agbangla',
     ville: 'Porto-Novo',
     categorie: 'mannequin',
     categorie_label: 'Mannequin',
@@ -114,6 +116,7 @@ describe('usePaginatedFaces', () => {
         categorie: undefined,
         niche: undefined,
         ville: undefined,
+        search: undefined,
       })
     })
 
@@ -343,6 +346,75 @@ describe('usePaginatedFaces', () => {
       previousPage()
 
       expect(mockPush).not.toHaveBeenCalled()
+    })
+  })
+
+  // ─── Search Tests (Task 9) ────────────────────────────────────────
+
+  describe('Search support', () => {
+    it('reads search param from URL on mount', () => {
+      mockQuery = { search: 'Adjoua' }
+
+      const { filters } = usePaginatedFaces(15)
+
+      expect(filters.value.search).toBe('Adjoua')
+    })
+
+    it('passes search to API call', async () => {
+      mockQuery = { search: 'Adjoua' }
+
+      const { loadPage } = usePaginatedFaces(15)
+      await loadPage(1)
+
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(1, 15, {
+        categorie: undefined,
+        niche: undefined,
+        ville: undefined,
+        search: 'Adjoua',
+      })
+    })
+
+    it('page resets to 1 when search changes via updateFilters', async () => {
+      mockQuery = { page: '3', categorie: 'acteur' }
+
+      const { updateFilters } = usePaginatedFaces(15)
+      await updateFilters({ search: 'Kofi' })
+
+      // updateFilters resets page to 1 by omitting page param
+      expect(mockPush).toHaveBeenCalledWith({
+        query: { search: 'Kofi' },
+      })
+    })
+
+    it('search combined with filters in API call', async () => {
+      mockQuery = { search: 'Adjoua', categorie: 'acteur', ville: 'Cotonou' }
+
+      const { loadPage } = usePaginatedFaces(15)
+      await loadPage(1)
+
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(1, 15, {
+        categorie: 'acteur',
+        niche: undefined,
+        ville: 'Cotonou',
+        search: 'Adjoua',
+      })
+    })
+
+    it('hasActiveFilters is true when search is present', () => {
+      mockQuery = { search: 'Adjoua' }
+
+      const { hasActiveFilters } = usePaginatedFaces(15)
+
+      expect(hasActiveFilters.value).toBe(true)
+    })
+
+    it('clearFilters clears search along with other filters', async () => {
+      mockQuery = { search: 'Adjoua', categorie: 'acteur' }
+
+      const { clearFilters } = usePaginatedFaces(15)
+      await clearFilters()
+
+      expect(mockPush).toHaveBeenCalledWith({ query: {} })
     })
   })
 })

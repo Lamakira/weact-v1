@@ -37,10 +37,11 @@ export function usePaginatedFaces(perPage: number = 15) {
     categorie: (route.query.categorie as string) || undefined,
     niche: (route.query.niche as string) || undefined,
     ville: (route.query.ville as string) || undefined,
+    search: (route.query.search as string) || undefined,
   }))
 
   const hasActiveFilters = computed(() =>
-    Boolean(filters.value.categorie || filters.value.niche || filters.value.ville)
+    Boolean(filters.value.categorie || filters.value.niche || filters.value.ville || filters.value.search)
   )
 
   const totalPages = computed(() => meta.value?.last_page ?? 1)
@@ -96,6 +97,7 @@ export function usePaginatedFaces(perPage: number = 15) {
     if (newFilters.categorie) query.categorie = newFilters.categorie
     if (newFilters.niche) query.niche = newFilters.niche
     if (newFilters.ville) query.ville = newFilters.ville
+    if (newFilters.search) query.search = newFilters.search
     // Reset page to 1 when filters change (omit page param)
 
     await router.push({ query })
@@ -126,7 +128,7 @@ export function usePaginatedFaces(perPage: number = 15) {
 
   // Watch for URL changes (page or filters) and reload data
   watch(
-    () => [route.query.page, route.query.categorie, route.query.niche, route.query.ville],
+    () => [route.query.page, route.query.categorie, route.query.niche, route.query.ville, route.query.search],
     () => {
       loadPage(currentPage.value)
     }

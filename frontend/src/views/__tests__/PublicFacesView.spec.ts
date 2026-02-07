@@ -14,6 +14,7 @@ const mockFaces: PublicFace[] = [
   {
     id: 1,
     prenom: 'Adjoua',
+    nom: 'Dossou',
     ville: 'Cotonou',
     categorie: 'acteur',
     categorie_label: 'Acteur',
@@ -24,6 +25,7 @@ const mockFaces: PublicFace[] = [
   {
     id: 2,
     prenom: 'Koffi',
+    nom: 'Agbangla',
     ville: 'Porto-Novo',
     categorie: 'mannequin',
     categorie_label: 'Mannequin',
@@ -276,6 +278,7 @@ describe('PublicFacesView', () => {
         categorie: undefined,
         niche: undefined,
         ville: undefined,
+        search: undefined,
       })
     })
 
@@ -289,7 +292,49 @@ describe('PublicFacesView', () => {
         categorie: undefined,
         niche: undefined,
         ville: undefined,
+        search: undefined,
       })
+    })
+
+    it('passes search query param to API call', async () => {
+      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
+
+      await mountView('/faces?search=Adjoua')
+      await flushPromises()
+
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(1, 15, {
+        categorie: undefined,
+        niche: undefined,
+        ville: undefined,
+        search: 'Adjoua',
+      })
+    })
+
+    it('passes search combined with filters to API call', async () => {
+      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
+
+      await mountView('/faces?search=Adjoua&categorie=acteur')
+      await flushPromises()
+
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(1, 15, {
+        categorie: 'acteur',
+        niche: undefined,
+        ville: undefined,
+        search: 'Adjoua',
+      })
+    })
+
+    it('shows empty state when search returns no results', async () => {
+      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue({
+        ...mockResponse,
+        data: [],
+        meta: { ...mockResponse.meta, total: 0 },
+      })
+
+      const wrapper = await mountView('/faces?search=NONEXISTENT')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="faces-empty"]').exists()).toBe(true)
     })
   })
 

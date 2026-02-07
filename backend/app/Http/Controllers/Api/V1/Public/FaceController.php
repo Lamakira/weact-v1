@@ -36,6 +36,16 @@ class FaceController extends Controller
 
                 return $q->where('ville', 'like', "%{$escaped}%");
             })
+            ->when($request->validated('search'), function ($q, $search) {
+                $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $search);
+
+                return $q->where(function ($query) use ($escaped) {
+                    $query->where('prenom', 'like', "%{$escaped}%")
+                        ->orWhere('nom', 'like', "%{$escaped}%")
+                        ->orWhere('username', 'like', "%{$escaped}%")
+                        ->orWhere('bio', 'like', "%{$escaped}%");
+                });
+            })
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 

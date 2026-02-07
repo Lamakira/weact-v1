@@ -8,6 +8,7 @@ import { publicApiClient } from './apiClient'
 export interface PublicFace {
   id: number
   prenom: string
+  nom: string
   ville: string | null
   categorie: string
   categorie_label: string
@@ -66,6 +67,7 @@ export interface FacesFilterParams {
   categorie?: string
   niche?: string
   ville?: string
+  search?: string
 }
 
 /**
@@ -121,6 +123,7 @@ export async function fetchPublicFaces(
   if (filters.categorie) params.categorie = filters.categorie
   if (filters.niche) params.niche = filters.niche
   if (filters.ville) params.ville = filters.ville
+  if (filters.search && filters.search.length >= 2) params.search = filters.search
 
   const response = await publicApiClient.get<PublicFacesResponse>('/v1/public/faces', {
     params,
