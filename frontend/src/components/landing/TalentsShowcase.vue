@@ -66,7 +66,7 @@ const mockTalents: Talent[] = [
 </script>
 
 <template>
-  <section class="py-16 lg:py-20 relative overflow-hidden" data-testid="talents-showcase">
+  <section class="py-10 lg:py-12 relative overflow-hidden" data-testid="talents-showcase">
     <!-- Gradient Background Layer -->
     <div
       class="absolute inset-0 bg-gradient-to-r from-[#198496]/10 via-[#1a9fb5]/10 to-[#1bbad4]/10 pointer-events-none"

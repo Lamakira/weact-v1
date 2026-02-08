@@ -26,7 +26,7 @@ const togglePlaceholderRef = ref<HTMLElement | null>(null)
 function handleScroll(): void {
   if (!togglePlaceholderRef.value) return
   const rect = togglePlaceholderRef.value.getBoundingClientRect()
-  isToggleSticky.value = rect.top <= 0
+  isToggleSticky.value = rect.top <= 64
 }
 
 onMounted(() => {
@@ -165,20 +165,22 @@ function getStatusBadge(status: string): { class: string; label: string } {
   <div class="overflow-x-hidden">
     <!-- ===== PERSPECTIVE TOGGLE (Sticky after header) ===== -->
     <!-- Placeholder to detect scroll position -->
-    <div ref="togglePlaceholderRef" class="h-[72px]"></div>
+    <div ref="togglePlaceholderRef" class="h-[56px]"></div>
 
-    <!-- Fixed toggle when scrolling -->
+    <!-- Toggle container (compact + sticky below header when scrolling) -->
     <div
       ref="toggleContainerRef"
       :class="[
-        'left-0 right-0 bg-white/95 backdrop-blur-sm border-b border-gray-100 py-4 transition-shadow duration-200',
-        isToggleSticky ? 'fixed top-0 z-50 shadow-md' : 'relative',
+        'left-0 right-0 transition-all duration-200',
+        isToggleSticky
+          ? 'fixed top-[72px] z-40 py-2'
+          : 'relative py-2 bg-gray-50/70',
       ]"
-      :style="isToggleSticky ? {} : { marginTop: '-72px' }"
+      :style="isToggleSticky ? {} : { marginTop: '-56px' }"
       data-testid="perspective-toggle-container"
     >
       <div class="flex justify-center">
-        <PerspectiveToggle v-model="perspective" />
+        <PerspectiveToggle v-model="perspective" :compact="isToggleSticky" />
       </div>
     </div>
 
@@ -191,7 +193,7 @@ function getStatusBadge(status: string): { class: string; label: string } {
     </div>
 
     <!-- ===== SECTION 2: COMMENT ÇA MARCHE (Data-driven) ===== -->
-    <section class="py-16 bg-white relative overflow-hidden">
+    <section class="py-10 bg-white relative overflow-hidden">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header -->
         <div class="text-center mb-10 lg:mb-20">
@@ -423,7 +425,7 @@ function getStatusBadge(status: string): { class: string; label: string } {
     </Transition>
 
     <!-- ===== SECTION 4: MISSIONS EN COURS (Data-driven) ===== -->
-    <section id="missions" class="py-16 bg-gray-50">
+    <section id="missions" class="py-10 bg-gray-50">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header -->
         <div class="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
@@ -641,7 +643,7 @@ function getStatusBadge(status: string): { class: string; label: string } {
     </section>
 
     <!-- ===== SECTION 5: POURQUOI WEACT (Data-driven) ===== -->
-    <section class="py-16 bg-white">
+    <section class="py-10 bg-white">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header -->
         <div class="text-center mb-16">
@@ -743,7 +745,7 @@ function getStatusBadge(status: string): { class: string; label: string } {
     </section>
 
     <!-- ===== SECTION 6: PRÊT À COMMENCER ? (Data-driven) ===== -->
-    <section class="pt-4 pb-16 px-4 sm:px-6 lg:px-8">
+    <section class="pt-4 pb-10 px-4 sm:px-6 lg:px-8">
       <div
         class="max-w-7xl mx-auto relative bg-gradient-to-br from-[#198496]/90 via-[#1a9fb5]/85 to-[#1bbad4]/80 rounded-3xl overflow-hidden py-16 px-8 text-center"
       >

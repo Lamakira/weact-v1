@@ -36,8 +36,10 @@ const isLandingPage = computed(() => {
   <!-- Landing page: full-width sections with header/footer -->
   <template v-else-if="isLandingPage">
     <div class="min-h-screen bg-white flex flex-col">
-      <!-- Header -->
-      <AppHeader />
+      <!-- Header (sticky on landing page) -->
+      <div class="sticky top-0 z-50">
+        <AppHeader />
+      </div>
 
       <!-- Main Content - Full width for landing page -->
       <main class="flex-1">

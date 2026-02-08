@@ -37,6 +37,43 @@ const router = createRouter({
       path: '/about',
       name: 'about',
       component: () => import('../views/AboutView.vue'),
+      meta: { title: 'À propos - WEACT' },
+    },
+    {
+      path: '/legal',
+      name: 'legal',
+      component: () => import('../views/LegalView.vue'),
+      meta: { title: 'Mentions légales - WEACT' },
+    },
+    {
+      path: '/contact',
+      name: 'contact',
+      component: () => import('../views/ContactView.vue'),
+      meta: { title: 'Contact - WEACT' },
+    },
+    {
+      path: '/faq',
+      name: 'faq',
+      component: () => import('../views/FaqView.vue'),
+      meta: { title: 'FAQ - WEACT' },
+    },
+    {
+      path: '/guide',
+      name: 'guide',
+      component: () => import('../views/GuideView.vue'),
+      meta: { title: 'Guide de démarrage - WEACT' },
+    },
+    {
+      path: '/support',
+      name: 'support',
+      component: () => import('../views/SupportView.vue'),
+      meta: { title: 'Support - WEACT' },
+    },
+    {
+      path: '/pricing',
+      name: 'pricing',
+      component: () => import('../views/PricingView.vue'),
+      meta: { title: 'Tarifs - WEACT' },
     },
     // Auth routes (guest only)
     {
