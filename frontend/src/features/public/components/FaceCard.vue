@@ -21,9 +21,13 @@ const availabilityLabel = computed(() => {
   return props.face.is_available ? 'Disponible' : 'Indisponible'
 })
 
-// Check if face has a profile photo
+// Use full-size photo for cards (thumbnails are only 150x150, too small for card display)
+const photoUrl = computed(() => {
+  return props.face.profile_photo_url || props.face.profile_photo_thumbnail_url
+})
+
 const hasPhoto = computed(() => {
-  return !!props.face.profile_photo_thumbnail_url
+  return !!photoUrl.value
 })
 </script>
 
@@ -39,7 +43,7 @@ const hasPhoto = computed(() => {
       <!-- Actual Photo -->
       <img
         v-if="hasPhoto"
-        :src="face.profile_photo_thumbnail_url!"
+        :src="photoUrl!"
         :alt="`Photo de ${face.prenom}`"
         class="h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-110"
         loading="lazy"
