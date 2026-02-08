@@ -49,17 +49,16 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <section class="relative pt-20 pb-16 lg:pt-24 lg:pb-20 overflow-hidden">
+  <section class="relative pt-2 pb-10 lg:pt-4 lg:pb-12 overflow-hidden bg-gray-50/70">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex items-start justify-between gap-12">
         <!-- Left: Text Content -->
         <div class="max-w-2xl text-center lg:text-left">
           <!-- Hero Title -->
           <div>
-            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
-              Monétisez votre image
-              <br />
-              en jouant dans :
+            <h1 class="text-3xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
+              <span class="block">Monétisez votre image</span>
+              <span class="block">en jouant dans :</span>
             </h1>
 
             <!-- Dynamic Animated Word -->
@@ -83,7 +82,7 @@ onUnmounted(() => {
           </p>
           <RouterLink
             to="/register/face"
-            class="group inline-flex items-center gap-2 bg-[#198496] text-white px-8 py-3.5 rounded-md font-medium text-base hover:bg-[#146c7a] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"
+            class="group inline-flex w-full sm:w-auto justify-center items-center gap-2 bg-[#198496] text-white px-8 py-3.5 rounded-md font-medium text-base hover:bg-[#146c7a] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"
             data-testid="hero-cta"
           >
             Créer mon profil

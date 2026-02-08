@@ -61,7 +61,7 @@ onUnmounted(() => {
 
 <template>
   <section
-    class="relative w-full min-h-[500px] sm:min-h-[550px] lg:min-h-[800px] flex items-center justify-center overflow-hidden bg-gradient-to-br from-white via-[#198496]/5 to-white py-12 lg:py-20 px-4"
+    class="relative w-full min-h-[500px] sm:min-h-[550px] lg:min-h-[800px] flex items-center justify-center overflow-hidden bg-gradient-to-br from-white via-[#198496]/5 to-white pt-2 pb-10 lg:pt-4 lg:pb-12 px-4"
   >
     <!-- Orbiting Talent Faces (Desktop only) -->
     <div
