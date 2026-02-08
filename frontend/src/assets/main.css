@@ -3,6 +3,33 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ── Custom Fonts ── */
+
+/* Zalando Sans – Body text (variable font, all weights) */
+@font-face {
+  font-family: 'Zalando Sans';
+  src: url('@/assets/fonts/zalando_sans/ZalandoSans-VariableFont_wdth,wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Zalando Sans';
+  src: url('@/assets/fonts/zalando_sans/ZalandoSans-Italic-VariableFont_wdth,wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* After – Headings */
+@font-face {
+  font-family: 'After';
+  src: url('@/assets/fonts/after-font/after-regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* shadcn/vue theme mappings */
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -68,7 +95,8 @@
   --color-primary-900: #083d4a;
 
   /* Typography */
-  --font-family-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-family-sans: 'Zalando Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-family-heading: 'Zalando Sans', ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
@@ -153,6 +181,9 @@
     font-family: var(--font-family-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-family-heading);
   }
 }
 
