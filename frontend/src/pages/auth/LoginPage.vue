@@ -58,9 +58,13 @@ function handleLoginSuccess(): void {
     <!-- LEFT: Form Panel -->
     <div class="w-full lg:w-1/2 flex flex-col justify-center overflow-y-auto bg-white">
       <div class="max-w-md mx-auto w-full px-6 sm:px-8 py-12">
-        <!-- Logo -->
-        <div class="mb-8 flex justify-center lg:justify-start">
+        <!-- Logo & Back link -->
+        <div class="mb-8 flex items-center justify-between">
           <router-link to="/"><img :src="logoNoir" alt="WEACT" class="h-12 lg:h-8" /></router-link>
+          <router-link to="/" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary-500 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
+            Retour au site
+          </router-link>
         </div>
 
         <!-- Heading -->
@@ -152,84 +156,65 @@ function handleLoginSuccess(): void {
     </div>
 
     <!-- RIGHT: Branding Panel -->
-    <div class="hidden lg:flex lg:w-1/2 relative flex-col overflow-hidden bg-gray-900">
+    <div class="hidden lg:flex lg:w-1/2 relative flex-col justify-center overflow-hidden bg-gray-900">
       <!-- Background Image with Overlay -->
       <div class="absolute inset-0 z-0">
         <img
-          src="https://images.unsplash.com/photo-1598448663025-726488737576?auto=format&fit=crop&q=80&w=2000"
+          src="https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&q=80&w=2000"
           alt="Creative Studio"
           class="h-full w-full object-cover opacity-60"
         />
-        <div class="absolute inset-0 bg-gradient-to-t from-gray-950 via-gray-950/40 to-transparent"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent"></div>
       </div>
 
       <!-- Content Layer -->
-      <div class="relative z-10 flex h-full flex-col justify-between p-16">
-        <!-- Header Section -->
-        <div>
-          <h1 class="text-4xl font-light tracking-tight text-white mb-4">
-            Bienvenue sur <span class="text-primary-500 font-semibold">WEACT</span>
-          </h1>
-          <p class="max-w-md text-sm leading-relaxed text-gray-300">
-            La première marketplace de casting au Bénin. Connectez votre talent aux opportunités
-            les plus prestigieuses du marché créatif.
+      <div class="relative z-10 px-16 xl:px-24">
+        <!-- Headline & Subtitle -->
+        <div class="mb-12">
+          <h2 class="text-4xl xl:text-5xl font-bold text-white tracking-tight leading-tight">
+            Bienvenue sur <span class="text-primary-500">WEACT</span>
+          </h2>
+          <p class="mt-4 text-gray-300 text-lg leading-relaxed max-w-md">
+            La première marketplace de casting au Bénin. Connectez votre talent aux opportunités les plus prestigieuses du marché créatif.
           </p>
         </div>
 
-        <!-- Features & Stats Section -->
-        <div class="space-y-12">
-          <!-- Trust Features List -->
-          <div class="space-y-6">
-            <div class="flex items-start gap-4">
-              <div class="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-500/10 border border-primary-500/20">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-primary-500"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              </div>
-              <div>
-                <h3 class="text-sm font-medium text-white">Communauté vérifiée</h3>
-                <p class="text-xs text-gray-400 mt-1">Profils talentueux et agences de confiance authentifiés.</p>
-              </div>
+        <!-- Benefits List -->
+        <div class="space-y-6">
+          <div class="flex items-start">
+            <div class="shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-primary-500/10 text-primary-500">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" /></svg>
             </div>
-
-            <div class="flex items-start gap-4">
-              <div class="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-500/10 border border-primary-500/20">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-primary-500"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 8 6 4-6 4Z"/></svg>
-              </div>
-              <div>
-                <h3 class="text-sm font-medium text-white">Casting simplifié</h3>
-                <p class="text-xs text-gray-400 mt-1">Postulez et gérez vos auditions en quelques clics.</p>
-              </div>
-            </div>
-
-            <div class="flex items-start gap-4">
-              <div class="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-500/10 border border-primary-500/20">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-primary-500"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
-              </div>
-              <div>
-                <h3 class="text-sm font-medium text-white">Paiements sécurisés</h3>
-                <p class="text-xs text-gray-400 mt-1">Transactions garanties et gestion de contrats intégrée.</p>
-              </div>
+            <div class="ml-4">
+              <h3 class="text-sm font-semibold text-white">Communauté vérifiée</h3>
+              <p class="text-sm text-gray-400 mt-0.5">Profils talentueux et agences de confiance authentifiés.</p>
             </div>
           </div>
 
-          <!-- Glassmorphism Stats Cards -->
-          <div class="grid grid-cols-2 gap-4 max-w-sm">
-            <div class="backdrop-blur-sm bg-white/10 border border-white/10 p-4 rounded-md">
-              <div class="text-lg font-semibold text-white">500+</div>
-              <div class="text-[10px] uppercase tracking-wider text-primary-500 font-bold">Faces disponibles</div>
+          <div class="flex items-start">
+            <div class="shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-primary-500/10 text-primary-500">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
             </div>
-            <div class="backdrop-blur-sm bg-white/10 border border-white/10 p-4 rounded-md">
-              <div class="text-lg font-semibold text-white">200+</div>
-              <div class="text-[10px] uppercase tracking-wider text-primary-500 font-bold">Missions complétées</div>
+            <div class="ml-4">
+              <h3 class="text-sm font-semibold text-white">Casting simplifié</h3>
+              <p class="text-sm text-gray-400 mt-0.5">Postulez et gérez vos auditions en quelques clics.</p>
             </div>
           </div>
-        </div>
 
-        <!-- Footer Accent -->
-        <div class="flex items-center gap-2">
-          <div class="h-px w-8 bg-primary-500"></div>
-          <span class="text-[10px] uppercase tracking-[0.2em] text-gray-500 font-medium">L'excellence créative au Bénin</span>
+          <div class="flex items-start">
+            <div class="shrink-0 w-10 h-10 flex items-center justify-center rounded-lg bg-primary-500/10 text-primary-500">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" /></svg>
+            </div>
+            <div class="ml-4">
+              <h3 class="text-sm font-semibold text-white">Paiements sécurisés</h3>
+              <p class="text-sm text-gray-400 mt-0.5">Transactions garanties et gestion de contrats intégrée.</p>
+            </div>
+          </div>
         </div>
       </div>
+
+      <!-- Decorative Bottom Gradient -->
+      <div class="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-primary-500/10 to-transparent pointer-events-none"></div>
     </div>
   </div>
 </template>
