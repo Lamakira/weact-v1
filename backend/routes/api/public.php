@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\V1\Public\FaceController;
 use App\Http\Controllers\Api\V1\Public\FaceReviewController;
 use App\Http\Controllers\Api\V1\Public\MissionController;
@@ -46,4 +47,8 @@ Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
 
     // Public Mission detail
     Route::get('/missions/{slug}', [MissionController::class, 'show']);
+
+    // Contact form
+    Route::post('/contact', [ContactController::class, 'store'])
+        ->middleware('throttle:5,1');
 });

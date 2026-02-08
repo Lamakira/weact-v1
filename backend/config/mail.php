@@ -115,4 +115,15 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Contact Form Recipient
+    |--------------------------------------------------------------------------
+    |
+    | The email address that receives contact form submissions.
+    |
+    */
+
+    'contact_to' => env('MAIL_CONTACT_TO', 'contact@weact.bj'),
+
 ];
