@@ -2,6 +2,7 @@
 import { Briefcase, AlertCircle, RefreshCw } from 'lucide-vue-next'
 import { usePaginatedMissions } from '@/features/public/composables/usePaginatedMissions'
 import PublicMissionCard from '@/features/public/components/PublicMissionCard.vue'
+import RegistrationCta from '@/features/public/components/RegistrationCta.vue'
 import { Pagination } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -114,6 +115,7 @@ function handlePageChange(page: number): void {
       <p class="text-gray-600 max-w-md mx-auto">
         Il n'y a pas encore de missions publiées sur la plateforme. Revenez bientôt !
       </p>
+      <RegistrationCta variant="missions" class="mt-8" />
     </div>
 
     <!-- Missions Grid -->
@@ -137,6 +139,9 @@ function handlePageChange(page: number): void {
           :mission="mission"
         />
       </div>
+
+      <!-- Registration CTA -->
+      <RegistrationCta variant="missions" />
 
       <!-- Pagination -->
       <div

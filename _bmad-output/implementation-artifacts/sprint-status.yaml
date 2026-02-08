@@ -160,7 +160,7 @@ development_status:
   epic-10-retrospective: done
 
   # Epic 11: Public Access & Discovery (11 stories)
-  epic-11: in-progress
+  epic-11: done
   11-0a-public-header-refactoring: done
   11-0b-public-footer-creation: done
   11-1-landing-page: done
@@ -170,10 +170,10 @@ development_status:
   11-5-public-faces-filters: done
   11-6-public-missions-list: done
   11-7-public-mission-detail: done
-  11-8-registration-access-points: backlog
+  11-8-registration-access-points: done
   11-9-public-faces-search: done
   11-10-slug-based-public-urls: done
-  epic-11-retrospective: optional
+  epic-11-retrospective: done
 
   # Epic 12: Blog & Resources (9 stories)
   epic-12: backlog

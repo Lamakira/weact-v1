@@ -67,70 +67,77 @@ const onSubmit = handleSubmit(async (values) => {
     <!-- General API error -->
     <div
       v-if="apiError"
-      class="rounded-md bg-red-50 p-4 border border-red-200"
+      class="rounded-lg bg-red-50 p-4 border border-red-200"
       role="alert"
       data-testid="api-error"
     >
       <p class="text-sm text-red-700">{{ apiError }}</p>
     </div>
 
-    <!-- Nom -->
-    <div>
-      <label for="nom" class="block text-sm font-medium text-gray-700">Nom</label>
-      <input
-        id="nom"
-        v-model="nom"
-        type="text"
-        autocomplete="family-name"
-        :class="[
-          'mt-1 block w-full rounded-md shadow-sm sm:text-sm',
-          nomError
-            ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-            : 'border-gray-300 focus:border-primary focus:ring-primary',
-        ]"
-        data-testid="nom-input"
-      />
-      <p v-if="nomError" class="mt-1 text-sm text-red-600" data-testid="nom-error">
-        {{ nomError }}
-      </p>
-    </div>
-
-    <!-- Prénom -->
-    <div>
-      <label for="prenom" class="block text-sm font-medium text-gray-700">Prénom</label>
-      <input
-        id="prenom"
-        v-model="prenom"
-        type="text"
-        autocomplete="given-name"
-        :class="[
-          'mt-1 block w-full rounded-md shadow-sm sm:text-sm',
-          prenomError
-            ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-            : 'border-gray-300 focus:border-primary focus:ring-primary',
-        ]"
-        data-testid="prenom-input"
-      />
-      <p v-if="prenomError" class="mt-1 text-sm text-red-600" data-testid="prenom-error">
-        {{ prenomError }}
-      </p>
+    <!-- Nom + Prénom (same row) -->
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label for="nom" class="block text-sm font-medium text-gray-700 mb-1">
+          Nom<span class="text-red-500">*</span>
+        </label>
+        <input
+          id="nom"
+          v-model="nom"
+          type="text"
+          autocomplete="family-name"
+          placeholder="Dupont"
+          :class="[
+            'w-full px-4 py-3 border rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:outline-none transition-colors',
+            nomError
+              ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+              : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500/20',
+          ]"
+          data-testid="nom-input"
+        />
+        <p v-if="nomError" class="mt-1 text-sm text-red-600" data-testid="nom-error">
+          {{ nomError }}
+        </p>
+      </div>
+      <div>
+        <label for="prenom" class="block text-sm font-medium text-gray-700 mb-1">
+          Prénom<span class="text-red-500">*</span>
+        </label>
+        <input
+          id="prenom"
+          v-model="prenom"
+          type="text"
+          autocomplete="given-name"
+          placeholder="Jean"
+          :class="[
+            'w-full px-4 py-3 border rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:outline-none transition-colors',
+            prenomError
+              ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+              : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500/20',
+          ]"
+          data-testid="prenom-input"
+        />
+        <p v-if="prenomError" class="mt-1 text-sm text-red-600" data-testid="prenom-error">
+          {{ prenomError }}
+        </p>
+      </div>
     </div>
 
     <!-- Username -->
     <div>
-      <label for="username" class="block text-sm font-medium text-gray-700"
-        >Nom d'utilisateur</label
-      >
+      <label for="username" class="block text-sm font-medium text-gray-700 mb-1">
+        Nom d'utilisateur<span class="text-red-500">*</span>
+      </label>
       <input
         id="username"
         v-model="username"
         type="text"
         autocomplete="username"
+        placeholder="jean_dupont"
         :class="[
-          'mt-1 block w-full rounded-md shadow-sm sm:text-sm',
+          'w-full px-4 py-3 border rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:outline-none transition-colors',
           usernameError
-            ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-            : 'border-gray-300 focus:border-primary focus:ring-primary',
+            ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+            : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500/20',
         ]"
         data-testid="username-input"
       />
@@ -141,17 +148,20 @@ const onSubmit = handleSubmit(async (values) => {
 
     <!-- Email -->
     <div>
-      <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+      <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
+        Email<span class="text-red-500">*</span>
+      </label>
       <input
         id="email"
         v-model="email"
         type="email"
         autocomplete="email"
+        placeholder="votre@email.com"
         :class="[
-          'mt-1 block w-full rounded-md shadow-sm sm:text-sm',
+          'w-full px-4 py-3 border rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:outline-none transition-colors',
           emailError
-            ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-            : 'border-gray-300 focus:border-primary focus:ring-primary',
+            ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+            : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500/20',
         ]"
         data-testid="email-input"
       />
@@ -160,105 +170,92 @@ const onSubmit = handleSubmit(async (values) => {
       </p>
     </div>
 
-    <!-- Password -->
-    <div>
-      <label for="password" class="block text-sm font-medium text-gray-700">Mot de passe</label>
-      <input
-        id="password"
-        v-model="password"
-        type="password"
-        autocomplete="new-password"
-        :class="[
-          'mt-1 block w-full rounded-md shadow-sm sm:text-sm',
-          passwordError
-            ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-            : 'border-gray-300 focus:border-primary focus:ring-primary',
-        ]"
-        data-testid="password-input"
-      />
-      <p v-if="passwordError" class="mt-1 text-sm text-red-600" data-testid="password-error">
-        {{ passwordError }}
-      </p>
-      <p class="mt-1 text-xs text-gray-500">
-        8 caractères minimum, une majuscule et un chiffre requis
-      </p>
-    </div>
-
-    <!-- Password Confirmation -->
-    <div>
-      <label for="password_confirmation" class="block text-sm font-medium text-gray-700"
-        >Confirmer le mot de passe</label
-      >
-      <input
-        id="password_confirmation"
-        v-model="password_confirmation"
-        type="password"
-        autocomplete="new-password"
-        :class="[
-          'mt-1 block w-full rounded-md shadow-sm sm:text-sm',
-          passwordConfirmationError
-            ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-            : 'border-gray-300 focus:border-primary focus:ring-primary',
-        ]"
-        data-testid="password-confirmation-input"
-      />
-      <p
-        v-if="passwordConfirmationError"
-        class="mt-1 text-sm text-red-600"
-        data-testid="password-confirmation-error"
-      >
-        {{ passwordConfirmationError }}
-      </p>
+    <!-- Password + Password Confirmation (same row) -->
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
+          Mot de passe<span class="text-red-500">*</span>
+        </label>
+        <input
+          id="password"
+          v-model="password"
+          type="password"
+          autocomplete="new-password"
+          placeholder="••••••••"
+          :class="[
+            'w-full px-4 py-3 border rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:outline-none transition-colors',
+            passwordError
+              ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+              : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500/20',
+          ]"
+          data-testid="password-input"
+        />
+        <p v-if="passwordError" class="mt-1 text-sm text-red-600" data-testid="password-error">
+          {{ passwordError }}
+        </p>
+        <p class="mt-1 text-xs text-gray-500">
+          Min. 8 car., 1 majuscule, 1 chiffre
+        </p>
+      </div>
+      <div>
+        <label for="password_confirmation" class="block text-sm font-medium text-gray-700 mb-1">
+          Confirmation<span class="text-red-500">*</span>
+        </label>
+        <input
+          id="password_confirmation"
+          v-model="password_confirmation"
+          type="password"
+          autocomplete="new-password"
+          placeholder="••••••••"
+          :class="[
+            'w-full px-4 py-3 border rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:outline-none transition-colors',
+            passwordConfirmationError
+              ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
+              : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500/20',
+          ]"
+          data-testid="password-confirmation-input"
+        />
+        <p
+          v-if="passwordConfirmationError"
+          class="mt-1 text-sm text-red-600"
+          data-testid="password-confirmation-error"
+        >
+          {{ passwordConfirmationError }}
+        </p>
+      </div>
     </div>
 
     <!-- Submit Button -->
-    <div>
-      <button
-        type="submit"
-        :disabled="isLoading"
-        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-        data-testid="submit-button"
-      >
-        <span v-if="isLoading" class="flex items-center">
-          <svg
-            class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              class="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              stroke-width="4"
-            ></circle>
-            <path
-              class="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            ></path>
-          </svg>
-          Inscription en cours...
-        </span>
-        <span v-else>S'inscrire en tant que Face</span>
-      </button>
-    </div>
+    <button
+      type="submit"
+      :disabled="isLoading"
+      class="w-full py-3 bg-primary-500 text-white font-medium rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      data-testid="submit-button"
+    >
+      <span v-if="isLoading" class="flex items-center justify-center gap-2">
+        <svg
+          class="animate-spin h-5 w-5 text-white"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+          ></circle>
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
+        </svg>
+        Inscription en cours...
+      </span>
+      <span v-else>S'inscrire en tant que Face</span>
+    </button>
   </form>
 </template>
-
-<style scoped>
-.bg-primary {
-  background-color: #198496;
-}
-.bg-primary-dark {
-  background-color: #156b7a;
-}
-.focus\:border-primary:focus {
-  border-color: #198496;
-}
-.focus\:ring-primary:focus {
-  --tw-ring-color: #198496;
-}
-</style>

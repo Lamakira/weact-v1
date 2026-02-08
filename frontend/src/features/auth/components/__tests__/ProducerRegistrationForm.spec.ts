@@ -99,15 +99,15 @@ describe('ProducerRegistrationForm', () => {
     const particulierButton = wrapper.find('[data-testid="type-particulier-button"]')
 
     // Agency should be active by default
-    expect(agencyButton.classes()).toContain('bg-primary')
-    expect(particulierButton.classes()).not.toContain('bg-primary')
+    expect(agencyButton.classes()).toContain('bg-primary-500')
+    expect(particulierButton.classes()).not.toContain('bg-primary-500')
 
     // Click particulier
     await particulierButton.trigger('click')
 
     // Particulier should now be active
-    expect(particulierButton.classes()).toContain('bg-primary')
-    expect(agencyButton.classes()).not.toContain('bg-primary')
+    expect(particulierButton.classes()).toContain('bg-primary-500')
+    expect(agencyButton.classes()).not.toContain('bg-primary-500')
   })
 
   it('has submit button with correct text', async () => {
@@ -169,7 +169,6 @@ describe('ProducerRegistrationForm', () => {
   it('shows password hint text', () => {
     const wrapper = mountComponent()
 
-    expect(wrapper.text()).toContain('8 caractères minimum')
-    expect(wrapper.text()).toContain('une majuscule et un chiffre requis')
+    expect(wrapper.text()).toContain('Min. 8 car., 1 majuscule, 1 chiffre')
   })
 })

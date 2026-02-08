@@ -1,0 +1,96 @@
+@font-face {
+    font-family: 'Pilat Extended';
+    src: url('PilatExtended-Bold.eot');
+    src: local('Pilat Extended Bold'), local('PilatExtended-Bold'),
+        url('PilatExtended-Bold.eot?#iefix') format('embedded-opentype'),
+        url('PilatExtended-Bold.woff2') format('woff2'),
+        url('PilatExtended-Bold.woff') format('woff'),
+        url('PilatExtended-Bold.ttf') format('truetype');
+    font-weight: bold;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Pilat Extended';
+    src: url('PilatExtended-Regular.eot');
+    src: local('Pilat Extended Regular'), local('PilatExtended-Regular'),
+        url('PilatExtended-Regular.eot?#iefix') format('embedded-opentype'),
+        url('PilatExtended-Regular.woff2') format('woff2'),
+        url('PilatExtended-Regular.woff') format('woff'),
+        url('PilatExtended-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Pilat Extended';
+    src: url('PilatExtended-Thin.eot');
+    src: local('Pilat Extended Thin'), local('PilatExtended-Thin'),
+        url('PilatExtended-Thin.eot?#iefix') format('embedded-opentype'),
+        url('PilatExtended-Thin.woff2') format('woff2'),
+        url('PilatExtended-Thin.woff') format('woff'),
+        url('PilatExtended-Thin.ttf') format('truetype');
+    font-weight: 100;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Pilat Extended';
+    src: url('PilatExtended-Heavy.eot');
+    src: local('Pilat Extended Heavy'), local('PilatExtended-Heavy'),
+        url('PilatExtended-Heavy.eot?#iefix') format('embedded-opentype'),
+        url('PilatExtended-Heavy.woff2') format('woff2'),
+        url('PilatExtended-Heavy.woff') format('woff'),
+        url('PilatExtended-Heavy.ttf') format('truetype');
+    font-weight: 900;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Pilat Extended';
+    src: url('PilatExtended-Light.eot');
+    src: local('Pilat Extended Light'), local('PilatExtended-Light'),
+        url('PilatExtended-Light.eot?#iefix') format('embedded-opentype'),
+        url('PilatExtended-Light.woff2') format('woff2'),
+        url('PilatExtended-Light.woff') format('woff'),
+        url('PilatExtended-Light.ttf') format('truetype');
+    font-weight: 300;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Pilat Extended Book';
+    src: url('PilatExtended-Book.eot');
+    src: local('Pilat Extended Book'), local('PilatExtended-Book'),
+        url('PilatExtended-Book.eot?#iefix') format('embedded-opentype'),
+        url('PilatExtended-Book.woff2') format('woff2'),
+        url('PilatExtended-Book.woff') format('woff'),
+        url('PilatExtended-Book.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Pilat Extended Demi';
+    src: url('PilatExtended-DemiBold.eot');
+    src: local('Pilat Extended DemiBold'), local('PilatExtended-DemiBold'),
+        url('PilatExtended-DemiBold.eot?#iefix') format('embedded-opentype'),
+        url('PilatExtended-DemiBold.woff2') format('woff2'),
+        url('PilatExtended-DemiBold.woff') format('woff'),
+        url('PilatExtended-DemiBold.ttf') format('truetype');
+    font-weight: 600;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Pilat Extended';
+    src: url('PilatExtended-Black.eot');
+    src: local('Pilat Extended Black'), local('PilatExtended-Black'),
+        url('PilatExtended-Black.eot?#iefix') format('embedded-opentype'),
+        url('PilatExtended-Black.woff2') format('woff2'),
+        url('PilatExtended-Black.woff') format('woff'),
+        url('PilatExtended-Black.ttf') format('truetype');
+    font-weight: 900;
+    font-style: normal;
+}
+
