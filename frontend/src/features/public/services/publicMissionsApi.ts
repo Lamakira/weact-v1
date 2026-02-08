@@ -84,7 +84,7 @@ export async function fetchPublicMissions(
     per_page: validPerPage,
   }
 
-  const response = await publicApiClient.get<PublicMissionsResponse>('/v1/public/missions', {
+  const response = await publicApiClient.get<PublicMissionsResponse>('/public/missions', {
     params,
   })
 
@@ -102,7 +102,7 @@ export async function fetchPublicMissionDetail(
 ): Promise<PublicMissionDetailResult> {
   try {
     const response = await publicApiClient.get<PublicMissionDetailResponse>(
-      `/v1/public/missions/${encodeURIComponent(slug)}`
+      `/public/missions/${encodeURIComponent(slug)}`
     )
 
     return {

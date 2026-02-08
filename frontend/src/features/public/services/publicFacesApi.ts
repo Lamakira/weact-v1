@@ -126,7 +126,7 @@ export async function fetchPublicFaces(
   if (filters.ville) params.ville = filters.ville
   if (filters.search && filters.search.length >= 2) params.search = filters.search
 
-  const response = await publicApiClient.get<PublicFacesResponse>('/v1/public/faces', {
+  const response = await publicApiClient.get<PublicFacesResponse>('/public/faces', {
     params,
   })
 
@@ -139,7 +139,7 @@ export async function fetchPublicFaces(
  * @returns Promise with filter options data
  */
 export async function fetchFilterOptions(): Promise<FilterOptionsResponse> {
-  const response = await publicApiClient.get<FilterOptionsResponse>('/v1/public/faces/options')
+  const response = await publicApiClient.get<FilterOptionsResponse>('/public/faces/options')
 
   return response.data
 }
@@ -155,7 +155,7 @@ export async function fetchPublicFaceProfile(
 ): Promise<PublicFaceProfileResult> {
   try {
     const response = await publicApiClient.get<PublicFaceProfileResponse>(
-      `/v1/public/faces/${encodeURIComponent(username)}`
+      `/public/faces/${encodeURIComponent(username)}`
     )
 
     return {
