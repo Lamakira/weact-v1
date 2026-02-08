@@ -11,6 +11,11 @@ const isDashboardRoute = computed(() => {
   return route.path.startsWith('/face/') || route.path.startsWith('/producer/')
 })
 
+/** Check if current route is an auth page (full-screen, no header/footer) */
+const isAuthRoute = computed(() => {
+  return route.meta.guest === true
+})
+
 /** Check if current route is landing page (needs full-width sections) */
 const isLandingPage = computed(() => {
   return route.name === 'home'
@@ -20,6 +25,11 @@ const isLandingPage = computed(() => {
 <template>
   <!-- Dashboard routes: full-screen, no header/footer -->
   <template v-if="isDashboardRoute">
+    <RouterView />
+  </template>
+
+  <!-- Auth routes: full-screen, no header/footer -->
+  <template v-else-if="isAuthRoute">
     <RouterView />
   </template>
 

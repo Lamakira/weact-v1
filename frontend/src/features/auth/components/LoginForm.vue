@@ -65,7 +65,7 @@ const onSubmit = handleSubmit(async (values) => {
     <!-- General API error -->
     <div
       v-if="apiError"
-      class="rounded-md bg-red-50 p-4 border border-red-200"
+      class="rounded-lg bg-red-50 p-4 border border-red-200"
       role="alert"
       data-testid="api-error"
     >
@@ -84,10 +84,10 @@ const onSubmit = handleSubmit(async (values) => {
         placeholder="votre@email.com"
         autocomplete="email"
         :class="[
-          'w-full px-4 py-3 border rounded-lg focus:ring-2 focus:outline-none transition-colors',
+          'w-full px-4 py-3 border rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:outline-none transition-colors',
           emailError
             ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-            : 'border-gray-300 focus:border-teal-600 focus:ring-teal-600/20',
+            : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500/20',
         ]"
         data-testid="email-input"
       />
@@ -109,10 +109,10 @@ const onSubmit = handleSubmit(async (values) => {
           placeholder="••••••••"
           autocomplete="current-password"
           :class="[
-            'w-full px-4 py-3 pr-12 border rounded-lg focus:ring-2 focus:outline-none transition-colors',
+            'w-full px-4 py-3 pr-12 border rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:outline-none transition-colors',
             passwordError
               ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-              : 'border-gray-300 focus:border-teal-600 focus:ring-teal-600/20',
+              : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500/20',
           ]"
           data-testid="password-input"
         />
@@ -171,7 +171,7 @@ const onSubmit = handleSubmit(async (values) => {
     <button
       type="submit"
       :disabled="isLoading"
-      class="w-full py-4 bg-primary text-white font-medium rounded-lg hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      class="w-full py-3 bg-primary-500 text-white font-medium rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       data-testid="submit-button"
     >
       <span v-if="isLoading" class="flex items-center justify-center gap-2">
@@ -201,16 +201,3 @@ const onSubmit = handleSubmit(async (values) => {
     </button>
   </form>
 </template>
-
-<style scoped>
-.bg-primary {
-  background-color: #198496;
-}
-.hover\:bg-primary-dark:hover {
-  background-color: #156b7a;
-}
-.focus\:ring-primary:focus {
-  --tw-ring-color: #198496;
-}
-</style>
-
