@@ -56,9 +56,9 @@ onUnmounted(() => {
         <div class="max-w-2xl text-center lg:text-left">
           <!-- Hero Title -->
           <div>
-            <h1 class="text-3xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
-              <span class="block">Monétisez votre image</span>
-              <span class="block">en jouant dans :</span>
+            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
+              <span class="block">Monétisez votre</span>
+              <span class="block">image dans :</span>
             </h1>
 
             <!-- Dynamic Animated Word -->
