@@ -23,18 +23,22 @@ function handleSuccess() {
     <!-- LEFT: Form Panel (scrollable) -->
     <div class="w-full lg:w-1/2 flex flex-col justify-center overflow-y-auto bg-white">
       <div class="max-w-md mx-auto w-full px-6 sm:px-8 py-12">
-        <!-- Logo & Back link -->
-        <div class="mb-8 flex items-center justify-between">
-          <router-link to="/"><img :src="logoNoir" alt="WEACT" class="h-12 lg:h-8" /></router-link>
-          <router-link to="/" class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary-500 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
+        <!-- Back link -->
+        <div class="mb-4">
+          <router-link to="/" class="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-primary-500 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" /></svg>
             Retour au site
           </router-link>
         </div>
 
+        <!-- Centered Logo -->
+        <div class="mb-3.5 flex justify-center">
+          <router-link to="/"><img :src="logoNoir" alt="WEACT" class="h-12 lg:h-8" /></router-link>
+        </div>
+
         <!-- Title -->
         <h1 class="hidden lg:block text-3xl font-bold text-gray-900 mb-2">Inscription Producteur</h1>
-        <p class="text-gray-600 mb-8 text-center lg:text-left">
+        <p class="text-gray-600 mb-4 text-center lg:text-left">
           <span class="lg:hidden">Devenez Producteur et trouvez les talents parfaits pour vos projets</span>
           <span class="hidden lg:inline">Créez votre compte et trouvez les talents parfaits pour vos projets</span>
         </p>
@@ -45,9 +49,9 @@ function handleSuccess() {
         <!-- Terms Notice -->
         <p class="mt-6 text-xs text-center text-gray-500">
           En vous inscrivant, vous acceptez nos
-          <router-link to="/terms" class="text-primary-500 hover:underline">conditions générales</router-link>
+          <router-link to="/legal" class="text-primary-500 hover:underline">conditions générales</router-link>
           et notre
-          <router-link to="/privacy" class="text-primary-500 hover:underline">politique de confidentialité</router-link>
+          <router-link to="/legal" class="text-primary-500 hover:underline">politique de confidentialité</router-link>
         </p>
 
         <!-- Bottom Link -->

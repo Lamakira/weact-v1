@@ -269,38 +269,38 @@ const onSubmit = handleSubmit(async () => {
       data-testid="email-input"
     />
 
-    <!-- Password + Confirmation (same row) -->
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <FloatingField
-          id="password"
-          v-model="password"
-          type="password"
-          label="Mot de passe"
-          :icon="Lock"
-          :error="passwordError"
-          required
-          autocomplete="new-password"
-          password-toggle
-          data-testid="password-input"
-        />
-        <p class="mt-1 text-xs text-gray-500">
-          Min. 8 car., 1 majuscule, 1 chiffre
-        </p>
-      </div>
+    <!-- Password -->
+    <div>
       <FloatingField
-        id="password_confirmation"
-        v-model="password_confirmation"
+        id="password"
+        v-model="password"
         type="password"
-        label="Confirmation"
+        label="Mot de passe"
         :icon="Lock"
-        :error="passwordConfirmationError"
+        :error="passwordError"
         required
         autocomplete="new-password"
         password-toggle
-        data-testid="password-confirmation-input"
+        data-testid="password-input"
       />
+      <p class="mt-1 text-xs text-gray-500">
+        Min. 8 car., 1 majuscule, 1 chiffre
+      </p>
     </div>
+
+    <!-- Password Confirmation -->
+    <FloatingField
+      id="password_confirmation"
+      v-model="password_confirmation"
+      type="password"
+      label="Confirmation"
+      :icon="Lock"
+      :error="passwordConfirmationError"
+      required
+      autocomplete="new-password"
+      password-toggle
+      data-testid="password-confirmation-input"
+    />
 
     <!-- Submit Button -->
     <button
