@@ -39,6 +39,17 @@ class ArticleService
         return Article::create($articleData);
     }
 
+    public function updateCategory(Article $article, string $category): Article
+    {
+        if ($article->category->value === $category) {
+            return $article;
+        }
+
+        $article->update(['category' => $category]);
+
+        return $article;
+    }
+
     private function uploadFeaturedImage(UploadedFile $image): string
     {
         $extension = $image->getClientOriginalExtension() ?: 'jpg';
