@@ -50,6 +50,25 @@ class ArticleService
         return $article;
     }
 
+    public function updateStatus(Article $article, string $status): Article
+    {
+        if ($article->status->value === $status) {
+            return $article;
+        }
+
+        $data = ['status' => $status];
+
+        if ($status === ArticleStatus::Published->value) {
+            $data['published_at'] = now();
+        } else {
+            $data['published_at'] = null;
+        }
+
+        $article->update($data);
+
+        return $article;
+    }
+
     private function uploadFeaturedImage(UploadedFile $image): string
     {
         $extension = $image->getClientOriginalExtension() ?: 'jpg';

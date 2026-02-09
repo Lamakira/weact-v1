@@ -22,4 +22,8 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'admin'])->group(function
     Route::patch('/articles/{article}/category', [ArticleController::class, 'updateCategory'])
         ->middleware('throttle:30,1')
         ->name('admin.articles.update-category');
+
+    Route::patch('/articles/{article}/status', [ArticleController::class, 'updateStatus'])
+        ->middleware('throttle:30,1')
+        ->name('admin.articles.update-status');
 });
