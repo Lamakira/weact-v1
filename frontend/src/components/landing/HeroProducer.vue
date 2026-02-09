@@ -61,7 +61,7 @@ onUnmounted(() => {
 
 <template>
   <section
-    class="relative w-full min-h-[500px] sm:min-h-[550px] lg:min-h-[800px] flex items-center justify-center overflow-hidden bg-gradient-to-br from-white via-[#198496]/5 to-white pt-2 pb-10 lg:pt-4 lg:pb-12 px-4"
+    class="relative w-full flex items-center justify-center overflow-hidden bg-gradient-to-br from-white via-[#198496]/5 to-white pt-2 pb-10 lg:pt-4 lg:pb-12 px-4"
   >
     <!-- Orbiting Talent Faces (Desktop only) -->
     <div
@@ -98,11 +98,11 @@ onUnmounted(() => {
         </h1>
 
         <!-- Dynamic Animated Word -->
-        <div class="h-[50px] sm:h-[60px] lg:h-[70px] relative flex justify-center items-center overflow-hidden">
+        <div class="h-[50px] sm:h-[60px] lg:h-[70px] relative flex justify-center items-center overflow-hidden w-screen max-w-full -mx-4 px-4">
           <Transition name="slide-up">
             <span
               :key="words[currentWordIndex]"
-              class="absolute text-4xl sm:text-5xl lg:text-6xl font-bold text-[#198496]"
+              class="absolute text-[2rem] sm:text-5xl lg:text-6xl font-bold text-[#198496] whitespace-nowrap"
               data-testid="hero-animated-word"
               aria-live="polite"
               aria-atomic="true"
