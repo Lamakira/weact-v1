@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { reactive, computed, watch } from 'vue'
 import type { BioLocationInfo } from '../types'
+import { FloatingTextarea, FloatingField } from '@/components/ui/form'
+import { FileText, MapPin, Globe } from 'lucide-vue-next'
 
 const props = defineProps<{
   bioLocationInfo: BioLocationInfo | null
@@ -78,18 +80,17 @@ const handleSubmit = () => {
     </div>
 
     <!-- Bio Field -->
-    <div class="space-y-1.5">
-      <label for="bio" class="text-sm font-medium text-gray-900">Bio</label>
-      <textarea
+    <div>
+      <FloatingTextarea
         id="bio"
         v-model="form.bio"
-        rows="4"
-        maxlength="500"
-        placeholder="Parlez-nous de vous..."
-        class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-teal-600 focus:border-teal-600 transition-colors resize-none"
+        label="Bio"
+        :icon="FileText"
+        :rows="4"
+        :maxlength="500"
         data-testid="bio-input"
-      ></textarea>
-      <div class="flex justify-end">
+      />
+      <div class="flex justify-end mt-1">
         <span :class="['text-xs', counterClass]" data-testid="character-counter">
           {{ bioLength }} / {{ MAX_BIO_LENGTH }} caractères
         </span>
@@ -98,38 +99,26 @@ const handleSubmit = () => {
 
     <!-- Location Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div class="space-y-1.5">
-        <label for="ville" class="text-sm font-medium text-gray-900">Ville</label>
-        <input
-          id="ville"
-          type="text"
-          v-model="form.ville"
-          placeholder="Cotonou"
-          class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-teal-600 focus:border-teal-600 transition-colors"
-          data-testid="ville-input"
-        />
-      </div>
-
-      <div class="space-y-1.5">
-        <label for="quartier" class="text-sm font-medium text-gray-900">Quartier</label>
-        <input
-          id="quartier"
-          type="text"
-          v-model="form.quartier"
-          placeholder="Akpakpa"
-          class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-teal-600 focus:border-teal-600 transition-colors"
-          data-testid="quartier-input"
-        />
-      </div>
-
-      <div class="space-y-1.5 md:col-span-2">
-        <label for="pays" class="text-sm font-medium text-gray-900">Pays</label>
-        <input
+      <FloatingField
+        id="ville"
+        v-model="form.ville"
+        label="Ville"
+        :icon="MapPin"
+        data-testid="ville-input"
+      />
+      <FloatingField
+        id="quartier"
+        v-model="form.quartier"
+        label="Quartier"
+        :icon="MapPin"
+        data-testid="quartier-input"
+      />
+      <div class="md:col-span-2">
+        <FloatingField
           id="pays"
-          type="text"
           v-model="form.pays"
-          placeholder="Bénin"
-          class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-teal-600 focus:border-teal-600 transition-colors"
+          label="Pays"
+          :icon="Globe"
           data-testid="pays-input"
         />
       </div>

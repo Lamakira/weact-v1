@@ -2,6 +2,8 @@
 import { reactive, watch, onMounted } from 'vue'
 import { useBasicInfo } from '../composables/useBasicInfo'
 import type { BasicInfoFormData } from '../types'
+import { FloatingField } from '@/components/ui/form'
+import { User, AtSign } from 'lucide-vue-next'
 
 const { basicInfo, isLoading, isSaving, error, fetchBasicInfo, updateBasicInfo, clearError } =
   useBasicInfo()
@@ -144,56 +146,36 @@ const handleSubmit = async () => {
 
         <!-- Name Fields Grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="space-y-1.5">
-            <label for="prenom" class="text-sm font-medium text-gray-900">Prénom</label>
-            <input
-              id="prenom"
-              type="text"
-              v-model="form.prenom"
-              required
-              placeholder="Jean"
-              class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-teal-600 focus:border-teal-600 transition-colors"
-              data-testid="prenom-input"
-            />
-          </div>
-
-          <div class="space-y-1.5">
-            <label for="nom" class="text-sm font-medium text-gray-900">Nom</label>
-            <input
-              id="nom"
-              type="text"
-              v-model="form.nom"
-              required
-              placeholder="Dupont"
-              class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-teal-600 focus:border-teal-600 transition-colors"
-              data-testid="nom-input"
-            />
-          </div>
+          <FloatingField
+            id="prenom"
+            v-model="form.prenom"
+            label="Prénom"
+            :icon="User"
+            required
+            data-testid="prenom-input"
+          />
+          <FloatingField
+            id="nom"
+            v-model="form.nom"
+            label="Nom"
+            :icon="User"
+            required
+            data-testid="nom-input"
+          />
         </div>
 
         <!-- Username Field -->
-        <div class="space-y-1.5">
-          <label for="username" class="text-sm font-medium text-gray-900">Nom d'utilisateur</label>
-          <div class="relative">
-            <span
-              class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500 pointer-events-none"
-            >
-              @
-            </span>
-            <input
-              id="username"
-              type="text"
-              v-model="form.username"
-              required
-              placeholder="jeandupont"
-              class="w-full pl-8 pr-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-teal-600 focus:border-teal-600 transition-colors"
-              data-testid="username-input"
-            />
-          </div>
-          <p class="text-xs text-gray-500">
-            Votre identifiant unique sur la plateforme. Maximum 50 caractères.
-          </p>
-        </div>
+        <FloatingField
+          id="username"
+          v-model="form.username"
+          label="Nom d'utilisateur"
+          :icon="AtSign"
+          required
+          data-testid="username-input"
+        />
+        <p class="text-xs text-gray-500 -mt-2">
+          Votre identifiant unique sur la plateforme. Maximum 50 caractères.
+        </p>
 
         <!-- Action Button -->
         <div class="pt-4 flex justify-end">

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { reactive, watch, computed, ref } from 'vue'
 import type { Experience, ExperienceFormData } from '../types'
+import { FloatingField, FloatingTextarea } from '@/components/ui/form'
+import { Type, Calendar, AlignLeft } from 'lucide-vue-next'
 
 const props = withDefaults(
   defineProps<{
@@ -80,6 +82,11 @@ watch(
   },
 )
 
+const dateFinValue = computed({
+  get: () => form.date_fin ?? '',
+  set: (val: string) => { form.date_fin = val || null },
+})
+
 const isEditMode = computed(() => !!props.experience)
 
 const handleSubmit = () => {
@@ -141,89 +148,45 @@ const getFieldError = (field: string): string | null => {
     </div>
 
     <!-- Title Field -->
-    <div class="space-y-1.5">
-      <label for="titre" class="text-sm font-medium text-gray-900">
-        Titre de l'expérience <span class="text-red-500">*</span>
-      </label>
-      <input
-        id="titre"
-        v-model="form.titre"
-        type="text"
-        maxlength="150"
-        required
-        class="w-full px-3 py-2 text-sm rounded-lg border shadow-sm transition-colors focus:ring-2 focus:ring-teal-600 focus:border-teal-600"
-        :class="getFieldError('titre') ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'"
-        :aria-describedby="getFieldError('titre') ? 'titre-error' : undefined"
-        :aria-invalid="!!getFieldError('titre')"
-        placeholder="Ex: Publicité Coca-Cola"
-        data-testid="titre-input"
-      />
-      <p
-        v-if="getFieldError('titre')"
-        id="titre-error"
-        class="text-sm text-red-600"
-        data-testid="titre-error"
-      >
-        {{ getFieldError('titre') }}
-      </p>
-    </div>
+    <FloatingField
+      id="titre"
+      v-model="form.titre"
+      label="Titre de l'expérience"
+      :icon="Type"
+      :error="getFieldError('titre') ?? undefined"
+      required
+      maxlength="150"
+      data-testid="titre-input"
+    />
 
     <!-- Date Fields Row -->
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <!-- Start Date Field -->
-      <div class="space-y-1.5">
-        <label for="date_debut" class="text-sm font-medium text-gray-900">
-          Date de début <span class="text-red-500">*</span>
-        </label>
-        <input
-          id="date_debut"
-          v-model="form.date_debut"
-          type="date"
-          :max="today"
-          required
-          class="w-full px-3 py-2 text-sm rounded-lg border shadow-sm transition-colors focus:ring-2 focus:ring-teal-600 focus:border-teal-600"
-          :class="getFieldError('date_debut') ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'"
-          :aria-describedby="getFieldError('date_debut') ? 'date_debut-error' : undefined"
-          :aria-invalid="!!getFieldError('date_debut')"
-          data-testid="date_debut-input"
-        />
-        <p
-          v-if="getFieldError('date_debut')"
-          id="date_debut-error"
-          class="text-sm text-red-600"
-          data-testid="date_debut-error"
-        >
-          {{ getFieldError('date_debut') }}
-        </p>
-      </div>
+      <FloatingField
+        id="date_debut"
+        v-model="form.date_debut"
+        type="date"
+        label="Date de début"
+        :icon="Calendar"
+        :error="getFieldError('date_debut') ?? undefined"
+        required
+        :max="today"
+        data-testid="date_debut-input"
+      />
 
       <!-- End Date Field -->
-      <div class="space-y-1.5">
-        <label for="date_fin" class="text-sm font-medium text-gray-900">
-          Date de fin <span class="text-gray-400">(optionnel)</span>
-        </label>
-        <input
-          id="date_fin"
-          v-model="form.date_fin"
-          type="date"
-          :max="today"
-          :min="form.date_debut"
-          :disabled="form.is_ongoing"
-          class="w-full px-3 py-2 text-sm rounded-lg border shadow-sm transition-colors focus:ring-2 focus:ring-teal-600 focus:border-teal-600 disabled:bg-gray-100 disabled:cursor-not-allowed"
-          :class="getFieldError('date_fin') ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'"
-          :aria-describedby="getFieldError('date_fin') ? 'date_fin-error' : undefined"
-          :aria-invalid="!!getFieldError('date_fin')"
-          data-testid="date_fin-input"
-        />
-        <p
-          v-if="getFieldError('date_fin')"
-          id="date_fin-error"
-          class="text-sm text-red-600"
-          data-testid="date_fin-error"
-        >
-          {{ getFieldError('date_fin') }}
-        </p>
-      </div>
+      <FloatingField
+        id="date_fin"
+        v-model="dateFinValue"
+        type="date"
+        label="Date de fin"
+        :icon="Calendar"
+        :error="getFieldError('date_fin') ?? undefined"
+        :max="today"
+        :min="form.date_debut"
+        :disabled="form.is_ongoing"
+        data-testid="date_fin-input"
+      />
     </div>
 
     <!-- Ongoing Checkbox -->
@@ -241,32 +204,19 @@ const getFieldError = (field: string): string | null => {
     </div>
 
     <!-- Description Field -->
-    <div class="space-y-1.5">
-      <label for="description" class="text-sm font-medium text-gray-900">
-        Description <span class="text-gray-400">(optionnel)</span>
-      </label>
-      <textarea
+    <div>
+      <FloatingTextarea
         id="description"
         v-model="form.description"
-        rows="3"
-        maxlength="500"
-        class="w-full px-3 py-2 text-sm rounded-lg border shadow-sm transition-colors focus:ring-2 focus:ring-teal-600 focus:border-teal-600 resize-none"
-        :class="getFieldError('description') ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'"
-        :aria-describedby="getFieldError('description') ? 'description-error' : undefined"
-        :aria-invalid="!!getFieldError('description')"
-        placeholder="Décrivez brièvement cette expérience..."
+        label="Description"
+        :icon="AlignLeft"
+        :error="getFieldError('description') ?? undefined"
+        :rows="3"
+        :maxlength="500"
         data-testid="description-input"
-      ></textarea>
-      <div class="flex justify-between items-center">
-        <p
-          v-if="getFieldError('description')"
-          id="description-error"
-          class="text-sm text-red-600"
-          data-testid="description-error"
-        >
-          {{ getFieldError('description') }}
-        </p>
-        <span class="text-xs text-gray-400 ml-auto">{{ form.description.length }}/500</span>
+      />
+      <div class="flex justify-end mt-1">
+        <span class="text-xs text-gray-400">{{ form.description.length }}/500</span>
       </div>
     </div>
 

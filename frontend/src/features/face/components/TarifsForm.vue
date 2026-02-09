@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { reactive, watch, computed } from 'vue'
 import type { TarifsInfo } from '../types'
+import { FloatingField } from '@/components/ui/form'
+import { Wallet } from 'lucide-vue-next'
 
 const props = defineProps<{
   tarifsInfo: TarifsInfo | null
@@ -83,43 +85,37 @@ const handleSubmit = () => {
     <!-- Tarifs Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <!-- Tarif Horaire -->
-      <div class="space-y-1.5">
-        <label for="tarif_horaire" class="text-sm font-medium text-gray-900"
-          >Tarif horaire (XOF)</label
-        >
-        <input
+      <div>
+        <FloatingField
           id="tarif_horaire"
-          type="number"
           v-model="form.tarif_horaire"
+          type="number"
+          label="Tarif horaire (XOF)"
+          :icon="Wallet"
           min="0"
           max="10000000"
           step="1"
-          placeholder="Ex: 75000"
-          class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-teal-600 focus:border-teal-600 transition-colors"
           data-testid="tarif-horaire-input"
         />
-        <p v-if="formattedTarifHoraire" class="text-xs text-gray-500" data-testid="tarif-horaire-preview">
+        <p v-if="formattedTarifHoraire" class="mt-1 text-xs text-gray-500" data-testid="tarif-horaire-preview">
           {{ formattedTarifHoraire }}/heure
         </p>
       </div>
 
       <!-- Tarif Journalier -->
-      <div class="space-y-1.5">
-        <label for="tarif_journalier" class="text-sm font-medium text-gray-900"
-          >Tarif journalier (XOF)</label
-        >
-        <input
+      <div>
+        <FloatingField
           id="tarif_journalier"
-          type="number"
           v-model="form.tarif_journalier"
+          type="number"
+          label="Tarif journalier (XOF)"
+          :icon="Wallet"
           min="0"
           max="100000000"
           step="1"
-          placeholder="Ex: 250000"
-          class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-teal-600 focus:border-teal-600 transition-colors"
           data-testid="tarif-journalier-input"
         />
-        <p v-if="formattedTarifJournalier" class="text-xs text-gray-500" data-testid="tarif-journalier-preview">
+        <p v-if="formattedTarifJournalier" class="mt-1 text-xs text-gray-500" data-testid="tarif-journalier-preview">
           {{ formattedTarifJournalier }}/jour
         </p>
       </div>

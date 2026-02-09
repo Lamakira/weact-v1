@@ -4,6 +4,8 @@ import { useForm, useField } from 'vee-validate'
 import { faceRegistrationValidationSchema } from '../schemas/faceRegistration'
 import { useAuth } from '../composables/useAuth'
 import type { FaceRegistrationForm as FormData } from '../types'
+import { FloatingField } from '@/components/ui/form'
+import { User, AtSign, Mail, Lock } from 'lucide-vue-next'
 
 const emit = defineEmits<{
   success: []
@@ -76,153 +78,84 @@ const onSubmit = handleSubmit(async (values) => {
 
     <!-- Nom + Prénom (same row) -->
     <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label for="nom" class="block text-sm font-medium text-gray-700 mb-1">
-          Nom<span class="text-red-500">*</span>
-        </label>
-        <input
-          id="nom"
-          v-model="nom"
-          type="text"
-          autocomplete="family-name"
-          placeholder="Dupont"
-          :class="[
-            'w-full px-4 py-3 border rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:outline-none transition-colors',
-            nomError
-              ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-              : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500/20',
-          ]"
-          data-testid="nom-input"
-        />
-        <p v-if="nomError" class="mt-1 text-sm text-red-600" data-testid="nom-error">
-          {{ nomError }}
-        </p>
-      </div>
-      <div>
-        <label for="prenom" class="block text-sm font-medium text-gray-700 mb-1">
-          Prénom<span class="text-red-500">*</span>
-        </label>
-        <input
-          id="prenom"
-          v-model="prenom"
-          type="text"
-          autocomplete="given-name"
-          placeholder="Jean"
-          :class="[
-            'w-full px-4 py-3 border rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:outline-none transition-colors',
-            prenomError
-              ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-              : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500/20',
-          ]"
-          data-testid="prenom-input"
-        />
-        <p v-if="prenomError" class="mt-1 text-sm text-red-600" data-testid="prenom-error">
-          {{ prenomError }}
-        </p>
-      </div>
+      <FloatingField
+        id="nom"
+        v-model="nom"
+        label="Nom"
+        :icon="User"
+        :error="nomError"
+        required
+        autocomplete="family-name"
+        data-testid="nom-input"
+      />
+      <FloatingField
+        id="prenom"
+        v-model="prenom"
+        label="Prénom"
+        :icon="User"
+        :error="prenomError"
+        required
+        autocomplete="given-name"
+        data-testid="prenom-input"
+      />
     </div>
 
     <!-- Username -->
-    <div>
-      <label for="username" class="block text-sm font-medium text-gray-700 mb-1">
-        Nom d'utilisateur<span class="text-red-500">*</span>
-      </label>
-      <input
-        id="username"
-        v-model="username"
-        type="text"
-        autocomplete="username"
-        placeholder="jean_dupont"
-        :class="[
-          'w-full px-4 py-3 border rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:outline-none transition-colors',
-          usernameError
-            ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-            : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500/20',
-        ]"
-        data-testid="username-input"
-      />
-      <p v-if="usernameError" class="mt-1 text-sm text-red-600" data-testid="username-error">
-        {{ usernameError }}
-      </p>
-    </div>
+    <FloatingField
+      id="username"
+      v-model="username"
+      label="Nom d'utilisateur"
+      :icon="AtSign"
+      :error="usernameError"
+      required
+      autocomplete="username"
+      data-testid="username-input"
+    />
 
     <!-- Email -->
-    <div>
-      <label for="email" class="block text-sm font-medium text-gray-700 mb-1">
-        Email<span class="text-red-500">*</span>
-      </label>
-      <input
-        id="email"
-        v-model="email"
-        type="email"
-        autocomplete="email"
-        placeholder="votre@email.com"
-        :class="[
-          'w-full px-4 py-3 border rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:outline-none transition-colors',
-          emailError
-            ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-            : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500/20',
-        ]"
-        data-testid="email-input"
-      />
-      <p v-if="emailError" class="mt-1 text-sm text-red-600" data-testid="email-error">
-        {{ emailError }}
-      </p>
-    </div>
+    <FloatingField
+      id="email"
+      v-model="email"
+      type="email"
+      label="Email"
+      :icon="Mail"
+      :error="emailError"
+      required
+      autocomplete="email"
+      data-testid="email-input"
+    />
 
     <!-- Password + Password Confirmation (same row) -->
     <div class="grid grid-cols-2 gap-4">
       <div>
-        <label for="password" class="block text-sm font-medium text-gray-700 mb-1">
-          Mot de passe<span class="text-red-500">*</span>
-        </label>
-        <input
+        <FloatingField
           id="password"
           v-model="password"
           type="password"
+          label="Mot de passe"
+          :icon="Lock"
+          :error="passwordError"
+          required
           autocomplete="new-password"
-          placeholder="••••••••"
-          :class="[
-            'w-full px-4 py-3 border rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:outline-none transition-colors',
-            passwordError
-              ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-              : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500/20',
-          ]"
+          password-toggle
           data-testid="password-input"
         />
-        <p v-if="passwordError" class="mt-1 text-sm text-red-600" data-testid="password-error">
-          {{ passwordError }}
-        </p>
         <p class="mt-1 text-xs text-gray-500">
           Min. 8 car., 1 majuscule, 1 chiffre
         </p>
       </div>
-      <div>
-        <label for="password_confirmation" class="block text-sm font-medium text-gray-700 mb-1">
-          Confirmation<span class="text-red-500">*</span>
-        </label>
-        <input
-          id="password_confirmation"
-          v-model="password_confirmation"
-          type="password"
-          autocomplete="new-password"
-          placeholder="••••••••"
-          :class="[
-            'w-full px-4 py-3 border rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:outline-none transition-colors',
-            passwordConfirmationError
-              ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-              : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500/20',
-          ]"
-          data-testid="password-confirmation-input"
-        />
-        <p
-          v-if="passwordConfirmationError"
-          class="mt-1 text-sm text-red-600"
-          data-testid="password-confirmation-error"
-        >
-          {{ passwordConfirmationError }}
-        </p>
-      </div>
+      <FloatingField
+        id="password_confirmation"
+        v-model="password_confirmation"
+        type="password"
+        label="Confirmation"
+        :icon="Lock"
+        :error="passwordConfirmationError"
+        required
+        autocomplete="new-password"
+        password-toggle
+        data-testid="password-confirmation-input"
+      />
     </div>
 
     <!-- Submit Button -->

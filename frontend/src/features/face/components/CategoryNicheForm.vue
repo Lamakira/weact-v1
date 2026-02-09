@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
 import type { CategoryNicheInfo, CategoryOption, NicheOption, FaceCategory, FaceNiche } from '../types'
+import { FloatingSelect } from '@/components/ui/form'
+import { Tag, Layers } from 'lucide-vue-next'
 
 const props = defineProps<{
   categoryNicheInfo: CategoryNicheInfo | null
@@ -87,43 +89,24 @@ const handleSubmit = () => {
 
     <!-- Category and Niche Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div class="space-y-1.5">
-        <label for="categorie" class="text-sm font-medium text-gray-900">Catégorie</label>
-        <select
-          id="categorie"
-          v-model="form.categorie"
-          class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-teal-600 focus:border-teal-600 transition-colors"
-          data-testid="categorie-select"
-        >
-          <option value="">Sélectionnez une catégorie</option>
-          <option
-            v-for="option in categoryOptions"
-            :key="option.value"
-            :value="option.value"
-          >
-            {{ option.label }}
-          </option>
-        </select>
-      </div>
-
-      <div class="space-y-1.5">
-        <label for="niche" class="text-sm font-medium text-gray-900">Niche</label>
-        <select
-          id="niche"
-          v-model="form.niche"
-          class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-teal-600 focus:border-teal-600 transition-colors"
-          data-testid="niche-select"
-        >
-          <option value="">Sélectionnez une niche</option>
-          <option
-            v-for="option in nicheOptions"
-            :key="option.value"
-            :value="option.value"
-          >
-            {{ option.label }}
-          </option>
-        </select>
-      </div>
+      <FloatingSelect
+        id="categorie"
+        v-model="form.categorie"
+        label="Catégorie"
+        :icon="Tag"
+        :options="categoryOptions"
+        placeholder="Sélectionnez une catégorie"
+        data-testid="categorie-select"
+      />
+      <FloatingSelect
+        id="niche"
+        v-model="form.niche"
+        label="Niche"
+        :icon="Layers"
+        :options="nicheOptions"
+        placeholder="Sélectionnez une niche"
+        data-testid="niche-select"
+      />
     </div>
 
     <!-- Action Button -->

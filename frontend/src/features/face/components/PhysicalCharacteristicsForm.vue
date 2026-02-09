@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
 import type { PhysicalCharacteristicsInfo } from '../types'
+import { FloatingField } from '@/components/ui/form'
+import { Ruler, Weight } from 'lucide-vue-next'
 
 const props = defineProps<{
   physicalCharacteristicsInfo: PhysicalCharacteristicsInfo | null
@@ -63,35 +65,28 @@ const handleSubmit = () => {
 
     <!-- Physical Characteristics Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div class="space-y-1.5">
-        <label for="taille" class="text-sm font-medium text-gray-900">Taille (cm)</label>
-        <input
-          id="taille"
-          type="number"
-          v-model="form.taille"
-          min="50"
-          max="300"
-          step="1"
-          placeholder="175"
-          class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-teal-600 focus:border-teal-600 transition-colors"
-          data-testid="taille-input"
-        />
-      </div>
-
-      <div class="space-y-1.5">
-        <label for="poids" class="text-sm font-medium text-gray-900">Poids (kg)</label>
-        <input
-          id="poids"
-          type="number"
-          v-model="form.poids"
-          min="20"
-          max="500"
-          step="1"
-          placeholder="70"
-          class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-teal-600 focus:border-teal-600 transition-colors"
-          data-testid="poids-input"
-        />
-      </div>
+      <FloatingField
+        id="taille"
+        v-model="form.taille"
+        type="number"
+        label="Taille (cm)"
+        :icon="Ruler"
+        min="50"
+        max="300"
+        step="1"
+        data-testid="taille-input"
+      />
+      <FloatingField
+        id="poids"
+        v-model="form.poids"
+        type="number"
+        label="Poids (kg)"
+        :icon="Weight"
+        min="20"
+        max="500"
+        step="1"
+        data-testid="poids-input"
+      />
     </div>
 
     <!-- Action Button -->

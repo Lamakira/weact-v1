@@ -6,15 +6,14 @@ import { missionSchema } from '../schemas/mission'
 import { useMissionCreate } from '../composables/useMissionCreate'
 import {
   MissionType,
-  MissionTypeLabel,
   MissionGender,
-  MissionGenderLabel,
   getMissionTypeOptions,
   getMissionGenderOptions,
   type Mission,
   type CreateMissionData,
 } from '../types'
 import { Button } from '@/components/ui/button'
+import { FloatingField, FloatingTextarea, FloatingSelect } from '@/components/ui/form'
 import {
   Film,
   Users,
@@ -29,6 +28,8 @@ import {
   Save,
   ShieldAlert,
   Mail,
+  Type,
+  AlignLeft,
 } from 'lucide-vue-next'
 import { authApi } from '@/features/auth/services/authApi'
 import { useToast } from '@/composables/useToast'
@@ -166,14 +167,6 @@ const onSubmit = handleSubmit(async (values) => {
   }
 })
 
-const inputClasses = (hasError: boolean) => [
-  'w-full px-4 py-2.5 rounded-lg border transition-all duration-200 outline-none text-gray-900 bg-white',
-  hasError
-    ? 'border-red-300 focus:border-red-500 focus:ring-4 focus:ring-red-200'
-    : 'border-gray-300 focus:border-weact focus:ring-4 focus:ring-weact/20',
-]
-
-const labelClasses = 'block text-sm font-medium text-slate-700 mb-1.5 flex items-center gap-2'
 const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
 </script>
 
@@ -236,94 +229,54 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Titre -->
         <div class="md:col-span-2">
-          <label for="titre" :class="labelClasses">
-            Titre de la mission <span class="text-red-500">*</span>
-          </label>
-          <input
+          <FloatingField
             id="titre"
             v-model="titre"
-            type="text"
-            placeholder="Ex: Acteur principal pour spot TV"
-            :class="inputClasses(!!titreError)"
+            label="Titre de la mission"
+            :icon="Type"
+            :error="titreError"
+            required
             data-testid="titre-input"
           />
-          <p v-if="titreError" class="mt-1.5 text-xs text-red-600 font-medium" data-testid="titre-error">
-            {{ titreError }}
-          </p>
         </div>
 
         <!-- Type de mission -->
-        <div>
-          <label for="type_mission" :class="labelClasses">
-            Type de mission <span class="text-red-500">*</span>
-          </label>
-          <select
-            id="type_mission"
-            v-model="type_mission"
-            :class="inputClasses(!!typeMissionError)"
-            data-testid="type-mission-select"
-          >
-            <option v-for="option in missionTypeOptions" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-          <p
-            v-if="typeMissionError"
-            class="mt-1.5 text-xs text-red-600 font-medium"
-            data-testid="type-mission-error"
-          >
-            {{ typeMissionError }}
-          </p>
-        </div>
+        <FloatingSelect
+          id="type_mission"
+          v-model="type_mission"
+          label="Type de mission"
+          :icon="Film"
+          :error="typeMissionError"
+          :options="missionTypeOptions"
+          required
+          data-testid="type-mission-select"
+        />
 
         <!-- Budget -->
-        <div>
-          <label for="budget" :class="labelClasses">
-            Budget estimé (XOF) <span class="text-red-500">*</span>
-          </label>
-          <div class="relative">
-            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-              <Wallet class="w-4 h-4 text-gray-400" />
-            </div>
-            <input
-              id="budget"
-              v-model.number="budget"
-              type="number"
-              min="1"
-              placeholder="0"
-              :class="[...inputClasses(!!budgetError), 'pl-10']"
-              data-testid="budget-input"
-            />
-          </div>
-          <p
-            v-if="budgetError"
-            class="mt-1.5 text-xs text-red-600 font-medium"
-            data-testid="budget-error"
-          >
-            {{ budgetError }}
-          </p>
-        </div>
+        <FloatingField
+          id="budget"
+          v-model="budget"
+          type="number"
+          label="Budget estimé (XOF)"
+          :icon="Wallet"
+          :error="budgetError"
+          required
+          min="1"
+          data-testid="budget-input"
+        />
 
         <!-- Description -->
         <div class="md:col-span-2">
-          <label for="description" :class="labelClasses">
-            Description détaillée <span class="text-red-500">*</span>
-          </label>
-          <textarea
+          <FloatingTextarea
             id="description"
             v-model="description"
-            rows="4"
-            placeholder="Décrivez le projet, le contexte et les attentes..."
-            :class="inputClasses(!!descriptionError)"
+            label="Description détaillée"
+            :icon="AlignLeft"
+            :error="descriptionError"
+            required
+            :rows="4"
             data-testid="description-input"
-          ></textarea>
-          <p
-            v-if="descriptionError"
-            class="mt-1.5 text-xs text-red-600 font-medium"
-            data-testid="description-error"
-          >
-            {{ descriptionError }}
-          </p>
+          />
         </div>
       </div>
     </div>
@@ -341,74 +294,41 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Genre recherché -->
-        <div>
-          <label for="genre_voulu" :class="labelClasses">
-            Genre recherché <span class="text-red-500">*</span>
-          </label>
-          <select
-            id="genre_voulu"
-            v-model="genre_voulu"
-            :class="inputClasses(!!genreVouluError)"
-            data-testid="genre-voulu-select"
-          >
-            <option v-for="option in genderOptions" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-          <p
-            v-if="genreVouluError"
-            class="mt-1.5 text-xs text-red-600 font-medium"
-            data-testid="genre-voulu-error"
-          >
-            {{ genreVouluError }}
-          </p>
-        </div>
+        <FloatingSelect
+          id="genre_voulu"
+          v-model="genre_voulu"
+          label="Genre recherché"
+          :icon="Users"
+          :error="genreVouluError"
+          :options="genderOptions"
+          required
+          data-testid="genre-voulu-select"
+        />
 
         <!-- Nombre de profils -->
-        <div>
-          <label for="nombre_faces_voulu" :class="labelClasses"> Nombre de profils </label>
-          <div class="relative">
-            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-              <UserCircle class="w-4 h-4 text-gray-400" />
-            </div>
-            <input
-              id="nombre_faces_voulu"
-              v-model.number="nombre_faces_voulu"
-              type="number"
-              min="1"
-              :class="[...inputClasses(!!nombreFacesError), 'pl-10']"
-              data-testid="nombre-faces-input"
-            />
-          </div>
-          <p
-            v-if="nombreFacesError"
-            class="mt-1.5 text-xs text-red-600 font-medium"
-            data-testid="nombre-faces-error"
-          >
-            {{ nombreFacesError }}
-          </p>
-        </div>
+        <FloatingField
+          id="nombre_faces_voulu"
+          v-model="nombre_faces_voulu"
+          type="number"
+          label="Nombre de profils"
+          :icon="UserCircle"
+          :error="nombreFacesError"
+          min="1"
+          data-testid="nombre-faces-input"
+        />
 
         <!-- Profil recherché -->
         <div class="md:col-span-2">
-          <label for="profil_recherche" :class="labelClasses">
-            Profil recherché <span class="text-red-500">*</span>
-          </label>
-          <textarea
+          <FloatingTextarea
             id="profil_recherche"
             v-model="profil_recherche"
-            rows="3"
-            placeholder="Âge, compétences, particularités physiques..."
-            :class="inputClasses(!!profilRechercheError)"
+            label="Profil recherché"
+            :icon="UserCircle"
+            :error="profilRechercheError"
+            required
+            :rows="3"
             data-testid="profil-recherche-input"
-          ></textarea>
-          <p
-            v-if="profilRechercheError"
-            class="mt-1.5 text-xs text-red-600 font-medium"
-            data-testid="profil-recherche-error"
-          >
-            {{ profilRechercheError }}
-          </p>
+          />
         </div>
       </div>
     </div>
@@ -426,102 +346,50 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Lieu -->
-        <div>
-          <label for="lieu" :class="labelClasses">
-            Lieu du tournage <span class="text-red-500">*</span>
-          </label>
-          <div class="relative">
-            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-              <MapPin class="w-4 h-4 text-gray-400" />
-            </div>
-            <input
-              id="lieu"
-              v-model="lieu"
-              type="text"
-              placeholder="Ex: Abidjan, Plateau"
-              :class="[...inputClasses(!!lieuError), 'pl-10']"
-              data-testid="lieu-input"
-            />
-          </div>
-          <p v-if="lieuError" class="mt-1.5 text-xs text-red-600 font-medium" data-testid="lieu-error">
-            {{ lieuError }}
-          </p>
-        </div>
+        <FloatingField
+          id="lieu"
+          v-model="lieu"
+          label="Lieu du tournage"
+          :icon="MapPin"
+          :error="lieuError"
+          required
+          data-testid="lieu-input"
+        />
 
         <!-- Durée -->
-        <div>
-          <label for="duree" :class="labelClasses">
-            Durée estimée <span class="text-red-500">*</span>
-          </label>
-          <div class="relative">
-            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-              <Clock class="w-4 h-4 text-gray-400" />
-            </div>
-            <input
-              id="duree"
-              v-model="duree"
-              type="text"
-              placeholder="Ex: 2 jours, 4 heures..."
-              :class="[...inputClasses(!!dureeError), 'pl-10']"
-              data-testid="duree-input"
-            />
-          </div>
-          <p v-if="dureeError" class="mt-1.5 text-xs text-red-600 font-medium" data-testid="duree-error">
-            {{ dureeError }}
-          </p>
-        </div>
+        <FloatingField
+          id="duree"
+          v-model="duree"
+          label="Durée estimée"
+          :icon="Clock"
+          :error="dureeError"
+          required
+          data-testid="duree-input"
+        />
 
         <!-- Date de tournage -->
-        <div>
-          <label for="date_tournage" :class="labelClasses">
-            Date de tournage <span class="text-red-500">*</span>
-          </label>
-          <div class="relative">
-            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-              <Calendar class="w-4 h-4 text-gray-400" />
-            </div>
-            <input
-              id="date_tournage"
-              v-model="date_tournage"
-              type="date"
-              :class="[...inputClasses(!!dateTournageError), 'pl-10']"
-              data-testid="date-tournage-input"
-            />
-          </div>
-          <p
-            v-if="dateTournageError"
-            class="mt-1.5 text-xs text-red-600 font-medium"
-            data-testid="date-tournage-error"
-          >
-            {{ dateTournageError }}
-          </p>
-        </div>
+        <FloatingField
+          id="date_tournage"
+          v-model="date_tournage"
+          type="date"
+          label="Date de tournage"
+          :icon="Calendar"
+          :error="dateTournageError"
+          required
+          data-testid="date-tournage-input"
+        />
 
         <!-- Date limite de candidature -->
-        <div>
-          <label for="date_limite_candidature" :class="labelClasses">
-            Clôture des candidatures <span class="text-red-500">*</span>
-          </label>
-          <div class="relative">
-            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-              <Calendar class="w-4 h-4 text-gray-400" />
-            </div>
-            <input
-              id="date_limite_candidature"
-              v-model="date_limite_candidature"
-              type="date"
-              :class="[...inputClasses(!!dateLimiteError), 'pl-10']"
-              data-testid="date-limite-input"
-            />
-          </div>
-          <p
-            v-if="dateLimiteError"
-            class="mt-1.5 text-xs text-red-600 font-medium"
-            data-testid="date-limite-error"
-          >
-            {{ dateLimiteError }}
-          </p>
-        </div>
+        <FloatingField
+          id="date_limite_candidature"
+          v-model="date_limite_candidature"
+          type="date"
+          label="Clôture des candidatures"
+          :icon="Calendar"
+          :error="dateLimiteError"
+          required
+          data-testid="date-limite-input"
+        />
       </div>
     </div>
 
