@@ -98,11 +98,11 @@ onUnmounted(() => {
         </h1>
 
         <!-- Dynamic Animated Word -->
-        <div class="h-[50px] sm:h-[60px] lg:h-[70px] relative flex justify-center items-center overflow-hidden w-screen max-w-full -mx-4 px-4">
+        <div class="h-[50px] sm:h-[60px] lg:h-[70px] relative flex justify-center items-center overflow-visible">
           <Transition name="slide-up">
             <span
               :key="words[currentWordIndex]"
-              class="absolute text-[2rem] sm:text-5xl lg:text-6xl font-bold text-[#198496] whitespace-nowrap"
+              class="absolute left-1/2 -translate-x-1/2 text-[2rem] sm:text-5xl lg:text-6xl font-bold text-[#198496] whitespace-nowrap"
               data-testid="hero-animated-word"
               aria-live="polite"
               aria-atomic="true"
@@ -138,10 +138,10 @@ onUnmounted(() => {
       </div>
 
       <!-- CTA Button -->
-      <div class="mt-6 lg:mt-4">
+      <div class="mt-6 lg:mt-4 w-full sm:w-auto">
         <RouterLink
           to="/register/producer"
-          class="group inline-flex items-center gap-2 bg-[#198496] hover:bg-[#146c7a] text-white px-8 py-4 rounded-md font-medium text-base transition-all duration-300 shadow-xl shadow-[#198496]/20 active:scale-95"
+          class="group inline-flex w-full sm:w-auto justify-center items-center gap-2 bg-[#198496] hover:bg-[#146c7a] text-white px-8 py-3.5 rounded-md font-medium text-base transition-all duration-300 shadow-xl shadow-[#198496]/20 active:scale-95"
           data-testid="hero-cta"
         >
           Publier une mission

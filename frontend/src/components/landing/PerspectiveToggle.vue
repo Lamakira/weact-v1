@@ -51,42 +51,6 @@ function handleKeydown(event: KeyboardEvent, currentValue: Perspective): void {
     <!-- Centered Label (hidden in compact mode) -->
     <span v-show="!compact" class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-0">Je suis :</span>
 
-    <!-- Curved Arrows pointing DOWN (hidden in compact mode) -->
-    <div v-show="!compact" class="flex justify-center gap-8 h-4 -mb-1">
-      <!-- Left curved arrow (Face) -->
-      <svg
-        class="w-3 h-3 transition-colors duration-300"
-        :class="modelValue === 'face' ? 'text-[#198496]' : 'text-slate-300'"
-        viewBox="0 0 24 24"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path
-          d="M16 2C12 2 6 6 6 18M6 18L2 14M6 18L10 14"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-
-      <!-- Right curved arrow (Producer) -->
-      <svg
-        class="w-3 h-3 transition-colors duration-300"
-        :class="modelValue === 'producer' ? 'text-[#198496]' : 'text-slate-300'"
-        viewBox="0 0 24 24"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path
-          d="M8 2C12 2 18 6 18 18M18 18L14 14M18 18L22 14"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-    </div>
 
     <!-- Toggle buttons -->
     <div
@@ -96,7 +60,7 @@ function handleKeydown(event: KeyboardEvent, currentValue: Perspective): void {
         'inline-flex rounded-full transition-all duration-200',
         compact
           ? 'bg-white p-0.5 border border-gray-200 shadow-md'
-          : 'bg-slate-100 p-0.5',
+          : 'bg-white p-0.5 border border-gray-200',
       ]"
     >
       <button
@@ -108,7 +72,7 @@ function handleKeydown(event: KeyboardEvent, currentValue: Perspective): void {
         :tabindex="modelValue === option.value ? 0 : -1"
         :class="[
           'font-semibold rounded-full transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-1',
-          'px-3 py-0.5 text-xs',
+          'px-4 py-1 text-xs',
           modelValue === option.value
             ? 'bg-black text-white shadow-md'
             : 'text-slate-500 hover:text-slate-700 hover:bg-white/50',

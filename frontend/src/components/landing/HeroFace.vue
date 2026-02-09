@@ -76,7 +76,7 @@ onUnmounted(() => {
               </Transition>
             </div>
           </div>
-          <p class="text-gray-500 text-lg lg:text-xl max-w-lg mx-auto lg:mx-0 mb-10 leading-relaxed">
+          <p class="text-gray-500 text-lg pt-4 lg:text-xl max-w-lg mx-auto lg:mx-0 mb-10 leading-relaxed">
             La première plateforme qui met en relation marques et créateurs pour des castings
             sécurisés au Bénin.
           </p>
