@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Admin\AuthController as AdminAuthController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\ForgotPasswordController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
@@ -57,6 +58,13 @@ Route::prefix('v1')->group(function (): void {
         // Email verification (public - signature validation handled in controller)
         Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
             ->name('verification.verify');
+    });
+
+    // Admin routes
+    Route::prefix('admin')->group(function (): void {
+        Route::post('/login', [AdminAuthController::class, 'login'])
+            ->middleware('throttle:5,1')
+            ->name('admin.login');
     });
 
     // Protected routes
