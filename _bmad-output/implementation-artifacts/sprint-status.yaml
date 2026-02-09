@@ -179,7 +179,7 @@ development_status:
   epic-12: in-progress
   12-1-create-articles-database-schema: done
   12-2-admin-create-article: done
-  12-3-admin-categorize-article: backlog
+  12-3-admin-categorize-article: done
   12-4-admin-set-article-status: backlog
   12-5-admin-edit-article: backlog
   12-6-admin-delete-article: backlog
