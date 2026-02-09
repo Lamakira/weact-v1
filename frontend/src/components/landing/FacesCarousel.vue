@@ -93,17 +93,20 @@ const mockProfiles = [
           @mouseleave="isPaused = false"
         >
           <div
-            class="relative group/card overflow-hidden rounded-2xl border border-gray-100 shadow-md hover:border-[#198496]/50 hover:shadow-2xl transition-all"
+            class="relative group/card aspect-[4/5] overflow-hidden rounded-2xl border border-gray-100 shadow-md hover:border-[#198496]/50 hover:shadow-2xl transition-all"
           >
             <img
               :src="profile.img"
               :alt="profile.name"
-              class="w-full aspect-[4/5] object-cover transition-transform duration-500 group-hover/card:scale-110"
+              class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-110"
               loading="lazy"
             />
-            <div class="p-4 bg-white text-center">
-              <p class="font-bold text-gray-900">{{ profile.name }}</p>
-              <p class="text-sm text-gray-500">{{ profile.age }} ans</p>
+            <!-- Gradient overlay -->
+            <div class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 to-transparent" />
+            <!-- Info -->
+            <div class="absolute inset-x-0 bottom-0 p-4 text-left">
+              <p class="font-bold text-white">{{ profile.name }}</p>
+              <p class="text-sm text-white/70">{{ profile.age }} ans</p>
             </div>
           </div>
         </div>
@@ -116,17 +119,20 @@ const mockProfiles = [
           @mouseleave="isPaused = false"
         >
           <div
-            class="relative group/card overflow-hidden rounded-2xl border border-gray-100 shadow-md hover:border-[#198496]/50 hover:shadow-2xl transition-all"
+            class="relative group/card aspect-[4/5] overflow-hidden rounded-2xl border border-gray-100 shadow-md hover:border-[#198496]/50 hover:shadow-2xl transition-all"
           >
             <img
               :src="profile.img"
               :alt="profile.name"
-              class="w-full aspect-[4/5] object-cover transition-transform duration-500 group-hover/card:scale-110"
+              class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-110"
               loading="lazy"
             />
-            <div class="p-4 bg-white text-center">
-              <p class="font-bold text-gray-900">{{ profile.name }}</p>
-              <p class="text-sm text-gray-500">{{ profile.age }} ans</p>
+            <!-- Gradient overlay -->
+            <div class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 to-transparent" />
+            <!-- Info -->
+            <div class="absolute inset-x-0 bottom-0 p-4 text-left">
+              <p class="font-bold text-white">{{ profile.name }}</p>
+              <p class="text-sm text-white/70">{{ profile.age }} ans</p>
             </div>
           </div>
         </div>

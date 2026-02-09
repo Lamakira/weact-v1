@@ -108,28 +108,22 @@ const mockTalents: Talent[] = [
             v-for="(talent, index) in [...mockTalents, ...mockTalents]"
             :key="`${talent.id}-${index}`"
             :data-testid="index < mockTalents.length ? `talent-card-${talent.id}` : `talent-card-${talent.id}-duplicate`"
-            class="w-[160px] sm:w-[240px] lg:w-[300px] flex-none group/card relative overflow-hidden rounded-[24px] border border-teal-50 bg-white shadow-sm hover:shadow-md hover:border-[#198496]/20 transition-all duration-500 hover:-translate-y-2"
+            class="w-[160px] sm:w-[240px] lg:w-[300px] flex-none group/card relative aspect-[4/5] overflow-hidden rounded-[24px] border border-teal-50 shadow-sm hover:shadow-md hover:border-[#198496]/20 transition-all duration-500 hover:-translate-y-2"
           >
-            <!-- Talent Portrait -->
-            <div class="relative aspect-[4/5] overflow-hidden">
-              <img
-                :src="talent.img"
-                :alt="talent.name"
-                class="w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110"
-                loading="lazy"
-              />
-              <!-- Floating Badge -->
-              <div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-slate-900/60 via-slate-900/10 to-transparent">
-                <span class="inline-block px-3 py-1 bg-white/95 backdrop-blur-sm rounded-full text-[10px] font-bold uppercase tracking-widest text-[#198496] shadow-sm">
-                  {{ talent.category }}
-                </span>
-              </div>
-            </div>
-            <!-- Identity Info -->
-            <div class="p-5 text-center bg-white">
-              <p class="text-base sm:text-lg font-bold text-slate-800 group-hover/card:text-[#198496] transition-colors duration-300">
-                {{ talent.name }}
-              </p>
+            <img
+              :src="talent.img"
+              :alt="talent.name"
+              class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110"
+              loading="lazy"
+            />
+            <!-- Gradient overlay -->
+            <div class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 to-transparent" />
+            <!-- Info overlay -->
+            <div class="absolute inset-x-0 bottom-0 p-4 flex items-end justify-between">
+              <p class="text-base font-bold text-white">{{ talent.name }}</p>
+              <span class="inline-block px-3 py-1 bg-white/95 backdrop-blur-sm rounded-full text-[10px] font-bold uppercase tracking-widest text-[#198496] shadow-sm shrink-0">
+                {{ talent.category }}
+              </span>
             </div>
           </div>
         </div>
