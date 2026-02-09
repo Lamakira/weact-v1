@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Http\Controllers\Api\V1\Admin\AuthController as AdminAuthController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\ForgotPasswordController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
@@ -60,13 +59,6 @@ Route::prefix('v1')->group(function (): void {
             ->name('verification.verify');
     });
 
-    // Admin routes
-    Route::prefix('admin')->group(function (): void {
-        Route::post('/login', [AdminAuthController::class, 'login'])
-            ->middleware('throttle:5,1')
-            ->name('admin.login');
-    });
-
     // Protected routes
     Route::middleware('auth:sanctum')->group(function (): void {
         // Note: Explicit token validation is required because Sanctum can use
@@ -122,6 +114,7 @@ Route::prefix('v1')->group(function (): void {
 });
 
 // Include modular route files
+require __DIR__ . '/api/admin.php';
 require __DIR__ . '/api/face.php';
 require __DIR__ . '/api/producer.php';
 require __DIR__ . '/api/public.php';
