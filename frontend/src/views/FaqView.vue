@@ -155,7 +155,7 @@ const categories: Category[] = [
   <div class="py-4">
     <div>
       <!-- Header Section -->
-      <header class="mb-12 text-center">
+      <header class="mb-6 text-center">
         <h1 class="text-3xl font-bold text-gray-900 tracking-tight mb-4">
           Comment pouvons-nous vous aider ?
         </h1>
@@ -224,7 +224,7 @@ const categories: Category[] = [
       </div>
 
       <!-- Footer Help Section -->
-      <footer class="mt-24 p-8 rounded-2xl bg-[#198496]/5 border border-[#198496]/10 text-center">
+      <footer class="mt-12 p-8 rounded-2xl bg-[#198496]/5 border border-[#198496]/10 text-center">
         <div class="inline-flex p-3 rounded-full bg-white shadow-sm mb-4">
           <MessageSquare class="w-6 h-6 text-[#198496]" />
         </div>

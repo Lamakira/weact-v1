@@ -51,7 +51,7 @@ const quickLinks = [
 <template>
   <div class="py-4">
     <!-- Header -->
-    <header class="text-center mb-12">
+    <header class="text-center mb-8">
       <h1 class="text-3xl font-bold text-gray-900 mb-3 tracking-tight">Centre d'aide</h1>
       <p class="text-gray-500 text-sm max-w-lg mx-auto leading-relaxed">
         Trouvez les réponses à vos questions et découvrez comment tirer le meilleur parti de WEACT.
@@ -59,7 +59,7 @@ const quickLinks = [
     </header>
 
     <!-- Categories Grid -->
-    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
       <div
         v-for="category in categories"
         :key="category.title"
@@ -80,7 +80,7 @@ const quickLinks = [
     </section>
 
     <!-- Quick Links & Resources -->
-    <section class="mb-16">
+    <section class="mb-10">
       <h2 class="text-xs font-bold uppercase tracking-widest text-gray-400 mb-6 text-center">
         Liens rapides
       </h2>

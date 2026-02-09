@@ -12,10 +12,10 @@ const lastUpdate = '1er février 2026'
 </script>
 
 <template>
-  <div class="py-12">
+  <div class="py-1">
     <!-- Header Section -->
-    <header class="mb-12">
-      <h1 class="text-2xl font-semibold text-gray-900 mb-2">Mentions Légales & Conditions</h1>
+    <header class="mb-6">
+      <h1 class="text-2xl text-center lg:text-left font-semibold text-gray-900 mb-2">Mentions Légales & Conditions</h1>
       <p class="text-sm text-gray-500">
         Dernière mise à jour : <span class="font-medium text-gray-700">{{ lastUpdate }}</span>
       </p>

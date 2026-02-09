@@ -82,7 +82,7 @@ const producerSteps = [
   <div class="py-4">
     <div>
       <!-- Header Section -->
-      <div class="text-center mb-12">
+      <div class="text-center mb-6">
         <h1 class="text-2xl font-bold text-gray-900 mb-3 tracking-tight">Guide de démarrage</h1>
         <p class="text-sm text-gray-500 max-w-md mx-auto">
           Découvrez comment utiliser WEACT pour propulser votre carrière ou trouver les talents
@@ -91,7 +91,7 @@ const producerSteps = [
       </div>
 
       <!-- Pill Toggle Selection -->
-      <div class="flex justify-center mb-16">
+      <div class="flex justify-center mb-8">
         <div
           class="inline-flex p-1 bg-gray-200/50 rounded-lg backdrop-blur-sm border border-gray-200"
         >
@@ -160,7 +160,7 @@ const producerSteps = [
       </div>
 
       <!-- CTA Section -->
-      <div class="mt-24 text-center border-t border-gray-200 pt-12">
+      <div class="mt-10 text-center border-t border-gray-200 pt-10">
         <div class="bg-white p-8 rounded-xl border border-gray-200 shadow-sm max-w-xl mx-auto">
           <h2 class="text-lg font-bold text-gray-900 mb-2">Prêt à commencer l'aventure ?</h2>
           <p class="text-sm text-gray-500 mb-6">

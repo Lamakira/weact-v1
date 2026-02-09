@@ -62,12 +62,12 @@ const values = [
 <template>
   <div>
     <!-- Hero Section -->
-    <section class="py-12 md:py-20 border-b border-gray-100 bg-white rounded-lg">
+    <section class="py-6 md:py-10 border-b border-gray-100 bg-white rounded-lg">
       <div class="max-w-4xl mx-auto px-6 text-center">
         <span class="text-[#198496] font-medium text-xs uppercase tracking-widest mb-4 block"
           >À propos de WEACT</span
         >
-        <h1 class="text-3xl md:text-4xl font-bold text-gray-900 leading-tight mb-6">
+        <h1 class="text-2xl md:text-4xl font-bold text-gray-900 leading-tight mb-6">
           Connecter les talents béninois avec les opportunités qui les méritent
         </h1>
         <p class="text-gray-700 text-base leading-relaxed max-w-2xl mx-auto">
@@ -79,9 +79,9 @@ const values = [
     </section>
 
     <!-- Notre Mission Section -->
-    <section class="py-12 md:py-16">
+    <section class="py-6 md:py-8">
       <div>
-        <div class="text-center mb-12">
+        <div class="text-center mb-6">
           <h2 class="text-2xl font-bold text-gray-900 mb-3">Notre Mission</h2>
           <div class="w-12 h-1 bg-[#198496] mx-auto rounded-full"></div>
         </div>
@@ -110,7 +110,7 @@ const values = [
     </section>
 
     <!-- Nos Valeurs Section -->
-    <section class="py-12 md:py-16">
+    <section class="py-6 md:py-8">
       <div>
         <div class="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
           <div class="max-w-xl">
@@ -136,7 +136,7 @@ const values = [
     </section>
 
     <!-- CTA Section -->
-    <section class="py-12 md:py-16 border-t border-gray-100">
+    <section class="py-6 md:py-8 border-t border-gray-100">
       <div
         class="max-w-3xl mx-auto text-center bg-white rounded-xl py-12 px-6 border border-gray-200"
       >
