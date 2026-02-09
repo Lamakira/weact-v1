@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\ArticleCategory;
 use App\Enums\ArticleStatus;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -63,6 +64,20 @@ class Article extends Model
                 $article->slug = self::generateUniqueSlug($article->title, $article->id);
             }
         });
+    }
+
+    private const FEATURED_IMAGE_PATH = 'articles/featured';
+
+    /**
+     * Get the full URL for the featured image.
+     */
+    protected function featuredImageUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->featured_image
+                ? asset('storage/' . self::FEATURED_IMAGE_PATH . '/' . $this->featured_image)
+                : null,
+        );
     }
 
     /**
