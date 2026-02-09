@@ -646,7 +646,7 @@ function getStatusBadge(status: string): { class: string; label: string } {
     <section class="py-10 bg-white">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header -->
-        <div class="text-center mb-16">
+        <div class="text-center mb-8">
           <h2
             class="text-3xl lg:text-4xl font-bold text-gray-900 tracking-tight mb-4"
             data-testid="why-weact-title"
@@ -687,11 +687,11 @@ function getStatusBadge(status: string): { class: string; label: string } {
         </div>
 
         <!-- Desktop: Premium centered cards -->
-        <div class="hidden md:grid md:grid-cols-3 gap-6 lg:gap-16">
+        <div class="hidden md:grid md:grid-cols-3 gap-6 lg:gap-8">
           <div
             v-for="(feature, index) in content.whyWeact.features"
             :key="index"
-            class="relative text-center p-10 rounded-2xl border border-gray-200 bg-white hover:border-[#198496]/30 hover:shadow-[0_20px_50px_rgba(25,132,150,0.08)] hover:-translate-y-2 transition-all duration-500 group overflow-hidden"
+            class="relative text-center p-6 lg:p-8 rounded-2xl border border-gray-200 bg-white hover:border-[#198496]/30 hover:shadow-[0_20px_50px_rgba(25,132,150,0.08)] hover:-translate-y-2 transition-all duration-500 group overflow-hidden"
             :data-testid="`feature-card-${index + 1}`"
           >
             <!-- Decorative Background Elements -->
@@ -711,8 +711,8 @@ function getStatusBadge(status: string): { class: string; label: string } {
               </div>
 
               <!-- Content -->
-              <div class="mt-8">
-                <h3 class="font-bold text-gray-900 text-lg mb-4 group-hover:text-[#198496] transition-colors duration-300">
+              <div class="mt-5">
+                <h3 class="font-bold text-gray-900 text-lg mb-2 group-hover:text-[#198496] transition-colors duration-300">
                   {{ feature.title }}
                 </h3>
                 <p class="text-sm text-gray-700 leading-relaxed">
@@ -721,7 +721,7 @@ function getStatusBadge(status: string): { class: string; label: string } {
               </div>
 
               <!-- Premium Accent Indicator -->
-              <div class="mt-8 flex justify-center items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-2 group-hover:translate-y-0">
+              <div class="mt-5 flex justify-center items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-2 group-hover:translate-y-0">
                 <div class="w-1.5 h-1.5 rounded-full bg-[#198496]"></div>
                 <div class="w-8 h-[1px] bg-gradient-to-r from-[#198496] to-transparent"></div>
               </div>
@@ -730,7 +730,7 @@ function getStatusBadge(status: string): { class: string; label: string } {
         </div>
 
         <!-- Certified Badge -->
-        <div class="mt-16 flex flex-col items-center">
+        <div class="mt-10 flex flex-col items-center">
           <div
             class="bg-gray-50 border border-gray-100 px-6 py-3 rounded-full flex items-center gap-3"
           >
