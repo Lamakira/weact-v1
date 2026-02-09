@@ -49,13 +49,13 @@ function handleKeydown(event: KeyboardEvent, currentValue: Perspective): void {
 <template>
   <div class="flex flex-col items-center" data-testid="perspective-toggle">
     <!-- Centered Label (hidden in compact mode) -->
-    <span v-show="!compact" class="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">Je suis :</span>
+    <span v-show="!compact" class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-0">Je suis :</span>
 
     <!-- Curved Arrows pointing DOWN (hidden in compact mode) -->
-    <div v-show="!compact" class="flex justify-center gap-12 h-6 mb-1">
+    <div v-show="!compact" class="flex justify-center gap-8 h-4 -mb-1">
       <!-- Left curved arrow (Face) -->
       <svg
-        class="w-5 h-5 transition-colors duration-300"
+        class="w-3 h-3 transition-colors duration-300"
         :class="modelValue === 'face' ? 'text-[#198496]' : 'text-slate-300'"
         viewBox="0 0 24 24"
         fill="none"
@@ -72,7 +72,7 @@ function handleKeydown(event: KeyboardEvent, currentValue: Perspective): void {
 
       <!-- Right curved arrow (Producer) -->
       <svg
-        class="w-5 h-5 transition-colors duration-300"
+        class="w-3 h-3 transition-colors duration-300"
         :class="modelValue === 'producer' ? 'text-[#198496]' : 'text-slate-300'"
         viewBox="0 0 24 24"
         fill="none"
@@ -108,9 +108,9 @@ function handleKeydown(event: KeyboardEvent, currentValue: Perspective): void {
         :tabindex="modelValue === option.value ? 0 : -1"
         :class="[
           'font-semibold rounded-full transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-1',
-          compact ? 'px-4 py-1 text-xs' : 'px-4 py-1.5 text-sm',
+          'px-3 py-0.5 text-xs',
           modelValue === option.value
-            ? 'bg-[#198496] text-white shadow-md'
+            ? 'bg-black text-white shadow-md'
             : 'text-slate-500 hover:text-slate-700 hover:bg-white/50',
         ]"
         @click="selectOption(option.value)"
