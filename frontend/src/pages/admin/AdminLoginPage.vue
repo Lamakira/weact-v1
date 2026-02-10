@@ -101,10 +101,10 @@ const onSubmit = handleSubmit(async (values) => {
 
         <!-- Heading -->
         <div class="text-center mb-8">
-          <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary-50 mb-4">
+          <h1 class="text-2xl font-bold text-gray-900 flex items-center justify-center gap-2">
             <Shield class="w-6 h-6 text-primary-600" />
-          </div>
-          <h1 class="text-2xl font-bold text-gray-900">Administration</h1>
+            Administration
+          </h1>
           <p class="mt-1 text-sm text-gray-500">Connectez-vous à l'espace d'administration</p>
         </div>
 
