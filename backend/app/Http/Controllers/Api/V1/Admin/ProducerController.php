@@ -59,7 +59,7 @@ class ProducerController extends Controller
      */
     public function show(Producer $producer): JsonResponse
     {
-        $producer->load(['user', 'missions', 'ratingsReceived']);
+        $producer->load(['user', 'missions' => fn ($q) => $q->latest()->limit(50), 'ratingsReceived']);
         $producer->loadCount('missions');
 
         return response()->json([

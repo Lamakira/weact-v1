@@ -8,7 +8,9 @@ use App\Enums\CandidatureStatus;
 use App\Enums\FaceCategory;
 use App\Models\Admin;
 use App\Models\Candidature;
+use App\Models\Experience;
 use App\Models\Face;
+use App\Models\FacePhoto;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
@@ -154,6 +156,88 @@ class AdminFaceCrudTest extends TestCase
             ->getJson('/api/v1/admin/faces/99999');
 
         $response->assertNotFound();
+    }
+
+    // ─── SHOW DETAIL (Story 13-7) ────────────────────────────────
+
+    public function test_show_face_includes_photos_and_experiences(): void
+    {
+        $face = Face::factory()->create();
+        FacePhoto::factory()->create(['face_id' => $face->id, 'position' => 1]);
+        FacePhoto::factory()->create(['face_id' => $face->id, 'position' => 2]);
+        Experience::factory()->create([
+            'face_id' => $face->id,
+            'titre' => 'Pub TV Bénin',
+        ]);
+
+        $response = $this->withToken($this->adminToken)
+            ->getJson("/api/v1/admin/faces/{$face->id}");
+
+        $response->assertOk()
+            ->assertJsonStructure([
+                'data' => [
+                    'photos' => [['id', 'photo_url', 'thumbnail_url', 'position']],
+                    'experiences' => [['id', 'titre', 'description', 'date_debut', 'date_fin', 'is_ongoing', 'formatted_period']],
+                    'photos_count',
+                    'experiences_count',
+                ],
+            ])
+            ->assertJsonCount(2, 'data.photos')
+            ->assertJsonCount(1, 'data.experiences')
+            ->assertJsonPath('data.photos_count', 2)
+            ->assertJsonPath('data.experiences_count', 1)
+            ->assertJsonPath('data.experiences.0.titre', 'Pub TV Bénin');
+    }
+
+    public function test_show_face_includes_video_urls(): void
+    {
+        $face = Face::factory()->create([
+            'presentation_video' => 'test-presentation.mp4',
+            'presentation_video_thumbnail' => 'test-presentation-thumb.jpg',
+        ]);
+
+        $response = $this->withToken($this->adminToken)
+            ->getJson("/api/v1/admin/faces/{$face->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.presentation_video_url', fn ($url) => str_contains($url, 'test-presentation.mp4'))
+            ->assertJsonPath('data.presentation_video_thumbnail_url', fn ($url) => str_contains($url, 'test-presentation-thumb.jpg'))
+            ->assertJsonPath('data.acting_video_url', null);
+    }
+
+    public function test_show_face_includes_physical_and_tariffs(): void
+    {
+        $face = Face::factory()->create([
+            'taille' => 175,
+            'poids' => 68,
+            'tarif_horaire' => 25000,
+            'tarif_journalier' => 150000,
+        ]);
+
+        $response = $this->withToken($this->adminToken)
+            ->getJson("/api/v1/admin/faces/{$face->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.taille', 175)
+            ->assertJsonPath('data.poids', 68)
+            ->assertJsonPath('data.tarif_horaire', 25000)
+            ->assertJsonPath('data.tarif_journalier', 150000)
+            ->assertJsonPath('data.formatted_tarif_horaire', '25 000 XOF/heure')
+            ->assertJsonPath('data.formatted_tarif_journalier', '150 000 XOF/jour');
+    }
+
+    public function test_show_face_returns_empty_arrays_when_no_relations(): void
+    {
+        $face = Face::factory()->create();
+
+        $response = $this->withToken($this->adminToken)
+            ->getJson("/api/v1/admin/faces/{$face->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.photos', [])
+            ->assertJsonPath('data.experiences', [])
+            ->assertJsonPath('data.photos_count', 0)
+            ->assertJsonPath('data.experiences_count', 0);
     }
 
     // ─── UPDATE ───────────────────────────────────────────────────

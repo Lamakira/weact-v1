@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\MissionSummaryResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -34,6 +35,7 @@ class ProducerResource extends JsonResource
             'average_rating' => $this->average_rating,
             'ratings_count' => $this->ratings_count,
             'missions_count' => $this->when($this->missions_count !== null, $this->missions_count),
+            'missions' => MissionSummaryResource::collection($this->whenLoaded('missions')),
             'email' => $this->whenLoaded('user', fn () => $this->user?->email),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),

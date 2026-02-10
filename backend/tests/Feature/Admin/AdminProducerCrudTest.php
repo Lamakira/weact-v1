@@ -296,6 +296,38 @@ class AdminProducerCrudTest extends TestCase
         $this->assertDatabaseMissing('producers', ['id' => $producer->id]);
     }
 
+    // ─── SHOW DETAIL (Story 13-7) ────────────────────────────────
+
+    public function test_show_producer_includes_missions_array(): void
+    {
+        $producer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+        Mission::factory()->published()->create([
+            'producer_id' => $producer->id,
+            'titre' => 'Mission Alpha',
+        ]);
+        Mission::factory()->completed()->create([
+            'producer_id' => $producer->id,
+            'titre' => 'Mission Beta',
+        ]);
+
+        $response = $this->withToken($this->adminToken)
+            ->getJson("/api/v1/admin/producers/{$producer->id}");
+
+        $response->assertOk()
+            ->assertJsonStructure([
+                'data' => [
+                    'missions' => [
+                        ['id', 'title', 'status', 'status_label', 'created_at'],
+                    ],
+                ],
+            ])
+            ->assertJsonCount(2, 'data.missions');
+    }
+
     // ─── AUTH GUARDS ──────────────────────────────────────────────
 
     public function test_returns_401_for_unauthenticated_request(): void
