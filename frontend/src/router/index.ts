@@ -273,6 +273,18 @@ const router = createRouter({
           component: () => import('../pages/admin/AdminFaceDetailPage.vue'),
           meta: { title: 'Détail Face - WEACT' },
         },
+        {
+          path: 'producers',
+          name: 'admin-producers-list',
+          component: () => import('../pages/admin/AdminProducersListPage.vue'),
+          meta: { title: 'Gestion des Producteurs - WEACT' },
+        },
+        {
+          path: 'producers/:id',
+          name: 'admin-producer-detail',
+          component: () => import('../pages/admin/AdminProducerDetailPage.vue'),
+          meta: { title: 'Détail Producteur - WEACT' },
+        },
       ],
     },
     // Public routes (no auth required)

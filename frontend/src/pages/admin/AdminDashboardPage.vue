@@ -32,7 +32,7 @@ interface AdminKpiConfig {
 // Story 13-8: admin-missions-list, Articles/Candidatures: TBD
 const userKpis: AdminKpiConfig[] = [
   { key: 'faces', title: 'Faces', color: 'primary', icon: 'users', to: { name: 'admin-faces-list' } },
-  { key: 'producers', title: 'Producteurs', color: 'purple-500', icon: 'userCheck' },
+  { key: 'producers', title: 'Producteurs', color: 'purple-500', icon: 'userCheck', to: { name: 'admin-producers-list' } },
   { key: 'admins', title: 'Admins', color: 'blue-500', icon: 'shield', to: { name: 'admin-admins-list' } },
 ]
 
