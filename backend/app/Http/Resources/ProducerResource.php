@@ -33,6 +33,8 @@ class ProducerResource extends JsonResource
             'agency_logo_thumbnail_url' => $this->agency_logo_thumbnail_url,
             'average_rating' => $this->average_rating,
             'ratings_count' => $this->ratings_count,
+            'missions_count' => $this->when($this->missions_count !== null, $this->missions_count),
+            'email' => $this->whenLoaded('user', fn () => $this->user?->email),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
