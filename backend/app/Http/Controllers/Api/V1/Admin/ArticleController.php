@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreArticleRequest;
 use App\Http\Requests\Admin\UpdateArticleCategoryRequest;
+use App\Http\Requests\Admin\UpdateArticleRequest;
 use App\Http\Requests\Admin\UpdateArticleStatusRequest;
 use App\Http\Resources\ArticleResource;
 use App\Models\Article;
@@ -34,6 +35,23 @@ class ArticleController extends Controller
             'message' => 'Article créé avec succès',
             'meta' => [],
         ], 201);
+    }
+
+    public function update(UpdateArticleRequest $request, Article $article): JsonResponse
+    {
+        $article = $this->articleService->updateArticle(
+            $article,
+            $request->validated(),
+            $request->file('featured_image')
+        );
+
+        $article->load('admin');
+
+        return response()->json([
+            'data' => new ArticleResource($article),
+            'message' => 'Article mis à jour avec succès',
+            'meta' => [],
+        ], 200);
     }
 
     public function updateCategory(UpdateArticleCategoryRequest $request, Article $article): JsonResponse

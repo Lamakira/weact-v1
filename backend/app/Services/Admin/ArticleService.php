@@ -69,6 +69,48 @@ class ArticleService
         return $article;
     }
 
+    public function updateArticle(Article $article, array $data, ?UploadedFile $featuredImage = null): Article
+    {
+        $updateData = [];
+
+        foreach (['title', 'content', 'excerpt', 'category'] as $field) {
+            if (array_key_exists($field, $data)) {
+                $updateData[$field] = $data[$field];
+            }
+        }
+
+        if (array_key_exists('status', $data)) {
+            $newStatus = $data['status'];
+            $updateData['status'] = $newStatus;
+
+            if ($article->status->value !== $newStatus) {
+                if ($newStatus === ArticleStatus::Published->value) {
+                    $updateData['published_at'] = now();
+                } else {
+                    $updateData['published_at'] = null;
+                }
+            }
+        }
+
+        if ($featuredImage) {
+            $this->deleteOldImage($article);
+            $updateData['featured_image'] = $this->uploadFeaturedImage($featuredImage);
+        }
+
+        if (!empty($updateData)) {
+            $article->update($updateData);
+        }
+
+        return $article;
+    }
+
+    private function deleteOldImage(Article $article): void
+    {
+        if ($article->featured_image) {
+            Storage::disk('public')->delete(self::STORAGE_PATH . '/' . $article->featured_image);
+        }
+    }
+
     private function uploadFeaturedImage(UploadedFile $image): string
     {
         $extension = $image->getClientOriginalExtension() ?: 'jpg';
