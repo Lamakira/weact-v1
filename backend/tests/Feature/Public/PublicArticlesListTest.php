@@ -283,4 +283,190 @@ class PublicArticlesListTest extends TestCase
         $response->assertOk();
         $this->assertEquals('Articles retrieved successfully', $response->json('message'));
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Story 12-9: Category Filtering Tests
+    // ═══════════════════════════════════════════════════════════════════
+
+    // ─── 3.1 Filter by valid category returns only matching articles ──
+
+    public function test_filter_by_category_returns_only_matching_articles(): void
+    {
+        $conseilsArticle = $this->createPublishedArticle([
+            'title' => 'Conseils Article',
+            'category' => ArticleCategory::ConseilsFace->value,
+        ]);
+        $this->createPublishedArticle([
+            'title' => 'Guide Article',
+            'category' => ArticleCategory::GuideProducteur->value,
+        ]);
+        $this->createPublishedArticle([
+            'title' => 'Actualites Article',
+            'category' => ArticleCategory::Actualites->value,
+        ]);
+
+        $response = $this->getJson('/api/v1/public/articles?category=conseils-face');
+
+        $response->assertOk();
+        $this->assertEquals(1, $response->json('meta.total'));
+        $this->assertCount(1, $response->json('data'));
+        $this->assertEquals($conseilsArticle->id, $response->json('data.0.id'));
+        $this->assertEquals('conseils-face', $response->json('data.0.category.value'));
+    }
+
+    // ─── 3.2 No filter returns all published articles (backwards compat)
+
+    public function test_no_category_filter_returns_all_published_articles(): void
+    {
+        $this->createPublishedArticle(['category' => ArticleCategory::ConseilsFace->value]);
+        $this->createPublishedArticle(['category' => ArticleCategory::GuideProducteur->value]);
+        $this->createPublishedArticle(['category' => ArticleCategory::Actualites->value]);
+
+        $response = $this->getJson('/api/v1/public/articles');
+
+        $response->assertOk();
+        $this->assertEquals(3, $response->json('meta.total'));
+        $this->assertCount(3, $response->json('data'));
+    }
+
+    // ─── 3.3 Invalid category returns 422 ─────────────────────────────
+
+    public function test_invalid_category_returns_422(): void
+    {
+        $response = $this->getJson('/api/v1/public/articles?category=invalid-value');
+
+        $response->assertUnprocessable();
+    }
+
+    // ─── 3.3b Empty category parameter returns all articles (no filter)
+
+    public function test_empty_category_parameter_returns_all_articles(): void
+    {
+        $this->createPublishedArticle(['category' => ArticleCategory::ConseilsFace->value]);
+        $this->createPublishedArticle(['category' => ArticleCategory::GuideProducteur->value]);
+
+        $response = $this->getJson('/api/v1/public/articles?category=');
+
+        $response->assertOk();
+        $this->assertEquals(2, $response->json('meta.total'));
+    }
+
+    // ─── 3.4 Valid category with no matching articles returns empty ────
+
+    public function test_valid_category_with_no_articles_returns_empty_data(): void
+    {
+        // Create article in different category
+        $this->createPublishedArticle(['category' => ArticleCategory::ConseilsFace->value]);
+
+        $response = $this->getJson('/api/v1/public/articles?category=guide-producteur');
+
+        $response->assertOk()
+            ->assertJson([
+                'data' => [],
+                'meta' => [
+                    'current_page' => 1,
+                    'total' => 0,
+                ],
+            ]);
+    }
+
+    // ─── 3.5 Category filter combined with pagination ─────────────────
+
+    public function test_category_filter_combined_with_pagination(): void
+    {
+        // Create 5 articles in conseils-face category
+        for ($i = 0; $i < 5; $i++) {
+            $this->createPublishedArticle(['category' => ArticleCategory::ConseilsFace->value]);
+        }
+        // Create 3 in different category (should not appear)
+        for ($i = 0; $i < 3; $i++) {
+            $this->createPublishedArticle(['category' => ArticleCategory::Actualites->value]);
+        }
+
+        $response = $this->getJson('/api/v1/public/articles?category=conseils-face&per_page=3&page=1');
+
+        $response->assertOk();
+        $this->assertCount(3, $response->json('data'));
+        $this->assertEquals(5, $response->json('meta.total'));
+        $this->assertEquals(2, $response->json('meta.last_page'));
+        $this->assertEquals(1, $response->json('meta.current_page'));
+
+        // Page 2
+        $response = $this->getJson('/api/v1/public/articles?category=conseils-face&per_page=3&page=2');
+
+        $response->assertOk();
+        $this->assertCount(2, $response->json('data'));
+        $this->assertEquals(2, $response->json('meta.current_page'));
+    }
+
+    // ─── 3.6 Each category value works individually ───────────────────
+
+    public function test_each_category_value_filters_correctly(): void
+    {
+        $this->createPublishedArticle(['category' => ArticleCategory::ConseilsFace->value]);
+        $this->createPublishedArticle(['category' => ArticleCategory::GuideProducteur->value]);
+        $this->createPublishedArticle(['category' => ArticleCategory::Actualites->value]);
+
+        foreach (ArticleCategory::cases() as $category) {
+            $response = $this->getJson("/api/v1/public/articles?category={$category->value}");
+
+            $response->assertOk();
+            $this->assertEquals(1, $response->json('meta.total'), "Expected 1 article for category {$category->value}");
+            $this->assertEquals($category->value, $response->json('data.0.category.value'));
+        }
+    }
+
+    // ─── 3.7 Draft articles not returned when filtering by category ───
+
+    public function test_draft_articles_not_returned_when_filtering_by_category(): void
+    {
+        // Published article in category
+        $this->createPublishedArticle(['category' => ArticleCategory::ConseilsFace->value]);
+
+        // Draft article in SAME category
+        Article::factory()
+            ->for($this->admin)
+            ->draft()
+            ->create(['category' => ArticleCategory::ConseilsFace->value]);
+
+        $response = $this->getJson('/api/v1/public/articles?category=conseils-face');
+
+        $response->assertOk();
+        $this->assertEquals(1, $response->json('meta.total'));
+    }
+
+    // ─── 3.8 Filtering preserves response structure ───────────────────
+
+    public function test_filtering_preserves_response_structure(): void
+    {
+        $this->createPublishedArticle(['category' => ArticleCategory::ConseilsFace->value]);
+
+        $response = $this->getJson('/api/v1/public/articles?category=conseils-face');
+
+        $response->assertOk()
+            ->assertJsonStructure([
+                'data' => [
+                    '*' => [
+                        'id',
+                        'title',
+                        'slug',
+                        'excerpt',
+                        'category' => ['value', 'label'],
+                        'featured_image',
+                        'published_at',
+                        'created_at',
+                        'author_name',
+                    ],
+                ],
+                'meta' => [
+                    'current_page',
+                    'last_page',
+                    'per_page',
+                    'total',
+                ],
+                'message',
+            ]);
+
+        $this->assertEquals('Articles retrieved successfully', $response->json('message'));
+    }
 }
