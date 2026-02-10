@@ -63,8 +63,8 @@ class AdminMeTest extends TestCase
 
         $this->assertArrayNotHasKey('password', $data);
         $this->assertArrayNotHasKey('remember_token', $data);
-        $this->assertArrayNotHasKey('created_at', $data);
         $this->assertArrayNotHasKey('updated_at', $data);
+        // created_at is intentionally included in AdminResource (needed for admin list)
     }
 
     public function test_non_admin_user_cannot_access_admin_me_endpoint(): void

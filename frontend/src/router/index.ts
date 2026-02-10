@@ -249,6 +249,18 @@ const router = createRouter({
           name: 'admin-dashboard',
           component: () => import('../pages/admin/AdminDashboardPage.vue'),
         },
+        {
+          path: 'admins',
+          name: 'admin-admins-list',
+          component: () => import('../pages/admin/AdminListPage.vue'),
+          meta: { title: 'Administrateurs - WEACT' },
+        },
+        {
+          path: 'admins/create',
+          name: 'admin-admins-create',
+          component: () => import('../pages/admin/AdminCreatePage.vue'),
+          meta: { title: 'Créer un admin - WEACT' },
+        },
       ],
     },
     // Public routes (no auth required)

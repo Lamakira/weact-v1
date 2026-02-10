@@ -14,6 +14,7 @@ interface Props {
   userName?: string
   avatarUrl?: string | null
   isLoggingOut?: boolean
+  showNotifications?: boolean
 }
 
 withDefaults(defineProps<Props>(), {
@@ -22,6 +23,7 @@ withDefaults(defineProps<Props>(), {
   userName: '',
   avatarUrl: null,
   isLoggingOut: false,
+  showNotifications: true,
 })
 
 const emit = defineEmits<{
@@ -72,8 +74,8 @@ function handleLogout() {
         {{ userEmail }}
       </span>
 
-      <!-- Notification bell -->
-      <NotificationBell data-testid="header-notifications" />
+      <!-- Notification bell (hidden on admin dashboards — uses user API client) -->
+      <NotificationBell v-if="showNotifications" data-testid="header-notifications" />
 
       <!-- Logout button -->
       <button

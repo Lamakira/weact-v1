@@ -24,6 +24,7 @@ interface Props {
   userName?: string
   avatarUrl?: string | null
   isLoggingOut?: boolean
+  showNotifications?: boolean
 }
 
 withDefaults(defineProps<Props>(), {
@@ -33,6 +34,7 @@ withDefaults(defineProps<Props>(), {
   userName: '',
   avatarUrl: null,
   isLoggingOut: false,
+  showNotifications: true,
 })
 
 const emit = defineEmits<{
@@ -175,6 +177,7 @@ function handleLogout() {
           :user-name="userName"
           :avatar-url="avatarUrl"
           :is-logging-out="isLoggingOut"
+          :show-notifications="showNotifications"
           class="flex-shrink-0"
           @logout="handleLogout"
         />

@@ -11,6 +11,11 @@ const isDashboardRoute = computed(() => {
   return route.path.startsWith('/face/') || route.path.startsWith('/producer/')
 })
 
+/** Check if current route is an admin page (uses AdminLayout, no public AppHeader/footer) */
+const isAdminRoute = computed(() => {
+  return route.path.startsWith('/admin/')
+})
+
 /** Check if current route is an auth page (full-screen, no header/footer) */
 const isAuthRoute = computed(() => {
   return route.meta.guest === true
@@ -25,6 +30,11 @@ const isLandingPage = computed(() => {
 <template>
   <!-- Dashboard routes: full-screen, no header/footer -->
   <template v-if="isDashboardRoute">
+    <RouterView />
+  </template>
+
+  <!-- Admin routes: full-screen, uses AdminLayout internally -->
+  <template v-else-if="isAdminRoute">
     <RouterView />
   </template>
 
