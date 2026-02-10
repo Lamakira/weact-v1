@@ -183,7 +183,7 @@ development_status:
   12-4-admin-set-article-status: done
   12-5-admin-edit-article: done
   12-6-admin-delete-article: done
-  12-7-public-articles-list: backlog
+  12-7-public-articles-list: done
   12-8-public-article-reading: backlog
   12-9-public-articles-filter-by-category: backlog
   epic-12-retrospective: optional
