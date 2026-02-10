@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useAdminAuthStore } from '@/stores/adminAuth'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -226,6 +227,30 @@ const router = createRouter({
       path: '/dashboard/producer',
       redirect: { name: 'producer-dashboard' },
     },
+    // Admin login route (guest-only for admins)
+    {
+      path: '/admin/login',
+      name: 'admin-login',
+      component: () => import('../pages/admin/AdminLoginPage.vue'),
+      meta: { adminGuest: true, title: 'Administration - WEACT' },
+    },
+    // Admin routes (admin auth required) - nested under AdminLayout
+    {
+      path: '/admin',
+      component: () => import('../pages/admin/AdminLayout.vue'),
+      meta: { requiresAdminAuth: true },
+      children: [
+        {
+          path: '',
+          redirect: { name: 'admin-dashboard' },
+        },
+        {
+          path: 'dashboard',
+          name: 'admin-dashboard',
+          component: () => import('../pages/admin/AdminDashboardPage.vue'),
+        },
+      ],
+    },
     // Public routes (no auth required)
     {
       path: '/faces',
@@ -278,6 +303,28 @@ router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
   const isAuthenticated = authStore.isAuthenticated
   const userType = authStore.user?.userable_type
+
+  // === Admin auth guards (separate from user auth) ===
+
+  // Admin guest routes - redirect to admin dashboard if already admin-authenticated
+  if (to.meta.adminGuest) {
+    const adminAuthStore = useAdminAuthStore()
+    if (adminAuthStore.isAuthenticated) {
+      return next({ name: 'admin-dashboard' })
+    }
+    return next()
+  }
+
+  // Admin protected routes - redirect to admin login if not admin-authenticated
+  if (to.meta.requiresAdminAuth) {
+    const adminAuthStore = useAdminAuthStore()
+    if (!adminAuthStore.isAuthenticated) {
+      return next({ name: 'admin-login', query: { redirect: to.fullPath } })
+    }
+    return next()
+  }
+
+  // === User auth guards ===
 
   // Guest routes - redirect to dashboard if already logged in
   if (to.meta.guest && isAuthenticated) {
