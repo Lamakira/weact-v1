@@ -192,7 +192,7 @@ development_status:
   epic-13: in-progress
   13-1-admin-authentication: done
   13-2-admin-create-other-admins: done
-  13-3-admin-dashboard-kpis: backlog
+  13-3-admin-dashboard-kpis: done
   13-4-admin-crud-faces: backlog
   13-5-admin-crud-producers: backlog
   13-6-admin-crud-admins: backlog

@@ -79,12 +79,12 @@ export interface MissionsCountResponse {
 /**
  * KPI card color type
  */
-export type KpiColor = 'amber-500' | 'green-500' | 'blue-500' | 'primary' | 'purple-500'
+export type KpiColor = 'amber-500' | 'green-500' | 'blue-500' | 'primary' | 'purple-500' | 'gray-500'
 
 /**
  * KPI card icon type
  */
-export type KpiIcon = 'clock' | 'check' | 'play' | 'checkCircle' | 'users' | 'userCheck' | 'star'
+export type KpiIcon = 'clock' | 'check' | 'play' | 'checkCircle' | 'users' | 'userCheck' | 'star' | 'shield' | 'edit' | 'file'
 
 /**
  * KPI card configuration

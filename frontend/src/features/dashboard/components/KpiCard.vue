@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Clock, Check, Play, CheckCircle2, Users, UserCheck, Star } from 'lucide-vue-next'
+import { RouterLink } from 'vue-router'
+import { Clock, Check, Play, CheckCircle2, Users, UserCheck, Star, Shield, Pencil, FileText } from 'lucide-vue-next'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { KpiColor, KpiIcon } from '../types'
+import type { RouteLocationRaw } from 'vue-router'
 
 interface KpiCardProps {
   title: string
@@ -10,10 +12,12 @@ interface KpiCardProps {
   icon: KpiIcon
   color: KpiColor
   isLoading?: boolean
+  to?: RouteLocationRaw
 }
 
 const props = withDefaults(defineProps<KpiCardProps>(), {
   isLoading: false,
+  to: undefined,
 })
 
 const formattedValue = computed(() => {
@@ -29,6 +33,9 @@ const iconComponent = computed(() => {
     users: Users,
     userCheck: UserCheck,
     star: Star,
+    shield: Shield,
+    edit: Pencil,
+    file: FileText,
   }
   return icons[props.icon] || Clock
 })
@@ -55,14 +62,21 @@ const colorClasses = computed(() => {
       bg: 'bg-violet-50',
       text: 'text-violet-500',
     },
+    'gray-500': {
+      bg: 'bg-gray-50',
+      text: 'text-gray-500',
+    },
   }
   return mapping[props.color] || mapping['primary']
 })
 </script>
 
 <template>
-  <div
-    class="bg-white rounded-2xl p-4 shadow-sm transition-all duration-200 hover:shadow-md"
+  <component
+    :is="to ? RouterLink : 'div'"
+    :to="to || undefined"
+    class="bg-white rounded-2xl p-4 shadow-sm transition-all duration-200"
+    :class="to ? 'hover:shadow-md hover:ring-1 hover:ring-teal-200 cursor-pointer block' : ''"
     :aria-label="`${title}: ${formattedValue}`"
     data-testid="kpi-card"
   >
@@ -97,5 +111,5 @@ const colorClasses = computed(() => {
         </span>
       </div>
     </div>
-  </div>
+  </component>
 </template>
