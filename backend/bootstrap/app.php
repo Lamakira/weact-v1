@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\EnsureEmailIsVerified;
+use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\EnsureUserIsFace;
 use App\Http\Middleware\EnsureUserIsProducer;
 use Illuminate\Foundation\Application;
@@ -24,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Register custom role-based middlewares
         $middleware->alias([
+            'admin' => EnsureUserIsAdmin::class,
             'face' => EnsureUserIsFace::class,
             'producer' => EnsureUserIsProducer::class,
             'verified' => EnsureEmailIsVerified::class,

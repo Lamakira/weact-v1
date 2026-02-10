@@ -1,0 +1,46 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+/**
+ * Resource for PUBLIC Article detail display.
+ *
+ * This resource exposes all public-safe fields from PublicArticleResource
+ * PLUS the full `content` field (rich text body).
+ *
+ * Excludes: status (always published), updated_at (admin concern),
+ * admin object (email/id sensitive).
+ *
+ * @mixin \App\Models\Article
+ */
+class PublicArticleDetailResource extends JsonResource
+{
+    /**
+     * Transform the resource into an array.
+     *
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'title' => $this->title,
+            'slug' => $this->slug,
+            'content' => $this->content,
+            'excerpt' => $this->excerpt,
+            'category' => [
+                'value' => $this->category?->value,
+                'label' => $this->category?->label(),
+            ],
+            'featured_image' => $this->featured_image_url,
+            'published_at' => $this->published_at?->toIso8601String(),
+            'created_at' => $this->created_at?->toIso8601String(),
+            'author_name' => $this->admin?->name,
+        ];
+    }
+}

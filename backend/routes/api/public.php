@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\ContactController;
+use App\Http\Controllers\Api\V1\Public\ArticleController;
 use App\Http\Controllers\Api\V1\Public\FaceController;
 use App\Http\Controllers\Api\V1\Public\FaceReviewController;
 use App\Http\Controllers\Api\V1\Public\MissionController;
@@ -41,6 +42,12 @@ Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
     // Face reviews list
     Route::get('/faces/{id}/reviews', [FaceReviewController::class, 'index'])
         ->whereNumber('id');
+
+    // Public Articles list (paginated)
+    Route::get('/articles', [ArticleController::class, 'index']);
+
+    // Public Article detail
+    Route::get('/articles/{slug}', [ArticleController::class, 'show']);
 
     // Public Missions list (paginated)
     Route::get('/missions', [MissionController::class, 'index']);
