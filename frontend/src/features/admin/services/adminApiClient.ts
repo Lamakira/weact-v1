@@ -153,14 +153,24 @@ export function getAdminAuthToken(): string | null {
 /**
  * Helper to store admin user data
  */
-export function setStoredAdmin(admin: { id: number; name: string; email: string }): void {
+export function setStoredAdmin(admin: {
+  id: number
+  name: string
+  email: string
+  role: 'superadmin' | 'admin' | 'editor'
+}): void {
   localStorage.setItem(ADMIN_USER_KEY, JSON.stringify(admin))
 }
 
 /**
  * Helper to get stored admin user data
  */
-export function getStoredAdmin(): { id: number; name: string; email: string } | null {
+export function getStoredAdmin(): {
+  id: number
+  name: string
+  email: string
+  role: 'superadmin' | 'admin' | 'editor'
+} | null {
   const stored = localStorage.getItem(ADMIN_USER_KEY)
   if (stored) {
     try {

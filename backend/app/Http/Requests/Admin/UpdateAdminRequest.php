@@ -8,9 +8,10 @@ use App\Enums\AdminRole;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
 
-class CreateAdminRequest extends FormRequest
+class UpdateAdminRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -27,10 +28,11 @@ class CreateAdminRequest extends FormRequest
      */
     public function rules(): array
     {
+        $adminId = $this->route('admin')?->id ?? $this->route('admin');
+
         return [
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'unique:admins,email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'name' => ['sometimes', 'string', 'max:255'],
+            'email' => ['sometimes', 'string', 'email', Rule::unique('admins', 'email')->ignore($adminId)],
             'role' => ['sometimes', new Enum(AdminRole::class)],
         ];
     }
@@ -43,14 +45,9 @@ class CreateAdminRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.required' => 'Le nom est obligatoire.',
             'name.max' => 'Le nom ne peut pas dépasser 255 caractères.',
-            'email.required' => "L'email est obligatoire.",
             'email.email' => "L'email doit être une adresse email valide.",
-            'email.unique' => "Cet email est déjà utilisé.",
-            'password.required' => 'Le mot de passe est obligatoire.',
-            'password.min' => 'Le mot de passe doit contenir au moins 8 caractères.',
-            'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
+            'email.unique' => 'Cet email est déjà utilisé.',
             'role' => 'Le rôle sélectionné est invalide.',
         ];
     }

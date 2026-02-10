@@ -19,6 +19,7 @@ export interface AdminAuthResponse {
       id: number
       name: string
       email: string
+      role: 'superadmin' | 'admin' | 'editor'
     }
     token: string
   }
@@ -34,6 +35,7 @@ export interface AdminMeResponse {
     id: number
     name: string
     email: string
+    role: 'superadmin' | 'admin' | 'editor'
   }
   message: string
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\AdminRole;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -23,6 +24,7 @@ class Admin extends Authenticatable
         'name',
         'email',
         'password',
+        'role',
     ];
 
     /**
@@ -44,7 +46,18 @@ class Admin extends Authenticatable
     {
         return [
             'password' => 'hashed',
+            'role' => AdminRole::class,
         ];
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === AdminRole::SuperAdmin;
+    }
+
+    public function isEditor(): bool
+    {
+        return $this->role === AdminRole::Editor;
     }
 
     /**

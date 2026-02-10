@@ -4,10 +4,16 @@ import { setActivePinia, createPinia } from 'pinia'
 // Mock adminsApi
 const mockGetAdmins = vi.fn()
 const mockCreateAdmin = vi.fn()
+const mockGetAdmin = vi.fn()
+const mockUpdateAdmin = vi.fn()
+const mockDeleteAdmin = vi.fn()
 vi.mock('../../services/adminsApi', () => ({
   adminsApi: {
     getAdmins: (...args: unknown[]) => mockGetAdmins(...args),
     createAdmin: (...args: unknown[]) => mockCreateAdmin(...args),
+    getAdmin: (...args: unknown[]) => mockGetAdmin(...args),
+    updateAdmin: (...args: unknown[]) => mockUpdateAdmin(...args),
+    deleteAdmin: (...args: unknown[]) => mockDeleteAdmin(...args),
   },
 }))
 
@@ -203,6 +209,147 @@ describe('useAdmins - createAdmin', () => {
     })
 
     await createPromise
+
+    expect(isLoading.value).toBe(false)
+  })
+})
+
+describe('useAdmins - fetchAdmin', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    localStorage.clear()
+  })
+
+  it('fetches a single admin successfully', async () => {
+    mockGetAdmin.mockResolvedValue({
+      data: { id: 5, name: 'Jean Admin', email: 'jean@weact.bj', role: 'admin', created_at: '2026-01-01T00:00:00.000Z' },
+      message: 'Détails récupérés',
+    })
+
+    const { admin, fetchAdmin } = useAdmins()
+    await fetchAdmin(5)
+
+    expect(mockGetAdmin).toHaveBeenCalledWith(5)
+    expect(admin.value?.name).toBe('Jean Admin')
+    expect(admin.value?.role).toBe('admin')
+  })
+
+  it('handles 404 error', async () => {
+    mockGetAdmin.mockRejectedValue({
+      response: {
+        data: {
+          error: { message: 'Administrateur non trouvé' },
+        },
+      },
+    })
+
+    const { admin, error, fetchAdmin } = useAdmins()
+    await fetchAdmin(99999)
+
+    expect(error.value).toBe('Administrateur non trouvé')
+    expect(admin.value).toBeNull()
+  })
+})
+
+describe('useAdmins - updateAdmin', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    localStorage.clear()
+  })
+
+  it('updates admin successfully', async () => {
+    mockUpdateAdmin.mockResolvedValue({
+      data: { id: 5, name: 'Updated Name', email: 'jean@weact.bj', role: 'admin', created_at: '2026-01-01T00:00:00.000Z' },
+      message: 'Administrateur mis à jour avec succès',
+    })
+
+    const { admin, updateAdmin } = useAdmins()
+    const result = await updateAdmin(5, { name: 'Updated Name' })
+
+    expect(result.success).toBe(true)
+    expect(result.message).toBe('Administrateur mis à jour avec succès')
+    expect(admin.value?.name).toBe('Updated Name')
+    expect(mockUpdateAdmin).toHaveBeenCalledWith(5, { name: 'Updated Name' })
+  })
+
+  it('returns validation errors on failure', async () => {
+    mockUpdateAdmin.mockRejectedValue({
+      response: {
+        data: {
+          error: {
+            code: 'validation_error',
+            message: 'Les données fournies ne sont pas valides',
+            details: { email: ['Cet email est déjà utilisé.'] },
+          },
+        },
+      },
+    })
+
+    const { updateAdmin } = useAdmins()
+    const result = await updateAdmin(5, { email: 'taken@weact.bj' })
+
+    expect(result.success).toBe(false)
+    expect(result.errors?.email?.[0]).toBe('Cet email est déjà utilisé.')
+  })
+})
+
+describe('useAdmins - deleteAdmin', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    localStorage.clear()
+  })
+
+  it('deletes admin successfully', async () => {
+    mockDeleteAdmin.mockResolvedValue({
+      message: 'Administrateur supprimé avec succès',
+    })
+
+    const { deleteAdmin } = useAdmins()
+    const result = await deleteAdmin(5)
+
+    expect(result.success).toBe(true)
+    expect(result.message).toBe('Administrateur supprimé avec succès')
+    expect(mockDeleteAdmin).toHaveBeenCalledWith(5)
+  })
+
+  it('returns error on self-deletion prevention', async () => {
+    mockDeleteAdmin.mockRejectedValue({
+      response: {
+        data: {
+          error: {
+            code: 'self_deletion',
+            message: 'Impossible de supprimer votre propre compte administrateur.',
+          },
+        },
+      },
+    })
+
+    const { deleteAdmin } = useAdmins()
+    const result = await deleteAdmin(1)
+
+    expect(result.success).toBe(false)
+    expect(result.message).toBe('Impossible de supprimer votre propre compte administrateur.')
+  })
+
+  it('sets loading state during delete', async () => {
+    let resolvePromise: (value: unknown) => void
+    mockDeleteAdmin.mockReturnValue(
+      new Promise((resolve) => {
+        resolvePromise = resolve
+      }),
+    )
+
+    const { isLoading, deleteAdmin } = useAdmins()
+    const deletePromise = deleteAdmin(5)
+
+    expect(isLoading.value).toBe(true)
+
+    resolvePromise!({ message: 'Administrateur supprimé avec succès' })
+
+    await deletePromise
 
     expect(isLoading.value).toBe(false)
   })

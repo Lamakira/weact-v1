@@ -1,10 +1,18 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
-import { RouterLink } from 'vue-router'
-import { Plus, ShieldCheck, AlertCircle, Loader2 } from 'lucide-vue-next'
+import { onMounted, computed, ref } from 'vue'
+import { RouterLink, useRouter } from 'vue-router'
+import { Plus, ShieldCheck, AlertCircle, Loader2, Pencil, Trash2 } from 'lucide-vue-next'
 import { useAdmins } from '@/features/admin/composables/useAdmins'
+import { useAdminAuthStore } from '@/stores/adminAuth'
+import { getAdminRoleLabel, getAdminRoleColor } from '@/features/admin/utils/adminLabels'
 
-const { admins, pagination, isLoading, error, fetchAdmins } = useAdmins()
+const router = useRouter()
+const adminAuthStore = useAdminAuthStore()
+const { admins, pagination, isLoading, error, fetchAdmins, deleteAdmin } = useAdmins()
+
+const successMessage = ref('')
+const deleteError = ref('')
+const currentAdminId = computed(() => adminAuthStore.admin?.id)
 
 onMounted(() => {
   fetchAdmins()
@@ -24,6 +32,31 @@ function formatDate(dateString: string): string {
     month: 'long',
     year: 'numeric',
   })
+}
+
+function goToEdit(adminId: number): void {
+  router.push({ name: 'admin-admins-edit', params: { id: adminId } })
+}
+
+async function handleDelete(adminId: number, adminName: string): Promise<void> {
+  const confirmed = window.confirm(
+    `Êtes-vous sûr de vouloir supprimer le compte de ${adminName} ? Cette action est irréversible.`,
+  )
+  if (!confirmed) return
+
+  deleteError.value = ''
+  successMessage.value = ''
+
+  const result = await deleteAdmin(adminId)
+  if (result.success) {
+    successMessage.value = result.message ?? 'Administrateur supprimé avec succès'
+    fetchAdmins(currentPage.value)
+    setTimeout(() => {
+      successMessage.value = ''
+    }, 3000)
+  } else {
+    deleteError.value = result.message ?? 'Erreur lors de la suppression'
+  }
 }
 </script>
 
@@ -45,6 +78,26 @@ function formatDate(dateString: string): string {
         <Plus class="h-4 w-4" />
         Créer un admin
       </RouterLink>
+    </div>
+
+    <!-- Success Message -->
+    <div
+      v-if="successMessage"
+      class="rounded-lg bg-green-50 border border-green-200 p-4 text-sm text-green-700"
+      data-testid="success-message"
+    >
+      {{ successMessage }}
+    </div>
+
+    <!-- Delete Error -->
+    <div
+      v-if="deleteError"
+      class="rounded-lg bg-red-50 border border-red-200 p-4 flex items-start gap-3"
+      role="alert"
+      data-testid="delete-error"
+    >
+      <AlertCircle class="h-5 w-5 text-red-500 mt-0.5 shrink-0" />
+      <p class="text-sm text-red-700">{{ deleteError }}</p>
     </div>
 
     <!-- Error State -->
@@ -103,7 +156,13 @@ function formatDate(dateString: string): string {
               Email
             </th>
             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              Rôle
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
               Date de création
+            </th>
+            <th class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+              Actions
             </th>
           </tr>
         </thead>
@@ -119,8 +178,38 @@ function formatDate(dateString: string): string {
             <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
               {{ admin.email }}
             </td>
+            <td class="whitespace-nowrap px-6 py-4">
+              <span
+                class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                :class="getAdminRoleColor(admin.role)"
+                data-testid="role-badge"
+              >
+                {{ getAdminRoleLabel(admin.role) }}
+              </span>
+            </td>
             <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
               {{ formatDate(admin.created_at) }}
+            </td>
+            <td class="whitespace-nowrap px-6 py-4 text-right">
+              <div class="flex items-center justify-end gap-2">
+                <button
+                  @click="goToEdit(admin.id)"
+                  class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  data-testid="edit-button"
+                >
+                  <Pencil class="h-3.5 w-3.5" />
+                  Modifier
+                </button>
+                <button
+                  v-if="admin.id !== currentAdminId"
+                  @click="handleDelete(admin.id, admin.name)"
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-red-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 transition-colors"
+                  data-testid="delete-button"
+                >
+                  <Trash2 class="h-3.5 w-3.5" />
+                  Supprimer
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>

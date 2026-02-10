@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Admin;
 
+use App\Enums\AdminRole;
 use App\Models\Admin;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,7 +20,7 @@ class AdminCreateTest extends TestCase
     {
         parent::setUp();
 
-        $this->admin = Admin::factory()->create();
+        $this->admin = Admin::factory()->superAdmin()->create();
     }
 
     public function test_creates_a_new_admin_with_valid_data(): void
@@ -34,11 +35,12 @@ class AdminCreateTest extends TestCase
 
         $response->assertStatus(201)
             ->assertJsonStructure([
-                'data' => ['id', 'name', 'email', 'created_at'],
+                'data' => ['id', 'name', 'email', 'role', 'created_at'],
                 'message',
             ])
             ->assertJsonPath('data.name', 'Nouveau Admin')
             ->assertJsonPath('data.email', 'nouveau@weact.bj')
+            ->assertJsonPath('data.role', 'admin')
             ->assertJsonPath('message', 'Administrateur créé avec succès');
 
         $this->assertDatabaseHas('admins', [
@@ -158,6 +160,41 @@ class AdminCreateTest extends TestCase
             ]);
 
         $response->assertStatus(403);
+    }
+
+    public function test_creates_admin_with_explicit_role(): void
+    {
+        $response = $this->actingAs($this->admin, 'sanctum')
+            ->postJson('/api/v1/admin/admins', [
+                'name' => 'Editor Admin',
+                'email' => 'editor@weact.bj',
+                'password' => 'Password1!',
+                'password_confirmation' => 'Password1!',
+                'role' => 'editor',
+            ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.role', 'editor');
+
+        $this->assertDatabaseHas('admins', [
+            'email' => 'editor@weact.bj',
+            'role' => AdminRole::Editor->value,
+        ]);
+    }
+
+    public function test_rejects_invalid_role_on_create(): void
+    {
+        $response = $this->actingAs($this->admin, 'sanctum')
+            ->postJson('/api/v1/admin/admins', [
+                'name' => 'Test Admin',
+                'email' => 'test@weact.bj',
+                'password' => 'Password1!',
+                'password_confirmation' => 'Password1!',
+                'role' => 'invalid_role',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'validation_error');
     }
 
     public function test_newly_created_admin_can_login(): void

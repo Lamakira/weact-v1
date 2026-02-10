@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Enums\AdminRole;
 use App\Models\Admin;
 use Illuminate\Database\Seeder;
 
@@ -14,11 +15,12 @@ class AdminSeeder extends Seeder
      */
     public function run(): void
     {
-        Admin::firstOrCreate(
+        Admin::updateOrCreate(
             ['email' => 'admin@weact.bj'],
             [
                 'name' => 'Admin WEACT',
                 'password' => 'password',
+                'role' => AdminRole::SuperAdmin->value,
             ]
         );
     }

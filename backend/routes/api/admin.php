@@ -28,11 +28,20 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'admin'])->group(function
         ->middleware('throttle:30,1')
         ->name('admin.dashboard.stats');
 
-    // Admin management routes
-    Route::get('/admins', [AdminController::class, 'index'])->name('admin.admins.index');
-    Route::post('/admins', [AdminController::class, 'store'])
-        ->middleware('throttle:30,1')
-        ->name('admin.admins.store');
+    // Admin management routes (superadmin only)
+    Route::middleware('superadmin')->group(function () {
+        Route::get('/admins', [AdminController::class, 'index'])->name('admin.admins.index');
+        Route::post('/admins', [AdminController::class, 'store'])
+            ->middleware('throttle:30,1')
+            ->name('admin.admins.store');
+        Route::get('/admins/{admin}', [AdminController::class, 'show'])->name('admin.admins.show');
+        Route::put('/admins/{admin}', [AdminController::class, 'update'])
+            ->middleware('throttle:30,1')
+            ->name('admin.admins.update');
+        Route::delete('/admins/{admin}', [AdminController::class, 'destroy'])
+            ->middleware('throttle:30,1')
+            ->name('admin.admins.destroy');
+    });
 
     // Face management routes
     Route::get('/faces', [FaceController::class, 'index'])->name('admin.faces.index');

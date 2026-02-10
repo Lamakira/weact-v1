@@ -262,6 +262,12 @@ const router = createRouter({
           meta: { title: 'Créer un admin - WEACT' },
         },
         {
+          path: 'admins/:id/edit',
+          name: 'admin-admins-edit',
+          component: () => import('../pages/admin/AdminEditPage.vue'),
+          meta: { title: 'Modifier un admin - WEACT' },
+        },
+        {
           path: 'faces',
           name: 'admin-faces-list',
           component: () => import('../pages/admin/AdminFacesListPage.vue'),

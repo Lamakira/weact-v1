@@ -5,6 +5,7 @@
  * Uses DashboardLayout with admin-specific sidebar items.
  * Child routes render via <router-view> in the content area.
  */
+import { computed } from 'vue'
 import { LayoutDashboard, FileText, Users, ShieldCheck } from 'lucide-vue-next'
 import { useAdminAuth } from '@/features/admin/composables/useAdminAuth'
 import { useAdminAuthStore } from '@/stores/adminAuth'
@@ -14,12 +15,19 @@ const adminAuthStore = useAdminAuthStore()
 const { logout, isLoading } = useAdminAuth()
 
 // Sidebar navigation items for admin dashboard
-const sidebarItems: SidebarItem[] = [
+const allSidebarItems: SidebarItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/admin/dashboard' },
   { label: 'Articles', icon: FileText, to: '/admin/articles' },
   { label: 'Admins', icon: ShieldCheck, to: '/admin/admins' },
   { label: 'Utilisateurs', icon: Users, to: '/admin/users' },
 ]
+
+const sidebarItems = computed(() =>
+  allSidebarItems.filter((item) => {
+    if (item.to === '/admin/admins') return adminAuthStore.isSuperAdmin
+    return true
+  }),
+)
 
 async function handleLogout(): Promise<void> {
   await logout()

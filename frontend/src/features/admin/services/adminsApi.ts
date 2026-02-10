@@ -7,6 +7,7 @@ export interface AdminData {
   id: number
   name: string
   email: string
+  role: 'superadmin' | 'admin' | 'editor'
   created_at: string
 }
 
@@ -42,6 +43,23 @@ export interface CreateAdminResponse {
 }
 
 /**
+ * Single admin detail response
+ */
+export interface AdminDetailResponse {
+  data: AdminData
+  message: string
+}
+
+/**
+ * Update admin form data
+ */
+export interface UpdateAdminForm {
+  name?: string
+  email?: string
+  role?: string
+}
+
+/**
  * Admin management API service
  */
 export const adminsApi = {
@@ -61,6 +79,32 @@ export const adminsApi = {
   async createAdmin(data: CreateAdminForm): Promise<CreateAdminResponse> {
     await getCsrfCookie()
     const response = await adminApiClient.post<CreateAdminResponse>('/admin/admins', data)
+    return response.data
+  },
+
+  /**
+   * Get a single admin by ID
+   */
+  async getAdmin(id: number): Promise<AdminDetailResponse> {
+    const response = await adminApiClient.get<AdminDetailResponse>(`/admin/admins/${id}`)
+    return response.data
+  },
+
+  /**
+   * Update an admin's fields
+   */
+  async updateAdmin(id: number, data: UpdateAdminForm): Promise<AdminDetailResponse> {
+    await getCsrfCookie()
+    const response = await adminApiClient.put<AdminDetailResponse>(`/admin/admins/${id}`, data)
+    return response.data
+  },
+
+  /**
+   * Delete an admin account
+   */
+  async deleteAdmin(id: number): Promise<{ message: string }> {
+    await getCsrfCookie()
+    const response = await adminApiClient.delete<{ message: string }>(`/admin/admins/${id}`)
     return response.data
   },
 }

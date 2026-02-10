@@ -19,7 +19,7 @@ class AdminListTest extends TestCase
     {
         parent::setUp();
 
-        $this->admin = Admin::factory()->create();
+        $this->admin = Admin::factory()->superAdmin()->create();
     }
 
     public function test_returns_paginated_list_of_admins(): void
@@ -32,7 +32,7 @@ class AdminListTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonStructure([
                 'data' => [
-                    '*' => ['id', 'name', 'email', 'created_at'],
+                    '*' => ['id', 'name', 'email', 'role', 'created_at'],
                 ],
                 'meta' => ['current_page', 'last_page', 'per_page', 'total'],
             ])

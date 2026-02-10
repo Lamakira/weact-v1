@@ -3,6 +3,7 @@ import {
   adminsApi,
   type AdminData,
   type CreateAdminForm,
+  type UpdateAdminForm,
 } from '../services/adminsApi'
 import { getApiErrorDetails, getApiErrorMessage } from '../services/adminAuthApi'
 
@@ -24,6 +25,7 @@ export interface PaginationMeta {
  */
 export function useAdmins() {
   const admins: Ref<AdminData[]> = ref([])
+  const admin: Ref<AdminData | null> = ref(null)
   const pagination: Ref<PaginationMeta | null> = ref(null)
   const isLoading = ref(false)
   const error: Ref<string | null> = ref(null)
@@ -66,12 +68,70 @@ export function useAdmins() {
     }
   }
 
+  /**
+   * Fetch a single admin by ID
+   */
+  async function fetchAdmin(id: number): Promise<void> {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const response = await adminsApi.getAdmin(id)
+      admin.value = response.data
+    } catch (err) {
+      error.value = getApiErrorMessage(err) ?? 'Une erreur est survenue'
+      admin.value = null
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Update an admin's fields
+   */
+  async function updateAdmin(id: number, data: UpdateAdminForm): Promise<AdminActionResult> {
+    isLoading.value = true
+
+    try {
+      const response = await adminsApi.updateAdmin(id, data)
+      admin.value = response.data
+      return { success: true, message: response.message }
+    } catch (err) {
+      const errors = getApiErrorDetails(err)
+      const message = getApiErrorMessage(err)
+      return { success: false, errors, message }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Delete an admin account
+   */
+  async function deleteAdmin(id: number): Promise<AdminActionResult> {
+    isLoading.value = true
+
+    try {
+      const response = await adminsApi.deleteAdmin(id)
+      return { success: true, message: response.message }
+    } catch (err) {
+      const message = getApiErrorMessage(err)
+      return { success: false, message }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   return {
     admins,
+    admin,
     pagination,
     isLoading,
     error,
     fetchAdmins,
+    fetchAdmin,
     createAdmin,
+    updateAdmin,
+    deleteAdmin,
   }
 }
