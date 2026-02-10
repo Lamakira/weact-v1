@@ -15,6 +15,10 @@ Route::prefix('v1/admin')->group(function () {
 
 // Protected admin routes
 Route::prefix('v1/admin')->middleware(['auth:sanctum', 'admin'])->group(function () {
+    // Auth routes
+    Route::post('/logout', [AuthController::class, 'logout'])->name('admin.logout');
+    Route::get('/me', [AuthController::class, 'me'])->name('admin.me');
+
     Route::post('/articles', [ArticleController::class, 'store'])
         ->middleware('throttle:30,1')
         ->name('admin.articles.store');

@@ -9,6 +9,7 @@ use App\Http\Requests\Admin\AdminLoginRequest;
 use App\Http\Resources\AdminResource;
 use App\Services\Admin\AdminLoginService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class AuthController extends Controller
 {
@@ -43,5 +44,28 @@ class AuthController extends Controller
             'message' => 'Connexion admin réussie',
             'meta' => [],
         ], 200);
+    }
+
+    /**
+     * Handle admin logout - revoke current token.
+     */
+    public function logout(Request $request): JsonResponse
+    {
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json([
+            'message' => 'Déconnexion réussie',
+        ]);
+    }
+
+    /**
+     * Return the authenticated admin's profile.
+     */
+    public function me(Request $request): JsonResponse
+    {
+        return response()->json([
+            'data' => new AdminResource($request->user()),
+            'message' => 'Profil admin récupéré avec succès',
+        ]);
     }
 }
