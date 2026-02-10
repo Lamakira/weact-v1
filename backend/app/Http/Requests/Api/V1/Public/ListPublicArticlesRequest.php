@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\Public;
 
+use App\Enums\ArticleCategory;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Form Request for public articles list endpoint.
@@ -33,6 +35,7 @@ class ListPublicArticlesRequest extends FormRequest
         return [
             'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', 'min:1', 'max:30'],
+            'category' => ['sometimes', 'nullable', Rule::enum(ArticleCategory::class)],
         ];
     }
 

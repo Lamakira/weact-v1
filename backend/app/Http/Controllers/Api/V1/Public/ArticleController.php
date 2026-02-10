@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Public;
 
+use App\Enums\ArticleCategory;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Public\ListPublicArticlesRequest;
 use App\Http\Resources\PublicArticleDetailResource;
@@ -25,6 +26,7 @@ class ArticleController extends Controller
 
         $articles = Article::published()
             ->with('admin')
+            ->when($request->validated('category'), fn ($q, $cat) => $q->inCategory(ArticleCategory::from($cat)))
             ->orderBy('published_at', 'desc')
             ->paginate($perPage);
 
