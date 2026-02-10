@@ -185,7 +185,7 @@ development_status:
   12-6-admin-delete-article: done
   12-7-public-articles-list: done
   12-8-public-article-reading: done
-  12-9-public-articles-filter-by-category: backlog
+  12-9-public-articles-filter-by-category: done
   epic-12-retrospective: optional
 
   # Epic 13: Administration (10 stories)
