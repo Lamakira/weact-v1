@@ -163,6 +163,75 @@ describe('useAdminFaces - fetchFace', () => {
   })
 })
 
+describe('useAdminFaces - fetchFace detail fields (Story 13-7)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    localStorage.clear()
+  })
+
+  it('populates face ref including photos and experiences arrays', async () => {
+    const mockFaceWithRelations = {
+      ...mockFace,
+      photos: [
+        { id: 10, photo_url: '/photos/1.jpg', thumbnail_url: '/thumbs/1.jpg', position: 1 },
+        { id: 11, photo_url: '/photos/2.jpg', thumbnail_url: '/thumbs/2.jpg', position: 2 },
+      ],
+      experiences: [
+        {
+          id: 20,
+          titre: 'Pub TV',
+          description: 'A TV commercial',
+          date_debut: '2025-01-01',
+          date_fin: null,
+          is_ongoing: true,
+          formatted_period: 'Depuis Jan 2025',
+        },
+      ],
+      photos_count: 2,
+      experiences_count: 1,
+    }
+    mockGetFace.mockResolvedValue({
+      data: mockFaceWithRelations,
+      message: 'Face retrieved successfully',
+    })
+
+    const { face, fetchFace } = useAdminFaces()
+    await fetchFace(1)
+
+    expect(face.value?.photos).toHaveLength(2)
+    expect(face.value?.photos[0].id).toBe(10)
+    expect(face.value?.photos[1].position).toBe(2)
+    expect(face.value?.experiences).toHaveLength(1)
+    expect(face.value?.experiences[0].titre).toBe('Pub TV')
+    expect(face.value?.experiences[0].is_ongoing).toBe(true)
+    expect(face.value?.photos_count).toBe(2)
+    expect(face.value?.experiences_count).toBe(1)
+  })
+
+  it('populates face ref with empty arrays when no photos or experiences', async () => {
+    const mockFaceEmpty = {
+      ...mockFace,
+      photos: [],
+      experiences: [],
+      photos_count: 0,
+      experiences_count: 0,
+    }
+    mockGetFace.mockResolvedValue({
+      data: mockFaceEmpty,
+      message: 'Face retrieved successfully',
+    })
+
+    const { face, fetchFace } = useAdminFaces()
+    await fetchFace(1)
+
+    expect(face.value?.photos).toEqual([])
+    expect(face.value?.experiences).toEqual([])
+    expect(face.value?.photos_count).toBe(0)
+    expect(face.value?.experiences_count).toBe(0)
+  })
+})
+
 describe('useAdminFaces - updateFace', () => {
   beforeEach(() => {
     setActivePinia(createPinia())

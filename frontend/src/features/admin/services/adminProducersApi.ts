@@ -3,6 +3,14 @@ import adminApiClient from './adminApiClient'
 /**
  * Producer data from admin API
  */
+export interface AdminProducerMission {
+  id: number
+  title: string
+  status: string
+  status_label: string
+  created_at: string
+}
+
 export interface AdminProducerData {
   id: number
   type: string
@@ -18,6 +26,7 @@ export interface AdminProducerData {
   average_rating: number | null
   ratings_count: number
   missions_count?: number
+  missions?: AdminProducerMission[]
   created_at: string
   updated_at: string
   email?: string

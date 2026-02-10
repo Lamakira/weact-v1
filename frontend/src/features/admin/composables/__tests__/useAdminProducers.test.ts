@@ -132,6 +132,44 @@ describe('useAdminProducers', () => {
     })
   })
 
+  describe('fetchProducer - detail fields (Story 13-7)', () => {
+    it('populates producer ref including missions array', async () => {
+      const producerWithMissions = makeProducer({
+        id: 42,
+        missions: [
+          { id: 1, title: 'Mission Alpha', status: 'published', status_label: 'Publiée', created_at: '2025-06-01T00:00:00.000Z' },
+          { id: 2, title: 'Mission Beta', status: 'completed', status_label: 'Terminée', created_at: '2025-05-01T00:00:00.000Z' },
+        ],
+      })
+      vi.mocked(adminProducersApi.getProducer).mockResolvedValue({
+        data: producerWithMissions,
+        message: 'OK',
+      })
+
+      const { producer, fetchProducer } = useAdminProducers()
+      await fetchProducer(42)
+
+      expect(producer.value?.missions).toHaveLength(2)
+      expect(producer.value?.missions?.[0].title).toBe('Mission Alpha')
+      expect(producer.value?.missions?.[0].status).toBe('published')
+      expect(producer.value?.missions?.[1].title).toBe('Mission Beta')
+      expect(producer.value?.missions?.[1].status).toBe('completed')
+    })
+
+    it('handles producer with no missions (undefined)', async () => {
+      const producerNoMissions = makeProducer({ id: 43 })
+      vi.mocked(adminProducersApi.getProducer).mockResolvedValue({
+        data: producerNoMissions,
+        message: 'OK',
+      })
+
+      const { producer, fetchProducer } = useAdminProducers()
+      await fetchProducer(43)
+
+      expect(producer.value?.missions).toBeUndefined()
+    })
+  })
+
   describe('updateProducer', () => {
     it('updates producer and returns success result', async () => {
       const updatedProducer = makeProducer({ id: 5, agency_name: 'New Name' })

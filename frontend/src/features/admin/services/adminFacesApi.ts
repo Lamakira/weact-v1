@@ -3,6 +3,23 @@ import adminApiClient from './adminApiClient'
 /**
  * Face data from admin API
  */
+export interface AdminFacePhoto {
+  id: number
+  photo_url: string
+  thumbnail_url: string
+  position: number
+}
+
+export interface AdminFaceExperience {
+  id: number
+  titre: string
+  description: string | null
+  date_debut: string | null
+  date_fin: string | null
+  is_ongoing: boolean
+  formatted_period: string
+}
+
 export interface AdminFaceData {
   id: number
   nom: string
@@ -13,13 +30,34 @@ export interface AdminFaceData {
   quartier: string | null
   pays: string | null
   categorie: string | null
+  categorie_label: string | null
   niche: string | null
+  niche_label: string | null
   is_available: boolean
   profile_completion_percentage: number
+  profile_completion_missing: Array<{ key: string; label: string }>
+  profile_completion_is_complete: boolean
   average_rating: number | null
   ratings_count: number | null
   profile_photo_url: string | null
+  thumbnail_url: string | null
+  presentation_video_url: string | null
+  presentation_video_thumbnail_url: string | null
+  acting_video_url: string | null
+  acting_video_thumbnail_url: string | null
+  taille: number | null
+  poids: number | null
+  tarif_horaire: number | null
+  tarif_journalier: number | null
+  formatted_tarif_horaire: string | null
+  formatted_tarif_journalier: string | null
+  formatted_location: string | null
+  photos: AdminFacePhoto[]
+  experiences: AdminFaceExperience[]
+  photos_count: number
+  experiences_count: number
   created_at: string
+  updated_at: string
   email?: string
 }
 

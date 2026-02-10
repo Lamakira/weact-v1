@@ -11,9 +11,10 @@ import {
   Briefcase,
   Building,
   X,
+  ClipboardList,
 } from 'lucide-vue-next'
 import { useAdminProducers } from '@/features/admin/composables/useAdminProducers'
-import type { UpdateAdminProducerForm } from '@/features/admin/services/adminProducersApi'
+import type { AdminProducerMission, UpdateAdminProducerForm } from '@/features/admin/services/adminProducersApi'
 import { getProducerTypeLabel, getProducerTypeColor } from '@/features/admin/utils/producerLabels'
 
 const route = useRoute()
@@ -86,6 +87,31 @@ async function handleDelete(): Promise<void> {
 
 function goBack(): void {
   router.push({ name: 'admin-producers-list' })
+}
+
+const missions = computed<AdminProducerMission[]>(() => producer.value?.missions ?? [])
+
+const missionStatusCounts = computed(() => {
+  const counts: Record<string, number> = { draft: 0, published: 0, closed: 0, completed: 0 }
+  for (const m of missions.value) {
+    if (m.status in counts) counts[m.status]++
+  }
+  return counts
+})
+
+function getMissionStatusClass(status: string): string {
+  switch (status) {
+    case 'draft':
+      return 'bg-gray-100 text-gray-800'
+    case 'published':
+      return 'bg-green-100 text-green-800'
+    case 'closed':
+      return 'bg-orange-100 text-orange-800'
+    case 'completed':
+      return 'bg-blue-100 text-blue-800'
+    default:
+      return 'bg-gray-100 text-gray-800'
+  }
 }
 </script>
 
@@ -338,6 +364,77 @@ function goBack(): void {
               <dd class="text-sm font-medium text-gray-900" data-testid="missions-count">{{ producer.missions_count ?? 0 }}</dd>
             </div>
           </dl>
+        </section>
+
+        <!-- Missions Section -->
+        <section class="bg-white rounded-xl border border-gray-200 p-6 lg:col-span-2" data-testid="missions-section">
+          <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <ClipboardList class="h-5 w-5 text-gray-400" />
+            Missions
+            <span v-if="missions.length" class="text-sm font-normal text-gray-500">({{ missions.length }})</span>
+          </h2>
+
+          <template v-if="missions.length > 0">
+            <!-- Status Summary Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6" data-testid="missions-status-summary">
+              <div class="rounded-lg bg-gray-50 border border-gray-200 p-3 text-center">
+                <p class="text-2xl font-bold text-gray-800">{{ missionStatusCounts.draft }}</p>
+                <p class="text-xs text-gray-500 mt-1">Brouillon</p>
+              </div>
+              <div class="rounded-lg bg-green-50 border border-green-200 p-3 text-center">
+                <p class="text-2xl font-bold text-green-800">{{ missionStatusCounts.published }}</p>
+                <p class="text-xs text-green-600 mt-1">Publiée</p>
+              </div>
+              <div class="rounded-lg bg-orange-50 border border-orange-200 p-3 text-center">
+                <p class="text-2xl font-bold text-orange-800">{{ missionStatusCounts.closed }}</p>
+                <p class="text-xs text-orange-600 mt-1">Clôturée</p>
+              </div>
+              <div class="rounded-lg bg-blue-50 border border-blue-200 p-3 text-center">
+                <p class="text-2xl font-bold text-blue-800">{{ missionStatusCounts.completed }}</p>
+                <p class="text-xs text-blue-600 mt-1">Terminée</p>
+              </div>
+            </div>
+
+            <!-- Recent Missions Table -->
+            <div class="overflow-x-auto" data-testid="missions-table">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-gray-200">
+                    <th class="text-left py-2 pr-4 font-medium text-gray-500">Titre</th>
+                    <th class="text-left py-2 pr-4 font-medium text-gray-500">Statut</th>
+                    <th class="text-left py-2 font-medium text-gray-500">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="mission in missions"
+                    :key="mission.id"
+                    class="border-b border-gray-100 last:border-0"
+                    data-testid="mission-row"
+                  >
+                    <td class="py-2 pr-4 text-gray-900">{{ mission.title }}</td>
+                    <td class="py-2 pr-4">
+                      <span
+                        class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                        :class="getMissionStatusClass(mission.status)"
+                      >
+                        {{ mission.status_label }}
+                      </span>
+                    </td>
+                    <td class="py-2 text-gray-500">
+                      {{ new Date(mission.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+
+          <!-- Empty State -->
+          <div v-else class="text-center py-8 text-gray-400" data-testid="missions-empty">
+            <ClipboardList class="h-10 w-10 mx-auto mb-2 opacity-50" />
+            <p class="text-sm">Aucune mission créée</p>
+          </div>
         </section>
 
         <!-- Metadata -->
