@@ -23,6 +23,10 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'admin'])->group(function
         ->middleware('throttle:30,1')
         ->name('admin.articles.update');
 
+    Route::delete('/articles/{article}', [ArticleController::class, 'destroy'])
+        ->middleware('throttle:30,1')
+        ->name('admin.articles.destroy');
+
     Route::patch('/articles/{article}/category', [ArticleController::class, 'updateCategory'])
         ->middleware('throttle:30,1')
         ->name('admin.articles.update-category');

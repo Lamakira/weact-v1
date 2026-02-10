@@ -10,9 +10,11 @@ use App\Http\Requests\Admin\UpdateArticleCategoryRequest;
 use App\Http\Requests\Admin\UpdateArticleRequest;
 use App\Http\Requests\Admin\UpdateArticleStatusRequest;
 use App\Http\Resources\ArticleResource;
+use App\Models\Admin;
 use App\Models\Article;
 use App\Services\Admin\ArticleService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class ArticleController extends Controller
 {
@@ -67,6 +69,19 @@ class ArticleController extends Controller
             'data' => new ArticleResource($article),
             'message' => "Catégorie de l'article mise à jour avec succès",
             'meta' => [],
+        ], 200);
+    }
+
+    public function destroy(Request $request, Article $article): JsonResponse
+    {
+        if (! $request->user() instanceof Admin) {
+            abort(403);
+        }
+
+        $this->articleService->deleteArticle($article);
+
+        return response()->json([
+            'message' => 'Article supprimé avec succès',
         ], 200);
     }
 

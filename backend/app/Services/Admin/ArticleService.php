@@ -104,6 +104,12 @@ class ArticleService
         return $article;
     }
 
+    public function deleteArticle(Article $article): void
+    {
+        $this->deleteOldImage($article);
+        $article->delete();
+    }
+
     private function deleteOldImage(Article $article): void
     {
         if ($article->featured_image) {
