@@ -261,6 +261,18 @@ const router = createRouter({
           component: () => import('../pages/admin/AdminCreatePage.vue'),
           meta: { title: 'Créer un admin - WEACT' },
         },
+        {
+          path: 'faces',
+          name: 'admin-faces-list',
+          component: () => import('../pages/admin/AdminFacesListPage.vue'),
+          meta: { title: 'Gestion des Faces - WEACT' },
+        },
+        {
+          path: 'faces/:id',
+          name: 'admin-face-detail',
+          component: () => import('../pages/admin/AdminFaceDetailPage.vue'),
+          meta: { title: 'Détail Face - WEACT' },
+        },
       ],
     },
     // Public routes (no auth required)
