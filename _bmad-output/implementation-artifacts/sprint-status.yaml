@@ -176,7 +176,7 @@ development_status:
   epic-11-retrospective: done
 
   # Epic 12: Blog & Resources (9 stories)
-  epic-12: in-progress
+  epic-12: done
   12-1-create-articles-database-schema: done
   12-2-admin-create-article: done
   12-3-admin-categorize-article: done
@@ -186,7 +186,7 @@ development_status:
   12-7-public-articles-list: done
   12-8-public-article-reading: done
   12-9-public-articles-filter-by-category: done
-  epic-12-retrospective: optional
+  epic-12-retrospective: done
 
   # Epic 13: Administration (10 stories)
   epic-13: backlog
