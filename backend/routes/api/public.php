@@ -46,6 +46,9 @@ Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
     // Public Articles list (paginated)
     Route::get('/articles', [ArticleController::class, 'index']);
 
+    // Public Article detail
+    Route::get('/articles/{slug}', [ArticleController::class, 'show']);
+
     // Public Missions list (paginated)
     Route::get('/missions', [MissionController::class, 'index']);
 
