@@ -189,8 +189,8 @@ development_status:
   epic-12-retrospective: done
 
   # Epic 13: Administration (10 stories)
-  epic-13: backlog
-  13-1-admin-authentication: backlog
+  epic-13: in-progress
+  13-1-admin-authentication: done
   13-2-admin-create-other-admins: backlog
   13-3-admin-dashboard-kpis: backlog
   13-4-admin-crud-faces: backlog

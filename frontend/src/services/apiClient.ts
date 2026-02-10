@@ -2,6 +2,7 @@ import axios, { type AxiosInstance, type AxiosError, type InternalAxiosRequestCo
 import type { ApiError } from '@/features/auth/types'
 import type { Router } from 'vue-router'
 import type { Pinia } from 'pinia'
+import { getXsrfTokenFromCookie } from '@/utils/csrf'
 
 /**
  * Lazy-loaded router instance to avoid circular dependency issues
@@ -45,19 +46,6 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
  * Storage key for auth token
  */
 const TOKEN_KEY = 'auth_token'
-
-/**
- * Get XSRF token from cookies
- * Required for cross-origin requests where Axios automatic XSRF handling doesn't work
- */
-function getXsrfTokenFromCookie(): string | null {
-  const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/)
-  if (match && match[1]) {
-    // The cookie value is URL encoded, decode it
-    return decodeURIComponent(match[1])
-  }
-  return null
-}
 
 /**
  * Configure Axios defaults for Sanctum SPA authentication
