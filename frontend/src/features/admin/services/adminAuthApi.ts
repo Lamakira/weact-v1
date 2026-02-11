@@ -49,6 +49,16 @@ export interface AdminLoginForm {
 }
 
 /**
+ * Admin reset password form data
+ */
+export interface AdminResetPasswordForm {
+  token: string
+  email: string
+  password: string
+  password_confirmation: string
+}
+
+/**
  * Admin auth API service
  */
 export const adminAuthApi = {
@@ -74,6 +84,26 @@ export const adminAuthApi = {
    */
   async getMe(): Promise<AdminMeResponse> {
     const response = await adminApiClient.get<AdminMeResponse>('/admin/me')
+    return response.data
+  },
+
+  /**
+   * Request a password reset link for the given admin email
+   */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    await getCsrfCookie()
+    const response = await adminApiClient.post<{ message: string }>('/admin/forgot-password', {
+      email,
+    })
+    return response.data
+  },
+
+  /**
+   * Reset admin password with a valid token
+   */
+  async resetPassword(data: AdminResetPasswordForm): Promise<{ message: string }> {
+    await getCsrfCookie()
+    const response = await adminApiClient.post<{ message: string }>('/admin/reset-password', data)
     return response.data
   },
 }

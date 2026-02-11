@@ -10,8 +10,11 @@ import {
   User,
   Mail,
   ShieldCheck,
+  KeyRound,
 } from 'lucide-vue-next'
 import { useAdmins } from '@/features/admin/composables/useAdmins'
+import { adminsApi } from '@/features/admin/services/adminsApi'
+import { getApiErrorMessage } from '@/features/admin/services/adminAuthApi'
 import { useAdminAuthStore } from '@/stores/adminAuth'
 import { useToast } from '@/composables/useToast'
 import { FloatingField, FloatingSelect } from '@/components/ui/form'
@@ -59,6 +62,23 @@ async function handleSave(): Promise<void> {
       editErrors.value = result.errors
     }
     apiError.value = result.message ?? 'Une erreur est survenue'
+  }
+}
+
+const isSendingResetLink = ref(false)
+
+async function handleSendResetLink(): Promise<void> {
+  if (!admin.value) return
+  isSendingResetLink.value = true
+
+  try {
+    const result = await adminsApi.sendPasswordResetLink(admin.value.id)
+    toast.success(result.message ?? `Lien de réinitialisation envoyé à ${admin.value.email}`)
+  } catch (error) {
+    const message = getApiErrorMessage(error)
+    toast.error(message ?? "Impossible d'envoyer le lien de réinitialisation")
+  } finally {
+    isSendingResetLink.value = false
   }
 }
 
@@ -190,6 +210,29 @@ function goBack(): void {
               </button>
             </div>
           </form>
+        </div>
+
+        <!-- Send Password Reset Link (superadmin only, not for self) -->
+        <div
+          v-if="adminAuthStore.isSuperAdmin && !isSelf"
+          class="mt-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
+          data-testid="reset-link-section"
+        >
+          <h3 class="text-sm font-medium text-gray-900 mb-2">Réinitialisation du mot de passe</h3>
+          <p class="text-xs text-gray-500 mb-4">
+            Envoyez un lien de réinitialisation de mot de passe à cet administrateur par email.
+          </p>
+          <button
+            type="button"
+            :disabled="isSendingResetLink"
+            class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            data-testid="send-reset-link-btn"
+            @click="handleSendResetLink"
+          >
+            <Loader2 v-if="isSendingResetLink" class="h-4 w-4 animate-spin" />
+            <KeyRound v-else class="h-4 w-4" />
+            {{ isSendingResetLink ? 'Envoi en cours...' : 'Envoyer un lien de réinitialisation' }}
+          </button>
         </div>
       </div>
     </template>

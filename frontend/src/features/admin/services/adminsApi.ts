@@ -107,4 +107,15 @@ export const adminsApi = {
     const response = await adminApiClient.delete<{ message: string }>(`/admin/admins/${id}`)
     return response.data
   },
+
+  /**
+   * Send a password reset link to the given admin (superadmin only)
+   */
+  async sendPasswordResetLink(adminId: number): Promise<{ message: string }> {
+    await getCsrfCookie()
+    const response = await adminApiClient.post<{ data: null; message: string }>(
+      `/admin/admins/${adminId}/send-reset-link`,
+    )
+    return response.data
+  },
 }

@@ -234,6 +234,18 @@ const router = createRouter({
       component: () => import('../pages/admin/AdminLoginPage.vue'),
       meta: { adminGuest: true, title: 'Administration - WEACT' },
     },
+    {
+      path: '/admin/forgot-password',
+      name: 'admin-forgot-password',
+      component: () => import('../pages/admin/AdminForgotPasswordPage.vue'),
+      meta: { adminGuest: true, title: 'Mot de passe oublié - WEACT' },
+    },
+    {
+      path: '/admin/reset-password/:token',
+      name: 'admin-reset-password',
+      component: () => import('../pages/admin/AdminResetPasswordPage.vue'),
+      meta: { adminGuest: true, title: 'Réinitialiser le mot de passe - WEACT' },
+    },
     // Admin routes (admin auth required) - nested under AdminLayout
     {
       path: '/admin',

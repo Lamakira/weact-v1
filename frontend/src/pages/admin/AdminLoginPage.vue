@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { RouterLink, useRouter, useRoute } from 'vue-router'
 import { useForm, useField } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import { z } from 'zod'
@@ -192,6 +192,17 @@ const onSubmit = handleSubmit(async (values) => {
             <span v-else>Se connecter</span>
           </button>
         </form>
+
+        <!-- Forgot password link -->
+        <div class="mt-6 text-center">
+          <RouterLink
+            to="/admin/forgot-password"
+            class="text-sm text-primary-600 hover:text-primary-700 transition-colors"
+            data-testid="forgot-password-link"
+          >
+            Mot de passe oublié ?
+          </RouterLink>
+        </div>
       </div>
 
       <!-- Footer -->
