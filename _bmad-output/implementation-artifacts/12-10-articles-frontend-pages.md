@@ -1,6 +1,6 @@
 # Story 12.10: Articles Frontend Pages
 
-Status: review
+Status: done
 
 ## Story
 
@@ -120,8 +120,7 @@ The backend API is fully implemented (Stories 12-1 through 12-9). This story cov
 ## File List
 
 ### New Files
-- `backend/app/Http/Controllers/Api/V1/Admin/ArticleController.php` — `index()` method added
-- `backend/routes/api/admin.php` — `GET /admin/articles` route added
+- `backend/app/Http/Requests/Admin/IndexArticleRequest.php` — Form Request for admin articles list validation
 - `backend/tests/Feature/Admin/AdminArticlesListTest.php` — 9 tests, 53 assertions
 - `frontend/src/features/admin/services/adminArticlesApi.ts` — Admin articles API service
 - `frontend/src/features/admin/composables/useAdminArticles.ts` — Admin articles composable
@@ -138,8 +137,13 @@ The backend API is fully implemented (Stories 12-1 through 12-9). This story cov
 - `frontend/src/views/ArticleDetailView.vue` — Public article detail page
 
 ### Modified Files
+- `backend/app/Http/Controllers/Api/V1/Admin/ArticleController.php` — Added `index()`, `show()` methods
+- `backend/app/Services/Admin/ArticleService.php` — Added `listArticles()` method
+- `backend/routes/api/admin.php` — Added `GET /admin/articles`, `GET /admin/articles/{article}` routes with rate limiting
 - `frontend/src/router/index.ts` — Added admin article routes + public article routes
 - `frontend/src/pages/admin/AdminLayout.vue` — Restored "Articles" sidebar link
+- `frontend/package.json` — Added dompurify dependency
+- `frontend/package-lock.json` — Lock file updated
 
 ### Dependencies Added
 - `dompurify` + `@types/dompurify` — XSS-safe HTML rendering for article content
@@ -158,7 +162,11 @@ The backend API is fully implemented (Stories 12-1 through 12-9). This story cov
 | Added `index()` to `Admin\ArticleController` | Backend had no admin list endpoint (oversight from Epic 12) |
 | Used `DOMPurify` for article HTML content | XSS protection flagged as action item in Epic 12 retrospective |
 | Public articles in `features/public/` not `features/blog/` | Follows existing codebase convention (publicFacesApi, publicMissionsApi are in features/public) |
-| AdminArticleEditPage loads from list API | No dedicated `GET /admin/articles/:id` endpoint exists — loads from list data passed via query |
+| AdminArticleEditPage uses dedicated show endpoint | Code review fix: replaced list API search (broken beyond page 1) with `GET /admin/articles/{article}` |
+| Created `IndexArticleRequest` Form Request | Code review fix: project rule requires Form Requests for all endpoints |
+| Moved list logic to `ArticleService::listArticles()` | Code review fix: project rule requires business logic in services, not controllers |
+| Added `onUnmounted` URL cleanup to create/edit pages | Code review fix: prevent memory leaks from `URL.createObjectURL` |
+| Added rate limiting to article index route | Code review fix: consistency with other admin routes |
 
 ## Dev Notes
 

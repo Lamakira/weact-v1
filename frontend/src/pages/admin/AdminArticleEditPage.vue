@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ArrowLeft, Loader2, AlertCircle, ImagePlus } from 'lucide-vue-next'
 import { useAdminArticles } from '@/features/admin/composables/useAdminArticles'
 
 const router = useRouter()
 const route = useRoute()
-const { article, isLoading, error, updateArticle } = useAdminArticles()
-// Separate loading state for fetching article data
+const { article, isLoading, error, fetchArticle, updateArticle } = useAdminArticles()
 const isFetching = ref(true)
 
 const articleId = computed(() => Number(route.params.id))
@@ -27,29 +26,25 @@ const successMessage = ref('')
 
 onMounted(async () => {
   isFetching.value = true
-  try {
-    const { adminArticlesApi } = await import('@/features/admin/services/adminArticlesApi')
-    const response = await adminArticlesApi.getArticles({ search: '' })
-    // Find the article by ID from the list — or fetch directly
-    // Since there's no getArticle(id) endpoint, we load from list
-    // Actually, we can use the store endpoint by fetching the article data directly
-    // Let's use a workaround: fetch the list and find by ID
-    const found = response.data.find((a) => a.id === articleId.value)
-    if (found) {
-      article.value = found
-      title.value = found.title
-      content.value = found.content
-      excerpt.value = found.excerpt ?? ''
-      category.value = found.category.value
-      status.value = found.status.value
-      existingImageUrl.value = found.featured_image
-    } else {
-      errorMessage.value = 'Article introuvable'
-    }
-  } catch {
-    errorMessage.value = 'Erreur lors du chargement de l\'article'
-  } finally {
-    isFetching.value = false
+  await fetchArticle(articleId.value)
+
+  if (article.value) {
+    title.value = article.value.title
+    content.value = article.value.content
+    excerpt.value = article.value.excerpt ?? ''
+    category.value = article.value.category.value
+    status.value = article.value.status.value
+    existingImageUrl.value = article.value.featured_image
+  } else {
+    errorMessage.value = error.value ?? 'Article introuvable'
+  }
+
+  isFetching.value = false
+})
+
+onUnmounted(() => {
+  if (imagePreview.value) {
+    URL.revokeObjectURL(imagePreview.value)
   }
 })
 

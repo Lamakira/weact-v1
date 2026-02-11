@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\IndexArticleRequest;
 use App\Http\Requests\Admin\StoreArticleRequest;
 use App\Http\Requests\Admin\UpdateArticleCategoryRequest;
 use App\Http\Requests\Admin\UpdateArticleRequest;
@@ -25,27 +26,9 @@ class ArticleController extends Controller
     /**
      * List all articles with pagination, search, and filters.
      */
-    public function index(Request $request): JsonResponse
+    public function index(IndexArticleRequest $request): JsonResponse
     {
-        $query = Article::with('admin')->orderBy('created_at', 'desc');
-
-        // Search by title
-        if ($request->filled('search') && is_string($request->query('search'))) {
-            $search = str_replace(['%', '_'], ['\%', '\_'], $request->query('search'));
-            $query->where('title', 'like', "%{$search}%");
-        }
-
-        // Filter by category
-        if ($request->filled('category') && is_string($request->query('category'))) {
-            $query->where('category', $request->query('category'));
-        }
-
-        // Filter by status
-        if ($request->filled('status') && is_string($request->query('status'))) {
-            $query->where('status', $request->query('status'));
-        }
-
-        $articles = $query->paginate(15);
+        $articles = $this->articleService->listArticles($request->validated());
 
         return response()->json([
             'data' => ArticleResource::collection($articles),
@@ -56,6 +39,23 @@ class ArticleController extends Controller
                 'total' => $articles->total(),
             ],
             'message' => 'Articles récupérés avec succès',
+        ]);
+    }
+
+    /**
+     * Show a single article.
+     */
+    public function show(Request $request, Article $article): JsonResponse
+    {
+        if (! $request->user() instanceof Admin) {
+            abort(403);
+        }
+
+        $article->load('admin');
+
+        return response()->json([
+            'data' => new ArticleResource($article),
+            'message' => 'Article récupéré avec succès',
         ]);
     }
 

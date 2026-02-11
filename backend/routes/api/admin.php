@@ -75,7 +75,12 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'admin'])->group(function
     Route::get('/missions/{mission}', [MissionController::class, 'show'])->name('admin.missions.show');
 
     // Article management routes
-    Route::get('/articles', [ArticleController::class, 'index'])->name('admin.articles.index');
+    Route::get('/articles', [ArticleController::class, 'index'])
+        ->middleware('throttle:30,1')
+        ->name('admin.articles.index');
+
+    Route::get('/articles/{article}', [ArticleController::class, 'show'])
+        ->name('admin.articles.show');
 
     Route::post('/articles', [ArticleController::class, 'store'])
         ->middleware('throttle:30,1')

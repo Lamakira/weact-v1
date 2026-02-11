@@ -52,6 +52,24 @@ export function useAdminArticles() {
   }
 
   /**
+   * Fetch a single article by ID
+   */
+  async function fetchArticle(id: number): Promise<void> {
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const response = await adminArticlesApi.getArticle(id)
+      article.value = response.data
+    } catch (err) {
+      error.value = getApiErrorMessage(err) ?? 'Une erreur est survenue'
+      article.value = null
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
    * Create a new article
    */
   async function createArticle(data: CreateArticleForm): Promise<AdminArticleActionResult> {
@@ -140,6 +158,7 @@ export function useAdminArticles() {
     isLoading,
     error,
     fetchArticles,
+    fetchArticle,
     createArticle,
     updateArticle,
     deleteArticle,

@@ -7,6 +7,7 @@ namespace App\Services\Admin;
 use App\Enums\ArticleStatus;
 use App\Models\Admin;
 use App\Models\Article;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -14,6 +15,31 @@ use Illuminate\Support\Str;
 class ArticleService
 {
     private const STORAGE_PATH = 'articles/featured';
+
+    /**
+     * List articles with pagination, search, and filters.
+     *
+     * @param array<string, mixed> $filters
+     */
+    public function listArticles(array $filters = []): LengthAwarePaginator
+    {
+        $query = Article::with('admin')->orderBy('created_at', 'desc');
+
+        if (!empty($filters['search']) && is_string($filters['search'])) {
+            $search = str_replace(['%', '_'], ['\%', '\_'], $filters['search']);
+            $query->where('title', 'like', "%{$search}%");
+        }
+
+        if (!empty($filters['category']) && is_string($filters['category'])) {
+            $query->where('category', $filters['category']);
+        }
+
+        if (!empty($filters['status']) && is_string($filters['status'])) {
+            $query->where('status', $filters['status']);
+        }
+
+        return $query->paginate(15);
+    }
 
     public function createArticle(Admin $admin, array $data, ?UploadedFile $featuredImage = null): Article
     {

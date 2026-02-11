@@ -108,6 +108,14 @@ export const adminArticlesApi = {
   },
 
   /**
+   * Get a single article by ID
+   */
+  async getArticle(id: number): Promise<AdminArticleDetailResponse> {
+    const response = await adminApiClient.get<AdminArticleDetailResponse>(`/admin/articles/${id}`)
+    return response.data
+  },
+
+  /**
    * Create a new article (supports file upload for featured_image)
    */
   async createArticle(data: CreateArticleForm): Promise<AdminArticleDetailResponse> {

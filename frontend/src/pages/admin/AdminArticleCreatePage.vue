@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft, Loader2, AlertCircle, ImagePlus } from 'lucide-vue-next'
 import { useAdminArticles } from '@/features/admin/composables/useAdminArticles'
@@ -17,6 +17,12 @@ const imagePreview = ref<string | null>(null)
 
 const formErrors = ref<Record<string, string[]>>({})
 const errorMessage = ref('')
+
+onUnmounted(() => {
+  if (imagePreview.value) {
+    URL.revokeObjectURL(imagePreview.value)
+  }
+})
 
 function handleImageChange(event: Event): void {
   const target = event.target as HTMLInputElement
