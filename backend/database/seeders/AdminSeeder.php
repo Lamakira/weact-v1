@@ -16,7 +16,7 @@ class AdminSeeder extends Seeder
     public function run(): void
     {
         Admin::updateOrCreate(
-            ['email' => 'admin@weact.bj'],
+            ['email' => 'saidarikamachabi@gmail.com'],
             [
                 'name' => 'Admin WEACT',
                 'password' => 'password',
