@@ -27,6 +27,7 @@ const allSidebarItems: SidebarItem[] = [
 const sidebarItems = computed(() =>
   allSidebarItems.filter((item) => {
     if (item.to === '/admin/admins') return adminAuthStore.isSuperAdmin
+    if (adminAuthStore.isEditor) return item.to === '/admin/articles'
     return true
   }),
 )

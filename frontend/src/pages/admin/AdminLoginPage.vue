@@ -6,12 +6,14 @@ import { toTypedSchema } from '@vee-validate/zod'
 import { z } from 'zod'
 import { Mail, Lock, Shield } from 'lucide-vue-next'
 import { useAdminAuth } from '@/features/admin/composables/useAdminAuth'
+import { useAdminAuthStore } from '@/stores/adminAuth'
 import { FloatingField } from '@/components/ui/form'
 import logoNoir from '@/assets/images/logonoir.png'
 
 const router = useRouter()
 const route = useRoute()
 const { login, isLoading } = useAdminAuth()
+const adminAuthStore = useAdminAuthStore()
 
 // Warning message for session expired redirect
 const warningMessage = ref<string | null>(null)
@@ -66,10 +68,11 @@ const onSubmit = handleSubmit(async (values) => {
   if (result.success) {
     // Check for redirect query param
     const redirectPath = route.query.redirect as string
+    const defaultRoute = adminAuthStore.isEditor ? 'admin-articles-list' : 'admin-dashboard'
     if (redirectPath) {
       router.push(redirectPath)
     } else {
-      router.push({ name: 'admin-dashboard' })
+      router.push({ name: defaultRoute })
     }
   } else {
     // Set field-specific errors from API

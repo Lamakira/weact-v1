@@ -248,6 +248,7 @@ const router = createRouter({
           path: 'dashboard',
           name: 'admin-dashboard',
           component: () => import('../pages/admin/AdminDashboardPage.vue'),
+          meta: { title: 'Dashboard - WEACT' },
         },
         {
           path: 'admins',
@@ -401,7 +402,8 @@ router.beforeEach((to, from, next) => {
   if (to.meta.adminGuest) {
     const adminAuthStore = useAdminAuthStore()
     if (adminAuthStore.isAuthenticated) {
-      return next({ name: 'admin-dashboard' })
+      const defaultRoute = adminAuthStore.isEditor ? 'admin-articles-list' : 'admin-dashboard'
+      return next({ name: defaultRoute })
     }
     return next()
   }
@@ -412,6 +414,19 @@ router.beforeEach((to, from, next) => {
     if (!adminAuthStore.isAuthenticated) {
       return next({ name: 'admin-login', query: { redirect: to.fullPath } })
     }
+
+    // Editor role restriction: can only access article routes
+    if (adminAuthStore.isEditor) {
+      const allowedEditorRoutes = [
+        'admin-articles-list',
+        'admin-articles-create',
+        'admin-articles-edit',
+      ]
+      if (!allowedEditorRoutes.includes(to.name as string)) {
+        return next({ name: 'admin-articles-list' })
+      }
+    }
+
     return next()
   }
 
@@ -444,6 +459,11 @@ router.beforeEach((to, from, next) => {
   }
 
   next()
+})
+
+router.afterEach((to) => {
+  const title = to.meta.title as string | undefined
+  document.title = title || 'WEACT'
 })
 
 export default router

@@ -29,6 +29,7 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
   // Getters
   const isAuthenticated = computed(() => !!token.value && !!admin.value)
   const isSuperAdmin = computed(() => admin.value?.role === 'superadmin')
+  const isEditor = computed(() => admin.value?.role === 'editor')
   const adminName = computed(() => admin.value?.name ?? '')
   const adminEmail = computed(() => admin.value?.email ?? '')
 
@@ -82,6 +83,7 @@ export const useAdminAuthStore = defineStore('adminAuth', () => {
     // Getters
     isAuthenticated,
     isSuperAdmin,
+    isEditor,
     adminName,
     adminEmail,
     // Actions

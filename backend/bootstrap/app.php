@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\EnsureAdminRole;
 use App\Http\Middleware\EnsureEmailIsVerified;
 use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\EnsureUserIsAdmin;
@@ -27,6 +28,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Register custom role-based middlewares
         $middleware->alias([
             'admin' => EnsureUserIsAdmin::class,
+            'admin.role' => EnsureAdminRole::class,
             'superadmin' => EnsureSuperAdmin::class,
             'face' => EnsureUserIsFace::class,
             'producer' => EnsureUserIsProducer::class,
