@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Admin\AdminController;
 use App\Http\Controllers\Api\V1\Admin\AdminDashboardController;
+use App\Http\Controllers\Api\V1\Admin\AdminForgotPasswordController;
+use App\Http\Controllers\Api\V1\Admin\AdminResetPasswordController;
 use App\Http\Controllers\Api\V1\Admin\ArticleController;
 use App\Http\Controllers\Api\V1\Admin\AuthController;
 use App\Http\Controllers\Api\V1\Admin\FaceController;
@@ -16,6 +18,14 @@ Route::prefix('v1/admin')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])
         ->middleware('throttle:5,1')
         ->name('admin.login');
+
+    Route::post('/forgot-password', AdminForgotPasswordController::class)
+        ->middleware('throttle:5,1')
+        ->name('admin.forgot-password');
+
+    Route::post('/reset-password', AdminResetPasswordController::class)
+        ->middleware('throttle:5,1')
+        ->name('admin.reset-password');
 });
 
 // Protected admin routes
@@ -109,5 +119,9 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'admin'])->group(function
         Route::delete('/admins/{admin}', [AdminController::class, 'destroy'])
             ->middleware('throttle:30,1')
             ->name('admin.admins.destroy');
+
+        Route::post('/admins/{admin}/send-reset-link', [AdminController::class, 'sendPasswordReset'])
+            ->middleware('throttle:30,1')
+            ->name('admin.admins.send-reset-link');
     });
 });

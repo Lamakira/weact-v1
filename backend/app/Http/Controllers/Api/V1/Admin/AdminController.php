@@ -13,6 +13,7 @@ use App\Models\Admin;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Password;
 
 class AdminController extends Controller
 {
@@ -108,5 +109,38 @@ class AdminController extends Controller
         return response()->json([
             'message' => 'Administrateur supprimé avec succès',
         ]);
+    }
+
+    /**
+     * Send a password reset link to the given admin.
+     */
+    public function sendPasswordReset(Admin $admin): JsonResponse
+    {
+        $status = Password::broker('admins')->sendResetLink(
+            ['email' => $admin->email]
+        );
+
+        if ($status === Password::RESET_LINK_SENT) {
+            return response()->json([
+                'data' => null,
+                'message' => "Lien de réinitialisation envoyé à {$admin->email}",
+            ]);
+        }
+
+        if ($status === Password::RESET_THROTTLED) {
+            return response()->json([
+                'error' => [
+                    'message' => 'Veuillez patienter avant de réessayer',
+                    'code' => 'THROTTLED',
+                ],
+            ], 422);
+        }
+
+        return response()->json([
+            'error' => [
+                'message' => "Impossible d'envoyer le lien de réinitialisation",
+                'code' => 'SEND_FAILED',
+            ],
+        ], 500);
     }
 }
