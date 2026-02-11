@@ -4,17 +4,19 @@ import { useRouter } from 'vue-router'
 import { Search, FileText, AlertCircle, Loader2, X, Plus, Pencil, Trash2 } from 'lucide-vue-next'
 import { useAdminArticles } from '@/features/admin/composables/useAdminArticles'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
+import { useToast } from '@/composables/useToast'
 
 const router = useRouter()
 const { articles, pagination, isLoading, error, fetchArticles, toggleStatus, deleteArticle } =
   useAdminArticles()
+
+const toast = useToast()
 
 const searchQuery = ref('')
 const categoryFilter = ref('')
 const statusFilter = ref('')
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
-const successMessage = ref('')
 const showDeleteModal = ref(false)
 const articleToDelete = ref<{ id: number; title: string } | null>(null)
 const isDeleting = ref(false)
@@ -105,10 +107,7 @@ async function handleToggleStatus(id: number, currentStatus: string): Promise<vo
   const result = await toggleStatus(id, currentStatus)
   isTogglingId.value = null
   if (result.success) {
-    successMessage.value = result.message ?? 'Statut mis à jour'
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 3000)
+    toast.success(result.message ?? 'Statut mis à jour')
   }
 }
 
@@ -127,10 +126,7 @@ async function confirmDelete(): Promise<void> {
   articleToDelete.value = null
 
   if (result.success) {
-    successMessage.value = result.message ?? 'Article supprimé'
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 3000)
+    toast.success(result.message ?? 'Article supprimé')
     loadArticles(currentPage.value)
   }
 }
@@ -139,7 +135,7 @@ async function confirmDelete(): Promise<void> {
 <template>
   <div class="space-y-6">
     <!-- Page Header -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h1 class="text-2xl font-bold text-gray-900">Gestion des Articles</h1>
         <p class="mt-1 text-sm text-gray-500">
@@ -147,22 +143,13 @@ async function confirmDelete(): Promise<void> {
         </p>
       </div>
       <button
-        class="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 transition-colors"
+        class="inline-flex items-center gap-2 self-start rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 transition-colors sm:self-auto"
         data-testid="create-article-btn"
         @click="goToCreate"
       >
         <Plus class="h-4 w-4" />
         Nouvel article
       </button>
-    </div>
-
-    <!-- Success Message -->
-    <div
-      v-if="successMessage"
-      class="rounded-lg bg-green-50 border border-green-200 p-4 text-sm text-green-700"
-      data-testid="success-message"
-    >
-      {{ successMessage }}
     </div>
 
     <!-- Search & Filters -->
@@ -246,7 +233,7 @@ async function confirmDelete(): Promise<void> {
     <!-- Articles Table -->
     <div
       v-else-if="hasArticles"
-      class="overflow-hidden rounded-xl border border-gray-200 bg-white"
+      class="overflow-x-auto rounded-xl border border-gray-200 bg-white"
       data-testid="articles-table"
     >
       <table class="min-w-full divide-y divide-gray-200">

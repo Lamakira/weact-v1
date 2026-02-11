@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { onMounted, computed, ref } from 'vue'
+import { onMounted, computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { Plus, ShieldCheck, AlertCircle, Loader2, Pencil, Trash2 } from 'lucide-vue-next'
 import { useAdmins } from '@/features/admin/composables/useAdmins'
 import { useAdminAuthStore } from '@/stores/adminAuth'
 import { getAdminRoleLabel, getAdminRoleColor } from '@/features/admin/utils/adminLabels'
+import { useToast } from '@/composables/useToast'
 
 const router = useRouter()
 const adminAuthStore = useAdminAuthStore()
+const toast = useToast()
 const { admins, pagination, isLoading, error, fetchAdmins, deleteAdmin } = useAdmins()
 
-const successMessage = ref('')
-const deleteError = ref('')
 const currentAdminId = computed(() => adminAuthStore.admin?.id)
 
 onMounted(() => {
@@ -44,18 +44,12 @@ async function handleDelete(adminId: number, adminName: string): Promise<void> {
   )
   if (!confirmed) return
 
-  deleteError.value = ''
-  successMessage.value = ''
-
   const result = await deleteAdmin(adminId)
   if (result.success) {
-    successMessage.value = result.message ?? 'Administrateur supprimé avec succès'
+    toast.success(result.message ?? 'Administrateur supprimé avec succès')
     fetchAdmins(currentPage.value)
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 3000)
   } else {
-    deleteError.value = result.message ?? 'Erreur lors de la suppression'
+    toast.error(result.message ?? 'Erreur lors de la suppression')
   }
 }
 </script>
@@ -63,7 +57,7 @@ async function handleDelete(adminId: number, adminName: string): Promise<void> {
 <template>
   <div class="space-y-6">
     <!-- Page Header -->
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h1 class="text-2xl font-bold text-gray-900">Administrateurs</h1>
         <p class="mt-1 text-sm text-gray-500">
@@ -72,32 +66,12 @@ async function handleDelete(adminId: number, adminName: string): Promise<void> {
       </div>
       <RouterLink
         to="/admin/admins/create"
-        class="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700 transition-colors"
+        class="inline-flex items-center gap-2 self-start rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-700 transition-colors sm:self-auto"
         data-testid="create-admin-button"
       >
         <Plus class="h-4 w-4" />
         Créer un admin
       </RouterLink>
-    </div>
-
-    <!-- Success Message -->
-    <div
-      v-if="successMessage"
-      class="rounded-lg bg-green-50 border border-green-200 p-4 text-sm text-green-700"
-      data-testid="success-message"
-    >
-      {{ successMessage }}
-    </div>
-
-    <!-- Delete Error -->
-    <div
-      v-if="deleteError"
-      class="rounded-lg bg-red-50 border border-red-200 p-4 flex items-start gap-3"
-      role="alert"
-      data-testid="delete-error"
-    >
-      <AlertCircle class="h-5 w-5 text-red-500 mt-0.5 shrink-0" />
-      <p class="text-sm text-red-700">{{ deleteError }}</p>
     </div>
 
     <!-- Error State -->
@@ -143,7 +117,7 @@ async function handleDelete(adminId: number, adminName: string): Promise<void> {
     <!-- Admin Table -->
     <div
       v-else-if="hasAdmins"
-      class="overflow-hidden rounded-xl border border-gray-200 bg-white"
+      class="overflow-x-auto rounded-xl border border-gray-200 bg-white"
       data-testid="admins-table"
     >
       <table class="min-w-full divide-y divide-gray-200">

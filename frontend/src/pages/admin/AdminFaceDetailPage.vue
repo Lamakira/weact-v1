@@ -25,17 +25,17 @@ import { useAdminFaces } from '@/features/admin/composables/useAdminFaces'
 import type { UpdateAdminFaceForm, AdminFacePhoto } from '@/features/admin/services/adminFacesApi'
 import { getCategoryLabel, getNicheLabel } from '@/features/admin/utils/faceLabels'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
+import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
 const router = useRouter()
 const { face, isLoading, error, fetchFace, updateFace, toggleActive, deleteFace } = useAdminFaces()
+const toast = useToast()
 
 const faceId = computed(() => Number(route.params.id))
 const isEditing = ref(false)
 const editForm = ref<UpdateAdminFaceForm>({})
 const editErrors = ref<Record<string, string[]>>({})
-const successMessage = ref('')
-const deleteError = ref('')
 const isToggling = ref(false)
 const showToggleModal = ref(false)
 const showDeleteModal = ref(false)
@@ -71,7 +71,6 @@ function startEdit(): void {
     is_available: face.value.is_available,
   }
   editErrors.value = {}
-  successMessage.value = ''
   isEditing.value = true
 }
 
@@ -82,15 +81,11 @@ function cancelEdit(): void {
 
 async function saveEdit(): Promise<void> {
   editErrors.value = {}
-  successMessage.value = ''
 
   const result = await updateFace(faceId.value, editForm.value)
   if (result.success) {
     isEditing.value = false
-    successMessage.value = result.message ?? 'Profil mis à jour'
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 3000)
+    toast.success(result.message ?? 'Profil mis à jour')
   } else {
     editErrors.value = result.errors ?? {}
   }
@@ -104,21 +99,18 @@ async function confirmToggleActive(): Promise<void> {
 
   if (result.success) {
     const action = face.value?.is_active !== false ? 'activé' : 'désactivé'
-    successMessage.value = result.message ?? `Compte ${action}`
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 3000)
+    toast.success(result.message ?? `Compte ${action}`)
   }
 }
 
 async function confirmDelete(): Promise<void> {
   showDeleteModal.value = false
-  deleteError.value = ''
   const result = await deleteFace(faceId.value)
   if (result.success) {
+    toast.success(result.message ?? 'Profil supprimé avec succès')
     router.push({ name: 'admin-faces-list' })
   } else {
-    deleteError.value = result.message ?? 'Erreur lors de la suppression'
+    toast.error(result.message ?? 'Erreur lors de la suppression')
   }
 }
 
@@ -209,38 +201,18 @@ function closeVideoModal(): void {
       <p class="text-sm text-red-700">{{ error }}</p>
     </div>
 
-    <!-- Success Message -->
-    <div
-      v-if="successMessage"
-      class="rounded-lg bg-green-50 border border-green-200 p-4 text-sm text-green-700"
-      data-testid="success-message"
-    >
-      {{ successMessage }}
-    </div>
-
-    <!-- Delete Error -->
-    <div
-      v-if="deleteError"
-      class="rounded-lg bg-red-50 border border-red-200 p-4 flex items-start gap-3"
-      role="alert"
-      data-testid="delete-error"
-    >
-      <AlertCircle class="h-5 w-5 text-red-500 mt-0.5 shrink-0" />
-      <p class="text-sm text-red-700">{{ deleteError }}</p>
-    </div>
-
     <!-- Face Detail -->
     <template v-if="face">
       <!-- Header with actions -->
-      <div class="flex items-start justify-between">
+      <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div class="flex items-center gap-4">
           <img
             v-if="face.thumbnail_url || face.profile_photo_url"
             :src="face.thumbnail_url ?? face.profile_photo_url ?? undefined"
             :alt="`${face.prenom} ${face.nom}`"
-            class="h-16 w-16 rounded-full object-cover"
+            class="h-16 w-16 rounded-full object-cover shrink-0"
           />
-          <div v-else class="h-16 w-16 rounded-full bg-primary-100 flex items-center justify-center text-xl font-bold text-primary-700">
+          <div v-else class="h-16 w-16 rounded-full bg-primary-100 flex items-center justify-center text-xl font-bold text-primary-700 shrink-0">
             {{ (face.prenom?.[0] ?? '').toUpperCase() }}{{ (face.nom?.[0] ?? '').toUpperCase() }}
           </div>
           <div>
@@ -259,7 +231,7 @@ function closeVideoModal(): void {
             </div>
           </div>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <template v-if="!isEditing">
             <button
               @click="showToggleModal = true"

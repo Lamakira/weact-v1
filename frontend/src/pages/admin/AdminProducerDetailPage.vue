@@ -17,18 +17,19 @@ import { useAdminProducers } from '@/features/admin/composables/useAdminProducer
 import type { AdminProducerMission, UpdateAdminProducerForm } from '@/features/admin/services/adminProducersApi'
 import { getProducerTypeLabel, getProducerTypeColor } from '@/features/admin/utils/producerLabels'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
+import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
 const router = useRouter()
 const { producer, isLoading, error, fetchProducer, updateProducer, toggleActive, deleteProducer } =
   useAdminProducers()
 
+const toast = useToast()
+
 const producerId = computed(() => Number(route.params.id))
 const isEditing = ref(false)
 const editForm = ref<UpdateAdminProducerForm>({})
 const editErrors = ref<Record<string, string[]>>({})
-const successMessage = ref('')
-const deleteError = ref('')
 const isToggling = ref(false)
 const showToggleModal = ref(false)
 const showDeleteModal = ref(false)
@@ -47,7 +48,6 @@ function startEdit(): void {
     bio: producer.value.bio,
   }
   editErrors.value = {}
-  successMessage.value = ''
   isEditing.value = true
 }
 
@@ -58,15 +58,11 @@ function cancelEdit(): void {
 
 async function saveEdit(): Promise<void> {
   editErrors.value = {}
-  successMessage.value = ''
 
   const result = await updateProducer(producerId.value, editForm.value)
   if (result.success) {
     isEditing.value = false
-    successMessage.value = result.message ?? 'Profil mis à jour'
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 3000)
+    toast.success(result.message ?? 'Profil mis à jour')
   } else {
     editErrors.value = result.errors ?? {}
   }
@@ -80,21 +76,18 @@ async function confirmToggleActive(): Promise<void> {
 
   if (result.success) {
     const action = producer.value?.is_active !== false ? 'activé' : 'désactivé'
-    successMessage.value = result.message ?? `Compte ${action}`
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 3000)
+    toast.success(result.message ?? `Compte ${action}`)
   }
 }
 
 async function confirmDelete(): Promise<void> {
   showDeleteModal.value = false
-  deleteError.value = ''
   const result = await deleteProducer(producerId.value)
   if (result.success) {
+    toast.success(result.message ?? 'Profil supprimé avec succès')
     router.push({ name: 'admin-producers-list' })
   } else {
-    deleteError.value = result.message ?? 'Erreur lors de la suppression'
+    toast.error(result.message ?? 'Erreur lors de la suppression')
   }
 }
 
@@ -160,38 +153,18 @@ function getMissionStatusClass(status: string): string {
       <p class="text-sm text-red-700">{{ error }}</p>
     </div>
 
-    <!-- Success Message -->
-    <div
-      v-if="successMessage"
-      class="rounded-lg bg-green-50 border border-green-200 p-4 text-sm text-green-700"
-      data-testid="success-message"
-    >
-      {{ successMessage }}
-    </div>
-
-    <!-- Delete Error -->
-    <div
-      v-if="deleteError"
-      class="rounded-lg bg-red-50 border border-red-200 p-4 flex items-start gap-3"
-      role="alert"
-      data-testid="delete-error"
-    >
-      <AlertCircle class="h-5 w-5 text-red-500 mt-0.5 shrink-0" />
-      <p class="text-sm text-red-700">{{ deleteError }}</p>
-    </div>
-
     <!-- Producer Detail -->
     <template v-if="producer">
       <!-- Header with actions -->
-      <div class="flex items-start justify-between">
+      <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div class="flex items-center gap-4">
           <img
             v-if="producer.thumbnail_url || producer.profile_photo_url"
             :src="producer.thumbnail_url ?? producer.profile_photo_url ?? undefined"
             :alt="producer.display_name"
-            class="h-16 w-16 rounded-full object-cover"
+            class="h-16 w-16 rounded-full object-cover shrink-0"
           />
-          <div v-else class="h-16 w-16 rounded-full bg-purple-100 flex items-center justify-center text-xl font-bold text-purple-700">
+          <div v-else class="h-16 w-16 rounded-full bg-purple-100 flex items-center justify-center text-xl font-bold text-purple-700 shrink-0">
             {{ (producer.display_name?.[0] ?? '').toUpperCase() }}
           </div>
           <div>
@@ -215,7 +188,7 @@ function getMissionStatusClass(status: string): string {
             </div>
           </div>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <template v-if="!isEditing">
             <button
               @click="showToggleModal = true"
