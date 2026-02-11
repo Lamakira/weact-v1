@@ -22,6 +22,43 @@ class ArticleController extends Controller
         private readonly ArticleService $articleService
     ) {}
 
+    /**
+     * List all articles with pagination, search, and filters.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $query = Article::with('admin')->orderBy('created_at', 'desc');
+
+        // Search by title
+        if ($request->filled('search') && is_string($request->query('search'))) {
+            $search = str_replace(['%', '_'], ['\%', '\_'], $request->query('search'));
+            $query->where('title', 'like', "%{$search}%");
+        }
+
+        // Filter by category
+        if ($request->filled('category') && is_string($request->query('category'))) {
+            $query->where('category', $request->query('category'));
+        }
+
+        // Filter by status
+        if ($request->filled('status') && is_string($request->query('status'))) {
+            $query->where('status', $request->query('status'));
+        }
+
+        $articles = $query->paginate(15);
+
+        return response()->json([
+            'data' => ArticleResource::collection($articles),
+            'meta' => [
+                'current_page' => $articles->currentPage(),
+                'last_page' => $articles->lastPage(),
+                'per_page' => $articles->perPage(),
+                'total' => $articles->total(),
+            ],
+            'message' => 'Articles récupérés avec succès',
+        ]);
+    }
+
     public function store(StoreArticleRequest $request): JsonResponse
     {
         $article = $this->articleService->createArticle(

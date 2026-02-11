@@ -303,6 +303,24 @@ const router = createRouter({
           component: () => import('../pages/admin/AdminMissionDetailPage.vue'),
           meta: { title: 'Détail Mission - WEACT' },
         },
+        {
+          path: 'articles',
+          name: 'admin-articles-list',
+          component: () => import('../pages/admin/AdminArticlesListPage.vue'),
+          meta: { title: 'Gestion des Articles - WEACT' },
+        },
+        {
+          path: 'articles/create',
+          name: 'admin-articles-create',
+          component: () => import('../pages/admin/AdminArticleCreatePage.vue'),
+          meta: { title: 'Créer un article - WEACT' },
+        },
+        {
+          path: 'articles/:id/edit',
+          name: 'admin-articles-edit',
+          component: () => import('../pages/admin/AdminArticleEditPage.vue'),
+          meta: { title: 'Modifier un article - WEACT' },
+        },
       ],
     },
     // Public routes (no auth required)
@@ -348,6 +366,25 @@ const router = createRouter({
       path: '/producers/:id',
       name: 'public-producer-profile',
       component: () => import('../pages/public/ProducerProfilePage.vue'),
+    },
+    {
+      path: '/ressources',
+      name: 'ressources-list',
+      component: () => import('../views/RessourcesView.vue'),
+      meta: {
+        title: 'Ressources - WEACT',
+        description:
+          'Conseils, guides et actualités pour les talents et producteurs du Bénin.',
+      },
+    },
+    {
+      path: '/ressources/:slug',
+      name: 'ressources-detail',
+      component: () => import('../views/ArticleDetailView.vue'),
+      meta: {
+        title: 'Article | WEACT',
+        description: 'Découvrez cet article sur WEACT.',
+      },
     },
   ],
 })

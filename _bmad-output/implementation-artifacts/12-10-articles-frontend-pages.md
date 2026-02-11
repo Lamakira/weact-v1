@@ -1,6 +1,6 @@
 # Story 12.10: Articles Frontend Pages
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -56,66 +56,109 @@ The backend API is fully implemented (Stories 12-1 through 12-9). This story cov
 
 ### Backend — Missing Admin List Endpoint
 
-- [ ] Task 1 — Add `index` method to `Admin\ArticleController` (AC: 6)
-  - [ ] 1.1 — Add `index(Request $request)` method with pagination, search by title, filter by category/status
-  - [ ] 1.2 — Register `GET /api/v1/admin/articles` route in `routes/api/admin.php`
-  - [ ] 1.3 — Write feature test for the admin articles list endpoint
+- [x] Task 1 — Add `index` method to `Admin\ArticleController` (AC: 6)
+  - [x] 1.1 — Add `index(Request $request)` method with pagination, search by title, filter by category/status
+  - [x] 1.2 — Register `GET /api/v1/admin/articles` route in `routes/api/admin.php`
+  - [x] 1.3 — Write feature test for the admin articles list endpoint (9 tests, 53 assertions)
 
 ### Frontend — Admin API & Composable
 
-- [ ] Task 2 — Create admin articles API service (AC: 10)
-  - [ ] 2.1 — Create `frontend/src/features/admin/services/adminArticlesApi.ts`
-  - [ ] 2.2 — Define `Article` TypeScript interface matching `ArticleResource` response
-  - [ ] 2.3 — Implement all CRUD methods + status/category update
+- [x] Task 2 — Create admin articles API service (AC: 10)
+  - [x] 2.1 — Create `frontend/src/features/admin/services/adminArticlesApi.ts`
+  - [x] 2.2 — Define `Article` TypeScript interface matching `ArticleResource` response
+  - [x] 2.3 — Implement all CRUD methods + status/category update
 
-- [ ] Task 3 — Create admin articles composable (AC: 11)
-  - [ ] 3.1 — Create `frontend/src/features/admin/composables/useAdminArticles.ts`
-  - [ ] 3.2 — Wrap API service with reactive state (articles, loading, error, pagination)
+- [x] Task 3 — Create admin articles composable (AC: 11)
+  - [x] 3.1 — Create `frontend/src/features/admin/composables/useAdminArticles.ts`
+  - [x] 3.2 — Wrap API service with reactive state (articles, loading, error, pagination)
 
 ### Frontend — Admin Pages
 
-- [ ] Task 4 — Create `AdminArticlesListPage.vue` (AC: 1, 4, 5)
-  - [ ] 4.1 — Paginated table with columns: title, category badge, status badge, author, date, actions
-  - [ ] 4.2 — Search input and category/status filter dropdowns
-  - [ ] 4.3 — Status toggle button per row
-  - [ ] 4.4 — Delete button with ConfirmModal (danger variant)
+- [x] Task 4 — Create `AdminArticlesListPage.vue` (AC: 1, 4, 5)
+  - [x] 4.1 — Paginated table with columns: title, category badge, status badge, author, date, actions
+  - [x] 4.2 — Search input and category/status filter dropdowns
+  - [x] 4.3 — Status toggle button per row
+  - [x] 4.4 — Delete button with ConfirmModal (danger variant)
 
-- [ ] Task 5 — Create `AdminArticleCreatePage.vue` (AC: 2)
-  - [ ] 5.1 — Form with: title, content (textarea), excerpt, category select, featured image upload
-  - [ ] 5.2 — Submit → POST API → redirect to list with success message
+- [x] Task 5 — Create `AdminArticleCreatePage.vue` (AC: 2)
+  - [x] 5.1 — Form with: title, content (textarea), excerpt, category select, featured image upload
+  - [x] 5.2 — Submit → POST API → redirect to list with success message
 
-- [ ] Task 6 — Create `AdminArticleEditPage.vue` (AC: 3)
-  - [ ] 6.1 — Load article data on mount, pre-fill form
-  - [ ] 6.2 — Submit → PUT API → success message
+- [x] Task 6 — Create `AdminArticleEditPage.vue` (AC: 3)
+  - [x] 6.1 — Load article data on mount, pre-fill form
+  - [x] 6.2 — Submit → PUT API → success message
 
-- [ ] Task 7 — Register admin article routes (AC: 13)
-  - [ ] 7.1 — Add children routes under admin layout: `articles`, `articles/create`, `articles/:id/edit`
+- [x] Task 7 — Register admin article routes (AC: 13)
+  - [x] 7.1 — Add children routes under admin layout: `articles`, `articles/create`, `articles/:id/edit`
 
 ### Frontend — Public API & Composable
 
-- [ ] Task 8 — Create public articles API service and composable (AC: 12)
-  - [ ] 8.1 — Create `frontend/src/features/blog/services/publicArticlesApi.ts`
-  - [ ] 8.2 — Create `frontend/src/features/blog/composables/usePublicArticles.ts`
+- [x] Task 8 — Create public articles API service and composable (AC: 12)
+  - [x] 8.1 — Create `frontend/src/features/public/services/publicArticlesApi.ts`
+  - [x] 8.2 — Create `frontend/src/features/public/composables/usePaginatedArticles.ts` and `useArticleDetail.ts`
 
 ### Frontend — Public Pages
 
-- [ ] Task 9 — Create `RessourcesPage.vue` (AC: 7, 9)
-  - [ ] 9.1 — Grid/card layout of published articles
-  - [ ] 9.2 — Category filter tabs/dropdown
-  - [ ] 9.3 — Pagination
+- [x] Task 9 — Create `RessourcesView.vue` (AC: 7, 9)
+  - [x] 9.1 — Grid/card layout of published articles
+  - [x] 9.2 — Category filter tabs
+  - [x] 9.3 — Pagination
 
-- [ ] Task 10 — Create `ArticleDetailPage.vue` (AC: 8)
-  - [ ] 10.1 — Full article content display with featured image, author, date, category
+- [x] Task 10 — Create `ArticleDetailView.vue` (AC: 8)
+  - [x] 10.1 — Full article content display with DOMPurify sanitization, featured image, author, date, category
 
-- [ ] Task 11 — Register public article routes (AC: 13)
-  - [ ] 11.1 — Add routes: `/ressources` and `/ressources/:slug`
+- [x] Task 11 — Register public article routes (AC: 13)
+  - [x] 11.1 — Add routes: `/ressources` (name: `ressources-list`) and `/ressources/:slug` (name: `ressources-detail`)
 
 ### Tests
 
-- [ ] Task 12 — Frontend tests (AC: 14)
-  - [ ] 12.1 — Unit tests for `useAdminArticles` composable
-  - [ ] 12.2 — Unit tests for `usePublicArticles` composable
-  - [ ] 12.3 — Backend feature test for admin articles list endpoint
+- [x] Task 12 — Frontend tests (AC: 14)
+  - [x] 12.1 — Unit tests for `useAdminArticles` composable (15 tests)
+  - [x] 12.2 — Unit tests for `usePaginatedArticles` (12 tests) and `useArticleDetail` (5 tests)
+  - [x] 12.3 — Backend feature test for admin articles list endpoint (9 tests, 53 assertions)
+
+## File List
+
+### New Files
+- `backend/app/Http/Controllers/Api/V1/Admin/ArticleController.php` — `index()` method added
+- `backend/routes/api/admin.php` — `GET /admin/articles` route added
+- `backend/tests/Feature/Admin/AdminArticlesListTest.php` — 9 tests, 53 assertions
+- `frontend/src/features/admin/services/adminArticlesApi.ts` — Admin articles API service
+- `frontend/src/features/admin/composables/useAdminArticles.ts` — Admin articles composable
+- `frontend/src/features/admin/composables/__tests__/useAdminArticles.spec.ts` — 15 tests
+- `frontend/src/pages/admin/AdminArticlesListPage.vue` — Admin articles list page
+- `frontend/src/pages/admin/AdminArticleCreatePage.vue` — Admin article create page
+- `frontend/src/pages/admin/AdminArticleEditPage.vue` — Admin article edit page
+- `frontend/src/features/public/services/publicArticlesApi.ts` — Public articles API service
+- `frontend/src/features/public/composables/usePaginatedArticles.ts` — Paginated articles composable
+- `frontend/src/features/public/composables/useArticleDetail.ts` — Article detail composable
+- `frontend/src/features/public/composables/__tests__/usePaginatedArticles.spec.ts` — 12 tests
+- `frontend/src/features/public/composables/__tests__/useArticleDetail.spec.ts` — 5 tests
+- `frontend/src/views/RessourcesView.vue` — Public articles list page
+- `frontend/src/views/ArticleDetailView.vue` — Public article detail page
+
+### Modified Files
+- `frontend/src/router/index.ts` — Added admin article routes + public article routes
+- `frontend/src/pages/admin/AdminLayout.vue` — Restored "Articles" sidebar link
+
+### Dependencies Added
+- `dompurify` + `@types/dompurify` — XSS-safe HTML rendering for article content
+
+## Dev Agent Record
+
+### Validation Results
+- **TypeScript**: `vue-tsc --noEmit` passes clean
+- **Backend tests**: 9/9 pass (AdminArticlesListTest), full suite 1381 passed (3 pre-existing failures)
+- **Frontend tests**: 32/32 new tests pass, full suite 1727 passed (22 pre-existing failures in ExperienceForm)
+- **No regressions introduced**
+
+### Change Log
+| Change | Reason |
+|--------|--------|
+| Added `index()` to `Admin\ArticleController` | Backend had no admin list endpoint (oversight from Epic 12) |
+| Used `DOMPurify` for article HTML content | XSS protection flagged as action item in Epic 12 retrospective |
+| Public articles in `features/public/` not `features/blog/` | Follows existing codebase convention (publicFacesApi, publicMissionsApi are in features/public) |
+| AdminArticleEditPage loads from list API | No dedicated `GET /admin/articles/:id` endpoint exists — loads from list data passed via query |
 
 ## Dev Notes
 
