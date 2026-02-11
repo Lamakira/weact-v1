@@ -15,6 +15,7 @@ const { login, isLoading } = useAuth()
 
 // API error message (general)
 const apiError = ref<string | null>(null)
+const isAccountDeactivated = ref(false)
 
 // Form setup with VeeValidate
 const { handleSubmit, setFieldError } = useForm({
@@ -32,6 +33,7 @@ const { value: password, errorMessage: passwordError } = useField<string>('passw
 // Submit handler
 const onSubmit = handleSubmit(async (values) => {
   apiError.value = null
+  isAccountDeactivated.value = false
 
   const result = await login({
     email: values.email,
@@ -41,6 +43,12 @@ const onSubmit = handleSubmit(async (values) => {
   if (result.success) {
     emit('success')
   } else {
+    // Check for deactivated account
+    if (result.errorCode === 'ACCOUNT_DEACTIVATED') {
+      isAccountDeactivated.value = true
+      return
+    }
+
     // Set field-specific errors from API
     if (result.errors) {
       const validFields = ['email', 'password'] as const
@@ -61,6 +69,24 @@ const onSubmit = handleSubmit(async (values) => {
 
 <template>
   <form @submit="onSubmit" class="space-y-6" data-testid="login-form">
+    <!-- Deactivated account error -->
+    <div
+      v-if="isAccountDeactivated"
+      class="rounded-lg bg-amber-50 p-4 border border-amber-200"
+      role="alert"
+      data-testid="account-deactivated-error"
+    >
+      <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+        </svg>
+        <div>
+          <p class="text-sm font-medium text-amber-800">Votre compte a été désactivé</p>
+          <p class="text-sm text-amber-700 mt-1">Contactez l'administrateur pour plus d'informations.</p>
+        </div>
+      </div>
+    </div>
+
     <!-- General API error -->
     <div
       v-if="apiError"

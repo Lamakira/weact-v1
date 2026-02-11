@@ -170,6 +170,9 @@ function formatDate(dateString: string): string {
               Email
             </th>
             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              Statut
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
               Missions
             </th>
             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -208,6 +211,15 @@ function formatDate(dateString: string): string {
             </td>
             <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
               {{ p.email || '—' }}
+            </td>
+            <td class="whitespace-nowrap px-6 py-4">
+              <span
+                class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                :class="p.is_active !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
+                data-testid="status-badge"
+              >
+                {{ p.is_active !== false ? 'Actif' : 'Inactif' }}
+              </span>
             </td>
             <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">
               {{ p.missions_count ?? '—' }}

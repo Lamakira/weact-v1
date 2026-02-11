@@ -194,6 +194,9 @@ function formatDate(dateString: string): string {
               Disponibilité
             </th>
             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+              Statut
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
               Profil
             </th>
             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -236,6 +239,15 @@ function formatDate(dateString: string): string {
                 :class="f.is_available ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'"
               >
                 {{ f.is_available ? 'Disponible' : 'Indisponible' }}
+              </span>
+            </td>
+            <td class="whitespace-nowrap px-6 py-4">
+              <span
+                class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                :class="f.is_active !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
+                data-testid="status-badge"
+              >
+                {{ f.is_active !== false ? 'Actif' : 'Inactif' }}
               </span>
             </td>
             <td class="whitespace-nowrap px-6 py-4">

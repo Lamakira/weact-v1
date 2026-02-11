@@ -35,6 +35,15 @@ class LoginController extends Controller
             ], 401);
         }
 
+        if (isset($result['error']) && $result['error'] === 'ACCOUNT_DEACTIVATED') {
+            return response()->json([
+                'error' => [
+                    'message' => 'Votre compte a été désactivé',
+                    'code' => 'ACCOUNT_DEACTIVATED',
+                ],
+            ], 403);
+        }
+
         return response()->json([
             'data' => [
                 'user' => new UserResource($result['user']),

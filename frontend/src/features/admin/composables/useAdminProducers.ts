@@ -91,6 +91,29 @@ export function useAdminProducers() {
   }
 
   /**
+   * Toggle a producer's account activation status
+   */
+  async function toggleActive(id: number): Promise<AdminProducerActionResult> {
+    isLoading.value = true
+
+    try {
+      const response = await adminProducersApi.toggleActive(id)
+      producer.value = response.data
+      // Update the producer in the list if present
+      const index = producers.value.findIndex((p) => p.id === id)
+      if (index !== -1) {
+        producers.value[index] = response.data
+      }
+      return { success: true, message: response.message }
+    } catch (err) {
+      const message = getApiErrorMessage(err)
+      return { success: false, message }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
    * Delete a producer and its associated user
    */
   async function deleteProducer(id: number): Promise<AdminProducerActionResult> {
@@ -116,6 +139,7 @@ export function useAdminProducers() {
     fetchProducers,
     fetchProducer,
     updateProducer,
+    toggleActive,
     deleteProducer,
   }
 }

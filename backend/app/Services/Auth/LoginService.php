@@ -17,7 +17,7 @@ class LoginService
      *
      * @param string $email
      * @param string $password
-     * @return array{user: User, token: string}|null Returns user and token on success, null on failure
+     * @return array{user: User, token: string}|array{error: string}|null Returns user+token on success, error array if deactivated, null on bad credentials
      */
     public function login(string $email, string $password): ?array
     {
@@ -28,6 +28,11 @@ class LoginService
 
         // Get the authenticated user with userable relationship
         $user = User::where('email', $email)->with('userable')->firstOrFail();
+
+        // Check if account is deactivated
+        if (!$user->is_active) {
+            return ['error' => 'ACCOUNT_DEACTIVATED'];
+        }
 
         // Generate Sanctum token
         $token = $user->createToken('auth-token')->plainTextToken;

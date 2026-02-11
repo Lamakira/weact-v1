@@ -1,12 +1,13 @@
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
-import { authApi, getApiErrorDetails, getApiErrorMessage } from '../services/authApi'
+import { authApi, getApiErrorDetails, getApiErrorMessage, getApiErrorCode } from '../services/authApi'
 import type { FaceRegistrationForm, ProducerRegistrationForm, LoginForm } from '../types'
 
 export interface AuthResult {
   success: boolean
   errors?: Record<string, string[]>
   message?: string
+  errorCode?: string | null
 }
 
 export interface UseAuthReturn {
@@ -45,8 +46,9 @@ export function useAuth(): UseAuthReturn {
     } catch (error) {
       const errors = getApiErrorDetails(error)
       const message = getApiErrorMessage(error)
+      const errorCode = getApiErrorCode(error)
 
-      return { success: false, errors, message }
+      return { success: false, errors, message, errorCode }
     } finally {
       authStore.setLoading(false)
     }

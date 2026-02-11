@@ -88,6 +88,37 @@ class FaceController extends Controller
     }
 
     /**
+     * Toggle activation status for a face's user account.
+     */
+    public function toggleActive(Face $face): JsonResponse
+    {
+        $user = $face->user;
+
+        if (!$user) {
+            return response()->json([
+                'error' => [
+                    'code' => 'no_user_account',
+                    'message' => 'Aucun compte utilisateur associé à ce profil.',
+                ],
+            ], 422);
+        }
+
+        $newStatus = !$user->is_active;
+        $user->is_active = $newStatus;
+        $user->save();
+
+        // Revoke all tokens when deactivating
+        if (!$newStatus) {
+            $user->tokens()->delete();
+        }
+
+        return response()->json([
+            'data' => new FaceResource($face->fresh()->load('user')),
+            'message' => $newStatus ? 'Compte activé avec succès' : 'Compte désactivé avec succès',
+        ]);
+    }
+
+    /**
      * Delete a face and its associated user account.
      */
     public function destroy(Face $face): JsonResponse

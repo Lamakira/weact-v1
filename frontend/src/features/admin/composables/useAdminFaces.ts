@@ -91,6 +91,29 @@ export function useAdminFaces() {
   }
 
   /**
+   * Toggle a face's account activation status
+   */
+  async function toggleActive(id: number): Promise<AdminFaceActionResult> {
+    isLoading.value = true
+
+    try {
+      const response = await adminFacesApi.toggleActive(id)
+      face.value = response.data
+      // Update the face in the list if present
+      const index = faces.value.findIndex((f) => f.id === id)
+      if (index !== -1) {
+        faces.value[index] = response.data
+      }
+      return { success: true, message: response.message }
+    } catch (err) {
+      const message = getApiErrorMessage(err)
+      return { success: false, message }
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
    * Delete a face and its associated user
    */
   async function deleteFace(id: number): Promise<AdminFaceActionResult> {
@@ -116,6 +139,7 @@ export function useAdminFaces() {
     fetchFaces,
     fetchFace,
     updateFace,
+    toggleActive,
     deleteFace,
   }
 }

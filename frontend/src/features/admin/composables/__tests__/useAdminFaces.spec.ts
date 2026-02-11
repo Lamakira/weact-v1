@@ -5,12 +5,14 @@ import { setActivePinia, createPinia } from 'pinia'
 const mockGetFaces = vi.fn()
 const mockGetFace = vi.fn()
 const mockUpdateFace = vi.fn()
+const mockToggleActive = vi.fn()
 const mockDeleteFace = vi.fn()
 vi.mock('../../services/adminFacesApi', () => ({
   adminFacesApi: {
     getFaces: (...args: unknown[]) => mockGetFaces(...args),
     getFace: (...args: unknown[]) => mockGetFace(...args),
     updateFace: (...args: unknown[]) => mockUpdateFace(...args),
+    toggleActive: (...args: unknown[]) => mockToggleActive(...args),
     deleteFace: (...args: unknown[]) => mockDeleteFace(...args),
   },
 }))
@@ -335,5 +337,62 @@ describe('useAdminFaces - deleteFace', () => {
     await deletePromise
 
     expect(isLoading.value).toBe(false)
+  })
+})
+
+describe('useAdminFaces - toggleActive', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    localStorage.clear()
+  })
+
+  it('toggles face active status and updates face ref', async () => {
+    mockToggleActive.mockResolvedValue({
+      data: { ...mockFace, is_active: false },
+      message: 'Compte désactivé avec succès',
+    })
+
+    const { face, toggleActive } = useAdminFaces()
+    const result = await toggleActive(1)
+
+    expect(result.success).toBe(true)
+    expect(result.message).toBe('Compte désactivé avec succès')
+    expect(face.value?.is_active).toBe(false)
+    expect(mockToggleActive).toHaveBeenCalledWith(1)
+  })
+
+  it('updates face in list when toggling', async () => {
+    mockGetFaces.mockResolvedValue({
+      data: [{ ...mockFace, is_active: true }],
+      meta: { current_page: 1, last_page: 1, per_page: 15, total: 1 },
+    })
+    mockToggleActive.mockResolvedValue({
+      data: { ...mockFace, is_active: false },
+      message: 'Compte désactivé avec succès',
+    })
+
+    const { faces, fetchFaces, toggleActive } = useAdminFaces()
+    await fetchFaces()
+    expect(faces.value[0].is_active).toBe(true)
+
+    await toggleActive(1)
+    expect(faces.value[0].is_active).toBe(false)
+  })
+
+  it('returns error on toggle failure', async () => {
+    mockToggleActive.mockRejectedValue({
+      response: {
+        data: {
+          error: { message: 'Aucun compte utilisateur associé à ce profil.' },
+        },
+      },
+    })
+
+    const { toggleActive } = useAdminFaces()
+    const result = await toggleActive(1)
+
+    expect(result.success).toBe(false)
+    expect(result.message).toBe('Aucun compte utilisateur associé à ce profil.')
   })
 })

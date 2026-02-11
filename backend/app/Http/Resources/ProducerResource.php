@@ -37,6 +37,7 @@ class ProducerResource extends JsonResource
             'missions_count' => $this->when($this->missions_count !== null, $this->missions_count),
             'missions' => MissionSummaryResource::collection($this->whenLoaded('missions')),
             'email' => $this->whenLoaded('user', fn () => $this->user?->email),
+            'is_active' => $this->whenLoaded('user', fn () => $this->user?->is_active),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

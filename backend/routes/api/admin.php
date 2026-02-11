@@ -50,6 +50,9 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'admin'])->group(function
     Route::put('/faces/{face}', [FaceController::class, 'update'])
         ->middleware('throttle:30,1')
         ->name('admin.faces.update');
+    Route::patch('/faces/{face}/toggle-active', [FaceController::class, 'toggleActive'])
+        ->middleware('throttle:30,1')
+        ->name('admin.faces.toggle-active');
     Route::delete('/faces/{face}', [FaceController::class, 'destroy'])
         ->middleware('throttle:30,1')
         ->name('admin.faces.destroy');
@@ -60,6 +63,9 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'admin'])->group(function
     Route::put('/producers/{producer}', [ProducerController::class, 'update'])
         ->middleware('throttle:30,1')
         ->name('admin.producers.update');
+    Route::patch('/producers/{producer}/toggle-active', [ProducerController::class, 'toggleActive'])
+        ->middleware('throttle:30,1')
+        ->name('admin.producers.toggle-active');
     Route::delete('/producers/{producer}', [ProducerController::class, 'destroy'])
         ->middleware('throttle:30,1')
         ->name('admin.producers.destroy');

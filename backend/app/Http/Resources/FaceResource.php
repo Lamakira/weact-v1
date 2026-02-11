@@ -53,6 +53,8 @@ class FaceResource extends JsonResource
             'profile_completion_is_complete' => $this->profile_completion_is_complete,
             'average_rating' => $this->average_rating,
             'ratings_count' => $this->ratings_count,
+            'email' => $this->whenLoaded('user', fn () => $this->user?->email),
+            'is_active' => $this->whenLoaded('user', fn () => $this->user?->is_active),
             'experiences' => ExperienceResource::collection($this->whenLoaded('experiences')),
             'experiences_count' => $this->when($this->experiences_count !== null, $this->experiences_count),
             'photos' => FacePhotoResource::collection($this->whenLoaded('photos')),

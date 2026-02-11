@@ -30,6 +30,7 @@ export interface AdminProducerData {
   created_at: string
   updated_at: string
   email?: string
+  is_active?: boolean
 }
 
 /**
@@ -107,6 +108,16 @@ export const adminProducersApi = {
     const response = await adminApiClient.put<AdminProducerDetailResponse>(
       `/admin/producers/${id}`,
       data,
+    )
+    return response.data
+  },
+
+  /**
+   * Toggle a producer's account activation status
+   */
+  async toggleActive(id: number): Promise<AdminProducerDetailResponse> {
+    const response = await adminApiClient.patch<AdminProducerDetailResponse>(
+      `/admin/producers/${id}/toggle-active`,
     )
     return response.data
   },

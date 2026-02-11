@@ -12,6 +12,7 @@ vi.mock('../../services/adminProducersApi', () => ({
     getProducers: vi.fn(),
     getProducer: vi.fn(),
     updateProducer: vi.fn(),
+    toggleActive: vi.fn(),
     deleteProducer: vi.fn(),
   },
 }))
@@ -233,6 +234,56 @@ describe('useAdminProducers', () => {
       expect(result.message).toBe(
         'Impossible de supprimer ce producteur. Des missions actives existent.',
       )
+    })
+  })
+
+  describe('toggleActive', () => {
+    it('toggles producer active status and updates producer ref', async () => {
+      const deactivatedProducer = makeProducer({ id: 5, is_active: false })
+      vi.mocked(adminProducersApi.toggleActive).mockResolvedValue({
+        data: deactivatedProducer,
+        message: 'Compte désactivé avec succès',
+      })
+
+      const { producer, toggleActive } = useAdminProducers()
+      const result = await toggleActive(5)
+
+      expect(adminProducersApi.toggleActive).toHaveBeenCalledWith(5)
+      expect(result.success).toBe(true)
+      expect(result.message).toBe('Compte désactivé avec succès')
+      expect(producer.value?.is_active).toBe(false)
+    })
+
+    it('updates producer in list when toggling', async () => {
+      vi.mocked(adminProducersApi.getProducers).mockResolvedValue({
+        data: [makeProducer({ id: 5, is_active: true })],
+        meta: { current_page: 1, last_page: 1, per_page: 15, total: 1 },
+      })
+      vi.mocked(adminProducersApi.toggleActive).mockResolvedValue({
+        data: makeProducer({ id: 5, is_active: false }),
+        message: 'Compte désactivé avec succès',
+      })
+
+      const { producers, fetchProducers, toggleActive } = useAdminProducers()
+      await fetchProducers()
+      expect(producers.value[0].is_active).toBe(true)
+
+      await toggleActive(5)
+      expect(producers.value[0].is_active).toBe(false)
+    })
+
+    it('returns error on toggle failure', async () => {
+      vi.mocked(adminProducersApi.toggleActive).mockRejectedValue({
+        response: {
+          data: { message: 'Aucun compte utilisateur associé à ce profil.' },
+        },
+      })
+
+      const { toggleActive } = useAdminProducers()
+      const result = await toggleActive(5)
+
+      expect(result.success).toBe(false)
+      expect(result.message).toBe('Aucun compte utilisateur associé à ce profil.')
     })
   })
 

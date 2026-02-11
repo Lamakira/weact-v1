@@ -24,6 +24,7 @@ class UserResource extends JsonResource
         return [
             'id' => $this->id,
             'email' => $this->email,
+            'is_active' => $this->is_active,
             'userable_type' => $this->getReadableUserableType(),
             'userable' => $this->whenLoaded('userable', function () {
                 return $this->transformUserable();

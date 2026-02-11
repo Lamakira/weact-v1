@@ -84,6 +84,37 @@ class ProducerController extends Controller
     }
 
     /**
+     * Toggle activation status for a producer's user account.
+     */
+    public function toggleActive(Producer $producer): JsonResponse
+    {
+        $user = $producer->user;
+
+        if (!$user) {
+            return response()->json([
+                'error' => [
+                    'code' => 'no_user_account',
+                    'message' => 'Aucun compte utilisateur associé à ce profil.',
+                ],
+            ], 422);
+        }
+
+        $newStatus = !$user->is_active;
+        $user->is_active = $newStatus;
+        $user->save();
+
+        // Revoke all tokens when deactivating
+        if (!$newStatus) {
+            $user->tokens()->delete();
+        }
+
+        return response()->json([
+            'data' => new ProducerResource($producer->fresh()->load('user')),
+            'message' => $newStatus ? 'Compte activé avec succès' : 'Compte désactivé avec succès',
+        ]);
+    }
+
+    /**
      * Delete a producer and its associated user account.
      */
     public function destroy(Producer $producer): JsonResponse

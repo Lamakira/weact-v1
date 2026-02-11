@@ -16,10 +16,11 @@ import {
 import { useAdminProducers } from '@/features/admin/composables/useAdminProducers'
 import type { AdminProducerMission, UpdateAdminProducerForm } from '@/features/admin/services/adminProducersApi'
 import { getProducerTypeLabel, getProducerTypeColor } from '@/features/admin/utils/producerLabels'
+import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 
 const route = useRoute()
 const router = useRouter()
-const { producer, isLoading, error, fetchProducer, updateProducer, deleteProducer } =
+const { producer, isLoading, error, fetchProducer, updateProducer, toggleActive, deleteProducer } =
   useAdminProducers()
 
 const producerId = computed(() => Number(route.params.id))
@@ -28,6 +29,9 @@ const editForm = ref<UpdateAdminProducerForm>({})
 const editErrors = ref<Record<string, string[]>>({})
 const successMessage = ref('')
 const deleteError = ref('')
+const isToggling = ref(false)
+const showToggleModal = ref(false)
+const showDeleteModal = ref(false)
 
 onMounted(() => {
   fetchProducer(producerId.value)
@@ -68,14 +72,23 @@ async function saveEdit(): Promise<void> {
   }
 }
 
-async function handleDelete(): Promise<void> {
-  if (!producer.value) return
+async function confirmToggleActive(): Promise<void> {
+  showToggleModal.value = false
+  isToggling.value = true
+  const result = await toggleActive(producerId.value)
+  isToggling.value = false
 
-  const confirmed = window.confirm(
-    `Êtes-vous sûr de vouloir supprimer le profil de ${producer.value.display_name} ? Cette action est irréversible.`,
-  )
-  if (!confirmed) return
+  if (result.success) {
+    const action = producer.value?.is_active !== false ? 'activé' : 'désactivé'
+    successMessage.value = result.message ?? `Compte ${action}`
+    setTimeout(() => {
+      successMessage.value = ''
+    }, 3000)
+  }
+}
 
+async function confirmDelete(): Promise<void> {
+  showDeleteModal.value = false
   deleteError.value = ''
   const result = await deleteProducer(producerId.value)
   if (result.success) {
@@ -185,16 +198,36 @@ function getMissionStatusClass(status: string): string {
             <h1 class="text-2xl font-bold text-gray-900" data-testid="producer-name">
               {{ producer.display_name }}
             </h1>
-            <span
-              class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium mt-1"
-              :class="getProducerTypeColor(producer.type)"
-            >
-              {{ getProducerTypeLabel(producer.type) }}
-            </span>
+            <div class="flex items-center gap-2 mt-1">
+              <span
+                class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                :class="getProducerTypeColor(producer.type)"
+              >
+                {{ getProducerTypeLabel(producer.type) }}
+              </span>
+              <span
+                class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                :class="producer.is_active !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
+                data-testid="status-badge"
+              >
+                {{ producer.is_active !== false ? 'Actif' : 'Inactif' }}
+              </span>
+            </div>
           </div>
         </div>
         <div class="flex items-center gap-2">
           <template v-if="!isEditing">
+            <button
+              @click="showToggleModal = true"
+              :disabled="isToggling"
+              class="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+              :class="producer.is_active !== false
+                ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                : 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100'"
+              data-testid="toggle-active-button"
+            >
+              {{ producer.is_active !== false ? 'Désactiver' : 'Activer' }}
+            </button>
             <button
               @click="startEdit"
               class="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 transition-colors"
@@ -203,7 +236,7 @@ function getMissionStatusClass(status: string): string {
               Modifier
             </button>
             <button
-              @click="handleDelete"
+              @click="showDeleteModal = true"
               class="inline-flex items-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
               data-testid="delete-button"
             >
@@ -458,5 +491,31 @@ function getMissionStatusClass(status: string): string {
         </section>
       </div>
     </template>
+
+    <!-- Toggle Active Confirmation Modal -->
+    <ConfirmModal
+      v-if="producer"
+      :is-open="showToggleModal"
+      :title="producer.is_active !== false ? 'Désactiver ce compte' : 'Réactiver ce compte'"
+      :message="producer.is_active !== false
+        ? `Êtes-vous sûr de vouloir désactiver le compte de ${producer.display_name} ? L'utilisateur ne pourra plus se connecter.`
+        : `Êtes-vous sûr de vouloir réactiver le compte de ${producer.display_name} ?`"
+      :confirm-text="producer.is_active !== false ? 'Désactiver' : 'Réactiver'"
+      variant="warning"
+      @confirm="confirmToggleActive"
+      @cancel="showToggleModal = false"
+    />
+
+    <!-- Delete Confirmation Modal -->
+    <ConfirmModal
+      v-if="producer"
+      :is-open="showDeleteModal"
+      title="Supprimer ce profil"
+      :message="`Êtes-vous sûr de vouloir supprimer le profil de ${producer.display_name} ? Cette action est irréversible.`"
+      confirm-text="Supprimer"
+      variant="danger"
+      @confirm="confirmDelete"
+      @cancel="showDeleteModal = false"
+    />
   </div>
 </template>

@@ -59,6 +59,7 @@ export interface AdminFaceData {
   created_at: string
   updated_at: string
   email?: string
+  is_active?: boolean
 }
 
 /**
@@ -137,6 +138,16 @@ export const adminFacesApi = {
     const response = await adminApiClient.put<AdminFaceDetailResponse>(
       `/admin/faces/${id}`,
       data,
+    )
+    return response.data
+  },
+
+  /**
+   * Toggle a face's account activation status
+   */
+  async toggleActive(id: number): Promise<AdminFaceDetailResponse> {
+    const response = await adminApiClient.patch<AdminFaceDetailResponse>(
+      `/admin/faces/${id}/toggle-active`,
     )
     return response.data
   },

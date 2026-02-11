@@ -24,10 +24,11 @@ import {
 import { useAdminFaces } from '@/features/admin/composables/useAdminFaces'
 import type { UpdateAdminFaceForm, AdminFacePhoto } from '@/features/admin/services/adminFacesApi'
 import { getCategoryLabel, getNicheLabel } from '@/features/admin/utils/faceLabels'
+import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 
 const route = useRoute()
 const router = useRouter()
-const { face, isLoading, error, fetchFace, updateFace, deleteFace } = useAdminFaces()
+const { face, isLoading, error, fetchFace, updateFace, toggleActive, deleteFace } = useAdminFaces()
 
 const faceId = computed(() => Number(route.params.id))
 const isEditing = ref(false)
@@ -35,6 +36,9 @@ const editForm = ref<UpdateAdminFaceForm>({})
 const editErrors = ref<Record<string, string[]>>({})
 const successMessage = ref('')
 const deleteError = ref('')
+const isToggling = ref(false)
+const showToggleModal = ref(false)
+const showDeleteModal = ref(false)
 
 // Lightbox state
 const lightboxModalRef = ref<HTMLDivElement | null>(null)
@@ -92,14 +96,23 @@ async function saveEdit(): Promise<void> {
   }
 }
 
-async function handleDelete(): Promise<void> {
-  if (!face.value) return
+async function confirmToggleActive(): Promise<void> {
+  showToggleModal.value = false
+  isToggling.value = true
+  const result = await toggleActive(faceId.value)
+  isToggling.value = false
 
-  const confirmed = window.confirm(
-    `Êtes-vous sûr de vouloir supprimer le profil de ${face.value.prenom} ${face.value.nom} ? Cette action est irréversible.`,
-  )
-  if (!confirmed) return
+  if (result.success) {
+    const action = face.value?.is_active !== false ? 'activé' : 'désactivé'
+    successMessage.value = result.message ?? `Compte ${action}`
+    setTimeout(() => {
+      successMessage.value = ''
+    }, 3000)
+  }
+}
 
+async function confirmDelete(): Promise<void> {
+  showDeleteModal.value = false
   deleteError.value = ''
   const result = await deleteFace(faceId.value)
   if (result.success) {
@@ -234,11 +247,31 @@ function closeVideoModal(): void {
             <h1 class="text-2xl font-bold text-gray-900" data-testid="face-name">
               {{ face.prenom }} {{ face.nom }}
             </h1>
-            <p class="text-sm text-gray-500">@{{ face.username }}</p>
+            <div class="flex items-center gap-2">
+              <p class="text-sm text-gray-500">@{{ face.username }}</p>
+              <span
+                class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                :class="face.is_active !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
+                data-testid="status-badge"
+              >
+                {{ face.is_active !== false ? 'Actif' : 'Inactif' }}
+              </span>
+            </div>
           </div>
         </div>
         <div class="flex items-center gap-2">
           <template v-if="!isEditing">
+            <button
+              @click="showToggleModal = true"
+              :disabled="isToggling"
+              class="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+              :class="face.is_active !== false
+                ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                : 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100'"
+              data-testid="toggle-active-button"
+            >
+              {{ face.is_active !== false ? 'Désactiver' : 'Activer' }}
+            </button>
             <button
               @click="startEdit"
               class="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 transition-colors"
@@ -247,7 +280,7 @@ function closeVideoModal(): void {
               Modifier
             </button>
             <button
-              @click="handleDelete"
+              @click="showDeleteModal = true"
               class="inline-flex items-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition-colors"
               data-testid="delete-button"
             >
@@ -764,6 +797,32 @@ function closeVideoModal(): void {
         </div>
       </div>
     </Teleport>
+
+    <!-- Toggle Active Confirmation Modal -->
+    <ConfirmModal
+      v-if="face"
+      :is-open="showToggleModal"
+      :title="face.is_active !== false ? 'Désactiver ce compte' : 'Réactiver ce compte'"
+      :message="face.is_active !== false
+        ? `Êtes-vous sûr de vouloir désactiver le compte de ${face.prenom} ${face.nom} ? L'utilisateur ne pourra plus se connecter.`
+        : `Êtes-vous sûr de vouloir réactiver le compte de ${face.prenom} ${face.nom} ?`"
+      :confirm-text="face.is_active !== false ? 'Désactiver' : 'Réactiver'"
+      variant="warning"
+      @confirm="confirmToggleActive"
+      @cancel="showToggleModal = false"
+    />
+
+    <!-- Delete Confirmation Modal -->
+    <ConfirmModal
+      v-if="face"
+      :is-open="showDeleteModal"
+      :title="'Supprimer ce profil'"
+      :message="`Êtes-vous sûr de vouloir supprimer le profil de ${face.prenom} ${face.nom} ? Cette action est irréversible.`"
+      confirm-text="Supprimer"
+      variant="danger"
+      @confirm="confirmDelete"
+      @cancel="showDeleteModal = false"
+    />
 
     <!-- Video Player Modal -->
     <Teleport to="body">
