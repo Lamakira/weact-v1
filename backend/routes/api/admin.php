@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminDashboardController;
 use App\Http\Controllers\Api\V1\Admin\ArticleController;
 use App\Http\Controllers\Api\V1\Admin\AuthController;
 use App\Http\Controllers\Api\V1\Admin\FaceController;
+use App\Http\Controllers\Api\V1\Admin\MissionController;
 use App\Http\Controllers\Api\V1\Admin\ProducerController;
 use Illuminate\Support\Facades\Route;
 
@@ -62,6 +63,10 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'admin'])->group(function
     Route::delete('/producers/{producer}', [ProducerController::class, 'destroy'])
         ->middleware('throttle:30,1')
         ->name('admin.producers.destroy');
+
+    // Mission management routes (read-only)
+    Route::get('/missions', [MissionController::class, 'index'])->name('admin.missions.index');
+    Route::get('/missions/{mission}', [MissionController::class, 'show'])->name('admin.missions.show');
 
     Route::post('/articles', [ArticleController::class, 'store'])
         ->middleware('throttle:30,1')
