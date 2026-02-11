@@ -178,7 +178,7 @@ function formatDate(dateString: string | null): string {
     <!-- Missions Table -->
     <div
       v-else-if="hasMissions"
-      class="overflow-hidden rounded-xl border border-gray-200 bg-white"
+      class="overflow-x-auto rounded-xl border border-gray-200 bg-white"
     >
       <table class="min-w-full divide-y divide-gray-200">
         <thead class="bg-gray-50">

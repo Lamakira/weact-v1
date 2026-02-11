@@ -15,10 +15,14 @@ use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
 use App\Models\Producer;
+use App\Services\Admin\AdminDashboardService;
 use Illuminate\Http\JsonResponse;
 
 class AdminDashboardController extends Controller
 {
+    public function __construct(
+        private readonly AdminDashboardService $dashboardService
+    ) {}
     /**
      * Get global platform KPIs for the admin dashboard.
      *
@@ -67,6 +71,32 @@ class AdminDashboardController extends Controller
         return response()->json([
             'data' => new AdminDashboardStatsResource($stats),
             'message' => 'Admin dashboard stats retrieved successfully',
+        ]);
+    }
+
+    /**
+     * Get time-windowed trend KPIs for the admin dashboard.
+     */
+    public function trends(): JsonResponse
+    {
+        $trends = $this->dashboardService->getTrends();
+
+        return response()->json([
+            'data' => $trends,
+            'message' => 'Dashboard trends retrieved successfully',
+        ]);
+    }
+
+    /**
+     * Get the 5 most recent platform events.
+     */
+    public function recentActivity(): JsonResponse
+    {
+        $activities = $this->dashboardService->getRecentActivity();
+
+        return response()->json([
+            'data' => $activities,
+            'message' => 'Recent activity retrieved successfully',
         ]);
     }
 }

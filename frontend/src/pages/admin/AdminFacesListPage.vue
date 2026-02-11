@@ -175,7 +175,7 @@ function formatDate(dateString: string): string {
     <!-- Faces Table -->
     <div
       v-else-if="hasFaces"
-      class="overflow-hidden rounded-xl border border-gray-200 bg-white"
+      class="overflow-x-auto rounded-xl border border-gray-200 bg-white"
       data-testid="faces-table"
     >
       <table class="min-w-full divide-y divide-gray-200">
