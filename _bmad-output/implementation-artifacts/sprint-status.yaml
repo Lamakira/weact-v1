@@ -197,7 +197,7 @@ development_status:
   13-5-admin-crud-producers: done
   13-6-admin-crud-admins: done
   13-7-admin-view-detailed-profiles: done
-  13-8-admin-view-all-missions: backlog
+  13-8-admin-view-all-missions: done
   13-9-admin-activate-deactivate-accounts: backlog
   13-10-admin-dashboard-layout: backlog
   epic-13-retrospective: optional
