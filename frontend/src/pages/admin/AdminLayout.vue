@@ -6,7 +6,7 @@
  * Child routes render via <router-view> in the content area.
  */
 import { computed } from 'vue'
-import { LayoutDashboard, FileText, Users, ShieldCheck } from 'lucide-vue-next'
+import { LayoutDashboard, FileText, Users, ShieldCheck, Briefcase } from 'lucide-vue-next'
 import { useAdminAuth } from '@/features/admin/composables/useAdminAuth'
 import { useAdminAuthStore } from '@/stores/adminAuth'
 import { DashboardLayout, type SidebarItem } from '@/components/layout'
@@ -20,6 +20,7 @@ const allSidebarItems: SidebarItem[] = [
   { label: 'Articles', icon: FileText, to: '/admin/articles' },
   { label: 'Admins', icon: ShieldCheck, to: '/admin/admins' },
   { label: 'Utilisateurs', icon: Users, to: '/admin/users' },
+  { label: 'Missions', icon: Briefcase, to: '/admin/missions' },
 ]
 
 const sidebarItems = computed(() =>

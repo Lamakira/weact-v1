@@ -291,6 +291,18 @@ const router = createRouter({
           component: () => import('../pages/admin/AdminProducerDetailPage.vue'),
           meta: { title: 'Détail Producteur - WEACT' },
         },
+        {
+          path: 'missions',
+          name: 'admin-missions-list',
+          component: () => import('../pages/admin/AdminMissionsListPage.vue'),
+          meta: { title: 'Gestion des Missions - WEACT' },
+        },
+        {
+          path: 'missions/:id',
+          name: 'admin-mission-detail',
+          component: () => import('../pages/admin/AdminMissionDetailPage.vue'),
+          meta: { title: 'Détail Mission - WEACT' },
+        },
       ],
     },
     // Public routes (no auth required)
