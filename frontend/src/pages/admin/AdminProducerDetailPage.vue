@@ -100,7 +100,9 @@ const missions = computed<AdminProducerMission[]>(() => producer.value?.missions
 const missionStatusCounts = computed(() => {
   const counts: Record<string, number> = { draft: 0, published: 0, closed: 0, completed: 0 }
   for (const m of missions.value) {
-    if (m.status in counts) counts[m.status]++
+    if (m.status in counts) {
+      counts[m.status] = (counts[m.status] ?? 0) + 1
+    }
   }
   return counts
 })
