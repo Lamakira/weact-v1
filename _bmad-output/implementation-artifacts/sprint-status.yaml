@@ -189,8 +189,8 @@ development_status:
   12-10-articles-frontend-pages: done
   epic-12-retrospective: optional
 
-  # Epic 13: Administration (11 stories)
-  epic-13: in-progress
+  # Epic 13: Administration (11 stories) - COMPLETE!
+  epic-13: done
   13-1-admin-authentication: done
   13-2-admin-create-other-admins: done
   13-3-admin-dashboard-kpis: done
@@ -202,5 +202,20 @@ development_status:
   13-9-admin-activate-deactivate-accounts: done
   13-10-admin-dashboard-layout: done
   13-11-admin-password-reset: done
-  epic-13-retrospective: optional
+  epic-13-retrospective: done
+
+  # ============================================
+  # POST-ROADMAP MAINTENANCE
+  # All 13 epics complete. Items below are from
+  # Epic 13 retrospective action items.
+  # ============================================
+
+  # Technical Debt & Cleanup
+  fix-frontend-test-failures: pending
+  eslint-unused-imports: pending
+  html-sanitization: pending
+  landing-page-real-data: pending
+
+  # Feature: Email Change with Re-verification (needs story file)
+  email-change-reverification: pending
 
