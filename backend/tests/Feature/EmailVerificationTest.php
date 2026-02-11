@@ -24,7 +24,7 @@ class EmailVerificationTest extends TestCase
     {
         parent::setUp();
         Notification::fake();
-        Event::fake();
+        Event::fake([Verified::class]);
     }
 
     // === Verification Status Tests ===

@@ -104,6 +104,7 @@ class MissionSchemaTest extends TestCase
         $missionId = \DB::table('missions')->insertGetId([
             'producer_id' => $producer->id,
             'titre' => 'Direct Insert Test',
+            'slug' => 'direct-insert-test',
             'description' => 'Test description',
             'date_tournage' => now()->addMonth(),
             'profil_recherche' => 'Test profile',
