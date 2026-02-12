@@ -5,7 +5,6 @@ import PasswordChangeForm from '../PasswordChangeForm.vue'
 
 // Mock usePasswordChange composable
 const mockIsLoading = ref(false)
-const mockIsSuccess = ref(false)
 const mockError = ref<string | null>(null)
 const mockFieldErrors = ref<Record<string, string[]>>({})
 const mockChangePassword = vi.fn()
@@ -14,7 +13,6 @@ const mockClearError = vi.fn()
 vi.mock('../../composables/usePasswordChange', () => ({
   usePasswordChange: () => ({
     isLoading: mockIsLoading,
-    isSuccess: mockIsSuccess,
     error: mockError,
     fieldErrors: mockFieldErrors,
     changePassword: mockChangePassword,
@@ -65,7 +63,6 @@ describe('PasswordChangeForm', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockIsLoading.value = false
-    mockIsSuccess.value = false
     mockError.value = null
     mockFieldErrors.value = {}
     mockChangePassword.mockResolvedValue(true)

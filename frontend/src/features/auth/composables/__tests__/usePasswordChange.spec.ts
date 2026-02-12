@@ -33,22 +33,20 @@ describe('usePasswordChange', () => {
   })
 
   it('has correct initial state', () => {
-    const { isLoading, isSuccess, error, fieldErrors } = usePasswordChange()
+    const { isLoading, error, fieldErrors } = usePasswordChange()
 
     expect(isLoading.value).toBe(false)
-    expect(isSuccess.value).toBe(false)
     expect(error.value).toBeNull()
     expect(fieldErrors.value).toEqual({})
   })
 
-  it('returns true and sets isSuccess on success', async () => {
+  it('returns true on success', async () => {
     mockedApi.changePassword.mockResolvedValue({ password_changed: true })
 
-    const { changePassword, isSuccess } = usePasswordChange()
+    const { changePassword } = usePasswordChange()
     const result = await changePassword('old', 'New1234567', 'New1234567')
 
     expect(result).toBe(true)
-    expect(isSuccess.value).toBe(true)
     expect(mockedApi.changePassword).toHaveBeenCalledWith('old', 'New1234567', 'New1234567')
   })
 

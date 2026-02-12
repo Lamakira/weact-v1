@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useForm, useField } from 'vee-validate'
-import { toTypedSchema } from '@vee-validate/zod'
-import { z } from 'zod'
 import { Lock, Loader2 } from 'lucide-vue-next'
 import { FloatingField } from '@/components/ui/form'
+import { passwordChangeValidationSchema } from '../schemas/passwordChange'
 import { usePasswordChange } from '../composables/usePasswordChange'
 import { useToast } from '@/composables/useToast'
 
@@ -19,31 +18,8 @@ const {
 const toast = useToast()
 const showForm = ref(false)
 
-const passwordChangeSchema = z
-  .object({
-    current_password: z
-      .string({ message: 'Le mot de passe actuel est obligatoire' })
-      .min(1, 'Le mot de passe actuel est obligatoire'),
-    new_password: z
-      .string({ message: 'Le nouveau mot de passe est obligatoire' })
-      .min(8, 'Le mot de passe doit contenir au moins 8 caractères')
-      .regex(/[A-Z]/, 'Le mot de passe doit contenir au moins une majuscule')
-      .regex(/\d/, 'Le mot de passe doit contenir au moins un chiffre'),
-    new_password_confirmation: z
-      .string({ message: 'La confirmation est obligatoire' })
-      .min(1, 'La confirmation est obligatoire'),
-  })
-  .refine((data) => data.new_password !== data.current_password, {
-    message: 'Le nouveau mot de passe doit être différent de l\'ancien',
-    path: ['new_password'],
-  })
-  .refine((data) => data.new_password === data.new_password_confirmation, {
-    message: 'Les mots de passe ne correspondent pas',
-    path: ['new_password_confirmation'],
-  })
-
 const { handleSubmit, resetForm, setFieldError } = useForm({
-  validationSchema: toTypedSchema(passwordChangeSchema),
+  validationSchema: passwordChangeValidationSchema,
   initialValues: {
     current_password: '',
     new_password: '',
