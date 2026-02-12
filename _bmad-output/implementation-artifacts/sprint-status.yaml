@@ -212,7 +212,7 @@ development_status:
 
   # Technical Debt & Cleanup
   fix-frontend-test-failures: done
-  eslint-unused-imports: pending
+  eslint-unused-imports: done
   html-sanitization: pending
   landing-page-real-data: pending
 
