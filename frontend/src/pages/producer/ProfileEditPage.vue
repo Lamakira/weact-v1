@@ -14,6 +14,7 @@ import ProducerProfilePhotoUpload from '@/features/producer/components/ProducerP
 import ProducerBioEditor from '@/features/producer/components/ProducerBioEditor.vue'
 import AgencyLogoUpload from '@/features/producer/components/AgencyLogoUpload.vue'
 import BasicInfoSection from '@/features/producer/components/BasicInfoSection.vue'
+import EmailChangeForm from '@/features/auth/components/EmailChangeForm.vue'
 
 const {
   profile,
@@ -228,6 +229,10 @@ async function handleBioSave(newBio: string | null): Promise<void> {
               </dd>
             </div>
           </dl>
+
+          <div class="mt-4 pt-4 border-t border-gray-100">
+            <EmailChangeForm />
+          </div>
         </div>
       </div>
     </div>

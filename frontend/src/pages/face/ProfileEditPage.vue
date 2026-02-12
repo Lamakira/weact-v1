@@ -27,6 +27,7 @@ import AvailabilityToggle from '@/features/face/components/AvailabilityToggle.vu
 import ProfileCompletionIndicator from '@/features/face/components/ProfileCompletionIndicator.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import BasicInfoSection from '@/features/face/components/BasicInfoSection.vue'
+import EmailChangeForm from '@/features/auth/components/EmailChangeForm.vue'
 import type { FaceCategory, FaceNiche, ExperienceFormData, TarifsFormData } from '@/features/face/types'
 const {
   profile,
@@ -560,6 +561,11 @@ function handleCompletionItemClick(itemKey: string): void {
         <!-- Basic info section (name/username) -->
         <div class="mb-6">
           <BasicInfoSection />
+        </div>
+
+        <!-- Email change section -->
+        <div class="mb-6 bg-white rounded-2xl border border-gray-100 px-6 py-4">
+          <EmailChangeForm />
         </div>
 
         <!-- Main form sections -->

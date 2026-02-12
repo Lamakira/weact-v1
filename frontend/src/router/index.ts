@@ -113,6 +113,12 @@ const router = createRouter({
       component: () => import('../pages/auth/VerifyEmailPage.vue'),
       // No auth required - user may click link when logged out
     },
+    {
+      path: '/email-change/confirm/:id/:hash',
+      name: 'email-change-confirm',
+      component: () => import('../pages/auth/EmailChangeConfirmPage.vue'),
+      // No auth required - works via signed URL
+    },
     // Face routes (auth required + Face role) - nested under FaceLayout
     {
       path: '/face',
