@@ -218,5 +218,6 @@ development_status:
 
   # Epic 14: Post-Roadmap Features
   epic-14: in-progress
-  14-1-email-change-reverification: review
+  14-1-email-change-reverification: done
+  14-2-user-password-change: done
 
