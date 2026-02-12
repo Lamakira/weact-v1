@@ -109,7 +109,7 @@ async function handleCancel(): Promise<void> {
     >
       <!-- Error message -->
       <div
-        v-if="error && Object.keys(fieldErrors).length === 0"
+        v-if="error && Object.keys(fieldErrors ?? {}).length === 0"
         class="rounded-xl bg-red-50 border border-red-200 p-3"
         data-testid="form-error"
       >
@@ -127,12 +127,12 @@ async function handleCancel(): Promise<void> {
           type="email"
           required
           class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-          :class="{ 'border-red-300': fieldErrors.email }"
+          :class="{ 'border-red-300': fieldErrors?.email }"
           placeholder="nouvelle@example.com"
           data-testid="new-email-input"
         />
         <p
-          v-if="fieldErrors.email"
+          v-if="fieldErrors?.email"
           class="mt-1 text-xs text-red-600"
           data-testid="email-error"
         >
@@ -151,12 +151,12 @@ async function handleCancel(): Promise<void> {
           type="password"
           required
           class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-          :class="{ 'border-red-300': fieldErrors.password }"
+          :class="{ 'border-red-300': fieldErrors?.password }"
           placeholder="Votre mot de passe"
           data-testid="password-input"
         />
         <p
-          v-if="fieldErrors.password"
+          v-if="fieldErrors?.password"
           class="mt-1 text-xs text-red-600"
           data-testid="password-error"
         >

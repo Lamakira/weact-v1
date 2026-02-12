@@ -49,7 +49,7 @@ const onSubmit = handleSubmit(async (values) => {
   } else if (fieldErrors.value) {
     Object.entries(fieldErrors.value).forEach(([field, messages]) => {
       if (messages && messages.length > 0) {
-        setFieldError(field, messages[0])
+        setFieldError(field as 'current_password' | 'new_password' | 'new_password_confirmation', messages[0])
       }
     })
   }
