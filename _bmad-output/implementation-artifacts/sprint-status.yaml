@@ -214,7 +214,7 @@ development_status:
   fix-frontend-test-failures: done
   eslint-unused-imports: done
   html-sanitization: done
-  landing-page-real-data: pending
+  landing-page-real-data: done
 
   # Feature: Email Change with Re-verification (needs story file)
   email-change-reverification: pending
