@@ -211,7 +211,7 @@ development_status:
   # ============================================
 
   # Technical Debt & Cleanup
-  fix-frontend-test-failures: pending
+  fix-frontend-test-failures: done
   eslint-unused-imports: pending
   html-sanitization: pending
   landing-page-real-data: pending
