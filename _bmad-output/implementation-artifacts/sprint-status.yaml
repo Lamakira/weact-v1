@@ -216,6 +216,7 @@ development_status:
   html-sanitization: done
   landing-page-real-data: done
 
-  # Feature: Email Change with Re-verification (needs story file)
-  email-change-reverification: pending
+  # Epic 14: Post-Roadmap Features
+  epic-14: in-progress
+  14-1-email-change-reverification: review
 
