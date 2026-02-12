@@ -1,50 +1,43 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { Zap } from 'lucide-vue-next'
+import type { LandingFace } from '@/features/landing/types'
+
+const props = defineProps<{
+  profiles: LandingFace[]
+  totalCount?: number
+}>()
 
 // --- Carousel Pause State ---
 const isPaused = ref(false)
 
-// --- Mock Profiles (to be replaced with API data) ---
-const mockProfiles = [
-  {
-    id: 1,
-    name: 'Kofi',
-    age: 28,
-    img: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=200&h=250',
-  },
-  {
-    id: 2,
-    name: 'Amina',
-    age: 23,
-    img: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&q=80&w=200&h=250',
-  },
-  {
-    id: 3,
-    name: 'Fatou',
-    age: 35,
-    img: 'https://images.unsplash.com/photo-1523824921871-d6f1a15151f1?auto=format&fit=crop&q=80&w=200&h=250',
-  },
-  {
-    id: 4,
-    name: 'Malik',
-    age: 19,
-    img: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200&h=250',
-  },
-  {
-    id: 5,
-    name: 'Zara',
-    age: 27,
-    img: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200&h=250',
-  },
-  {
-    id: 6,
-    name: 'Aliou',
-    age: 31,
-    img: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200&h=250',
-  },
-]
+// --- Dynamic card repetition to fill the marquee track ---
+const CARD_SLOT_PX = 232 // 200px card + 32px gap
+const MIN_SET_WIDTH = 1600 // minimum width (px) for one set to fill viewport
+
+const marqueeProfiles = computed(() => {
+  if (props.profiles.length === 0) return []
+  const singleSetWidth = props.profiles.length * CARD_SLOT_PX
+  const repeats = Math.max(1, Math.ceil(MIN_SET_WIDTH / singleSetWidth))
+  const oneSet: LandingFace[] = []
+  for (let i = 0; i < repeats; i++) {
+    oneSet.push(...props.profiles)
+  }
+  return oneSet
+})
+
+// Scale animation duration: ~3s per card in one set, minimum 15s
+const marqueeSpeed = computed(() => {
+  return `${Math.max(15, marqueeProfiles.value.length * 3)}s`
+})
+
+const countDisplay = computed((): string | null => {
+  if (props.totalCount && props.totalCount > 20) {
+    return `+${props.totalCount} faces ont déjà rejoint l'aventure`
+  }
+  return null
+})
 </script>
 
 <template>
@@ -83,11 +76,12 @@ const mockProfiles = [
       <div
         class="flex animate-marquee gap-8"
         :class="{ 'paused': isPaused }"
+        :style="{ animationDuration: marqueeSpeed }"
       >
-        <!-- First set -->
+        <!-- First set (repeated to fill viewport) -->
         <div
-          v-for="profile in mockProfiles"
-          :key="profile.id"
+          v-for="(profile, idx) in marqueeProfiles"
+          :key="`a-${idx}`"
           class="flex-shrink-0 w-[200px] transition-all duration-300 hover:scale-105"
           @mouseenter="isPaused = true"
           @mouseleave="isPaused = false"
@@ -96,24 +90,22 @@ const mockProfiles = [
             class="relative group/card aspect-[4/5] overflow-hidden rounded-2xl border border-gray-100 shadow-md hover:border-[#198496]/50 hover:shadow-2xl transition-all"
           >
             <img
-              :src="profile.img"
-              :alt="profile.name"
+              :src="profile.profile_photo_url ?? profile.profile_photo_thumbnail_url ?? ''"
+              :alt="profile.prenom"
               class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-110"
               loading="lazy"
             />
-            <!-- Gradient overlay -->
             <div class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 to-transparent" />
-            <!-- Info -->
             <div class="absolute inset-x-0 bottom-0 p-4 text-left">
-              <p class="font-bold text-white">{{ profile.name }}</p>
-              <p class="text-sm text-white/70">{{ profile.age }} ans</p>
+              <p class="font-bold text-white">{{ profile.prenom }}</p>
+              <p class="text-sm text-white/70">{{ profile.categorie_label }}</p>
             </div>
           </div>
         </div>
         <!-- Duplicate set for seamless loop -->
         <div
-          v-for="profile in mockProfiles"
-          :key="`dup-${profile.id}`"
+          v-for="(profile, idx) in marqueeProfiles"
+          :key="`b-${idx}`"
           class="flex-shrink-0 w-[200px] transition-all duration-300 hover:scale-105"
           @mouseenter="isPaused = true"
           @mouseleave="isPaused = false"
@@ -122,17 +114,15 @@ const mockProfiles = [
             class="relative group/card aspect-[4/5] overflow-hidden rounded-2xl border border-gray-100 shadow-md hover:border-[#198496]/50 hover:shadow-2xl transition-all"
           >
             <img
-              :src="profile.img"
-              :alt="profile.name"
+              :src="profile.profile_photo_url ?? profile.profile_photo_thumbnail_url ?? ''"
+              :alt="profile.prenom"
               class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-110"
               loading="lazy"
             />
-            <!-- Gradient overlay -->
             <div class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 to-transparent" />
-            <!-- Info -->
             <div class="absolute inset-x-0 bottom-0 p-4 text-left">
-              <p class="font-bold text-white">{{ profile.name }}</p>
-              <p class="text-sm text-white/70">{{ profile.age }} ans</p>
+              <p class="font-bold text-white">{{ profile.prenom }}</p>
+              <p class="text-sm text-white/70">{{ profile.categorie_label }}</p>
             </div>
           </div>
         </div>
@@ -148,7 +138,9 @@ const mockProfiles = [
       >
         Je crée mon profil
       </RouterLink>
-      <p class="mt-4 text-sm text-gray-500 font-medium">+500 faces ont déjà rejoint l'aventure</p>
+      <p v-if="countDisplay" class="mt-4 text-sm text-gray-500 font-medium" data-testid="faces-count">
+        {{ countDisplay }}
+      </p>
     </div>
   </section>
 </template>

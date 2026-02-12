@@ -15,18 +15,6 @@ export interface Feature {
   description: string
 }
 
-export interface Mission {
-  id: number
-  type: string
-  typeColor: string
-  title: string
-  description: string
-  price: string
-  location: string
-  status: 'available' | 'urgent' | 'in_progress'
-  img: string
-}
-
 export interface LandingContent {
   howItWorks: {
     title: string

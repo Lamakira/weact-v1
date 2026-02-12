@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import { MapPin, ChevronRight, ChevronLeft, CheckCircle } from 'lucide-vue-next'
+import { MapPin, ChevronRight, ChevronLeft } from 'lucide-vue-next'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // Landing page components
 import HeroFace from '@/components/landing/HeroFace.vue'
@@ -12,7 +13,11 @@ import PerspectiveToggle from '@/components/landing/PerspectiveToggle.vue'
 
 // Content configuration
 import { getContent } from '@/components/landing/content'
-import type { Perspective, Mission } from '@/components/landing/types'
+import type { Perspective } from '@/components/landing/types'
+
+// Composables for real data
+import { useLandingMissions } from '@/features/landing/composables/useLandingMissions'
+import { useLandingFaces } from '@/features/landing/composables/useLandingFaces'
 
 // --- Perspective State ---
 const perspective = ref<Perspective>('face')
@@ -29,8 +34,29 @@ function handleScroll(): void {
   isToggleSticky.value = rect.top <= 64
 }
 
+// --- Real Data from API ---
+const {
+  missions,
+  isLoading: isLoadingMissions,
+  error: missionsError,
+  fetchMissions,
+  retry: retryMissions,
+} = useLandingMissions()
+
+const {
+  faces,
+  isLoading: isLoadingFaces,
+  totalCount: facesCount,
+  fetchFaces,
+} = useLandingFaces()
+
+const hasMissions = computed(() => missions.value.length > 0)
+const hasFaces = computed(() => faces.value.length > 0)
+
 onMounted(() => {
   window.addEventListener('scroll', handleScroll, { passive: true })
+  fetchMissions()
+  fetchFaces()
 })
 
 onUnmounted(() => {
@@ -42,10 +68,6 @@ const heroComponent = computed(() => (perspective.value === 'face' ? HeroFace : 
 const showcaseComponent = computed(() =>
   perspective.value === 'face' ? FacesCarousel : TalentsShowcase
 )
-
-// --- Loading States (for future API integration) ---
-const isLoadingMissions = ref(false)
-const missionsError = ref<string | null>(null)
 
 // --- Mobile Missions Carousel State ---
 const missionCarouselIndex = ref(0)
@@ -61,103 +83,29 @@ function scrollToMission(index: number): void {
 }
 
 function nextMission(): void {
-  const nextIndex = (missionCarouselIndex.value + 1) % 6
+  const total = missions.value.length
+  if (total === 0) return
+  const nextIndex = (missionCarouselIndex.value + 1) % total
   scrollToMission(nextIndex)
 }
 
 function prevMission(): void {
-  const prevIndex = missionCarouselIndex.value === 0 ? 5 : missionCarouselIndex.value - 1
+  const total = missions.value.length
+  if (total === 0) return
+  const prevIndex = missionCarouselIndex.value === 0 ? total - 1 : missionCarouselIndex.value - 1
   scrollToMission(prevIndex)
 }
 
 function handleMissionScroll(): void {
   if (!missionCarouselRef.value) return
   const scrollLeft = missionCarouselRef.value.scrollLeft
-  const cardWidth = missionCarouselRef.value.offsetWidth * 0.85 + 16 // card width + gap
+  const cardWidth = missionCarouselRef.value.offsetWidth * 0.85 + 16
   const newIndex = Math.round(scrollLeft / cardWidth)
-  missionCarouselIndex.value = Math.min(Math.max(newIndex, 0), 5)
+  missionCarouselIndex.value = Math.min(Math.max(newIndex, 0), missions.value.length - 1)
 }
 
-// --- Mock Missions Data (to be replaced with API calls) ---
-const mockMissions: Mission[] = [
-  {
-    id: 1,
-    type: 'FILM',
-    typeColor: 'bg-pink-500 text-white',
-    title: 'Court métrage Dramatique',
-    description: 'Recherche acteurs pour court métrage dramatique tourné à Cotonou.',
-    price: '120 000 FCFA',
-    location: 'Cotonou',
-    status: 'available',
-    img: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&q=80&w=600',
-  },
-  {
-    id: 2,
-    type: 'PUB',
-    typeColor: 'bg-purple-500 text-white',
-    title: 'Publicité Téléphone Mobile',
-    description: 'Casting pour une publicité télévisée nationale.',
-    price: '75 000 FCFA',
-    location: 'Porto-Novo',
-    status: 'urgent',
-    img: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&q=80&w=600',
-  },
-  {
-    id: 3,
-    type: 'CLIP',
-    typeColor: 'bg-blue-500 text-white',
-    title: 'Clip Musical Afrobeat',
-    description: "Figurants pour clip musical d'un artiste béninois.",
-    price: '50 000 FCFA',
-    location: 'Ouidah',
-    status: 'available',
-    img: 'https://images.unsplash.com/photo-1514525253361-bee8a19740c1?auto=format&fit=crop&q=80&w=600',
-  },
-  {
-    id: 4,
-    type: 'PUB',
-    typeColor: 'bg-purple-500 text-white',
-    title: 'Vidéo Promotionnelle',
-    description: 'Tournage vidéo promotionnelle pour une marque locale.',
-    price: '45 000 FCFA',
-    location: 'Abomey-Calavi',
-    status: 'in_progress',
-    img: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?auto=format&fit=crop&q=80&w=600',
-  },
-  {
-    id: 5,
-    type: 'FILM',
-    typeColor: 'bg-pink-500 text-white',
-    title: 'Série Web',
-    description: 'Casting pour nouvelle série web diffusée en streaming.',
-    price: '95 000 FCFA',
-    location: 'Cotonou',
-    status: 'available',
-    img: 'https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&q=80&w=600',
-  },
-  {
-    id: 6,
-    type: 'CLIP',
-    typeColor: 'bg-blue-500 text-white',
-    title: 'Shooting Photo Mode',
-    description: 'Modèles recherchés pour shooting photo professionnel.',
-    price: '80 000 FCFA',
-    location: 'Grand-Popo',
-    status: 'available',
-    img: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&q=80&w=600',
-  },
-]
-
-// --- Status Badge Helper ---
-function getStatusBadge(status: string): { class: string; label: string } {
-  switch (status) {
-    case 'urgent':
-      return { class: 'bg-red-500/10 text-red-600 border-red-500/30', label: 'Urgent' }
-    case 'in_progress':
-      return { class: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/30', label: 'En cours' }
-    default:
-      return { class: 'bg-green-500/10 text-green-600 border-green-500/30', label: 'Ouvert' }
-  }
+function formatBudget(budget: number): string {
+  return new Intl.NumberFormat('fr-FR').format(budget) + ' FCFA'
 }
 </script>
 
@@ -420,12 +368,46 @@ function getStatusBadge(status: string): { class: string; label: string } {
     </section>
 
     <!-- ===== SECTION 3: FACES/TALENTS SHOWCASE (Component-based - different per perspective) ===== -->
-    <Transition name="perspective" mode="out-in">
-      <component :is="showcaseComponent" :key="perspective" />
-    </Transition>
+    <!-- Loading State -->
+    <div
+      v-if="isLoadingFaces"
+      class="py-10 lg:py-12"
+      data-testid="faces-loading"
+    >
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+          <Skeleton class="h-4 w-32 mx-auto mb-4" />
+          <Skeleton class="h-10 w-64 mx-auto mb-4" />
+          <Skeleton class="h-5 w-80 mx-auto" />
+        </div>
+        <div class="flex gap-8 overflow-hidden">
+          <div v-for="i in 6" :key="`face-skeleton-${i}`" class="flex-shrink-0 w-[200px]">
+            <Skeleton class="aspect-[4/5] rounded-2xl" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Faces/Talents Content (only if data exists) -->
+    <template v-else-if="hasFaces">
+      <Transition name="perspective" mode="out-in">
+        <component
+          :is="showcaseComponent"
+          :key="perspective"
+          v-bind="perspective === 'face'
+            ? { profiles: faces, totalCount: facesCount }
+            : { talents: faces, totalCount: facesCount }"
+        />
+      </Transition>
+    </template>
 
     <!-- ===== SECTION 4: MISSIONS EN COURS (Data-driven) ===== -->
-    <section id="missions" class="py-10 bg-gray-50">
+    <section
+      v-if="isLoadingMissions || missionsError || hasMissions"
+      id="missions"
+      class="py-10 bg-gray-50"
+      data-testid="missions-section"
+    >
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header -->
         <div class="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
@@ -457,16 +439,16 @@ function getStatusBadge(status: string): { class: string; label: string } {
           <div
             v-for="i in 6"
             :key="`skeleton-${i}`"
-            class="bg-white rounded-2xl border border-gray-200 overflow-hidden animate-pulse"
+            class="bg-white rounded-2xl border border-gray-200 overflow-hidden"
           >
-            <div class="h-56 bg-gray-200"></div>
+            <Skeleton class="h-56 w-full" />
             <div class="p-6 space-y-4">
-              <div class="h-6 bg-gray-200 rounded w-3/4"></div>
-              <div class="h-4 bg-gray-200 rounded w-full"></div>
-              <div class="h-4 bg-gray-200 rounded w-2/3"></div>
+              <Skeleton class="h-6 w-3/4" />
+              <Skeleton class="h-4 w-full" />
+              <Skeleton class="h-4 w-2/3" />
               <div class="flex justify-between pt-4 border-t border-gray-100">
-                <div class="h-4 bg-gray-200 rounded w-24"></div>
-                <div class="h-6 bg-gray-200 rounded w-16"></div>
+                <Skeleton class="h-4 w-24" />
+                <Skeleton class="h-6 w-16" />
               </div>
             </div>
           </div>
@@ -475,7 +457,11 @@ function getStatusBadge(status: string): { class: string; label: string } {
         <!-- Error State -->
         <div v-else-if="missionsError" class="text-center py-12" data-testid="missions-error">
           <p class="text-red-600 mb-4">{{ missionsError }}</p>
-          <button class="text-[#198496] font-medium hover:underline" @click="missionsError = null">
+          <button
+            class="text-[#198496] font-medium hover:underline"
+            @click="retryMissions"
+            data-testid="missions-retry"
+          >
             Réessayer
           </button>
         </div>
@@ -490,63 +476,48 @@ function getStatusBadge(status: string): { class: string; label: string } {
               @scroll="handleMissionScroll"
               data-testid="missions-carousel-mobile"
             >
-              <div
-                v-for="mission in mockMissions"
+              <RouterLink
+                v-for="mission in missions"
                 :key="mission.id"
+                :to="{ name: 'public-mission-detail', params: { slug: mission.slug } }"
                 data-mission-card
                 class="group flex-shrink-0 w-[85%] snap-center bg-white rounded-2xl border border-gray-200 overflow-hidden"
                 :data-testid="`mission-card-mobile-${mission.id}`"
               >
-                <!-- Image -->
-                <div class="relative h-48 overflow-hidden">
-                  <img
-                    :src="mission.img"
-                    :alt="mission.title"
-                    class="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                  <!-- Type Badge -->
-                  <div class="absolute top-3 left-3">
-                    <span :class="[mission.typeColor, 'text-xs font-bold px-3 py-1 rounded-full']">{{
-                      mission.type
-                    }}</span>
+                <!-- Type Badge & Budget -->
+                <div class="p-5 pb-3">
+                  <div class="flex items-center justify-between mb-3">
+                    <span class="text-xs font-bold px-3 py-1 rounded-full bg-[#198496]/10 text-[#198496]">
+                      {{ mission.type_mission_label }}
+                    </span>
+                    <span class="text-sm font-bold text-[#198496]">
+                      {{ formatBudget(mission.budget) }}
+                    </span>
                   </div>
-                  <!-- Price Badge -->
-                  <div
-                    class="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-md"
-                  >
-                    <span class="text-sm font-bold text-[#198496]">{{ mission.price }}</span>
-                  </div>
-                </div>
 
-                <!-- Content -->
-                <div class="p-5">
                   <h3 class="text-lg font-bold text-gray-900 mb-1.5">
-                    {{ mission.title }}
+                    {{ mission.titre }}
                   </h3>
-                  <p class="text-gray-600 text-sm leading-relaxed mb-3 line-clamp-2">{{ mission.description }}</p>
+                  <p class="text-gray-600 text-sm leading-relaxed mb-3 line-clamp-2">
+                    {{ mission.description }}
+                  </p>
 
                   <!-- Metadata -->
                   <div class="flex items-center justify-between pt-3 border-t border-gray-100">
                     <div class="flex items-center gap-1.5 text-sm text-gray-500">
                       <MapPin class="w-4 h-4 text-[#198496]" />
-                      {{ mission.location }}
+                      {{ mission.lieu }}
                     </div>
-                    <span
-                      :class="[
-                        getStatusBadge(mission.status).class,
-                        'text-xs font-medium px-2 py-1 rounded-full border',
-                      ]"
-                    >
-                      {{ getStatusBadge(mission.status).label }}
+                    <span class="text-xs font-medium px-2 py-1 rounded-full border bg-green-500/10 text-green-600 border-green-500/30">
+                      {{ mission.status_label }}
                     </span>
                   </div>
                 </div>
-              </div>
+              </RouterLink>
             </div>
 
             <!-- Mobile Navigation -->
-            <div class="flex items-center justify-center gap-6 mt-6">
+            <div v-if="missions.length > 1" class="flex items-center justify-center gap-6 mt-6">
               <button
                 @click="prevMission"
                 class="w-10 h-10 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:border-[#198496] hover:text-[#198496] transition-colors"
@@ -558,7 +529,7 @@ function getStatusBadge(status: string): { class: string; label: string } {
               <!-- Dots Indicator -->
               <div class="flex items-center gap-2">
                 <button
-                  v-for="(_, index) in mockMissions"
+                  v-for="(_, index) in missions"
                   :key="index"
                   @click="scrollToMission(index)"
                   :class="[
@@ -583,40 +554,28 @@ function getStatusBadge(status: string): { class: string; label: string } {
 
           <!-- Desktop: Grid Layout -->
           <div class="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
-            <div
-              v-for="mission in mockMissions"
+            <RouterLink
+              v-for="mission in missions"
               :key="mission.id"
+              :to="{ name: 'public-mission-detail', params: { slug: mission.slug } }"
               class="group bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-[#198496]/50 hover:scale-[1.02] hover:shadow-xl transition-all duration-300"
               :data-testid="`mission-card-${mission.id}`"
             >
-              <!-- Image -->
-              <div class="relative h-56 overflow-hidden">
-                <img
-                  :src="mission.img"
-                  :alt="mission.title"
-                  class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  loading="lazy"
-                />
-                <!-- Type Badge -->
-                <div class="absolute top-4 left-4">
-                  <span :class="[mission.typeColor, 'text-xs font-bold px-3 py-1 rounded-full']">{{
-                    mission.type
-                  }}</span>
-                </div>
-                <!-- Price Badge -->
-                <div
-                  class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full shadow-md"
-                >
-                  <span class="text-sm font-bold text-[#198496]">{{ mission.price }}</span>
-                </div>
-              </div>
-
-              <!-- Content -->
+              <!-- Type Badge & Budget -->
               <div class="p-6">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-xs font-bold px-3 py-1 rounded-full bg-[#198496]/10 text-[#198496]">
+                    {{ mission.type_mission_label }}
+                  </span>
+                  <span class="text-sm font-bold text-[#198496]">
+                    {{ formatBudget(mission.budget) }}
+                  </span>
+                </div>
+
                 <h3
                   class="text-xl font-bold text-gray-900 mb-2 group-hover:text-[#198496] transition-colors"
                 >
-                  {{ mission.title }}
+                  {{ mission.titre }}
                 </h3>
                 <p class="text-gray-600 text-sm leading-relaxed mb-4">{{ mission.description }}</p>
 
@@ -624,19 +583,14 @@ function getStatusBadge(status: string): { class: string; label: string } {
                 <div class="flex items-center justify-between pt-4 border-t border-gray-100">
                   <div class="flex items-center gap-1.5 text-sm text-gray-500">
                     <MapPin class="w-4 h-4 text-[#198496]" />
-                    {{ mission.location }}
+                    {{ mission.lieu }}
                   </div>
-                  <span
-                    :class="[
-                      getStatusBadge(mission.status).class,
-                      'text-xs font-medium px-2 py-1 rounded-full border',
-                    ]"
-                  >
-                    {{ getStatusBadge(mission.status).label }}
+                  <span class="text-xs font-medium px-2 py-1 rounded-full border bg-green-500/10 text-green-600 border-green-500/30">
+                    {{ mission.status_label }}
                   </span>
                 </div>
               </div>
-            </div>
+            </RouterLink>
           </div>
         </div>
       </div>
@@ -734,7 +688,9 @@ function getStatusBadge(status: string): { class: string; label: string } {
           <div
             class="bg-gray-50 border border-gray-100 px-6 py-3 rounded-full flex items-center gap-3"
           >
-            <CheckCircle class="w-5 h-5 text-green-500" />
+            <svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
             <span class="text-sm font-bold text-gray-900">{{ content.whyWeact.certifiedText }}</span>
           </div>
           <p class="mt-4 text-sm text-gray-500 text-center max-w-2xl">

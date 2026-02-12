@@ -1,68 +1,42 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ArrowRight, Zap } from 'lucide-vue-next'
+import type { LandingFace } from '@/features/landing/types'
 
-// Shared constant for talent count display
-const TALENT_COUNT_DISPLAY = '+500 talents'
+const props = defineProps<{
+  talents: LandingFace[]
+  totalCount?: number
+}>()
 
-interface Talent {
-  id: number
-  name: string
-  category: string
-  img: string
-}
+// --- Dynamic card repetition to fill the marquee track ---
+// Cards are responsive: 160px (sm), 240px (md), 300px (lg) + 32px gap
+// Use the largest card size for worst-case calculation
+const CARD_SLOT_PX = 332 // 300px card + 32px gap
+const MIN_SET_WIDTH = 1800 // minimum width (px) for one set
 
-// --- Mock Talents (to be replaced with API data) ---
-const mockTalents: Talent[] = [
-  {
-    id: 1,
-    name: 'Adjoua',
-    category: 'Actrice',
-    img: 'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&q=80&w=300&h=300',
-  },
-  {
-    id: 2,
-    name: 'Koffi',
-    category: 'Influenceur',
-    img: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=300&h=300',
-  },
-  {
-    id: 3,
-    name: 'Aïcha',
-    category: 'Mannequin',
-    img: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=300&h=300',
-  },
-  {
-    id: 4,
-    name: 'Moussa',
-    category: 'Créateur',
-    img: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=300&h=300',
-  },
-  {
-    id: 5,
-    name: 'Fatou',
-    category: 'Figurant',
-    img: 'https://images.unsplash.com/photo-1523824921871-d6f1a15151f1?auto=format&fit=crop&q=80&w=300&h=300',
-  },
-  {
-    id: 6,
-    name: 'Ibrahim',
-    category: 'Acteur',
-    img: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=300&h=300',
-  },
-  {
-    id: 7,
-    name: 'Mariama',
-    category: 'Influenceuse',
-    img: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300&h=300',
-  },
-  {
-    id: 8,
-    name: 'Yao',
-    category: 'Mannequin',
-    img: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300&h=300',
-  },
-]
+const marqueeTalents = computed(() => {
+  if (props.talents.length === 0) return []
+  const singleSetWidth = props.talents.length * CARD_SLOT_PX
+  const repeats = Math.max(1, Math.ceil(MIN_SET_WIDTH / singleSetWidth))
+  const oneSet: LandingFace[] = []
+  for (let i = 0; i < repeats; i++) {
+    oneSet.push(...props.talents)
+  }
+  return oneSet
+})
+
+// Scale animation duration: ~4s per card in one set, minimum 15s
+const marqueeSpeed = computed(() => {
+  return `${Math.max(15, marqueeTalents.value.length * 4)}s`
+})
+
+const countDisplay = computed((): string | null => {
+  if (props.totalCount && props.totalCount > 20) {
+    return `+${props.totalCount} talents disponibles sur la plateforme`
+  }
+  return null
+})
 </script>
 
 <template>
@@ -102,27 +76,28 @@ const mockTalents: Talent[] = [
 
         <div
           class="flex w-max gap-8 px-4 animate-marquee-loop group-hover/carousel:[animation-play-state:paused]"
+          :style="{ animationDuration: marqueeSpeed }"
         >
-          <!-- Duplicate list for seamless infinite loop -->
+          <!-- Repeated + duplicated list for seamless infinite loop -->
           <div
-            v-for="(talent, index) in [...mockTalents, ...mockTalents]"
+            v-for="(talent, index) in [...marqueeTalents, ...marqueeTalents]"
             :key="`${talent.id}-${index}`"
-            :data-testid="index < mockTalents.length ? `talent-card-${talent.id}` : `talent-card-${talent.id}-duplicate`"
+            :data-testid="index < marqueeTalents.length ? `talent-card-${talent.id}` : `talent-card-${talent.id}-duplicate`"
             class="w-[160px] sm:w-[240px] lg:w-[300px] flex-none group/card relative aspect-[4/5] overflow-hidden rounded-[24px] border border-teal-50 shadow-sm hover:shadow-md hover:border-[#198496]/20 transition-all duration-500 hover:-translate-y-2"
           >
             <img
-              :src="talent.img"
-              :alt="talent.name"
+              :src="talent.profile_photo_url ?? talent.profile_photo_thumbnail_url ?? ''"
+              :alt="talent.prenom"
               class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110"
               loading="lazy"
             />
             <!-- Gradient overlay -->
             <div class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 to-transparent" />
             <!-- Info overlay -->
-            <div class="absolute inset-x-0 bottom-0 p-4 flex items-end justify-between">
-              <p class="text-base font-bold text-white">{{ talent.name }}</p>
-              <span class="inline-block px-3 py-1 bg-white/95 backdrop-blur-sm rounded-full text-[10px] font-bold uppercase tracking-widest text-[#198496] shadow-sm shrink-0">
-                {{ talent.category }}
+            <div class="absolute inset-x-0 bottom-0 p-3 sm:p-4 flex flex-col gap-1.5">
+              <p class="text-sm sm:text-base font-bold text-white truncate">{{ talent.prenom }}</p>
+              <span class="self-start px-2.5 py-0.5 bg-white/95 backdrop-blur-sm rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-[#198496] shadow-sm">
+                {{ talent.categorie_label }}
               </span>
             </div>
           </div>
@@ -139,8 +114,8 @@ const mockTalents: Talent[] = [
           Explorer tous les talents
           <ArrowRight class="w-5 h-5 group-hover:translate-x-1 transition-transform" />
         </RouterLink>
-        <p class="mt-4 text-sm text-gray-500 font-medium">
-          {{ TALENT_COUNT_DISPLAY }} disponibles sur la plateforme
+        <p v-if="countDisplay" class="mt-4 text-sm text-gray-500 font-medium" data-testid="talents-count">
+          {{ countDisplay }}
         </p>
       </div>
     </div>
