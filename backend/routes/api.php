@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\ForgotPasswordController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
+use App\Http\Controllers\Api\V1\Auth\PasswordChangeController;
 use App\Http\Controllers\Api\V1\Auth\RegisterFaceController;
 use App\Http\Controllers\Api\V1\Auth\RegisterProducerController;
 use App\Http\Controllers\Api\V1\Auth\ResetPasswordController;
@@ -115,6 +116,11 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/change/status', [EmailChangeController::class, 'status'])
                 ->name('email-change.status');
         });
+
+        // Password change route
+        Route::put('/password', [PasswordChangeController::class, 'update'])
+            ->middleware('throttle:5,10')
+            ->name('password.update');
     });
 });
 
