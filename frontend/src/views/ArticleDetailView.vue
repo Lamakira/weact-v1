@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { ArrowLeft, AlertCircle, FileText, Loader2 } from 'lucide-vue-next'
 import { useArticleDetail } from '@/features/public/composables/useArticleDetail'
-import DOMPurify from 'dompurify'
+import { sanitizeHtml } from '@/utils/sanitize'
 import { computed } from 'vue'
 
 const { article, isLoading, error, notFound } = useArticleDetail()
 
 const sanitizedContent = computed((): string => {
   if (!article.value?.content) return ''
-  return DOMPurify.sanitize(article.value.content)
+  return sanitizeHtml(article.value.content)
 })
 
 function formatDate(dateString: string): string {
