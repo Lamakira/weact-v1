@@ -391,4 +391,50 @@ class EmailVerificationTest extends TestCase
                 ],
             ]);
     }
+
+    // === Userable Type Format Tests ===
+
+    public function test_user_endpoint_returns_readable_userable_type_for_face(): void
+    {
+        $face = Face::factory()->create();
+        $user = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+        $token = $user->createToken('test-token')->plainTextToken;
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer ' . $token,
+        ])->getJson('/api/v1/user');
+
+        $response->assertOk()
+            ->assertJson([
+                'data' => [
+                    'userable_type' => 'Face',
+                    'userable_id' => $face->id,
+                ],
+            ]);
+    }
+
+    public function test_user_endpoint_returns_readable_userable_type_for_producer(): void
+    {
+        $producer = Producer::factory()->create();
+        $user = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+        $token = $user->createToken('test-token')->plainTextToken;
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer ' . $token,
+        ])->getJson('/api/v1/user');
+
+        $response->assertOk()
+            ->assertJson([
+                'data' => [
+                    'userable_type' => 'Producer',
+                    'userable_id' => $producer->id,
+                ],
+            ]);
+    }
 }

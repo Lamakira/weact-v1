@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\RegisterFaceController;
 use App\Http\Controllers\Api\V1\Auth\RegisterProducerController;
 use App\Http\Controllers\Api\V1\Auth\ResetPasswordController;
+use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -77,21 +78,9 @@ Route::prefix('v1')->group(function (): void {
                 ], Response::HTTP_UNAUTHORIZED);
             }
 
-            $user = $request->user();
-
-            return response()->json([
-                'data' => [
-                    'id' => $user->id,
-                    'email' => $user->email,
-                    'email_verified' => $user->hasVerifiedEmail(),
-                    'email_verified_at' => $user->email_verified_at?->toIso8601String(),
-                    'userable_type' => $user->userable_type,
-                    'userable_id' => $user->userable_id,
-                    'created_at' => $user->created_at?->toIso8601String(),
-                    'updated_at' => $user->updated_at?->toIso8601String(),
-                ],
+            return (new UserResource($request->user()))->additional([
                 'meta' => [],
-                'message' => 'Authenticated user retrieved'
+                'message' => 'Authenticated user retrieved',
             ]);
         });
 
