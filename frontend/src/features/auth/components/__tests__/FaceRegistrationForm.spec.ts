@@ -116,7 +116,7 @@ describe('FaceRegistrationForm', () => {
     await wrapper.find('form').trigger('submit')
     await waitForValidation()
 
-    const confirmError = wrapper.find('[data-testid="password-confirmation-error"]')
+    const confirmError = wrapper.find('[data-testid="password_confirmation-error"]')
     expect(confirmError.exists()).toBe(true)
     expect(confirmError.text()).toContain('ne correspond pas')
   })

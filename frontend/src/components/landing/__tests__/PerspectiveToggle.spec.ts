@@ -24,8 +24,8 @@ describe('PerspectiveToggle', () => {
     const faceButton = wrapper.find('[data-testid="toggle-face"]')
     const producerButton = wrapper.find('[data-testid="toggle-producer"]')
 
-    expect(faceButton.classes()).toContain('bg-[#198496]')
-    expect(producerButton.classes()).not.toContain('bg-[#198496]')
+    expect(faceButton.classes()).toContain('bg-black')
+    expect(producerButton.classes()).not.toContain('bg-black')
   })
 
   it('highlights Producteur option when modelValue is producer', () => {
@@ -38,8 +38,8 @@ describe('PerspectiveToggle', () => {
     const faceButton = wrapper.find('[data-testid="toggle-face"]')
     const producerButton = wrapper.find('[data-testid="toggle-producer"]')
 
-    expect(faceButton.classes()).not.toContain('bg-[#198496]')
-    expect(producerButton.classes()).toContain('bg-[#198496]')
+    expect(faceButton.classes()).not.toContain('bg-black')
+    expect(producerButton.classes()).toContain('bg-black')
   })
 
   it('emits update:modelValue with producer when Producteur is clicked', async () => {

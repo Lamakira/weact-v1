@@ -61,6 +61,8 @@ const onInput = (event: Event) => {
         :required="required"
         :disabled="disabled"
         :autocomplete="autocomplete"
+        :aria-invalid="error ? 'true' : undefined"
+        :aria-describedby="error ? `${id}-error` : undefined"
         placeholder=" "
         v-bind="$attrs"
         class="peer w-full rounded-lg border bg-white text-gray-900 transition-all duration-200 outline-none disabled:bg-gray-50 disabled:cursor-not-allowed"
@@ -109,6 +111,7 @@ const onInput = (event: Event) => {
         class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
         :aria-label="showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
         tabindex="-1"
+        data-testid="toggle-password-visibility"
       >
         <Eye v-if="!showPassword" class="w-5 h-5" />
         <EyeOff v-else class="w-5 h-5" />
@@ -116,7 +119,7 @@ const onInput = (event: Event) => {
     </div>
 
     <!-- Error Message -->
-    <p v-if="error" class="mt-1 text-sm text-red-600">
+    <p v-if="error" :id="`${id}-error`" :data-testid="`${id}-error`" class="mt-1 text-sm text-red-600">
       {{ error }}
     </p>
   </div>

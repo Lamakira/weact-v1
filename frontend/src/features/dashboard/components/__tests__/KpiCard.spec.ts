@@ -205,11 +205,21 @@ describe('KpiCard', () => {
       expect(card.classes()).toContain('rounded-2xl')
     })
 
-    it('has hover effect class', () => {
-      const wrapper = mount(KpiCard, { props: defaultProps })
+    it('has hover effect class when linked', () => {
+      const wrapper = mount(KpiCard, {
+        props: { ...defaultProps, to: '/some-route' },
+        global: { stubs: { RouterLink: { template: '<a><slot /></a>', props: ['to'] } } },
+      })
 
       const card = wrapper.find('[data-testid="kpi-card"]')
       expect(card.classes()).toContain('hover:shadow-md')
+    })
+
+    it('does not have hover effect class when not linked', () => {
+      const wrapper = mount(KpiCard, { props: defaultProps })
+
+      const card = wrapper.find('[data-testid="kpi-card"]')
+      expect(card.classes()).not.toContain('hover:shadow-md')
     })
 
     it('has white background', () => {

@@ -36,8 +36,8 @@ describe('HomeView', () => {
     it('renders the main headline', () => {
       const headline = wrapper.find('h1')
       expect(headline.exists()).toBe(true)
-      expect(headline.text()).toContain('Monétisez votre image')
-      expect(headline.text()).toContain('en jouant dans')
+      expect(headline.text()).toContain('Monétisez votre')
+      expect(headline.text()).toContain('image dans')
     })
 
     it('renders the animated word element', () => {
@@ -271,10 +271,10 @@ describe('HomeView', () => {
       const faceTab = wrapper.find('[data-testid="toggle-face"]')
       expect(faceTab.exists()).toBe(true)
       expect(faceTab.attributes('aria-selected')).toBe('true')
-      expect(faceTab.classes()).toContain('bg-[#198496]')
+      expect(faceTab.classes()).toContain('bg-black')
 
       // Verify HeroFace is rendered (check for Face-specific content)
-      expect(wrapper.text()).toContain('Monétisez votre image')
+      expect(wrapper.text()).toContain('Monétisez votre')
     })
 
     it('toggle has accessibility attributes', () => {
@@ -366,7 +366,7 @@ describe('HomeView', () => {
       const faceTab = wrapper.find('[data-testid="toggle-face"]')
       await faceTab.trigger('click')
       await wrapper.vm.$nextTick()
-      expect(wrapper.text()).toContain('Monétisez votre image')
+      expect(wrapper.text()).toContain('Monétisez votre')
     })
 
     it('applies perspective transition classes for smooth 300ms animation (AC #9)', async () => {

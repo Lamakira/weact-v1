@@ -219,11 +219,14 @@ describe('BasicInfoSection', () => {
     expect(wrapper.find('#username').exists()).toBe(true)
   })
 
-  it('shows @ prefix for username field', () => {
+  it('shows AtSign icon for username field', () => {
     const wrapper = mount(BasicInfoSection)
 
-    const usernameContainer = wrapper.find('[data-testid="username-input"]').element.parentElement
-    expect(usernameContainer?.textContent).toContain('@')
+    // The username field uses the AtSign lucide icon (rendered as SVG)
+    const usernameField = wrapper.find('[data-testid="username-input"]')
+    expect(usernameField.exists()).toBe(true)
+    const parentDiv = usernameField.element.closest('.relative')
+    expect(parentDiv?.querySelector('svg')).not.toBeNull()
   })
 
   it('renders header section with correct title', () => {

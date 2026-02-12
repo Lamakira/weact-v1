@@ -449,7 +449,7 @@ describe('ExperienceForm', () => {
       })
 
       const titreInput = wrapper.find('[data-testid="titre-input"]')
-      expect(titreInput.attributes('aria-invalid')).toBe('false')
+      expect(titreInput.attributes('aria-invalid')).toBeUndefined()
       expect(titreInput.attributes('aria-describedby')).toBeUndefined()
     })
   })

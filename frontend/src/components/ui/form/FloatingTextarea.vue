@@ -47,6 +47,8 @@ const onInput = (event: Event) => {
         :disabled="disabled"
         :rows="rows"
         :maxlength="maxlength"
+        :aria-invalid="error ? 'true' : undefined"
+        :aria-describedby="error ? `${id}-error` : undefined"
         placeholder=" "
         v-bind="$attrs"
         class="peer w-full rounded-lg border bg-white text-gray-900 transition-all duration-200 outline-none resize-none disabled:bg-gray-50 disabled:cursor-not-allowed"
@@ -88,7 +90,7 @@ const onInput = (event: Event) => {
     </div>
 
     <!-- Error Message -->
-    <p v-if="error" class="mt-1 text-sm text-red-600">
+    <p v-if="error" :id="`${id}-error`" :data-testid="`${id}-error`" class="mt-1 text-sm text-red-600">
       {{ error }}
     </p>
   </div>
