@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useMissionsList } from '../useMissionsList'
 import { missionApi } from '../../services/missionApi'
-import type { Mission, MissionStatusType } from '../../types'
+import type { Mission } from '../../types'
 
 // Mock the mission API
 vi.mock('../../services/missionApi', () => ({

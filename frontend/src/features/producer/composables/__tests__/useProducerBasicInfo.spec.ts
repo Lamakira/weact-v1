@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useProducerBasicInfo } from '../useProducerBasicInfo'
 import { producerApi } from '../../services/producerApi'
 import type {
-  ProducerBasicInfo,
   ProducerBasicInfoResponse,
   ProducerBasicInfoAgency,
   ProducerBasicInfoParticulier,

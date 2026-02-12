@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ArrowLeft, Loader2, AlertCircle, ImagePlus } from 'lucide-vue-next'
 import { useAdminArticles } from '@/features/admin/composables/useAdminArticles'

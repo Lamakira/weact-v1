@@ -3,7 +3,6 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createTestingPinia } from '@pinia/testing'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import VerifyEmailPage from '../VerifyEmailPage.vue'
-import { useAuthStore } from '@/stores/auth'
 
 // Mock the authApi
 vi.mock('@/features/auth/services/authApi', () => ({

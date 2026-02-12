@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Loader2, AlertCircle, MessageSquare, RefreshCw, ArrowLeft } from 'lucide-vue-next'
+import { Loader2, AlertCircle, MessageSquare, RefreshCw } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useConversationsList } from '@/features/messaging/composables/useConversationsList'
 import { useConversation } from '@/features/messaging/composables/useConversation'

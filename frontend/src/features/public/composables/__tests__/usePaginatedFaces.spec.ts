@@ -1,6 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { reactive } from 'vue'
-import { flushPromises } from '@vue/test-utils'
 import { usePaginatedFaces } from '../usePaginatedFaces'
 import * as publicFacesApi from '../../services/publicFacesApi'
 import type { PublicFacesResponse, PublicFace } from '../../services/publicFacesApi'

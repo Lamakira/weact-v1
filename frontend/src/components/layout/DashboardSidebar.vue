@@ -4,7 +4,7 @@
  * Collapsible sidebar navigation for dashboard layouts.
  * Design: Creative Flow (Soft & Organic)
  */
-import { computed, type Component } from 'vue'
+import { type Component } from 'vue'
 import { useRoute } from 'vue-router'
 import { ChevronLeft, ChevronRight, Home } from 'lucide-vue-next'
 import { useSidebarState } from '@/composables/useSidebarState'
