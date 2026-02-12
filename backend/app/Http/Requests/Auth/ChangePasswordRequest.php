@@ -41,6 +41,10 @@ class ChangePasswordRequest extends FormRequest
             if ($user && $this->filled('current_password') && !Hash::check($this->input('current_password'), $user->password)) {
                 $validator->errors()->add('current_password', 'Le mot de passe actuel est incorrect.');
             }
+
+            if ($this->filled('current_password') && $this->filled('new_password') && $this->input('current_password') === $this->input('new_password')) {
+                $validator->errors()->add('new_password', 'Le nouveau mot de passe doit être différent de l\'ancien.');
+            }
         });
     }
 

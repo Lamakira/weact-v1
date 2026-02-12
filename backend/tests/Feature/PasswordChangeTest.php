@@ -145,6 +145,64 @@ class PasswordChangeTest extends TestCase
         $this->assertArrayHasKey('new_password', $response->json('error.details'));
     }
 
+    public function test_change_password_rejects_same_password(): void
+    {
+        $response = $this->actingAs($this->user)
+            ->putJson('/api/v1/password', [
+                'current_password' => 'OldPassword1',
+                'new_password' => 'OldPassword1',
+                'new_password_confirmation' => 'OldPassword1',
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonPath('error.details.new_password.0', 'Le nouveau mot de passe doit être différent de l\'ancien.');
+    }
+
+    public function test_change_password_invalidates_other_sessions(): void
+    {
+        // Create multiple tokens for the user
+        $otherToken = $this->user->createToken('other-device');
+        $currentToken = $this->user->createToken('current-device');
+
+        $response = $this->withHeader('Authorization', 'Bearer ' . $currentToken->plainTextToken)
+            ->putJson('/api/v1/password', [
+                'current_password' => 'OldPassword1',
+                'new_password' => 'NewPassword2',
+                'new_password_confirmation' => 'NewPassword2',
+            ]);
+
+        $response->assertOk();
+
+        // Other token should be deleted, current should remain
+        $this->assertDatabaseMissing('personal_access_tokens', [
+            'id' => $otherToken->accessToken->id,
+        ]);
+        $this->assertDatabaseHas('personal_access_tokens', [
+            'id' => $currentToken->accessToken->id,
+        ]);
+    }
+
+    public function test_change_password_rate_limited(): void
+    {
+        for ($i = 0; $i < 5; $i++) {
+            $this->actingAs($this->user)
+                ->putJson('/api/v1/password', [
+                    'current_password' => 'WrongPassword' . $i,
+                    'new_password' => 'NewPassword2',
+                    'new_password_confirmation' => 'NewPassword2',
+                ]);
+        }
+
+        $response = $this->actingAs($this->user)
+            ->putJson('/api/v1/password', [
+                'current_password' => 'OldPassword1',
+                'new_password' => 'NewPassword2',
+                'new_password_confirmation' => 'NewPassword2',
+            ]);
+
+        $response->assertStatus(429);
+    }
+
     public function test_notification_not_sent_on_validation_failure(): void
     {
         $this->actingAs($this->user)
