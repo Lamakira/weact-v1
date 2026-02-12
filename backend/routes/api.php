@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Auth\EmailChangeController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\ForgotPasswordController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
@@ -58,6 +59,10 @@ Route::prefix('v1')->group(function (): void {
         // Email verification (public - signature validation handled in controller)
         Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
             ->name('verification.verify');
+
+        // Email change confirmation (public - signature validation handled in controller)
+        Route::get('/email/change/confirm/{id}/{hash}', [EmailChangeController::class, 'confirmChange'])
+            ->name('email-change.confirm');
     });
 
     // Protected routes
@@ -98,6 +103,17 @@ Route::prefix('v1')->group(function (): void {
 
             Route::get('/verification-status', [EmailVerificationController::class, 'status'])
                 ->name('verification.status');
+
+            // Email change routes
+            Route::post('/change', [EmailChangeController::class, 'requestChange'])
+                ->middleware('throttle:3,10')
+                ->name('email-change.request');
+
+            Route::delete('/change', [EmailChangeController::class, 'cancelChange'])
+                ->name('email-change.cancel');
+
+            Route::get('/change/status', [EmailChangeController::class, 'status'])
+                ->name('email-change.status');
         });
     });
 });
