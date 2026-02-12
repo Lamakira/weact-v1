@@ -213,7 +213,7 @@ development_status:
   # Technical Debt & Cleanup
   fix-frontend-test-failures: done
   eslint-unused-imports: done
-  html-sanitization: pending
+  html-sanitization: done
   landing-page-real-data: pending
 
   # Feature: Email Change with Re-verification (needs story file)
