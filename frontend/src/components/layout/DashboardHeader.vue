@@ -77,17 +77,17 @@ function handleLogout() {
       <!-- Notification bell (hidden on admin dashboards — uses user API client) -->
       <NotificationBell v-if="showNotifications" data-testid="header-notifications" />
 
-      <!-- Logout button -->
+      <!-- Logout button (desktop only — mobile logout is in sidebar) -->
       <button
         @click="handleLogout"
         :disabled="isLoggingOut"
-        class="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        class="hidden lg:flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         aria-label="Se déconnecter"
         data-testid="header-logout-button"
       >
         <LogOut v-if="!isLoggingOut" class="w-4 h-4" />
         <Loader2 v-else class="w-4 h-4 animate-spin" />
-        <span class="hidden sm:inline">{{ isLoggingOut ? 'Déconnexion...' : 'Déconnexion' }}</span>
+        <span>{{ isLoggingOut ? 'Déconnexion...' : 'Déconnexion' }}</span>
       </button>
 
       <!-- User avatar -->

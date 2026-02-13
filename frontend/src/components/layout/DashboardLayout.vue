@@ -10,7 +10,7 @@
  * - Shared between Face and Producer dashboards
  */
 import { watch, onMounted, onUnmounted } from 'vue'
-import { X } from 'lucide-vue-next'
+import { X, LogOut, Loader2 } from 'lucide-vue-next'
 import DashboardSidebar, { type SidebarItem } from './DashboardSidebar.vue'
 import DashboardHeader from './DashboardHeader.vue'
 import { useSidebarState } from '@/composables/useSidebarState'
@@ -152,6 +152,20 @@ function handleLogout() {
               </li>
             </ul>
           </nav>
+
+          <!-- Mobile sidebar logout -->
+          <div class="p-4 border-t border-gray-100">
+            <button
+              @click="handleLogout"
+              :disabled="isLoggingOut"
+              class="flex items-center gap-3 w-full px-4 py-3 rounded-2xl text-slate-600 hover:bg-red-50 hover:text-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="mobile-sidebar-logout"
+            >
+              <LogOut v-if="!isLoggingOut" class="w-5 h-5 flex-shrink-0" />
+              <Loader2 v-else class="w-5 h-5 flex-shrink-0 animate-spin" />
+              <span class="text-sm">{{ isLoggingOut ? 'Déconnexion...' : 'Déconnexion' }}</span>
+            </button>
+          </div>
         </aside>
       </Transition>
     </Teleport>

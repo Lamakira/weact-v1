@@ -105,7 +105,7 @@ function goToMessages(): void {
       <!-- KPI Cards Grid -->
       <div
         v-else
-        class="grid grid-cols-2 lg:grid-cols-4 gap-6"
+        class="grid grid-cols-1 min-[376px]:grid-cols-2 lg:grid-cols-4 gap-6"
         data-testid="kpi-cards-grid"
       >
         <KpiCard
