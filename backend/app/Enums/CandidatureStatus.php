@@ -8,7 +8,7 @@ namespace App\Enums;
  * Status workflow for candidatures.
  *
  * Status transitions:
- * - pending → accepted (Producer accepts) or rejected (Producer rejects)
+ * - pending → accepted (Producer accepts) or rejected (Producer rejects) or cancelled (Face withdraws)
  * - accepted → confirmed (Face confirms participation) - unlocks chat
  * - confirmed → in_progress (Mission starts)
  * - in_progress → completed (Mission finishes) - enables ratings
@@ -21,6 +21,7 @@ enum CandidatureStatus: string
     case InProgress = 'in_progress';
     case Completed = 'completed';
     case Rejected = 'rejected';
+    case Cancelled = 'cancelled';
 
     /**
      * Get the display name in French for this candidature status.
@@ -34,6 +35,7 @@ enum CandidatureStatus: string
             self::InProgress => 'En cours',
             self::Completed => 'Terminée',
             self::Rejected => 'Refusée',
+            self::Cancelled => 'Annulée',
         };
     }
 

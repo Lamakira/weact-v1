@@ -137,4 +137,40 @@ class CandidatureController extends Controller
             'message' => 'Participation confirmée',
         ]);
     }
+
+    /**
+     * Cancel a pending candidature (withdraw application).
+     *
+     * Changes candidature status from "pending" to "cancelled".
+     * Only the Face who owns the candidature can cancel it.
+     */
+    public function cancel(Request $request, Candidature $candidature): JsonResponse
+    {
+        $user = $request->user();
+
+        // Verify user is a Face
+        if ($user->userable_type !== Face::class) {
+            abort(403, 'Accès réservé aux Faces');
+        }
+
+        $face = $user->userable;
+
+        // Verify candidature belongs to this Face
+        if ($candidature->face_id !== $face->id) {
+            abort(403, 'Cette candidature ne vous appartient pas');
+        }
+
+        // Verify candidature is pending
+        if ($candidature->status !== CandidatureStatus::Pending) {
+            return response()->json([
+                'message' => 'Seules les candidatures en attente peuvent être annulées.',
+            ], 400);
+        }
+
+        $candidature->update(['status' => CandidatureStatus::Cancelled]);
+
+        return response()->json([
+            'message' => 'Candidature annulée avec succès.',
+        ]);
+    }
 }

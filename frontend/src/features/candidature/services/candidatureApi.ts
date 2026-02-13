@@ -127,4 +127,17 @@ export const candidatureApi = {
     )
     return response.data
   },
+
+  /**
+   * Cancel a pending candidature (Face only)
+   * Changes candidature status from "pending" to "cancelled"
+   * @param candidatureId The candidature ID to cancel
+   * @returns Success message
+   */
+  async cancelCandidature(candidatureId: number): Promise<{ message: string }> {
+    const response = await apiClient.post<{ message: string }>(
+      `/face/candidatures/${candidatureId}/cancel`,
+    )
+    return response.data
+  },
 }

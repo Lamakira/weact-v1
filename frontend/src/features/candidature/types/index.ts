@@ -10,6 +10,7 @@ export const CandidatureStatus = {
   IN_PROGRESS: 'in_progress',
   COMPLETED: 'completed',
   REJECTED: 'rejected',
+  CANCELLED: 'cancelled',
 } as const
 
 export type CandidatureStatusType = (typeof CandidatureStatus)[keyof typeof CandidatureStatus]
@@ -22,6 +23,7 @@ export const CandidatureStatusLabel: Record<CandidatureStatusType, string> = {
   [CandidatureStatus.IN_PROGRESS]: 'En cours',
   [CandidatureStatus.COMPLETED]: 'Terminée',
   [CandidatureStatus.REJECTED]: 'Refusée',
+  [CandidatureStatus.CANCELLED]: 'Annulée',
 }
 
 // Candidature data from API
@@ -111,6 +113,7 @@ export const CandidatureStatusColor: Record<CandidatureStatusType, string> = {
   [CandidatureStatus.IN_PROGRESS]: 'purple',
   [CandidatureStatus.COMPLETED]: 'emerald',
   [CandidatureStatus.REJECTED]: 'red',
+  [CandidatureStatus.CANCELLED]: 'gray',
 }
 
 // Status filter option

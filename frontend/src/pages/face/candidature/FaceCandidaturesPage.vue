@@ -8,8 +8,9 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-vue-next'
-import { useFaceCandidatures, useConfirmCandidature } from '@/features/candidature/composables'
+import { useFaceCandidatures, useConfirmCandidature, useCancelCandidature } from '@/features/candidature/composables'
 import { CandidatureCard, StatusFilter } from '@/features/candidature/components'
+import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import type { CandidatureStatusType } from '@/features/candidature/types'
 import { CandidatureStatusLabel } from '@/features/candidature/types'
 
@@ -49,6 +50,16 @@ const {
 } = useConfirmCandidature()
 
 /**
+ * Composable for cancelling candidatures
+ */
+const {
+  error: cancelError,
+  successMessage: cancelSuccessMessage,
+  cancelCandidature,
+  reset: resetCancel,
+} = useCancelCandidature()
+
+/**
  * Toast state for notifications
  */
 const showToast = ref(false)
@@ -59,6 +70,12 @@ const toastType = ref<'success' | 'error'>('success')
  * Card refs for resetting loading state
  */
 const cardRefs = ref<Record<number, InstanceType<typeof CandidatureCard>>>({})
+
+/**
+ * Cancel modal state
+ */
+const showCancelModal = ref(false)
+const candidatureToCancel = ref<number | null>(null)
 
 /**
  * Show toast notification
@@ -90,6 +107,50 @@ async function handleConfirm(candidatureId: number): Promise<void> {
   }
 
   resetConfirm()
+}
+
+/**
+ * Handle cancel candidature request — opens confirmation modal
+ */
+function handleCancelRequest(candidatureId: number): void {
+  candidatureToCancel.value = candidatureId
+  showCancelModal.value = true
+}
+
+/**
+ * Handle cancel confirmation from modal
+ */
+async function handleCancelConfirm(): Promise<void> {
+  if (!candidatureToCancel.value) return
+
+  const candidatureId = candidatureToCancel.value
+  showCancelModal.value = false
+
+  const success = await cancelCandidature(candidatureId)
+
+  // Reset the card's loading state
+  cardRefs.value[candidatureId]?.resetCancelling()
+
+  if (success) {
+    displayToast(cancelSuccessMessage.value || 'Candidature annulée', 'success')
+    await refresh()
+  } else {
+    displayToast(cancelError.value || 'Erreur lors de l\'annulation', 'error')
+  }
+
+  candidatureToCancel.value = null
+  resetCancel()
+}
+
+/**
+ * Handle cancel modal dismiss
+ */
+function handleCancelModalClose(): void {
+  if (candidatureToCancel.value) {
+    cardRefs.value[candidatureToCancel.value]?.resetCancelling()
+  }
+  showCancelModal.value = false
+  candidatureToCancel.value = null
 }
 
 /**
@@ -281,6 +342,7 @@ watch(
             :ref="(el) => { if (el) cardRefs[candidature.id] = el as InstanceType<typeof CandidatureCard> }"
             :candidature="candidature"
             @confirm="handleConfirm"
+            @cancel="handleCancelRequest"
           />
         </div>
 
@@ -326,6 +388,18 @@ watch(
         </div>
       </template>
     </div>
+
+    <!-- Cancel Confirmation Modal -->
+    <ConfirmModal
+      :is-open="showCancelModal"
+      title="Annuler cette candidature ?"
+      message="Cette action est définitive. Vous ne pourrez pas postuler à nouveau pour cette mission."
+      confirm-text="Oui, annuler"
+      cancel-text="Non, garder"
+      variant="warning"
+      @confirm="handleCancelConfirm"
+      @cancel="handleCancelModalClose"
+    />
 
     <!-- Toast Notification -->
     <Teleport to="body">

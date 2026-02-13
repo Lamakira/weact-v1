@@ -311,6 +311,7 @@ class CandidatureSchemaTest extends TestCase
         $this->assertEquals('En cours', CandidatureStatus::InProgress->label());
         $this->assertEquals('Terminée', CandidatureStatus::Completed->label());
         $this->assertEquals('Refusée', CandidatureStatus::Rejected->label());
+        $this->assertEquals('Annulée', CandidatureStatus::Cancelled->label());
     }
 
     public function test_candidature_status_enum_values_helper_returns_string_array(): void
@@ -324,6 +325,7 @@ class CandidatureSchemaTest extends TestCase
             'in_progress',
             'completed',
             'rejected',
+            'cancelled',
         ], $values);
     }
 

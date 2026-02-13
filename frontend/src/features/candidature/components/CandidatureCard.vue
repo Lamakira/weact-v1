@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { Calendar, MapPin, Wallet, User, Check, Loader2, MessageCircle } from 'lucide-vue-next'
+import { Calendar, MapPin, Wallet, User, Check, Loader2, MessageCircle, XCircle } from 'lucide-vue-next'
 import type { FaceCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
 
@@ -17,17 +17,24 @@ const props = defineProps<{
  */
 const emit = defineEmits<{
   confirm: [candidatureId: number]
+  cancel: [candidatureId: number]
 }>()
 
 /**
- * Local state for confirm button
+ * Local state for confirm/cancel buttons
  */
 const isConfirming = ref(false)
+const isCancelling = ref(false)
 
 /**
  * Computed: Show confirm button for accepted candidatures
  */
 const canConfirm = computed(() => props.candidature.status === 'accepted')
+
+/**
+ * Computed: Show cancel button for pending candidatures
+ */
+const canCancel = computed(() => props.candidature.status === 'pending')
 
 /**
  * Computed: Show chat button when candidature allows chat and has conversation
@@ -47,6 +54,15 @@ function handleConfirm(): void {
 }
 
 /**
+ * Handle cancel button click
+ */
+function handleCancel(): void {
+  if (isCancelling.value) return
+  isCancelling.value = true
+  emit('cancel', props.candidature.id)
+}
+
+/**
  * Reset confirming state (called from parent after API response)
  */
 function resetConfirming(): void {
@@ -54,9 +70,16 @@ function resetConfirming(): void {
 }
 
 /**
+ * Reset cancelling state (called from parent after API response)
+ */
+function resetCancelling(): void {
+  isCancelling.value = false
+}
+
+/**
  * Expose methods for parent component
  */
-defineExpose({ resetConfirming })
+defineExpose({ resetConfirming, resetCancelling })
 
 /**
  * Computed: Format date for display
@@ -110,6 +133,7 @@ const statusBadgeClass = computed(() => {
     purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
     emerald: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
     red: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+    gray: 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400',
   }
   return colorClasses[color] || colorClasses.yellow
 })
@@ -190,7 +214,7 @@ const producerInitials = computed(() => {
 
     <!-- Actions Section -->
     <div
-      v-if="canConfirm || canChat"
+      v-if="canCancel || canConfirm || canChat"
       class="mt-4 flex flex-col gap-2 border-t border-border pt-4"
     >
       <!-- Confirm Button -->
@@ -204,6 +228,19 @@ const producerInitials = computed(() => {
         <Loader2 v-if="isConfirming" class="h-4 w-4 animate-spin" />
         <Check v-else class="h-4 w-4" />
         {{ isConfirming ? 'Confirmation...' : 'Confirmer ma participation' }}
+      </button>
+
+      <!-- Cancel Button -->
+      <button
+        v-if="canCancel"
+        type="button"
+        class="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        :disabled="isCancelling"
+        @click.stop.prevent="handleCancel"
+      >
+        <Loader2 v-if="isCancelling" class="h-4 w-4 animate-spin" />
+        <XCircle v-else class="h-4 w-4" />
+        {{ isCancelling ? 'Annulation...' : 'Annuler ma candidature' }}
       </button>
 
       <!-- Chat Button -->

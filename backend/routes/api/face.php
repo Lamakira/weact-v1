@@ -140,6 +140,10 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     Route::post('/candidatures/{candidature}/confirm', [CandidatureController::class, 'confirm'])
         ->middleware(['face', 'throttle:30,1']);
 
+    // Candidature routes - cancel pending candidature (Face only)
+    Route::post('/candidatures/{candidature}/cancel', [CandidatureController::class, 'cancel'])
+        ->middleware(['face', 'throttle:30,1']);
+
     // Rating routes - rate Producer after completed mission (Face only)
     Route::post('/candidatures/{candidature}/rate', [RatingController::class, 'store'])
         ->middleware(['face', 'throttle:30,1']);
