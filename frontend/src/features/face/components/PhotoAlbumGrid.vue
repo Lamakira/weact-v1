@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { FacePhoto } from '../types'
 
 interface Props {
@@ -31,6 +31,19 @@ const slots = computed(() => {
 })
 
 const isProcessing = computed(() => props.isLoading || props.isDeleting)
+
+/**
+ * Lightbox state
+ */
+const lightboxPhoto = ref<FacePhoto | null>(null)
+
+function openLightbox(photo: FacePhoto): void {
+  lightboxPhoto.value = photo
+}
+
+function closeLightbox(): void {
+  lightboxPhoto.value = null
+}
 
 /**
  * Handle delete button click
@@ -70,11 +83,36 @@ function handleAddClick(): void {
             :data-testid="`album-photo-${slot.id}`"
           />
 
-          <!-- Delete button overlay -->
+          <!-- Action buttons overlay -->
           <div
             v-if="!isProcessing"
-            class="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity"
+            class="absolute inset-0 flex items-center justify-center gap-3 bg-black/40 opacity-0 hover:opacity-100 transition-opacity"
           >
+            <!-- View / enlarge button -->
+            <button
+              type="button"
+              class="p-2 bg-white rounded-full text-gray-700 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2"
+              :data-testid="`view-photo-${slot.id}`"
+              aria-label="Voir la photo"
+              @click="openLightbox(slot)"
+            >
+              <svg
+                class="w-5 h-5"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke-width="2"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607zM10.5 7.5v6m3-3h-6"
+                />
+              </svg>
+            </button>
+
+            <!-- Delete button -->
             <button
               type="button"
               class="p-2 bg-red-500 rounded-full text-white hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
@@ -146,6 +184,43 @@ function handleAddClick(): void {
         </template>
       </div>
     </div>
+
+    <!-- Lightbox modal -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition duration-150 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="lightboxPhoto"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80"
+          data-testid="photo-lightbox"
+          @click.self="closeLightbox"
+        >
+          <!-- Close button -->
+          <button
+            type="button"
+            class="absolute top-4 right-4 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+            aria-label="Fermer"
+            @click="closeLightbox"
+          >
+            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          <img
+            :src="lightboxPhoto.photo_url"
+            :alt="'Photo'"
+            class="max-w-full max-h-[85vh] rounded-lg object-contain"
+          />
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- Loading overlay -->
     <div

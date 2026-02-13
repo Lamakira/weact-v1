@@ -52,7 +52,7 @@ const handleDelete = () => {
 
         <!-- Title -->
         <h4
-          class="text-base font-semibold text-gray-900 truncate"
+          class="text-base font-semibold text-gray-900"
           data-testid="experience-title"
         >
           {{ experience.titre }}
