@@ -125,7 +125,7 @@ function goToMessages(): void {
       <!-- KPI cards grid -->
       <div
         v-else
-        class="grid grid-cols-2 lg:grid-cols-4 gap-6"
+        class="grid grid-cols-1 min-[426px]:grid-cols-2 lg:grid-cols-4 gap-6"
         data-testid="kpi-cards-grid"
       >
         <KpiCard
@@ -153,7 +153,7 @@ function goToMessages(): void {
       </h2>
 
       <div
-        class="grid grid-cols-2 lg:grid-cols-4 gap-6"
+        class="grid grid-cols-1 min-[426px]:grid-cols-2 lg:grid-cols-4 gap-6"
         data-testid="candidatures-kpi-grid"
       >
         <KpiCard
@@ -238,7 +238,7 @@ function goToMessages(): void {
       </h2>
 
       <div
-        class="grid grid-cols-2 lg:grid-cols-4 gap-6"
+        class="grid grid-cols-1 min-[426px]:grid-cols-2 lg:grid-cols-4 gap-6"
         data-testid="advanced-stats-grid"
       >
         <!-- Acceptance rate card with custom display for percentage -->

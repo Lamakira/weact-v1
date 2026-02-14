@@ -56,7 +56,7 @@ function handleLogout() {
 
       <!-- Title badge -->
       <div
-        class="px-4 py-1.5 rounded-full bg-teal-50 text-primary text-xs font-bold uppercase tracking-wider"
+        class="px-3 py-1 min-[376px]:px-4 min-[376px]:py-1.5 rounded-full bg-teal-50 text-primary text-[10px] min-[376px]:text-xs font-bold uppercase tracking-wider"
         data-testid="header-title"
       >
         {{ title }}

@@ -43,12 +43,12 @@ function isActive(value: MissionStatusType | ''): boolean {
 </script>
 
 <template>
-  <div class="flex flex-wrap gap-2">
+  <div class="flex flex-nowrap sm:flex-wrap gap-2 overflow-x-auto pb-2 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
     <button
       v-for="option in filterOptions"
       :key="option.value"
       type="button"
-      class="rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
+      class="shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
       :class="[
         isActive(option.value)
           ? 'bg-primary text-white'
