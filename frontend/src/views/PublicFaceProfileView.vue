@@ -1,13 +1,22 @@
 <script setup lang="ts">
-import { watch, computed, watchEffect, onUnmounted } from 'vue'
+import { ref, watch, computed, watchEffect, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useTitle } from '@vueuse/core'
-import { ChevronLeft, AlertCircle, RefreshCw, UserX, FileText, Banknote } from 'lucide-vue-next'
+import { ChevronLeft, AlertCircle, RefreshCw, UserX, FileText, Banknote, Megaphone, Lock } from 'lucide-vue-next'
 import { useFaceProfile } from '@/features/public/composables/useFaceProfile'
+import { usePublicFaceAccess } from '@/features/public/composables/usePublicFaceAccess'
+import { publicApi } from '@/features/public/services/publicApi'
 import ProfilePhotoSection from '@/features/public/components/ProfilePhotoSection.vue'
 import ProfileInfoSection from '@/features/public/components/ProfileInfoSection.vue'
 import LockedContentTeaser from '@/features/public/components/LockedContentTeaser.vue'
+import CandidateVideosSection from '@/features/candidature/components/CandidateVideosSection.vue'
+import CandidatePhotoGallery from '@/features/candidature/components/CandidatePhotoGallery.vue'
+import CandidateInfoSection from '@/features/candidature/components/CandidateInfoSection.vue'
+import CandidateExperiencesSection from '@/features/candidature/components/CandidateExperiencesSection.vue'
+import RatingDisplay from '@/components/RatingDisplay.vue'
+import ReviewsList from '@/components/ReviewsList.vue'
 import { Skeleton } from '@/components/ui/skeleton'
+import type { Review } from '@/features/rating/types'
 
 const route = useRoute()
 const {
@@ -19,6 +28,55 @@ const {
   videosCount,
   fetchFace,
 } = useFaceProfile()
+
+// Auth-aware access level
+const faceId = computed(() => face.value?.id ?? null)
+const { accessLevel, fullProfile, isLoadingFullProfile } = usePublicFaceAccess(faceId)
+
+// Reviews state (for producers with access)
+const reviews = ref<Review[]>([])
+const reviewsLoading = ref(false)
+const reviewsCurrentPage = ref(1)
+const reviewsLastPage = ref(1)
+const reviewsTotal = ref(0)
+const reviewsError = ref(false)
+
+async function fetchReviews(id: number, page: number = 1): Promise<void> {
+  reviewsLoading.value = true
+  reviewsError.value = false
+  try {
+    const response = await publicApi.getFaceReviews(id, page)
+    reviews.value = response.data
+    reviewsCurrentPage.value = response.meta.current_page
+    reviewsLastPage.value = response.meta.last_page
+    reviewsTotal.value = response.meta.total
+  } catch {
+    reviews.value = []
+    reviewsError.value = true
+  } finally {
+    reviewsLoading.value = false
+  }
+}
+
+function handleReviewsPageChange(page: number): void {
+  if (faceId.value) {
+    fetchReviews(faceId.value, page)
+  }
+}
+
+// Fetch reviews when producer has access
+watch(
+  [accessLevel, faceId],
+  ([level, id]) => {
+    if (level === 'producer_with_access' && id && id > 0) {
+      fetchReviews(id)
+    } else {
+      reviews.value = []
+      reviewsCurrentPage.value = 1
+      reviewsError.value = false
+    }
+  },
+)
 
 // Get face username from route params with validation
 const faceUsername = computed(() => {
@@ -67,7 +125,10 @@ function setMetaTag(name: string, content: string, isProperty = false): void {
 
 watchEffect(() => {
   if (face.value) {
-    const description = `Découvrez le profil de ${face.value.prenom}, ${face.value.categorie_label}${face.value.ville ? ` à ${face.value.ville}` : ''}. Inscrivez-vous sur WEACT pour accéder au profil complet.`
+    const suffix = accessLevel.value === 'guest'
+      ? ' Inscrivez-vous sur WEACT pour accéder au profil complet.'
+      : ' Profil de talent sur WEACT.'
+    const description = `Découvrez le profil de ${face.value.prenom}, ${face.value.categorie_label}${face.value.ville ? ` à ${face.value.ville}` : ''}.${suffix}`
     setMetaTag('description', description)
     setMetaTag('og:title', `${face.value.prenom} - ${face.value.categorie_label} | WEACT`, true)
     setMetaTag('og:description', 'Profil de talent sur WEACT', true)
@@ -209,6 +270,7 @@ async function handleRetry(): Promise<void> {
               :is-available="face.is_available"
               :has-album-photos="face.has_album_photos"
               :album-photos-count="face.album_photos_count"
+              :show-album-lock="accessLevel === 'guest'"
             />
           </aside>
 
@@ -225,12 +287,17 @@ async function handleRetry(): Promise<void> {
               :ratings-count="face.ratings_count"
               :has-videos="hasVideos"
               :videos-count="videosCount"
+              :access-level="accessLevel"
             />
           </article>
         </div>
 
-        <!-- Locked Content Teasers -->
-        <div class="grid md:grid-cols-2 gap-6" data-testid="locked-teasers">
+        <!-- GUEST: Locked Content Teasers -->
+        <div
+          v-if="accessLevel === 'guest'"
+          class="grid md:grid-cols-2 gap-6"
+          data-testid="locked-teasers"
+        >
           <LockedContentTeaser
             title="Bio & Expériences professionnelles"
             description="Découvrez le parcours complet et les expériences de ce talent."
@@ -245,6 +312,117 @@ async function handleRetry(): Promise<void> {
             cta-link="/register/producer"
             :icon="Banknote"
           />
+        </div>
+
+        <!-- PRODUCER WITH ACCESS: Full Profile -->
+        <template v-else-if="accessLevel === 'producer_with_access' && fullProfile">
+          <!-- Rating Display -->
+          <div class="px-2">
+            <RatingDisplay
+              :average-rating="fullProfile.average_rating"
+              :review-count="fullProfile.ratings_count"
+            />
+          </div>
+
+          <!-- Videos Section -->
+          <CandidateVideosSection :candidate="fullProfile" />
+
+          <!-- Photo Gallery -->
+          <CandidatePhotoGallery :photos="fullProfile.photos" />
+
+          <!-- Bio and Info -->
+          <CandidateInfoSection :candidate="fullProfile" />
+
+          <!-- Experiences -->
+          <CandidateExperiencesSection :experiences="fullProfile.experiences" />
+
+          <!-- Reviews Section -->
+          <div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <h2 class="mb-4 text-lg font-semibold text-gray-900">Avis et évaluations</h2>
+            <div
+              v-if="reviewsError"
+              class="text-center py-6"
+              data-testid="reviews-error"
+            >
+              <p class="text-gray-500 text-sm">Impossible de charger les avis.</p>
+              <button
+                type="button"
+                class="mt-2 text-sm text-[#198496] hover:text-[#146c7a] underline"
+                data-testid="reviews-retry"
+                @click="fetchReviews(faceId!)"
+              >
+                Réessayer
+              </button>
+            </div>
+            <ReviewsList
+              v-else
+              :reviews="reviews"
+              :current-page="reviewsCurrentPage"
+              :last-page="reviewsLastPage"
+              :total="reviewsTotal"
+              :loading="reviewsLoading"
+              @page-change="handleReviewsPageChange"
+            />
+          </div>
+        </template>
+
+        <!-- LOADING FULL PROFILE (Producer) -->
+        <div
+          v-else-if="isLoadingFullProfile"
+          class="space-y-6"
+          data-testid="full-profile-loading"
+        >
+          <Skeleton class="h-48 w-full rounded-2xl" />
+          <Skeleton class="h-32 w-full rounded-2xl" />
+          <Skeleton class="h-24 w-full rounded-2xl" />
+        </div>
+
+        <!-- PRODUCER WITHOUT ACCESS -->
+        <!-- TODO: Analytics — track "producer_no_access_view" event here (faceId, username)
+             to measure how often Producers hit this wall and whether they subsequently publish a mission. -->
+        <div
+          v-else-if="accessLevel === 'producer_no_access'"
+          class="flex flex-col items-center justify-center py-16 text-center space-y-4 bg-white rounded-2xl border border-gray-100 shadow-sm"
+          data-testid="producer-no-access"
+        >
+          <div class="p-4 bg-[#198496]/10 text-[#198496] rounded-full">
+            <Megaphone :size="32" aria-hidden="true" />
+          </div>
+          <div class="space-y-2 max-w-md">
+            <h2 class="text-xl font-semibold text-gray-900">
+              Ce talent n'a pas encore postulé à vos missions
+            </h2>
+            <p class="text-gray-500 text-sm">
+              Publiez une mission pour attirer des candidats et accéder aux profils complets.
+            </p>
+          </div>
+          <RouterLink
+            :to="{ name: 'publish-mission' }"
+            class="inline-flex items-center gap-2 text-sm font-semibold bg-[#198496] text-white px-6 py-2.5 rounded-md hover:bg-[#146c7a] transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#198496]/20"
+            data-testid="publish-mission-cta"
+          >
+            <Megaphone :size="16" aria-hidden="true" />
+            Publier une mission
+          </RouterLink>
+        </div>
+
+        <!-- FACE USER -->
+        <div
+          v-else-if="accessLevel === 'face_user'"
+          class="flex flex-col items-center justify-center py-16 text-center space-y-4 bg-white rounded-2xl border border-gray-100 shadow-sm"
+          data-testid="face-user-message"
+        >
+          <div class="p-4 bg-gray-100 text-gray-400 rounded-full">
+            <Lock :size="32" aria-hidden="true" />
+          </div>
+          <div class="space-y-2 max-w-md">
+            <h2 class="text-xl font-semibold text-gray-900">
+              Le profil complet est réservé aux producteurs
+            </h2>
+            <p class="text-gray-500 text-sm">
+              Seuls les producteurs peuvent consulter les profils détaillés des talents.
+            </p>
+          </div>
         </div>
       </div>
     </main>

@@ -7,9 +7,12 @@ interface Props {
   isAvailable: boolean
   hasAlbumPhotos: boolean
   albumPhotosCount: number
+  showAlbumLock?: boolean
 }
 
-defineProps<Props>()
+withDefaults(defineProps<Props>(), {
+  showAlbumLock: true,
+})
 </script>
 
 <template>
@@ -74,8 +77,9 @@ defineProps<Props>()
             <span class="text-sm font-medium">+{{ albumPhotosCount }} photos</span>
           </div>
 
-          <!-- Registration Tease -->
+          <!-- Registration Tease (guests only) -->
           <div
+            v-if="showAlbumLock"
             class="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-white/90"
             aria-label="Album réservé aux producteurs inscrits"
           >

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { MapPin, Star, Video, Lock, ChevronRight } from 'lucide-vue-next'
+import type { AccessLevel } from '@/features/public/composables/usePublicFaceAccess'
 
 interface Props {
   prenom: string
@@ -12,9 +13,12 @@ interface Props {
   ratingsCount: number
   hasVideos: boolean
   videosCount: number
+  accessLevel?: AccessLevel
 }
 
-defineProps<Props>()
+withDefaults(defineProps<Props>(), {
+  accessLevel: 'guest',
+})
 </script>
 
 <template>
@@ -80,9 +84,9 @@ defineProps<Props>()
 
     <hr class="border-gray-100" />
 
-    <!-- Video Teaser Section -->
+    <!-- Video Teaser Section (guests only) -->
     <div
-      v-if="hasVideos"
+      v-if="hasVideos && accessLevel === 'guest'"
       class="relative group cursor-default overflow-hidden rounded-xl border border-gray-100 bg-gray-50 p-4"
       data-testid="video-teaser"
       aria-label="Vidéos disponibles, réservées aux producteurs inscrits"
@@ -116,8 +120,8 @@ defineProps<Props>()
       </div>
     </div>
 
-    <!-- Conversion CTA -->
-    <div class="mt-4">
+    <!-- Conversion CTA (guests only) -->
+    <div v-if="accessLevel === 'guest'" class="mt-4">
       <RouterLink
         to="/register/producer"
         class="flex items-center justify-center gap-2 w-full text-sm font-semibold bg-[#198496] text-white px-6 py-3 rounded-md hover:bg-[#146c7a] transition-all transform active:scale-[0.98] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#198496]/20"
