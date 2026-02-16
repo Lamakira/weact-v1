@@ -72,7 +72,7 @@ function handleKeydown(event: KeyboardEvent, currentValue: Perspective): void {
         :tabindex="modelValue === option.value ? 0 : -1"
         :class="[
           'font-semibold rounded-full transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-1',
-          'px-4 py-1 text-xs',
+          'px-5 py-1.5 text-sm',
           modelValue === option.value
             ? 'bg-black text-white shadow-md'
             : 'text-slate-500 hover:text-slate-700 hover:bg-white/50',

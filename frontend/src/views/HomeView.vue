@@ -122,7 +122,7 @@ function formatBudget(budget: number): string {
         'left-0 right-0 transition-all duration-200',
         isToggleSticky
           ? 'fixed top-[72px] z-40 py-2'
-          : 'relative py-2 pb-6 bg-gray-50/70',
+          : 'relative py-2 bg-gray-50/70',
       ]"
       :style="isToggleSticky ? {} : { marginTop: '-56px' }"
       data-testid="perspective-toggle-container"

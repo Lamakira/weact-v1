@@ -1,59 +1,35 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ArrowRight } from 'lucide-vue-next'
+import heroLandscape from '@/assets/images/hero-section/full-shot-woman-posing-chair.webp'
+import heroPortrait from '@/assets/images/hero-section/portrait-smiley-woman-posing-studio.webp'
 
 // --- Hero Text Cycling Animation ---
 const words = ['film', 'série télévisée', 'vidéo publicitaire', 'clip musical']
 const activeWordIndex = ref(0)
 let wordInterval: ReturnType<typeof setInterval> | null = null
 
-// --- Scroll Progress for Silhouette Rotation (throttled with RAF) ---
-const scrollProgress = ref(0)
-const rotation = computed(() => scrollProgress.value * 360)
-let rafId: number | null = null
-
-function handleScroll(): void {
-  // Throttle with requestAnimationFrame to avoid excessive updates
-  if (rafId !== null) return
-
-  rafId = requestAnimationFrame(() => {
-    const scrollTop = window.scrollY
-    const docHeight = document.documentElement.scrollHeight - window.innerHeight
-    scrollProgress.value = docHeight > 0 ? scrollTop / docHeight : 0
-    rafId = null
-  })
-}
-
 // --- Lifecycle ---
 onMounted(() => {
-  // Start word cycling animation
   wordInterval = setInterval(() => {
     activeWordIndex.value = (activeWordIndex.value + 1) % words.length
   }, 2500)
-
-  // Add scroll listener for rotation (passive for better performance)
-  window.addEventListener('scroll', handleScroll, { passive: true })
 })
 
 onUnmounted(() => {
   if (wordInterval) {
     clearInterval(wordInterval)
   }
-  // Cancel any pending RAF
-  if (rafId !== null) {
-    cancelAnimationFrame(rafId)
-  }
-  window.removeEventListener('scroll', handleScroll)
 })
 </script>
 
 <template>
-  <section class="relative pt-2 pb-10 lg:pt-4 lg:pb-12 overflow-hidden bg-gray-50/70">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex items-start justify-between gap-12">
+  <section class="relative min-h-[calc(100vh-120px)] flex items-start overflow-hidden bg-gray-50/70 pt-4 sm:pt-[5vh] lg:pt-[10vh]">
+    <div class="max-w-7xl mx-auto w-full">
+      <div class="grid md:grid-cols-2 lg:grid-cols-[1fr_1fr] gap-8 lg:gap-10 items-center">
         <!-- Left: Text Content -->
-        <div class="max-w-2xl text-center lg:text-left">
+        <div class="text-center md:text-left px-4 sm:px-6 md:px-0">
           <!-- Hero Title -->
           <div>
             <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
@@ -62,11 +38,11 @@ onUnmounted(() => {
             </h1>
 
             <!-- Dynamic Animated Word -->
-            <div class="h-[50px] sm:h-[60px] lg:h-[70px] relative flex justify-center lg:justify-start items-center overflow-hidden">
+            <div class="h-[3.5rem] sm:h-[3.5rem] lg:h-[4.5rem] relative flex justify-center md:justify-start items-start overflow-hidden mt-1">
               <Transition name="slide-up">
                 <span
                   :key="words[activeWordIndex]"
-                  class="absolute text-4xl sm:text-5xl lg:text-6xl font-bold text-[#198496]"
+                  class="absolute whitespace-nowrap text-4xl sm:text-5xl lg:text-6xl font-bold text-[#198496]"
                   data-testid="hero-animated-word"
                   aria-live="polite"
                   aria-atomic="true"
@@ -76,7 +52,7 @@ onUnmounted(() => {
               </Transition>
             </div>
           </div>
-          <p class="text-gray-500 text-lg pt-4 lg:text-xl max-w-lg mx-auto lg:mx-0 mb-10 leading-relaxed">
+          <p class="text-gray-500 text-lg pt-4 lg:text-xl max-w-lg mx-auto md:mx-0 mb-8 leading-relaxed">
             La première plateforme qui met en relation marques et créateurs pour des castings
             sécurisés au Bénin.
           </p>
@@ -90,50 +66,31 @@ onUnmounted(() => {
           </RouterLink>
         </div>
 
-        <!-- Right: Silhouette Visual (Desktop Only) -->
-        <div class="hidden lg:block relative w-1/3 min-h-[400px]">
-          <div
-            class="sticky top-32 flex items-center justify-center transition-transform duration-75"
-            :style="{ transform: `rotate(${rotation}deg)` }"
-            data-testid="hero-silhouette"
-          >
-            <!-- Decorative Silhouette Circle -->
-            <div
-              class="relative w-80 h-80 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden border border-gray-200"
-            >
-              <div
-                class="absolute inset-0 bg-gradient-to-br from-gray-200 to-transparent opacity-50"
-              ></div>
-              <div class="relative z-10 text-8xl font-black text-[#198496]/10 select-none">
-                FACE
-              </div>
-
-              <!-- Floating Thought Bubbles -->
-              <div
-                class="absolute -top-4 -right-4 bg-white shadow-xl px-4 py-2 rounded-full border border-gray-100 text-xs font-bold text-[#198496] animate-bounce"
-                style="animation-delay: 0.1s"
-              >
-                Content creator
-              </div>
-              <div
-                class="absolute top-1/2 -left-8 bg-white shadow-xl px-4 py-2 rounded-full border border-gray-100 text-xs font-bold text-[#198496] animate-bounce"
-                style="animation-delay: 0.3s"
-              >
-                Acteur
-              </div>
-              <div
-                class="absolute bottom-4 right-0 bg-white shadow-xl px-4 py-2 rounded-full border border-gray-100 text-xs font-bold text-[#198496] animate-bounce"
-                style="animation-delay: 0.5s"
-              >
-                Figurant
-              </div>
-              <div
-                class="absolute -bottom-2 left-4 bg-white shadow-xl px-4 py-2 rounded-full border border-gray-100 text-xs font-bold text-[#198496] animate-bounce"
-                style="animation-delay: 0.7s"
-              >
-                Influenceur
-              </div>
-            </div>
+        <!-- Right: Hero Images -->
+        <div data-testid="hero-images">
+          <!-- Mobile/Tablet: Portrait only -->
+          <div class="lg:hidden flex justify-center px-4 sm:px-6 md:px-0 mt-8 md:mt-0">
+            <img
+              :src="heroPortrait"
+              alt="Femme souriante en studio"
+              class="w-full max-w-xs md:max-w-none md:w-full h-[280px] sm:h-[320px] md:h-[420px] object-cover rounded-2xl"
+              loading="eager"
+            />
+          </div>
+          <!-- Desktop: Both images -->
+          <div class="hidden lg:grid grid-cols-[1fr_auto] gap-4 items-center">
+            <img
+              :src="heroLandscape"
+              alt="Femme posant sur une chaise"
+              class="w-full rounded-2xl object-cover"
+              loading="eager"
+            />
+            <img
+              :src="heroPortrait"
+              alt="Femme souriante en studio"
+              class="w-52 h-[32rem] object-cover rounded-2xl"
+              loading="eager"
+            />
           </div>
         </div>
       </div>
