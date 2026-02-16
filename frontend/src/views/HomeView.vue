@@ -158,10 +158,10 @@ function formatBudget(budget: number): string {
 
         <!-- Steps with Curved Arrows -->
         <div class="relative">
-          <!-- Desktop: Grid layout with arrows -->
+          <!-- Desktop: Zigzag layout with overlapping cards & arrows -->
           <div class="hidden lg:block">
             <!-- Row 1: Card 1 (left) -->
-            <div class="flex justify-start mb-8">
+            <div class="relative z-[4] flex justify-start">
               <div class="w-1/2 flex justify-center">
                 <div
                   class="group relative bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 w-full max-w-sm h-64"
@@ -187,8 +187,8 @@ function formatBudget(budget: number): string {
 
             <!-- Arrow 1: From card 1 to card 2 (curves down-right) -->
             <svg
-              class="absolute top-[200px] left-[calc(25%+120px)] w-[calc(50%-80px)] h-40 text-gray-300"
-              viewBox="0 0 400 160"
+              class="absolute top-[200px] left-[calc(25%+120px)] w-[calc(50%-80px)] h-28 text-gray-300 z-0"
+              viewBox="0 0 400 112"
               fill="none"
               preserveAspectRatio="none"
             >
@@ -198,7 +198,7 @@ function formatBudget(budget: number): string {
                 </marker>
               </defs>
               <path
-                d="M0 0 Q200 0 200 80 Q200 160 400 160"
+                d="M0 0 Q200 0 200 56 Q200 112 400 112"
                 stroke="currentColor"
                 stroke-width="2"
                 stroke-dasharray="8 6"
@@ -206,8 +206,8 @@ function formatBudget(budget: number): string {
               />
             </svg>
 
-            <!-- Row 2: Card 2 (right) -->
-            <div class="flex justify-end mb-8 mt-16">
+            <!-- Row 2: Card 2 (right) — starts at ¾ of card 1 -->
+            <div class="relative z-[3] flex justify-end -mt-16">
               <div class="w-1/2 flex justify-center">
                 <div
                   class="group relative bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 w-full max-w-sm h-64"
@@ -233,8 +233,8 @@ function formatBudget(budget: number): string {
 
             <!-- Arrow 2: From card 2 to card 3 (curves down-left) -->
             <svg
-              class="absolute top-[520px] left-[calc(25%-60px)] w-[calc(50%-80px)] h-40 text-gray-300"
-              viewBox="0 0 400 160"
+              class="absolute top-[392px] left-[calc(25%-60px)] w-[calc(50%-80px)] h-28 text-gray-300 z-0"
+              viewBox="0 0 400 112"
               fill="none"
               preserveAspectRatio="none"
             >
@@ -244,7 +244,7 @@ function formatBudget(budget: number): string {
                 </marker>
               </defs>
               <path
-                d="M400 0 Q200 0 200 80 Q200 160 0 160"
+                d="M400 0 Q200 0 200 56 Q200 112 0 112"
                 stroke="currentColor"
                 stroke-width="2"
                 stroke-dasharray="8 6"
@@ -252,8 +252,8 @@ function formatBudget(budget: number): string {
               />
             </svg>
 
-            <!-- Row 3: Card 3 (left) -->
-            <div class="flex justify-start mb-8 mt-16">
+            <!-- Row 3: Card 3 (left) — starts at ¾ of card 2 -->
+            <div class="relative z-[2] flex justify-start -mt-16">
               <div class="w-1/2 flex justify-center">
                 <div
                   class="group relative bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 w-full max-w-sm h-64"
@@ -279,8 +279,8 @@ function formatBudget(budget: number): string {
 
             <!-- Arrow 3: From card 3 to card 4 (curves down-right) -->
             <svg
-              class="absolute top-[840px] left-[calc(25%+120px)] w-[calc(50%-80px)] h-40 text-gray-300"
-              viewBox="0 0 400 160"
+              class="absolute top-[584px] left-[calc(25%+120px)] w-[calc(50%-80px)] h-28 text-gray-300 z-0"
+              viewBox="0 0 400 112"
               fill="none"
               preserveAspectRatio="none"
             >
@@ -290,7 +290,7 @@ function formatBudget(budget: number): string {
                 </marker>
               </defs>
               <path
-                d="M0 0 Q200 0 200 80 Q200 160 400 160"
+                d="M0 0 Q200 0 200 56 Q200 112 400 112"
                 stroke="currentColor"
                 stroke-width="2"
                 stroke-dasharray="8 6"
@@ -298,8 +298,8 @@ function formatBudget(budget: number): string {
               />
             </svg>
 
-            <!-- Row 4: Card 4 (right) -->
-            <div class="flex justify-end mt-16">
+            <!-- Row 4: Card 4 (right) — starts at ¾ of card 3 -->
+            <div class="relative z-[1] flex justify-end -mt-16">
               <div class="w-1/2 flex justify-center">
                 <div
                   class="group relative bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 w-full max-w-sm h-64"

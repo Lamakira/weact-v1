@@ -133,7 +133,7 @@ const countDisplay = computed((): string | null => {
     <div class="flex flex-col items-center mt-16 px-4">
       <RouterLink
         to="/register/face"
-        class="bg-[#198496] text-white px-10 py-4 rounded-full font-bold shadow-lg hover:shadow-[#198496]/20 hover:scale-105 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#198496]/10"
+        class="bg-[#198496] text-white px-10 py-4 rounded-md font-bold shadow-lg hover:shadow-[#198496]/20 hover:scale-105 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#198496]/10"
         data-testid="deviens-face-cta"
       >
         Je crée mon profil
