@@ -151,7 +151,7 @@ async function handleLogout(): Promise<void> {
           <template v-if="!authStore.isAuthenticated">
             <Button
               as-child
-              class="bg-[#198496] hover:bg-[#146c7a] text-white text-sm font-medium px-5 py-2 rounded-md"
+              class="bg-black hover:bg-gray-800 text-white text-sm font-medium px-5 py-2 rounded-md"
               data-testid="cta-poster-mission"
             >
               <RouterLink to="/register/producer">Poster une mission</RouterLink>
@@ -268,7 +268,7 @@ async function handleLogout(): Promise<void> {
             <template v-if="!authStore.isAuthenticated">
               <RouterLink
                 to="/register/producer"
-                class="w-full text-center py-3 text-sm font-medium bg-[#198496] text-white rounded-md hover:bg-[#146c7a] transition-colors"
+                class="w-full text-center py-3 text-sm font-medium bg-black text-white rounded-md hover:bg-gray-800 transition-colors"
                 @click="closeMobileMenu"
               >
                 Poster une mission
