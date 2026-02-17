@@ -179,7 +179,7 @@ const categoryLabel = computed(() => {
   const labels: Record<string, string> = {
     acteur: 'Acteur',
     influenceur: 'Influenceur',
-    createur: 'Créateur',
+    createur: 'Créateur de contenu',
     mannequin: 'Mannequin',
     figurant: 'Figurant',
   }

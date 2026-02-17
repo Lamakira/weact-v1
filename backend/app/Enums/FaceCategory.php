@@ -20,7 +20,7 @@ enum FaceCategory: string
         return match ($this) {
             self::ACTEUR => 'Acteur',
             self::INFLUENCEUR => 'Influenceur',
-            self::CREATEUR => 'Créateur',
+            self::CREATEUR => 'Créateur de contenu',
             self::MANNEQUIN => 'Mannequin',
             self::FIGURANT => 'Figurant',
         };

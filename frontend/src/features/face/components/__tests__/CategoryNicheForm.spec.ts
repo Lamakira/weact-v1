@@ -14,7 +14,7 @@ describe('CategoryNicheForm', () => {
   const mockCategoryOptions: CategoryOption[] = [
     { value: 'acteur', label: 'Acteur' },
     { value: 'influenceur', label: 'Influenceur' },
-    { value: 'createur', label: 'Créateur' },
+    { value: 'createur', label: 'Créateur de contenu' },
     { value: 'mannequin', label: 'Mannequin' },
     { value: 'figurant', label: 'Figurant' },
   ]

@@ -369,7 +369,7 @@ function closeVideoModal(): void {
                   <option :value="null">Aucune</option>
                   <option value="acteur">Acteur</option>
                   <option value="influenceur">Influenceur</option>
-                  <option value="createur">Créateur</option>
+                  <option value="createur">Créateur de contenu</option>
                   <option value="mannequin">Mannequin</option>
                   <option value="figurant">Figurant</option>
                 </select>
