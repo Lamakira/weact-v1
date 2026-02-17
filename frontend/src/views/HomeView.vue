@@ -128,13 +128,15 @@ function formatDate(date: string): string {
         'left-0 right-0 transition-all duration-200',
         isToggleSticky
           ? 'fixed top-[72px] z-40 py-2'
-          : 'relative py-2 bg-gray-50/70',
+          : 'relative pt-2 pb-0',
+        !isToggleSticky && perspective === 'producer' ? 'bg-black' : '',
+        !isToggleSticky && perspective === 'face' ? 'bg-gray-50/70' : '',
       ]"
       :style="isToggleSticky ? {} : { marginTop: '-56px' }"
       data-testid="perspective-toggle-container"
     >
       <div class="flex justify-center">
-        <PerspectiveToggle v-model="perspective" :compact="isToggleSticky" />
+        <PerspectiveToggle v-model="perspective" :compact="isToggleSticky" :dark="perspective === 'producer' && !isToggleSticky" />
       </div>
     </div>
 

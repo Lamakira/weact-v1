@@ -4,6 +4,7 @@ import type { Perspective } from './types'
 interface Props {
   modelValue: Perspective
   compact?: boolean
+  dark?: boolean
 }
 
 const props = defineProps<Props>()
@@ -49,7 +50,7 @@ function handleKeydown(event: KeyboardEvent, currentValue: Perspective): void {
 <template>
   <div class="flex flex-col items-center" data-testid="perspective-toggle">
     <!-- Centered Label (hidden in compact mode) -->
-    <span v-show="!compact" class="text-[10px] font-semibold text-slate-500 uppercase tracking-widest mb-0">Je suis :</span>
+    <span v-show="!compact" :class="['text-[10px] font-semibold uppercase tracking-widest mb-0', dark ? 'text-gray-400' : 'text-slate-500']">Je suis :</span>
 
 
     <!-- Toggle buttons -->
@@ -57,10 +58,12 @@ function handleKeydown(event: KeyboardEvent, currentValue: Perspective): void {
       role="tablist"
       aria-label="Choisir votre profil"
       :class="[
-        'inline-flex rounded-full transition-all duration-200',
-        compact
-          ? 'bg-white p-0.5 border border-gray-200 shadow-md'
-          : 'bg-white p-0.5 border border-gray-200',
+        'inline-flex rounded-full transition-all duration-200 p-0.5',
+        dark
+          ? 'bg-white/10 border border-white/20'
+          : compact
+            ? 'bg-white border border-gray-200 shadow-md'
+            : 'bg-white border border-gray-200',
       ]"
     >
       <button
@@ -74,8 +77,12 @@ function handleKeydown(event: KeyboardEvent, currentValue: Perspective): void {
           'font-semibold rounded-full transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-1',
           'px-5 py-1.5 text-sm',
           modelValue === option.value
-            ? 'bg-black text-white shadow-md'
-            : 'text-slate-500 hover:text-slate-700 hover:bg-white/50',
+            ? dark
+              ? 'bg-white text-black shadow-md'
+              : 'bg-black text-white shadow-md'
+            : dark
+              ? 'text-gray-400 hover:text-white'
+              : 'text-slate-500 hover:text-slate-700 hover:bg-white/50',
         ]"
         @click="selectOption(option.value)"
         @keydown="handleKeydown($event, option.value)"

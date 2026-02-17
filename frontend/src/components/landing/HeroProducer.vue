@@ -61,7 +61,7 @@ onUnmounted(() => {
 
 <template>
   <section
-    class="relative w-full flex items-center justify-center overflow-hidden bg-gradient-to-br from-white via-[#198496]/5 to-white pt-2 pb-10 lg:pt-4 lg:pb-12 px-4"
+    class="relative w-full min-h-[calc(100vh-120px)] flex items-center justify-center overflow-hidden bg-black px-4"
   >
     <!-- Orbiting Talent Faces (Desktop only) -->
     <div
@@ -77,7 +77,7 @@ onUnmounted(() => {
       }"
     >
       <div
-        class="floating-face rounded-full border-4 border-white shadow-lg overflow-hidden transition-transform duration-500 hover:scale-110"
+        class="floating-face rounded-full border-4 border-black/50 shadow-lg overflow-hidden transition-transform duration-500 hover:scale-110"
         :class="getSizeClass(talent.size)"
       >
         <img
@@ -93,7 +93,7 @@ onUnmounted(() => {
     <div class="relative z-10 max-w-4xl w-full text-center flex flex-col items-center">
       <!-- Hero Title -->
       <div>
-        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
+        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight">
           Trouvez votre prochain
         </h1>
 
@@ -114,7 +114,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Subtitle -->
-      <p class="mt-3 text-lg lg:text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
+      <p class="mt-3 text-lg lg:text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed">
         Accédez au plus grand catalogue de talents au Bénin
       </p>
 
@@ -124,7 +124,7 @@ onUnmounted(() => {
           <div
             v-for="i in 5"
             :key="i"
-            class="w-11 h-11 rounded-full border-2 border-white shadow-lg overflow-hidden"
+            class="w-11 h-11 rounded-full border-2 border-black shadow-lg overflow-hidden"
           >
             <img
               :src="talents[i - 1]?.img"
@@ -134,14 +134,14 @@ onUnmounted(() => {
             />
           </div>
         </div>
-        <span class="ml-2 text-sm text-gray-500 font-medium">{{ TALENT_COUNT_DISPLAY }}</span>
+        <span class="ml-2 text-sm text-gray-400 font-medium">{{ TALENT_COUNT_DISPLAY }}</span>
       </div>
 
       <!-- CTA Button -->
       <div class="mt-6 lg:mt-4 w-full sm:w-auto">
         <RouterLink
           to="/register/producer"
-          class="group inline-flex w-full sm:w-auto justify-center items-center gap-2 bg-[#198496] hover:bg-[#146c7a] text-white px-8 py-3.5 rounded-md font-medium text-base transition-all duration-300 shadow-xl shadow-[#198496]/20 active:scale-95"
+          class="group inline-flex w-full sm:w-auto justify-center items-center gap-2 bg-[#198496] hover:bg-[#146c7a] text-white px-8 py-3.5 rounded-md font-medium text-base transition-all duration-300 shadow-xl shadow-[#198496]/30 active:scale-95"
           data-testid="hero-cta"
         >
           Publier une mission
