@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import { MapPin, ChevronRight, ChevronLeft } from 'lucide-vue-next'
+import { MapPin, ChevronRight, ChevronLeft, Users } from 'lucide-vue-next'
 import { Skeleton } from '@/components/ui/skeleton'
 
 // Landing page components
@@ -99,13 +99,19 @@ function prevMission(): void {
 function handleMissionScroll(): void {
   if (!missionCarouselRef.value) return
   const scrollLeft = missionCarouselRef.value.scrollLeft
-  const cardWidth = missionCarouselRef.value.offsetWidth * 0.85 + 16
+  const firstCard = missionCarouselRef.value.querySelector('[data-mission-card]') as HTMLElement | null
+  if (!firstCard) return
+  const cardWidth = firstCard.offsetWidth + 16 // card width + gap
   const newIndex = Math.round(scrollLeft / cardWidth)
   missionCarouselIndex.value = Math.min(Math.max(newIndex, 0), missions.value.length - 1)
 }
 
 function formatBudget(budget: number): string {
   return new Intl.NumberFormat('fr-FR').format(budget) + ' FCFA'
+}
+
+function formatDate(date: string): string {
+  return new Date(date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 }
 </script>
 
@@ -433,23 +439,24 @@ function formatBudget(budget: number): string {
         <!-- Loading State -->
         <div
           v-if="isLoadingMissions"
-          class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8"
+          class="flex flex-col gap-4"
           data-testid="missions-loading"
         >
           <div
-            v-for="i in 6"
+            v-for="i in 4"
             :key="`skeleton-${i}`"
-            class="bg-white rounded-2xl border border-gray-200 overflow-hidden"
+            class="bg-white rounded-xl border border-gray-200 overflow-hidden flex"
           >
-            <Skeleton class="h-56 w-full" />
-            <div class="p-6 space-y-4">
+            <div class="flex-1 p-6 space-y-3">
+              <Skeleton class="h-5 w-20" />
               <Skeleton class="h-6 w-3/4" />
               <Skeleton class="h-4 w-full" />
-              <Skeleton class="h-4 w-2/3" />
-              <div class="flex justify-between pt-4 border-t border-gray-100">
-                <Skeleton class="h-4 w-24" />
-                <Skeleton class="h-6 w-16" />
-              </div>
+              <Skeleton class="h-4 w-24" />
+            </div>
+            <div class="hidden md:block w-72 border-l border-gray-100 p-5 space-y-3">
+              <Skeleton class="h-4 w-full" />
+              <Skeleton class="h-4 w-full" />
+              <Skeleton class="h-4 w-full" />
             </div>
           </div>
         </div>
@@ -466,131 +473,136 @@ function formatBudget(budget: number): string {
           </button>
         </div>
 
-        <!-- Missions Content -->
+        <!-- Missions Content — Carousel with side fade -->
         <div v-else>
-          <!-- Mobile: Swipeable Carousel -->
-          <div class="md:hidden">
+          <div class="relative">
+            <!-- Left fade -->
+            <div class="absolute left-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-r from-gray-50 to-transparent z-10 pointer-events-none"></div>
+            <!-- Right fade -->
+            <div class="absolute right-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-l from-gray-50 to-transparent z-10 pointer-events-none"></div>
+
+            <!-- Left Arrow -->
+            <button
+              v-if="missions.length > 1"
+              @click="prevMission"
+              class="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:border-[#198496] hover:text-[#198496] transition-colors shadow-sm"
+              aria-label="Mission précédente"
+            >
+              <ChevronLeft class="w-5 h-5" />
+            </button>
+
+            <!-- Right Arrow -->
+            <button
+              v-if="missions.length > 1"
+              @click="nextMission"
+              class="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:border-[#198496] hover:text-[#198496] transition-colors shadow-sm"
+              aria-label="Mission suivante"
+            >
+              <ChevronRight class="w-5 h-5" />
+            </button>
+
             <div
               ref="missionCarouselRef"
-              class="flex gap-4 overflow-x-auto snap-x snap-mandatory scroll-smooth pb-4 -mx-4 px-4 scrollbar-hide"
+              class="flex gap-6 overflow-x-auto snap-x snap-mandatory scroll-smooth py-2 scrollbar-hide mission-carousel-padding"
               @scroll="handleMissionScroll"
-              data-testid="missions-carousel-mobile"
+              data-testid="missions-carousel"
             >
               <RouterLink
                 v-for="mission in missions"
                 :key="mission.id"
                 :to="{ name: 'public-mission-detail', params: { slug: mission.slug } }"
                 data-mission-card
-                class="group flex-shrink-0 w-[85%] snap-center bg-white rounded-2xl border border-gray-200 overflow-hidden"
-                :data-testid="`mission-card-mobile-${mission.id}`"
+                class="group flex-shrink-0 w-[80%] md:w-[65%] snap-center bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-[#198496]/30 hover:shadow-lg transition-all duration-300"
+                :data-testid="`mission-card-${mission.id}`"
               >
-                <!-- Type Badge & Budget -->
-                <div class="p-5 pb-3">
-                  <div class="flex items-center justify-between mb-3">
-                    <span class="text-xs font-bold px-3 py-1 rounded-full bg-[#198496]/10 text-[#198496]">
+              <div class="flex flex-col md:flex-row">
+                <!-- Main Info -->
+                <div class="flex-1 p-5 md:p-6">
+                  <div class="flex items-center gap-3 mb-3">
+                    <span class="text-xs font-semibold px-2.5 py-0.5 rounded bg-[#198496]/10 text-[#198496]">
                       {{ mission.type_mission_label }}
                     </span>
-                    <span class="text-sm font-bold text-[#198496]">
+                    <span class="text-sm font-bold text-[#198496] ml-auto md:hidden">
                       {{ formatBudget(mission.budget) }}
                     </span>
+                    <span v-if="mission.date_tournage" class="hidden md:inline text-xs text-gray-400">
+                      {{ formatDate(mission.date_tournage) }}
+                    </span>
                   </div>
 
-                  <h3 class="text-lg font-bold text-gray-900 mb-1.5">
+                  <h3 class="text-base md:text-lg font-bold text-gray-900 mb-1.5 group-hover:text-[#198496] transition-colors">
                     {{ mission.titre }}
                   </h3>
-                  <p class="text-gray-600 text-sm leading-relaxed mb-3 line-clamp-2">
-                    {{ mission.description }}
-                  </p>
+                  <p class="text-sm text-gray-500 line-clamp-2 mb-3 md:mb-4">{{ mission.description }}</p>
 
-                  <!-- Metadata -->
-                  <div class="flex items-center justify-between pt-3 border-t border-gray-100">
-                    <div class="flex items-center gap-1.5 text-sm text-gray-500">
-                      <MapPin class="w-4 h-4 text-[#198496]" />
+                  <!-- Mobile: compact info row -->
+                  <div class="flex items-center gap-4 text-xs text-gray-400 mb-3 md:hidden">
+                    <div class="flex items-center gap-1">
+                      <MapPin class="w-3.5 h-3.5" />
                       {{ mission.lieu }}
                     </div>
-                    <span class="text-xs font-medium px-2 py-1 rounded-full border bg-green-500/10 text-green-600 border-green-500/30">
-                      {{ mission.status_label }}
+                    <div class="flex items-center gap-1">
+                      <Users class="w-3.5 h-3.5" />
+                      {{ mission.nombre_faces_voulu }} face{{ mission.nombre_faces_voulu > 1 ? 's' : '' }}
+                    </div>
+                  </div>
+
+                  <!-- Desktop: location -->
+                  <div class="hidden md:flex items-center gap-1.5 text-sm text-gray-400">
+                    <MapPin class="w-3.5 h-3.5" />
+                    {{ mission.lieu }}
+                  </div>
+
+                  <!-- Mobile: bottom -->
+                  <div class="flex items-center justify-between pt-3 border-t border-gray-100 md:hidden">
+                    <span class="text-xs text-gray-400">{{ mission.genre_voulu_label }}</span>
+                    <span class="text-xs font-medium text-[#198496] flex items-center gap-0.5">
+                      Voir détails
+                      <ChevronRight class="w-3.5 h-3.5" />
                     </span>
                   </div>
                 </div>
-              </RouterLink>
-            </div>
 
-            <!-- Mobile Navigation -->
-            <div v-if="missions.length > 1" class="flex items-center justify-center gap-6 mt-6">
-              <button
-                @click="prevMission"
-                class="w-10 h-10 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:border-[#198496] hover:text-[#198496] transition-colors"
-                aria-label="Mission précédente"
-              >
-                <ChevronLeft class="w-5 h-5" />
-              </button>
-
-              <!-- Dots Indicator -->
-              <div class="flex items-center gap-2">
-                <button
-                  v-for="(_, index) in missions"
-                  :key="index"
-                  @click="scrollToMission(index)"
-                  :class="[
-                    'w-2 h-2 rounded-full transition-all duration-300',
-                    missionCarouselIndex === index
-                      ? 'bg-[#198496] w-4'
-                      : 'bg-gray-300 hover:bg-gray-400'
-                  ]"
-                  :aria-label="`Aller à la mission ${index + 1}`"
-                />
-              </div>
-
-              <button
-                @click="nextMission"
-                class="w-10 h-10 flex items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 hover:border-[#198496] hover:text-[#198496] transition-colors"
-                aria-label="Mission suivante"
-              >
-                <ChevronRight class="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-
-          <!-- Desktop: Grid Layout -->
-          <div class="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
-            <RouterLink
-              v-for="mission in missions"
-              :key="mission.id"
-              :to="{ name: 'public-mission-detail', params: { slug: mission.slug } }"
-              class="group bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-[#198496]/50 hover:scale-[1.02] hover:shadow-xl transition-all duration-300"
-              :data-testid="`mission-card-${mission.id}`"
-            >
-              <!-- Type Badge & Budget -->
-              <div class="p-6">
-                <div class="flex items-center justify-between mb-3">
-                  <span class="text-xs font-bold px-3 py-1 rounded-full bg-[#198496]/10 text-[#198496]">
-                    {{ mission.type_mission_label }}
-                  </span>
-                  <span class="text-sm font-bold text-[#198496]">
-                    {{ formatBudget(mission.budget) }}
-                  </span>
-                </div>
-
-                <h3
-                  class="text-xl font-bold text-gray-900 mb-2 group-hover:text-[#198496] transition-colors"
-                >
-                  {{ mission.titre }}
-                </h3>
-                <p class="text-gray-600 text-sm leading-relaxed mb-4">{{ mission.description }}</p>
-
-                <!-- Metadata -->
-                <div class="flex items-center justify-between pt-4 border-t border-gray-100">
-                  <div class="flex items-center gap-1.5 text-sm text-gray-500">
-                    <MapPin class="w-4 h-4 text-[#198496]" />
-                    {{ mission.lieu }}
+                <!-- Desktop: Right Details Panel -->
+                <div class="hidden md:flex w-64 border-l border-gray-100 flex-col">
+                  <div class="flex-1 divide-y divide-gray-100">
+                    <div class="flex items-center justify-between px-5 py-3">
+                      <span class="text-xs text-gray-400">Budget</span>
+                      <span class="text-sm font-semibold text-gray-900">{{ formatBudget(mission.budget) }}</span>
+                    </div>
+                    <div class="flex items-center justify-between px-5 py-3">
+                      <span class="text-xs text-gray-400">Profil</span>
+                      <span class="text-sm text-gray-700">{{ mission.genre_voulu_label }}</span>
+                    </div>
+                    <div class="flex items-center justify-between px-5 py-3">
+                      <span class="text-xs text-gray-400">Faces recherchées</span>
+                      <span class="text-sm text-gray-700">{{ mission.nombre_faces_voulu }}</span>
+                    </div>
                   </div>
-                  <span class="text-xs font-medium px-2 py-1 rounded-full border bg-green-500/10 text-green-600 border-green-500/30">
-                    {{ mission.status_label }}
-                  </span>
+                  <div class="px-5 py-3 border-t border-gray-100 flex items-center justify-end gap-1 text-sm font-medium text-[#198496]">
+                    Voir les détails
+                    <ChevronRight class="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </div>
                 </div>
               </div>
             </RouterLink>
+            </div>
+          </div>
+
+          <!-- Dots Indicator -->
+          <div v-if="missions.length > 1" class="flex items-center justify-center gap-2 mt-6">
+            <button
+              v-for="(_, index) in missions"
+              :key="index"
+              @click="scrollToMission(index)"
+              :class="[
+                'w-2 h-2 rounded-full transition-all duration-300',
+                missionCarouselIndex === index
+                  ? 'bg-[#198496] w-4'
+                  : 'bg-gray-300 hover:bg-gray-400'
+              ]"
+              :aria-label="`Aller à la mission ${index + 1}`"
+            />
           </div>
         </div>
       </div>
@@ -744,6 +756,19 @@ function formatBudget(budget: number): string {
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* Carousel horizontal padding so first/last card can be centered */
+.mission-carousel-padding {
+  padding-left: 10%;
+  padding-right: 10%;
+}
+
+@media (min-width: 768px) {
+  .mission-carousel-padding {
+    padding-left: 17.5%;
+    padding-right: 17.5%;
+  }
 }
 
 /* Line clamp for card descriptions */
