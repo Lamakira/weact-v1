@@ -81,20 +81,18 @@ const hasPhoto = computed(() => {
     </div>
 
     <!-- Info overlay (bottom) -->
-    <div class="absolute inset-x-0 bottom-0 p-3 flex items-end justify-between">
-      <div>
-        <p class="text-base font-bold text-white">
-          {{ face.prenom }}
-        </p>
-        <p
-          v-if="face.ville"
-          class="mt-0.5 text-sm text-white/70"
-        >
-          {{ face.ville }}
-        </p>
-      </div>
+    <div class="absolute inset-x-0 bottom-0 p-2.5 sm:p-3 flex flex-col gap-1">
+      <p class="text-sm sm:text-base font-bold text-white truncate">
+        {{ face.prenom }}
+      </p>
+      <p
+        v-if="face.ville"
+        class="text-xs sm:text-sm text-white/70 truncate"
+      >
+        {{ face.ville }}
+      </p>
       <span
-        class="inline-block rounded-full bg-white/95 backdrop-blur-sm px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-[#198496] shadow-sm shrink-0"
+        class="self-start mt-0.5 rounded-full bg-white/95 backdrop-blur-sm px-2 sm:px-3 py-0.5 sm:py-1 text-[8px] sm:text-[10px] font-bold uppercase tracking-widest text-[#198496] shadow-sm truncate max-w-full"
       >
         {{ face.categorie_label || face.categorie }}
       </span>
