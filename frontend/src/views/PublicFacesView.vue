@@ -61,23 +61,14 @@ function handlePageChange(page: number): void {
   <div class="py-8" data-testid="public-faces-view">
     <!-- Page Header -->
     <header class="mb-8 text-center">
-      <div class="flex items-center justify-center gap-2 mb-4">
-        <div class="bg-[#198496] text-white p-1.5 rounded">
-          <Users class="w-4 h-4" />
-        </div>
-        <span class="text-xs font-bold tracking-widest uppercase text-[#198496]">
-          Talents
-        </span>
-      </div>
       <h1
         class="text-3xl sm:text-4xl font-bold text-gray-900 mb-3"
         data-testid="faces-page-title"
       >
-        Nos Talents
+        Nos Faces
       </h1>
       <p class="text-gray-600 text-lg max-w-2xl mx-auto">
         Découvrez notre vivier de talents béninois pour tous vos projets audiovisuels.
-        Acteurs, mannequins, influenceurs et créateurs prêts à collaborer.
       </p>
     </header>
 
