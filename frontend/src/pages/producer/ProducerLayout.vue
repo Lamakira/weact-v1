@@ -60,6 +60,7 @@ async function handleLogout(): Promise<void> {
     :user-name="userName"
     :avatar-url="profile?.profile_photo_url"
     :is-logging-out="isLoading"
+    profile-route="/producer/profile"
     @logout="handleLogout"
   >
     <!-- Email verification banner (shown if email not verified) -->

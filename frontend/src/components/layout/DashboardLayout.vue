@@ -25,6 +25,7 @@ interface Props {
   avatarUrl?: string | null
   isLoggingOut?: boolean
   showNotifications?: boolean
+  profileRoute?: string
 }
 
 withDefaults(defineProps<Props>(), {
@@ -35,6 +36,7 @@ withDefaults(defineProps<Props>(), {
   avatarUrl: null,
   isLoggingOut: false,
   showNotifications: true,
+  profileRoute: '/face/profile',
 })
 
 const emit = defineEmits<{
@@ -192,6 +194,7 @@ function handleLogout() {
           :avatar-url="avatarUrl"
           :is-logging-out="isLoggingOut"
           :show-notifications="showNotifications"
+          :profile-route="profileRoute"
           class="flex-shrink-0"
           @logout="handleLogout"
         />
