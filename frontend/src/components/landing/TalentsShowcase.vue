@@ -62,15 +62,9 @@ const countDisplay = computed((): string | null => {
 
     <!-- Talents Showcase Carousel (full viewport width) -->
     <div class="relative z-10 w-full overflow-hidden mb-12 py-6 group/carousel" data-testid="talents-carousel">
-      <!-- Edge Fade Overlays — two layers per side for sharp Backstage-style fade -->
-      <!-- Left: solid opaque mask (covers edge card) -->
-      <div class="absolute inset-y-0 left-0 w-20 sm:w-32 lg:w-48 bg-black z-20 pointer-events-none"></div>
-      <!-- Left: aggressive gradient fade (extends over next card) -->
-      <div class="absolute inset-y-0 left-20 sm:left-32 lg:left-48 w-40 sm:w-56 lg:w-80 z-20 pointer-events-none" style="background: linear-gradient(to right, rgb(0,0,0) 0%, rgba(0,0,0,0.95) 20%, rgba(0,0,0,0.7) 45%, rgba(0,0,0,0.3) 70%, transparent 100%)"></div>
-      <!-- Right: solid opaque mask (covers edge card) -->
-      <div class="absolute inset-y-0 right-0 w-20 sm:w-32 lg:w-48 bg-black z-20 pointer-events-none"></div>
-      <!-- Right: aggressive gradient fade (extends over next card) -->
-      <div class="absolute inset-y-0 right-20 sm:right-32 lg:right-48 w-40 sm:w-56 lg:w-80 z-20 pointer-events-none" style="background: linear-gradient(to left, rgb(0,0,0) 0%, rgba(0,0,0,0.95) 20%, rgba(0,0,0,0.7) 45%, rgba(0,0,0,0.3) 70%, transparent 100%)"></div>
+      <!-- Edge Fade Overlays — single element per side, solid then fade -->
+      <div class="absolute inset-y-0 left-0 w-44 sm:w-64 lg:w-96 z-20 pointer-events-none" style="background: linear-gradient(to right, rgb(0,0,0) 0%, rgb(0,0,0) 45%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,0.3) 80%, transparent 100%)"></div>
+      <div class="absolute inset-y-0 right-0 w-44 sm:w-64 lg:w-96 z-20 pointer-events-none" style="background: linear-gradient(to left, rgb(0,0,0) 0%, rgb(0,0,0) 45%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,0.3) 80%, transparent 100%)"></div>
 
       <div
         class="flex w-max gap-8 px-4 animate-marquee-loop group-hover/carousel:[animation-play-state:paused]"
