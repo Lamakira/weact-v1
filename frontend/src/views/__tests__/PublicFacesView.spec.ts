@@ -93,7 +93,7 @@ describe('PublicFacesView', () => {
       const wrapper = await mountView()
       await flushPromises()
 
-      expect(wrapper.find('[data-testid="faces-page-title"]').text()).toBe('Nos Talents')
+      expect(wrapper.find('[data-testid="faces-page-title"]').text()).toBe('Nos Faces')
       expect(wrapper.text()).toContain('Découvrez notre vivier de talents béninois')
     })
 
@@ -416,7 +416,7 @@ describe('PublicFacesView', () => {
 
       const h1 = wrapper.find('h1')
       expect(h1.exists()).toBe(true)
-      expect(h1.text()).toBe('Nos Talents')
+      expect(h1.text()).toBe('Nos Faces')
     })
   })
 })
