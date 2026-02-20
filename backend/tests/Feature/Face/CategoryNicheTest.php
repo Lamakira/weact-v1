@@ -225,7 +225,7 @@ class CategoryNicheTest extends TestCase
                     '*' => ['value', 'label'],
                 ],
             ])
-            ->assertJsonCount(5, 'data');
+            ->assertJsonCount(7, 'data');
 
         $categories = $response->json('data');
 
@@ -235,6 +235,8 @@ class CategoryNicheTest extends TestCase
             ['value' => 'createur', 'label' => 'Créateur de contenu'],
             ['value' => 'mannequin', 'label' => 'Mannequin'],
             ['value' => 'figurant', 'label' => 'Figurant'],
+            ['value' => 'modele_photo', 'label' => 'Modèle Photo'],
+            ['value' => 'egerie', 'label' => 'Égérie'],
         ];
 
         $this->assertEquals($expectedCategories, $categories);
@@ -277,7 +279,7 @@ class CategoryNicheTest extends TestCase
 
     public function test_can_update_all_categorie_values(): void
     {
-        $categories = ['acteur', 'influenceur', 'createur', 'mannequin', 'figurant'];
+        $categories = ['acteur', 'influenceur', 'createur', 'mannequin', 'figurant', 'modele_photo', 'egerie'];
 
         foreach ($categories as $categorie) {
             $response = $this->actingAs($this->faceUser)

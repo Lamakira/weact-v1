@@ -38,6 +38,8 @@ describe('useCategoryNiche', () => {
     { value: 'createur', label: 'Créateur de contenu' },
     { value: 'mannequin', label: 'Mannequin' },
     { value: 'figurant', label: 'Figurant' },
+    { value: 'modele_photo', label: 'Modèle Photo' },
+    { value: 'egerie', label: 'Égérie' },
   ]
 
   const mockNicheOptions: NicheOption[] = [

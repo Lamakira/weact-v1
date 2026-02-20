@@ -372,6 +372,8 @@ function closeVideoModal(): void {
                   <option value="createur">Créateur de contenu</option>
                   <option value="mannequin">Mannequin</option>
                   <option value="figurant">Figurant</option>
+                  <option value="modele_photo">Modèle Photo</option>
+                  <option value="egerie">Égérie</option>
                 </select>
               </div>
               <div>

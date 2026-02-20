@@ -11,6 +11,8 @@ enum FaceCategory: string
     case CREATEUR = 'createur';
     case MANNEQUIN = 'mannequin';
     case FIGURANT = 'figurant';
+    case MODELE_PHOTO = 'modele_photo';
+    case EGERIE = 'egerie';
 
     /**
      * Get the French display name for this category.
@@ -23,6 +25,8 @@ enum FaceCategory: string
             self::CREATEUR => 'Créateur de contenu',
             self::MANNEQUIN => 'Mannequin',
             self::FIGURANT => 'Figurant',
+            self::MODELE_PHOTO => 'Modèle Photo',
+            self::EGERIE => 'Égérie',
         };
     }
 }

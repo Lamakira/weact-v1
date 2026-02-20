@@ -4,6 +4,8 @@ const categoryLabels: Record<string, string> = {
   createur: 'Créateur de contenu',
   mannequin: 'Mannequin',
   figurant: 'Figurant',
+  modele_photo: 'Modèle Photo',
+  egerie: 'Égérie',
 }
 
 const categoryColors: Record<string, string> = {
@@ -12,6 +14,8 @@ const categoryColors: Record<string, string> = {
   createur: 'bg-amber-100 text-amber-700',
   mannequin: 'bg-pink-100 text-pink-700',
   figurant: 'bg-gray-100 text-gray-700',
+  modele_photo: 'bg-rose-100 text-rose-700',
+  egerie: 'bg-indigo-100 text-indigo-700',
 }
 
 const nicheLabels: Record<string, string> = {

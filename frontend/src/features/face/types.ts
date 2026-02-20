@@ -147,7 +147,7 @@ export interface PhysicalCharacteristicsResult {
 }
 
 // Category enum values
-export type FaceCategory = 'acteur' | 'influenceur' | 'createur' | 'mannequin' | 'figurant'
+export type FaceCategory = 'acteur' | 'influenceur' | 'createur' | 'mannequin' | 'figurant' | 'modele_photo' | 'egerie'
 
 // Niche enum values
 export type FaceNiche = 'beaute' | 'nourriture' | 'decouverte' | 'mode'

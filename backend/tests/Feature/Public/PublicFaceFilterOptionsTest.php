@@ -34,6 +34,8 @@ class PublicFaceFilterOptionsTest extends TestCase
         $this->assertContains('influenceur', $values);
         $this->assertContains('createur', $values);
         $this->assertContains('figurant', $values);
+        $this->assertContains('modele_photo', $values);
+        $this->assertContains('egerie', $values);
     }
 
     public function test_returns_niches_with_values_and_labels(): void
