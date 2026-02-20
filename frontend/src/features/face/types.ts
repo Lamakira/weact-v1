@@ -152,12 +152,16 @@ export type FaceCategory = 'acteur' | 'influenceur' | 'createur' | 'mannequin' |
 // Niche enum values
 export type FaceNiche = 'beaute' | 'nourriture' | 'decouverte' | 'mode'
 
-// Category and niche info from API
+// Value+label pair for categories and niches
+export interface ValueLabel {
+  value: string
+  label: string
+}
+
+// Category and niche info from API (multi-select)
 export interface CategoryNicheInfo {
-  categorie: FaceCategory | null
-  categorie_label: string | null
-  niche: FaceNiche | null
-  niche_label: string | null
+  categories: ValueLabel[]
+  niches: ValueLabel[]
 }
 
 // Category and niche API response

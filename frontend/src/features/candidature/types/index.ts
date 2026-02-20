@@ -199,10 +199,8 @@ export interface CandidateFullProfile {
   formatted_location: string | null
   taille: number | null
   poids: number | null
-  categorie: string | null
-  categorie_label: string | null
-  niche: string | null
-  niche_label: string | null
+  categories: Array<{ value: string; label: string }>
+  niches: Array<{ value: string; label: string }>
   tarif_horaire: number | null
   tarif_journalier: number | null
   formatted_tarif_horaire: string | null

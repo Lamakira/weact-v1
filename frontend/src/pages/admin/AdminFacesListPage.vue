@@ -3,7 +3,7 @@ import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, Users, AlertCircle, Loader2, X } from 'lucide-vue-next'
 import { useAdminFaces } from '@/features/admin/composables/useAdminFaces'
-import { getCategoryLabel, getCategoryColor } from '@/features/admin/utils/faceLabels'
+import { getCategoryColor } from '@/features/admin/utils/faceLabels'
 
 const router = useRouter()
 const { faces, pagination, isLoading, error, fetchFaces } = useAdminFaces()
@@ -225,13 +225,23 @@ function formatDate(dateString: string): string {
             <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
               @{{ f.username }}
             </td>
-            <td class="whitespace-nowrap px-6 py-4">
-              <span
-                class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-                :class="getCategoryColor(f.categorie)"
-              >
-                {{ getCategoryLabel(f.categorie) }}
-              </span>
+            <td class="px-6 py-4">
+              <div class="flex flex-wrap gap-1">
+                <span
+                  v-for="cat in f.categories"
+                  :key="cat.value"
+                  class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                  :class="getCategoryColor(cat.value)"
+                >
+                  {{ cat.label }}
+                </span>
+                <span
+                  v-if="!f.categories?.length"
+                  class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-400"
+                >
+                  —
+                </span>
+              </div>
             </td>
             <td class="whitespace-nowrap px-6 py-4">
               <span

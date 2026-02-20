@@ -23,7 +23,7 @@ import {
 } from 'lucide-vue-next'
 import { useAdminFaces } from '@/features/admin/composables/useAdminFaces'
 import type { UpdateAdminFaceForm, AdminFacePhoto } from '@/features/admin/services/adminFacesApi'
-import { getCategoryLabel, getNicheLabel } from '@/features/admin/utils/faceLabels'
+import { getCategoryLabels, getNicheLabels, getCategoryColor } from '@/features/admin/utils/faceLabels'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
 
@@ -66,8 +66,8 @@ function startEdit(): void {
     ville: face.value.ville,
     quartier: face.value.quartier,
     pays: face.value.pays,
-    categorie: face.value.categorie,
-    niche: face.value.niche,
+    categories: face.value.categories?.map((c: { value: string }) => c.value) ?? [],
+    niches: face.value.niches?.map((n: { value: string }) => n.value) ?? [],
     is_available: face.value.is_available,
   }
   editErrors.value = {}
@@ -304,13 +304,13 @@ function closeVideoModal(): void {
                 <dt class="text-sm text-gray-500">Username</dt>
                 <dd class="text-sm font-medium text-gray-900">@{{ face.username }}</dd>
               </div>
-              <div class="flex justify-between">
-                <dt class="text-sm text-gray-500">Catégorie</dt>
-                <dd class="text-sm font-medium text-gray-900">{{ face.categorie_label || getCategoryLabel(face.categorie) }}</dd>
+              <div class="flex justify-between items-start">
+                <dt class="text-sm text-gray-500">Catégories</dt>
+                <dd class="text-sm font-medium text-gray-900 text-right">{{ getCategoryLabels(face.categories) }}</dd>
               </div>
-              <div class="flex justify-between">
-                <dt class="text-sm text-gray-500">Niche</dt>
-                <dd class="text-sm font-medium text-gray-900">{{ face.niche_label || getNicheLabel(face.niche) }}</dd>
+              <div class="flex justify-between items-start">
+                <dt class="text-sm text-gray-500">Niches</dt>
+                <dd class="text-sm font-medium text-gray-900 text-right">{{ getNicheLabels(face.niches) }}</dd>
               </div>
               <div class="flex justify-between">
                 <dt class="text-sm text-gray-500">Disponibilité</dt>
@@ -359,36 +359,54 @@ function closeVideoModal(): void {
                 />
                 <p v-if="editErrors.username" class="mt-1 text-xs text-red-600">{{ editErrors.username[0] }}</p>
               </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Catégorie</label>
-                <select
-                  v-model="editForm.categorie"
-                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  data-testid="edit-categorie"
-                >
-                  <option :value="null">Aucune</option>
-                  <option value="acteur">Acteur</option>
-                  <option value="influenceur">Influenceur</option>
-                  <option value="createur">Créateur de contenu</option>
-                  <option value="mannequin">Mannequin</option>
-                  <option value="figurant">Figurant</option>
-                  <option value="modele_photo">Modèle Photo</option>
-                  <option value="egerie">Égérie</option>
-                </select>
+              <div data-testid="edit-categories">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Catégories</label>
+                <div class="flex flex-wrap gap-2">
+                  <label
+                    v-for="cat in [
+                      { value: 'acteur', label: 'Acteur' },
+                      { value: 'influenceur', label: 'Influenceur' },
+                      { value: 'createur', label: 'Créateur de contenu' },
+                      { value: 'mannequin', label: 'Mannequin' },
+                      { value: 'figurant', label: 'Figurant' },
+                      { value: 'modele_photo', label: 'Modèle Photo' },
+                      { value: 'egerie', label: 'Égérie' },
+                    ]"
+                    :key="cat.value"
+                    class="inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      :value="cat.value"
+                      v-model="editForm.categories"
+                      class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span class="text-sm text-gray-700">{{ cat.label }}</span>
+                  </label>
+                </div>
               </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Niche</label>
-                <select
-                  v-model="editForm.niche"
-                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  data-testid="edit-niche"
-                >
-                  <option :value="null">Aucune</option>
-                  <option value="beaute">Beauté</option>
-                  <option value="nourriture">Nourriture</option>
-                  <option value="decouverte">Découverte</option>
-                  <option value="mode">Mode</option>
-                </select>
+              <div data-testid="edit-niches">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Niches</label>
+                <div class="flex flex-wrap gap-2">
+                  <label
+                    v-for="niche in [
+                      { value: 'beaute', label: 'Beauté' },
+                      { value: 'nourriture', label: 'Nourriture' },
+                      { value: 'decouverte', label: 'Découverte' },
+                      { value: 'mode', label: 'Mode' },
+                    ]"
+                    :key="niche.value"
+                    class="inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      :value="niche.value"
+                      v-model="editForm.niches"
+                      class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span class="text-sm text-gray-700">{{ niche.label }}</span>
+                  </label>
+                </div>
               </div>
               <div class="flex items-center gap-2">
                 <input

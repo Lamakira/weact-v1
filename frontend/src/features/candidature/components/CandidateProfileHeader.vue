@@ -92,19 +92,21 @@ const availabilityBadgeClass = computed((): string => {
           </span>
         </div>
 
-        <!-- Category and Niche -->
+        <!-- Categories and Niches -->
         <div class="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
           <span
-            v-if="candidate.categorie_label"
+            v-for="cat in candidate.categories"
+            :key="cat.value"
             class="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary"
           >
-            {{ candidate.categorie_label }}
+            {{ cat.label }}
           </span>
           <span
-            v-if="candidate.niche_label"
+            v-for="niche in candidate.niches"
+            :key="niche.value"
             class="inline-flex items-center rounded-full bg-muted px-3 py-1 text-sm font-medium text-muted-foreground"
           >
-            {{ candidate.niche_label }}
+            {{ niche.label }}
           </span>
         </div>
 

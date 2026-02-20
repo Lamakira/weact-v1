@@ -85,8 +85,12 @@ const initials = computed(() => {
 
 const categoryDisplay = computed(() => {
   const parts: string[] = []
-  if (categoryNiche.value?.categorie_label) parts.push(categoryNiche.value.categorie_label)
-  if (categoryNiche.value?.niche_label) parts.push(categoryNiche.value.niche_label)
+  if (categoryNiche.value?.categories?.length) {
+    parts.push(...categoryNiche.value.categories.map((c) => c.label))
+  }
+  if (categoryNiche.value?.niches?.length) {
+    parts.push(...categoryNiche.value.niches.map((n) => n.label))
+  }
   return parts.join(' · ')
 })
 

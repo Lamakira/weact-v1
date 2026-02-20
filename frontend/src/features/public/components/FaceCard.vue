@@ -91,11 +91,21 @@ const hasPhoto = computed(() => {
       >
         {{ face.ville }}
       </p>
-      <span
-        class="self-start mt-0.5 rounded-full bg-white/95 backdrop-blur-sm px-2 sm:px-3 py-0.5 sm:py-1 text-[8px] sm:text-[10px] font-bold uppercase tracking-widest text-[#198496] shadow-sm truncate max-w-full"
-      >
-        {{ face.categorie_label || face.categorie }}
-      </span>
+      <div class="flex flex-wrap gap-1 mt-0.5">
+        <span
+          v-for="(cat, index) in face.categories.slice(0, 2)"
+          :key="cat.value"
+          class="rounded-full bg-white/95 backdrop-blur-sm px-2 sm:px-3 py-0.5 sm:py-1 text-[8px] sm:text-[10px] font-bold uppercase tracking-widest text-[#198496] shadow-sm truncate max-w-[120px]"
+        >
+          {{ cat.label }}
+        </span>
+        <span
+          v-if="face.categories.length > 2"
+          class="rounded-full bg-white/80 backdrop-blur-sm px-2 py-0.5 sm:py-1 text-[8px] sm:text-[10px] font-bold text-[#198496]/70"
+        >
+          +{{ face.categories.length - 2 }}
+        </span>
+      </div>
     </div>
   </RouterLink>
 </template>

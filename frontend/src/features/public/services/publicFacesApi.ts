@@ -5,14 +5,21 @@ import { publicApiClient } from './apiClient'
  * Public Face data exposed by the API
  * Only contains public-safe fields (no sensitive data like full name, tariffs, etc.)
  */
+/**
+ * Value+label pair for categories and niches
+ */
+export interface ValueLabel {
+  value: string
+  label: string
+}
+
 export interface PublicFace {
   id: number
   username: string
   prenom: string
   nom: string
   ville: string | null
-  categorie: string
-  categorie_label: string
+  categories: ValueLabel[]
   is_available: boolean
   profile_photo_url: string | null
   profile_photo_thumbnail_url: string | null
@@ -21,11 +28,10 @@ export interface PublicFace {
 
 /**
  * Public Face Profile data (extended for profile detail view)
- * Includes additional fields like niche, photo URL, and content indicators
+ * Includes additional fields like niches, photo URL, and content indicators
  */
 export interface PublicFaceProfile extends PublicFace {
-  niche: string | null
-  niche_label: string | null
+  niches: ValueLabel[]
   profile_photo_url: string | null // Full size, not thumbnail
   ratings_count: number
   has_album_photos: boolean

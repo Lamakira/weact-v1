@@ -29,10 +29,8 @@ export interface AdminFaceData {
   ville: string | null
   quartier: string | null
   pays: string | null
-  categorie: string | null
-  categorie_label: string | null
-  niche: string | null
-  niche_label: string | null
+  categories: Array<{ value: string; label: string }>
+  niches: Array<{ value: string; label: string }>
   is_available: boolean
   profile_completion_percentage: number
   profile_completion_missing: Array<{ key: string; label: string }>
@@ -94,8 +92,8 @@ export interface UpdateAdminFaceForm {
   ville?: string | null
   quartier?: string | null
   pays?: string | null
-  categorie?: string | null
-  niche?: string | null
+  categories?: string[]
+  niches?: string[]
   is_available?: boolean
 }
 

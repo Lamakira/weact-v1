@@ -36,3 +36,19 @@ export function getCategoryColor(category: string | null): string {
 export function getNicheLabel(niche: string | null): string {
   return niche ? nicheLabels[niche] ?? niche : '—'
 }
+
+/**
+ * Get labels for an array of category values.
+ */
+export function getCategoryLabels(categories: Array<{ value: string; label: string }> | null): string {
+  if (!categories || categories.length === 0) return '—'
+  return categories.map((c) => c.label).join(', ')
+}
+
+/**
+ * Get labels for an array of niche values.
+ */
+export function getNicheLabels(niches: Array<{ value: string; label: string }> | null): string {
+  if (!niches || niches.length === 0) return '—'
+  return niches.map((n) => n.label).join(', ')
+}

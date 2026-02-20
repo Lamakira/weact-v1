@@ -98,7 +98,7 @@ const countDisplay = computed((): string | null => {
             <div class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 to-transparent" />
             <div class="absolute inset-x-0 bottom-0 p-4 text-left">
               <p class="font-bold text-white">{{ profile.prenom }}</p>
-              <p class="text-sm text-white/70">{{ profile.categorie_label }}</p>
+              <p class="text-sm text-white/70">{{ profile.categories[0]?.label ?? 'Talent' }}</p>
             </div>
           </div>
         </div>
@@ -122,7 +122,7 @@ const countDisplay = computed((): string | null => {
             <div class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 to-transparent" />
             <div class="absolute inset-x-0 bottom-0 p-4 text-left">
               <p class="font-bold text-white">{{ profile.prenom }}</p>
-              <p class="text-sm text-white/70">{{ profile.categorie_label }}</p>
+              <p class="text-sm text-white/70">{{ profile.categories[0]?.label ?? 'Talent' }}</p>
             </div>
           </div>
         </div>

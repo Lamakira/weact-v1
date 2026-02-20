@@ -9,8 +9,6 @@ import type {
   BioLocationResponse,
   PhysicalCharacteristicsResponse,
   CategoryNicheResponse,
-  FaceCategory,
-  FaceNiche,
   CategoryOption,
   NicheOption,
   ExperienceResponse,
@@ -267,12 +265,12 @@ export const faceApi = {
   },
 
   /**
-   * Update category and/or niche
-   * @param data The category and niche data to update
+   * Update categories and/or niches (multi-select arrays)
+   * @param data The categories and niches arrays to update
    */
   async updateCategoryNiche(data: {
-    categorie?: FaceCategory | null
-    niche?: FaceNiche | null
+    categories?: string[] | null
+    niches?: string[] | null
   }): Promise<CategoryNicheResponse> {
     await getCsrfCookie()
     const response = await apiClient.put<CategoryNicheResponse>('/face/category-niche', data)

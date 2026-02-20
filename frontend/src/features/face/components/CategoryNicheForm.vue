@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
-import type { CategoryNicheInfo, CategoryOption, NicheOption, FaceCategory, FaceNiche } from '../types'
-import { FloatingSelect } from '@/components/ui/form'
-import { Tag, Layers } from 'lucide-vue-next'
+import type { CategoryNicheInfo, CategoryOption, NicheOption } from '../types'
+import { Tag, Layers, Check } from 'lucide-vue-next'
 
 const props = defineProps<{
   categoryNicheInfo: CategoryNicheInfo | null
@@ -13,12 +12,12 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'save', data: { categorie: FaceCategory | null; niche: FaceNiche | null }): void
+  (e: 'save', data: { categories: string[] | null; niches: string[] | null }): void
 }>()
 
 const form = reactive({
-  categorie: '' as string,
-  niche: '' as string,
+  categories: [] as string[],
+  niches: [] as string[],
 })
 
 // Watch for categoryNicheInfo changes and update form
@@ -26,23 +25,41 @@ watch(
   () => props.categoryNicheInfo,
   (info) => {
     if (info) {
-      form.categorie = info.categorie ?? ''
-      form.niche = info.niche ?? ''
+      form.categories = info.categories.map((c) => c.value)
+      form.niches = info.niches.map((n) => n.value)
     }
   },
   { immediate: true },
 )
 
+function toggleCategory(value: string) {
+  const index = form.categories.indexOf(value)
+  if (index >= 0) {
+    form.categories.splice(index, 1)
+  } else {
+    form.categories.push(value)
+  }
+}
+
+function toggleNiche(value: string) {
+  const index = form.niches.indexOf(value)
+  if (index >= 0) {
+    form.niches.splice(index, 1)
+  } else {
+    form.niches.push(value)
+  }
+}
+
 const handleSubmit = () => {
   emit('save', {
-    categorie: form.categorie === '' ? null : (form.categorie as FaceCategory),
-    niche: form.niche === '' ? null : (form.niche as FaceNiche),
+    categories: form.categories.length > 0 ? [...form.categories] : null,
+    niches: form.niches.length > 0 ? [...form.niches] : null,
   })
 }
 </script>
 
 <template>
-  <form @submit.prevent="handleSubmit" class="space-y-4" novalidate>
+  <form @submit.prevent="handleSubmit" class="space-y-5" novalidate>
     <!-- Error State -->
     <div
       v-if="error"
@@ -65,48 +82,62 @@ const handleSubmit = () => {
       <span class="text-sm text-red-700 font-medium">{{ error }}</span>
     </div>
 
-    <!-- Current Selection Badges -->
-    <div
-      v-if="categoryNicheInfo?.categorie_label || categoryNicheInfo?.niche_label"
-      class="flex flex-wrap gap-2"
-      data-testid="current-selection"
-    >
-      <span
-        v-if="categoryNicheInfo?.categorie_label"
-        class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-teal-100 text-teal-800"
-        data-testid="category-badge"
-      >
-        {{ categoryNicheInfo.categorie_label }}
-      </span>
-      <span
-        v-if="categoryNicheInfo?.niche_label"
-        class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800"
-        data-testid="niche-badge"
-      >
-        {{ categoryNicheInfo.niche_label }}
-      </span>
+    <!-- Categories Section -->
+    <div data-testid="categories-section">
+      <label class="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
+        <Tag class="h-4 w-4 text-teal-600" />
+        Catégories
+      </label>
+      <div class="flex flex-wrap gap-2" data-testid="categories-chips">
+        <button
+          v-for="option in categoryOptions"
+          :key="option.value"
+          type="button"
+          :data-testid="`category-chip-${option.value}`"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-150"
+          :class="
+            form.categories.includes(option.value)
+              ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+              : 'bg-white text-gray-600 border-gray-300 hover:border-teal-400 hover:text-teal-700'
+          "
+          @click="toggleCategory(option.value)"
+        >
+          <Check
+            v-if="form.categories.includes(option.value)"
+            class="h-3.5 w-3.5"
+          />
+          {{ option.label }}
+        </button>
+      </div>
     </div>
 
-    <!-- Category and Niche Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <FloatingSelect
-        id="categorie"
-        v-model="form.categorie"
-        label="Catégorie"
-        :icon="Tag"
-        :options="categoryOptions"
-        placeholder="Sélectionnez une catégorie"
-        data-testid="categorie-select"
-      />
-      <FloatingSelect
-        id="niche"
-        v-model="form.niche"
-        label="Niche"
-        :icon="Layers"
-        :options="nicheOptions"
-        placeholder="Sélectionnez une niche"
-        data-testid="niche-select"
-      />
+    <!-- Niches Section -->
+    <div data-testid="niches-section">
+      <label class="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-3">
+        <Layers class="h-4 w-4 text-purple-600" />
+        Niches
+      </label>
+      <div class="flex flex-wrap gap-2" data-testid="niches-chips">
+        <button
+          v-for="option in nicheOptions"
+          :key="option.value"
+          type="button"
+          :data-testid="`niche-chip-${option.value}`"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-150"
+          :class="
+            form.niches.includes(option.value)
+              ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+              : 'bg-white text-gray-600 border-gray-300 hover:border-purple-400 hover:text-purple-700'
+          "
+          @click="toggleNiche(option.value)"
+        >
+          <Check
+            v-if="form.niches.includes(option.value)"
+            class="h-3.5 w-3.5"
+          />
+          {{ option.label }}
+        </button>
+      </div>
     </div>
 
     <!-- Action Button -->

@@ -103,7 +103,8 @@ const pageTitle = computed(() => {
   if (!face.value) {
     return 'Chargement... | WEACT'
   }
-  return `${face.value.prenom} - ${face.value.categorie_label} | WEACT`
+  const firstCategory = face.value.categories?.[0]?.label ?? 'Talent'
+  return `${face.value.prenom} - ${firstCategory} | WEACT`
 })
 
 useTitle(pageTitle)
@@ -125,12 +126,13 @@ function setMetaTag(name: string, content: string, isProperty = false): void {
 
 watchEffect(() => {
   if (face.value) {
+    const firstCat = face.value.categories?.[0]?.label ?? 'Talent'
     const suffix = accessLevel.value === 'guest'
       ? ' Inscrivez-vous sur WEACT pour accéder au profil complet.'
       : ' Profil de talent sur WEACT.'
-    const description = `Découvrez le profil de ${face.value.prenom}, ${face.value.categorie_label}${face.value.ville ? ` à ${face.value.ville}` : ''}.${suffix}`
+    const description = `Découvrez le profil de ${face.value.prenom}, ${firstCat}${face.value.ville ? ` à ${face.value.ville}` : ''}.${suffix}`
     setMetaTag('description', description)
-    setMetaTag('og:title', `${face.value.prenom} - ${face.value.categorie_label} | WEACT`, true)
+    setMetaTag('og:title', `${face.value.prenom} - ${firstCat} | WEACT`, true)
     setMetaTag('og:description', 'Profil de talent sur WEACT', true)
     if (face.value.profile_photo_url) {
       setMetaTag('og:image', face.value.profile_photo_url, true)
@@ -279,10 +281,8 @@ async function handleRetry(): Promise<void> {
             <ProfileInfoSection
               :prenom="face.prenom"
               :ville="face.ville"
-              :categorie="face.categorie"
-              :categorie-label="face.categorie_label"
-              :niche="face.niche"
-              :niche-label="face.niche_label"
+              :categories="face.categories"
+              :niches="face.niches"
               :average-rating="face.average_rating"
               :ratings-count="face.ratings_count"
               :has-videos="hasVideos"

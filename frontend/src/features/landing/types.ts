@@ -34,8 +34,7 @@ export interface LandingFace {
   prenom: string
   nom: string
   ville: string | null
-  categorie: string
-  categorie_label: string
+  categories: Array<{ value: string; label: string }>
   is_available: boolean
   profile_photo_url: string | null
   profile_photo_thumbnail_url: string | null

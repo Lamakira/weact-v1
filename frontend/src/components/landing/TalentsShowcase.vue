@@ -89,7 +89,7 @@ const countDisplay = computed((): string | null => {
           <div class="absolute inset-x-0 bottom-0 p-3 sm:p-4 flex flex-col gap-1.5">
             <p class="text-sm sm:text-base font-bold text-white truncate">{{ talent.prenom }}</p>
             <span class="self-start px-2.5 py-0.5 bg-white/95 backdrop-blur-sm rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-[#198496] shadow-sm">
-              {{ talent.categorie_label }}
+              {{ talent.categories[0]?.label ?? 'Talent' }}
             </span>
           </div>
         </div>

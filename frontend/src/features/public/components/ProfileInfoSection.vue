@@ -5,10 +5,8 @@ import type { AccessLevel } from '@/features/public/composables/usePublicFaceAcc
 interface Props {
   prenom: string
   ville: string | null
-  categorie: string
-  categorieLabel: string
-  niche: string | null
-  nicheLabel: string | null
+  categories: Array<{ value: string; label: string }>
+  niches: Array<{ value: string; label: string }>
   averageRating: number | null
   ratingsCount: number
   hasVideos: boolean
@@ -44,17 +42,20 @@ withDefaults(defineProps<Props>(), {
     <!-- Badges Row -->
     <div class="flex flex-wrap gap-2" data-testid="face-badges">
       <span
+        v-for="cat in categories"
+        :key="cat.value"
         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-[#198496]/10 text-[#198496]"
         data-testid="categorie-badge"
       >
-        {{ categorieLabel }}
+        {{ cat.label }}
       </span>
       <span
-        v-if="nicheLabel"
+        v-for="niche in niches"
+        :key="niche.value"
         class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200/50"
         data-testid="niche-badge"
       >
-        {{ nicheLabel }}
+        {{ niche.label }}
       </span>
     </div>
 
