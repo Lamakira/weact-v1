@@ -6,10 +6,8 @@ describe('ProfileInfoSection', () => {
   const defaultProps = {
     prenom: 'Adjoua',
     ville: 'Cotonou',
-    categorie: 'acteur',
-    categorieLabel: 'Acteur',
-    niche: 'publicite',
-    nicheLabel: 'Publicité',
+    categories: [{ value: 'acteur', label: 'Acteur' }],
+    niches: [{ value: 'publicite', label: 'Publicité' }],
     averageRating: 4.5,
     ratingsCount: 12,
     hasVideos: true,
@@ -123,9 +121,9 @@ describe('ProfileInfoSection', () => {
     expect(badge.text()).toBe('Publicité')
   })
 
-  it('hides niche badge when nicheLabel is null', () => {
+  it('hides niche badge when niches array is empty', () => {
     const wrapper = mount(ProfileInfoSection, {
-      props: { ...defaultProps, niche: null, nicheLabel: null },
+      props: { ...defaultProps, niches: [] },
       global: {
         stubs: {
           RouterLink: {

@@ -5,10 +5,11 @@ import type { CategoryNicheInfo, CategoryOption, NicheOption } from '../../types
 
 describe('CategoryNicheForm', () => {
   const mockCategoryNicheInfo: CategoryNicheInfo = {
-    categorie: 'acteur',
-    categorie_label: 'Acteur',
-    niche: 'beaute',
-    niche_label: 'Beauté',
+    categories: [
+      { value: 'acteur', label: 'Acteur' },
+      { value: 'mannequin', label: 'Mannequin' },
+    ],
+    niches: [{ value: 'beaute', label: 'Beauté' }],
   }
 
   const mockCategoryOptions: CategoryOption[] = [
@@ -29,18 +30,54 @@ describe('CategoryNicheForm', () => {
   ]
 
   const defaultProps = {
-    categoryNicheInfo: null,
+    categoryNicheInfo: null as CategoryNicheInfo | null,
     categoryOptions: mockCategoryOptions,
     nicheOptions: mockNicheOptions,
     isSaving: false,
-    error: null,
+    error: null as string | null,
   }
 
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('renders form with initial values', () => {
+  it('renders category and niche chip groups', () => {
+    const wrapper = mount(CategoryNicheForm, {
+      props: defaultProps,
+    })
+
+    const categoriesSection = wrapper.find('[data-testid="categories-section"]')
+    const nichesSection = wrapper.find('[data-testid="niches-section"]')
+
+    expect(categoriesSection.exists()).toBe(true)
+    expect(nichesSection.exists()).toBe(true)
+  })
+
+  it('renders all category chips', () => {
+    const wrapper = mount(CategoryNicheForm, {
+      props: defaultProps,
+    })
+
+    for (const option of mockCategoryOptions) {
+      const chip = wrapper.find(`[data-testid="category-chip-${option.value}"]`)
+      expect(chip.exists()).toBe(true)
+      expect(chip.text()).toContain(option.label)
+    }
+  })
+
+  it('renders all niche chips', () => {
+    const wrapper = mount(CategoryNicheForm, {
+      props: defaultProps,
+    })
+
+    for (const option of mockNicheOptions) {
+      const chip = wrapper.find(`[data-testid="niche-chip-${option.value}"]`)
+      expect(chip.exists()).toBe(true)
+      expect(chip.text()).toContain(option.label)
+    }
+  })
+
+  it('marks selected categories as active', () => {
     const wrapper = mount(CategoryNicheForm, {
       props: {
         ...defaultProps,
@@ -48,31 +85,88 @@ describe('CategoryNicheForm', () => {
       },
     })
 
-    const categorieSelect = wrapper.find('[data-testid="categorie-select"]')
-    const nicheSelect = wrapper.find('[data-testid="niche-select"]')
+    const acteurChip = wrapper.find('[data-testid="category-chip-acteur"]')
+    const mannequinChip = wrapper.find('[data-testid="category-chip-mannequin"]')
+    const influenceurChip = wrapper.find('[data-testid="category-chip-influenceur"]')
 
-    expect((categorieSelect.element as HTMLSelectElement).value).toBe('acteur')
-    expect((nicheSelect.element as HTMLSelectElement).value).toBe('beaute')
+    // Selected chips should have teal bg
+    expect(acteurChip.classes()).toContain('bg-teal-600')
+    expect(mannequinChip.classes()).toContain('bg-teal-600')
+    // Unselected chip should not
+    expect(influenceurChip.classes()).not.toContain('bg-teal-600')
   })
 
-  it('renders form with null values', () => {
+  it('marks selected niches as active', () => {
+    const wrapper = mount(CategoryNicheForm, {
+      props: {
+        ...defaultProps,
+        categoryNicheInfo: mockCategoryNicheInfo,
+      },
+    })
+
+    const beauteChip = wrapper.find('[data-testid="niche-chip-beaute"]')
+    const modeChip = wrapper.find('[data-testid="niche-chip-mode"]')
+
+    expect(beauteChip.classes()).toContain('bg-purple-600')
+    expect(modeChip.classes()).not.toContain('bg-purple-600')
+  })
+
+  it('toggles category on click', async () => {
+    const wrapper = mount(CategoryNicheForm, {
+      props: {
+        ...defaultProps,
+        categoryNicheInfo: mockCategoryNicheInfo,
+      },
+    })
+
+    // Click to deselect 'acteur'
+    await wrapper.find('[data-testid="category-chip-acteur"]').trigger('click')
+    expect(wrapper.find('[data-testid="category-chip-acteur"]').classes()).not.toContain('bg-teal-600')
+
+    // Click to select 'influenceur'
+    await wrapper.find('[data-testid="category-chip-influenceur"]').trigger('click')
+    expect(wrapper.find('[data-testid="category-chip-influenceur"]').classes()).toContain('bg-teal-600')
+  })
+
+  it('emits save event with selected arrays', async () => {
+    const wrapper = mount(CategoryNicheForm, {
+      props: {
+        ...defaultProps,
+        categoryNicheInfo: mockCategoryNicheInfo,
+      },
+    })
+
+    await wrapper.find('form').trigger('submit.prevent')
+
+    expect(wrapper.emitted('save')).toBeTruthy()
+    expect(wrapper.emitted('save')![0]).toEqual([
+      {
+        categories: ['acteur', 'mannequin'],
+        niches: ['beaute'],
+      },
+    ])
+  })
+
+  it('emits save event with null for empty selections', async () => {
     const wrapper = mount(CategoryNicheForm, {
       props: {
         ...defaultProps,
         categoryNicheInfo: {
-          categorie: null,
-          categorie_label: null,
-          niche: null,
-          niche_label: null,
+          categories: [],
+          niches: [],
         },
       },
     })
 
-    const categorieSelect = wrapper.find('[data-testid="categorie-select"]')
-    const nicheSelect = wrapper.find('[data-testid="niche-select"]')
+    await wrapper.find('form').trigger('submit.prevent')
 
-    expect((categorieSelect.element as HTMLSelectElement).value).toBe('')
-    expect((nicheSelect.element as HTMLSelectElement).value).toBe('')
+    expect(wrapper.emitted('save')).toBeTruthy()
+    expect(wrapper.emitted('save')![0]).toEqual([
+      {
+        categories: null,
+        niches: null,
+      },
+    ])
   })
 
   it('renders save button disabled when saving', () => {
@@ -103,118 +197,6 @@ describe('CategoryNicheForm', () => {
     expect(errorMessage.text()).toContain("La catégorie sélectionnée n'est pas valide")
   })
 
-  it('emits save event with form data', async () => {
-    const wrapper = mount(CategoryNicheForm, {
-      props: {
-        ...defaultProps,
-        categoryNicheInfo: mockCategoryNicheInfo,
-      },
-    })
-
-    await wrapper.find('form').trigger('submit.prevent')
-
-    expect(wrapper.emitted('save')).toBeTruthy()
-    expect(wrapper.emitted('save')![0]).toEqual([
-      {
-        categorie: 'acteur',
-        niche: 'beaute',
-      },
-    ])
-  })
-
-  it('emits save event with null for empty values', async () => {
-    const wrapper = mount(CategoryNicheForm, {
-      props: {
-        ...defaultProps,
-        categoryNicheInfo: null,
-      },
-    })
-
-    await wrapper.find('form').trigger('submit.prevent')
-
-    expect(wrapper.emitted('save')).toBeTruthy()
-    expect(wrapper.emitted('save')![0]).toEqual([
-      {
-        categorie: null,
-        niche: null,
-      },
-    ])
-  })
-
-  it('renders dropdown options correctly', () => {
-    const wrapper = mount(CategoryNicheForm, {
-      props: defaultProps,
-    })
-
-    const categorieSelect = wrapper.find('[data-testid="categorie-select"]')
-    const nicheSelect = wrapper.find('[data-testid="niche-select"]')
-
-    const categorieOptions = categorieSelect.findAll('option')
-    const nicheOptionsElements = nicheSelect.findAll('option')
-
-    // +1 for the placeholder option
-    expect(categorieOptions).toHaveLength(mockCategoryOptions.length + 1)
-    expect(nicheOptionsElements).toHaveLength(mockNicheOptions.length + 1)
-
-    // Check placeholder
-    expect(categorieOptions[0].text()).toBe('Sélectionnez une catégorie')
-    expect(nicheOptionsElements[0].text()).toBe('Sélectionnez une niche')
-
-    // Check category options
-    expect(categorieOptions[1].text()).toBe('Acteur')
-    expect(categorieOptions[2].text()).toBe('Influenceur')
-
-    // Check niche options
-    expect(nicheOptionsElements[1].text()).toBe('Beauté')
-    expect(nicheOptionsElements[2].text()).toBe('Nourriture')
-  })
-
-  it('displays current selection badges when values exist', () => {
-    const wrapper = mount(CategoryNicheForm, {
-      props: {
-        ...defaultProps,
-        categoryNicheInfo: mockCategoryNicheInfo,
-      },
-    })
-
-    const currentSelection = wrapper.find('[data-testid="current-selection"]')
-    const categoryBadge = wrapper.find('[data-testid="category-badge"]')
-    const nicheBadge = wrapper.find('[data-testid="niche-badge"]')
-
-    expect(currentSelection.exists()).toBe(true)
-    expect(categoryBadge.text()).toBe('Acteur')
-    expect(nicheBadge.text()).toBe('Beauté')
-  })
-
-  it('does not display badges when values are null', () => {
-    const wrapper = mount(CategoryNicheForm, {
-      props: {
-        ...defaultProps,
-        categoryNicheInfo: null,
-      },
-    })
-
-    const currentSelection = wrapper.find('[data-testid="current-selection"]')
-
-    expect(currentSelection.exists()).toBe(false)
-  })
-
-  it('updates form when categoryNicheInfo changes', async () => {
-    const wrapper = mount(CategoryNicheForm, {
-      props: defaultProps,
-    })
-
-    await wrapper.setProps({
-      categoryNicheInfo: mockCategoryNicheInfo,
-    })
-
-    const categorieSelect = wrapper.find('[data-testid="categorie-select"]')
-    const nicheSelect = wrapper.find('[data-testid="niche-select"]')
-
-    expect((categorieSelect.element as HTMLSelectElement).value).toBe('acteur')
-    expect((nicheSelect.element as HTMLSelectElement).value).toBe('beaute')
-  })
-
   it('shows loading spinner when saving', () => {
     const wrapper = mount(CategoryNicheForm, {
       props: {
@@ -227,5 +209,20 @@ describe('CategoryNicheForm', () => {
     const spinner = saveButton.find('svg.animate-spin')
 
     expect(spinner.exists()).toBe(true)
+  })
+
+  it('updates form when categoryNicheInfo changes', async () => {
+    const wrapper = mount(CategoryNicheForm, {
+      props: defaultProps,
+    })
+
+    await wrapper.setProps({
+      categoryNicheInfo: mockCategoryNicheInfo,
+    })
+
+    // acteur and mannequin should now be selected
+    expect(wrapper.find('[data-testid="category-chip-acteur"]').classes()).toContain('bg-teal-600')
+    expect(wrapper.find('[data-testid="category-chip-mannequin"]').classes()).toContain('bg-teal-600')
+    expect(wrapper.find('[data-testid="niche-chip-beaute"]').classes()).toContain('bg-purple-600')
   })
 })

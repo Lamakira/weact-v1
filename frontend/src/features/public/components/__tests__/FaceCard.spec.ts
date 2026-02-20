@@ -19,8 +19,7 @@ const mockFace: PublicFace = {
   prenom: 'Adjoua',
   nom: 'Dossou',
   ville: 'Cotonou',
-  categorie: 'acteur',
-  categorie_label: 'Acteur',
+  categories: [{ value: 'acteur', label: 'Acteur' }],
   is_available: true,
   profile_photo_thumbnail_url: 'https://example.com/photo.jpg',
   average_rating: 4.5,
@@ -83,14 +82,20 @@ describe('FaceCard', () => {
       expect(placeholder.exists()).toBe(true)
     })
 
-    it('displays category badge with categorie_label', () => {
+    it('displays category badges from categories array', () => {
       const wrapper = mountCard()
       expect(wrapper.text()).toContain('Acteur')
     })
 
-    it('falls back to categorie when categorie_label is missing', () => {
-      const wrapper = mountCard({ categorie_label: '', categorie: 'mannequin' })
-      expect(wrapper.text()).toContain('mannequin')
+    it('displays multiple category badges', () => {
+      const wrapper = mountCard({
+        categories: [
+          { value: 'acteur', label: 'Acteur' },
+          { value: 'mannequin', label: 'Mannequin' },
+        ],
+      })
+      expect(wrapper.text()).toContain('Acteur')
+      expect(wrapper.text()).toContain('Mannequin')
     })
 
     it('hides ville when not provided', () => {

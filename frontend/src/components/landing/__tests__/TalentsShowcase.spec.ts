@@ -11,8 +11,7 @@ function makeFace(overrides: Partial<LandingFace> = {}): LandingFace {
     prenom: 'Alice',
     nom: 'Dupont',
     ville: 'Cotonou',
-    categorie: 'acteur',
-    categorie_label: 'Acteur',
+    categories: [{ value: 'acteur', label: 'Acteur' }],
     is_available: true,
     profile_photo_url: 'https://example.com/photo.jpg',
     profile_photo_thumbnail_url: 'https://example.com/thumb.jpg',
@@ -22,12 +21,12 @@ function makeFace(overrides: Partial<LandingFace> = {}): LandingFace {
 }
 
 const sampleTalents: LandingFace[] = [
-  makeFace({ id: 1, prenom: 'Alice', categorie_label: 'Actrice' }),
-  makeFace({ id: 2, prenom: 'Bob', categorie_label: 'Influenceur' }),
-  makeFace({ id: 3, prenom: 'Charlie', categorie_label: 'Mannequin' }),
-  makeFace({ id: 4, prenom: 'Diane', categorie_label: 'Créateur' }),
-  makeFace({ id: 5, prenom: 'Eve', categorie_label: 'Figurant' }),
-  makeFace({ id: 6, prenom: 'Frank', categorie_label: 'Acteur' }),
+  makeFace({ id: 1, prenom: 'Alice', categories: [{ value: 'acteur', label: 'Actrice' }] }),
+  makeFace({ id: 2, prenom: 'Bob', categories: [{ value: 'influenceur', label: 'Influenceur' }] }),
+  makeFace({ id: 3, prenom: 'Charlie', categories: [{ value: 'mannequin', label: 'Mannequin' }] }),
+  makeFace({ id: 4, prenom: 'Diane', categories: [{ value: 'createur', label: 'Créateur' }] }),
+  makeFace({ id: 5, prenom: 'Eve', categories: [{ value: 'figurant', label: 'Figurant' }] }),
+  makeFace({ id: 6, prenom: 'Frank', categories: [{ value: 'acteur', label: 'Acteur' }] }),
 ]
 
 function mountComponent(props: { talents: LandingFace[]; totalCount?: number } = { talents: sampleTalents }) {

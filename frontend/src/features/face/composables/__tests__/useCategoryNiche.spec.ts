@@ -21,10 +21,11 @@ vi.mock('@/features/auth/services/authApi', () => ({
 
 describe('useCategoryNiche', () => {
   const mockCategoryNicheInfo: CategoryNicheInfo = {
-    categorie: 'acteur',
-    categorie_label: 'Acteur',
-    niche: 'beaute',
-    niche_label: 'Beauté',
+    categories: [
+      { value: 'acteur', label: 'Acteur' },
+      { value: 'mannequin', label: 'Mannequin' },
+    ],
+    niches: [{ value: 'beaute', label: 'Beauté' }],
   }
 
   const mockResponse: CategoryNicheResponse = {
@@ -74,7 +75,7 @@ describe('useCategoryNiche', () => {
   })
 
   describe('fetchCategoryNiche', () => {
-    it('fetches category and niche successfully', async () => {
+    it('fetches categories and niches successfully', async () => {
       vi.mocked(faceApi.getCategoryNiche).mockResolvedValue(mockResponse)
 
       const { categoryNicheInfo, isLoading, error, fetchCategoryNiche } = useCategoryNiche()
@@ -82,6 +83,8 @@ describe('useCategoryNiche', () => {
       await fetchCategoryNiche()
 
       expect(categoryNicheInfo.value).toEqual(mockCategoryNicheInfo)
+      expect(categoryNicheInfo.value!.categories).toHaveLength(2)
+      expect(categoryNicheInfo.value!.niches).toHaveLength(1)
       expect(isLoading.value).toBe(false)
       expect(error.value).toBeNull()
       expect(faceApi.getCategoryNiche).toHaveBeenCalledOnce()
@@ -118,12 +121,12 @@ describe('useCategoryNiche', () => {
   })
 
   describe('updateCategoryNiche', () => {
-    it('updates categorie only successfully', async () => {
+    it('updates categories array successfully', async () => {
       vi.mocked(faceApi.updateCategoryNiche).mockResolvedValue(mockResponse)
 
       const { categoryNicheInfo, isSaving, error, updateCategoryNiche } = useCategoryNiche()
 
-      const result = await updateCategoryNiche({ categorie: 'influenceur' })
+      const result = await updateCategoryNiche({ categories: ['acteur', 'mannequin'] })
 
       expect(result.success).toBe(true)
       expect(result.data).toEqual(mockCategoryNicheInfo)
@@ -133,40 +136,41 @@ describe('useCategoryNiche', () => {
       expect(error.value).toBeNull()
     })
 
-    it('updates niche only successfully', async () => {
-      const nicheResponse: CategoryNicheResponse = {
+    it('updates niches array successfully', async () => {
+      const nichesResponse: CategoryNicheResponse = {
         data: {
-          categorie: null,
-          categorie_label: null,
-          niche: 'mode',
-          niche_label: 'Mode',
+          categories: [],
+          niches: [
+            { value: 'mode', label: 'Mode' },
+            { value: 'beaute', label: 'Beauté' },
+          ],
         },
         message: 'Profil mis à jour avec succès',
       }
-      vi.mocked(faceApi.updateCategoryNiche).mockResolvedValue(nicheResponse)
+      vi.mocked(faceApi.updateCategoryNiche).mockResolvedValue(nichesResponse)
 
       const { categoryNicheInfo, updateCategoryNiche } = useCategoryNiche()
 
-      const result = await updateCategoryNiche({ niche: 'mode' })
+      const result = await updateCategoryNiche({ niches: ['mode', 'beaute'] })
 
       expect(result.success).toBe(true)
-      expect(categoryNicheInfo.value?.niche).toBe('mode')
+      expect(categoryNicheInfo.value?.niches).toHaveLength(2)
     })
 
-    it('updates both categorie and niche together', async () => {
+    it('updates both categories and niches together', async () => {
       vi.mocked(faceApi.updateCategoryNiche).mockResolvedValue(mockResponse)
 
       const { updateCategoryNiche } = useCategoryNiche()
 
       const result = await updateCategoryNiche({
-        categorie: 'acteur',
-        niche: 'beaute',
+        categories: ['acteur', 'mannequin'],
+        niches: ['beaute'],
       })
 
       expect(result.success).toBe(true)
       expect(faceApi.updateCategoryNiche).toHaveBeenCalledWith({
-        categorie: 'acteur',
-        niche: 'beaute',
+        categories: ['acteur', 'mannequin'],
+        niches: ['beaute'],
       })
     })
 
@@ -179,7 +183,7 @@ describe('useCategoryNiche', () => {
 
       const { isSaving, updateCategoryNiche } = useCategoryNiche()
 
-      const updatePromise = updateCategoryNiche({ categorie: 'mannequin' })
+      const updatePromise = updateCategoryNiche({ categories: ['mannequin'] })
       expect(isSaving.value).toBe(true)
 
       resolvePromise!(mockResponse)
@@ -193,93 +197,49 @@ describe('useCategoryNiche', () => {
 
       const { error, updateCategoryNiche } = useCategoryNiche()
 
-      const result = await updateCategoryNiche({ categorie: 'acteur' })
+      const result = await updateCategoryNiche({ categories: ['acteur'] })
 
       expect(result.success).toBe(false)
       expect(result.message).toBe('Une erreur est survenue')
       expect(error.value).toBe('Une erreur est survenue')
     })
-  })
 
-  describe('validateCategory', () => {
-    it('validates valid category (delegates to backend)', () => {
-      const { validateCategory } = useCategoryNiche()
+    it('can clear categories by passing null', async () => {
+      const clearedResponse: CategoryNicheResponse = {
+        data: {
+          categories: [],
+          niches: [{ value: 'beaute', label: 'Beauté' }],
+        },
+        message: 'Profil mis à jour avec succès',
+      }
+      vi.mocked(faceApi.updateCategoryNiche).mockResolvedValue(clearedResponse)
 
-      const result = validateCategory('acteur')
+      const { categoryNicheInfo, updateCategoryNiche } = useCategoryNiche()
 
-      expect(result.valid).toBe(true)
-      expect(result.error).toBeUndefined()
+      const result = await updateCategoryNiche({ categories: null })
+
+      expect(result.success).toBe(true)
+      expect(categoryNicheInfo.value?.categories).toEqual([])
+      expect(faceApi.updateCategoryNiche).toHaveBeenCalledWith({ categories: null })
     })
 
-    it('validates null category', () => {
-      const { validateCategory } = useCategoryNiche()
+    it('can clear niches by passing null', async () => {
+      const clearedResponse: CategoryNicheResponse = {
+        data: {
+          categories: [{ value: 'acteur', label: 'Acteur' }],
+          niches: [],
+        },
+        message: 'Profil mis à jour avec succès',
+      }
+      vi.mocked(faceApi.updateCategoryNiche).mockResolvedValue(clearedResponse)
 
-      const result = validateCategory(null)
+      const { categoryNicheInfo, updateCategoryNiche } = useCategoryNiche()
 
-      expect(result.valid).toBe(true)
-    })
+      const result = await updateCategoryNiche({ niches: null })
 
-    it('allows any category value (backend validates)', () => {
-      // Frontend delegates enum validation to backend
-      const { validateCategory } = useCategoryNiche()
-
-      const result = validateCategory('any_value' as any)
-
-      expect(result.valid).toBe(true)
-    })
-
-    it('sends invalid category to backend for validation', async () => {
-      // Backend rejects invalid values and returns error message
-      vi.mocked(faceApi.updateCategoryNiche).mockRejectedValue(new Error('Invalid category'))
-
-      const { updateCategoryNiche, error } = useCategoryNiche()
-
-      const result = await updateCategoryNiche({ categorie: 'invalid' as any })
-
-      expect(result.success).toBe(false)
-      expect(faceApi.updateCategoryNiche).toHaveBeenCalledWith({ categorie: 'invalid' })
-      expect(error.value).toBe('Une erreur est survenue')
-    })
-  })
-
-  describe('validateNiche', () => {
-    it('validates valid niche (delegates to backend)', () => {
-      const { validateNiche } = useCategoryNiche()
-
-      const result = validateNiche('beaute')
-
-      expect(result.valid).toBe(true)
-      expect(result.error).toBeUndefined()
-    })
-
-    it('validates null niche', () => {
-      const { validateNiche } = useCategoryNiche()
-
-      const result = validateNiche(null)
-
-      expect(result.valid).toBe(true)
-    })
-
-    it('allows any niche value (backend validates)', () => {
-      // Frontend delegates enum validation to backend
-      const { validateNiche } = useCategoryNiche()
-
-      const result = validateNiche('any_value' as any)
-
-      expect(result.valid).toBe(true)
-    })
-
-    it('sends invalid niche to backend for validation', async () => {
-      // Backend rejects invalid values and returns error message
-      vi.mocked(faceApi.updateCategoryNiche).mockRejectedValue(new Error('Invalid niche'))
-
-      const { updateCategoryNiche, error } = useCategoryNiche()
-
-      const result = await updateCategoryNiche({ niche: 'invalid' as any })
-
-      expect(result.success).toBe(false)
-      expect(faceApi.updateCategoryNiche).toHaveBeenCalledWith({ niche: 'invalid' })
-      expect(error.value).toBe('Une erreur est survenue')
+      expect(result.success).toBe(true)
+      expect(categoryNicheInfo.value?.niches).toEqual([])
+      expect(faceApi.updateCategoryNiche).toHaveBeenCalledWith({ niches: null })
     })
   })
 
@@ -289,55 +249,11 @@ describe('useCategoryNiche', () => {
 
       const { error, updateCategoryNiche, clearError } = useCategoryNiche()
 
-      await updateCategoryNiche({ categorie: 'acteur' })
+      await updateCategoryNiche({ categories: ['acteur'] })
       expect(error.value).not.toBeNull()
 
       clearError()
       expect(error.value).toBeNull()
-    })
-  })
-
-  describe('clearing category and niche', () => {
-    it('can clear categorie by passing null', async () => {
-      const clearedResponse: CategoryNicheResponse = {
-        data: {
-          categorie: null,
-          categorie_label: null,
-          niche: 'beaute',
-          niche_label: 'Beauté',
-        },
-        message: 'Profil mis à jour avec succès',
-      }
-      vi.mocked(faceApi.updateCategoryNiche).mockResolvedValue(clearedResponse)
-
-      const { categoryNicheInfo, updateCategoryNiche } = useCategoryNiche()
-
-      const result = await updateCategoryNiche({ categorie: null })
-
-      expect(result.success).toBe(true)
-      expect(categoryNicheInfo.value?.categorie).toBeNull()
-      expect(faceApi.updateCategoryNiche).toHaveBeenCalledWith({ categorie: null })
-    })
-
-    it('can clear niche by passing null', async () => {
-      const clearedResponse: CategoryNicheResponse = {
-        data: {
-          categorie: 'acteur',
-          categorie_label: 'Acteur',
-          niche: null,
-          niche_label: null,
-        },
-        message: 'Profil mis à jour avec succès',
-      }
-      vi.mocked(faceApi.updateCategoryNiche).mockResolvedValue(clearedResponse)
-
-      const { categoryNicheInfo, updateCategoryNiche } = useCategoryNiche()
-
-      const result = await updateCategoryNiche({ niche: null })
-
-      expect(result.success).toBe(true)
-      expect(categoryNicheInfo.value?.niche).toBeNull()
-      expect(faceApi.updateCategoryNiche).toHaveBeenCalledWith({ niche: null })
     })
   })
 
