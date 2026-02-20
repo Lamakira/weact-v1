@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Face;
 
-use App\Enums\FaceCategory;
-use App\Enums\FaceNiche;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
@@ -32,11 +30,11 @@ class CategoryNicheTest extends TestCase
         ]);
     }
 
-    public function test_can_get_category_and_niche(): void
+    public function test_can_get_categories_and_niches(): void
     {
         $this->face->update([
-            'categorie' => FaceCategory::ACTEUR,
-            'niche' => FaceNiche::BEAUTE,
+            'categories' => ['acteur', 'mannequin'],
+            'niches' => ['beaute'],
         ]);
 
         $response = $this->actingAs($this->faceUser)
@@ -45,135 +43,167 @@ class CategoryNicheTest extends TestCase
         $response->assertOk()
             ->assertJsonStructure([
                 'data' => [
-                    'categorie',
-                    'categorie_label',
-                    'niche',
-                    'niche_label',
+                    'categories' => [
+                        '*' => ['value', 'label'],
+                    ],
+                    'niches' => [
+                        '*' => ['value', 'label'],
+                    ],
                 ],
             ])
-            ->assertJsonPath('data.categorie', 'acteur')
-            ->assertJsonPath('data.categorie_label', 'Acteur')
-            ->assertJsonPath('data.niche', 'beaute')
-            ->assertJsonPath('data.niche_label', 'Beauté');
+            ->assertJsonPath('data.categories.0.value', 'acteur')
+            ->assertJsonPath('data.categories.0.label', 'Acteur')
+            ->assertJsonPath('data.categories.1.value', 'mannequin')
+            ->assertJsonPath('data.categories.1.label', 'Mannequin')
+            ->assertJsonPath('data.niches.0.value', 'beaute')
+            ->assertJsonPath('data.niches.0.label', 'Beauté');
     }
 
-    public function test_can_update_categorie_successfully(): void
+    public function test_can_update_categories_with_multiple_values(): void
     {
         $response = $this->actingAs($this->faceUser)
             ->putJson('/api/v1/face/category-niche', [
-                'categorie' => 'influenceur',
+                'categories' => ['influenceur', 'createur'],
             ]);
 
         $response->assertOk()
-            ->assertJsonPath('data.categorie', 'influenceur')
-            ->assertJsonPath('data.categorie_label', 'Influenceur')
+            ->assertJsonCount(2, 'data.categories')
+            ->assertJsonPath('data.categories.0.value', 'influenceur')
+            ->assertJsonPath('data.categories.0.label', 'Influenceur')
+            ->assertJsonPath('data.categories.1.value', 'createur')
+            ->assertJsonPath('data.categories.1.label', 'Créateur de contenu')
             ->assertJsonPath('message', 'Profil mis à jour avec succès');
 
-        $this->assertDatabaseHas('faces', [
-            'id' => $this->face->id,
-            'categorie' => 'influenceur',
-        ]);
+        $this->face->refresh();
+        $this->assertEquals(['influenceur', 'createur'], $this->face->categories);
     }
 
-    public function test_can_update_niche_successfully(): void
+    public function test_can_update_niches_with_multiple_values(): void
     {
         $response = $this->actingAs($this->faceUser)
             ->putJson('/api/v1/face/category-niche', [
-                'niche' => 'mode',
+                'niches' => ['mode', 'beaute'],
             ]);
 
         $response->assertOk()
-            ->assertJsonPath('data.niche', 'mode')
-            ->assertJsonPath('data.niche_label', 'Mode')
+            ->assertJsonCount(2, 'data.niches')
+            ->assertJsonPath('data.niches.0.value', 'mode')
+            ->assertJsonPath('data.niches.0.label', 'Mode')
+            ->assertJsonPath('data.niches.1.value', 'beaute')
+            ->assertJsonPath('data.niches.1.label', 'Beauté')
             ->assertJsonPath('message', 'Profil mis à jour avec succès');
 
-        $this->assertDatabaseHas('faces', [
-            'id' => $this->face->id,
-            'niche' => 'mode',
-        ]);
+        $this->face->refresh();
+        $this->assertEquals(['mode', 'beaute'], $this->face->niches);
     }
 
-    public function test_can_update_categorie_and_niche_together(): void
+    public function test_can_update_categories_and_niches_together(): void
     {
         $response = $this->actingAs($this->faceUser)
             ->putJson('/api/v1/face/category-niche', [
-                'categorie' => 'mannequin',
-                'niche' => 'nourriture',
+                'categories' => ['mannequin', 'egerie'],
+                'niches' => ['nourriture', 'decouverte'],
             ]);
 
         $response->assertOk()
-            ->assertJsonPath('data.categorie', 'mannequin')
-            ->assertJsonPath('data.categorie_label', 'Mannequin')
-            ->assertJsonPath('data.niche', 'nourriture')
-            ->assertJsonPath('data.niche_label', 'Nourriture');
+            ->assertJsonCount(2, 'data.categories')
+            ->assertJsonCount(2, 'data.niches')
+            ->assertJsonPath('data.categories.0.value', 'mannequin')
+            ->assertJsonPath('data.niches.0.value', 'nourriture');
 
-        $this->assertDatabaseHas('faces', [
-            'id' => $this->face->id,
-            'categorie' => 'mannequin',
-            'niche' => 'nourriture',
-        ]);
+        $this->face->refresh();
+        $this->assertEquals(['mannequin', 'egerie'], $this->face->categories);
+        $this->assertEquals(['nourriture', 'decouverte'], $this->face->niches);
     }
 
-    public function test_rejects_invalid_categorie_enum_value(): void
+    public function test_can_update_with_single_category(): void
     {
         $response = $this->actingAs($this->faceUser)
             ->putJson('/api/v1/face/category-niche', [
-                'categorie' => 'invalid_category',
+                'categories' => ['acteur'],
+            ]);
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data.categories')
+            ->assertJsonPath('data.categories.0.value', 'acteur');
+    }
+
+    public function test_rejects_invalid_category_in_array(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/category-niche', [
+                'categories' => ['acteur', 'invalid_category'],
             ]);
 
         $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['categorie'])
-            ->assertJsonPath('errors.categorie.0', "La catégorie sélectionnée n'est pas valide");
+            ->assertJsonValidationErrors(['categories.1']);
     }
 
-    public function test_rejects_invalid_niche_enum_value(): void
+    public function test_rejects_invalid_niche_in_array(): void
     {
         $response = $this->actingAs($this->faceUser)
             ->putJson('/api/v1/face/category-niche', [
-                'niche' => 'invalid_niche',
+                'niches' => ['invalid_niche'],
             ]);
 
         $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['niche'])
-            ->assertJsonPath('errors.niche.0', "La niche sélectionnée n'est pas valide");
+            ->assertJsonValidationErrors(['niches.0']);
     }
 
-    public function test_can_clear_categorie(): void
+    public function test_rejects_non_array_categories(): void
     {
-        $this->face->update(['categorie' => FaceCategory::ACTEUR]);
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/category-niche', [
+                'categories' => 'acteur',
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['categories']);
+    }
+
+    public function test_can_clear_categories_with_null(): void
+    {
+        $this->face->update(['categories' => ['acteur']]);
 
         $response = $this->actingAs($this->faceUser)
             ->putJson('/api/v1/face/category-niche', [
-                'categorie' => null,
+                'categories' => null,
             ]);
 
         $response->assertOk()
-            ->assertJsonPath('data.categorie', null)
-            ->assertJsonPath('data.categorie_label', null);
+            ->assertJsonPath('data.categories', []);
 
-        $this->assertDatabaseHas('faces', [
-            'id' => $this->face->id,
-            'categorie' => null,
-        ]);
+        $this->face->refresh();
+        $this->assertEquals([], $this->face->categories);
     }
 
-    public function test_can_clear_niche(): void
+    public function test_can_clear_categories_with_empty_array(): void
     {
-        $this->face->update(['niche' => FaceNiche::BEAUTE]);
+        $this->face->update(['categories' => ['acteur']]);
 
         $response = $this->actingAs($this->faceUser)
             ->putJson('/api/v1/face/category-niche', [
-                'niche' => null,
+                'categories' => [],
             ]);
 
         $response->assertOk()
-            ->assertJsonPath('data.niche', null)
-            ->assertJsonPath('data.niche_label', null);
+            ->assertJsonPath('data.categories', []);
+    }
 
-        $this->assertDatabaseHas('faces', [
-            'id' => $this->face->id,
-            'niche' => null,
-        ]);
+    public function test_can_clear_niches_with_null(): void
+    {
+        $this->face->update(['niches' => ['beaute']]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/category-niche', [
+                'niches' => null,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.niches', []);
+
+        $this->face->refresh();
+        $this->assertEquals([], $this->face->niches);
     }
 
     public function test_producer_cannot_access_category_niche_endpoint(): void
@@ -202,7 +232,7 @@ class CategoryNicheTest extends TestCase
 
         $response = $this->actingAs($producerUser)
             ->putJson('/api/v1/face/category-niche', [
-                'categorie' => 'acteur',
+                'categories' => ['acteur'],
             ]);
 
         $response->assertForbidden();
@@ -268,42 +298,74 @@ class CategoryNicheTest extends TestCase
 
     public function test_options_endpoints_are_public(): void
     {
-        // Categories endpoint should work without authentication
         $categoriesResponse = $this->getJson('/api/v1/face/options/categories');
         $categoriesResponse->assertOk();
 
-        // Niches endpoint should work without authentication
         $nichesResponse = $this->getJson('/api/v1/face/options/niches');
         $nichesResponse->assertOk();
     }
 
-    public function test_can_update_all_categorie_values(): void
+    public function test_can_set_all_category_values(): void
     {
-        $categories = ['acteur', 'influenceur', 'createur', 'mannequin', 'figurant', 'modele_photo', 'egerie'];
+        $allCategories = ['acteur', 'influenceur', 'createur', 'mannequin', 'figurant', 'modele_photo', 'egerie'];
 
-        foreach ($categories as $categorie) {
-            $response = $this->actingAs($this->faceUser)
-                ->putJson('/api/v1/face/category-niche', [
-                    'categorie' => $categorie,
-                ]);
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/category-niche', [
+                'categories' => $allCategories,
+            ]);
 
-            $response->assertOk()
-                ->assertJsonPath('data.categorie', $categorie);
-        }
+        $response->assertOk()
+            ->assertJsonCount(7, 'data.categories');
     }
 
-    public function test_can_update_all_niche_values(): void
+    public function test_can_set_all_niche_values(): void
     {
-        $niches = ['beaute', 'nourriture', 'decouverte', 'mode'];
+        $allNiches = ['beaute', 'nourriture', 'decouverte', 'mode'];
 
-        foreach ($niches as $niche) {
-            $response = $this->actingAs($this->faceUser)
-                ->putJson('/api/v1/face/category-niche', [
-                    'niche' => $niche,
-                ]);
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/category-niche', [
+                'niches' => $allNiches,
+            ]);
 
-            $response->assertOk()
-                ->assertJsonPath('data.niche', $niche);
-        }
+        $response->assertOk()
+            ->assertJsonCount(4, 'data.niches');
+    }
+
+    public function test_returns_empty_arrays_for_new_face(): void
+    {
+        $newFace = Face::factory()->create(['categories' => [], 'niches' => []]);
+        $newUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $newFace->id,
+        ]);
+
+        $response = $this->actingAs($newUser)
+            ->getJson('/api/v1/face/category-niche');
+
+        $response->assertOk()
+            ->assertJsonPath('data.categories', [])
+            ->assertJsonPath('data.niches', []);
+    }
+
+    public function test_partial_update_preserves_other_field(): void
+    {
+        $this->face->update([
+            'categories' => ['acteur'],
+            'niches' => ['beaute', 'mode'],
+        ]);
+
+        // Update only categories
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/category-niche', [
+                'categories' => ['mannequin'],
+            ]);
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data.categories')
+            ->assertJsonPath('data.categories.0.value', 'mannequin');
+
+        // Niches should remain unchanged
+        $this->face->refresh();
+        $this->assertEquals(['beaute', 'mode'], $this->face->niches);
     }
 }

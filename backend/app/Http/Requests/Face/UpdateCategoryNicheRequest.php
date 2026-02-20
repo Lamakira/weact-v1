@@ -30,8 +30,10 @@ class UpdateCategoryNicheRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'categorie' => ['nullable', new Enum(FaceCategory::class)],
-            'niche' => ['nullable', new Enum(FaceNiche::class)],
+            'categories' => ['nullable', 'array'],
+            'categories.*' => [new Enum(FaceCategory::class)],
+            'niches' => ['nullable', 'array'],
+            'niches.*' => [new Enum(FaceNiche::class)],
         ];
     }
 
@@ -43,8 +45,10 @@ class UpdateCategoryNicheRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'categorie.Illuminate\Validation\Rules\Enum' => "La catégorie sélectionnée n'est pas valide",
-            'niche.Illuminate\Validation\Rules\Enum' => "La niche sélectionnée n'est pas valide",
+            'categories.array' => 'Les catégories doivent être un tableau',
+            'categories.*.Illuminate\Validation\Rules\Enum' => "La catégorie sélectionnée n'est pas valide",
+            'niches.array' => 'Les niches doivent être un tableau',
+            'niches.*.Illuminate\Validation\Rules\Enum' => "La niche sélectionnée n'est pas valide",
         ];
     }
 }

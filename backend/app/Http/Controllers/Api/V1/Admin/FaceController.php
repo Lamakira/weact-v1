@@ -37,7 +37,7 @@ class FaceController extends Controller
 
         // Filter by category
         if ($request->filled('category') && is_string($request->query('category'))) {
-            $query->where('categorie', $request->query('category'));
+            $query->whereJsonContains('categories', $request->query('category'));
         }
 
         // Filter by availability

@@ -38,8 +38,8 @@ class Face extends Model
         'pays',
         'taille',
         'poids',
-        'categorie',
-        'niche',
+        'categories',
+        'niches',
         'tarif_horaire',
         'tarif_journalier',
         'is_available',
@@ -51,8 +51,8 @@ class Face extends Model
      * @var array<string, string>
      */
     protected $casts = [
-        'categorie' => FaceCategory::class,
-        'niche' => FaceNiche::class,
+        'categories' => 'array',
+        'niches' => 'array',
         'is_available' => 'boolean',
     ];
 
@@ -296,7 +296,7 @@ class Face extends Model
                 if ($this->ville) {
                     $completed++;
                 }
-                if ($this->categorie) {
+                if (! empty($this->categories)) {
                     $completed++;
                 }
                 if ($this->tarif_horaire !== null || $this->tarif_journalier !== null) {
@@ -334,8 +334,8 @@ class Face extends Model
                 if (! $this->ville) {
                     $missing[] = ['key' => 'ville', 'label' => 'Ajoutez votre ville'];
                 }
-                if (! $this->categorie) {
-                    $missing[] = ['key' => 'categorie', 'label' => 'Sélectionnez votre catégorie'];
+                if (empty($this->categories)) {
+                    $missing[] = ['key' => 'categories', 'label' => 'Sélectionnez votre catégorie'];
                 }
                 if ($this->tarif_horaire === null && $this->tarif_journalier === null) {
                     $missing[] = ['key' => 'tarifs', 'label' => 'Ajoutez vos tarifs'];
@@ -354,6 +354,38 @@ class Face extends Model
         return Attribute::make(
             get: fn (): bool => $this->profile_completion_percentage === 100,
         );
+    }
+
+    /**
+     * Resolve stored category string values to {value, label} pairs.
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    public function categoriesWithLabels(): array
+    {
+        $categories = $this->categories ?? [];
+
+        return array_values(array_filter(array_map(function (string $value): ?array {
+            $enum = FaceCategory::tryFrom($value);
+
+            return $enum ? ['value' => $enum->value, 'label' => $enum->label()] : null;
+        }, $categories)));
+    }
+
+    /**
+     * Resolve stored niche string values to {value, label} pairs.
+     *
+     * @return array<int, array{value: string, label: string}>
+     */
+    public function nichesWithLabels(): array
+    {
+        $niches = $this->niches ?? [];
+
+        return array_values(array_filter(array_map(function (string $value): ?array {
+            $enum = FaceNiche::tryFrom($value);
+
+            return $enum ? ['value' => $enum->value, 'label' => $enum->label()] : null;
+        }, $niches)));
     }
 
     /**

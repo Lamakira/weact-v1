@@ -44,8 +44,10 @@ class UpdateAdminFaceRequest extends FormRequest
             'ville' => ['sometimes', 'nullable', 'string', 'max:255'],
             'quartier' => ['sometimes', 'nullable', 'string', 'max:255'],
             'pays' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'categorie' => ['sometimes', 'nullable', new Enum(FaceCategory::class)],
-            'niche' => ['sometimes', 'nullable', new Enum(FaceNiche::class)],
+            'categories' => ['sometimes', 'nullable', 'array'],
+            'categories.*' => [new Enum(FaceCategory::class)],
+            'niches' => ['sometimes', 'nullable', 'array'],
+            'niches.*' => [new Enum(FaceNiche::class)],
             'is_available' => ['sometimes', 'boolean'],
         ];
     }
@@ -66,8 +68,10 @@ class UpdateAdminFaceRequest extends FormRequest
             'ville.max' => 'La ville ne peut pas dépasser 255 caractères.',
             'quartier.max' => 'Le quartier ne peut pas dépasser 255 caractères.',
             'pays.max' => 'Le pays ne peut pas dépasser 255 caractères.',
-            'categorie' => 'La catégorie sélectionnée est invalide.',
-            'niche' => 'La niche sélectionnée est invalide.',
+            'categories.array' => 'Les catégories doivent être un tableau.',
+            'categories.*.Illuminate\Validation\Rules\Enum' => 'La catégorie sélectionnée est invalide.',
+            'niches.array' => 'Les niches doivent être un tableau.',
+            'niches.*.Illuminate\Validation\Rules\Enum' => 'La niche sélectionnée est invalide.',
             'is_available.boolean' => 'Le statut de disponibilité doit être vrai ou faux.',
         ];
     }

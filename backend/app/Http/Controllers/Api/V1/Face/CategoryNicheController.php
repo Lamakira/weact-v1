@@ -32,10 +32,8 @@ class CategoryNicheController extends Controller
 
         return response()->json([
             'data' => [
-                'categorie' => $face->categorie?->value,
-                'categorie_label' => $face->categorie?->label(),
-                'niche' => $face->niche?->value,
-                'niche_label' => $face->niche?->label(),
+                'categories' => $face->categoriesWithLabels(),
+                'niches' => $face->nichesWithLabels(),
             ],
         ]);
     }
@@ -60,10 +58,8 @@ class CategoryNicheController extends Controller
 
         return response()->json([
             'data' => [
-                'categorie' => $updatedFace->categorie?->value,
-                'categorie_label' => $updatedFace->categorie?->label(),
-                'niche' => $updatedFace->niche?->value,
-                'niche_label' => $updatedFace->niche?->label(),
+                'categories' => $updatedFace->categoriesWithLabels(),
+                'niches' => $updatedFace->nichesWithLabels(),
             ],
             'message' => 'Profil mis à jour avec succès',
         ]);

@@ -144,4 +144,45 @@ class PublicFaceFilterOptionsTest extends TestCase
         $response->assertHeader('X-RateLimit-Limit');
         $response->assertHeader('X-RateLimit-Remaining');
     }
+
+    public function test_filtering_by_single_category_matches_faces_with_multiple_categories(): void
+    {
+        // Face with multiple categories including 'acteur'
+        Face::factory()->create([
+            'categories' => ['acteur', 'mannequin'],
+            'niches' => [],
+        ]);
+        // Face without 'acteur'
+        Face::factory()->create([
+            'categories' => ['influenceur'],
+            'niches' => [],
+        ]);
+        // Face with 'acteur' only
+        Face::factory()->create([
+            'categories' => ['acteur'],
+            'niches' => [],
+        ]);
+
+        $response = $this->getJson('/api/v1/public/faces?categorie=acteur');
+
+        $response->assertOk();
+        $this->assertCount(2, $response->json('data'));
+    }
+
+    public function test_filtering_by_single_niche_matches_faces_with_multiple_niches(): void
+    {
+        Face::factory()->create([
+            'categories' => [],
+            'niches' => ['beaute', 'mode'],
+        ]);
+        Face::factory()->create([
+            'categories' => [],
+            'niches' => ['nourriture'],
+        ]);
+
+        $response = $this->getJson('/api/v1/public/faces?niche=beaute');
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json('data'));
+    }
 }

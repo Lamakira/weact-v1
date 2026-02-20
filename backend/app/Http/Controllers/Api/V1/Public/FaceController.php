@@ -29,8 +29,8 @@ class FaceController extends Controller
         // Query faces with optional filters and eager-loaded average rating
         $faces = Face::query()
             ->withAvg('ratingsReceived', 'score')
-            ->when($request->validated('categorie'), fn ($q, $cat) => $q->where('categorie', $cat))
-            ->when($request->validated('niche'), fn ($q, $niche) => $q->where('niche', $niche))
+            ->when($request->validated('categorie'), fn ($q, $cat) => $q->whereJsonContains('categories', $cat))
+            ->when($request->validated('niche'), fn ($q, $niche) => $q->whereJsonContains('niches', $niche))
             ->when($request->validated('ville'), function ($q, $ville) {
                 $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $ville);
 

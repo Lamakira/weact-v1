@@ -17,12 +17,12 @@ class CategoryNicheService
     {
         $updateData = [];
 
-        if (array_key_exists('categorie', $data)) {
-            $updateData['categorie'] = $data['categorie'];
+        if (array_key_exists('categories', $data)) {
+            $updateData['categories'] = $data['categories'] ?? [];
         }
 
-        if (array_key_exists('niche', $data)) {
-            $updateData['niche'] = $data['niche'];
+        if (array_key_exists('niches', $data)) {
+            $updateData['niches'] = $data['niches'] ?? [];
         }
 
         if (! empty($updateData)) {
