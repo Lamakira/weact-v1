@@ -37,6 +37,12 @@ const userName = computed(() => {
   return ''
 })
 
+// Avatar URL: prefer profile photo, fall back to agency logo for agency-type producers
+const avatarUrl = computed(() => {
+  if (!profile.value) return null
+  return profile.value.profile_photo_url ?? profile.value.agency_logo_url ?? null
+})
+
 // Fetch profile on mount to get avatar
 onMounted(async () => {
   try {
@@ -58,7 +64,7 @@ async function handleLogout(): Promise<void> {
     title="Producer Dashboard"
     :user-email="authStore.user?.email"
     :user-name="userName"
-    :avatar-url="profile?.profile_photo_url"
+    :avatar-url="avatarUrl"
     :is-logging-out="isLoading"
     profile-route="/producer/profile"
     @logout="handleLogout"
