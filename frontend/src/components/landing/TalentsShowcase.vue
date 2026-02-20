@@ -63,8 +63,8 @@ const countDisplay = computed((): string | null => {
     <!-- Talents Showcase Carousel (full viewport width) -->
     <div class="relative z-10 w-full overflow-hidden mb-12 py-6 group/carousel" data-testid="talents-carousel">
       <!-- Edge Fade Overlays — single element per side, solid then fade -->
-      <div class="absolute inset-y-0 left-0 w-44 sm:w-64 lg:w-96 z-20 pointer-events-none" style="background: linear-gradient(to right, rgb(0,0,0) 0%, rgb(0,0,0) 45%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,0.3) 80%, transparent 100%)"></div>
-      <div class="absolute inset-y-0 right-0 w-44 sm:w-64 lg:w-96 z-20 pointer-events-none" style="background: linear-gradient(to left, rgb(0,0,0) 0%, rgb(0,0,0) 45%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,0.3) 80%, transparent 100%)"></div>
+      <div class="absolute inset-y-0 left-0 w-16 sm:w-64 lg:w-96 z-20 pointer-events-none" style="background: linear-gradient(to right, rgb(0,0,0) 0%, rgb(0,0,0) 45%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,0.3) 80%, transparent 100%)"></div>
+      <div class="absolute inset-y-0 right-0 w-16 sm:w-64 lg:w-96 z-20 pointer-events-none" style="background: linear-gradient(to left, rgb(0,0,0) 0%, rgb(0,0,0) 45%, rgba(0,0,0,0.85) 60%, rgba(0,0,0,0.3) 80%, transparent 100%)"></div>
 
       <div
         class="flex w-max gap-8 px-4 animate-marquee-loop group-hover/carousel:[animation-play-state:paused]"
@@ -84,11 +84,13 @@ const countDisplay = computed((): string | null => {
             loading="lazy"
           />
           <!-- Gradient overlay -->
-          <div class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 to-transparent" />
+          <div class="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
           <!-- Info overlay -->
-          <div class="absolute inset-x-0 bottom-0 p-3 sm:p-4 flex flex-col gap-1.5">
-            <p class="text-sm sm:text-base font-bold text-white truncate">{{ talent.prenom }}</p>
-            <span class="self-start px-2.5 py-0.5 bg-white/95 backdrop-blur-sm rounded-full text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-[#198496] shadow-sm">
+          <div class="absolute inset-x-0 bottom-0 p-4 sm:p-5 flex flex-col gap-1 sm:gap-1.5">
+            <p class="text-base sm:text-lg font-bold text-white truncate leading-tight drop-shadow-sm">
+              {{ talent.prenom }}
+            </p>
+            <span class="self-start px-2.5 py-0.5 bg-white text-[#198496] text-[10px] sm:text-[11px] font-bold uppercase tracking-wider rounded-full shadow-md">
               {{ talent.categories[0]?.label ?? 'Talent' }}
             </span>
           </div>
