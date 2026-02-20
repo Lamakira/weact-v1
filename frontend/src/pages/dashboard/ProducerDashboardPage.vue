@@ -1,12 +1,29 @@
 <script setup lang="ts">
 /**
  * ProducerDashboardPage
- * Dashboard content for Producer users - KPIs, quick access cards.
- * This component is rendered inside ProducerLayout via nested routing.
+ * Dashboard home for Producer users — profile card + KPIs + quick access.
+ * Two-column layout: profile photo (left) and stats/actions (right).
  */
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { RefreshCw, Star, Check, Clock, AlertCircle } from 'lucide-vue-next'
+import {
+  RefreshCw,
+  Star,
+  Check,
+  Clock,
+  AlertCircle,
+  Pencil,
+  Briefcase,
+  MessageCircle,
+  PlusCircle,
+  Eye,
+  Users,
+  UserCheck,
+  CheckCircle2,
+  PlayCircle,
+  CheckSquare,
+  XCircle,
+} from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useProducerDashboardStats } from '@/features/dashboard/composables/useProducerDashboardStats'
 import {
@@ -17,14 +34,49 @@ import {
   PRODUCER_RESPONSE_TIME_KPI,
 } from '@/features/dashboard/types'
 import { Skeleton } from '@/components/ui/skeleton'
-import KpiCard from '@/features/dashboard/components/KpiCard.vue'
+import { producerApi } from '@/features/producer/services/producerApi'
+import type { Producer } from '@/features/producer/types'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const { stats, isLoading: statsLoading, error: statsError, fetchStats, retry } = useProducerDashboardStats()
 
-onMounted(() => {
-  fetchStats()
+// Profile data
+const profile = ref<Producer | null>(null)
+const isProfileLoading = ref(true)
+
+onMounted(async () => {
+  const profilePromise = producerApi.getProfile()
+    .then((res) => { profile.value = res.data })
+    .catch(() => { /* Silently fail */ })
+    .finally(() => { isProfileLoading.value = false })
+
+  await Promise.all([profilePromise, fetchStats()])
+})
+
+// Computed values
+const displayName = computed(() => profile.value?.display_name ?? '')
+
+// Profile photo: prefer profile_photo_url, fall back to agency_logo_url for agency-type producers
+const profilePhotoUrl = computed(() => {
+  if (!profile.value) return null
+  return profile.value.profile_photo_url ?? profile.value.agency_logo_url ?? null
+})
+
+const initials = computed(() => {
+  const name = displayName.value
+  if (!name) return 'P'
+  const parts = name.split(' ')
+  return parts.length >= 2
+    ? `${parts[0].charAt(0)}${parts[1].charAt(0)}`.toUpperCase()
+    : name.charAt(0).toUpperCase()
+})
+
+const profileSubtitle = computed(() => {
+  if (profile.value?.type === 'agency' && profile.value?.agency_name) {
+    return profile.value.agency_name
+  }
+  return profile.value?.type === 'agency' ? 'Agence' : 'Producteur indépendant'
 })
 
 // Computed values for rating display (FR58)
@@ -37,38 +89,45 @@ const formattedRating = computed(() => {
 
 const ratingSubtitle = computed(() => {
   const count = stats.value?.ratings_count ?? 0
-  if (count === 0) {
-    return 'Aucun avis'
-  }
+  if (count === 0) return 'Aucun avis'
   return `${count} avis`
 })
 
 // Computed values for advanced stats (FR59)
 const formattedAcceptanceRate = computed(() => {
   const rate = stats.value?.acceptance_rate
-  if (rate === null || rate === undefined) {
-    return '--'
-  }
+  if (rate === null || rate === undefined) return '--'
   return `${rate.toFixed(1)}%`
 })
 
 const formattedResponseTime = computed(() => {
   const hours = stats.value?.average_response_time_hours
-  if (hours === null || hours === undefined) {
-    return 'N/A'
-  }
+  if (hours === null || hours === undefined) return 'N/A'
   return `${hours.toFixed(1)}h`
 })
 
 const responseTimeSubtitle = computed(() => {
   const hours = stats.value?.average_response_time_hours
-  if (hours === null || hours === undefined) {
-    return 'Aucune décision'
-  }
+  if (hours === null || hours === undefined) return 'Aucune décision'
   return 'Délai moyen'
 })
 
-// Navigation functions for quick access cards
+// KPI icon mapping
+const kpiIcons: Record<string, typeof Clock> = {
+  published: CheckCircle2,
+  in_progress: PlayCircle,
+  closed: XCircle,
+  completed: CheckSquare,
+}
+
+const kpiColors: Record<string, string> = {
+  published: 'bg-[#198496]/10 text-[#198496]',
+  in_progress: 'bg-blue-50 text-blue-600',
+  closed: 'bg-amber-50 text-amber-600',
+  completed: 'bg-green-50 text-green-600',
+}
+
+// Navigation
 function goToProfile(): void {
   router.push({ name: 'producer-profile' })
 }
@@ -93,437 +152,246 @@ function goToMessages(): void {
 </script>
 
 <template>
-  <div>
-    <!-- KPI Section: Mes missions -->
-    <section class="mb-10" aria-labelledby="kpi-section-title" data-testid="kpi-section">
-      <h2 id="kpi-section-title" class="text-lg font-semibold text-slate-800 mb-4">
-        Mes missions
-      </h2>
+  <div data-testid="producer-dashboard-page">
+    <div class="grid grid-cols-1 lg:grid-cols-10 gap-6 items-stretch">
 
-      <!-- Error state -->
-      <div
-        v-if="statsError"
-        class="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center justify-between"
-        data-testid="stats-error"
-        role="alert"
-      >
-        <div class="flex items-center gap-3">
-          <AlertCircle class="w-5 h-5 text-red-500" aria-hidden="true" />
-          <span class="text-sm text-red-700">{{ statsError }}</span>
-        </div>
-        <button
-          @click="retry"
-          :disabled="statsLoading"
-          class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
-          data-testid="retry-button"
-        >
-          <RefreshCw :class="{ 'animate-spin': statsLoading }" :size="16" />
-          Réessayer
-        </button>
-      </div>
-
-      <!-- KPI cards grid -->
-      <div
-        v-else
-        class="grid grid-cols-1 min-[426px]:grid-cols-2 lg:grid-cols-4 gap-6"
-        data-testid="kpi-cards-grid"
-      >
-        <KpiCard
-          v-for="kpi in PRODUCER_KPI_CONFIGS"
-          :key="kpi.key"
-          :title="kpi.title"
-          :value="stats?.[kpi.key] ?? 0"
-          :icon="kpi.icon"
-          :color="kpi.color"
-          :is-loading="statsLoading"
-          :data-testid="'kpi-card-' + kpi.key"
-        />
-      </div>
-    </section>
-
-    <!-- Candidatures & Réputation KPI Section (FR56 + FR57 + FR58) -->
-    <section
-      v-if="!statsError"
-      class="mb-10"
-      aria-labelledby="candidatures-section-title"
-      data-testid="candidatures-kpi-section"
-    >
-      <h2 id="candidatures-section-title" class="text-lg font-semibold text-slate-800 mb-4">
-        Candidatures & Réputation
-      </h2>
-
-      <div
-        class="grid grid-cols-1 min-[426px]:grid-cols-2 lg:grid-cols-4 gap-6"
-        data-testid="candidatures-kpi-grid"
-      >
-        <KpiCard
-          :title="PRODUCER_CANDIDATURES_KPI.title"
-          :value="stats?.total_candidatures ?? 0"
-          :icon="PRODUCER_CANDIDATURES_KPI.icon"
-          :color="PRODUCER_CANDIDATURES_KPI.color"
-          :is-loading="statsLoading"
-          data-testid="kpi-card-total_candidatures"
-        />
-        <KpiCard
-          :title="PRODUCER_COLLABORATORS_KPI.title"
-          :value="stats?.unique_collaborators ?? 0"
-          :icon="PRODUCER_COLLABORATORS_KPI.icon"
-          :color="PRODUCER_COLLABORATORS_KPI.color"
-          :is-loading="statsLoading"
-          data-testid="kpi-card-unique_collaborators"
-        />
-
-        <!-- Rating card with custom display for decimal values (FR58) -->
+      <!-- LEFT COLUMN: Profile Photo Card -->
+      <div class="lg:col-span-4 h-full">
         <div
-          v-if="statsLoading"
-          class="bg-white rounded-2xl p-4 shadow-sm"
-          data-testid="kpi-card-rating-skeleton"
+          class="relative h-full min-h-[420px] lg:min-h-full rounded-2xl overflow-hidden shadow-sm group bg-white border border-gray-200 transition-all duration-200 hover:shadow-md"
+          data-testid="profile-photo-card"
         >
-          <div class="flex items-center gap-3">
-            <Skeleton class="h-11 w-11 rounded-xl" />
-            <div class="space-y-2">
-              <Skeleton class="h-6 w-14" />
-              <Skeleton class="h-4 w-20" />
+          <!-- Loading skeleton -->
+          <template v-if="isProfileLoading">
+            <Skeleton class="absolute inset-0 w-full h-full rounded-2xl" />
+          </template>
+
+          <template v-else>
+            <!-- Profile Photo / Fallback -->
+            <div class="absolute inset-0 w-full h-full">
+              <img
+                v-if="profilePhotoUrl"
+                :src="profilePhotoUrl"
+                :alt="displayName"
+                class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+              <div
+                v-else
+                class="w-full h-full bg-gradient-to-br from-[#198496] to-[#146c7a] flex items-center justify-center"
+              >
+                <span class="text-white text-7xl font-bold tracking-tighter opacity-40">{{ initials }}</span>
+              </div>
             </div>
-          </div>
-        </div>
 
+            <!-- Bottom Overlay -->
+            <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent pt-20 flex flex-col justify-end p-5 sm:p-6 text-white">
+              <h1 class="text-2xl sm:text-3xl font-bold mb-0.5" data-testid="profile-name">
+                {{ displayName }}
+              </h1>
+              <p
+                v-if="profileSubtitle"
+                class="text-white/70 text-sm sm:text-base mb-3"
+                data-testid="profile-subtitle"
+              >
+                {{ profileSubtitle }}
+              </p>
+
+              <div class="flex items-center justify-between pt-3 border-t border-white/20">
+                <button
+                  v-if="authStore.user?.userable?.id"
+                  @click="goToPublicProfile"
+                  class="flex items-center gap-2 bg-white/20 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-sm font-medium hover:bg-white/30 transition-all duration-200"
+                  data-testid="public-profile-button"
+                >
+                  <Eye :size="14" />
+                  Voir profil public
+                </button>
+                <div v-else></div>
+
+                <button
+                  @click="goToProfile"
+                  class="flex items-center gap-2 bg-white text-gray-900 px-4 py-2 rounded-md font-medium text-sm hover:bg-gray-100 transition-all duration-200 active:scale-95"
+                  data-testid="profile-edit-button"
+                >
+                  <Pencil :size="16" />
+                  Modifier
+                </button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- RIGHT COLUMN: Stats + Quick Access -->
+      <div class="lg:col-span-6 flex flex-col gap-6">
+
+        <!-- Stats Panel: Mes missions -->
         <div
-          v-else
-          class="bg-white rounded-2xl p-4 shadow-sm transition-all duration-200 hover:shadow-md"
-          :aria-label="`Ma note: ${formattedRating}`"
-          data-testid="kpi-card-rating"
+          class="bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 shadow-sm flex flex-col"
+          data-testid="stats-panel"
         >
-          <div class="flex items-center gap-3">
-            <div
-              class="flex h-11 w-11 items-center justify-center rounded-xl shrink-0 bg-amber-50 text-amber-500"
+          <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-6 sm:mb-8">Mes missions</h2>
+
+          <!-- Error State -->
+          <div
+            v-if="statsError"
+            class="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between mb-6"
+            data-testid="stats-error"
+            role="alert"
+          >
+            <div class="flex items-center gap-3">
+              <AlertCircle class="w-5 h-5 text-red-500" aria-hidden="true" />
+              <span class="text-sm text-red-700">{{ statsError }}</span>
+            </div>
+            <button
+              @click="retry"
+              :disabled="statsLoading"
+              class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-700 bg-red-100 rounded-md hover:bg-red-200 transition-colors disabled:opacity-50"
+              data-testid="retry-button"
             >
-              <Star :size="20" stroke-width="2" />
-            </div>
-
-            <div class="flex flex-col min-w-0">
-              <span
-                class="text-xl font-bold text-gray-900 leading-none"
-                data-testid="kpi-card-rating-value"
-              >
-                {{ formattedRating }}
-              </span>
-              <span
-                class="mt-1 text-sm text-gray-500 truncate"
-                data-testid="kpi-card-rating-title"
-              >
-                Ma note
-              </span>
-              <span
-                class="text-xs text-gray-400 truncate"
-                data-testid="kpi-card-rating-subtitle"
-              >
-                {{ ratingSubtitle }}
-              </span>
-            </div>
+              <RefreshCw :class="{ 'animate-spin': statsLoading }" :size="16" />
+              Réessayer
+            </button>
           </div>
-        </div>
-      </div>
-    </section>
 
-    <!-- Statistiques avancées Section (FR59) -->
-    <section
-      v-if="!statsError"
-      class="mb-10"
-      aria-labelledby="advanced-stats-section-title"
-      data-testid="advanced-stats-section"
-    >
-      <h2 id="advanced-stats-section-title" class="text-lg font-semibold text-slate-800 mb-4">
-        Statistiques avancées
-      </h2>
-
-      <div
-        class="grid grid-cols-1 min-[426px]:grid-cols-2 lg:grid-cols-4 gap-6"
-        data-testid="advanced-stats-grid"
-      >
-        <!-- Acceptance rate card with custom display for percentage -->
-        <div
-          v-if="statsLoading"
-          class="bg-white rounded-2xl p-4 shadow-sm"
-          data-testid="kpi-card-acceptance-rate-skeleton"
-        >
-          <div class="flex items-center gap-3">
-            <Skeleton class="h-11 w-11 rounded-xl" />
-            <div class="space-y-2">
-              <Skeleton class="h-6 w-14" />
-              <Skeleton class="h-4 w-20" />
-            </div>
-          </div>
-        </div>
-
-        <div
-          v-else
-          class="bg-white rounded-2xl p-4 shadow-sm transition-all duration-200 hover:shadow-md"
-          :aria-label="`${PRODUCER_ACCEPTANCE_RATE_KPI.title}: ${formattedAcceptanceRate}`"
-          data-testid="kpi-card-acceptance_rate"
-        >
-          <div class="flex items-center gap-3">
+          <!-- Mission KPIs Grid -->
+          <div
+            v-else
+            class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 mb-6"
+            data-testid="kpi-cards-grid"
+          >
             <div
-              class="flex h-11 w-11 items-center justify-center rounded-xl shrink-0 bg-green-50 text-green-500"
+              v-for="kpi in PRODUCER_KPI_CONFIGS"
+              :key="kpi.key"
+              class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50/50"
+              :data-testid="'kpi-card-' + kpi.key"
             >
-              <Check :size="20" stroke-width="2" />
+              <div
+                class="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                :class="kpiColors[kpi.key] || 'bg-gray-50 text-gray-500'"
+              >
+                <template v-if="statsLoading">
+                  <Skeleton class="w-5 h-5 sm:w-6 sm:h-6 rounded" />
+                </template>
+                <component v-else :is="kpiIcons[kpi.key] || CheckSquare" :size="22" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wider truncate">{{ kpi.title }}</p>
+                <template v-if="statsLoading">
+                  <Skeleton class="h-7 w-10 mt-1" />
+                </template>
+                <p v-else class="text-xl sm:text-2xl font-bold text-gray-900">{{ stats?.[kpi.key] ?? 0 }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Candidatures & Reputation row -->
+          <div v-if="!statsError" class="pt-6 border-t border-gray-100">
+            <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Candidatures & Réputation</h3>
+          </div>
+          <div
+            v-if="!statsError"
+            class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"
+            data-testid="candidatures-kpi-grid"
+          >
+            <!-- Candidatures reçues -->
+            <div class="flex items-center gap-3 p-3 rounded-xl bg-gray-50/50" data-testid="kpi-card-total_candidatures">
+              <div class="w-9 h-9 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 flex-shrink-0">
+                <template v-if="statsLoading"><Skeleton class="w-4 h-4 rounded" /></template>
+                <Users v-else :size="18" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-gray-500 text-[10px] sm:text-xs font-medium uppercase tracking-wider truncate">Candidatures</p>
+                <template v-if="statsLoading"><Skeleton class="h-5 w-8 mt-0.5" /></template>
+                <p v-else class="text-lg font-bold text-gray-900">{{ stats?.total_candidatures ?? 0 }}</p>
+              </div>
             </div>
 
-            <div class="flex flex-col min-w-0">
-              <span
-                class="text-xl font-bold text-gray-900 leading-none"
-                data-testid="kpi-card-acceptance_rate-value"
-              >
-                {{ formattedAcceptanceRate }}
-              </span>
-              <span
-                class="mt-1 text-sm text-gray-500 truncate"
-                data-testid="kpi-card-acceptance_rate-title"
-              >
-                {{ PRODUCER_ACCEPTANCE_RATE_KPI.title }}
-              </span>
+            <!-- Collaborateurs -->
+            <div class="flex items-center gap-3 p-3 rounded-xl bg-gray-50/50" data-testid="kpi-card-unique_collaborators">
+              <div class="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center text-green-600 flex-shrink-0">
+                <template v-if="statsLoading"><Skeleton class="w-4 h-4 rounded" /></template>
+                <UserCheck v-else :size="18" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-gray-500 text-[10px] sm:text-xs font-medium uppercase tracking-wider truncate">Collaborateurs</p>
+                <template v-if="statsLoading"><Skeleton class="h-5 w-8 mt-0.5" /></template>
+                <p v-else class="text-lg font-bold text-gray-900">{{ stats?.unique_collaborators ?? 0 }}</p>
+              </div>
+            </div>
+
+            <!-- Ma note -->
+            <div class="flex items-center gap-3 p-3 rounded-xl bg-gray-50/50" data-testid="kpi-card-rating">
+              <div class="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-amber-500 flex-shrink-0">
+                <template v-if="statsLoading"><Skeleton class="w-4 h-4 rounded" /></template>
+                <Star v-else :size="18" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-gray-500 text-[10px] sm:text-xs font-medium uppercase tracking-wider truncate">Ma note</p>
+                <template v-if="statsLoading"><Skeleton class="h-5 w-8 mt-0.5" /></template>
+                <template v-else>
+                  <p class="text-lg font-bold text-gray-900" data-testid="kpi-card-rating-value">{{ formattedRating }}</p>
+                  <p class="text-[10px] text-gray-400" data-testid="kpi-card-rating-subtitle">{{ ratingSubtitle }}</p>
+                </template>
+              </div>
+            </div>
+
+            <!-- Taux d'acceptation -->
+            <div class="flex items-center gap-3 p-3 rounded-xl bg-gray-50/50" data-testid="kpi-card-acceptance_rate">
+              <div class="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center text-green-500 flex-shrink-0">
+                <template v-if="statsLoading"><Skeleton class="w-4 h-4 rounded" /></template>
+                <Check v-else :size="18" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-gray-500 text-[10px] sm:text-xs font-medium uppercase tracking-wider truncate">Acceptation</p>
+                <template v-if="statsLoading"><Skeleton class="h-5 w-8 mt-0.5" /></template>
+                <p v-else class="text-lg font-bold text-gray-900" data-testid="kpi-card-acceptance_rate-value">{{ formattedAcceptanceRate }}</p>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- Average response time card with custom display for hours -->
-        <div
-          v-if="statsLoading"
-          class="bg-white rounded-2xl p-4 shadow-sm"
-          data-testid="kpi-card-response-time-skeleton"
-        >
-          <div class="flex items-center gap-3">
-            <Skeleton class="h-11 w-11 rounded-xl" />
-            <div class="space-y-2">
-              <Skeleton class="h-6 w-14" />
-              <Skeleton class="h-4 w-20" />
+        <!-- Quick Access Cards — compact row -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" data-testid="quick-access-cards-grid">
+          <!-- Missions -->
+          <button
+            @click="goToMissions"
+            class="group bg-white px-4 py-3 rounded-xl border border-gray-200 shadow-sm transition-all duration-200 hover:border-[#198496] hover:shadow-md flex items-center gap-3"
+            data-testid="missions-list-card"
+          >
+            <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500 group-hover:bg-[#198496]/10 group-hover:text-[#198496] transition-colors flex-shrink-0">
+              <Briefcase :size="16" />
             </div>
-          </div>
+            <p class="font-semibold text-gray-900 text-xs sm:text-sm truncate">Mes missions</p>
+            <span class="ml-auto text-[10px] sm:text-xs font-medium text-[#198496] group-hover:underline flex-shrink-0">Voir tout</span>
+          </button>
+
+          <!-- Publish Mission -->
+          <button
+            @click="goToPublishMission"
+            class="group bg-white px-4 py-3 rounded-xl border border-gray-200 shadow-sm transition-all duration-200 hover:border-[#198496] hover:shadow-md flex items-center gap-3"
+            data-testid="publish-mission-card"
+          >
+            <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500 group-hover:bg-[#198496]/10 group-hover:text-[#198496] transition-colors flex-shrink-0">
+              <PlusCircle :size="16" />
+            </div>
+            <p class="font-semibold text-gray-900 text-xs sm:text-sm truncate">Publier</p>
+          </button>
+
+          <!-- Messages -->
+          <button
+            @click="goToMessages"
+            class="group bg-white px-4 py-3 rounded-xl border border-gray-200 shadow-sm transition-all duration-200 hover:border-[#198496] hover:shadow-md flex items-center gap-3"
+            data-testid="messages-card"
+          >
+            <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500 group-hover:bg-[#198496]/10 group-hover:text-[#198496] transition-colors flex-shrink-0">
+              <MessageCircle :size="16" />
+            </div>
+            <p class="font-semibold text-gray-900 text-xs sm:text-sm truncate">Messages</p>
+          </button>
         </div>
 
-        <div
-          v-else
-          class="bg-white rounded-2xl p-4 shadow-sm transition-all duration-200 hover:shadow-md"
-          :aria-label="`${PRODUCER_RESPONSE_TIME_KPI.title}: ${formattedResponseTime}`"
-          data-testid="kpi-card-average_response_time_hours"
-        >
-          <div class="flex items-center gap-3">
-            <div
-              class="flex h-11 w-11 items-center justify-center rounded-xl shrink-0 bg-blue-50 text-blue-500"
-            >
-              <Clock :size="20" stroke-width="2" />
-            </div>
-
-            <div class="flex flex-col min-w-0">
-              <span
-                class="text-xl font-bold text-gray-900 leading-none"
-                data-testid="kpi-card-average_response_time_hours-value"
-              >
-                {{ formattedResponseTime }}
-              </span>
-              <span
-                class="mt-1 text-sm text-gray-500 truncate"
-                data-testid="kpi-card-average_response_time_hours-title"
-              >
-                {{ PRODUCER_RESPONSE_TIME_KPI.title }}
-              </span>
-              <span
-                class="text-xs text-gray-400 truncate"
-                data-testid="kpi-card-average_response_time_hours-subtitle"
-              >
-                {{ responseTimeSubtitle }}
-              </span>
-            </div>
-          </div>
-        </div>
       </div>
-    </section>
-
-    <!-- Quick Access Cards Section -->
-    <section aria-labelledby="quick-access-section-title">
-      <h2 id="quick-access-section-title" class="text-lg font-semibold text-slate-800 mb-4">
-        Accès rapides
-      </h2>
-      <div
-        class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-        data-testid="quick-access-cards-grid"
-      >
-        <!-- Profile Card -->
-        <button
-          @click="goToProfile"
-          class="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200 group text-left"
-          aria-label="Accéder à mon profil"
-          data-testid="profile-card"
-        >
-          <div class="flex items-center gap-4">
-            <div class="w-12 h-12 bg-teal-50 rounded-xl flex items-center justify-center group-hover:bg-teal-100 transition-colors">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="1.5"
-                stroke="currentColor"
-                class="w-6 h-6 text-teal-600"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"
-                />
-              </svg>
-            </div>
-            <div>
-              <h3 class="text-base font-medium text-slate-800">Mon profil</h3>
-              <p class="text-sm text-slate-500">Gérer ma photo et mes informations</p>
-            </div>
-          </div>
-        </button>
-
-        <!-- Public Profile Card -->
-        <button
-          v-if="authStore.user?.userable?.id"
-          @click="goToPublicProfile"
-          class="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200 group text-left"
-          aria-label="Voir mon profil public"
-          data-testid="public-profile-card"
-        >
-          <div class="flex items-center gap-4">
-            <div class="w-12 h-12 bg-teal-50 rounded-xl flex items-center justify-center group-hover:bg-teal-100 transition-colors">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="1.5"
-                stroke="currentColor"
-                class="w-6 h-6 text-teal-600"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.64 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.64 0-8.573-3.007-9.963-7.178z"
-                />
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
-            </div>
-            <div>
-              <h3 class="text-base font-medium text-slate-800">Voir mon profil public</h3>
-              <p class="text-sm text-slate-500">Comment les Faces voient mon profil</p>
-            </div>
-          </div>
-        </button>
-
-        <!-- Missions List Card -->
-        <button
-          @click="goToMissions"
-          class="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200 group text-left"
-          aria-label="Accéder à mes missions"
-          data-testid="missions-list-card"
-        >
-          <div class="flex items-center gap-4">
-            <div class="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="1.5"
-                stroke="currentColor"
-                class="w-6 h-6 text-primary"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"
-                />
-              </svg>
-            </div>
-            <div>
-              <h3 class="text-base font-medium text-slate-800">Mes missions</h3>
-              <p class="text-sm text-slate-500">Gérer mes castings en cours</p>
-            </div>
-          </div>
-        </button>
-
-        <!-- Publish Mission Card -->
-        <button
-          @click="goToPublishMission"
-          class="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200 group text-left"
-          aria-label="Publier une nouvelle mission"
-          data-testid="publish-mission-card"
-        >
-          <div class="flex items-center gap-4">
-            <div class="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="1.5"
-                stroke="currentColor"
-                class="w-6 h-6 text-primary"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M12 4.5v15m7.5-7.5h-15"
-                />
-              </svg>
-            </div>
-            <div>
-              <h3 class="text-base font-medium text-slate-800">Publier une mission</h3>
-              <p class="text-sm text-slate-500">Créer un nouveau casting</p>
-            </div>
-          </div>
-        </button>
-
-        <!-- Messages Card -->
-        <button
-          @click="goToMessages"
-          class="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200 group text-left"
-          aria-label="Accéder à mes messages"
-          data-testid="messages-card"
-        >
-          <div class="flex items-center gap-4">
-            <div class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="1.5"
-                stroke="currentColor"
-                class="w-6 h-6 text-blue-500"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"
-                />
-              </svg>
-            </div>
-            <div>
-              <h3 class="text-base font-medium text-slate-800">Messages</h3>
-              <p class="text-sm text-slate-500">Discussions avec les Faces</p>
-            </div>
-          </div>
-        </button>
-      </div>
-    </section>
+    </div>
   </div>
 </template>
-
-<style scoped>
-.text-primary {
-  color: var(--color-weact, #198496);
-}
-.bg-primary {
-  background-color: var(--color-weact, #198496);
-}
-.bg-primary\/10 {
-  background-color: rgb(25 132 150 / 0.1);
-}
-.bg-primary\/20 {
-  background-color: rgb(25 132 150 / 0.2);
-}
-</style>

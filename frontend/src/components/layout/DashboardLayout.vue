@@ -211,7 +211,7 @@ function handleLogout() {
           />
 
           <!-- Content Slot -->
-          <div class="relative z-10">
+          <div class="relative z-10 max-w-7xl mx-auto">
             <slot />
           </div>
         </main>
