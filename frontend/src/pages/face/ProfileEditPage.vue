@@ -29,7 +29,7 @@ import RatingDisplay from '@/components/RatingDisplay.vue'
 import BasicInfoSection from '@/features/face/components/BasicInfoSection.vue'
 import EmailChangeForm from '@/features/auth/components/EmailChangeForm.vue'
 import PasswordChangeForm from '@/features/auth/components/PasswordChangeForm.vue'
-import type { FaceCategory, FaceNiche, ExperienceFormData, TarifsFormData } from '@/features/face/types'
+import type { ExperienceFormData, TarifsFormData } from '@/features/face/types'
 const {
   profile,
   isLoading,
@@ -340,8 +340,8 @@ async function handlePhysicalCharacteristicsSave(data: {
  * Handle category/niche save
  */
 async function handleCategoryNicheSave(data: {
-  categorie: FaceCategory | null
-  niche: FaceNiche | null
+  categories: string[] | null
+  niches: string[] | null
 }): Promise<void> {
   const result = await updateCategoryNiche(data)
 

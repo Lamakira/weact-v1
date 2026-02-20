@@ -68,7 +68,7 @@ const initials = computed(() => {
   if (!name) return 'P'
   const parts = name.split(' ')
   return parts.length >= 2
-    ? `${parts[0].charAt(0)}${parts[1].charAt(0)}`.toUpperCase()
+    ? `${parts[0]!.charAt(0)}${parts[1]!.charAt(0)}`.toUpperCase()
     : name.charAt(0).toUpperCase()
 })
 
