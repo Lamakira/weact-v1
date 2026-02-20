@@ -36,8 +36,7 @@ class PublicFacesListTest extends TestCase
                         'username',
                         'prenom',
                         'ville',
-                        'categorie',
-                        'categorie_label',
+                        'categories',
                         'is_available',
                         'profile_photo_thumbnail_url',
                         'average_rating',
@@ -71,7 +70,7 @@ class PublicFacesListTest extends TestCase
             'quartier' => 'Akpakpa',
             'pays' => 'Bénin',
             'is_available' => true,
-            'categorie' => FaceCategory::ACTEUR,
+            'categories' => [FaceCategory::ACTEUR->value],
         ]);
 
         User::factory()->create([
@@ -89,8 +88,7 @@ class PublicFacesListTest extends TestCase
         $this->assertArrayHasKey('id', $faceData);
         $this->assertArrayHasKey('prenom', $faceData);
         $this->assertArrayHasKey('ville', $faceData);
-        $this->assertArrayHasKey('categorie', $faceData);
-        $this->assertArrayHasKey('categorie_label', $faceData);
+        $this->assertArrayHasKey('categories', $faceData);
         $this->assertArrayHasKey('is_available', $faceData);
         $this->assertArrayHasKey('profile_photo_thumbnail_url', $faceData);
         $this->assertArrayHasKey('average_rating', $faceData);
@@ -183,7 +181,7 @@ class PublicFacesListTest extends TestCase
         $face = Face::factory()->create([
             'prenom' => 'Adjoua',
             'ville' => 'Cotonou',
-            'categorie' => FaceCategory::ACTEUR,
+            'categories' => [FaceCategory::ACTEUR->value],
             'is_available' => true,
         ]);
 
@@ -201,8 +199,7 @@ class PublicFacesListTest extends TestCase
         $this->assertIsInt($faceData['id']);
         $this->assertIsString($faceData['prenom']);
         $this->assertIsString($faceData['ville']);
-        $this->assertIsString($faceData['categorie']);
-        $this->assertIsString($faceData['categorie_label']);
+        $this->assertIsArray($faceData['categories']);
         $this->assertIsBool($faceData['is_available']);
     }
 
@@ -245,10 +242,10 @@ class PublicFacesListTest extends TestCase
 
     public function test_filters_faces_by_categorie(): void
     {
-        $acteur = Face::factory()->create(['categorie' => FaceCategory::ACTEUR]);
+        $acteur = Face::factory()->create(['categories' => [FaceCategory::ACTEUR->value]]);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $acteur->id]);
 
-        $mannequin = Face::factory()->create(['categorie' => FaceCategory::MANNEQUIN]);
+        $mannequin = Face::factory()->create(['categories' => [FaceCategory::MANNEQUIN->value]]);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $mannequin->id]);
 
         $response = $this->getJson('/api/v1/public/faces?categorie=acteur');
@@ -260,10 +257,10 @@ class PublicFacesListTest extends TestCase
 
     public function test_filters_faces_by_niche(): void
     {
-        $beaute = Face::factory()->create(['niche' => FaceNiche::BEAUTE]);
+        $beaute = Face::factory()->create(['niches' => [FaceNiche::BEAUTE->value]]);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $beaute->id]);
 
-        $mode = Face::factory()->create(['niche' => FaceNiche::MODE]);
+        $mode = Face::factory()->create(['niches' => [FaceNiche::MODE->value]]);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $mode->id]);
 
         $response = $this->getJson('/api/v1/public/faces?niche=beaute');
@@ -291,15 +288,15 @@ class PublicFacesListTest extends TestCase
     public function test_combines_multiple_filters_with_and_logic(): void
     {
         $match = Face::factory()->create([
-            'categorie' => FaceCategory::ACTEUR,
-            'niche' => FaceNiche::BEAUTE,
+            'categories' => [FaceCategory::ACTEUR->value],
+            'niches' => [FaceNiche::BEAUTE->value],
             'ville' => 'Cotonou',
         ]);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $match->id]);
 
         $noMatch = Face::factory()->create([
-            'categorie' => FaceCategory::ACTEUR,
-            'niche' => FaceNiche::MODE,
+            'categories' => [FaceCategory::ACTEUR->value],
+            'niches' => [FaceNiche::MODE->value],
             'ville' => 'Cotonou',
         ]);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $noMatch->id]);
@@ -313,7 +310,7 @@ class PublicFacesListTest extends TestCase
 
     public function test_returns_empty_results_with_non_matching_filters(): void
     {
-        $face = Face::factory()->create(['categorie' => FaceCategory::ACTEUR]);
+        $face = Face::factory()->create(['categories' => [FaceCategory::ACTEUR->value]]);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
 
         $response = $this->getJson('/api/v1/public/faces?categorie=mannequin');
@@ -340,12 +337,12 @@ class PublicFacesListTest extends TestCase
     public function test_pagination_works_with_active_filters(): void
     {
         for ($i = 0; $i < 20; $i++) {
-            $face = Face::factory()->create(['categorie' => FaceCategory::ACTEUR]);
+            $face = Face::factory()->create(['categories' => [FaceCategory::ACTEUR->value]]);
             User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
         }
 
         // Add a non-matching face
-        $other = Face::factory()->create(['categorie' => FaceCategory::MANNEQUIN]);
+        $other = Face::factory()->create(['categories' => [FaceCategory::MANNEQUIN->value]]);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $other->id]);
 
         $response = $this->getJson('/api/v1/public/faces?categorie=acteur&per_page=10&page=2');
@@ -459,13 +456,13 @@ class PublicFacesListTest extends TestCase
     {
         $match = Face::factory()->create([
             'prenom' => 'Adjoua',
-            'categorie' => FaceCategory::ACTEUR,
+            'categories' => [FaceCategory::ACTEUR->value],
         ]);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $match->id]);
 
         $nameMatchOnly = Face::factory()->create([
             'prenom' => 'Adjoua',
-            'categorie' => FaceCategory::MANNEQUIN,
+            'categories' => [FaceCategory::MANNEQUIN->value],
         ]);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $nameMatchOnly->id]);
 

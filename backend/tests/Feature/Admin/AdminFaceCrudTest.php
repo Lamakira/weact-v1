@@ -44,7 +44,7 @@ class AdminFaceCrudTest extends TestCase
 
         $response->assertOk()
             ->assertJsonStructure([
-                'data' => [['id', 'nom', 'prenom', 'username', 'is_available', 'categorie', 'profile_completion_percentage', 'created_at']],
+                'data' => [['id', 'nom', 'prenom', 'username', 'is_available', 'categories', 'profile_completion_percentage', 'created_at']],
                 'meta' => ['current_page', 'last_page', 'per_page', 'total'],
             ])
             ->assertJsonPath('meta.total', 3)
@@ -101,9 +101,9 @@ class AdminFaceCrudTest extends TestCase
 
     public function test_filter_by_category_returns_correct_faces(): void
     {
-        Face::factory()->create(['categorie' => FaceCategory::ACTEUR]);
-        Face::factory()->create(['categorie' => FaceCategory::MANNEQUIN]);
-        Face::factory()->create(['categorie' => FaceCategory::ACTEUR]);
+        Face::factory()->create(['categories' => [FaceCategory::ACTEUR->value]]);
+        Face::factory()->create(['categories' => [FaceCategory::MANNEQUIN->value]]);
+        Face::factory()->create(['categories' => [FaceCategory::ACTEUR->value]]);
 
         $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/faces?category=acteur');
@@ -133,7 +133,7 @@ class AdminFaceCrudTest extends TestCase
             'nom' => 'Doe',
             'prenom' => 'Jane',
             'bio' => 'Test bio',
-            'categorie' => FaceCategory::ACTEUR,
+            'categories' => [FaceCategory::ACTEUR->value],
         ]);
 
         $response = $this->withToken($this->adminToken)
@@ -141,13 +141,13 @@ class AdminFaceCrudTest extends TestCase
 
         $response->assertOk()
             ->assertJsonStructure([
-                'data' => ['id', 'nom', 'prenom', 'username', 'bio', 'categorie', 'is_available', 'profile_completion_percentage', 'average_rating', 'ratings_count'],
+                'data' => ['id', 'nom', 'prenom', 'username', 'bio', 'categories', 'is_available', 'profile_completion_percentage', 'average_rating', 'ratings_count'],
                 'message',
             ])
             ->assertJsonPath('data.nom', 'Doe')
             ->assertJsonPath('data.prenom', 'Jane')
             ->assertJsonPath('data.bio', 'Test bio')
-            ->assertJsonPath('data.categorie', 'acteur');
+            ->assertJsonPath('data.categories.0.value', 'acteur');
     }
 
     public function test_show_returns_404_for_nonexistent_face(): void
@@ -275,7 +275,7 @@ class AdminFaceCrudTest extends TestCase
 
         $response = $this->withToken($this->adminToken)
             ->putJson("/api/v1/admin/faces/{$face->id}", [
-                'categorie' => 'invalid_category',
+                'categories' => ['invalid_category'],
             ]);
 
         $response->assertStatus(422)

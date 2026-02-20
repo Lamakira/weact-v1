@@ -21,8 +21,8 @@ class PublicFaceProfileTest extends TestCase
         $face = Face::factory()->create([
             'prenom' => 'Adjoua',
             'ville' => 'Cotonou',
-            'categorie' => FaceCategory::ACTEUR,
-            'niche' => FaceNiche::BEAUTE,
+            'categories' => [FaceCategory::ACTEUR->value],
+            'niches' => [FaceNiche::BEAUTE->value],
             'is_available' => true,
         ]);
 
@@ -40,10 +40,8 @@ class PublicFaceProfileTest extends TestCase
                     'username',
                     'prenom',
                     'ville',
-                    'categorie',
-                    'categorie_label',
-                    'niche',
-                    'niche_label',
+                    'categories',
+                    'niches',
                     'is_available',
                     'profile_photo_url',
                     'average_rating',
@@ -94,8 +92,8 @@ class PublicFaceProfileTest extends TestCase
             'ville' => 'Cotonou',
             'quartier' => 'Akpakpa',
             'pays' => 'Bénin',
-            'categorie' => FaceCategory::ACTEUR,
-            'niche' => FaceNiche::MODE,
+            'categories' => [FaceCategory::ACTEUR->value],
+            'niches' => [FaceNiche::MODE->value],
             'is_available' => true,
         ]);
 
@@ -115,10 +113,8 @@ class PublicFaceProfileTest extends TestCase
         $this->assertArrayHasKey('id', $data);
         $this->assertArrayHasKey('prenom', $data);
         $this->assertArrayHasKey('ville', $data);
-        $this->assertArrayHasKey('categorie', $data);
-        $this->assertArrayHasKey('categorie_label', $data);
-        $this->assertArrayHasKey('niche', $data);
-        $this->assertArrayHasKey('niche_label', $data);
+        $this->assertArrayHasKey('categories', $data);
+        $this->assertArrayHasKey('niches', $data);
         $this->assertArrayHasKey('is_available', $data);
         $this->assertArrayHasKey('profile_photo_url', $data);
         $this->assertArrayHasKey('average_rating', $data);
@@ -259,8 +255,8 @@ class PublicFaceProfileTest extends TestCase
         $face = Face::factory()->create([
             'prenom' => 'Adjoua',
             'ville' => 'Cotonou',
-            'categorie' => FaceCategory::ACTEUR,
-            'niche' => FaceNiche::BEAUTE,
+            'categories' => [FaceCategory::ACTEUR->value],
+            'niches' => [FaceNiche::BEAUTE->value],
             'is_available' => true,
         ]);
 
@@ -278,10 +274,8 @@ class PublicFaceProfileTest extends TestCase
         $this->assertIsInt($data['id']);
         $this->assertIsString($data['prenom']);
         $this->assertIsString($data['ville']);
-        $this->assertIsString($data['categorie']);
-        $this->assertIsString($data['categorie_label']);
-        $this->assertIsString($data['niche']);
-        $this->assertIsString($data['niche_label']);
+        $this->assertIsArray($data['categories']);
+        $this->assertIsArray($data['niches']);
         $this->assertIsBool($data['is_available']);
         $this->assertIsInt($data['ratings_count']);
         $this->assertIsBool($data['has_album_photos']);

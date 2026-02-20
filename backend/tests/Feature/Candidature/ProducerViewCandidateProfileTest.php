@@ -62,8 +62,8 @@ class ProducerViewCandidateProfileTest extends TestCase
             'pays' => 'Bénin',
             'taille' => 175,
             'poids' => 65,
-            'categorie' => FaceCategory::ACTEUR,
-            'niche' => FaceNiche::BEAUTE,
+            'categories' => [FaceCategory::ACTEUR->value],
+            'niches' => [FaceNiche::BEAUTE->value],
             'tarif_horaire' => 25000,
             'tarif_journalier' => 150000,
             'is_available' => true,
@@ -105,10 +105,8 @@ class ProducerViewCandidateProfileTest extends TestCase
                     'formatted_location',
                     'taille',
                     'poids',
-                    'categorie',
-                    'categorie_label',
-                    'niche',
-                    'niche_label',
+                    'categories',
+                    'niches',
                     'tarif_horaire',
                     'tarif_journalier',
                     'formatted_tarif_horaire',
@@ -140,10 +138,10 @@ class ProducerViewCandidateProfileTest extends TestCase
             ->assertJsonPath('data.formatted_location', 'Cotonou, Akpakpa, Bénin')
             ->assertJsonPath('data.taille', 175)
             ->assertJsonPath('data.poids', 65)
-            ->assertJsonPath('data.categorie', 'acteur')
-            ->assertJsonPath('data.categorie_label', 'Acteur')
-            ->assertJsonPath('data.niche', 'beaute')
-            ->assertJsonPath('data.niche_label', 'Beauté')
+            ->assertJsonPath('data.categories.0.value', 'acteur')
+            ->assertJsonPath('data.categories.0.label', 'Acteur')
+            ->assertJsonPath('data.niches.0.value', 'beaute')
+            ->assertJsonPath('data.niches.0.label', 'Beauté')
             ->assertJsonPath('data.tarif_horaire', 25000)
             ->assertJsonPath('data.tarif_journalier', 150000)
             ->assertJsonPath('data.is_available', true)

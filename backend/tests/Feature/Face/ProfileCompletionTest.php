@@ -30,7 +30,7 @@ class ProfileCompletionTest extends TestCase
             'acting_video' => null,
             'bio' => null,
             'ville' => null,
-            'categorie' => null,
+            'categories' => [],
             'tarif_horaire' => null,
             'tarif_journalier' => null,
         ]);
@@ -98,7 +98,7 @@ class ProfileCompletionTest extends TestCase
             'acting_video' => 'acting.mp4',
             'bio' => 'Test bio',
             'ville' => 'Paris',
-            'categorie' => FaceCategory::MANNEQUIN,
+            'categories' => [FaceCategory::MANNEQUIN->value],
             'tarif_horaire' => 50000,
         ]);
 
@@ -130,7 +130,7 @@ class ProfileCompletionTest extends TestCase
         $this->assertContains('acting_video', $keys);
         $this->assertContains('bio', $keys);
         $this->assertContains('ville', $keys);
-        $this->assertContains('categorie', $keys);
+        $this->assertContains('categories', $keys);
         $this->assertContains('tarifs', $keys);
 
         // Check French labels exist
