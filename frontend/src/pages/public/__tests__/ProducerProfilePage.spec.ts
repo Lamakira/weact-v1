@@ -121,7 +121,6 @@ describe('ProducerProfilePage', () => {
       await flushPromises()
 
       expect(wrapper.find('[data-testid="loading-state"]').exists()).toBe(true)
-      expect(wrapper.text()).toContain('Chargement du profil')
     })
 
     it('calls fetchProducer on mount with the correct ID', async () => {
@@ -275,14 +274,13 @@ describe('ProducerProfilePage', () => {
       expect(badge.text()).toBe('Agence')
     })
 
-    it('displays agency logo when available', async () => {
+    it('displays agency logo as main image when available', async () => {
       const wrapper = await mountComponent(2)
       await flushPromises()
 
-      expect(wrapper.find('[data-testid="agency-logo-section"]').exists()).toBe(true)
       const logo = wrapper.find('[data-testid="agency-logo"]')
       expect(logo.exists()).toBe(true)
-      expect(logo.attributes('src')).toBe('https://example.com/logo-thumb.png')
+      expect(logo.attributes('src')).toBe('https://example.com/logo.png')
     })
 
     it('displays rating when available', async () => {

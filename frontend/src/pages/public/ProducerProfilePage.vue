@@ -1,10 +1,22 @@
 <script setup lang="ts">
 import { watch, computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import {
+  ChevronLeft,
+  Star,
+  Briefcase,
+  Calendar,
+  ShieldCheck,
+  User,
+  AlertCircle,
+  RefreshCw,
+  SearchX,
+} from 'lucide-vue-next'
 import { usePublicProducer } from '@/features/public/composables/usePublicProducer'
 import { publicApi } from '@/features/public/services/publicApi'
 import type { Review } from '@/features/rating/types'
 import ReviewsList from '@/components/ReviewsList.vue'
+import { Skeleton } from '@/components/ui/skeleton'
 
 const route = useRoute()
 const router = useRouter()
@@ -33,7 +45,6 @@ async function fetchReviews(producerId: number, page: number = 1): Promise<void>
     reviewsLastPage.value = response.meta.last_page
     reviewsTotal.value = response.meta.total
   } catch {
-    // Show error state for reviews section
     reviews.value = []
     reviewsError.value = true
   } finally {
@@ -60,7 +71,6 @@ const producerId = computed(() => {
 watch(
   producerId,
   async (newId) => {
-    // Reset image error states on new producer
     profilePhotoError.value = false
     agencyLogoError.value = false
     reviews.value = []
@@ -69,12 +79,43 @@ watch(
 
     if (newId) {
       await fetchProducer(newId)
-      // Fetch reviews after producer is loaded
       await fetchReviews(newId)
     }
   },
   { immediate: true }
 )
+
+// Computed helpers
+const initials = computed(() => {
+  if (!producer.value?.display_name) return '??'
+  return producer.value.display_name
+    .split(' ')
+    .map((n: string) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+})
+
+const formattedDate = computed(() => {
+  if (!producer.value?.member_since) return ''
+  return new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(
+    new Date(producer.value.member_since)
+  )
+})
+
+// For agencies: show agency logo as main image. For particuliers: show profile photo.
+const mainPhotoUrl = computed(() => {
+  if (!producer.value) return null
+  if (isAgency.value) {
+    if (agencyLogoError.value) return null
+    return producer.value.agency_logo_url || producer.value.agency_logo_thumbnail_url || null
+  }
+  if (profilePhotoError.value) return null
+  return producer.value.thumbnail_url || producer.value.profile_photo_url || null
+})
+
+// For agencies: use object-contain (logo). For particuliers: use object-cover (photo).
+const mainPhotoFit = computed(() => isAgency.value ? 'object-contain rounded-[24px]' : 'object-cover')
 
 // Retry handler for errors
 async function handleRetry(): Promise<void> {
@@ -87,335 +128,326 @@ async function handleRetry(): Promise<void> {
 function handleGoBack(): void {
   router.back()
 }
-
-// Default avatar placeholder
-const defaultAvatar = computed(() => {
-  return 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="%239ca3af"%3E%3Cpath stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /%3E%3C/svg%3E'
-})
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50">
-    <!-- Header -->
-    <header class="bg-white shadow-sm">
-      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <button
-          @click="handleGoBack"
-          class="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-          data-testid="back-button"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke-width="1.5"
-            stroke="currentColor"
-            class="w-5 h-5"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-            />
-          </svg>
-          <span class="text-sm font-medium">Retour</span>
-        </button>
-      </div>
-    </header>
+  <div class="min-h-screen bg-gray-50 selection:bg-teal-100 selection:text-[#198496]">
+    <main class="max-w-7xl mx-auto px-4 md:px-6 py-8 lg:p-12 animate-page-in">
 
-    <!-- Main Content -->
-    <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <!-- Loading State -->
+      <!-- Top Navigation -->
+      <button
+        @click="handleGoBack"
+        class="group flex items-center gap-2 mb-8 text-slate-500 hover:text-[#198496] transition-colors font-medium"
+        data-testid="back-button"
+      >
+        <div class="w-8 h-8 rounded-full bg-white shadow-sm border border-gray-50 flex items-center justify-center group-hover:shadow-md group-hover:scale-105 transition-all">
+          <ChevronLeft class="w-4 h-4" />
+        </div>
+        <span class="text-sm">Retour</span>
+      </button>
+
+      <!-- LOADING STATE -->
       <div
         v-if="isLoading"
-        class="flex flex-col items-center justify-center py-16"
+        class="grid grid-cols-1 lg:grid-cols-[1fr_1.8fr] gap-6 lg:gap-10"
         data-testid="loading-state"
       >
-        <svg
-          class="animate-spin h-10 w-10 text-weact-600"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            class="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            stroke-width="4"
-          ></circle>
-          <path
-            class="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          ></path>
-        </svg>
-        <p class="mt-4 text-gray-500">Chargement du profil...</p>
-      </div>
-
-      <!-- Not Found State -->
-      <div
-        v-else-if="notFound"
-        class="bg-white rounded-xl shadow-sm p-8 text-center"
-        data-testid="not-found-state"
-      >
-        <div class="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke-width="1.5"
-            stroke="currentColor"
-            class="w-8 h-8 text-gray-400"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M15.182 16.318A4.486 4.486 0 0 0 12.016 15a4.486 4.486 0 0 0-3.198 1.318M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Z"
-            />
-          </svg>
+        <div>
+          <Skeleton class="aspect-square w-full rounded-[24px]" />
         </div>
-        <h2 class="text-xl font-semibold text-gray-900 mb-2">Producteur introuvable</h2>
-        <p class="text-gray-500 mb-6">
-          Le profil que vous recherchez n'existe pas ou a été supprimé.
-        </p>
-        <button
-          @click="handleGoBack"
-          class="inline-flex items-center gap-2 px-4 py-2 bg-weact-600 text-white rounded-lg hover:bg-weact-700 transition-colors"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke-width="1.5"
-            stroke="currentColor"
-            class="w-5 h-5"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-            />
-          </svg>
-          Retour
-        </button>
+        <div class="space-y-6">
+          <div class="space-y-3">
+            <Skeleton class="h-6 w-24 rounded-full" />
+            <Skeleton class="h-12 w-2/3 rounded-xl" />
+          </div>
+          <div class="flex gap-4">
+            <Skeleton class="h-14 w-40 rounded-full" />
+            <Skeleton class="h-14 w-40 rounded-full" />
+          </div>
+          <Skeleton class="h-48 w-full rounded-[24px]" />
+        </div>
       </div>
 
-      <!-- Error State -->
+      <!-- ERROR STATE -->
       <div
         v-else-if="error"
-        class="bg-white rounded-xl shadow-sm p-8 text-center"
+        class="flex flex-col items-center justify-center py-24 text-center"
         data-testid="error-state"
       >
-        <div class="mx-auto w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke-width="1.5"
-            stroke="currentColor"
-            class="w-8 h-8 text-red-500"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
-            />
-          </svg>
+        <div class="w-20 h-20 bg-red-50 text-red-500 rounded-[24px] flex items-center justify-center mb-6">
+          <AlertCircle class="w-10 h-10" />
         </div>
-        <h2 class="text-xl font-semibold text-gray-900 mb-2">Une erreur est survenue</h2>
-        <p class="text-gray-500 mb-6">{{ error }}</p>
+        <h2 class="text-2xl font-bold text-slate-800 mb-2">Une erreur est survenue</h2>
+        <p class="text-slate-500 mb-8 max-w-md">{{ error }}</p>
         <button
           @click="handleRetry"
-          class="inline-flex items-center gap-2 px-4 py-2 bg-weact-600 text-white rounded-lg hover:bg-weact-700 transition-colors"
+          class="flex items-center gap-2 px-8 py-3 bg-[#198496] text-white rounded-full font-bold shadow-lg shadow-teal-500/30 hover:scale-105 transition-transform active:scale-95"
           data-testid="retry-button"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke-width="1.5"
-            stroke="currentColor"
-            class="w-5 h-5"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"
-            />
-          </svg>
+          <RefreshCw class="w-4 h-4" />
           Réessayer
         </button>
       </div>
 
-      <!-- Producer Profile -->
+      <!-- NOT FOUND STATE -->
+      <div
+        v-else-if="notFound"
+        class="flex flex-col items-center justify-center py-24 text-center"
+        data-testid="not-found-state"
+      >
+        <div class="w-20 h-20 bg-teal-50 text-[#198496] rounded-[24px] flex items-center justify-center mb-6">
+          <SearchX class="w-10 h-10" />
+        </div>
+        <h2 class="text-2xl font-bold text-slate-800 mb-2">Producteur introuvable</h2>
+        <p class="text-slate-500 mb-8 max-w-md">
+          Le profil que vous recherchez n'existe pas ou a été supprimé.
+        </p>
+        <button
+          @click="handleGoBack"
+          class="px-8 py-3 border-2 border-[#198496] text-[#198496] rounded-full font-bold hover:bg-teal-50 transition-colors"
+        >
+          Retour
+        </button>
+      </div>
+
+      <!-- SUCCESS STATE -->
       <div
         v-else-if="producer"
-        class="space-y-6"
+        class="space-y-8 lg:space-y-12"
         data-testid="producer-profile"
       >
-        <!-- Profile Card -->
-        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-          <!-- Profile Header -->
-          <div class="relative bg-gradient-to-r from-weact-600 to-weact-700 h-32 sm:h-40"></div>
+        <div class="grid grid-cols-1 lg:grid-cols-[1fr_1.8fr] gap-6 lg:gap-10 items-start">
 
-          <!-- Profile Info -->
-          <div class="relative px-6 pb-6">
-            <!-- Avatar -->
-            <div class="absolute -top-16 left-6">
-              <div class="w-32 h-32 rounded-full border-4 border-white bg-gray-100 overflow-hidden shadow-lg">
+          <!-- Column 1: Photo / Logo -->
+          <aside class="lg:sticky lg:top-8">
+            <div class="group">
+              <div class="aspect-square bg-white rounded-2xl sm:rounded-[24px] overflow-hidden shadow-sm border border-gray-100 transition-all duration-500 group-hover:shadow-md group-hover:scale-[1.01]">
                 <img
-                  v-if="(producer.thumbnail_url || producer.profile_photo_url) && !profilePhotoError"
-                  :src="producer.thumbnail_url || producer.profile_photo_url || undefined"
+                  v-if="mainPhotoUrl"
+                  :src="mainPhotoUrl"
                   :alt="producer.display_name"
-                  class="w-full h-full object-cover"
-                  data-testid="profile-photo"
-                  @error="profilePhotoError = true"
+                  class="w-full h-full"
+                  :class="mainPhotoFit"
+                  :data-testid="isAgency ? 'agency-logo' : 'profile-photo'"
+                  @error="isAgency ? (agencyLogoError = true) : (profilePhotoError = true)"
                 />
                 <div
                   v-else
-                  class="w-full h-full flex items-center justify-center"
+                  class="w-full h-full bg-gradient-to-br from-[#198496] to-teal-300 flex items-center justify-center"
                   data-testid="profile-placeholder"
                 >
-                  <img :src="defaultAvatar" alt="Avatar par défaut" class="w-16 h-16 opacity-40" />
+                  <span class="text-white text-6xl font-bold tracking-tighter opacity-80">{{ initials }}</span>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Column 2: Information -->
+          <section class="space-y-6 lg:space-y-10">
+            <!-- Header Info -->
+            <div>
+              <div class="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <span
+                  class="px-3 py-1 bg-teal-50 text-[#198496] text-xs font-bold uppercase tracking-wider rounded-full flex items-center gap-1.5"
+                  data-testid="producer-type-badge"
+                >
+                  <component :is="isAgency ? ShieldCheck : User" class="w-3 h-3" />
+                  {{ isAgency ? 'Agence' : 'Particulier' }}
+                </span>
+                <span
+                  v-if="producer.member_since"
+                  class="text-sm text-slate-400 flex items-center gap-1.5"
+                  data-testid="member-since"
+                >
+                  <Calendar class="w-3.5 h-3.5" />
+                  Membre depuis {{ formattedDate }}
+                </span>
+              </div>
+
+              <h1
+                class="text-2xl sm:text-3xl lg:text-5xl font-bold text-slate-800 tracking-tight leading-tight mb-4 sm:mb-6"
+                data-testid="display-name"
+              >
+                {{ producer.display_name }}
+              </h1>
+
+              <!-- Stats: Unified bar on mobile, separate pills on desktop -->
+
+              <!-- Mobile: Unified Stats Bar -->
+              <div class="inline-flex items-center bg-white border border-gray-100 p-1.5 rounded-2xl shadow-sm lg:hidden">
+                <div class="flex items-center gap-3 px-3 py-1.5">
+                  <div class="w-10 h-10 bg-teal-50 rounded-xl flex items-center justify-center text-[#198496]">
+                    <Briefcase class="w-5 h-5" />
+                  </div>
+                  <div class="flex flex-col">
+                    <span class="text-lg font-bold text-slate-800 leading-none">{{ producer.missions_count }}</span>
+                    <span class="text-[10px] text-slate-500 font-medium uppercase tracking-wider mt-1">Missions</span>
+                  </div>
+                </div>
+                <div class="w-px h-8 bg-gray-100 mx-1" aria-hidden="true" />
+                <div v-if="producer.average_rating !== null" class="flex items-center gap-3 px-3 py-1.5">
+                  <div class="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-500">
+                    <Star class="w-5 h-5 fill-current" />
+                  </div>
+                  <div class="flex flex-col">
+                    <div class="flex items-center gap-1.5 leading-none">
+                      <span class="text-lg font-bold text-slate-800">{{ producer.average_rating.toFixed(1) }}</span>
+                      <span class="text-[10px] text-slate-400 font-medium">({{ producer.ratings_count }})</span>
+                    </div>
+                    <div class="flex gap-0.5 mt-1">
+                      <Star v-for="i in 5" :key="i" :class="['w-2.5 h-2.5', i <= Math.round(producer.average_rating) ? 'text-amber-400 fill-current' : 'text-slate-200']" />
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="flex items-center gap-3 px-3 py-1.5">
+                  <div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-300">
+                    <Star class="w-5 h-5" />
+                  </div>
+                  <span class="text-sm font-medium text-slate-400">Aucun avis</span>
+                </div>
+              </div>
+
+              <!-- Desktop: Separate Pills -->
+              <div class="hidden lg:flex flex-wrap gap-4">
+                <div class="flex items-center gap-3 bg-white p-3 pr-5 rounded-full border border-gray-50 shadow-sm transition-shadow hover:shadow-md">
+                  <div class="w-10 h-10 bg-teal-50 rounded-full flex items-center justify-center text-[#198496]">
+                    <Briefcase class="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div class="text-lg font-bold text-slate-800 leading-none" data-testid="missions-count">{{ producer.missions_count }}</div>
+                    <div class="text-xs text-slate-400 font-medium">Missions publiées</div>
+                  </div>
+                </div>
+
+                <div v-if="producer.average_rating !== null" class="flex items-center gap-3 bg-white p-3 pr-5 rounded-full border border-gray-50 shadow-sm transition-shadow hover:shadow-md">
+                  <div class="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center text-amber-500">
+                    <Star class="w-5 h-5 fill-current" />
+                  </div>
+                  <div>
+                    <div class="flex items-center gap-1.5" data-testid="rating-display">
+                      <span class="text-lg font-bold text-slate-800 leading-none">{{ producer.average_rating.toFixed(1) }}</span>
+                      <span class="text-xs text-slate-300 font-normal">({{ producer.ratings_count }} avis)</span>
+                    </div>
+                    <div class="flex gap-0.5 mt-1">
+                      <Star v-for="i in 5" :key="i" :class="['w-3 h-3', i <= Math.round(producer.average_rating) ? 'text-amber-400 fill-current' : 'text-slate-200']" />
+                    </div>
+                  </div>
+                </div>
+
+                <div v-else class="flex items-center gap-3 bg-white p-3 pr-5 rounded-full border border-gray-50 shadow-sm" data-testid="no-rating">
+                  <div class="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
+                    <Star class="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div class="text-sm font-medium text-slate-400 leading-none">Aucune note</div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <!-- Agency Logo (for agencies only) -->
-            <div
-              v-if="isAgency && (producer.agency_logo_url || producer.agency_logo_thumbnail_url) && !agencyLogoError"
-              class="absolute -top-8 right-6"
-              data-testid="agency-logo-section"
-            >
-              <div class="w-20 h-20 rounded-lg border-2 border-white bg-white shadow-md overflow-hidden">
-                <img
-                  :src="producer.agency_logo_thumbnail_url || producer.agency_logo_url || undefined"
-                  :alt="`Logo ${producer.agency_name}`"
-                  class="w-full h-full object-contain p-1"
-                  data-testid="agency-logo"
-                  @error="agencyLogoError = true"
-                />
+            <!-- Bio Card -->
+            <div class="p-6 sm:p-8 bg-white rounded-[24px] shadow-sm border border-gray-50 relative overflow-hidden">
+              <div class="absolute top-0 right-0 p-4 opacity-[0.03] pointer-events-none" aria-hidden="true">
+                <User class="w-24 h-24" />
               </div>
+              <h3 class="text-lg font-semibold text-slate-800 mb-4">À propos</h3>
+              <p
+                v-if="producer.bio"
+                class="text-slate-500 leading-relaxed whitespace-pre-wrap"
+                data-testid="bio-content"
+              >
+                {{ producer.bio }}
+              </p>
+              <p
+                v-else
+                class="text-slate-400 italic"
+                data-testid="no-bio"
+              >
+                Aucune description disponible.
+              </p>
             </div>
-
-            <!-- Name and Details -->
-            <div class="pt-20">
-              <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                <div>
-                  <h1 class="text-2xl font-bold text-gray-900" data-testid="display-name">
-                    {{ producer.display_name }}
-                  </h1>
-                  <div class="flex items-center gap-2 mt-1">
-                    <span
-                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
-                      :class="isAgency ? 'bg-weact-100 text-weact-800' : 'bg-gray-100 text-gray-800'"
-                      data-testid="producer-type-badge"
-                    >
-                      {{ isAgency ? 'Agence' : 'Particulier' }}
-                    </span>
-                    <span class="text-sm text-gray-500" data-testid="member-since">
-                      Membre depuis {{ producer.member_since }}
-                    </span>
-                  </div>
-                </div>
-
-                <!-- Stats -->
-                <div class="flex gap-6">
-                  <div class="text-center">
-                    <div class="text-2xl font-bold text-gray-900" data-testid="missions-count">
-                      {{ producer.missions_count }}
-                    </div>
-                    <div class="text-xs text-gray-500">Missions publiées</div>
-                  </div>
-                  <div class="text-center">
-                    <div
-                      v-if="producer.average_rating !== null"
-                      class="flex items-center justify-center gap-1"
-                      data-testid="rating-display"
-                    >
-                      <span class="text-2xl font-bold text-gray-900">{{ producer.average_rating.toFixed(1) }}</span>
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                        class="w-5 h-5 text-yellow-400"
-                      >
-                        <path
-                          fill-rule="evenodd"
-                          d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z"
-                          clip-rule="evenodd"
-                        />
-                      </svg>
-                    </div>
-                    <div
-                      v-else
-                      class="text-sm text-gray-400"
-                      data-testid="no-rating"
-                    >
-                      -
-                    </div>
-                    <div class="text-xs text-gray-500">
-                      {{ producer.ratings_count > 0 ? `${producer.ratings_count} avis` : 'Aucune note' }}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Bio Section -->
-        <div class="bg-white rounded-xl shadow-sm p-6">
-          <h2 class="text-lg font-semibold text-gray-900 mb-4">À propos</h2>
-          <p
-            v-if="producer.bio"
-            class="text-gray-600 whitespace-pre-wrap"
-            data-testid="bio-content"
-          >
-            {{ producer.bio }}
-          </p>
-          <p
-            v-else
-            class="text-gray-400 italic"
-            data-testid="no-bio"
-          >
-            Aucune description disponible.
-          </p>
+          </section>
         </div>
 
         <!-- Reviews Section -->
-        <div class="bg-white rounded-xl shadow-sm p-6">
-          <h2 class="text-lg font-semibold text-gray-900 mb-4">Avis et évaluations</h2>
-          <!-- Reviews Error State -->
-          <div
-            v-if="reviewsError"
-            class="text-center py-6"
-            data-testid="reviews-error"
-          >
-            <p class="text-gray-500 text-sm">Impossible de charger les avis.</p>
-            <button
-              type="button"
-              class="mt-2 text-sm text-weact-600 hover:text-weact-700 underline"
-              data-testid="reviews-retry"
-              @click="fetchReviews(producerId!)"
-            >
-              Réessayer
-            </button>
+        <section class="animate-section-in">
+          <div class="flex items-center gap-4 sm:gap-6 mb-4 sm:mb-6">
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-800 flex-shrink-0">Avis et évaluations</h2>
+            <div class="h-px flex-1 bg-gradient-to-r from-teal-100 to-transparent" aria-hidden="true" />
           </div>
-          <!-- Reviews List -->
-          <ReviewsList
-            v-else
-            :reviews="reviews"
-            :current-page="reviewsCurrentPage"
-            :last-page="reviewsLastPage"
-            :total="reviewsTotal"
-            :loading="reviewsLoading"
-            @page-change="handleReviewsPageChange"
-          />
-        </div>
+
+          <div class="bg-white rounded-2xl sm:rounded-[24px] shadow-sm border border-gray-50 p-4 sm:p-8">
+            <!-- Reviews Error State -->
+            <div
+              v-if="reviewsError"
+              class="text-center py-6"
+              data-testid="reviews-error"
+            >
+              <p class="text-slate-500 text-sm">Impossible de charger les avis.</p>
+              <button
+                type="button"
+                class="mt-2 text-sm text-[#198496] hover:text-[#146c7a] font-medium underline underline-offset-2"
+                data-testid="reviews-retry"
+                @click="fetchReviews(producerId!)"
+              >
+                Réessayer
+              </button>
+            </div>
+
+            <!-- Reviews List -->
+            <ReviewsList
+              v-else
+              :reviews="reviews"
+              :current-page="reviewsCurrentPage"
+              :last-page="reviewsLastPage"
+              :total="reviewsTotal"
+              :loading="reviewsLoading"
+              @page-change="handleReviewsPageChange"
+            />
+          </div>
+        </section>
       </div>
     </main>
   </div>
 </template>
+
+<style scoped>
+/* Page entrance animation */
+.animate-page-in {
+  animation: pageIn 0.6s ease-out both;
+}
+
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Reviews section staggered entrance */
+.animate-section-in {
+  animation: sectionIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+}
+
+@keyframes sectionIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Focus states for accessibility */
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid #198496;
+  outline-offset: 4px;
+}
+</style>
