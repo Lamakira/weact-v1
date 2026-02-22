@@ -101,7 +101,7 @@ onUnmounted(() => {
       <!-- Mobile hamburger menu -->
       <button
         @click="openMobile"
-        class="lg:hidden w-10 h-10 rounded-2xl bg-teal-50 flex items-center justify-center text-primary hover:bg-teal-100 transition-colors"
+        class="lg:hidden w-10 h-10 rounded-2xl flex items-center justify-center text-primary hover:text-primary/70 transition-colors"
         aria-label="Ouvrir le menu"
         data-testid="header-menu-button"
       >
@@ -110,7 +110,7 @@ onUnmounted(() => {
 
       <!-- Title badge -->
       <div
-        class="px-3 py-1 min-[376px]:px-4 min-[376px]:py-1.5 rounded-full bg-teal-50 text-primary text-[10px] min-[376px]:text-xs font-bold uppercase tracking-wider"
+        class="text-primary text-sm font-semibold"
         data-testid="header-title"
       >
         {{ title }}
