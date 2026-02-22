@@ -218,6 +218,11 @@ const router = createRouter({
             import('../pages/producer/candidature/CandidateProfilePage.vue'),
         },
         {
+          path: 'faces',
+          name: 'producer-faces-list',
+          component: () => import('../pages/producer/ProducerFacesListPage.vue'),
+        },
+        {
           path: 'messages',
           name: 'producer-messages',
           component: () => import('../pages/producer/messaging/ProducerConversationsPage.vue'),
