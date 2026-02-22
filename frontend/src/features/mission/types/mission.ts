@@ -26,6 +26,7 @@ export const MissionType = {
   FILM: 'film',
   COURT_METRAGE: 'court_metrage',
   CLIP_MUSICAL: 'clip_musical',
+  SHOOTING_PHOTO: 'shooting_photo',
   AUTRE: 'autre',
 } as const
 
@@ -37,6 +38,7 @@ export const MissionTypeLabel: Record<MissionTypeType, string> = {
   [MissionType.FILM]: 'Film',
   [MissionType.COURT_METRAGE]: 'Court-métrage',
   [MissionType.CLIP_MUSICAL]: 'Clip musical',
+  [MissionType.SHOOTING_PHOTO]: 'Shooting photo',
   [MissionType.AUTRE]: 'Autre',
 }
 
@@ -87,6 +89,7 @@ export interface Mission {
   nombre_faces_voulu: number
   type_mission: MissionTypeType
   type_mission_label: string
+  type_mission_autre: string | null
   genre_voulu: MissionGenderType
   genre_voulu_label: string
   lieu: string
@@ -110,6 +113,7 @@ export interface CreateMissionData {
   date_limite_candidature: string
   nombre_faces_voulu?: number
   type_mission: MissionTypeType
+  type_mission_autre?: string
   genre_voulu: MissionGenderType
   lieu: string
   duree: string

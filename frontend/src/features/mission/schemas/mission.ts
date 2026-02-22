@@ -52,10 +52,13 @@ export const missionSchema = z
         MissionType.FILM,
         MissionType.COURT_METRAGE,
         MissionType.CLIP_MUSICAL,
+        MissionType.SHOOTING_PHOTO,
         MissionType.AUTRE,
       ],
       { message: 'Le type de mission est obligatoire' },
     ),
+
+    type_mission_autre: z.string().max(200, 'Le type de mission ne peut pas dépasser 200 caractères').optional().or(z.literal('')),
 
     genre_voulu: z.enum(
       [MissionGender.HOMME, MissionGender.FEMME, MissionGender.TOUS],
@@ -99,6 +102,13 @@ export const missionSchema = z
     {
       message: 'La date de tournage doit être postérieure à la date limite de candidature',
       path: ['date_tournage'],
+    },
+  )
+  .refine(
+    (data) => data.type_mission !== 'autre' || (data.type_mission_autre && data.type_mission_autre.trim().length > 0),
+    {
+      message: 'Veuillez préciser le type de mission',
+      path: ['type_mission_autre'],
     },
   )
 

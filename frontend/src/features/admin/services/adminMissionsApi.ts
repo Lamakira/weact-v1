@@ -28,6 +28,7 @@ export interface AdminMissionData {
   nombre_faces_voulu: number | null
   type_mission: string | null
   type_mission_label: string | null
+  type_mission_autre: string | null
   genre_voulu: string | null
   genre_voulu_label: string | null
   lieu: string | null

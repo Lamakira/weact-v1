@@ -63,7 +63,7 @@ function formatCurrency(amount: number): string {
           class="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
           data-testid="mission-type-badge"
         >
-          {{ mission.type_mission_label }}
+          {{ mission.type_mission === 'autre' && mission.type_mission_autre ? `Autre : ${mission.type_mission_autre}` : mission.type_mission_label }}
         </span>
       </div>
       <h3

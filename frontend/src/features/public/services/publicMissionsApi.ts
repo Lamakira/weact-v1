@@ -18,6 +18,7 @@ export interface PublicMission {
   nombre_faces_voulu: number
   type_mission: string
   type_mission_label: string
+  type_mission_autre: string | null
   genre_voulu: string
   genre_voulu_label: string
   lieu: string

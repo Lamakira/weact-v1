@@ -288,7 +288,7 @@ onMounted(() => {
         <span
           class="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs min-[376px]:text-sm font-medium text-primary"
         >
-          {{ mission.type_mission_label }}
+          {{ mission.type_mission === 'autre' && mission.type_mission_autre ? `Autre : ${mission.type_mission_autre}` : mission.type_mission_label }}
         </span>
       </div>
 

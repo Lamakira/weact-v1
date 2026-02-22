@@ -129,7 +129,7 @@ function goToProducer(producerId: number): void {
                   <Briefcase class="h-4 w-4" />
                   Type
                 </dt>
-                <dd class="mt-1 text-sm text-gray-900">{{ mission.type_mission_label ?? '—' }}</dd>
+                <dd class="mt-1 text-sm text-gray-900">{{ mission.type_mission === 'autre' && mission.type_mission_autre ? `Autre : ${mission.type_mission_autre}` : (mission.type_mission_label ?? '—') }}</dd>
               </div>
               <div>
                 <dt class="flex items-center gap-2 text-sm font-medium text-gray-500">

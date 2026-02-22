@@ -67,7 +67,8 @@ function setMetaTag(name: string, content: string, isProperty = false): void {
 
 watchEffect(() => {
   if (mission.value) {
-    const description = `${mission.value.titre} — ${mission.value.type_mission_label} à ${mission.value.lieu}. Découvrez les détails et postulez sur WEACT.`
+    const typeLabel = mission.value.type_mission === 'autre' && mission.value.type_mission_autre ? `Autre : ${mission.value.type_mission_autre}` : mission.value.type_mission_label
+    const description = `${mission.value.titre} — ${typeLabel} à ${mission.value.lieu}. Découvrez les détails et postulez sur WEACT.`
     setMetaTag('description', description)
     setMetaTag('og:title', `${mission.value.titre} | WEACT`, true)
     setMetaTag('og:description', description, true)
@@ -245,7 +246,7 @@ async function handleRetry(): Promise<void> {
                 class="inline-flex items-center rounded-full bg-[#198496]/10 px-3 py-1 text-xs font-medium text-[#198496]"
                 data-testid="mission-type-badge"
               >
-                {{ mission.type_mission_label }}
+                {{ mission.type_mission === 'autre' && mission.type_mission_autre ? `Autre : ${mission.type_mission_autre}` : mission.type_mission_label }}
               </span>
               <span
                 v-if="mission.genre_voulu_label"

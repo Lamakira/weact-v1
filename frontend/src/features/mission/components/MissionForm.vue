@@ -94,6 +94,7 @@ const { handleSubmit, errors, setFieldError } = useForm({
     date_limite_candidature: props.initialValues?.date_limite_candidature ?? '',
     nombre_faces_voulu: props.initialValues?.nombre_faces_voulu ?? 1,
     type_mission: props.initialValues?.type_mission ?? MissionType.PUBLICITE,
+    type_mission_autre: props.initialValues?.type_mission_autre ?? '',
     genre_voulu: props.initialValues?.genre_voulu ?? MissionGender.TOUS,
     lieu: props.initialValues?.lieu ?? '',
     duree: props.initialValues?.duree ?? '',
@@ -102,6 +103,7 @@ const { handleSubmit, errors, setFieldError } = useForm({
 
 const { value: titre, errorMessage: titreError } = useField<string>('titre')
 const { value: type_mission, errorMessage: typeMissionError } = useField<string>('type_mission')
+const { value: type_mission_autre, errorMessage: typeMissionAutreError } = useField<string>('type_mission_autre')
 const { value: description, errorMessage: descriptionError } = useField<string>('description')
 const { value: profil_recherche, errorMessage: profilRechercheError } =
   useField<string>('profil_recherche')
@@ -127,6 +129,7 @@ const onSubmit = handleSubmit(async (values) => {
     date_limite_candidature: values.date_limite_candidature,
     nombre_faces_voulu: values.nombre_faces_voulu,
     type_mission: values.type_mission as CreateMissionData['type_mission'],
+    type_mission_autre: values.type_mission_autre || undefined,
     genre_voulu: values.genre_voulu as CreateMissionData['genre_voulu'],
     lieu: values.lieu,
     duree: values.duree,
@@ -153,6 +156,7 @@ const onSubmit = handleSubmit(async (values) => {
       'date_limite_candidature',
       'nombre_faces_voulu',
       'type_mission',
+      'type_mission_autre',
       'genre_voulu',
       'lieu',
       'duree',
@@ -250,6 +254,18 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
           :options="missionTypeOptions"
           required
           data-testid="type-mission-select"
+        />
+
+        <!-- Précision type de mission (conditionnel) -->
+        <FloatingField
+          v-if="type_mission === MissionType.AUTRE"
+          id="type_mission_autre"
+          v-model="type_mission_autre"
+          label="Précisez le type de mission"
+          :icon="Type"
+          :error="typeMissionAutreError"
+          required
+          data-testid="type-mission-autre-input"
         />
 
         <!-- Budget -->
