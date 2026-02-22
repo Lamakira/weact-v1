@@ -9,6 +9,7 @@ use App\Enums\MissionStatus;
 use App\Enums\MissionType;
 use App\Models\Mission;
 use App\Models\Producer;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
@@ -32,6 +33,7 @@ class MissionSchemaTest extends TestCase
             'date_limite_candidature',
             'nombre_faces_voulu',
             'type_mission',
+            'type_mission_autre',
             'genre_voulu',
             'lieu',
             'duree',
@@ -316,7 +318,90 @@ class MissionSchemaTest extends TestCase
         $genderValues = MissionGender::values();
 
         $this->assertEquals(['draft', 'published', 'closed', 'completed'], $statusValues);
-        $this->assertEquals(['publicite', 'film', 'court_metrage', 'clip_musical', 'autre'], $typeValues);
+        $this->assertEquals(['publicite', 'film', 'court_metrage', 'clip_musical', 'shooting_photo', 'autre'], $typeValues);
         $this->assertEquals(['homme', 'femme', 'tous'], $genderValues);
+    }
+
+    public function test_type_mission_autre_is_nullable_and_stored_correctly(): void
+    {
+        // Without type_mission_autre (null)
+        $mission = Mission::factory()->create([
+            'type_mission' => MissionType::Film,
+            'type_mission_autre' => null,
+        ]);
+
+        $mission->refresh();
+        $this->assertNull($mission->type_mission_autre);
+
+        // With type_mission_autre
+        $missionAutre = Mission::factory()->autre()->create();
+        $missionAutre->refresh();
+
+        $this->assertEquals(MissionType::Autre, $missionAutre->type_mission);
+        $this->assertNotNull($missionAutre->type_mission_autre);
+        $this->assertIsString($missionAutre->type_mission_autre);
+    }
+
+    public function test_type_mission_autre_is_required_when_type_is_autre(): void
+    {
+        $producer = Producer::factory()->create();
+        $user = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+
+        $this->actingAs($user);
+
+        $response = $this->postJson('/api/v1/producer/missions', [
+            'titre' => 'Mission test autre',
+            'description' => 'Description test',
+            'date_tournage' => now()->addMonth()->toDateString(),
+            'profil_recherche' => 'Profil test',
+            'budget' => 100000,
+            'date_limite_candidature' => now()->addWeek()->toDateString(),
+            'nombre_faces_voulu' => 1,
+            'type_mission' => 'autre',
+            'type_mission_autre' => '', // empty — should fail
+            'genre_voulu' => 'tous',
+            'lieu' => 'Cotonou',
+            'duree' => '2 jours',
+        ]);
+
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors('type_mission_autre');
+    }
+
+    public function test_type_mission_autre_is_nullified_when_type_is_not_autre(): void
+    {
+        $producer = Producer::factory()->create();
+        $user = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+
+        $this->actingAs($user);
+
+        $response = $this->postJson('/api/v1/producer/missions', [
+            'titre' => 'Mission film test',
+            'description' => 'Description test',
+            'date_tournage' => now()->addMonth()->toDateString(),
+            'profil_recherche' => 'Profil test',
+            'budget' => 100000,
+            'date_limite_candidature' => now()->addWeek()->toDateString(),
+            'nombre_faces_voulu' => 1,
+            'type_mission' => 'film',
+            'type_mission_autre' => 'should be nullified',
+            'genre_voulu' => 'tous',
+            'lieu' => 'Cotonou',
+            'duree' => '2 jours',
+        ]);
+
+        $response->assertCreated();
+
+        $this->assertDatabaseHas('missions', [
+            'titre' => 'Mission film test',
+            'type_mission' => 'film',
+            'type_mission_autre' => null,
+        ]);
     }
 }

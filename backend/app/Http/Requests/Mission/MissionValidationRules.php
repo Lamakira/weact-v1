@@ -25,6 +25,10 @@ trait MissionValidationRules
                 'nombre_faces_voulu' => 1,
             ]);
         }
+
+        if ($this->type_mission !== 'autre') {
+            $this->merge(['type_mission_autre' => null]);
+        }
     }
 
     /**
@@ -43,6 +47,7 @@ trait MissionValidationRules
             'date_limite_candidature' => ['required', 'date', 'after:today'],
             'nombre_faces_voulu' => ['nullable', 'integer', 'min:1'],
             'type_mission' => ['required', Rule::in(MissionType::values())],
+            'type_mission_autre' => ['nullable', 'required_if:type_mission,autre', 'string', 'max:200'],
             'genre_voulu' => ['required', Rule::in(MissionGender::values())],
             'lieu' => ['required', 'string', 'max:150'],
             'duree' => ['required', 'string', 'max:100'],
@@ -76,6 +81,8 @@ trait MissionValidationRules
             'nombre_faces_voulu.min' => 'Le nombre de Faces doit être au moins 1.',
             'type_mission.required' => 'Le type de mission est obligatoire.',
             'type_mission.in' => 'Le type de mission sélectionné est invalide.',
+            'type_mission_autre.required_if' => 'Veuillez préciser le type de mission.',
+            'type_mission_autre.max' => 'Le type de mission ne peut pas dépasser :max caractères.',
             'genre_voulu.required' => 'Le genre recherché est obligatoire.',
             'genre_voulu.in' => 'Le genre sélectionné est invalide.',
             'lieu.required' => 'Le lieu est obligatoire.',

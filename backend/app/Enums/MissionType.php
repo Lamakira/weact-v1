@@ -10,6 +10,7 @@ enum MissionType: string
     case Film = 'film';
     case CourtMetrage = 'court_metrage';
     case ClipMusical = 'clip_musical';
+    case ShootingPhoto = 'shooting_photo';
     case Autre = 'autre';
 
     /**
@@ -22,6 +23,7 @@ enum MissionType: string
             self::Film => 'Film',
             self::CourtMetrage => 'Court-métrage',
             self::ClipMusical => 'Clip musical',
+            self::ShootingPhoto => 'Shooting photo',
             self::Autre => 'Autre',
         };
     }

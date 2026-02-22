@@ -85,6 +85,7 @@ class Mission extends Model
         'date_limite_candidature',
         'nombre_faces_voulu',
         'type_mission',
+        'type_mission_autre',
         'genre_voulu',
         'lieu',
         'duree',

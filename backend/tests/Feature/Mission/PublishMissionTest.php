@@ -444,6 +444,10 @@ class PublishMissionTest extends TestCase
             $data['type_mission'] = $type;
             $data['titre'] = "Mission type: {$type}";
 
+            if ($type === 'autre') {
+                $data['type_mission_autre'] = 'Type personnalisé';
+            }
+
             $response = $this->actingAs($this->producerUser)
                 ->postJson('/api/v1/producer/missions', $data);
 

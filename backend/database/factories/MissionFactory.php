@@ -100,6 +100,17 @@ class MissionFactory extends Factory
     }
 
     /**
+     * Indicate that the mission type is "autre" with a custom label.
+     */
+    public function autre(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type_mission' => MissionType::Autre,
+            'type_mission_autre' => fake()->words(3, true),
+        ]);
+    }
+
+    /**
      * Indicate that the mission is for a publicité.
      */
     public function publicite(): static

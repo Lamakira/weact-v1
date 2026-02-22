@@ -27,6 +27,7 @@ class MissionResource extends JsonResource
             'nombre_faces_voulu' => $this->nombre_faces_voulu,
             'type_mission' => $this->type_mission?->value,
             'type_mission_label' => $this->type_mission?->label(),
+            'type_mission_autre' => $this->type_mission_autre,
             'genre_voulu' => $this->genre_voulu?->value,
             'genre_voulu_label' => $this->genre_voulu?->label(),
             'lieu' => $this->lieu,
