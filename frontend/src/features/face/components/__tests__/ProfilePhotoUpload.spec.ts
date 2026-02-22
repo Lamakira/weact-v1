@@ -179,7 +179,7 @@ describe('ProfilePhotoUpload', () => {
     })
 
     expect(wrapper.text()).toContain('Format JPG ou PNG')
-    expect(wrapper.text()).toContain('Taille max: 5 Mo')
+    expect(wrapper.text()).toContain('Taille max: 8 Mo')
   })
 
   it('clears preview and shows original photo when error occurs after file selection', async () => {

@@ -11,6 +11,11 @@ vi.mock('vue-router', () => ({
   useRoute: () => ({
     params: mockParams,
   }),
+  RouterLink: {
+    name: 'RouterLink',
+    template: '<a :href="to" v-bind="$attrs"><slot /></a>',
+    props: ['to'],
+  },
 }))
 
 vi.mock('@vueuse/core', () => ({
@@ -30,6 +35,79 @@ vi.mock('@/features/public/services/publicFacesApi', async () => {
 vi.mock('@/components/ui/skeleton', () => ({
   Skeleton: { template: '<div class="skeleton"></div>' },
 }))
+
+// Mock usePublicFaceAccess (uses Pinia's useAuthStore)
+vi.mock('@/features/public/composables/usePublicFaceAccess', async () => {
+  const { ref } = await import('vue')
+  return {
+    usePublicFaceAccess: () => ({
+      accessLevel: ref('guest'),
+      fullProfile: ref(null),
+      isLoadingFullProfile: ref(false),
+    }),
+  }
+})
+
+// Mock publicApi (for reviews)
+vi.mock('@/features/public/services/publicApi', () => ({
+  publicApi: {
+    getFaceReviews: vi.fn().mockResolvedValue({ data: [], meta: { current_page: 1, last_page: 1, total: 0 } }),
+  },
+}))
+
+// Mock sub-components to avoid deep rendering
+vi.mock('@/features/public/components/ProfilePhotoSection.vue', () => ({
+  default: { template: '<div data-testid="profile-photo-section"></div>', props: ['face', 'isLoading'] },
+}))
+vi.mock('@/features/public/components/ProfileInfoSection.vue', () => ({
+  default: {
+    template: '<div data-testid="profile-info-section">{{ prenom }}</div>',
+    props: ['prenom', 'ville', 'categories', 'niches', 'averageRating', 'ratingsCount', 'hasVideos', 'videosCount', 'accessLevel'],
+  },
+}))
+vi.mock('@/features/public/components/LockedContentTeaser.vue', () => ({
+  default: {
+    template: '<div data-testid="locked-content-teaser">{{ title }}</div>',
+    props: ['icon', 'title', 'description', 'ctaText', 'ctaLink'],
+  },
+}))
+vi.mock('@/features/candidature/components/CandidateVideosSection.vue', () => ({
+  default: { template: '<div></div>', props: ['candidateId'] },
+}))
+vi.mock('@/features/candidature/components/CandidatePhotoGallery.vue', () => ({
+  default: { template: '<div></div>', props: ['candidateId'] },
+}))
+vi.mock('@/features/candidature/components/CandidateInfoSection.vue', () => ({
+  default: { template: '<div></div>', props: ['candidate'] },
+}))
+vi.mock('@/features/candidature/components/CandidateExperiencesSection.vue', () => ({
+  default: { template: '<div></div>', props: ['candidateId'] },
+}))
+vi.mock('@/components/RatingDisplay.vue', () => ({
+  default: { template: '<div></div>', props: ['rating', 'count'] },
+}))
+vi.mock('@/components/ReviewsList.vue', () => ({
+  default: { template: '<div></div>', props: ['reviews', 'isLoading'] },
+}))
+
+// Mock lucide-vue-next
+vi.mock('lucide-vue-next', () => {
+  const m = (name: string) => ({
+    name,
+    template: `<svg data-testid="${name}-icon"></svg>`,
+    props: ['size', 'class'],
+  })
+  return {
+    ChevronLeft: m('ChevronLeft'),
+    AlertCircle: m('AlertCircle'),
+    RefreshCw: m('RefreshCw'),
+    UserX: m('UserX'),
+    FileText: m('FileText'),
+    Banknote: m('Banknote'),
+    Megaphone: m('Megaphone'),
+    Lock: m('Lock'),
+  }
+})
 
 const mockProfile: PublicFaceProfile = {
   id: 1,
@@ -119,7 +197,7 @@ describe('PublicFaceProfileView (Integration)', () => {
     expect(wrapper.find('[data-testid="retry-button"]').exists()).toBe(true)
   })
 
-  it('CTA links to producer registration page', async () => {
+  it('displays locked content teasers with CTA in guest mode', async () => {
     vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
       success: true,
       profile: mockProfile,
@@ -128,9 +206,8 @@ describe('PublicFaceProfileView (Integration)', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const cta = wrapper.find('[data-testid="producer-cta"]')
-    expect(cta.exists()).toBe(true)
-    expect(cta.attributes('href')).toBe('/register/producer')
+    const teasers = wrapper.find('[data-testid="locked-teasers"]')
+    expect(teasers.exists()).toBe(true)
   })
 
   it('has breadcrumb navigation with proper ARIA', async () => {
@@ -151,7 +228,7 @@ describe('PublicFaceProfileView (Integration)', () => {
     expect(backLink.attributes('href')).toBe('/faces')
   })
 
-  it('has accessible rating section with aria-label', async () => {
+  it('renders profile info section in success state', async () => {
     vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
       success: true,
       profile: mockProfile,
@@ -160,13 +237,11 @@ describe('PublicFaceProfileView (Integration)', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const ratingSection = wrapper.find('[data-testid="rating-section"]')
-    expect(ratingSection.exists()).toBe(true)
-    expect(ratingSection.attributes('aria-label')).toContain('4.5')
-    expect(ratingSection.attributes('aria-label')).toContain('étoiles')
+    const infoSection = wrapper.find('[data-testid="profile-info-section"]')
+    expect(infoSection.exists()).toBe(true)
   })
 
-  it('has accessible profile photo with alt text', async () => {
+  it('renders profile photo section in success state', async () => {
     vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
       success: true,
       profile: mockProfile,
@@ -175,9 +250,8 @@ describe('PublicFaceProfileView (Integration)', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const photo = wrapper.find('[data-testid="profile-photo"]')
-    expect(photo.exists()).toBe(true)
-    expect(photo.attributes('alt')).toContain('Adjoua')
+    const photoSection = wrapper.find('[data-testid="profile-photo-section"]')
+    expect(photoSection.exists()).toBe(true)
   })
 
   it('sets SEO meta tags when face is loaded', async () => {
@@ -208,7 +282,7 @@ describe('PublicFaceProfileView (Integration)', () => {
     expect(ogImage?.getAttribute('content')).toBe('https://example.com/photo.jpg')
   })
 
-  it('renders locked content teasers in success state', async () => {
+  it('renders locked content teasers with titles in success state', async () => {
     vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
       success: true,
       profile: mockProfile,

@@ -309,7 +309,7 @@ describe('TarifsForm', () => {
 
     const preview = wrapper.find('[data-testid="tarif-horaire-preview"]')
     expect(preview.exists()).toBe(true)
-    expect(preview.text()).toContain('XOF/heure')
+    expect(preview.text()).toContain('XOF/demi-journée')
   })
 
   it('displays formatted currency preview for tarif journalier', async () => {

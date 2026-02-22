@@ -11,6 +11,21 @@ vi.mock('@/composables/useSidebarState', () => ({
   }),
 }))
 
+// Mock lucide-vue-next
+vi.mock('lucide-vue-next', () => {
+  const m = (name: string) => ({
+    name,
+    template: `<svg data-testid="${name}-icon"></svg>`,
+    props: ['size', 'class'],
+  })
+  return {
+    Menu: m('Menu'),
+    LogOut: m('LogOut'),
+    Loader2: m('Loader2'),
+    User: m('User'),
+  }
+})
+
 // Mock NotificationBell component
 vi.mock('@/features/notification/components/NotificationBell.vue', () => ({
   default: {
@@ -32,6 +47,10 @@ describe('DashboardHeader', () => {
         stubs: {
           NotificationBell: {
             template: '<div data-testid="header-notifications">Notifications</div>',
+          },
+          RouterLink: {
+            template: '<a :href="to" :data-testid="$attrs[\'data-testid\']"><slot /></a>',
+            props: ['to'],
           },
         },
       },
@@ -63,9 +82,11 @@ describe('DashboardHeader', () => {
       expect(wrapper.find('[data-testid="header-menu-button"]').exists()).toBe(true)
     })
 
-    it('displays logout button', () => {
+    it('displays logout button in avatar dropdown', async () => {
       const wrapper = mountHeader()
-      expect(wrapper.find('[data-testid="header-logout-button"]').exists()).toBe(true)
+      // Open the avatar dropdown
+      await wrapper.find('[data-testid="header-avatar"]').trigger('click')
+      expect(wrapper.find('[data-testid="dropdown-logout-button"]').exists()).toBe(true)
     })
 
     it('displays avatar', () => {
@@ -112,18 +133,24 @@ describe('DashboardHeader', () => {
   describe('Logout', () => {
     it('emits logout event when logout button is clicked', async () => {
       const wrapper = mountHeader()
-      await wrapper.find('[data-testid="header-logout-button"]').trigger('click')
+      // Open the avatar dropdown first
+      await wrapper.find('[data-testid="header-avatar"]').trigger('click')
+      await wrapper.find('[data-testid="dropdown-logout-button"]').trigger('click')
       expect(wrapper.emitted('logout')).toBeTruthy()
     })
 
-    it('shows loading state when isLoggingOut is true', () => {
+    it('shows loading state when isLoggingOut is true', async () => {
       const wrapper = mountHeader({ isLoggingOut: true })
-      expect(wrapper.find('[data-testid="header-logout-button"]').text()).toContain('Déconnexion...')
+      // Open the avatar dropdown first
+      await wrapper.find('[data-testid="header-avatar"]').trigger('click')
+      expect(wrapper.find('[data-testid="dropdown-logout-button"]').text()).toContain('Déconnexion...')
     })
 
-    it('disables logout button when isLoggingOut is true', () => {
+    it('disables logout button when isLoggingOut is true', async () => {
       const wrapper = mountHeader({ isLoggingOut: true })
-      expect(wrapper.find('[data-testid="header-logout-button"]').attributes('disabled')).toBeDefined()
+      // Open the avatar dropdown first
+      await wrapper.find('[data-testid="header-avatar"]').trigger('click')
+      expect(wrapper.find('[data-testid="dropdown-logout-button"]').attributes('disabled')).toBeDefined()
     })
   })
 })

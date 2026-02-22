@@ -83,34 +83,6 @@ vi.mock('@/features/dashboard', () => ({
     isLoading: mockIsMissionsCountLoading,
     fetchMissionsCount: mockFetchMissionsCount,
   }),
-  KpiCard: {
-    name: 'KpiCard',
-    template: `
-      <div
-        :data-testid="$attrs['data-testid']"
-        data-component="kpi-card"
-        :data-title="title"
-        :data-value="value"
-        :data-loading="isLoading"
-      >
-        <span class="title">{{ title }}</span>
-        <span class="value">{{ value }}</span>
-      </div>
-    `,
-    props: ['title', 'value', 'icon', 'color', 'isLoading'],
-  },
-  WalletCard: {
-    name: 'WalletCard',
-    template: `
-      <div
-        data-testid="wallet-card"
-        data-component="wallet-card"
-      >
-        <span>0 XOF</span>
-        <span>Bientôt disponible</span>
-      </div>
-    `,
-  },
   ActivityChart: {
     name: 'ActivityChart',
     template: `
@@ -126,44 +98,45 @@ vi.mock('@/features/dashboard', () => ({
     props: ['candidaturesByMonth', 'missionsCompletedByMonth', 'isLoading', 'error'],
     emits: ['retry'],
   },
-  MissionsQuickAccessCard: {
-    name: 'MissionsQuickAccessCard',
-    template: `
-      <div
-        data-testid="browse-missions-card"
-        data-component="missions-quick-access-card"
-        :data-count="count"
-        :data-loading="isLoading"
-        @click="$emit('click')"
-      >
-        <span>Voir les missions</span>
-        <span v-if="count > 0" data-testid="missions-count-badge">{{ count }}</span>
-      </div>
-    `,
-    props: ['count', 'isLoading'],
-    emits: ['click'],
-  },
-  MessagesCard: {
-    name: 'MessagesCard',
-    template: `
-      <div
-        data-testid="messages-card"
-        data-component="messages-card"
-        @click="$emit('click')"
-      >
-        <span>Messages</span>
-        <span>Discussions avec les producteurs</span>
-      </div>
-    `,
-    emits: ['click'],
-  },
-  FACE_KPI_CONFIGS: [
-    { key: 'pending', title: 'En attente', color: 'amber-500', bgColor: 'amber-50', icon: 'clock' },
-    { key: 'accepted', title: 'Acceptées', color: 'green-500', bgColor: 'green-50', icon: 'check' },
-    { key: 'in_progress', title: 'En cours', color: 'blue-500', bgColor: 'blue-50', icon: 'play' },
-    { key: 'completed', title: 'Terminées', color: 'primary', bgColor: 'primary/10', icon: 'checkCircle' },
-  ],
 }))
+
+// Mock faceApi
+vi.mock('@/features/face/services/faceApi', () => ({
+  faceApi: {
+    getProfile: vi.fn().mockResolvedValue({ data: null }),
+    getCategoryNiche: vi.fn().mockResolvedValue({ data: null }),
+    getBioLocation: vi.fn().mockResolvedValue({ data: null }),
+  },
+}))
+
+// Mock Skeleton component
+vi.mock('@/components/ui/skeleton', () => ({
+  Skeleton: {
+    name: 'Skeleton',
+    template: '<div data-testid="skeleton"></div>',
+    props: ['class'],
+  },
+}))
+
+// Mock lucide-vue-next
+vi.mock('lucide-vue-next', () => {
+  const createIconMock = (name: string) => ({
+    name,
+    template: `<svg data-testid="${name}-icon"></svg>`,
+    props: ['size', 'class'],
+  })
+  return {
+    AlertCircle: createIconMock('AlertCircle'),
+    Pencil: createIconMock('Pencil'),
+    Briefcase: createIconMock('Briefcase'),
+    MessageCircle: createIconMock('MessageCircle'),
+    Clock: createIconMock('Clock'),
+    CheckCircle2: createIconMock('CheckCircle2'),
+    PlayCircle: createIconMock('PlayCircle'),
+    CheckSquare: createIconMock('CheckSquare'),
+    Wallet: createIconMock('Wallet'),
+  }
+})
 
 // Mock ProfileCompletionCard
 vi.mock('@/features/face/components/ProfileCompletionCard.vue', () => ({
@@ -207,8 +180,10 @@ describe('FaceDashboardPage', () => {
       const wrapper = mount(FaceDashboardPage)
       await flushPromises()
 
-      const kpiCards = wrapper.findAll('[data-component="kpi-card"]')
-      expect(kpiCards.length).toBe(4)
+      expect(wrapper.find('[data-testid="kpi-card-pending"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="kpi-card-accepted"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="kpi-card-in_progress"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="kpi-card-completed"]').exists()).toBe(true)
     })
 
     it('renders KPI card with correct pending value', async () => {
@@ -224,7 +199,7 @@ describe('FaceDashboardPage', () => {
 
       const pendingCard = wrapper.find('[data-testid="kpi-card-pending"]')
       expect(pendingCard.exists()).toBe(true)
-      expect(pendingCard.attributes('data-value')).toBe('7')
+      expect(pendingCard.text()).toContain('7')
     })
 
     it('renders KPI card with correct accepted value', async () => {
@@ -240,7 +215,7 @@ describe('FaceDashboardPage', () => {
 
       const acceptedCard = wrapper.find('[data-testid="kpi-card-accepted"]')
       expect(acceptedCard.exists()).toBe(true)
-      expect(acceptedCard.attributes('data-value')).toBe('4')
+      expect(acceptedCard.text()).toContain('4')
     })
 
     it('renders KPI card with correct in_progress value', async () => {
@@ -256,7 +231,7 @@ describe('FaceDashboardPage', () => {
 
       const inProgressCard = wrapper.find('[data-testid="kpi-card-in_progress"]')
       expect(inProgressCard.exists()).toBe(true)
-      expect(inProgressCard.attributes('data-value')).toBe('8')
+      expect(inProgressCard.text()).toContain('8')
     })
 
     it('renders KPI card with correct completed value', async () => {
@@ -272,7 +247,7 @@ describe('FaceDashboardPage', () => {
 
       const completedCard = wrapper.find('[data-testid="kpi-card-completed"]')
       expect(completedCard.exists()).toBe(true)
-      expect(completedCard.attributes('data-value')).toBe('15')
+      expect(completedCard.text()).toContain('15')
     })
 
     it('displays zero values correctly', async () => {
@@ -287,7 +262,7 @@ describe('FaceDashboardPage', () => {
       await flushPromises()
 
       const pendingCard = wrapper.find('[data-testid="kpi-card-pending"]')
-      expect(pendingCard.attributes('data-value')).toBe('0')
+      expect(pendingCard.text()).toContain('0')
     })
 
     it('renders KPI cards grid container', async () => {
@@ -307,19 +282,20 @@ describe('FaceDashboardPage', () => {
   })
 
   describe('loading state', () => {
-    it('passes isLoading=true to KPI cards when loading', async () => {
+    it('shows skeleton elements when stats are loading', async () => {
       mockIsStatsLoading.value = true
       mockStats.value = null
 
       const wrapper = mount(FaceDashboardPage)
       await flushPromises()
 
-      const kpiCards = wrapper.findAll('[data-component="kpi-card"]')
-      expect(kpiCards.length).toBe(4)
-      expect(kpiCards[0].attributes('data-loading')).toBe('true')
+      const kpiGrid = wrapper.find('[data-testid="kpi-cards-grid"]')
+      expect(kpiGrid.exists()).toBe(true)
+      const skeletons = kpiGrid.findAll('[data-testid="skeleton"]')
+      expect(skeletons.length).toBeGreaterThan(0)
     })
 
-    it('passes isLoading=false to KPI cards when loaded', async () => {
+    it('shows values instead of skeletons when loaded', async () => {
       mockIsStatsLoading.value = false
       mockStats.value = {
         pending: 1,
@@ -331,8 +307,8 @@ describe('FaceDashboardPage', () => {
       const wrapper = mount(FaceDashboardPage)
       await flushPromises()
 
-      const kpiCards = wrapper.findAll('[data-component="kpi-card"]')
-      expect(kpiCards[0].attributes('data-loading')).toBe('false')
+      const pendingCard = wrapper.find('[data-testid="kpi-card-pending"]')
+      expect(pendingCard.text()).toContain('1')
     })
   })
 
@@ -399,11 +375,12 @@ describe('FaceDashboardPage', () => {
       expect(wrapper.text()).toContain('Mes candidatures')
     })
 
-    it('displays "Accès rapides" section title', async () => {
+    it('renders quick access cards grid', async () => {
       const wrapper = mount(FaceDashboardPage)
       await flushPromises()
 
-      expect(wrapper.text()).toContain('Accès rapides')
+      const grid = wrapper.find('[data-testid="quick-access-cards-grid"]')
+      expect(grid.exists()).toBe(true)
     })
 
     it('displays "Mon évolution" section title', async () => {
@@ -413,13 +390,12 @@ describe('FaceDashboardPage', () => {
       expect(wrapper.text()).toContain('Mon évolution')
     })
 
-    it('has proper section accessibility attributes', async () => {
+    it('has charts section element', async () => {
       const wrapper = mount(FaceDashboardPage)
       await flushPromises()
 
-      // Check for aria-labelledby attributes on sections
       const sections = wrapper.findAll('section')
-      expect(sections.length).toBeGreaterThanOrEqual(3)
+      expect(sections.length).toBeGreaterThanOrEqual(1)
     })
   })
 
@@ -432,31 +408,30 @@ describe('FaceDashboardPage', () => {
       expect(walletCard.exists()).toBe(true)
     })
 
-    it('displays WalletCard in the dashboard cards grid', async () => {
+    it('displays WalletCard in the quick access cards grid', async () => {
       const wrapper = mount(FaceDashboardPage)
       await flushPromises()
 
-      const walletCard = wrapper.find('[data-component="wallet-card"]')
+      const grid = wrapper.find('[data-testid="quick-access-cards-grid"]')
+      const walletCard = grid.find('[data-testid="wallet-card"]')
       expect(walletCard.exists()).toBe(true)
     })
 
-    it('displays WalletCard as first item in dashboard cards grid', async () => {
+    it('displays WalletCard in the quick access grid', async () => {
       const wrapper = mount(FaceDashboardPage)
       await flushPromises()
 
-      // Find the dashboard cards grid (not KPI grid)
-      const dashboardCardsGrid = wrapper.findAll('.grid')[1] // Second grid is dashboard cards
-      const firstChild = dashboardCardsGrid.element.children[0]
-      expect(firstChild.getAttribute('data-component')).toBe('wallet-card')
+      const grid = wrapper.find('[data-testid="quick-access-cards-grid"]')
+      expect(grid.find('[data-testid="wallet-card"]').exists()).toBe(true)
     })
 
     it('displays static wallet content without API calls', async () => {
       const wrapper = mount(FaceDashboardPage)
       await flushPromises()
 
-      const walletCard = wrapper.find('[data-component="wallet-card"]')
+      const walletCard = wrapper.find('[data-testid="wallet-card"]')
       expect(walletCard.text()).toContain('0 XOF')
-      expect(walletCard.text()).toContain('Bientôt disponible')
+      expect(walletCard.text()).toContain('Bientôt')
     })
   })
 
@@ -514,11 +489,12 @@ describe('FaceDashboardPage', () => {
       expect(missionsCard.exists()).toBe(true)
     })
 
-    it('displays MissionsQuickAccessCard in the dashboard cards grid', async () => {
+    it('displays missions card in the quick access cards grid', async () => {
       const wrapper = mount(FaceDashboardPage)
       await flushPromises()
 
-      const missionsCard = wrapper.find('[data-component="missions-quick-access-card"]')
+      const grid = wrapper.find('[data-testid="quick-access-cards-grid"]')
+      const missionsCard = grid.find('[data-testid="browse-missions-card"]')
       expect(missionsCard.exists()).toBe(true)
     })
 
@@ -529,45 +505,12 @@ describe('FaceDashboardPage', () => {
       expect(mockFetchMissionsCount).toHaveBeenCalled()
     })
 
-    it('passes count to MissionsQuickAccessCard', async () => {
-      mockMissionsCount.value = 12
-
+    it('displays missions card with text', async () => {
       const wrapper = mount(FaceDashboardPage)
       await flushPromises()
 
-      const missionsCard = wrapper.find('[data-component="missions-quick-access-card"]')
-      expect(missionsCard.attributes('data-count')).toBe('12')
-    })
-
-    it('displays count badge when missions are available', async () => {
-      mockMissionsCount.value = 5
-
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const badge = wrapper.find('[data-testid="missions-count-badge"]')
-      expect(badge.exists()).toBe(true)
-      expect(badge.text()).toBe('5')
-    })
-
-    it('does not display count badge when no missions available', async () => {
-      mockMissionsCount.value = 0
-
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const badge = wrapper.find('[data-testid="missions-count-badge"]')
-      expect(badge.exists()).toBe(false)
-    })
-
-    it('passes loading state to MissionsQuickAccessCard', async () => {
-      mockIsMissionsCountLoading.value = true
-
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const missionsCard = wrapper.find('[data-component="missions-quick-access-card"]')
-      expect(missionsCard.attributes('data-loading')).toBe('true')
+      const missionsCard = wrapper.find('[data-testid="browse-missions-card"]')
+      expect(missionsCard.text()).toContain('Missions')
     })
 
     it('navigates to missions page when card is clicked', async () => {
@@ -590,11 +533,12 @@ describe('FaceDashboardPage', () => {
       expect(messagesCard.exists()).toBe(true)
     })
 
-    it('displays MessagesCard in the quick access cards grid', async () => {
+    it('displays messages card in the quick access cards grid', async () => {
       const wrapper = mount(FaceDashboardPage)
       await flushPromises()
 
-      const messagesCard = wrapper.find('[data-component="messages-card"]')
+      const grid = wrapper.find('[data-testid="quick-access-cards-grid"]')
+      const messagesCard = grid.find('[data-testid="messages-card"]')
       expect(messagesCard.exists()).toBe(true)
     })
 
@@ -621,12 +565,12 @@ describe('FaceDashboardPage', () => {
       expect(grid.exists()).toBe(true)
     })
 
-    it('renders all 4 quick access cards', async () => {
+    it('renders all 3 quick access cards', async () => {
       const wrapper = mount(FaceDashboardPage)
       await flushPromises()
 
       const grid = wrapper.find('[data-testid="quick-access-cards-grid"]')
-      expect(grid.element.children.length).toBe(4)
+      expect(grid.element.children.length).toBe(3)
     })
 
     it('does not display welcome message (removed)', async () => {

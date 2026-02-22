@@ -290,14 +290,14 @@ describe('usePhotoAlbum', () => {
 
     it('rejects oversized file', () => {
       const { validateFile } = usePhotoAlbum()
-      // Create a file larger than 5MB
-      const largeContent = new Array(6 * 1024 * 1024).fill('a').join('')
+      // Create a file larger than 8MB
+      const largeContent = new Array(9 * 1024 * 1024).fill('a').join('')
       const file = new File([largeContent], 'test.jpg', { type: 'image/jpeg' })
 
       const result = validateFile(file)
 
       expect(result.valid).toBe(false)
-      expect(result.error).toBe('Le fichier ne doit pas dépasser 5 Mo')
+      expect(result.error).toBe('Le fichier ne doit pas dépasser 8 Mo')
     })
 
     it('sets error ref when validation fails', async () => {
@@ -313,12 +313,12 @@ describe('usePhotoAlbum', () => {
 
     it('sets error ref when file is too large', async () => {
       const { addPhoto, error } = usePhotoAlbum()
-      const largeContent = new Array(6 * 1024 * 1024).fill('a').join('')
+      const largeContent = new Array(9 * 1024 * 1024).fill('a').join('')
       const file = new File([largeContent], 'test.jpg', { type: 'image/jpeg' })
 
       await addPhoto(file)
 
-      expect(error.value).toBe('Le fichier ne doit pas dépasser 5 Mo')
+      expect(error.value).toBe('Le fichier ne doit pas dépasser 8 Mo')
     })
   })
 

@@ -213,7 +213,7 @@ describe('useTarifs', () => {
       const result = validateTarifHoraire(-1)
 
       expect(result.valid).toBe(false)
-      expect(result.error).toBe('Le tarif horaire doit être positif')
+      expect(result.error).toBe('Le tarif demi-journée doit être positif')
     })
 
     it('rejects tarif horaire above maximum', () => {
@@ -222,7 +222,7 @@ describe('useTarifs', () => {
       const result = validateTarifHoraire(10000001)
 
       expect(result.valid).toBe(false)
-      expect(result.error).toBe('Le tarif horaire ne peut pas dépasser 10 000 000 XOF')
+      expect(result.error).toBe('Le tarif demi-journée ne peut pas dépasser 10 000 000 XOF')
     })
 
     it('rejects non-integer tarif horaire', () => {
@@ -231,7 +231,7 @@ describe('useTarifs', () => {
       const result = validateTarifHoraire(75000.5)
 
       expect(result.valid).toBe(false)
-      expect(result.error).toBe('Le tarif horaire doit être un nombre entier')
+      expect(result.error).toBe('Le tarif demi-journée doit être un nombre entier')
     })
 
     it('rejects invalid tarif horaire before calling API', async () => {
@@ -240,8 +240,8 @@ describe('useTarifs', () => {
       const result = await updateTarifs({ tarif_horaire: -1, tarif_journalier: null })
 
       expect(result.success).toBe(false)
-      expect(result.message).toBe('Le tarif horaire doit être positif')
-      expect(error.value).toBe('Le tarif horaire doit être positif')
+      expect(result.message).toBe('Le tarif demi-journée doit être positif')
+      expect(error.value).toBe('Le tarif demi-journée doit être positif')
       expect(faceApi.updateTarifs).not.toHaveBeenCalled()
     })
   })
@@ -381,7 +381,7 @@ describe('useTarifs', () => {
       const result = validateTarifsConsistency(100000, 50000)
 
       expect(result.valid).toBe(false)
-      expect(result.error).toBe('Le tarif journalier doit être supérieur ou égal au tarif horaire')
+      expect(result.error).toBe('Le tarif journalier doit être supérieur ou égal au tarif demi-journée')
     })
 
     it('rejects inconsistent tarifs before calling API', async () => {
@@ -390,8 +390,8 @@ describe('useTarifs', () => {
       const result = await updateTarifs({ tarif_horaire: 100000, tarif_journalier: 50000 })
 
       expect(result.success).toBe(false)
-      expect(result.message).toBe('Le tarif journalier doit être supérieur ou égal au tarif horaire')
-      expect(error.value).toBe('Le tarif journalier doit être supérieur ou égal au tarif horaire')
+      expect(result.message).toBe('Le tarif journalier doit être supérieur ou égal au tarif demi-journée')
+      expect(error.value).toBe('Le tarif journalier doit être supérieur ou égal au tarif demi-journée')
       expect(faceApi.updateTarifs).not.toHaveBeenCalled()
     })
   })

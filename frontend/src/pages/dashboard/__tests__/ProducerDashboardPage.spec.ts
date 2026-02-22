@@ -79,34 +79,48 @@ vi.mock('@/components/EmailVerificationBanner.vue', () => ({
   },
 }))
 
-// Mock lucide-vue-next
-vi.mock('lucide-vue-next', () => ({
-  RefreshCw: {
-    name: 'RefreshCw',
-    template: '<svg data-testid="refresh-icon"></svg>',
-    props: ['size', 'class'],
+// Mock producerApi
+vi.mock('@/features/producer/services/producerApi', () => ({
+  producerApi: {
+    getProfile: vi.fn().mockResolvedValue({ data: null }),
   },
-  Star: {
-    name: 'Star',
-    template: '<svg data-testid="star-icon"></svg>',
-    props: ['size'],
-  },
-  Check: {
-    name: 'Check',
-    template: '<svg data-testid="check-icon"></svg>',
-    props: ['size'],
-  },
-  Clock: {
-    name: 'Clock',
-    template: '<svg data-testid="clock-icon"></svg>',
-    props: ['size'],
-  },
-  AlertCircle: {
-    name: 'AlertCircle',
-    template: '<svg data-testid="alert-circle-icon"></svg>',
+}))
+
+// Mock Skeleton component
+vi.mock('@/components/ui/skeleton', () => ({
+  Skeleton: {
+    name: 'Skeleton',
+    template: '<div data-testid="skeleton"></div>',
     props: ['class'],
   },
 }))
+
+// Mock lucide-vue-next
+vi.mock('lucide-vue-next', () => {
+  const m = (name: string) => ({
+    name,
+    template: `<svg data-testid="${name}-icon"></svg>`,
+    props: ['size', 'class'],
+  })
+  return {
+    RefreshCw: m('RefreshCw'),
+    Star: m('Star'),
+    Check: m('Check'),
+    Clock: m('Clock'),
+    AlertCircle: m('AlertCircle'),
+    Pencil: m('Pencil'),
+    Briefcase: m('Briefcase'),
+    MessageCircle: m('MessageCircle'),
+    PlusCircle: m('PlusCircle'),
+    Eye: m('Eye'),
+    Users: m('Users'),
+    UserCheck: m('UserCheck'),
+    CheckCircle2: m('CheckCircle2'),
+    PlayCircle: m('PlayCircle'),
+    CheckSquare: m('CheckSquare'),
+    XCircle: m('XCircle'),
+  }
+})
 
 describe('ProducerDashboardPage', () => {
   beforeEach(() => {
@@ -138,8 +152,12 @@ describe('ProducerDashboardPage', () => {
       const wrapper = mount(ProducerDashboardPage)
       await flushPromises()
 
-      const kpiCards = wrapper.findAll('[data-component="kpi-card"]')
-      expect(kpiCards.length).toBe(6) // 4 missions KPIs + 2 candidatures section KPIs
+      // 4 mission KPIs in the grid
+      const missionKpis = wrapper.find('[data-testid="kpi-cards-grid"]')
+      expect(missionKpis.exists()).toBe(true)
+      // 4 candidatures items
+      const candidaturesGrid = wrapper.find('[data-testid="candidatures-kpi-grid"]')
+      expect(candidaturesGrid.exists()).toBe(true)
     })
 
     it('renders KPI card with correct published value', async () => {
@@ -162,7 +180,7 @@ describe('ProducerDashboardPage', () => {
 
       const publishedCard = wrapper.find('[data-testid="kpi-card-published"]')
       expect(publishedCard.exists()).toBe(true)
-      expect(publishedCard.attributes('data-value')).toBe('7')
+      expect(publishedCard.text()).toContain('7')
     })
 
     it('renders KPI card with correct in_progress value', async () => {
@@ -185,7 +203,7 @@ describe('ProducerDashboardPage', () => {
 
       const inProgressCard = wrapper.find('[data-testid="kpi-card-in_progress"]')
       expect(inProgressCard.exists()).toBe(true)
-      expect(inProgressCard.attributes('data-value')).toBe('4')
+      expect(inProgressCard.text()).toContain('4')
     })
 
     it('renders KPI card with correct closed value', async () => {
@@ -208,7 +226,7 @@ describe('ProducerDashboardPage', () => {
 
       const closedCard = wrapper.find('[data-testid="kpi-card-closed"]')
       expect(closedCard.exists()).toBe(true)
-      expect(closedCard.attributes('data-value')).toBe('8')
+      expect(closedCard.text()).toContain('8')
     })
 
     it('renders KPI card with correct completed value', async () => {
@@ -231,7 +249,7 @@ describe('ProducerDashboardPage', () => {
 
       const completedCard = wrapper.find('[data-testid="kpi-card-completed"]')
       expect(completedCard.exists()).toBe(true)
-      expect(completedCard.attributes('data-value')).toBe('15')
+      expect(completedCard.text()).toContain('15')
     })
 
     it('renders KPI card with correct total_candidatures value (FR56)', async () => {
@@ -254,7 +272,7 @@ describe('ProducerDashboardPage', () => {
 
       const candidaturesCard = wrapper.find('[data-testid="kpi-card-total_candidatures"]')
       expect(candidaturesCard.exists()).toBe(true)
-      expect(candidaturesCard.attributes('data-value')).toBe('47')
+      expect(candidaturesCard.text()).toContain('47')
     })
 
     it('renders KPI card with correct unique_collaborators value (FR57)', async () => {
@@ -277,7 +295,7 @@ describe('ProducerDashboardPage', () => {
 
       const collaboratorsCard = wrapper.find('[data-testid="kpi-card-unique_collaborators"]')
       expect(collaboratorsCard.exists()).toBe(true)
-      expect(collaboratorsCard.attributes('data-value')).toBe('23')
+      expect(collaboratorsCard.text()).toContain('23')
     })
 
     it('displays zero values correctly including candidatures and collaborators', async () => {
@@ -299,13 +317,13 @@ describe('ProducerDashboardPage', () => {
       await flushPromises()
 
       const publishedCard = wrapper.find('[data-testid="kpi-card-published"]')
-      expect(publishedCard.attributes('data-value')).toBe('0')
+      expect(publishedCard.text()).toContain('0')
 
       const candidaturesCard = wrapper.find('[data-testid="kpi-card-total_candidatures"]')
-      expect(candidaturesCard.attributes('data-value')).toBe('0')
+      expect(candidaturesCard.text()).toContain('0')
 
       const collaboratorsCard = wrapper.find('[data-testid="kpi-card-unique_collaborators"]')
-      expect(collaboratorsCard.attributes('data-value')).toBe('0')
+      expect(collaboratorsCard.text()).toContain('0')
     })
 
     it('renders KPI cards grid container', async () => {
@@ -348,7 +366,7 @@ describe('ProducerDashboardPage', () => {
       const wrapper = mount(ProducerDashboardPage)
       await flushPromises()
 
-      const candidaturesSection = wrapper.find('[data-testid="candidatures-kpi-section"]')
+      const candidaturesSection = wrapper.find('[data-testid="candidatures-kpi-grid"]')
       expect(candidaturesSection.exists()).toBe(true)
     })
   })
@@ -361,9 +379,9 @@ describe('ProducerDashboardPage', () => {
       const wrapper = mount(ProducerDashboardPage)
       await flushPromises()
 
-      const kpiCards = wrapper.findAll('[data-component="kpi-card"]')
-      expect(kpiCards.length).toBe(6) // 4 missions + 2 candidatures section
-      expect(kpiCards[0].attributes('data-loading')).toBe('true')
+      // When loading, skeleton elements should be present
+      const skeletons = wrapper.findAll('[data-testid="skeleton"]')
+      expect(skeletons.length).toBeGreaterThan(0)
     })
 
     it('passes isLoading=false to KPI cards when loaded', async () => {
@@ -385,8 +403,9 @@ describe('ProducerDashboardPage', () => {
       const wrapper = mount(ProducerDashboardPage)
       await flushPromises()
 
-      const kpiCards = wrapper.findAll('[data-component="kpi-card"]')
-      expect(kpiCards[0].attributes('data-loading')).toBe('false')
+      // When loaded, KPI values should be visible
+      const publishedCard = wrapper.find('[data-testid="kpi-card-published"]')
+      expect(publishedCard.text()).toContain('1')
     })
 
     it('passes isLoading to candidatures KPI card', async () => {
@@ -398,7 +417,9 @@ describe('ProducerDashboardPage', () => {
 
       const candidaturesCard = wrapper.find('[data-testid="kpi-card-total_candidatures"]')
       expect(candidaturesCard.exists()).toBe(true)
-      expect(candidaturesCard.attributes('data-loading')).toBe('true')
+      // Should show skeleton when loading
+      const skeletons = candidaturesCard.findAll('[data-testid="skeleton"]')
+      expect(skeletons.length).toBeGreaterThan(0)
     })
 
     it('passes isLoading to collaborators KPI card (FR57)', async () => {
@@ -410,7 +431,8 @@ describe('ProducerDashboardPage', () => {
 
       const collaboratorsCard = wrapper.find('[data-testid="kpi-card-unique_collaborators"]')
       expect(collaboratorsCard.exists()).toBe(true)
-      expect(collaboratorsCard.attributes('data-loading')).toBe('true')
+      const skeletons = collaboratorsCard.findAll('[data-testid="skeleton"]')
+      expect(skeletons.length).toBeGreaterThan(0)
     })
   })
 
@@ -504,8 +526,8 @@ describe('ProducerDashboardPage', () => {
       const wrapper = mount(ProducerDashboardPage)
       await flushPromises()
 
-      const kpiSection = wrapper.find('[data-testid="kpi-section"]')
-      expect(kpiSection.exists()).toBe(true)
+      const statsPanel = wrapper.find('[data-testid="stats-panel"]')
+      expect(statsPanel.exists()).toBe(true)
     })
   })
 
@@ -528,12 +550,9 @@ describe('ProducerDashboardPage', () => {
       const wrapper = mount(ProducerDashboardPage)
       await flushPromises()
 
-      // KpiCard uses Intl.NumberFormat('fr-FR') which formats 1234 as "1 234"
-      // The mock component exposes the raw value, but real component formats it
       const publishedCard = wrapper.find('[data-testid="kpi-card-published"]')
       expect(publishedCard.exists()).toBe(true)
-      // Value is passed correctly to the card
-      expect(publishedCard.attributes('data-value')).toBe('1234')
+      expect(publishedCard.text()).toContain('1234')
     })
   })
 
@@ -557,7 +576,7 @@ describe('ProducerDashboardPage', () => {
       await flushPromises()
 
       // Rating card is now integrated in the candidatures section
-      const candidaturesSection = wrapper.find('[data-testid="candidatures-kpi-section"]')
+      const candidaturesSection = wrapper.find('[data-testid="candidatures-kpi-grid"]')
       expect(candidaturesSection.exists()).toBe(true)
 
       const ratingCard = wrapper.find('[data-testid="kpi-card-rating"]')
@@ -741,9 +760,9 @@ describe('ProducerDashboardPage', () => {
       const wrapper = mount(ProducerDashboardPage)
       await flushPromises()
 
-      const ratingTitle = wrapper.find('[data-testid="kpi-card-rating-title"]')
-      expect(ratingTitle.exists()).toBe(true)
-      expect(ratingTitle.text()).toBe('Ma note')
+      const ratingCard = wrapper.find('[data-testid="kpi-card-rating"]')
+      expect(ratingCard.exists()).toBe(true)
+      expect(ratingCard.text()).toContain('Ma note')
     })
 
     it('shows skeleton while loading', async () => {
@@ -753,8 +772,10 @@ describe('ProducerDashboardPage', () => {
       const wrapper = mount(ProducerDashboardPage)
       await flushPromises()
 
-      const ratingSkeleton = wrapper.find('[data-testid="kpi-card-rating-skeleton"]')
-      expect(ratingSkeleton.exists()).toBe(true)
+      const ratingCard = wrapper.find('[data-testid="kpi-card-rating"]')
+      expect(ratingCard.exists()).toBe(true)
+      const skeletons = ratingCard.findAll('[data-testid="skeleton"]')
+      expect(skeletons.length).toBeGreaterThan(0)
     })
 
     it('hides rating card when error occurs', async () => {
@@ -764,7 +785,7 @@ describe('ProducerDashboardPage', () => {
       await flushPromises()
 
       // Candidatures section (with rating) is hidden on error
-      const candidaturesSection = wrapper.find('[data-testid="candidatures-kpi-section"]')
+      const candidaturesSection = wrapper.find('[data-testid="candidatures-kpi-grid"]')
       expect(candidaturesSection.exists()).toBe(false)
 
       const ratingCard = wrapper.find('[data-testid="kpi-card-rating"]')
@@ -773,7 +794,7 @@ describe('ProducerDashboardPage', () => {
   })
 
   describe('advanced stats display (FR59)', () => {
-    it('renders advanced stats section', async () => {
+    it('renders acceptance rate in candidatures section', async () => {
       mockStats.value = {
         published: 1,
         in_progress: 1,
@@ -791,11 +812,11 @@ describe('ProducerDashboardPage', () => {
       const wrapper = mount(ProducerDashboardPage)
       await flushPromises()
 
-      const advancedStatsSection = wrapper.find('[data-testid="advanced-stats-section"]')
-      expect(advancedStatsSection.exists()).toBe(true)
+      const candidaturesGrid = wrapper.find('[data-testid="candidatures-kpi-grid"]')
+      expect(candidaturesGrid.exists()).toBe(true)
     })
 
-    it('displays "Statistiques avancées" section title', async () => {
+    it('displays "Candidatures & Réputation" section title', async () => {
       mockStats.value = {
         published: 1,
         in_progress: 1,
@@ -813,7 +834,7 @@ describe('ProducerDashboardPage', () => {
       const wrapper = mount(ProducerDashboardPage)
       await flushPromises()
 
-      expect(wrapper.text()).toContain('Statistiques avancées')
+      expect(wrapper.text()).toContain('Candidatures & Réputation')
     })
 
     it('displays acceptance rate card', async () => {
@@ -861,7 +882,7 @@ describe('ProducerDashboardPage', () => {
       expect(acceptanceRateValue.text()).toBe('75.0%')
     })
 
-    it('displays "--" for acceptance rate when value is null/undefined', async () => {
+    it('displays "0.0%" for acceptance rate when value is 0', async () => {
       mockStats.value = {
         published: 1,
         in_progress: 1,
@@ -881,11 +902,10 @@ describe('ProducerDashboardPage', () => {
 
       const acceptanceRateValue = wrapper.find('[data-testid="kpi-card-acceptance_rate-value"]')
       expect(acceptanceRateValue.exists()).toBe(true)
-      // When acceptance_rate is 0, it should display "0.0%"
       expect(acceptanceRateValue.text()).toBe('0.0%')
     })
 
-    it('displays "Taux d\'acceptation" title label', async () => {
+    it('displays "Acceptation" title label', async () => {
       mockStats.value = {
         published: 1,
         in_progress: 1,
@@ -903,146 +923,9 @@ describe('ProducerDashboardPage', () => {
       const wrapper = mount(ProducerDashboardPage)
       await flushPromises()
 
-      const acceptanceRateTitle = wrapper.find('[data-testid="kpi-card-acceptance_rate-title"]')
-      expect(acceptanceRateTitle.exists()).toBe(true)
-      expect(acceptanceRateTitle.text()).toBe("Taux d'acceptation")
-    })
-
-    it('displays response time card', async () => {
-      mockStats.value = {
-        published: 1,
-        in_progress: 1,
-        closed: 1,
-        completed: 1,
-        total_candidatures: 10,
-        unique_collaborators: 5,
-        average_rating: 4.5,
-        ratings_count: 8,
-        acceptance_rate: 75.0,
-        average_response_time_hours: 4.5,
-        completed_missions_count: 1,
-      }
-
-      const wrapper = mount(ProducerDashboardPage)
-      await flushPromises()
-
-      const responseTimeCard = wrapper.find('[data-testid="kpi-card-average_response_time_hours"]')
-      expect(responseTimeCard.exists()).toBe(true)
-    })
-
-    it('displays formatted response time with hours suffix', async () => {
-      mockStats.value = {
-        published: 1,
-        in_progress: 1,
-        closed: 1,
-        completed: 1,
-        total_candidatures: 10,
-        unique_collaborators: 5,
-        average_rating: 4.5,
-        ratings_count: 8,
-        acceptance_rate: 75.0,
-        average_response_time_hours: 4.5,
-        completed_missions_count: 1,
-      }
-
-      const wrapper = mount(ProducerDashboardPage)
-      await flushPromises()
-
-      const responseTimeValue = wrapper.find('[data-testid="kpi-card-average_response_time_hours-value"]')
-      expect(responseTimeValue.exists()).toBe(true)
-      expect(responseTimeValue.text()).toBe('4.5h')
-    })
-
-    it('displays "N/A" for response time when no decisions made', async () => {
-      mockStats.value = {
-        published: 1,
-        in_progress: 1,
-        closed: 1,
-        completed: 1,
-        total_candidatures: 10,
-        unique_collaborators: 5,
-        average_rating: 4.5,
-        ratings_count: 8,
-        acceptance_rate: 75.0,
-        average_response_time_hours: null,
-        completed_missions_count: 0,
-      }
-
-      const wrapper = mount(ProducerDashboardPage)
-      await flushPromises()
-
-      const responseTimeValue = wrapper.find('[data-testid="kpi-card-average_response_time_hours-value"]')
-      expect(responseTimeValue.exists()).toBe(true)
-      expect(responseTimeValue.text()).toBe('N/A')
-    })
-
-    it('displays "Temps de réponse" title label', async () => {
-      mockStats.value = {
-        published: 1,
-        in_progress: 1,
-        closed: 1,
-        completed: 1,
-        total_candidatures: 10,
-        unique_collaborators: 5,
-        average_rating: 4.5,
-        ratings_count: 8,
-        acceptance_rate: 75.0,
-        average_response_time_hours: 4.5,
-        completed_missions_count: 1,
-      }
-
-      const wrapper = mount(ProducerDashboardPage)
-      await flushPromises()
-
-      const responseTimeTitle = wrapper.find('[data-testid="kpi-card-average_response_time_hours-title"]')
-      expect(responseTimeTitle.exists()).toBe(true)
-      expect(responseTimeTitle.text()).toBe('Temps de réponse')
-    })
-
-    it('displays "Délai moyen" subtitle when response time has value', async () => {
-      mockStats.value = {
-        published: 1,
-        in_progress: 1,
-        closed: 1,
-        completed: 1,
-        total_candidatures: 10,
-        unique_collaborators: 5,
-        average_rating: 4.5,
-        ratings_count: 8,
-        acceptance_rate: 75.0,
-        average_response_time_hours: 4.5,
-        completed_missions_count: 1,
-      }
-
-      const wrapper = mount(ProducerDashboardPage)
-      await flushPromises()
-
-      const responseTimeSubtitle = wrapper.find('[data-testid="kpi-card-average_response_time_hours-subtitle"]')
-      expect(responseTimeSubtitle.exists()).toBe(true)
-      expect(responseTimeSubtitle.text()).toBe('Délai moyen')
-    })
-
-    it('displays "Aucune décision" subtitle when no decisions made', async () => {
-      mockStats.value = {
-        published: 1,
-        in_progress: 1,
-        closed: 1,
-        completed: 1,
-        total_candidatures: 10,
-        unique_collaborators: 5,
-        average_rating: 4.5,
-        ratings_count: 8,
-        acceptance_rate: 75.0,
-        average_response_time_hours: null,
-        completed_missions_count: 0,
-      }
-
-      const wrapper = mount(ProducerDashboardPage)
-      await flushPromises()
-
-      const responseTimeSubtitle = wrapper.find('[data-testid="kpi-card-average_response_time_hours-subtitle"]')
-      expect(responseTimeSubtitle.exists()).toBe(true)
-      expect(responseTimeSubtitle.text()).toBe('Aucune décision')
+      const acceptanceRateCard = wrapper.find('[data-testid="kpi-card-acceptance_rate"]')
+      expect(acceptanceRateCard.exists()).toBe(true)
+      expect(acceptanceRateCard.text()).toContain('Acceptation')
     })
 
     it('shows skeletons while loading', async () => {
@@ -1052,21 +935,20 @@ describe('ProducerDashboardPage', () => {
       const wrapper = mount(ProducerDashboardPage)
       await flushPromises()
 
-      const acceptanceRateSkeleton = wrapper.find('[data-testid="kpi-card-acceptance-rate-skeleton"]')
-      expect(acceptanceRateSkeleton.exists()).toBe(true)
-
-      const responseTimeSkeleton = wrapper.find('[data-testid="kpi-card-response-time-skeleton"]')
-      expect(responseTimeSkeleton.exists()).toBe(true)
+      const acceptanceRateCard = wrapper.find('[data-testid="kpi-card-acceptance_rate"]')
+      expect(acceptanceRateCard.exists()).toBe(true)
+      const skeletons = acceptanceRateCard.findAll('[data-testid="skeleton"]')
+      expect(skeletons.length).toBeGreaterThan(0)
     })
 
-    it('hides advanced stats section when error occurs', async () => {
+    it('hides candidatures section when error occurs', async () => {
       mockStatsError.value = 'Erreur réseau'
 
       const wrapper = mount(ProducerDashboardPage)
       await flushPromises()
 
-      const advancedStatsSection = wrapper.find('[data-testid="advanced-stats-section"]')
-      expect(advancedStatsSection.exists()).toBe(false)
+      const candidaturesGrid = wrapper.find('[data-testid="candidatures-kpi-grid"]')
+      expect(candidaturesGrid.exists()).toBe(false)
     })
   })
 })

@@ -177,9 +177,9 @@ describe('HomeView', () => {
       expect(cta.attributes('href')).toBe('/register/face')
     })
 
-    it('renders silhouette visual on desktop', () => {
-      const silhouette = wrapper.find('[data-testid="hero-silhouette"]')
-      expect(silhouette.exists()).toBe(true)
+    it('renders hero images on desktop', () => {
+      const heroImages = wrapper.find('[data-testid="hero-images"]')
+      expect(heroImages.exists()).toBe(true)
     })
   })
 
@@ -387,17 +387,16 @@ describe('HomeView', () => {
     })
   })
 
-  describe('Scroll-linked Rotation (AC #3)', () => {
-    it('silhouette starts with 0 rotation', () => {
-      const silhouette = wrapper.find('[data-testid="hero-silhouette"]')
-      expect(silhouette.attributes('style')).toContain('rotate(0deg)')
+  describe('Hero images section', () => {
+    it('hero images container exists', () => {
+      const heroImages = wrapper.find('[data-testid="hero-images"]')
+      expect(heroImages.exists()).toBe(true)
     })
 
-    it('silhouette element has transform style binding', () => {
-      const silhouette = wrapper.find('[data-testid="hero-silhouette"]')
-      const style = silhouette.attributes('style')
-      expect(style).toBeDefined()
-      expect(style).toMatch(/transform:\s*rotate\(\d+deg\)/)
+    it('hero images contain img elements', () => {
+      const heroImages = wrapper.find('[data-testid="hero-images"]')
+      const imgs = heroImages.findAll('img')
+      expect(imgs.length).toBeGreaterThan(0)
     })
   })
 

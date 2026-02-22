@@ -117,7 +117,7 @@ describe('AlbumPhotoUpload', () => {
     })
 
     expect(wrapper.text()).toContain('Format JPG ou PNG')
-    expect(wrapper.text()).toContain('Taille max: 5 Mo')
+    expect(wrapper.text()).toContain('Taille max: 8 Mo')
   })
 
   it('file input is disabled when full', () => {
