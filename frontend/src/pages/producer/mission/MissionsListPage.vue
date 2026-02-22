@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { AlertCircle, RefreshCw, ClipboardList, Inbox, ArrowRight } from 'lucide-vue-next'
+import { AlertCircle, RefreshCw, ClipboardList, Inbox, ArrowRight, Plus } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useMissionsList, useDeleteMission, useCloseMission, useReopenMission, useCompleteMission } from '@/features/mission/composables'
@@ -178,13 +178,25 @@ async function confirmComplete(): Promise<void> {
 <template>
   <div class="pb-10">
     <!-- Page Header Section -->
-    <section class="mb-6">
-      <h1 class="text-2xl font-bold tracking-tight text-slate-800 sm:text-3xl">
-        Mes missions
-      </h1>
-      <p class="mt-1 text-sm text-slate-500">
-        Gérez vos annonces et suivez les candidatures
-      </p>
+    <section class="mb-6 flex items-start justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight text-slate-800 sm:text-3xl">
+          Mes missions
+        </h1>
+        <p class="mt-1 text-sm text-slate-500">
+          Gérez vos annonces et suivez les candidatures
+        </p>
+      </div>
+      <button
+        v-if="authStore.isEmailVerified"
+        type="button"
+        class="flex shrink-0 items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+        @click="navigateToPublish"
+      >
+        <Plus class="h-4 w-4" />
+        <span class="hidden sm:inline">Publier une mission</span>
+        <span class="sm:hidden">Publier</span>
+      </button>
     </section>
 
     <!-- Status Filter -->
