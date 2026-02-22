@@ -32,7 +32,7 @@ class UpdateProfilePhotoRequest extends FormRequest
                 'required',
                 File::image()
                     ->types(['jpg', 'jpeg', 'png'])
-                    ->max(5 * 1024), // 5MB in KB
+                    ->max(8 * 1024), // 8MB in KB
             ],
         ];
     }
@@ -48,7 +48,7 @@ class UpdateProfilePhotoRequest extends FormRequest
             'photo.required' => 'Une photo est requise.',
             'photo.image' => 'Le fichier doit être une image.',
             'photo.mimes' => 'Format non supporté (JPG, PNG uniquement).',
-            'photo.max' => 'Fichier trop volumineux (max 5MB).',
+            'photo.max' => 'Fichier trop volumineux (max 8MB).',
         ];
     }
 }

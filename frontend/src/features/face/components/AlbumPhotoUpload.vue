@@ -157,7 +157,7 @@ function handleDragLeave(): void {
       </div>
 
       <!-- Help text -->
-      <p class="mt-2 text-xs text-gray-500">Format JPG ou PNG. Taille max: 5 Mo</p>
+      <p class="mt-2 text-xs text-gray-500">Format JPG ou PNG. Taille max: 8 Mo</p>
     </div>
 
     <!-- Hidden file input -->

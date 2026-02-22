@@ -34,7 +34,7 @@ class AddAlbumPhotoRequest extends FormRequest
                 'required',
                 File::image()
                     ->types(['jpg', 'jpeg', 'png'])
-                    ->max(5 * 1024), // 5MB in KB
+                    ->max(8 * 1024), // 8MB in KB
             ],
         ];
     }
@@ -50,7 +50,7 @@ class AddAlbumPhotoRequest extends FormRequest
             'photo.required' => 'Une photo est requise.',
             'photo.image' => 'Le fichier doit être une image.',
             'photo.mimes' => 'Le fichier doit être au format JPG ou PNG.',
-            'photo.max' => 'Le fichier ne doit pas dépasser 5 Mo.',
+            'photo.max' => 'Le fichier ne doit pas dépasser 8 Mo.',
         ];
     }
 

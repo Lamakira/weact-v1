@@ -288,7 +288,7 @@ function handleDelete(): void {
 
       <!-- Help text -->
       <p class="text-xs text-gray-500 text-center">
-        Format JPG ou PNG. Taille max: 5 Mo
+        Format JPG ou PNG. Taille max: 8 Mo
       </p>
     </div>
   </div>

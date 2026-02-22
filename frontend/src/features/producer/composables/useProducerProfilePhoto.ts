@@ -5,7 +5,7 @@ import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services
 
 // Allowed file types
 const ALLOWED_TYPES = ['image/jpeg', 'image/png']
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+const MAX_FILE_SIZE = 8 * 1024 * 1024 // 8MB
 
 export interface UseProducerProfilePhotoReturn {
   profile: Ref<Producer | null>
@@ -51,7 +51,7 @@ export function useProducerProfilePhoto(): UseProducerProfilePhotoReturn {
     if (file.size > MAX_FILE_SIZE) {
       return {
         valid: false,
-        error: 'Le fichier ne doit pas dépasser 5 Mo',
+        error: 'Le fichier ne doit pas dépasser 8 Mo',
       }
     }
 

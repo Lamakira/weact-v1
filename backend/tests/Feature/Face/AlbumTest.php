@@ -196,8 +196,8 @@ class AlbumTest extends TestCase
 
     public function test_rejects_oversized_file(): void
     {
-        // Create a file larger than 5MB (5120KB)
-        $file = UploadedFile::fake()->image('album.jpg')->size(6 * 1024);
+        // Create a file larger than 8MB (8192KB)
+        $file = UploadedFile::fake()->image('album.jpg')->size(9 * 1024);
 
         $response = $this->actingAs($this->faceUser)
             ->postJson('/api/v1/face/album', [
