@@ -27,7 +27,7 @@ onUnmounted(() => {
 <template>
   <section class="relative min-h-[calc(100vh-120px)] flex items-start overflow-hidden bg-gray-50/70 pt-4 sm:pt-[5vh] lg:pt-[10vh]">
     <div class="max-w-7xl mx-auto w-full">
-      <div class="grid md:grid-cols-2 lg:grid-cols-[1fr_1fr] gap-8 lg:gap-10 items-center">
+      <div class="grid md:grid-cols-2 lg:grid-cols-[1fr_1fr] gap-4 md:gap-8 lg:gap-10 items-center">
         <!-- Left: Text Content -->
         <div class="text-center md:text-left px-4 sm:px-6 md:px-0">
           <!-- Hero Title -->
@@ -52,13 +52,14 @@ onUnmounted(() => {
               </Transition>
             </div>
           </div>
-          <p class="text-gray-500 text-lg pt-4 lg:text-xl max-w-lg mx-auto md:mx-0 mb-8 leading-relaxed">
+          <p class="text-gray-500 text-lg md:pt-4 lg:text-xl max-w-lg mx-auto md:mx-0 md:mb-8 leading-relaxed">
             La première plateforme qui met en relation marques et créateurs pour des castings
             sécurisés au Bénin.
           </p>
+          <!-- Desktop CTA -->
           <RouterLink
             to="/register/face"
-            class="group inline-flex w-full sm:w-auto justify-center items-center gap-2 bg-[#198496] text-white px-8 py-3.5 rounded-md font-medium text-base hover:bg-[#146c7a] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"
+            class="hidden md:inline-flex group items-center gap-2 bg-[#198496] text-white px-8 py-3.5 rounded-md font-medium text-base hover:bg-[#146c7a] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"
             data-testid="hero-cta"
           >
             Créer mon profil
@@ -69,7 +70,7 @@ onUnmounted(() => {
         <!-- Right: Hero Images -->
         <div data-testid="hero-images">
           <!-- Mobile/Tablet: Portrait only -->
-          <div class="lg:hidden flex justify-center px-4 sm:px-6 md:px-0 mt-8 md:mt-0">
+          <div class="lg:hidden flex justify-center px-4 sm:px-6 md:px-0 mt-4 md:mt-0">
             <img
               :src="heroPortrait"
               alt="Femme souriante en studio"
@@ -92,6 +93,18 @@ onUnmounted(() => {
               loading="eager"
             />
           </div>
+        </div>
+
+        <!-- Mobile CTA: after image -->
+        <div class="md:hidden flex justify-center px-4 sm:px-6 mt-4">
+          <RouterLink
+            to="/register/face"
+            class="group inline-flex w-full max-w-xs justify-center items-center gap-2 bg-[#198496] text-white px-8 py-3.5 rounded-md font-medium text-base hover:bg-[#146c7a] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"
+            data-testid="hero-cta-mobile"
+          >
+            Créer mon profil
+            <ArrowRight class="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          </RouterLink>
         </div>
       </div>
     </div>
