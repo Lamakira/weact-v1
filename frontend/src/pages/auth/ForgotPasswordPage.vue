@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { usePasswordReset } from '@/features/auth/composables/usePasswordReset'
+import logoNoir from '@/assets/images/logonoir.png'
 
 const email = ref('')
 const { isLoading, error, successMessage, forgotPassword, clearState } = usePasswordReset()
@@ -11,13 +12,11 @@ async function handleSubmit(): Promise<void> {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-    <div class="sm:mx-auto sm:w-full sm:max-w-md">
+  <div class="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
+    <div class="w-full max-w-md">
       <!-- Logo -->
       <div class="flex justify-center">
-        <div class="w-16 h-16 bg-primary rounded-full flex items-center justify-center">
-          <span class="text-white text-2xl font-bold">W</span>
-        </div>
+        <img :src="logoNoir" alt="WEACT" class="h-12 w-auto" />
       </div>
 
       <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
@@ -28,8 +27,8 @@ async function handleSubmit(): Promise<void> {
       </p>
     </div>
 
-    <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-      <div class="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+    <div class="mt-8 w-full max-w-md">
+      <div class="bg-white py-8 px-6 shadow rounded-lg sm:px-10">
         <!-- Success Message -->
         <div
           v-if="successMessage"
