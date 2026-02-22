@@ -84,13 +84,13 @@ const handleSubmit = () => {
 
     <!-- Tarifs Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <!-- Tarif Horaire -->
+      <!-- Tarif Demi-journée -->
       <div>
         <FloatingField
           id="tarif_horaire"
           v-model="form.tarif_horaire"
           type="number"
-          label="Tarif horaire (XOF)"
+          label="Tarif demi-journée (XOF)"
           :icon="Wallet"
           min="0"
           max="10000000"
@@ -98,7 +98,7 @@ const handleSubmit = () => {
           data-testid="tarif-horaire-input"
         />
         <p v-if="formattedTarifHoraire" class="mt-1 text-xs text-gray-500" data-testid="tarif-horaire-preview">
-          {{ formattedTarifHoraire }}/heure
+          {{ formattedTarifHoraire }}/demi-journée
         </p>
       </div>
 

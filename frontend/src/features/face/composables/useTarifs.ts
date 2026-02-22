@@ -32,7 +32,7 @@ export function useTarifs(): UseTarifsReturn {
   const error = ref<string | null>(null)
 
   /**
-   * Validate tarif horaire (hourly rate in XOF)
+   * Validate tarif demi-journée (half-day rate in XOF)
    */
   function validateTarifHoraire(tarif: number | null): { valid: boolean; error?: string } {
     if (tarif === null || tarif === undefined) {
@@ -41,19 +41,19 @@ export function useTarifs(): UseTarifsReturn {
     if (!Number.isInteger(tarif)) {
       return {
         valid: false,
-        error: 'Le tarif horaire doit être un nombre entier',
+        error: 'Le tarif demi-journée doit être un nombre entier',
       }
     }
     if (tarif < 0) {
       return {
         valid: false,
-        error: 'Le tarif horaire doit être positif',
+        error: 'Le tarif demi-journée doit être positif',
       }
     }
     if (tarif > MAX_TARIF_HORAIRE) {
       return {
         valid: false,
-        error: 'Le tarif horaire ne peut pas dépasser 10 000 000 XOF',
+        error: 'Le tarif demi-journée ne peut pas dépasser 10 000 000 XOF',
       }
     }
     return { valid: true }
@@ -101,7 +101,7 @@ export function useTarifs(): UseTarifsReturn {
     ) {
       return {
         valid: false,
-        error: 'Le tarif journalier doit être supérieur ou égal au tarif horaire',
+        error: 'Le tarif journalier doit être supérieur ou égal au tarif demi-journée',
       }
     }
     return { valid: true }
@@ -135,11 +135,11 @@ export function useTarifs(): UseTarifsReturn {
    * Update tarifs
    */
   async function updateTarifs(data: TarifsFormData): Promise<TarifsResult> {
-    // Validate tarif horaire
+    // Validate tarif demi-journée
     if (data.tarif_horaire !== undefined && data.tarif_horaire !== null) {
       const tarifHoraireValidation = validateTarifHoraire(data.tarif_horaire)
       if (!tarifHoraireValidation.valid) {
-        error.value = tarifHoraireValidation.error ?? 'Tarif horaire invalide'
+        error.value = tarifHoraireValidation.error ?? 'Tarif demi-journée invalide'
         return {
           success: false,
           message: tarifHoraireValidation.error,

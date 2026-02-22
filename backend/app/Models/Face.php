@@ -219,13 +219,13 @@ class Face extends Model
     }
 
     /**
-     * Get the formatted hourly rate (e.g., "75 000 XOF/heure").
+     * Get the formatted half-day rate (e.g., "75 000 XOF/demi-journée").
      */
     protected function formattedTarifHoraire(): Attribute
     {
         return Attribute::make(
             get: fn (): ?string => $this->tarif_horaire !== null
-                ? number_format($this->tarif_horaire, 0, ',', ' ') . ' XOF/heure'
+                ? number_format($this->tarif_horaire, 0, ',', ' ') . ' XOF/demi-journée'
                 : null,
         );
     }

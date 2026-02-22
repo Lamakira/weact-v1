@@ -124,7 +124,7 @@ function formatWeight(poids: number | null): string | null {
                 <Wallet class="h-4 w-4 text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <p class="text-xs text-muted-foreground">Tarif horaire</p>
+                <p class="text-xs text-muted-foreground">Tarif demi-journée</p>
                 <p class="font-semibold text-foreground">
                   {{ candidate.formatted_tarif_horaire }}
                 </p>

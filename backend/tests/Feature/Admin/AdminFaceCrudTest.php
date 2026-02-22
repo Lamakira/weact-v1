@@ -222,7 +222,7 @@ class AdminFaceCrudTest extends TestCase
             ->assertJsonPath('data.poids', 68)
             ->assertJsonPath('data.tarif_horaire', 25000)
             ->assertJsonPath('data.tarif_journalier', 150000)
-            ->assertJsonPath('data.formatted_tarif_horaire', '25 000 XOF/heure')
+            ->assertJsonPath('data.formatted_tarif_horaire', '25 000 XOF/demi-journée')
             ->assertJsonPath('data.formatted_tarif_journalier', '150 000 XOF/jour');
     }
 

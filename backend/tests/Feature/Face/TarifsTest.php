@@ -63,7 +63,7 @@ class TarifsTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('data.tarif_horaire', 75000)
             ->assertJsonPath('data.tarif_journalier', 250000)
-            ->assertJsonPath('data.formatted_tarif_horaire', '75 000 XOF/heure')
+            ->assertJsonPath('data.formatted_tarif_horaire', '75 000 XOF/demi-journée')
             ->assertJsonPath('data.formatted_tarif_journalier', '250 000 XOF/jour');
     }
 
@@ -76,7 +76,7 @@ class TarifsTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.tarif_horaire', 75000)
-            ->assertJsonPath('data.formatted_tarif_horaire', '75 000 XOF/heure')
+            ->assertJsonPath('data.formatted_tarif_horaire', '75 000 XOF/demi-journée')
             ->assertJsonPath('message', 'Tarifs mis à jour avec succès');
 
         $this->assertDatabaseHas('faces', [
@@ -169,7 +169,7 @@ class TarifsTest extends TestCase
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['tarif_horaire'])
-            ->assertJsonPath('errors.tarif_horaire.0', 'Le tarif horaire doit être positif');
+            ->assertJsonPath('errors.tarif_horaire.0', 'Le tarif demi-journée doit être positif');
     }
 
     public function test_rejects_negative_tarif_journalier(): void
@@ -193,7 +193,7 @@ class TarifsTest extends TestCase
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['tarif_horaire'])
-            ->assertJsonPath('errors.tarif_horaire.0', 'Le tarif horaire doit être un nombre entier');
+            ->assertJsonPath('errors.tarif_horaire.0', 'Le tarif demi-journée doit être un nombre entier');
     }
 
     public function test_rejects_non_integer_tarif_journalier(): void
@@ -239,7 +239,7 @@ class TarifsTest extends TestCase
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['tarif_horaire'])
-            ->assertJsonPath('errors.tarif_horaire.0', 'Le tarif horaire ne peut pas dépasser 10 000 000 XOF');
+            ->assertJsonPath('errors.tarif_horaire.0', 'Le tarif demi-journée ne peut pas dépasser 10 000 000 XOF');
     }
 
     public function test_rejects_tarif_journalier_above_maximum(): void
@@ -356,7 +356,7 @@ class TarifsTest extends TestCase
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['tarif_journalier'])
-            ->assertJsonPath('errors.tarif_journalier.0', 'Le tarif journalier doit être supérieur ou égal au tarif horaire');
+            ->assertJsonPath('errors.tarif_journalier.0', 'Le tarif journalier doit être supérieur ou égal au tarif demi-journée');
     }
 
     public function test_accepts_tarif_journalier_equal_to_tarif_horaire(): void

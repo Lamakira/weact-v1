@@ -257,12 +257,12 @@ const categoryLabel = computed(() => {
     <div class="mt-4 grid grid-cols-2 gap-3 border-y border-border/50 py-3">
       <div class="flex flex-col gap-0.5">
         <span class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Tarif Horaire
+          Tarif Demi-journée
         </span>
         <div class="flex items-center gap-1.5 text-sm font-medium text-foreground">
           <Wallet class="h-3.5 w-3.5 text-primary" />
           <span v-if="candidature.face.tarif_horaire">
-            {{ formatCurrency(candidature.face.tarif_horaire) }}/h
+            {{ formatCurrency(candidature.face.tarif_horaire) }}/½j
           </span>
           <span v-else class="text-xs font-normal italic text-muted-foreground">
             Non spécifié

@@ -665,7 +665,7 @@ function closeVideoModal(): void {
           </h2>
           <dl class="space-y-3">
             <div class="flex justify-between">
-              <dt class="text-sm text-gray-500">Tarif horaire</dt>
+              <dt class="text-sm text-gray-500">Tarif demi-journée</dt>
               <dd class="text-sm font-medium text-gray-900">
                 {{ face.formatted_tarif_horaire || 'Non renseigné' }}
               </dd>

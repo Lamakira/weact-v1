@@ -41,13 +41,13 @@ class UpdateTarifsRequest extends FormRequest
             $tarifHoraire = $this->input('tarif_horaire');
             $tarifJournalier = $this->input('tarif_journalier');
 
-            // When both are provided and non-null, daily should be >= hourly
+            // When both are provided and non-null, daily should be >= half-day
             if ($tarifHoraire !== null && $tarifJournalier !== null
                 && is_numeric($tarifHoraire) && is_numeric($tarifJournalier)
                 && (int) $tarifJournalier < (int) $tarifHoraire) {
                 $validator->errors()->add(
                     'tarif_journalier',
-                    'Le tarif journalier doit être supérieur ou égal au tarif horaire'
+                    'Le tarif journalier doit être supérieur ou égal au tarif demi-journée'
                 );
             }
         });
@@ -61,9 +61,9 @@ class UpdateTarifsRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'tarif_horaire.integer' => 'Le tarif horaire doit être un nombre entier',
-            'tarif_horaire.min' => 'Le tarif horaire doit être positif',
-            'tarif_horaire.max' => 'Le tarif horaire ne peut pas dépasser 10 000 000 XOF',
+            'tarif_horaire.integer' => 'Le tarif demi-journée doit être un nombre entier',
+            'tarif_horaire.min' => 'Le tarif demi-journée doit être positif',
+            'tarif_horaire.max' => 'Le tarif demi-journée ne peut pas dépasser 10 000 000 XOF',
             'tarif_journalier.integer' => 'Le tarif journalier doit être un nombre entier',
             'tarif_journalier.min' => 'Le tarif journalier doit être positif',
             'tarif_journalier.max' => 'Le tarif journalier ne peut pas dépasser 100 000 000 XOF',
