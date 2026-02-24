@@ -48,7 +48,7 @@ export const faceContent: LandingContent = {
     ],
   },
   missions: {
-    title: 'Je recherche des missions en cours',
+    title: 'Missions en cours',
     subtitle: 'Découvre les dernières opportunités disponibles',
     ctaText: 'Voir toutes les missions',
     ctaLink: '#missions', // TODO: Update to /missions when story 11-6 is implemented
