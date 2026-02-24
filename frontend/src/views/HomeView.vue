@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { RouterLink } from 'vue-router'
 import { MapPin, ChevronRight, ChevronLeft, Users } from 'lucide-vue-next'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -95,6 +95,14 @@ function prevMission(): void {
   const prevIndex = missionCarouselIndex.value === 0 ? total - 1 : missionCarouselIndex.value - 1
   scrollToMission(prevIndex)
 }
+
+// Start on 2nd mission when there are 3+ missions
+watch(missions, async (list) => {
+  if (list.length >= 3) {
+    await nextTick()
+    scrollToMission(1)
+  }
+})
 
 function handleMissionScroll(): void {
   if (!missionCarouselRef.value) return
@@ -418,24 +426,14 @@ function formatDate(date: string): string {
     >
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header -->
-        <div class="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
-          <div>
-            <h2
-              class="text-3xl lg:text-4xl font-bold text-gray-900 tracking-tight mb-2"
-              data-testid="missions-section-title"
-            >
-              {{ content.missions.title }}
-            </h2>
-            <p class="text-gray-500 text-lg">{{ content.missions.subtitle }}</p>
-          </div>
-          <a
-            :href="content.missions.ctaLink"
-            class="flex items-center gap-2 text-sm font-bold text-[#198496] border border-[#198496] px-5 py-2 rounded-md hover:bg-[#198496] hover:text-white transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"
-            data-testid="see-all-missions"
+        <div class="text-center mb-12">
+          <h2
+            class="text-3xl lg:text-4xl font-bold text-gray-900 tracking-tight mb-2"
+            data-testid="missions-section-title"
           >
-            {{ content.missions.ctaText }}
-            <ChevronRight class="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </a>
+            {{ content.missions.title }}
+          </h2>
+          <p class="text-gray-500 text-lg">{{ content.missions.subtitle }}</p>
         </div>
 
         <!-- Loading State -->
@@ -521,8 +519,10 @@ function formatDate(date: string): string {
                 <!-- Main Info -->
                 <div class="flex-1 p-5 md:p-6">
                   <div class="flex items-center gap-3 mb-3">
-                    <span class="text-xs font-semibold px-2.5 py-0.5 rounded bg-[#198496]/10 text-[#198496]">
-                      {{ mission.type_mission_label }}
+                    <span class="inline-flex max-w-[140px] overflow-hidden text-xs font-semibold px-2.5 py-0.5 rounded bg-[#198496]/10 text-[#198496]">
+                      <span class="whitespace-nowrap badge-scroll-text">
+                        {{ mission.type_mission_label }}
+                      </span>
                     </span>
                     <span class="text-sm font-bold text-[#198496] ml-auto md:hidden">
                       {{ formatBudget(mission.budget) }}
@@ -605,6 +605,18 @@ function formatDate(date: string): string {
               ]"
               :aria-label="`Aller à la mission ${index + 1}`"
             />
+          </div>
+
+          <!-- CTA -->
+          <div class="flex justify-center mt-8">
+            <a
+              :href="content.missions.ctaLink"
+              class="flex items-center gap-2 text-sm font-bold text-[#198496] border border-[#198496] px-5 py-2 rounded-md hover:bg-[#198496] hover:text-white transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"
+              data-testid="see-all-missions"
+            >
+              {{ content.missions.ctaText }}
+              <ChevronRight class="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </a>
           </div>
         </div>
       </div>
@@ -779,6 +791,17 @@ function formatDate(date: string): string {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Badge scroll — only scrolls visually when text overflows */
+.badge-scroll-text {
+  display: inline-block;
+  animation: badge-scroll 4s ease-in-out 1s infinite alternate;
+}
+
+@keyframes badge-scroll {
+  0%, 25% { transform: translateX(0); }
+  75%, 100% { transform: translateX(min(0px, calc(-100% + 120px))); }
 }
 
 /* Perspective transition (300ms fade/slide) */
