@@ -96,12 +96,28 @@ function prevMission(): void {
   scrollToMission(prevIndex)
 }
 
-// Start on 2nd mission when there are 3+ missions
+// Detect overflowing badges and activate scroll animation
+function initBadgeScrolls(): void {
+  if (!missionCarouselRef.value) return
+  const badges = missionCarouselRef.value.querySelectorAll('.badge-scroll-text')
+  badges.forEach((el) => {
+    const parent = el.parentElement
+    if (!parent) return
+    const overflow = (el as HTMLElement).scrollWidth - parent.clientWidth
+    if (overflow > 0) {
+      ;(el as HTMLElement).style.setProperty('--scroll-distance', `-${overflow}px`)
+      el.classList.add('badge-scrolling')
+    }
+  })
+}
+
+// Start on 2nd mission when there are 3+ missions + init badge scrolls
 watch(missions, async (list) => {
+  await nextTick()
   if (list.length >= 3) {
-    await nextTick()
     scrollToMission(1)
   }
+  initBadgeScrolls()
 })
 
 function handleMissionScroll(): void {
@@ -793,15 +809,19 @@ function formatDate(date: string): string {
   overflow: hidden;
 }
 
-/* Badge scroll — only scrolls visually when text overflows */
+/* Badge scroll — activated by JS only when text overflows */
 .badge-scroll-text {
   display: inline-block;
-  animation: badge-scroll 4s ease-in-out 1s infinite alternate;
+}
+
+.badge-scrolling {
+  animation: badge-scroll 5s ease-in-out 1s infinite;
 }
 
 @keyframes badge-scroll {
-  0%, 25% { transform: translateX(0); }
-  75%, 100% { transform: translateX(min(0px, calc(-100% + 120px))); }
+  0%, 15% { transform: translateX(0); }
+  35%, 65% { transform: translateX(var(--scroll-distance)); }
+  85%, 100% { transform: translateX(0); }
 }
 
 /* Perspective transition (300ms fade/slide) */
