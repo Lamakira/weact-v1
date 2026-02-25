@@ -146,6 +146,7 @@ class PublicFaceProfileTest extends TestCase
         $this->assertArrayNotHasKey('age', $data);
         $this->assertArrayNotHasKey('nationalite', $data);
         $this->assertArrayNotHasKey('date_naissance', $data);
+        $this->assertArrayNotHasKey('langues', $data);
     }
 
     public function test_has_album_photos_indicator_is_correct(): void

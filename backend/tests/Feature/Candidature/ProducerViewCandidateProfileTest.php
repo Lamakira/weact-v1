@@ -372,7 +372,21 @@ class ProducerViewCandidateProfileTest extends TestCase
             ->assertJsonPath('data.sexe_label', 'Homme')
             ->assertJsonPath('data.age', \Carbon\Carbon::parse('1995-06-15')->age)
             ->assertJsonPath('data.nationalite', 'Béninoise')
-            ->assertJsonPath('data.pays', 'Bénin');
+            ->assertJsonPath('data.pays', 'Bénin')
+            ->assertJsonPath('data.langues', null);
+    }
+
+    public function test_candidate_profile_includes_langues(): void
+    {
+        $this->face->update([
+            'langues' => ['Français', 'Anglais', 'Fon'],
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/candidates/{$this->face->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.langues', ['Français', 'Anglais', 'Fon']);
     }
 
     public function test_candidate_profile_returns_null_for_missing_personal_info(): void

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Ruler, Weight, Wallet, FileText } from 'lucide-vue-next'
+import { Ruler, Weight, Wallet, FileText, Languages } from 'lucide-vue-next'
 import type { CandidateFullProfile } from '../types'
 
 /**
@@ -29,6 +29,15 @@ const hasPricing = computed(
   (): boolean =>
     !!props.candidate.tarif_horaire || !!props.candidate.tarif_journalier,
 )
+
+/**
+ * Computed: Formatted langues display
+ */
+const languesDisplay = computed((): string => {
+  const langues = props.candidate.langues
+  if (!langues || langues.length === 0) return 'Non renseigné'
+  return langues.join(', ')
+})
 
 /**
  * Format height in meters (e.g., 180 -> "1m80")
@@ -109,7 +118,31 @@ function formatWeight(poids: number | null): string | null {
         </div>
 
         <!-- Divider -->
-        <div v-if="hasPhysicalInfo && hasPricing" class="border-t border-border" />
+        <div v-if="hasPhysicalInfo" class="border-t border-border" />
+
+        <!-- Langues -->
+        <div class="space-y-3">
+          <h3 class="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+            Langue(s) parlée(s)
+          </h3>
+          <div class="flex items-center gap-2">
+            <div
+              class="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10"
+            >
+              <Languages class="h-4 w-4 text-primary" />
+            </div>
+            <p
+              class="font-medium"
+              :class="candidate.langues?.length ? 'text-foreground' : 'text-muted-foreground/70 italic'"
+              data-testid="langues-display"
+            >
+              {{ languesDisplay }}
+            </p>
+          </div>
+        </div>
+
+        <!-- Divider -->
+        <div v-if="hasPricing" class="border-t border-border" />
 
         <!-- Pricing -->
         <div v-if="hasPricing" class="space-y-3">
@@ -146,13 +179,6 @@ function formatWeight(poids: number | null): string | null {
           </div>
         </div>
 
-        <!-- No info fallback -->
-        <p
-          v-if="!hasPhysicalInfo && !hasPricing"
-          class="italic text-muted-foreground/70"
-        >
-          Aucune information supplémentaire
-        </p>
       </div>
     </div>
   </div>

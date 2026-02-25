@@ -190,6 +190,7 @@ export interface CandidateFullProfile {
   sexe_label: string | null
   age: number | null
   nationalite: string | null
+  langues: string[] | null
   profile_photo_url: string | null
   thumbnail_url: string | null
   presentation_video_url: string | null

@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\Face\BioLocationController;
 use App\Http\Controllers\Api\V1\Face\CategoryNicheController;
 use App\Http\Controllers\Api\V1\Face\CategoryNicheOptionsController;
 use App\Http\Controllers\Api\V1\Face\ExperienceController;
+use App\Http\Controllers\Api\V1\Face\LanguesController;
 use App\Http\Controllers\Api\V1\Face\PhysicalCharacteristicsController;
 use App\Http\Controllers\Api\V1\Face\PresentationVideoController;
 use App\Http\Controllers\Api\V1\Face\ProfileCompletionController;
@@ -80,6 +81,12 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/bio-location', [BioLocationController::class, 'show'])
         ->middleware('throttle:60,1');
     Route::put('/bio-location', [BioLocationController::class, 'update'])
+        ->middleware('throttle:60,1');
+
+    // Langues routes
+    Route::get('/langues', [LanguesController::class, 'show'])
+        ->middleware('throttle:60,1');
+    Route::put('/langues', [LanguesController::class, 'update'])
         ->middleware('throttle:60,1');
 
     // Physical characteristics routes

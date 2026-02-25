@@ -6,6 +6,7 @@ import { usePhotoAlbum } from '@/features/face/composables/usePhotoAlbum'
 import { usePresentationVideo } from '@/features/face/composables/usePresentationVideo'
 import { useActingVideo } from '@/features/face/composables/useActingVideo'
 import { useBioLocation } from '@/features/face/composables/useBioLocation'
+import { useLangues } from '@/features/face/composables/useLangues'
 import { usePhysicalCharacteristics } from '@/features/face/composables/usePhysicalCharacteristics'
 import { useCategoryNiche } from '@/features/face/composables/useCategoryNiche'
 import { useExperiences } from '@/features/face/composables/useExperiences'
@@ -18,6 +19,7 @@ import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
 import AlbumPhotoUpload from '@/features/face/components/AlbumPhotoUpload.vue'
 import PresentationVideoUpload from '@/features/face/components/PresentationVideoUpload.vue'
 import ActingVideoUpload from '@/features/face/components/ActingVideoUpload.vue'
+import LanguesTagInput from '@/features/face/components/LanguesTagInput.vue'
 import BioLocationForm from '@/features/face/components/BioLocationForm.vue'
 import PhysicalCharacteristicsForm from '@/features/face/components/PhysicalCharacteristicsForm.vue'
 import CategoryNicheForm from '@/features/face/components/CategoryNicheForm.vue'
@@ -90,6 +92,18 @@ const {
   fetchBioLocation,
   updateBioLocation,
 } = useBioLocation()
+
+// Langues composable
+const {
+  languesInfo,
+  isLoading: isLanguesLoading,
+  isSaving: isLanguesSaving,
+  error: languesError,
+  fetchLangues,
+  updateLangues,
+  MAX_LANGUES,
+  MAX_LANGUE_LENGTH,
+} = useLangues()
 
 // Physical characteristics composable
 const {
@@ -177,6 +191,7 @@ onMounted(async () => {
     fetchVideoInfo(),
     fetchActingVideoInfo(),
     fetchBioLocation(),
+    fetchLangues(),
     fetchPhysicalCharacteristics(),
     fetchCategoryNiche(),
     fetchExperiences(),
@@ -323,6 +338,18 @@ async function handleBioLocationSave(data: {
 }
 
 /**
+ * Handle langues save
+ */
+async function handleLanguesSave(langues: string[] | null): Promise<void> {
+  const result = await updateLangues(langues)
+
+  if (result.success) {
+    toast.success(result.message || 'Langues mises à jour avec succès')
+    await fetchCompletion()
+  }
+}
+
+/**
  * Handle physical characteristics save
  */
 async function handlePhysicalCharacteristicsSave(data: {
@@ -424,6 +451,7 @@ function handleCompletionItemClick(itemKey: string): void {
     acting_video: 'section-acting-video',
     bio: 'section-bio-location',
     ville: 'section-bio-location',
+    langues: 'section-langues',
     categorie: 'section-category-niche',
     tarifs: 'section-tarifs',
   }
@@ -660,6 +688,24 @@ function handleCompletionItemClick(itemKey: string): void {
             :is-saving="isBioLocationSaving"
             :error="bioLocationError"
             @save="handleBioLocationSave"
+          />
+        </div>
+
+        <!-- Langues section -->
+        <div id="section-langues" class="p-6 border-b border-gray-200">
+          <!-- Loading state -->
+          <div v-if="isLanguesLoading" class="flex justify-center py-8">
+            <Loader2 class="animate-spin h-6 w-6 text-teal-600" />
+          </div>
+
+          <LanguesTagInput
+            v-else
+            :langues="languesInfo?.langues ?? null"
+            :is-saving="isLanguesSaving"
+            :error="languesError"
+            :max-langues="MAX_LANGUES"
+            :max-langue-length="MAX_LANGUE_LENGTH"
+            @save="handleLanguesSave"
           />
         </div>
 

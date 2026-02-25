@@ -18,6 +18,7 @@ import type {
   TarifsFormData,
   AvailabilityResponse,
   AvailabilityFormData,
+  LanguesResponse,
   ProfileCompletionResponse,
   BasicInfoResponse,
   BasicInfoFormData,
@@ -400,6 +401,24 @@ export const faceApi = {
   async updateBasicInfo(data: BasicInfoFormData): Promise<BasicInfoResponse> {
     await getCsrfCookie()
     const response = await apiClient.put<BasicInfoResponse>('/face/basic-info', data)
+    return response.data
+  },
+
+  /**
+   * Get the current langues
+   */
+  async getLangues(): Promise<LanguesResponse> {
+    const response = await apiClient.get<LanguesResponse>('/face/langues')
+    return response.data
+  },
+
+  /**
+   * Update langues
+   * @param langues The languages array to save
+   */
+  async updateLangues(langues: string[] | null): Promise<LanguesResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.put<LanguesResponse>('/face/langues', { langues })
     return response.data
   },
 }

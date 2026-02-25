@@ -33,6 +33,7 @@ class ProfileCompletionTest extends TestCase
             'categories' => [],
             'tarif_horaire' => null,
             'tarif_journalier' => null,
+            'langues' => null,
         ]);
         $this->faceUser = User::factory()->create([
             'userable_type' => Face::class,
@@ -64,14 +65,14 @@ class ProfileCompletionTest extends TestCase
             ->assertJsonPath('data.profile_completion_percentage', 0)
             ->assertJsonPath('data.profile_completion_is_complete', false);
 
-        // Should have all 7 missing items
+        // Should have all 8 missing items
         $missing = $response->json('data.profile_completion_missing');
-        $this->assertCount(7, $missing);
+        $this->assertCount(8, $missing);
     }
 
     public function test_partial_profile_shows_correct_percentage(): void
     {
-        // Fill 3 out of 7 fields (profile_photo, bio, ville) = ~43%
+        // Fill 3 out of 8 fields (profile_photo, bio, ville) = ~38%
         $this->face->update([
             'profile_photo' => 'photo.jpg',
             'bio' => 'Test bio',
@@ -82,12 +83,12 @@ class ProfileCompletionTest extends TestCase
             ->getJson('/api/v1/face/profile-completion');
 
         $response->assertOk()
-            ->assertJsonPath('data.profile_completion_percentage', 43) // 3/7 = 42.86% rounds to 43%
+            ->assertJsonPath('data.profile_completion_percentage', 38) // 3/8 = 37.5% rounds to 38%
             ->assertJsonPath('data.profile_completion_is_complete', false);
 
-        // Should have 4 missing items
+        // Should have 5 missing items
         $missing = $response->json('data.profile_completion_missing');
-        $this->assertCount(4, $missing);
+        $this->assertCount(5, $missing);
     }
 
     public function test_complete_profile_shows_hundred_percent(): void
@@ -100,6 +101,7 @@ class ProfileCompletionTest extends TestCase
             'ville' => 'Paris',
             'categories' => [FaceCategory::MANNEQUIN->value],
             'tarif_horaire' => 50000,
+            'langues' => ['Français'],
         ]);
 
         $response = $this->actingAs($this->faceUser)
@@ -132,6 +134,7 @@ class ProfileCompletionTest extends TestCase
         $this->assertContains('ville', $keys);
         $this->assertContains('categories', $keys);
         $this->assertContains('tarifs', $keys);
+        $this->assertContains('langues', $keys);
 
         // Check French labels exist
         $labels = array_column($missing, 'label');
@@ -142,6 +145,7 @@ class ProfileCompletionTest extends TestCase
         $this->assertContains('Ajoutez votre ville', $labels);
         $this->assertContains('Sélectionnez votre catégorie', $labels);
         $this->assertContains('Ajoutez vos tarifs', $labels);
+        $this->assertContains('Ajoutez vos langues parlées', $labels);
     }
 
     public function test_tarif_validation_with_hourly_only(): void
@@ -240,7 +244,7 @@ class ProfileCompletionTest extends TestCase
             ->getJson('/api/v1/face/profile-completion');
 
         $newPercentage = $response2->json('data.profile_completion_percentage');
-        $this->assertEquals(14, $newPercentage); // 1/7 = 14.28% rounds to 14%
+        $this->assertEquals(13, $newPercentage); // 1/8 = 12.5% rounds to 13%
     }
 
     public function test_empty_string_is_treated_as_missing(): void

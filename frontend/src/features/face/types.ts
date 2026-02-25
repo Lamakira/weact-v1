@@ -307,6 +307,25 @@ export interface ProfileCompletionResponse {
   message?: string
 }
 
+// Langues info from API
+export interface LanguesInfo {
+  langues: string[] | null
+}
+
+// Langues API response
+export interface LanguesResponse {
+  data: LanguesInfo
+  message?: string
+}
+
+// Langues operation result
+export interface LanguesResult {
+  success: boolean
+  data?: LanguesInfo
+  errors?: Record<string, string[]>
+  message?: string
+}
+
 // Basic info (nom, prenom, username) from API
 export interface BasicInfo {
   nom: string

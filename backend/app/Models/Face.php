@@ -31,6 +31,7 @@ class Face extends Model
         'sexe',
         'date_naissance',
         'nationalite',
+        'langues',
         'profile_photo',
         'profile_photo_thumbnail',
         'presentation_video',
@@ -58,6 +59,7 @@ class Face extends Model
     protected $casts = [
         'sexe' => FaceGender::class,
         'date_naissance' => 'date',
+        'langues' => 'array',
         'categories' => 'array',
         'niches' => 'array',
         'is_available' => 'boolean',
@@ -284,7 +286,7 @@ class Face extends Model
     /**
      * Get the profile completion percentage (0-100).
      *
-     * Required fields (7 total):
+     * Required fields (8 total):
      * - profile_photo
      * - presentation_video
      * - acting_video
@@ -292,13 +294,14 @@ class Face extends Model
      * - ville
      * - categorie
      * - tarif_horaire OR tarif_journalier (at least one)
+     * - langues
      */
     protected function profileCompletionPercentage(): Attribute
     {
         return Attribute::make(
             get: function (): int {
                 $completed = 0;
-                $total = 7;
+                $total = 8;
 
                 if ($this->profile_photo) {
                     $completed++;
@@ -319,6 +322,9 @@ class Face extends Model
                     $completed++;
                 }
                 if ($this->tarif_horaire !== null || $this->tarif_journalier !== null) {
+                    $completed++;
+                }
+                if (! empty($this->langues)) {
                     $completed++;
                 }
 
@@ -358,6 +364,9 @@ class Face extends Model
                 }
                 if ($this->tarif_horaire === null && $this->tarif_journalier === null) {
                     $missing[] = ['key' => 'tarifs', 'label' => 'Ajoutez vos tarifs'];
+                }
+                if (empty($this->langues)) {
+                    $missing[] = ['key' => 'langues', 'label' => 'Ajoutez vos langues parlées'];
                 }
 
                 return $missing;

@@ -28,6 +28,7 @@ class FaceResource extends JsonResource
             'sexe_label' => $this->sexe?->label(),
             'age' => $this->age,
             'nationalite' => $this->nationalite,
+            'langues' => $this->langues,
             'profile_photo_url' => $this->profile_photo_url,
             'thumbnail_url' => $this->thumbnail_url,
             'presentation_video_url' => $this->presentation_video_url,
