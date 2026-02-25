@@ -324,11 +324,11 @@ async function handleRetry(): Promise<void> {
             />
           </div>
 
-          <!-- Videos Section -->
-          <CandidateVideosSection :candidate="fullProfile" />
-
           <!-- Photo Gallery -->
           <CandidatePhotoGallery :photos="fullProfile.photos" />
+
+          <!-- Videos Section -->
+          <CandidateVideosSection :candidate="fullProfile" />
 
           <!-- Bio and Info -->
           <CandidateInfoSection :candidate="fullProfile" />

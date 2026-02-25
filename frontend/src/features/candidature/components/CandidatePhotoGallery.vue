@@ -94,7 +94,7 @@ function handleKeydown(event: KeyboardEvent): void {
         v-for="(photo, index) in displayPhotos"
         :key="photo.id"
         type="button"
-        class="group relative aspect-square overflow-hidden rounded-xl bg-muted"
+        class="group relative aspect-square overflow-hidden rounded-xl bg-muted border border-gray-200"
         @click="openLightbox(index)"
       >
         <img

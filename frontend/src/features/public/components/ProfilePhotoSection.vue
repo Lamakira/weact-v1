@@ -69,7 +69,7 @@ withDefaults(defineProps<Props>(), {
         class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent pt-12"
         data-testid="album-indicator"
       >
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-2">
           <div
             class="flex items-center gap-2 bg-white/20 backdrop-blur-md px-3 py-2 rounded-lg border border-white/30 text-white"
           >
@@ -80,7 +80,7 @@ withDefaults(defineProps<Props>(), {
           <!-- Registration Tease (guests only) -->
           <div
             v-if="showAlbumLock"
-            class="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-white/90"
+            class="flex items-center gap-1.5 bg-black/30 backdrop-blur-md px-2.5 py-1.5 rounded-lg text-[10px] uppercase tracking-wider font-bold text-white/90"
             aria-label="Album réservé aux producteurs inscrits"
           >
             <Lock :size="12" aria-hidden="true" />
