@@ -16,6 +16,10 @@ export interface FaceRegistrationForm {
   email: string
   password: string
   password_confirmation: string
+  sexe: string
+  date_naissance: string
+  nationalite: string
+  pays: string
 }
 
 // Producer type

@@ -29,6 +29,10 @@ class FaceRegistrationTest extends TestCase
             'email' => 'john@example.com',
             'password' => 'Password123',
             'password_confirmation' => 'Password123',
+            'sexe' => 'homme',
+            'date_naissance' => '1995-06-15',
+            'nationalite' => 'Béninoise',
+            'pays' => 'Bénin',
         ];
     }
 
@@ -169,6 +173,10 @@ class FaceRegistrationTest extends TestCase
                         'username',
                         'email',
                         'password',
+                        'sexe',
+                        'date_naissance',
+                        'nationalite',
+                        'pays',
                     ],
                 ],
             ])
@@ -177,7 +185,11 @@ class FaceRegistrationTest extends TestCase
             ->assertJsonPath('error.details.prenom.0', 'Le prénom est obligatoire')
             ->assertJsonPath('error.details.username.0', 'Le nom d\'utilisateur est obligatoire')
             ->assertJsonPath('error.details.email.0', 'L\'email est obligatoire')
-            ->assertJsonPath('error.details.password.0', 'Le mot de passe est obligatoire');
+            ->assertJsonPath('error.details.password.0', 'Le mot de passe est obligatoire')
+            ->assertJsonPath('error.details.sexe.0', 'Le sexe est obligatoire.')
+            ->assertJsonPath('error.details.date_naissance.0', 'La date de naissance est obligatoire.')
+            ->assertJsonPath('error.details.nationalite.0', 'La nationalité est obligatoire.')
+            ->assertJsonPath('error.details.pays.0', 'Le pays est obligatoire.');
     }
 
     public function test_face_record_is_linked_to_user_via_polymorphic(): void
@@ -191,6 +203,10 @@ class FaceRegistrationTest extends TestCase
             'nom' => 'Doe',
             'prenom' => 'John',
             'username' => 'johndoe',
+            'sexe' => 'homme',
+            'date_naissance' => '1995-06-15',
+            'nationalite' => 'Béninoise',
+            'pays' => 'Bénin',
         ]);
 
         $face = Face::where('username', 'johndoe')->first();
@@ -254,5 +270,64 @@ class FaceRegistrationTest extends TestCase
 
         $this->assertNull($user->email_verified_at);
         $this->assertFalse($user->hasVerifiedEmail());
+    }
+
+    public function test_invalid_sexe_returns_422(): void
+    {
+        $data = $this->validData;
+        $data['sexe'] = 'invalide';
+
+        $response = $this->postJson('/api/v1/auth/register/face', $data);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.details.sexe.0', 'Le sexe sélectionné est invalide.');
+    }
+
+    public function test_future_date_naissance_returns_422(): void
+    {
+        $data = $this->validData;
+        $data['date_naissance'] = now()->addDay()->format('Y-m-d');
+
+        $response = $this->postJson('/api/v1/auth/register/face', $data);
+
+        $response->assertStatus(422)
+            ->assertJsonStructure(['error' => ['details' => ['date_naissance']]]);
+    }
+
+    public function test_underage_date_naissance_returns_422(): void
+    {
+        $data = $this->validData;
+        $data['date_naissance'] = now()->subYears(15)->format('Y-m-d');
+
+        $response = $this->postJson('/api/v1/auth/register/face', $data);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.details.date_naissance.0', 'Vous devez avoir au moins 16 ans pour vous inscrire.');
+    }
+
+    public function test_age_accessor_calculates_correctly(): void
+    {
+        $face = Face::create([
+            'nom' => 'Test',
+            'prenom' => 'Face',
+            'username' => 'testface',
+            'sexe' => 'homme',
+            'date_naissance' => '1995-06-15',
+            'nationalite' => 'Béninoise',
+            'pays' => 'Bénin',
+        ]);
+
+        $this->assertEquals(\Carbon\Carbon::parse('1995-06-15')->age, $face->age);
+    }
+
+    public function test_age_accessor_returns_null_when_no_date_naissance(): void
+    {
+        $face = Face::create([
+            'nom' => 'Test',
+            'prenom' => 'Face',
+            'username' => 'testface2',
+        ]);
+
+        $this->assertNull($face->age);
     }
 }

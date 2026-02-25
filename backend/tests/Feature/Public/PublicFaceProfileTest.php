@@ -139,6 +139,13 @@ class PublicFaceProfileTest extends TestCase
         $this->assertArrayNotHasKey('email', $data);
         $this->assertArrayNotHasKey('experiences', $data);
         $this->assertArrayNotHasKey('photos', $data);
+
+        // Should NOT include personal info fields (producer-only)
+        $this->assertArrayNotHasKey('sexe', $data);
+        $this->assertArrayNotHasKey('sexe_label', $data);
+        $this->assertArrayNotHasKey('age', $data);
+        $this->assertArrayNotHasKey('nationalite', $data);
+        $this->assertArrayNotHasKey('date_naissance', $data);
     }
 
     public function test_has_album_photos_indicator_is_correct(): void

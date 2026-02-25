@@ -244,7 +244,7 @@ describe('HomeView', () => {
     it('renders the missions section title', () => {
       const title = wrapper.find('[data-testid="missions-section-title"]')
       expect(title.exists()).toBe(true)
-      expect(title.text()).toContain('Je recherche des missions en cours')
+      expect(title.text()).toContain('Missions en cours')
     })
 
     it('renders the see all missions link', () => {

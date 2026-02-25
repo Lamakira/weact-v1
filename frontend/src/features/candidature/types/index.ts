@@ -186,6 +186,10 @@ export interface CandidateFullProfile {
   nom: string
   prenom: string
   username: string | null
+  sexe: string | null
+  sexe_label: string | null
+  age: number | null
+  nationalite: string | null
   profile_photo_url: string | null
   thumbnail_url: string | null
   presentation_video_url: string | null

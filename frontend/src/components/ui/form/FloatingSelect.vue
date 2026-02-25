@@ -53,7 +53,7 @@ const onChange = (event: Event) => {
             ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-200'
             : 'border-gray-300 focus:border-weact focus:ring-2 focus:ring-weact/20',
           'py-3 text-sm',
-          !hasValue ? 'text-gray-400' : '',
+          !hasValue ? 'text-transparent focus:text-gray-400' : '',
         ]"
       >
         <option v-if="placeholder" value="" disabled>{{ placeholder }}</option>
@@ -106,7 +106,7 @@ const onChange = (event: Event) => {
     </div>
 
     <!-- Error Message -->
-    <p v-if="error" class="mt-1 text-sm text-red-600">
+    <p v-if="error" :id="`${id}-error`" :data-testid="`${id}-error`" class="mt-1 text-sm text-red-600">
       {{ error }}
     </p>
   </div>

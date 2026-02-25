@@ -40,11 +40,57 @@ export const faceRegistrationSchema = z
     password_confirmation: z
       .string({ message: 'La confirmation du mot de passe est obligatoire' })
       .min(1, 'La confirmation du mot de passe est obligatoire'),
+
+    sexe: z
+      .string({ message: 'Le sexe est obligatoire.' })
+      .min(1, 'Le sexe est obligatoire.')
+      .refine((val) => ['homme', 'femme', 'autre'].includes(val), {
+        message: 'Le sexe sélectionné est invalide.',
+      }),
+
+    date_naissance: z
+      .string({ message: 'La date de naissance est obligatoire.' })
+      .min(1, 'La date de naissance est obligatoire.'),
+
+    nationalite: z
+      .string({ message: 'La nationalité est obligatoire.' })
+      .min(1, 'La nationalité est obligatoire.')
+      .max(100, 'La nationalité ne peut pas dépasser 100 caractères.'),
+
+    pays: z
+      .string({ message: 'Le pays est obligatoire.' })
+      .min(1, 'Le pays est obligatoire.')
+      .max(100, 'Le pays ne peut pas dépasser 100 caractères.'),
   })
   .refine((data) => data.password === data.password_confirmation, {
     message: 'La confirmation du mot de passe ne correspond pas',
     path: ['password_confirmation'],
   })
+  .refine(
+    (data) => {
+      if (!data.date_naissance) return true
+      const birthDate = new Date(data.date_naissance)
+      const today = new Date()
+      return birthDate < today
+    },
+    {
+      message: 'La date de naissance doit être antérieure à aujourd\'hui.',
+      path: ['date_naissance'],
+    }
+  )
+  .refine(
+    (data) => {
+      if (!data.date_naissance) return true
+      const birthDate = new Date(data.date_naissance)
+      const minDate = new Date()
+      minDate.setFullYear(minDate.getFullYear() - 16)
+      return birthDate <= minDate
+    },
+    {
+      message: 'Vous devez avoir au moins 16 ans pour vous inscrire.',
+      path: ['date_naissance'],
+    }
+  )
 
 /**
  * Typed schema for VeeValidate

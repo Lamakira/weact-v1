@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Auth;
 
+use App\Enums\FaceGender;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 class RegisterFaceRequest extends FormRequest
@@ -38,6 +40,10 @@ class RegisterFaceRequest extends FormRequest
                 'regex:/^(?=.*[A-Z])(?=.*\d).+$/',
                 'confirmed',
             ],
+            'sexe' => ['required', Rule::enum(FaceGender::class)],
+            'date_naissance' => ['required', 'date', 'before_or_equal:'.now()->subYears(16)->format('Y-m-d')],
+            'nationalite' => ['required', 'string', 'max:100'],
+            'pays' => ['required', 'string', 'max:100'],
         ];
     }
 
@@ -63,6 +69,15 @@ class RegisterFaceRequest extends FormRequest
             'password.min' => 'Le mot de passe doit contenir au moins 8 caractères',
             'password.regex' => 'Le mot de passe doit contenir au moins une majuscule et un chiffre',
             'password.confirmed' => 'La confirmation du mot de passe ne correspond pas',
+            'sexe.required' => 'Le sexe est obligatoire.',
+            'sexe.enum' => 'Le sexe sélectionné est invalide.',
+            'date_naissance.required' => 'La date de naissance est obligatoire.',
+            'date_naissance.date' => 'La date de naissance doit être une date valide.',
+            'date_naissance.before_or_equal' => 'Vous devez avoir au moins 16 ans pour vous inscrire.',
+            'nationalite.required' => 'La nationalité est obligatoire.',
+            'nationalite.max' => 'La nationalité ne peut pas dépasser :max caractères.',
+            'pays.required' => 'Le pays est obligatoire.',
+            'pays.max' => 'Le pays ne peut pas dépasser :max caractères.',
         ];
     }
 

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\FaceCategory;
+use App\Enums\FaceGender;
 use App\Enums\FaceNiche;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -26,6 +28,9 @@ class Face extends Model
         'nom',
         'prenom',
         'username',
+        'sexe',
+        'date_naissance',
+        'nationalite',
         'profile_photo',
         'profile_photo_thumbnail',
         'presentation_video',
@@ -51,6 +56,8 @@ class Face extends Model
      * @var array<string, string>
      */
     protected $casts = [
+        'sexe' => FaceGender::class,
+        'date_naissance' => 'date',
         'categories' => 'array',
         'niches' => 'array',
         'is_available' => 'boolean',
@@ -101,6 +108,18 @@ class Face extends Model
 
                 return $fullName !== '' ? $fullName : ($this->username ?? 'Face');
             },
+        );
+    }
+
+    /**
+     * Get the age calculated from date_naissance.
+     */
+    protected function age(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?int => $this->date_naissance
+                ? Carbon::parse($this->date_naissance)->age
+                : null,
         );
     }
 

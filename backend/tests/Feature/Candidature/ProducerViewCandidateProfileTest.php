@@ -6,6 +6,7 @@ namespace Tests\Feature\Candidature;
 
 use App\Enums\CandidatureStatus;
 use App\Enums\FaceCategory;
+use App\Enums\FaceGender;
 use App\Enums\FaceNiche;
 use App\Enums\MissionStatus;
 use App\Models\Candidature;
@@ -352,6 +353,49 @@ class ProducerViewCandidateProfileTest extends TestCase
             ->assertJson([
                 'message' => 'Vous ne pouvez consulter que les profils des candidats ayant postulé à vos missions',
             ]);
+    }
+
+    public function test_candidate_profile_includes_personal_info_fields(): void
+    {
+        // Update face with personal info
+        $this->face->update([
+            'sexe' => FaceGender::HOMME->value,
+            'date_naissance' => '1995-06-15',
+            'nationalite' => 'Béninoise',
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/candidates/{$this->face->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.sexe', 'homme')
+            ->assertJsonPath('data.sexe_label', 'Homme')
+            ->assertJsonPath('data.age', \Carbon\Carbon::parse('1995-06-15')->age)
+            ->assertJsonPath('data.nationalite', 'Béninoise')
+            ->assertJsonPath('data.pays', 'Bénin');
+    }
+
+    public function test_candidate_profile_returns_null_for_missing_personal_info(): void
+    {
+        // Face without personal info (existing data)
+        $minimalFace = Face::factory()->create([
+            'nom' => 'NoPersInfo',
+            'prenom' => 'Face',
+        ]);
+
+        Candidature::factory()->create([
+            'mission_id' => $this->mission->id,
+            'face_id' => $minimalFace->id,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/candidates/{$minimalFace->id}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.sexe', null)
+            ->assertJsonPath('data.sexe_label', null)
+            ->assertJsonPath('data.age', null)
+            ->assertJsonPath('data.nationalite', null);
     }
 
     public function test_empty_photos_and_experiences_return_empty_arrays(): void

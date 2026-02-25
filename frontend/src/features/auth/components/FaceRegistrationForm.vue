@@ -4,8 +4,8 @@ import { useForm, useField } from 'vee-validate'
 import { faceRegistrationValidationSchema } from '../schemas/faceRegistration'
 import { useAuth } from '../composables/useAuth'
 import type { FaceRegistrationForm as FormData } from '../types'
-import { FloatingField } from '@/components/ui/form'
-import { User, AtSign, Mail, Lock } from 'lucide-vue-next'
+import { FloatingField, FloatingSelect } from '@/components/ui/form'
+import { User, AtSign, Mail, Lock, Calendar, Globe, MapPin, Users } from 'lucide-vue-next'
 
 const emit = defineEmits<{
   success: []
@@ -15,6 +15,13 @@ const { registerFace, isLoading } = useAuth()
 
 // API error message (general)
 const apiError = ref<string | null>(null)
+
+// Gender options
+const sexeOptions = [
+  { value: 'homme', label: 'Homme' },
+  { value: 'femme', label: 'Femme' },
+  { value: 'autre', label: 'Autre' },
+]
 
 // Form setup with VeeValidate
 const { handleSubmit, setFieldError } = useForm<FormData>({
@@ -26,6 +33,10 @@ const { handleSubmit, setFieldError } = useForm<FormData>({
     email: '',
     password: '',
     password_confirmation: '',
+    sexe: '',
+    date_naissance: '',
+    nationalite: '',
+    pays: 'Bénin',
   },
 })
 
@@ -37,6 +48,10 @@ const { value: email, errorMessage: emailError } = useField<string>('email')
 const { value: password, errorMessage: passwordError } = useField<string>('password')
 const { value: password_confirmation, errorMessage: passwordConfirmationError } =
   useField<string>('password_confirmation')
+const { value: sexe, errorMessage: sexeError } = useField<string>('sexe')
+const { value: date_naissance, errorMessage: dateNaissanceError } = useField<string>('date_naissance')
+const { value: nationalite, errorMessage: nationaliteError } = useField<string>('nationalite')
+const { value: pays, errorMessage: paysError } = useField<string>('pays')
 
 // Submit handler
 const onSubmit = handleSubmit(async (values) => {
@@ -111,6 +126,52 @@ const onSubmit = handleSubmit(async (values) => {
       autocomplete="username"
       data-testid="username-input"
     />
+
+    <!-- Sexe + Date de naissance (same row) -->
+    <div class="grid grid-cols-2 gap-4">
+      <FloatingSelect
+        id="sexe"
+        v-model="sexe"
+        label="Sexe"
+        :icon="Users"
+        :options="sexeOptions"
+        :error="sexeError"
+        required
+        data-testid="sexe-select"
+      />
+      <FloatingField
+        id="date_naissance"
+        v-model="date_naissance"
+        type="date"
+        label="Date de naissance"
+        :icon="Calendar"
+        :error="dateNaissanceError"
+        required
+        data-testid="date-naissance-input"
+      />
+    </div>
+
+    <!-- Nationalité + Pays (same row) -->
+    <div class="grid grid-cols-2 gap-4">
+      <FloatingField
+        id="nationalite"
+        v-model="nationalite"
+        label="Nationalité"
+        :icon="Globe"
+        :error="nationaliteError"
+        required
+        data-testid="nationalite-input"
+      />
+      <FloatingField
+        id="pays"
+        v-model="pays"
+        label="Pays"
+        :icon="MapPin"
+        :error="paysError"
+        required
+        data-testid="pays-input"
+      />
+    </div>
 
     <!-- Email -->
     <FloatingField

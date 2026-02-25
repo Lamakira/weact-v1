@@ -53,12 +53,16 @@ describe('FaceRegistrationForm', () => {
     })
   }
 
-  it('renders all form fields', () => {
+  it('renders all form fields including personal info', () => {
     const wrapper = mountComponent()
 
     expect(wrapper.find('[data-testid="nom-input"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="prenom-input"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="username-input"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="sexe-select"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="date-naissance-input"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="nationalite-input"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="pays-input"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="email-input"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="password-input"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="password-confirmation-input"]').exists()).toBe(true)
@@ -76,6 +80,9 @@ describe('FaceRegistrationForm', () => {
     expect(wrapper.find('[data-testid="nom-error"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="prenom-error"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="username-error"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="sexe-error"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="date_naissance-error"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="nationalite-error"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="email-error"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="password-error"]').exists()).toBe(true)
   })
@@ -127,6 +134,14 @@ describe('FaceRegistrationForm', () => {
     expect(wrapper.find('[data-testid="email-input"]').attributes('type')).toBe('email')
     expect(wrapper.find('[data-testid="password-input"]').attributes('type')).toBe('password')
     expect(wrapper.find('[data-testid="password-confirmation-input"]').attributes('type')).toBe('password')
+  })
+
+  it('pre-fills pays with Bénin', () => {
+    const wrapper = mountComponent()
+
+    const paysInput = wrapper.find('[data-testid="pays-input"]')
+    expect(paysInput.exists()).toBe(true)
+    expect((paysInput.element as HTMLInputElement).value).toBe('Bénin')
   })
 
   it('has correct autocomplete attributes', () => {
