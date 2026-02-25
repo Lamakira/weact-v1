@@ -278,19 +278,27 @@ async function handleRetry(): Promise<void> {
           </aside>
 
           <!-- Info Section (Right on desktop, bottom on mobile) -->
-          <article class="bg-white rounded-2xl p-6 md:p-8 border border-gray-100 shadow-sm">
-            <ProfileInfoSection
-              :prenom="face.prenom"
-              :ville="face.ville"
-              :categories="face.categories"
-              :niches="face.niches"
-              :average-rating="face.average_rating"
-              :ratings-count="face.ratings_count"
-              :has-videos="hasVideos"
-              :videos-count="videosCount"
-              :access-level="accessLevel"
+          <div class="space-y-6">
+            <article class="bg-white rounded-2xl p-6 md:p-8 border border-gray-100 shadow-sm">
+              <ProfileInfoSection
+                :prenom="face.prenom"
+                :ville="face.ville"
+                :categories="face.categories"
+                :niches="face.niches"
+                :average-rating="face.average_rating"
+                :ratings-count="face.ratings_count"
+                :has-videos="hasVideos"
+                :videos-count="videosCount"
+                :access-level="accessLevel"
+              />
+            </article>
+
+            <!-- Resume Summary (producer only, inside right column on desktop) -->
+            <CandidateResumeSummary
+              v-if="accessLevel === 'producer_with_access' && fullProfile"
+              :candidate="fullProfile"
             />
-          </article>
+          </div>
         </div>
 
         <!-- GUEST: Locked Content Teasers -->
@@ -317,9 +325,6 @@ async function handleRetry(): Promise<void> {
 
         <!-- PRODUCER WITH ACCESS: Full Profile -->
         <template v-else-if="accessLevel === 'producer_with_access' && fullProfile">
-          <!-- Resume Summary -->
-          <CandidateResumeSummary :candidate="fullProfile" />
-
           <!-- Rating Display -->
           <div class="px-2">
             <RatingDisplay
