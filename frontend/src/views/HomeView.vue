@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { MapPin, ChevronRight, ChevronLeft, Users } from 'lucide-vue-next'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -96,29 +96,12 @@ function prevMission(): void {
   scrollToMission(prevIndex)
 }
 
-// Detect overflowing badges and activate scroll animation
-function initBadgeScrolls(): void {
-  if (!missionCarouselRef.value) return
-  const badges = missionCarouselRef.value.querySelectorAll('.badge-scroll-text')
-  badges.forEach((el) => {
-    const parent = el.parentElement
-    if (!parent) return
-    const overflow = (el as HTMLElement).scrollWidth - parent.clientWidth
-    if (overflow > 0) {
-      ;(el as HTMLElement).style.setProperty('--scroll-distance', `-${overflow}px`)
-      el.classList.add('badge-scrolling')
-    }
-  })
-}
-
-// Start on 2nd mission when there are 3+ missions + init badge scrolls
-watch(missions, async (list) => {
-  await nextTick()
+// Start on 2nd mission when there are 3+ missions
+watch(missions, (list) => {
   if (list.length >= 3) {
     scrollToMission(1)
   }
-  initBadgeScrolls()
-})
+}, { flush: 'post' })
 
 function handleMissionScroll(): void {
   if (!missionCarouselRef.value) return
@@ -535,15 +518,10 @@ function formatDate(date: string): string {
                 <!-- Main Info -->
                 <div class="flex-1 p-5 md:p-6">
                   <div class="flex items-center gap-3 mb-3">
-                    <span class="inline-flex max-w-[140px] overflow-hidden text-xs font-semibold px-2.5 py-0.5 rounded bg-[#198496]/10 text-[#198496]">
-                      <span class="whitespace-nowrap badge-scroll-text">
-                        {{ mission.type_mission_label }}
-                      </span>
+                    <span class="hidden md:inline text-xs font-semibold px-2.5 py-0.5 rounded bg-[#198496]/10 text-[#198496]">
+                      {{ mission.type_mission_label }}
                     </span>
-                    <span class="text-sm font-bold text-[#198496] ml-auto md:hidden">
-                      {{ formatBudget(mission.budget) }}
-                    </span>
-                    <span v-if="mission.date_tournage" class="hidden md:inline text-xs text-gray-400">
+                    <span v-if="mission.date_tournage" class="text-xs text-gray-400">
                       {{ formatDate(mission.date_tournage) }}
                     </span>
                   </div>
@@ -553,8 +531,11 @@ function formatDate(date: string): string {
                   </h3>
                   <p class="text-sm text-gray-500 line-clamp-2 mb-3 md:mb-4">{{ mission.description }}</p>
 
-                  <!-- Mobile: compact info row -->
-                  <div class="flex items-center gap-4 text-xs text-gray-400 mb-3 md:hidden">
+                  <!-- Mobile: compact info row with badge -->
+                  <div class="flex items-center gap-3 flex-wrap text-xs text-gray-400 mb-3 md:hidden">
+                    <span class="text-xs font-semibold px-2.5 py-0.5 rounded bg-[#198496]/10 text-[#198496]">
+                      {{ mission.type_mission_label }}
+                    </span>
                     <div class="flex items-center gap-1">
                       <MapPin class="w-3.5 h-3.5" />
                       {{ mission.lieu }}
@@ -573,7 +554,7 @@ function formatDate(date: string): string {
 
                   <!-- Mobile: bottom -->
                   <div class="flex items-center justify-between pt-3 border-t border-gray-100 md:hidden">
-                    <span class="text-xs text-gray-400">{{ mission.genre_voulu_label }}</span>
+                    <span class="text-sm font-bold text-[#198496]">{{ formatBudget(mission.budget) }}</span>
                     <span class="text-xs font-medium text-[#198496] flex items-center gap-0.5">
                       Voir détails
                       <ChevronRight class="w-3.5 h-3.5" />
@@ -807,21 +788,6 @@ function formatDate(date: string): string {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-/* Badge scroll — activated by JS only when text overflows */
-.badge-scroll-text {
-  display: inline-block;
-}
-
-.badge-scrolling {
-  animation: badge-scroll 5s ease-in-out 1s infinite;
-}
-
-@keyframes badge-scroll {
-  0%, 15% { transform: translateX(0); }
-  35%, 65% { transform: translateX(var(--scroll-distance)); }
-  85%, 100% { transform: translateX(0); }
 }
 
 /* Perspective transition (300ms fade/slide) */
