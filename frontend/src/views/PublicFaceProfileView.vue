@@ -12,6 +12,7 @@ import LockedContentTeaser from '@/features/public/components/LockedContentTease
 import CandidateVideosSection from '@/features/candidature/components/CandidateVideosSection.vue'
 import CandidatePhotoGallery from '@/features/candidature/components/CandidatePhotoGallery.vue'
 import CandidateInfoSection from '@/features/candidature/components/CandidateInfoSection.vue'
+import CandidateResumeSummary from '@/features/candidature/components/CandidateResumeSummary.vue'
 import CandidateExperiencesSection from '@/features/candidature/components/CandidateExperiencesSection.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import ReviewsList from '@/components/ReviewsList.vue'
@@ -316,6 +317,9 @@ async function handleRetry(): Promise<void> {
 
         <!-- PRODUCER WITH ACCESS: Full Profile -->
         <template v-else-if="accessLevel === 'producer_with_access' && fullProfile">
+          <!-- Resume Summary -->
+          <CandidateResumeSummary :candidate="fullProfile" />
+
           <!-- Rating Display -->
           <div class="px-2">
             <RatingDisplay
