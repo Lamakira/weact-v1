@@ -354,3 +354,33 @@ export interface BasicInfoResult {
   message?: string
 }
 
+// Personal info (sexe, date_naissance, nationalite, pays) from API
+export interface PersonalInfoInfo {
+  sexe: string | null
+  date_naissance: string | null
+  nationalite: string | null
+  pays: string | null
+}
+
+// Personal info API response
+export interface PersonalInfoResponse {
+  data: PersonalInfoInfo
+  message?: string
+}
+
+// Personal info form data for update
+export interface PersonalInfoFormData {
+  sexe?: string | null
+  date_naissance?: string | null
+  nationalite?: string | null
+  pays?: string | null
+}
+
+// Personal info operation result
+export interface PersonalInfoResult {
+  success: boolean
+  data?: PersonalInfoInfo
+  errors?: Record<string, string[]>
+  message?: string
+}
+

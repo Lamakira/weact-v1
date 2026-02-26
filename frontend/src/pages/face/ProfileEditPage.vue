@@ -7,6 +7,7 @@ import { usePresentationVideo } from '@/features/face/composables/usePresentatio
 import { useActingVideo } from '@/features/face/composables/useActingVideo'
 import { useBioLocation } from '@/features/face/composables/useBioLocation'
 import { useLangues } from '@/features/face/composables/useLangues'
+import { usePersonalInfo } from '@/features/face/composables/usePersonalInfo'
 import { usePhysicalCharacteristics } from '@/features/face/composables/usePhysicalCharacteristics'
 import { useCategoryNiche } from '@/features/face/composables/useCategoryNiche'
 import { useExperiences } from '@/features/face/composables/useExperiences'
@@ -20,6 +21,7 @@ import AlbumPhotoUpload from '@/features/face/components/AlbumPhotoUpload.vue'
 import PresentationVideoUpload from '@/features/face/components/PresentationVideoUpload.vue'
 import ActingVideoUpload from '@/features/face/components/ActingVideoUpload.vue'
 import LanguesTagInput from '@/features/face/components/LanguesTagInput.vue'
+import PersonalInfoForm from '@/features/face/components/PersonalInfoForm.vue'
 import BioLocationForm from '@/features/face/components/BioLocationForm.vue'
 import PhysicalCharacteristicsForm from '@/features/face/components/PhysicalCharacteristicsForm.vue'
 import CategoryNicheForm from '@/features/face/components/CategoryNicheForm.vue'
@@ -104,6 +106,16 @@ const {
   MAX_LANGUES,
   MAX_LANGUE_LENGTH,
 } = useLangues()
+
+// Personal info composable
+const {
+  personalInfo,
+  isLoading: isPersonalInfoLoading,
+  isSaving: isPersonalInfoSaving,
+  error: personalInfoError,
+  fetchPersonalInfo,
+  updatePersonalInfo,
+} = usePersonalInfo()
 
 // Physical characteristics composable
 const {
@@ -192,6 +204,7 @@ onMounted(async () => {
     fetchActingVideoInfo(),
     fetchBioLocation(),
     fetchLangues(),
+    fetchPersonalInfo(),
     fetchPhysicalCharacteristics(),
     fetchCategoryNiche(),
     fetchExperiences(),
@@ -346,6 +359,22 @@ async function handleLanguesSave(langues: string[] | null): Promise<void> {
   if (result.success) {
     toast.success(result.message || 'Langues mises à jour avec succès')
     await fetchCompletion()
+  }
+}
+
+/**
+ * Handle personal info save
+ */
+async function handlePersonalInfoSave(data: {
+  sexe: string | null
+  date_naissance: string | null
+  nationalite: string | null
+  pays: string | null
+}): Promise<void> {
+  const result = await updatePersonalInfo(data)
+
+  if (result.success) {
+    toast.success(result.message || 'Informations personnelles mises à jour avec succès')
   }
 }
 
@@ -590,6 +619,28 @@ function handleCompletionItemClick(itemKey: string): void {
         <!-- Basic info section (name/username) -->
         <div class="mb-6">
           <BasicInfoSection />
+        </div>
+
+        <!-- Personal info section (sexe, date_naissance, nationalite, pays) -->
+        <div id="section-personal-info" class="mb-6 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-100">
+            <h2 class="text-lg font-semibold text-gray-900">Identité</h2>
+            <p class="text-sm text-gray-500 mt-1">Sexe, date de naissance, nationalité et pays de résidence</p>
+          </div>
+          <div class="p-6">
+            <!-- Loading state -->
+            <div v-if="isPersonalInfoLoading" class="flex justify-center py-8">
+              <Loader2 class="animate-spin h-6 w-6 text-teal-600" />
+            </div>
+
+            <PersonalInfoForm
+              v-else
+              :personal-info="personalInfo"
+              :is-saving="isPersonalInfoSaving"
+              :error="personalInfoError"
+              @save="handlePersonalInfoSave"
+            />
+          </div>
         </div>
 
         <!-- Account security section -->

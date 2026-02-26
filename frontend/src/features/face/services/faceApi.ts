@@ -22,6 +22,8 @@ import type {
   ProfileCompletionResponse,
   BasicInfoResponse,
   BasicInfoFormData,
+  PersonalInfoResponse,
+  PersonalInfoFormData,
 } from '../types'
 
 /**
@@ -419,6 +421,24 @@ export const faceApi = {
   async updateLangues(langues: string[] | null): Promise<LanguesResponse> {
     await getCsrfCookie()
     const response = await apiClient.put<LanguesResponse>('/face/langues', { langues })
+    return response.data
+  },
+
+  /**
+   * Get the current personal info (sexe, date_naissance, nationalite, pays)
+   */
+  async getPersonalInfo(): Promise<PersonalInfoResponse> {
+    const response = await apiClient.get<PersonalInfoResponse>('/face/personal-info')
+    return response.data
+  },
+
+  /**
+   * Update personal info (sexe, date_naissance, nationalite, pays)
+   * @param data The personal info data to update
+   */
+  async updatePersonalInfo(data: PersonalInfoFormData): Promise<PersonalInfoResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.put<PersonalInfoResponse>('/face/personal-info', data)
     return response.data
   },
 }

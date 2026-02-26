@@ -1,0 +1,151 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature\Face;
+
+use App\Enums\FaceGender;
+use App\Models\Face;
+use App\Models\Producer;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class PersonalInfoTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private User $faceUser;
+
+    private Face $face;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Create a Face user
+        $this->face = Face::factory()->create();
+        $this->faceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $this->face->id,
+        ]);
+    }
+
+    public function test_can_get_personal_info(): void
+    {
+        $this->face->update([
+            'sexe' => FaceGender::HOMME->value,
+            'date_naissance' => '1995-06-15',
+            'nationalite' => 'Béninoise',
+            'pays' => 'Bénin',
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/personal-info');
+
+        $response->assertOk()
+            ->assertJsonStructure([
+                'data' => [
+                    'sexe',
+                    'date_naissance',
+                    'nationalite',
+                    'pays',
+                ],
+            ])
+            ->assertJsonPath('data.sexe', 'homme')
+            ->assertJsonPath('data.date_naissance', '1995-06-15')
+            ->assertJsonPath('data.nationalite', 'Béninoise')
+            ->assertJsonPath('data.pays', 'Bénin');
+    }
+
+    public function test_can_update_personal_info(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', [
+                'sexe' => 'femme',
+                'date_naissance' => '1990-03-20',
+                'nationalite' => 'Togolaise',
+                'pays' => 'Togo',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.sexe', 'femme')
+            ->assertJsonPath('data.date_naissance', '1990-03-20')
+            ->assertJsonPath('data.nationalite', 'Togolaise')
+            ->assertJsonPath('data.pays', 'Togo')
+            ->assertJsonPath('message', 'Informations personnelles mises à jour avec succès');
+
+        $this->assertDatabaseHas('faces', [
+            'id' => $this->face->id,
+            'sexe' => 'femme',
+            'nationalite' => 'Togolaise',
+            'pays' => 'Togo',
+        ]);
+    }
+
+    public function test_can_update_single_field(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', [
+                'sexe' => 'homme',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.sexe', 'homme')
+            ->assertJsonPath('message', 'Informations personnelles mises à jour avec succès');
+
+        $this->assertDatabaseHas('faces', [
+            'id' => $this->face->id,
+            'sexe' => 'homme',
+        ]);
+    }
+
+    public function test_rejects_invalid_sexe(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', [
+                'sexe' => 'invalide',
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['sexe'])
+            ->assertJsonPath('errors.sexe.0', 'Le sexe sélectionné est invalide.');
+    }
+
+    public function test_rejects_too_young_date_naissance(): void
+    {
+        $tooYoung = now()->subYears(10)->format('Y-m-d');
+
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', [
+                'date_naissance' => $tooYoung,
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['date_naissance'])
+            ->assertJsonPath('errors.date_naissance.0', 'Vous devez avoir au moins 16 ans.');
+    }
+
+    public function test_rejects_non_face_user(): void
+    {
+        $producer = Producer::factory()->create();
+        $producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+
+        $response = $this->actingAs($producerUser)
+            ->getJson('/api/v1/face/personal-info');
+
+        $response->assertForbidden()
+            ->assertJsonPath('error.code', 'FORBIDDEN')
+            ->assertJsonPath('error.message', 'Accès réservé aux Faces');
+    }
+
+    public function test_rejects_unauthenticated(): void
+    {
+        $response = $this->getJson('/api/v1/face/personal-info');
+
+        $response->assertUnauthorized();
+    }
+}
