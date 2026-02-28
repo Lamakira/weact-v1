@@ -1,10 +1,10 @@
 ---
 project_name: 'WEACT'
 user_name: 'Amakira'
-date: '2026-01-06'
-sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'code_quality', 'workflow_rules', 'critical_rules']
+date: '2026-02-28'
+sections_completed: ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'code_quality', 'workflow_rules', 'critical_rules', 'booking_rules']
 status: 'complete'
-rule_count: 75
+rule_count: 95
 optimized_for_llm: true
 ---
 
@@ -21,6 +21,8 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Laravel** 12 (REST API, not Inertia)
 - **MySQL** 8.0+
 - **Laravel Sanctum** 4.x (token-based, not cookie-based)
+- **Laravel Reverb** (self-hosted WebSocket server for booking chat)
+- **Fedapay PHP SDK** (Mobile Money payments: MTN MoMo, Moov Money, Celtiis)
 
 ### Frontend
 - **Vue** 3 with Composition API only (no Options API)
@@ -29,6 +31,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Vue Router** for routing
 - **Tailwind CSS** 4.1 with `@tailwindcss/vite` plugin (CSS-based config, no tailwind.config.js)
 - **Vite** 6.x for build
+- **Laravel Echo** + **Pusher JS** (WebSocket client for Reverb)
 
 ### Forms & Validation
 - **VeeValidate** + **Zod** (frontend)
@@ -56,7 +59,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Add `declare(strict_types=1);` to all PHP files
 - Use PHP 8.2+ features: readonly properties, enums, named arguments
 - Type hint all method parameters and return types
-- Use PHP Enums for status values (UserType, MissionStatus, CandidatureStatus)
+- Use PHP Enums for status values (UserType, MissionStatus, CandidatureStatus, BookingStatus, FinancialEventType)
 - Prefer constructor property promotion for DTOs and value objects
 
 ### Framework-Specific Rules
@@ -103,7 +106,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 #### Coverage Requirements
 - Minimum 80% coverage for business logic (Services, Composables)
 - All API endpoints must have at least one happy path and one error test
-- Critical workflows (candidature, mission lifecycle) require integration tests
+- Critical workflows (candidature, mission lifecycle, booking state machine, payment/escrow) require integration tests
 
 ### Code Quality & Style Rules
 
@@ -178,10 +181,25 @@ _This file contains critical rules and patterns that AI agents must follow when 
 ### Critical Don't-Miss Rules
 
 #### WEACT-Specific Business Rules
-- **Chat access**: Only unlocked AFTER candidature is accepted (never before)
-- **Ratings**: Only possible AFTER mission is marked "Terminée" (completed)
+- **Chat access (Missions)**: Only unlocked AFTER candidature is accepted (never before)
+- **Chat access (Bookings)**: Only unlocked AFTER Producer payment is confirmed (never before)
+- **Ratings**: Only possible AFTER mission/booking is marked completed
 - **Mission confirmation**: Face must confirm after Producer accepts (2-step validation)
-- **Wallet**: UI present but functionality inactive for MVP (architecture ready for V2)
+- **Booking confirmation**: Both parties must confirm completion (double confirmation). Auto-complete after 72h if Producer doesn't confirm
+- **Wallet**: Active for Booking domain — Face receives escrow release into wallet balance. Withdrawals via Fedapay to Mobile Money
+
+#### Booking & Payment Business Rules
+- **State machine**: ALL booking state transitions go through `BookingService` — never set status directly on model
+- **Financial atomicity**: ALL money-touching operations wrapped in `DB::transaction()` with a `FinancialEvent` record
+- **Pricing**: ALL amount calculations via `BookingPricing` Value Object — never hardcode commission math (15% Face + 15% Producer)
+- **Server-side validation**: Frontend displays pricing preview, but server ALWAYS recalculates amounts via `BookingPricing`
+- **Idempotency**: Every financial operation uses a UUID `idempotency_key` to prevent duplicate charges/refunds
+- **Webhook processing**: Fedapay webhooks are idempotent (check `fedapay_event_id`), return 200 fast, process in queued jobs
+- **Escrow model**: Virtual ledger in DB (`escrow_transactions` table). Fedapay holds real money in one account, our DB tracks state per booking
+- **Wallet balance**: Running `balance` column on User model + `wallet_transactions` log. Updated atomically in DB transaction
+- **Service ownership**: `BookingService` owns `bookings`, `EscrowService` owns `escrow_transactions`, `WalletService` owns `wallet_transactions` + `balance`
+- **Cancellation fees**: Pre-acceptance = full refund, post-acceptance = 15% retained by WEACT
+- **Minimum booking**: 4 hours minimum duration enforced in `CreateBookingRequest`
 
 #### Anti-Patterns to Avoid
 
@@ -191,6 +209,11 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - ❌ Never skip Form Request validation - even for simple endpoints
 - ❌ Never use `$request->all()` - explicitly list allowed fields
 - ❌ Never expose internal IDs in URLs without authorization checks
+- ❌ Never set `$booking->status` directly — always use `BookingService` transitions
+- ❌ Never execute financial operations outside `DB::transaction()`
+- ❌ Never calculate booking amounts with hardcoded math — use `BookingPricing`
+- ❌ Never process Fedapay webhooks without idempotency check (`fedapay_event_id`)
+- ❌ Never mix booking logic into Mission controllers/services — separate domains
 
 **Frontend:**
 - ❌ Never use Options API - only Composition API with `<script setup>`
@@ -198,6 +221,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - ❌ Never call API directly in components - use composables/services
 - ❌ Never store sensitive data in Pinia (tokens go in httpOnly cookies or secure storage)
 - ❌ Never hardcode API URLs - use environment variables
+- ❌ Never trust frontend-calculated booking amounts — server recalculates
 
 #### Security Rules
 - All file uploads must validate: type, size (50MB max for video), and scan for malicious content
@@ -213,11 +237,32 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Compress images client-side before upload
 - Target <300KB initial bundle, <2s load on 4G
 
+#### Real-Time (Laravel Reverb) Rules
+- Reverb runs as Supervisor-managed process on same VPS: `php artisan reverb:start`
+- WebSocket proxied via Nginx on port 8080 with SSL termination at `/ws/`
+- Booking chat channels: `private-booking.{id}` — authorized for Producer + Face only
+- Event names: dot-separated lowercase (`message.sent`, `booking.status_changed`)
+- Frontend: Laravel Echo listens with `.` prefix (`.message.sent`)
+- Broadcast events implement `ShouldBroadcast` interface
+
+#### Booking Naming Conventions
+- Events: `Booking{Action}` (`BookingCreated`, `BookingPaid`, `EscrowReleased`)
+- Notifications: `Booking{Action}Notification` (`BookingAcceptedNotification`)
+- Services: `{Domain}Service` (`BookingService`, `FedapayService`, `EscrowService`, `WalletService`)
+- Form Requests: `{Action}BookingRequest` (`CreateBookingRequest`, `CancelBookingRequest`)
+- Composables: `useBooking{Feature}` (`useBookingChat`, `useBookingPayment`)
+- API Routes: `POST /api/v1/bookings/{id}/{action}` for state transitions
+
 #### Edge Cases
 - User can be either Face OR Producer, never both (polymorphic exclusive)
 - Admin is a separate model, not a User role
 - Mission can have multiple accepted candidatures (up to `nombre_faces_voulu`)
 - Face availability toggle affects visibility in search results
+- Booking and Mission are parallel workflows — they share User/Face/Producer models but have completely separate controllers, services, and tables
+- Face cancellation after payment triggers refund; Producer cancellation after acceptance retains 15%
+- Face gets -1 star rating penalty when Face cancels a booking (not when Producer cancels)
+- Auto-complete fires after 72h if Producer hasn't confirmed — `AutoCompleteBookingsCommand` runs hourly
+- Expired unpaid bookings cancelled after 24h — `ExpireUnpaidBookingsCommand` runs hourly
 
 ---
 
@@ -227,7 +272,8 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Read this file before implementing any code
 - Follow ALL rules exactly as documented
 - When in doubt, prefer the more restrictive option
-- Refer to `docs/planning-artifacts/architecture.md` for detailed architectural decisions
+- Refer to `docs/planning-artifacts/architecture.md` for base architectural decisions
+- Refer to `_bmad-output/planning-artifacts/architecture-booking.md` for Booking & Payment architectural decisions
 
 **For Humans:**
 - Keep this file lean and focused on agent needs
@@ -237,4 +283,4 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 ---
 
-**Last Updated:** 2026-01-06
+**Last Updated:** 2026-02-28
