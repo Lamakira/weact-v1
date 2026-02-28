@@ -230,11 +230,11 @@ development_status:
   # ============================================
 
   # Booking Epic 1: Booking Request & Management (3 stories)
-  booking-epic-1: in-progress
+  booking-epic-1: done
   b1-1-producer-creates-booking-request: done
   b1-2-face-views-responds-booking-request: done
   b1-3-my-bookings-list-status-filtering: done
-  booking-epic-1-retrospective: optional
+  booking-epic-1-retrospective: done
 
   # Booking Epic 2: Mobile Money Payment & Escrow (3 stories)
   booking-epic-2: backlog
