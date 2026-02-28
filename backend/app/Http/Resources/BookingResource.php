@@ -34,10 +34,13 @@ class BookingResource extends JsonResource
             'montant_total_producteur' => $this->montant_total_producteur,
             'montant_face_recoit' => $this->montant_face_recoit,
             'cancellation_reason' => $this->cancellation_reason,
+            'fedapay_transaction_id' => $user && $user->id === $this->producer_id ? $this->fedapay_transaction_id : null,
+            'payment_mode' => $this->payment_mode,
             'face' => new UserResource($this->whenLoaded('face')),
             'producer' => new UserResource($this->whenLoaded('producer')),
             'can_accept' => $user && $user->can('accept', $this->resource),
             'can_refuse' => $user && $user->can('refuse', $this->resource),
+            'can_pay' => $user && $user->can('pay', $this->resource),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

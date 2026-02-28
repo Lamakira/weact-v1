@@ -130,3 +130,4 @@ require __DIR__ . '/api/bookings.php';
 require __DIR__ . '/api/face.php';
 require __DIR__ . '/api/producer.php';
 require __DIR__ . '/api/public.php';
+require __DIR__ . '/api/webhooks.php';

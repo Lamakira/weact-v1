@@ -8,6 +8,7 @@ use App\Enums\BookingStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\AcceptBookingRequest;
 use App\Http\Requests\Booking\CreateBookingRequest;
+use App\Http\Requests\Booking\PayBookingRequest;
 use App\Http\Requests\Booking\RefuseBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
@@ -131,6 +132,24 @@ class BookingController extends Controller
         return response()->json([
             'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
             'message' => 'Booking refusé',
+        ]);
+    }
+
+    /**
+     * Initiate payment for an accepted booking (Producer only).
+     */
+    public function pay(PayBookingRequest $request, Booking $booking): JsonResponse
+    {
+        Gate::authorize('pay', $booking);
+
+        $booking = $this->bookingService->initiatePayment(
+            $booking,
+            $request->validated('payment_mode')
+        );
+
+        return response()->json([
+            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+            'message' => 'Paiement initié',
         ]);
     }
 }

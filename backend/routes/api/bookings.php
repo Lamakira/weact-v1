@@ -24,4 +24,8 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
     Route::post('/bookings/{booking}/refuse', [BookingController::class, 'refuse'])
         ->middleware('throttle:60,1')
         ->name('bookings.refuse');
+
+    Route::post('/bookings/{booking}/pay', [BookingController::class, 'pay'])
+        ->middleware('throttle:60,1')
+        ->name('bookings.pay');
 });

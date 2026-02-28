@@ -56,4 +56,14 @@ class BookingPolicy
         return $user->id === $booking->face_id
             && in_array($booking->status, [BookingStatus::Pending, BookingStatus::Paid], true);
     }
+
+    /**
+     * Determine if the user can pay for the booking.
+     * Only the Producer can pay, and only when status is accepted.
+     */
+    public function pay(User $user, Booking $booking): bool
+    {
+        return $user->id === $booking->producer_id
+            && $booking->status === BookingStatus::Accepted;
+    }
 }
