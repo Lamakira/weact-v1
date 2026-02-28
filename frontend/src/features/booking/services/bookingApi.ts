@@ -1,10 +1,23 @@
 import apiClient, { getCsrfCookie } from '@/services/apiClient'
-import type { CreateBookingData, BookingResponse } from '../types'
+import type { CreateBookingData, BookingResponse, BookingListResponse, BookingFilterStatus } from '../types'
 
 /**
  * Booking API service
  */
 export const bookingApi = {
+  /**
+   * Get paginated list of authenticated user's bookings
+   */
+  async getBookings(page: number = 1, status?: BookingFilterStatus): Promise<BookingListResponse> {
+    const params = new URLSearchParams()
+    params.append('page', String(page))
+    if (status) {
+      params.append('status', status)
+    }
+    const response = await apiClient.get<BookingListResponse>(`/bookings?${params.toString()}`)
+    return response.data
+  },
+
   /**
    * Create a new booking request
    */

@@ -165,6 +165,11 @@ const router = createRouter({
           component: () => import('../features/messaging/components/ConversationView.vue'),
         },
         {
+          path: 'bookings',
+          name: 'face-bookings',
+          component: () => import('../pages/face/booking/FaceBookingsListPage.vue'),
+        },
+        {
           path: 'bookings/:id',
           name: 'face-booking-detail',
           component: () => import('../pages/face/booking/FaceBookingDetailPage.vue'),
@@ -236,6 +241,16 @@ const router = createRouter({
           path: 'conversations/:conversationId',
           name: 'producer-conversation',
           component: () => import('../features/messaging/components/ProducerConversationView.vue'),
+        },
+        {
+          path: 'bookings',
+          name: 'producer-bookings',
+          component: () => import('../pages/producer/booking/ProducerBookingsListPage.vue'),
+        },
+        {
+          path: 'bookings/:id',
+          name: 'producer-booking-detail',
+          component: () => import('../pages/face/booking/FaceBookingDetailPage.vue'),
         },
       ],
     },

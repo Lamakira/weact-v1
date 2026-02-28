@@ -106,6 +106,35 @@ export interface BookingResponse {
   message?: string
 }
 
+// Booking filter status for list view
+export type BookingFilterStatus = '' | 'pending' | 'active' | 'completed' | 'cancelled'
+
+// Booking filter label mapping (French)
+export const BookingFilterLabel: Record<BookingFilterStatus, string> = {
+  '': 'Tous',
+  pending: 'En attente',
+  active: 'Actifs',
+  completed: 'Terminés',
+  cancelled: 'Annulés',
+}
+
+// Paginated booking list response
+export interface BookingListResponse {
+  data: Booking[]
+  links: {
+    first: string | null
+    last: string | null
+    prev: string | null
+    next: string | null
+  }
+  meta: {
+    current_page: number
+    last_page: number
+    per_page: number
+    total: number
+  }
+}
+
 // Booking create result
 export interface BookingCreateResult {
   success: boolean

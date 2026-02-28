@@ -12,6 +12,14 @@ use App\Models\User;
 class BookingPolicy
 {
     /**
+     * Determine if the user can list their own bookings.
+     */
+    public function viewAny(User $user): bool
+    {
+        return true;
+    }
+
+    /**
      * Determine if the user can create a booking.
      */
     public function create(User $user): bool

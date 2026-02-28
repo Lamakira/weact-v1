@@ -6,6 +6,10 @@ use App\Http\Controllers\Api\V1\BookingController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
+    Route::get('/bookings', [BookingController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('bookings.index');
+
     Route::post('/bookings', [BookingController::class, 'store'])
         ->middleware('throttle:60,1')
         ->name('bookings.store');
