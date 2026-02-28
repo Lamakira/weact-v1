@@ -134,4 +134,15 @@ class BookingFactory extends Factory
             'cancellation_reason' => fake()->sentence(),
         ]);
     }
+
+    /**
+     * Indicate that the booking has a Fedapay transaction attached.
+     */
+    public function withFedapayTransaction(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'fedapay_transaction_id' => fake()->randomNumber(8),
+            'payment_mode' => fake()->randomElement(['mtn_open', 'moov']),
+        ]);
+    }
 }
