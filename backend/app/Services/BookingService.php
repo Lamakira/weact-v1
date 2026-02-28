@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\BookingStatus;
+use App\Events\BookingAccepted;
 use App\Events\BookingCreated;
+use App\Events\BookingRefused;
 use App\Models\Booking;
 use App\Models\Face;
 use App\Models\User;
 use App\ValueObjects\BookingPricing;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class BookingService
@@ -70,6 +73,57 @@ class BookingService
         BookingCreated::dispatch($booking);
 
         return $booking;
+    }
+
+    /**
+     * Accept a pending booking request.
+     *
+     * @throws ValidationException
+     */
+    public function accept(Booking $booking): Booking
+    {
+        return DB::transaction(function () use ($booking) {
+            $booking = $booking->lockForUpdate()->find($booking->id);
+
+            if ($booking->status !== BookingStatus::Pending) {
+                throw ValidationException::withMessages([
+                    'status' => ['Ce booking ne peut pas être accepté dans son état actuel.'],
+                ]);
+            }
+
+            $booking->update(['status' => BookingStatus::Accepted]);
+
+            BookingAccepted::dispatch($booking);
+
+            return $booking->fresh();
+        });
+    }
+
+    /**
+     * Refuse a booking request.
+     *
+     * @throws ValidationException
+     */
+    public function refuse(Booking $booking, ?string $reason = null): Booking
+    {
+        return DB::transaction(function () use ($booking, $reason) {
+            $booking = $booking->lockForUpdate()->find($booking->id);
+
+            if (! in_array($booking->status, [BookingStatus::Pending, BookingStatus::Paid], true)) {
+                throw ValidationException::withMessages([
+                    'status' => ['Ce booking ne peut pas être refusé dans son état actuel.'],
+                ]);
+            }
+
+            $booking->update([
+                'status' => BookingStatus::Refused,
+                'cancellation_reason' => $reason,
+            ]);
+
+            BookingRefused::dispatch($booking);
+
+            return $booking->fresh();
+        });
     }
 
     /**

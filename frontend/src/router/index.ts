@@ -164,6 +164,11 @@ const router = createRouter({
           name: 'face-conversation',
           component: () => import('../features/messaging/components/ConversationView.vue'),
         },
+        {
+          path: 'bookings/:id',
+          name: 'face-booking-detail',
+          component: () => import('../pages/face/booking/FaceBookingDetailPage.vue'),
+        },
       ],
     },
     {

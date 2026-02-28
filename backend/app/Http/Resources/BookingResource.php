@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
-use App\ValueObjects\BookingPricing;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Auth;
 
 class BookingResource extends JsonResource
 {
@@ -17,6 +17,8 @@ class BookingResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $user = Auth::user();
+
         return [
             'id' => $this->id,
             'face_id' => $this->face_id,
@@ -34,6 +36,8 @@ class BookingResource extends JsonResource
             'cancellation_reason' => $this->cancellation_reason,
             'face' => new UserResource($this->whenLoaded('face')),
             'producer' => new UserResource($this->whenLoaded('producer')),
+            'can_accept' => $user && $user->can('accept', $this->resource),
+            'can_refuse' => $user && $user->can('refuse', $this->resource),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

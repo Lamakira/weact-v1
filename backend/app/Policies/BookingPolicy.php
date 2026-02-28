@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
+use App\Enums\BookingStatus;
 use App\Models\Booking;
 use App\Models\Producer;
 use App\Models\User;
@@ -26,5 +27,25 @@ class BookingPolicy
     {
         return $user->id === $booking->producer_id
             || $user->id === $booking->face_id;
+    }
+
+    /**
+     * Determine if the user can accept the booking.
+     * Only the Face can accept, and only when status is pending.
+     */
+    public function accept(User $user, Booking $booking): bool
+    {
+        return $user->id === $booking->face_id
+            && $booking->status === BookingStatus::Pending;
+    }
+
+    /**
+     * Determine if the user can refuse the booking.
+     * Only the Face can refuse, and only when status is pending or paid.
+     */
+    public function refuse(User $user, Booking $booking): bool
+    {
+        return $user->id === $booking->face_id
+            && in_array($booking->status, [BookingStatus::Pending, BookingStatus::Paid], true);
     }
 }

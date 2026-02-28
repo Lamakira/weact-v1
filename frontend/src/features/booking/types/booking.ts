@@ -35,13 +35,35 @@ export const BookingStatusLabel: Record<BookingStatusType, string> = {
 // Commission rate (mirrors backend BookingPricing VO)
 export const COMMISSION_RATE = 0.15
 
+// Face userable data nested in BookingUser
+export interface BookingFaceUserable {
+  id: number
+  nom: string
+  prenom: string
+  username: string
+  profile_photo_url: string | null
+  thumbnail_url: string | null
+  average_rating: number | null
+  ratings_count: number
+}
+
+// Producer userable data nested in BookingUser
+export interface BookingProducerUserable {
+  id: number
+  display_name: string
+  profile_photo_url: string | null
+  thumbnail_url: string | null
+  average_rating: number | null
+  ratings_count: number
+}
+
 // User embedded in Booking response
 export interface BookingUser {
   id: number
   email: string
   userable_type: string
   userable_id: number
-  display_name?: string
+  userable?: BookingFaceUserable | BookingProducerUserable
 }
 
 // Booking data from API
@@ -62,6 +84,8 @@ export interface Booking {
   cancellation_reason: string | null
   face?: BookingUser
   producer?: BookingUser
+  can_accept: boolean
+  can_refuse: boolean
   created_at: string
   updated_at: string
 }
