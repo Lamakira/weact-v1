@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, watch, computed, watchEffect, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useTitle } from '@vueuse/core'
-import { ChevronLeft, AlertCircle, RefreshCw, UserX, FileText, Banknote, Megaphone, Lock } from 'lucide-vue-next'
+import { ChevronLeft, AlertCircle, RefreshCw, UserX, FileText, Banknote, Megaphone, Lock, CalendarPlus } from 'lucide-vue-next'
 import { useFaceProfile } from '@/features/public/composables/useFaceProfile'
 import { usePublicFaceAccess } from '@/features/public/composables/usePublicFaceAccess'
 import { publicApi } from '@/features/public/services/publicApi'
@@ -17,9 +17,11 @@ import CandidateExperiencesSection from '@/features/candidature/components/Candi
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import ReviewsList from '@/components/ReviewsList.vue'
 import { Skeleton } from '@/components/ui/skeleton'
+import { BookingFormSheet } from '@/features/booking/components'
 import type { Review } from '@/features/rating/types'
 
 const route = useRoute()
+const router = useRouter()
 const {
   face,
   isLoading,
@@ -41,6 +43,40 @@ const reviewsCurrentPage = ref(1)
 const reviewsLastPage = ref(1)
 const reviewsTotal = ref(0)
 const reviewsError = ref(false)
+
+// Booking sheet state
+const isBookingSheetOpen = ref(false)
+
+const showBookingButton = computed(() =>
+  accessLevel.value === 'producer_with_access' ||
+  accessLevel.value === 'guest'
+)
+
+const canBook = computed(() =>
+  accessLevel.value === 'producer_with_access' &&
+  fullProfile.value?.is_available === true
+)
+
+const bookingButtonDisabled = computed(() =>
+  accessLevel.value === 'producer_with_access' &&
+  fullProfile.value?.is_available !== true
+)
+
+function handleBookingClick(): void {
+  if (accessLevel.value === 'guest') {
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  if (canBook.value) {
+    isBookingSheetOpen.value = true
+  }
+}
+
+function handleBookingSuccess(): void {
+  isBookingSheetOpen.value = false
+  // TODO: redirect to booking detail page when story b1-3 implements the route
+  router.push('/producer')
+}
 
 async function fetchReviews(id: number, page: number = 1): Promise<void> {
   reviewsLoading.value = true
@@ -298,6 +334,30 @@ async function handleRetry(): Promise<void> {
               v-if="accessLevel === 'producer_with_access' && fullProfile"
               :candidate="fullProfile"
             />
+
+            <!-- Booking CTA Button -->
+            <div v-if="showBookingButton" class="relative group">
+              <button
+                type="button"
+                :disabled="bookingButtonDisabled"
+                class="w-full flex items-center justify-center gap-2 text-sm font-semibold px-6 py-3 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-[#198496]/20 shadow-sm"
+                :class="bookingButtonDisabled
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-[#198496] text-white hover:bg-[#146c7a] active:scale-[0.98]'"
+                data-testid="booking-cta"
+                @click="handleBookingClick"
+              >
+                <CalendarPlus :size="18" aria-hidden="true" />
+                Réserver cette Face
+              </button>
+              <div
+                v-if="bookingButtonDisabled"
+                class="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none"
+                role="tooltip"
+              >
+                Cette Face n'est pas disponible
+              </div>
+            </div>
           </div>
         </div>
 
@@ -433,6 +493,18 @@ async function handleRetry(): Promise<void> {
             </p>
           </div>
         </div>
+
+        <!-- Booking Form Sheet (outside access-level conditionals, uses Teleport) -->
+        <BookingFormSheet
+          v-if="canBook && fullProfile"
+          :is-open="isBookingSheetOpen"
+          :face-id="face!.user_id"
+          :face-name="fullProfile.prenom"
+          :tarif-horaire="fullProfile.tarif_horaire"
+          :tarif-journalier="fullProfile.tarif_journalier"
+          @close="isBookingSheetOpen = false"
+          @success="handleBookingSuccess"
+        />
       </div>
     </main>
   </div>

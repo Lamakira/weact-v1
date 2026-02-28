@@ -85,6 +85,22 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Get all bookings where this user is the Face.
+     */
+    public function bookingsAsFace(): HasMany
+    {
+        return $this->hasMany(Booking::class, 'face_id');
+    }
+
+    /**
+     * Get all bookings where this user is the Producer.
+     */
+    public function bookingsAsProducer(): HasMany
+    {
+        return $this->hasMany(Booking::class, 'producer_id');
+    }
+
+    /**
      * Get all ratings given by this user.
      */
     public function ratingsGiven(): HasMany

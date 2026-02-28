@@ -109,7 +109,7 @@ class FaceController extends Controller
     {
         $face = Face::query()
             ->where('username', $username)
-            ->with('photos')
+            ->with(['photos', 'user'])
             ->first();
 
         if (! $face) {

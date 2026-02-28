@@ -1,0 +1,41 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Resources;
+
+use App\ValueObjects\BookingPricing;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class BookingResource extends JsonResource
+{
+    /**
+     * Transform the resource into an array.
+     *
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'face_id' => $this->face_id,
+            'producer_id' => $this->producer_id,
+            'status' => $this->status?->value,
+            'status_label' => $this->status?->label(),
+            'date_debut' => $this->date_debut?->toIso8601String(),
+            'date_fin' => $this->date_fin?->toIso8601String(),
+            'duree_heures' => $this->duree_heures,
+            'type_contenu' => $this->type_contenu,
+            'message' => $this->message,
+            'tarif_base' => $this->tarif_base,
+            'montant_total_producteur' => $this->montant_total_producteur,
+            'montant_face_recoit' => $this->montant_face_recoit,
+            'cancellation_reason' => $this->cancellation_reason,
+            'face' => new UserResource($this->whenLoaded('face')),
+            'producer' => new UserResource($this->whenLoaded('producer')),
+            'created_at' => $this->created_at?->toIso8601String(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
+        ];
+    }
+}

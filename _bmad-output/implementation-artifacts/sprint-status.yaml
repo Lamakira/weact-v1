@@ -231,7 +231,7 @@ development_status:
 
   # Booking Epic 1: Booking Request & Management (3 stories)
   booking-epic-1: in-progress
-  b1-1-producer-creates-booking-request: ready-for-dev
+  b1-1-producer-creates-booking-request: done
   b1-2-face-views-responds-booking-request: backlog
   b1-3-my-bookings-list-status-filtering: backlog
   booking-epic-1-retrospective: optional

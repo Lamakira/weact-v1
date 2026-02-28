@@ -1,0 +1,306 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature\Booking;
+
+use App\Enums\BookingStatus;
+use App\Events\BookingCreated;
+use App\Models\Booking;
+use App\Models\Face;
+use App\Models\Producer;
+use App\Models\User;
+use App\ValueObjects\BookingPricing;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
+use Tests\TestCase;
+
+class CreateBookingTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private User $producerUser;
+
+    private Producer $producer;
+
+    private User $faceUser;
+
+    private Face $face;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->producer = Producer::factory()->create();
+        $this->producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $this->producer->id,
+        ]);
+
+        $this->face = Face::factory()->create([
+            'tarif_horaire' => 5000,
+            'tarif_journalier' => 30000,
+            'is_available' => true,
+        ]);
+        $this->faceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $this->face->id,
+        ]);
+    }
+
+    private function getValidBookingData(): array
+    {
+        return [
+            'face_id' => $this->faceUser->id,
+            'date_debut' => now()->addWeek()->toDateString(),
+            'date_fin' => now()->addWeeks(2)->toDateString(),
+            'duree_heures' => 8,
+            'type_contenu' => 'Publicité',
+            'message' => 'Bonjour, je souhaite vous réserver pour une publicité.',
+        ];
+    }
+
+    public function test_producer_can_create_booking_request(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        $data = $this->getValidBookingData();
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.face_id', $this->faceUser->id)
+            ->assertJsonPath('data.producer_id', $this->producerUser->id)
+            ->assertJsonPath('data.status', BookingStatus::Pending->value)
+            ->assertJsonPath('data.duree_heures', 8)
+            ->assertJsonPath('data.type_contenu', 'Publicité')
+            ->assertJsonPath('message', 'Demande de booking envoyee');
+
+        $this->assertDatabaseHas('bookings', [
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'status' => BookingStatus::Pending->value,
+        ]);
+
+        Event::assertDispatched(BookingCreated::class);
+    }
+
+    public function test_booking_pricing_is_calculated_correctly(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        $data = $this->getValidBookingData();
+        $data['duree_heures'] = 8;
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertCreated();
+
+        // 8h >= 8h → uses daily rate: 1 day * 30000 = 30000 tarif_base
+        $expectedPricing = new BookingPricing(30000);
+
+        $response->assertJsonPath('data.tarif_base', $expectedPricing->baseTarif);
+        $response->assertJsonPath('data.montant_total_producteur', $expectedPricing->totalProducerPays);
+        $response->assertJsonPath('data.montant_face_recoit', $expectedPricing->faceReceives);
+    }
+
+    public function test_booking_uses_hourly_rate_for_short_durations(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        $data = $this->getValidBookingData();
+        $data['duree_heures'] = 4;
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertCreated();
+
+        // 4h < 8h → uses hourly rate: 4 * 5000 = 20000 tarif_base
+        $expectedPricing = new BookingPricing(20000);
+
+        $response->assertJsonPath('data.tarif_base', $expectedPricing->baseTarif);
+        $response->assertJsonPath('data.montant_total_producteur', $expectedPricing->totalProducerPays);
+        $response->assertJsonPath('data.montant_face_recoit', $expectedPricing->faceReceives);
+    }
+
+    public function test_face_cannot_create_booking(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/bookings', $this->getValidBookingData());
+
+        $response->assertForbidden();
+    }
+
+    public function test_unauthenticated_user_cannot_create_booking(): void
+    {
+        $response = $this->postJson('/api/v1/bookings', $this->getValidBookingData());
+
+        $response->assertUnauthorized();
+    }
+
+    public function test_booking_fails_when_face_is_unavailable(): void
+    {
+        $this->face->update(['is_available' => false]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $this->getValidBookingData());
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('face_id');
+    }
+
+    public function test_booking_fails_with_invalid_duration(): void
+    {
+        $data = $this->getValidBookingData();
+        $data['duree_heures'] = 2; // Min is 4
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('duree_heures');
+    }
+
+    public function test_booking_fails_when_target_is_not_a_face(): void
+    {
+        $otherProducer = Producer::factory()->create();
+        $otherProducerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $otherProducer->id,
+        ]);
+
+        $data = $this->getValidBookingData();
+        $data['face_id'] = $otherProducerUser->id;
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('face_id');
+    }
+
+    public function test_booking_validation_requires_all_mandatory_fields(): void
+    {
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', []);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'face_id',
+                'date_debut',
+                'date_fin',
+                'duree_heures',
+                'type_contenu',
+            ]);
+    }
+
+    public function test_booking_date_debut_must_be_in_the_future(): void
+    {
+        $data = $this->getValidBookingData();
+        $data['date_debut'] = now()->subDay()->toDateString();
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('date_debut');
+    }
+
+    public function test_booking_date_fin_must_be_after_date_debut(): void
+    {
+        $data = $this->getValidBookingData();
+        $data['date_debut'] = now()->addWeeks(2)->toDateString();
+        $data['date_fin'] = now()->addWeek()->toDateString(); // Before date_debut
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('date_fin');
+    }
+
+    public function test_booking_allows_same_day_start_and_end_dates(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        $data = $this->getValidBookingData();
+        $sameDay = now()->addWeek()->toDateString();
+        $data['date_debut'] = $sameDay;
+        $data['date_fin'] = $sameDay;
+        $data['duree_heures'] = 4;
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertCreated();
+    }
+
+    public function test_booking_fails_when_duration_exceeds_maximum(): void
+    {
+        $data = $this->getValidBookingData();
+        $data['duree_heures'] = 721;
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('duree_heures');
+    }
+
+    public function test_booking_fails_when_face_has_no_tarifs(): void
+    {
+        $faceNoTarif = Face::factory()->create([
+            'tarif_horaire' => null,
+            'tarif_journalier' => null,
+            'is_available' => true,
+        ]);
+        $faceUserNoTarif = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $faceNoTarif->id,
+        ]);
+
+        $data = $this->getValidBookingData();
+        $data['face_id'] = $faceUserNoTarif->id;
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('face_id');
+    }
+
+    public function test_booking_resource_returns_correct_structure(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $this->getValidBookingData());
+
+        $response->assertCreated()
+            ->assertJsonStructure([
+                'data' => [
+                    'id',
+                    'face_id',
+                    'producer_id',
+                    'status',
+                    'status_label',
+                    'date_debut',
+                    'date_fin',
+                    'duree_heures',
+                    'type_contenu',
+                    'message',
+                    'tarif_base',
+                    'montant_total_producteur',
+                    'montant_face_recoit',
+                    'face',
+                    'producer',
+                    'created_at',
+                    'updated_at',
+                ],
+                'message',
+            ]);
+    }
+}

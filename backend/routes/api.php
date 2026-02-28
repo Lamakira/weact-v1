@@ -126,6 +126,7 @@ Route::prefix('v1')->group(function (): void {
 
 // Include modular route files
 require __DIR__ . '/api/admin.php';
+require __DIR__ . '/api/bookings.php';
 require __DIR__ . '/api/face.php';
 require __DIR__ . '/api/producer.php';
 require __DIR__ . '/api/public.php';

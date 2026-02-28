@@ -29,6 +29,7 @@ class PublicFaceProfileResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'user_id' => $this->user?->id,
             'username' => $this->username,
             'prenom' => $this->prenom,
             'ville' => $this->ville,
