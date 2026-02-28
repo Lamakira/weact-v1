@@ -82,10 +82,13 @@ export interface Booking {
   montant_total_producteur: number
   montant_face_recoit: number
   cancellation_reason: string | null
+  fedapay_transaction_id: number | null
+  payment_mode: string | null
   face?: BookingUser
   producer?: BookingUser
   can_accept: boolean
   can_refuse: boolean
+  can_pay: boolean
   created_at: string
   updated_at: string
 }
@@ -152,6 +155,24 @@ export interface BookingPricingPreview {
   faceCommission: number
   faceReceives: number
 }
+
+// Payment mode types
+export type PaymentMode = 'mtn_open' | 'moov' | 'celtiis'
+
+export interface PaymentModeOption {
+  label: string
+  value: PaymentMode
+  icon: string
+}
+
+export const PAYMENT_MODES: PaymentModeOption[] = [
+  { label: 'MTN MoMo', value: 'mtn_open', icon: '📱' },
+  { label: 'Moov Money', value: 'moov', icon: '📱' },
+  { label: 'Celtiis', value: 'celtiis', icon: '📱' },
+]
+
+// Payment status for frontend tracking
+export type PaymentStatus = 'idle' | 'waiting' | 'confirmed' | 'failed'
 
 /**
  * Calculate booking pricing preview (mirrors backend BookingPricing VO)

@@ -14,7 +14,7 @@ import {
   XCircle,
 } from 'lucide-vue-next'
 import { useBookingDetail, useBookingActions } from '@/features/booking/composables'
-import { BookingTimeline, BookingStatusBadge } from '@/features/booking/components'
+import { BookingTimeline, BookingStatusBadge, PaymentOverlay } from '@/features/booking/components'
 import { BookingStatus, type BookingStatusType } from '@/features/booking/types'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import { useToast } from '@/composables/useToast'
@@ -25,6 +25,9 @@ const toast = useToast()
 
 const { booking, isLoading, error, notFound, fetchBooking, refresh } = useBookingDetail()
 const { isAccepting, isRefusing, error: actionError, accept, refuse, clearError } = useBookingActions()
+
+// Payment overlay state
+const showPaymentOverlay = ref(false)
 
 // Refuse dialog state
 const showRefuseDialog = ref(false)
@@ -146,6 +149,14 @@ async function handleRefuse(): Promise<void> {
     toast.success('Booking refusé')
   } else {
     toast.error(actionError.value || 'Erreur lors du refus')
+  }
+}
+
+async function handlePaymentSuccess(): Promise<void> {
+  showPaymentOverlay.value = false
+  if (bookingId.value) {
+    await fetchBooking(bookingId.value)
+    toast.success('Paiement confirmé !')
   }
 }
 
@@ -316,7 +327,15 @@ onMounted(() => {
           </div>
 
           <!-- Action buttons -->
-          <div v-if="booking.can_accept || booking.can_refuse" class="flex gap-3">
+          <div v-if="booking.can_accept || booking.can_refuse || booking.can_pay" class="flex gap-3">
+            <button
+              v-if="booking.can_pay"
+              class="flex-1 flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
+              @click="showPaymentOverlay = true"
+            >
+              <Wallet class="w-4 h-4" />
+              Payer maintenant
+            </button>
             <button
               v-if="booking.can_accept"
               :disabled="isAccepting"
@@ -340,6 +359,14 @@ onMounted(() => {
         </div>
       </div>
     </template>
+
+    <!-- Payment overlay -->
+    <PaymentOverlay
+      v-if="booking"
+      v-model="showPaymentOverlay"
+      :booking="booking"
+      @payment-success="handlePaymentSuccess"
+    />
 
     <!-- Refuse dialog overlay -->
     <Teleport to="body">

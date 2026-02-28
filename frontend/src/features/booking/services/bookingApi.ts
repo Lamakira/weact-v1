@@ -54,4 +54,15 @@ export const bookingApi = {
     })
     return response.data
   },
+
+  /**
+   * Initiate payment for an accepted booking (Producer only)
+   */
+  async payBooking(bookingId: number, paymentMode: string): Promise<BookingResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<BookingResponse>(`/bookings/${bookingId}/pay`, {
+      payment_mode: paymentMode,
+    })
+    return response.data
+  },
 }
