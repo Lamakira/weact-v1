@@ -4,15 +4,14 @@ import { candidatureApi } from '@/features/candidature/services/candidatureApi'
 import type { CandidateFullProfile } from '@/features/candidature/types'
 import axios from 'axios'
 
-export type AccessLevel = 'guest' | 'face_user' | 'producer_no_access' | 'producer_with_access'
+export type AccessLevel = 'guest' | 'face_user' | 'producer_with_access'
 
 /**
  * Composable that determines the access level for a public Face profile page.
  *
  * - Guest → locked teasers with "S'inscrire pour voir"
  * - Face user → message "Profil complet réservé aux producteurs"
- * - Producer with access (Face applied to their missions) → full profile
- * - Producer without access → message "Ce talent n'a pas encore postulé"
+ * - Producer → full profile (any producer can view any Face)
  */
 export function usePublicFaceAccess(faceId: Ref<number | null>) {
   const authStore = useAuthStore()
@@ -45,17 +44,12 @@ export function usePublicFaceAccess(faceId: Ref<number | null>) {
         accessLevel.value = 'producer_with_access'
       } catch (err) {
         fullProfile.value = null
-        if (axios.isAxiosError(err)) {
-          if (err.response?.status === 403) {
-            accessLevel.value = 'producer_no_access'
-          } else if (err.response?.status === 401) {
-            // Token expired → fallback to guest
-            accessLevel.value = 'guest'
-          } else {
-            accessLevel.value = 'producer_no_access'
-          }
+        if (axios.isAxiosError(err) && err.response?.status === 401) {
+          // Token expired → fallback to guest
+          accessLevel.value = 'guest'
         } else {
-          accessLevel.value = 'producer_no_access'
+          // Generic error — fallback to guest so locked teasers show
+          accessLevel.value = 'guest'
         }
       } finally {
         isLoadingFullProfile.value = false

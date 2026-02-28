@@ -2,7 +2,7 @@
 import { ref, watch, computed, watchEffect, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTitle } from '@vueuse/core'
-import { ChevronLeft, AlertCircle, RefreshCw, UserX, FileText, Banknote, Megaphone, Lock, CalendarPlus } from 'lucide-vue-next'
+import { ChevronLeft, AlertCircle, RefreshCw, UserX, FileText, Banknote, Lock, CalendarPlus } from 'lucide-vue-next'
 import { useFaceProfile } from '@/features/public/composables/useFaceProfile'
 import { usePublicFaceAccess } from '@/features/public/composables/usePublicFaceAccess'
 import { publicApi } from '@/features/public/services/publicApi'
@@ -444,35 +444,6 @@ async function handleRetry(): Promise<void> {
           <Skeleton class="h-48 w-full rounded-2xl" />
           <Skeleton class="h-32 w-full rounded-2xl" />
           <Skeleton class="h-24 w-full rounded-2xl" />
-        </div>
-
-        <!-- PRODUCER WITHOUT ACCESS -->
-        <!-- TODO: Analytics — track "producer_no_access_view" event here (faceId, username)
-             to measure how often Producers hit this wall and whether they subsequently publish a mission. -->
-        <div
-          v-else-if="accessLevel === 'producer_no_access'"
-          class="flex flex-col items-center justify-center py-16 text-center space-y-4 bg-white rounded-2xl border border-gray-100 shadow-sm"
-          data-testid="producer-no-access"
-        >
-          <div class="p-4 bg-[#198496]/10 text-[#198496] rounded-full">
-            <Megaphone :size="32" aria-hidden="true" />
-          </div>
-          <div class="space-y-2 max-w-md">
-            <h2 class="text-xl font-semibold text-gray-900">
-              Ce talent n'a pas encore postulé à vos missions
-            </h2>
-            <p class="text-gray-500 text-sm">
-              Publiez une mission pour attirer des candidats et accéder aux profils complets.
-            </p>
-          </div>
-          <RouterLink
-            :to="{ name: 'publish-mission' }"
-            class="inline-flex items-center gap-2 text-sm font-semibold bg-[#198496] text-white px-6 py-2.5 rounded-md hover:bg-[#146c7a] transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#198496]/20"
-            data-testid="publish-mission-cta"
-          >
-            <Megaphone :size="16" aria-hidden="true" />
-            Publier une mission
-          </RouterLink>
         </div>
 
         <!-- FACE USER -->

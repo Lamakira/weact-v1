@@ -245,9 +245,9 @@ class ProducerViewCandidateProfileTest extends TestCase
             ]);
     }
 
-    public function test_producer_cannot_view_face_who_did_not_apply_to_their_missions(): void
+    public function test_producer_can_view_any_face_profile(): void
     {
-        // Create another Face who hasn't applied to any of this Producer's missions
+        // Any producer can view any Face's profile (needed for direct bookings)
         $otherFace = Face::factory()->create([
             'nom' => 'Martin',
             'prenom' => 'Jean',
@@ -256,9 +256,9 @@ class ProducerViewCandidateProfileTest extends TestCase
         $response = $this->actingAs($this->producerUser)
             ->getJson("/api/v1/producer/candidates/{$otherFace->id}");
 
-        $response->assertForbidden()
-            ->assertJson([
-                'message' => 'Vous ne pouvez consulter que les profils des candidats ayant postulé à vos missions',
+        $response->assertOk()
+            ->assertJsonStructure([
+                'data' => ['id', 'nom', 'prenom'],
             ]);
     }
 
@@ -335,7 +335,7 @@ class ProducerViewCandidateProfileTest extends TestCase
             ->assertJsonPath('data.id', $otherFace->id);
     }
 
-    public function test_other_producer_cannot_view_candidate_who_applied_to_different_producer(): void
+    public function test_any_producer_can_view_any_face_profile(): void
     {
         // Create another Producer
         $otherProducer = Producer::factory()->create();
@@ -344,14 +344,13 @@ class ProducerViewCandidateProfileTest extends TestCase
             'userable_id' => $otherProducer->id,
         ]);
 
-        // The Face applied only to the first Producer's mission
-        // Other Producer should not be able to view this Face
+        // Any producer can view any Face (needed for direct bookings)
         $response = $this->actingAs($otherProducerUser)
             ->getJson("/api/v1/producer/candidates/{$this->face->id}");
 
-        $response->assertForbidden()
-            ->assertJson([
-                'message' => 'Vous ne pouvez consulter que les profils des candidats ayant postulé à vos missions',
+        $response->assertOk()
+            ->assertJsonStructure([
+                'data' => ['id', 'nom', 'prenom'],
             ]);
     }
 

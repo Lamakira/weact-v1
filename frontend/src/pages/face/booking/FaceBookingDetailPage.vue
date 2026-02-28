@@ -13,6 +13,7 @@ import {
   CheckCircle,
   XCircle,
 } from 'lucide-vue-next'
+import { useAuthStore } from '@/stores/auth'
 import { useBookingDetail, useBookingActions } from '@/features/booking/composables'
 import { BookingTimeline, BookingStatusBadge, PaymentOverlay } from '@/features/booking/components'
 import { BookingStatus, type BookingStatusType } from '@/features/booking/types'
@@ -22,6 +23,9 @@ import { useToast } from '@/composables/useToast'
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+
+const authStore = useAuthStore()
+const isFace = computed(() => authStore.user?.userable_type === 'Face')
 
 const { booking, isLoading, error, notFound, fetchBooking, refresh } = useBookingDetail()
 const { isAccepting, isRefusing, error: actionError, accept, refuse, clearError } = useBookingActions()
@@ -304,16 +308,34 @@ onMounted(() => {
                 <span class="text-gray-500">Tarif de base</span>
                 <span class="font-medium text-gray-900">{{ formatCurrency(booking.tarif_base) }}</span>
               </div>
-              <div class="flex justify-between items-center text-sm">
-                <span class="text-gray-500">Commission plateforme (-15%)</span>
-                <span class="text-red-500">-{{ formatCurrency(booking.tarif_base - booking.montant_face_recoit) }}</span>
-              </div>
-              <div class="border-t border-gray-100 pt-2 mt-2">
-                <div class="flex justify-between items-center">
-                  <span class="text-sm font-semibold text-gray-700">Vous recevrez</span>
-                  <span class="text-lg font-bold text-emerald-600">{{ formatCurrency(booking.montant_face_recoit) }}</span>
+
+              <!-- Face view: commission deducted -->
+              <template v-if="isFace">
+                <div class="flex justify-between items-center text-sm">
+                  <span class="text-gray-500">Commission plateforme (-15%)</span>
+                  <span class="text-red-500">-{{ formatCurrency(booking.tarif_base - booking.montant_face_recoit) }}</span>
                 </div>
-              </div>
+                <div class="border-t border-gray-100 pt-2 mt-2">
+                  <div class="flex justify-between items-center">
+                    <span class="text-sm font-semibold text-gray-700">Vous recevrez</span>
+                    <span class="text-lg font-bold text-emerald-600">{{ formatCurrency(booking.montant_face_recoit) }}</span>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Producer view: commission added -->
+              <template v-else>
+                <div class="flex justify-between items-center text-sm">
+                  <span class="text-gray-500">Commission plateforme (+15%)</span>
+                  <span class="text-gray-500">+{{ formatCurrency(booking.montant_total_producteur - booking.tarif_base) }}</span>
+                </div>
+                <div class="border-t border-gray-100 pt-2 mt-2">
+                  <div class="flex justify-between items-center">
+                    <span class="text-sm font-semibold text-gray-700">Total à payer</span>
+                    <span class="text-lg font-bold text-blue-600">{{ formatCurrency(booking.montant_total_producteur) }}</span>
+                  </div>
+                </div>
+              </template>
             </div>
           </div>
 
