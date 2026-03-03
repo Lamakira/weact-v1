@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\BookingStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\AcceptBookingRequest;
+use App\Http\Requests\Booking\ConfirmBookingRequest;
 use App\Http\Requests\Booking\CreateBookingRequest;
 use App\Http\Requests\Booking\PayBookingRequest;
 use App\Http\Requests\Booking\RefuseBookingRequest;
@@ -136,6 +137,23 @@ class BookingController extends Controller
     }
 
     /**
+     * Confirm booking completion (Face or Producer).
+     * First confirmation: transitions to confirmed_by_face or confirmed_by_producer.
+     * Second confirmation: completes booking, releases escrow, credits wallet.
+     */
+    public function confirm(ConfirmBookingRequest $request, Booking $booking): JsonResponse
+    {
+        Gate::authorize('confirm', $booking);
+
+        $booking = $this->bookingService->confirm($booking, $request->user());
+
+        return response()->json([
+            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+            'message' => 'Confirmation enregistrée',
+        ]);
+    }
+
+    /**
      * Initiate payment for an accepted booking (Producer only).
      */
     public function pay(PayBookingRequest $request, Booking $booking): JsonResponse
@@ -154,6 +172,21 @@ class BookingController extends Controller
         return response()->json([
             'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
             'message' => 'Paiement initié',
+        ]);
+    }
+
+    /**
+     * Check Fedapay transaction status and process payment if approved.
+     * Used as fallback polling when webhook delivery is unreliable (e.g. sandbox).
+     */
+    public function checkPaymentStatus(Request $request, Booking $booking): JsonResponse
+    {
+        Gate::authorize('view', $booking);
+
+        $booking = $this->bookingService->checkAndProcessPayment($booking);
+
+        return response()->json([
+            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
         ]);
     }
 }

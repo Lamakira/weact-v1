@@ -101,6 +101,14 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Get all wallet transactions for this user.
+     */
+    public function walletTransactions(): HasMany
+    {
+        return $this->hasMany(WalletTransaction::class);
+    }
+
+    /**
      * Get all ratings given by this user.
      */
     public function ratingsGiven(): HasMany

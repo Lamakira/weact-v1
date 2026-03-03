@@ -11,6 +11,7 @@ use App\Http\Middleware\EnsureUserIsProducer;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Middleware\TrustProxies;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -20,6 +21,17 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Trust reverse proxies (ngrok in dev, Nginx/LB in prod)
+        // Dev:  TRUSTED_PROXIES=*  in .env
+        // Prod: TRUSTED_PROXIES=10.0.0.0/8 (internal LB subnet)
+        $middleware->trustProxies(
+            at: env('TRUSTED_PROXIES', null),
+            headers: \Illuminate\Http\Request::HEADER_X_FORWARDED_FOR
+                | \Illuminate\Http\Request::HEADER_X_FORWARDED_HOST
+                | \Illuminate\Http\Request::HEADER_X_FORWARDED_PORT
+                | \Illuminate\Http\Request::HEADER_X_FORWARDED_PROTO,
+        );
+
         // Enable Sanctum SPA stateful authentication
         // This applies EnsureFrontendRequestsAreStateful middleware to API routes
         // CSRF protection is active for all stateful requests

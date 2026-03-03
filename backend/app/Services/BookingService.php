@@ -8,6 +8,7 @@ use App\Concerns\RecordsFinancialEvent;
 use App\Enums\BookingStatus;
 use App\Enums\FinancialEventType;
 use App\Events\BookingAccepted;
+use App\Events\BookingCompleted;
 use App\Events\BookingCreated;
 use App\Events\BookingPaid;
 use App\Events\BookingRefused;
@@ -24,6 +25,8 @@ class BookingService
 
     public function __construct(
         private readonly FedapayService $fedapayService,
+        private readonly EscrowService $escrowService,
+        private readonly WalletService $walletService,
     ) {}
 
     /**
@@ -214,16 +217,19 @@ class BookingService
 
             $booking->update(['status' => BookingStatus::Paid]);
 
+            $freshBooking = $booking->fresh();
+            $this->escrowService->lock($freshBooking);
+
             $this->recordFinancialEvent(
                 FinancialEventType::PaymentConfirmed,
-                $booking,
-                $booking->montant_total_producteur,
+                $freshBooking,
+                $freshBooking->montant_total_producteur,
                 ['fedapay_ref' => $fedapayRef, 'status' => 'confirmed'],
             );
 
-            BookingPaid::dispatch($booking);
+            BookingPaid::dispatch($freshBooking);
 
-            return $booking->fresh();
+            return $freshBooking;
         });
     }
 
@@ -247,6 +253,121 @@ class BookingService
                 ['fedapay_ref' => $fedapayRef, 'status' => 'failed', 'metadata' => ['reason' => $reason]],
             );
         });
+    }
+
+    /**
+     * Check Fedapay transaction status and process payment if approved.
+     * Fallback for when webhook delivery is unreliable (sandbox / network issues).
+     */
+    public function checkAndProcessPayment(Booking $booking): Booking
+    {
+        // Already processed — return as-is
+        if (! in_array($booking->status, [BookingStatus::Accepted], true)) {
+            return $booking;
+        }
+
+        if (! $booking->fedapay_transaction_id) {
+            return $booking;
+        }
+
+        $transaction = $this->fedapayService->retrieveTransaction($booking->fedapay_transaction_id);
+
+        if ($transaction->status === 'approved') {
+            return $this->markAsPaid($booking, $transaction->reference ?? 'fedapay_poll');
+        }
+
+        return $booking;
+    }
+
+    /**
+     * Confirm a booking (double-confirmation logic).
+     * - First confirmation: transitions to confirmed_by_face or confirmed_by_producer
+     * - Second confirmation: transitions to completed, releases escrow, credits wallet
+     *
+     * @throws ValidationException
+     */
+    public function confirm(Booking $booking, User $confirmer): Booking
+    {
+        return DB::transaction(function () use ($booking, $confirmer) {
+            $booking = $booking->lockForUpdate()->find($booking->id);
+
+            $isFace = ($confirmer->id === $booking->face_id);
+            $isProducer = ($confirmer->id === $booking->producer_id);
+
+            $allowedStatuses = [
+                BookingStatus::Paid,
+                BookingStatus::InProgress,
+                BookingStatus::ConfirmedByFace,
+                BookingStatus::ConfirmedByProducer,
+            ];
+
+            if (! in_array($booking->status, $allowedStatuses, true)) {
+                throw ValidationException::withMessages([
+                    'status' => ['Ce booking ne peut pas être confirmé dans son état actuel.'],
+                ]);
+            }
+
+            $alreadyConfirmedByFace = $booking->status === BookingStatus::ConfirmedByFace;
+            $alreadyConfirmedByProducer = $booking->status === BookingStatus::ConfirmedByProducer;
+
+            // Guard: same party already confirmed — idempotent return
+            if ($isFace && $alreadyConfirmedByFace) {
+                return $booking;
+            }
+            if ($isProducer && $alreadyConfirmedByProducer) {
+                return $booking;
+            }
+
+            // Second confirmation → complete
+            if ($isFace && $alreadyConfirmedByProducer) {
+                return $this->completeBooking($booking);
+            }
+
+            if ($isProducer && $alreadyConfirmedByFace) {
+                return $this->completeBooking($booking);
+            }
+
+            // First confirmation
+            $newStatus = $isFace
+                ? BookingStatus::ConfirmedByFace
+                : BookingStatus::ConfirmedByProducer;
+
+            $booking->update(['status' => $newStatus]);
+
+            return $booking->fresh();
+        });
+    }
+
+    /**
+     * Auto-complete a booking (72h timeout without mutual confirmation).
+     * Same financial outcome as mutual confirmation but system-initiated.
+     */
+    public function autoComplete(Booking $booking): void
+    {
+        DB::transaction(function () use ($booking) {
+            $booking = $booking->lockForUpdate()->find($booking->id);
+
+            // Idempotent: already completed or cancelled
+            if ($booking->status === BookingStatus::Completed) {
+                return;
+            }
+
+            $this->completeBooking($booking);
+        });
+    }
+
+    /**
+     * Complete a booking: update status, release escrow, credit wallet, dispatch event.
+     * MUST be called inside an existing DB::transaction().
+     */
+    private function completeBooking(Booking $booking): Booking
+    {
+        $booking->update(['status' => BookingStatus::Completed]);
+        $fresh = $booking->fresh();
+        $this->escrowService->release($fresh, $this->walletService);
+        BookingCompleted::dispatch($fresh);
+
+        return $fresh;
     }
 
     /**

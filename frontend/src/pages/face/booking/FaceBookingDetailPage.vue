@@ -28,7 +28,7 @@ const authStore = useAuthStore()
 const isFace = computed(() => authStore.user?.userable_type === 'Face')
 
 const { booking, isLoading, error, notFound, fetchBooking, refresh } = useBookingDetail()
-const { isAccepting, isRefusing, error: actionError, accept, refuse, clearError } = useBookingActions()
+const { isAccepting, isRefusing, isConfirming, error: actionError, accept, refuse, confirm, clearError } = useBookingActions()
 
 // Payment overlay state
 const showPaymentOverlay = ref(false)
@@ -78,6 +78,17 @@ const producerRatingsCount = computed(() => {
 // Whether refuse needs a mandatory reason (paid bookings)
 const refuseNeedsReason = computed(() => {
   return booking.value?.status === BookingStatus.PAID
+})
+
+// Confirm button visibility and label (role-aware)
+const confirmLabel = computed<string | null>(() => {
+  const status = booking.value?.status as BookingStatusType | undefined
+  if (status === BookingStatus.PAID || status === BookingStatus.IN_PROGRESS) return 'Confirmer la réalisation'
+  // Face sees "Confirmer aussi" when Producer already confirmed
+  if (isFace.value && status === BookingStatus.CONFIRMED_BY_PRODUCER) return 'Confirmer aussi'
+  // Producer sees "Confirmer aussi" when Face already confirmed
+  if (!isFace.value && status === BookingStatus.CONFIRMED_BY_FACE) return 'Confirmer aussi'
+  return null
 })
 
 /**
@@ -145,6 +156,19 @@ async function handleRefuse(): Promise<void> {
     toast.success('Booking refusé')
   } else {
     toast.error(actionError.value || 'Erreur lors du refus')
+  }
+}
+
+async function handleConfirm(): Promise<void> {
+  if (!booking.value) return
+  clearError()
+
+  const result = await confirm(booking.value.id)
+  if (result) {
+    booking.value = result
+    toast.success('Confirmation enregistrée !')
+  } else {
+    toast.error(actionError.value || 'Erreur lors de la confirmation')
   }
 }
 
@@ -310,6 +334,19 @@ onMounted(() => {
           >
             <h2 class="text-sm font-semibold text-red-700 mb-2">Raison du refus</h2>
             <p class="text-sm text-red-600">{{ booking.cancellation_reason }}</p>
+          </div>
+
+          <!-- Confirm button (double-confirmation) -->
+          <div v-if="confirmLabel" class="flex gap-3">
+            <button
+              :disabled="isConfirming"
+              class="flex-1 flex items-center justify-center gap-2 rounded-lg bg-weact px-4 py-3 text-sm font-semibold text-white hover:bg-weact/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              @click="handleConfirm"
+            >
+              <Loader2 v-if="isConfirming" class="w-4 h-4 animate-spin" />
+              <CheckCircle v-else class="w-4 h-4" />
+              {{ confirmLabel }}
+            </button>
           </div>
 
           <!-- Action buttons -->

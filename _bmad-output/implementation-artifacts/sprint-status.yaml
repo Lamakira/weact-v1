@@ -237,15 +237,15 @@ development_status:
   booking-epic-1-retrospective: done
 
   # Booking Epic 2: Mobile Money Payment & Escrow (3 stories)
-  booking-epic-2: in-progress
+  booking-epic-2: done
   b2-1-producer-pays-mobile-money-fedapay: done
   b2-2-financial-audit-trail-idempotency: done
   b2-3-commission-calculation-pricing-transparency: done
-  booking-epic-2-retrospective: optional
+  booking-epic-2-retrospective: done
 
   # Booking Epic 3: Booking Completion, Wallet & Payouts (3 stories)
-  booking-epic-3: backlog
-  b3-1-double-confirmation-booking-completion: backlog
+  booking-epic-3: in-progress
+  b3-1-double-confirmation-booking-completion: done
   b3-2-face-wallet-dashboard: backlog
   b3-3-face-withdraws-mobile-money: backlog
   booking-epic-3-retrospective: optional

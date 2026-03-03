@@ -1,0 +1,289 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature\Booking;
+
+use App\Enums\BookingStatus;
+use App\Events\BookingCompleted;
+use App\Models\Booking;
+use App\Models\EscrowTransaction;
+use App\Models\Face;
+use App\Models\Producer;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
+use Tests\TestCase;
+
+class BookingCompletionTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private User $producerUser;
+
+    private Producer $producer;
+
+    private User $faceUser;
+
+    private Face $face;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->producer = Producer::factory()->create();
+        $this->producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $this->producer->id,
+        ]);
+
+        $this->face = Face::factory()->create();
+        $this->faceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $this->face->id,
+        ]);
+    }
+
+    // === FIRST CONFIRMATION TESTS ===
+
+    public function test_face_can_confirm_in_progress_booking(): void
+    {
+        $booking = Booking::factory()->inProgress()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/confirm");
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::ConfirmedByFace->value);
+
+        $this->assertDatabaseHas('bookings', [
+            'id' => $booking->id,
+            'status' => BookingStatus::ConfirmedByFace->value,
+        ]);
+    }
+
+    public function test_producer_can_confirm_in_progress_booking(): void
+    {
+        $booking = Booking::factory()->inProgress()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/confirm");
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::ConfirmedByProducer->value);
+
+        $this->assertDatabaseHas('bookings', [
+            'id' => $booking->id,
+            'status' => BookingStatus::ConfirmedByProducer->value,
+        ]);
+    }
+
+    // === SECOND CONFIRMATION (COMPLETION) TESTS ===
+
+    public function test_producer_second_confirm_completes_booking(): void
+    {
+        Event::fake();
+
+        $booking = Booking::factory()->confirmedByFace()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'montant_face_recoit' => 45000,
+        ]);
+
+        // Create escrow record as if payment was processed
+        EscrowTransaction::factory()->create([
+            'booking_id' => $booking->id,
+            'amount' => $booking->montant_total_producteur,
+            'status' => 'locked',
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/confirm");
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::Completed->value);
+
+        $this->assertDatabaseHas('bookings', [
+            'id' => $booking->id,
+            'status' => BookingStatus::Completed->value,
+        ]);
+
+        Event::assertDispatched(BookingCompleted::class);
+    }
+
+    public function test_face_second_confirm_completes_booking(): void
+    {
+        Event::fake();
+
+        $booking = Booking::factory()->confirmedByProducer()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'montant_face_recoit' => 45000,
+        ]);
+
+        EscrowTransaction::factory()->create([
+            'booking_id' => $booking->id,
+            'amount' => $booking->montant_total_producteur,
+            'status' => 'locked',
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/confirm");
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::Completed->value);
+
+        Event::assertDispatched(BookingCompleted::class);
+    }
+
+    public function test_completion_credits_face_wallet(): void
+    {
+        Event::fake();
+
+        $booking = Booking::factory()->confirmedByFace()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'montant_face_recoit' => 45000,
+        ]);
+
+        EscrowTransaction::factory()->create([
+            'booking_id' => $booking->id,
+            'amount' => $booking->montant_total_producteur,
+            'status' => 'locked',
+        ]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/confirm")
+            ->assertOk();
+
+        $this->assertDatabaseHas('wallet_transactions', [
+            'user_id' => $this->faceUser->id,
+            'booking_id' => $booking->id,
+            'type' => 'credit',
+            'amount' => 45000,
+        ]);
+
+        // Face wallet balance is updated
+        $this->faceUser->refresh();
+        $this->assertEquals(45000, $this->faceUser->balance);
+    }
+
+    public function test_completion_releases_escrow(): void
+    {
+        Event::fake();
+
+        $booking = Booking::factory()->confirmedByFace()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $escrow = EscrowTransaction::factory()->create([
+            'booking_id' => $booking->id,
+            'amount' => $booking->montant_total_producteur,
+            'status' => 'locked',
+        ]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/confirm")
+            ->assertOk();
+
+        $escrow->refresh();
+        $this->assertEquals('released', $escrow->status);
+        $this->assertNotNull($escrow->released_at);
+    }
+
+    // === AUTHORIZATION TESTS ===
+
+    public function test_third_party_cannot_confirm_booking(): void
+    {
+        $otherUser = User::factory()->create();
+        $booking = Booking::factory()->inProgress()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $this->actingAs($otherUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/confirm")
+            ->assertForbidden();
+    }
+
+    public function test_unauthenticated_user_gets_401_on_confirm(): void
+    {
+        $booking = Booking::factory()->inProgress()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $this->postJson("/api/v1/bookings/{$booking->id}/confirm")
+            ->assertUnauthorized();
+    }
+
+    public function test_cannot_confirm_pending_booking(): void
+    {
+        $booking = Booking::factory()->pending()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/confirm")
+            ->assertForbidden();
+    }
+
+    public function test_cannot_confirm_completed_booking(): void
+    {
+        $booking = Booking::factory()->completed()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/confirm")
+            ->assertForbidden();
+    }
+
+    public function test_cannot_confirm_refused_booking(): void
+    {
+        $booking = Booking::factory()->refused()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/confirm")
+            ->assertForbidden();
+    }
+
+    // === IDEMPOTENCY: already-first-confirmed by same party ===
+
+    public function test_face_cannot_confirm_again_after_first_face_confirmation(): void
+    {
+        $booking = Booking::factory()->confirmedByFace()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        // Policy denies since ConfirmedByFace is not an allowed confirm status for Face again
+        // (Policy allows only: Paid, InProgress, ConfirmedByFace, ConfirmedByProducer)
+        // But service will throw 422 if the same party tries to confirm when already their turn is done
+        // Actually, policy allows ConfirmedByFace for both parties so service handles it
+
+        // Face tries to confirm again — service won't complete (not confirmedByProducer)
+        // but will try to set confirmed_by_face again; this is actually a no-op / 422
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/confirm");
+
+        // Either 422 from service or booking stays ConfirmedByFace — status unchanged
+        if ($response->status() === 200) {
+            $response->assertJsonPath('data.status', BookingStatus::ConfirmedByFace->value);
+        } else {
+            $response->assertUnprocessable();
+        }
+    }
+}

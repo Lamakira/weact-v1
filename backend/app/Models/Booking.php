@@ -8,6 +8,7 @@ use App\Enums\BookingStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Booking extends Model
 {
@@ -76,5 +77,13 @@ class Booking extends Model
     public function producer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'producer_id');
+    }
+
+    /**
+     * Get the escrow transaction for this booking.
+     */
+    public function escrowTransaction(): HasOne
+    {
+        return $this->hasOne(EscrowTransaction::class);
     }
 }

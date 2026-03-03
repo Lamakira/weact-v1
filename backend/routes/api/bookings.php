@@ -28,4 +28,12 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
     Route::post('/bookings/{booking}/pay', [BookingController::class, 'pay'])
         ->middleware('throttle:60,1')
         ->name('bookings.pay');
+
+    Route::post('/bookings/{booking}/confirm', [BookingController::class, 'confirm'])
+        ->middleware('throttle:60,1')
+        ->name('bookings.confirm');
+
+    Route::get('/bookings/{booking}/payment-status', [BookingController::class, 'checkPaymentStatus'])
+        ->middleware('throttle:30,1')
+        ->name('bookings.payment-status');
 });

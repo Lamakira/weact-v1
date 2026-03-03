@@ -43,8 +43,10 @@ export function useBookingPayment(): UseBookingPaymentReturn {
 
     pollTimer = setInterval(async () => {
       try {
-        const response = await bookingApi.fetchBooking(bookingId)
-        if (response.data.status === BookingStatus.PAID) {
+        // Use payment-status endpoint: checks Fedapay directly and processes if approved
+        // This is resilient to webhook delivery failures (e.g. sandbox/ngrok)
+        const response = await bookingApi.checkPaymentStatus(bookingId)
+        if (response.data.status === BookingStatus.PAID || response.data.status === BookingStatus.IN_PROGRESS) {
           stopPolling()
           paymentStatus.value = 'confirmed'
           onPaid(response.data)

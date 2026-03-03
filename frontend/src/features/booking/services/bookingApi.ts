@@ -56,6 +56,24 @@ export const bookingApi = {
   },
 
   /**
+   * Confirm booking completion (Face or Producer)
+   */
+  async confirmBooking(id: number): Promise<BookingResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<BookingResponse>(`/bookings/${id}/confirm`)
+    return response.data
+  },
+
+  /**
+   * Check Fedapay transaction status and process if approved.
+   * Fallback polling when webhook delivery is unreliable (sandbox/ngrok).
+   */
+  async checkPaymentStatus(id: number): Promise<BookingResponse> {
+    const response = await apiClient.get<BookingResponse>(`/bookings/${id}/payment-status`)
+    return response.data
+  },
+
+  /**
    * Initiate payment for an accepted booking (Producer only)
    */
   async payBooking(

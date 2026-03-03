@@ -66,4 +66,22 @@ class BookingPolicy
         return $user->id === $booking->producer_id
             && $booking->status === BookingStatus::Accepted;
     }
+
+    /**
+     * Determine if the user can confirm the booking completion.
+     * Either the Face or the Producer can confirm when in a confirmable status.
+     */
+    public function confirm(User $user, Booking $booking): bool
+    {
+        $isParty = $user->id === $booking->face_id || $user->id === $booking->producer_id;
+
+        $confirmableStatuses = [
+            BookingStatus::Paid,
+            BookingStatus::InProgress,
+            BookingStatus::ConfirmedByFace,
+            BookingStatus::ConfirmedByProducer,
+        ];
+
+        return $isParty && in_array($booking->status, $confirmableStatuses, true);
+    }
 }

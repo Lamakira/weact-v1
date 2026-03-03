@@ -258,8 +258,9 @@ class FinancialAuditTrailTest extends TestCase
 
         $events = FinancialEvent::forBooking($this->acceptedBooking->id)->get();
 
-        $this->assertCount(1, $events);
-        $this->assertEquals($this->acceptedBooking->id, $events->first()->booking_id);
+        // markAsPaid creates PaymentConfirmed + EscrowLock (2 events)
+        $this->assertCount(2, $events);
+        $events->each(fn ($e) => $this->assertEquals($this->acceptedBooking->id, $e->booking_id));
     }
 
     public function test_exists_for_key_returns_correct_result(): void

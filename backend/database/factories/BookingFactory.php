@@ -104,6 +104,36 @@ class BookingFactory extends Factory
     }
 
     /**
+     * Indicate that the booking is in_progress (paid, pending mutual confirmation).
+     */
+    public function inProgress(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => BookingStatus::InProgress,
+        ]);
+    }
+
+    /**
+     * Indicate that the booking is confirmed by the Face (waiting for Producer).
+     */
+    public function confirmedByFace(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => BookingStatus::ConfirmedByFace,
+        ]);
+    }
+
+    /**
+     * Indicate that the booking is confirmed by the Producer (waiting for Face).
+     */
+    public function confirmedByProducer(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => BookingStatus::ConfirmedByProducer,
+        ]);
+    }
+
+    /**
      * Indicate that the booking is completed.
      */
     public function completed(): static
@@ -142,7 +172,7 @@ class BookingFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'fedapay_transaction_id' => fake()->randomNumber(8),
-            'payment_mode' => fake()->randomElement(['mtn_open', 'moov']),
+            'payment_mode' => fake()->randomElement(['mtn', 'moov']),
         ]);
     }
 }
