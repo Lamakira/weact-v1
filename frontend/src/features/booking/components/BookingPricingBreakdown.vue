@@ -9,6 +9,8 @@ const props = defineProps<{
   montantFaceRecoit?: number
   /** Actual server-stored total Producer pays. When provided, overrides client-side calculation. */
   montantTotalProducteur?: number
+  /** When true, shows a "Revenu plateforme" row with both commissions combined. Default: false. */
+  showPlatformRevenue?: boolean
 }>()
 
 const preview = computed(() => calculatePricingPreview(props.tarifBase))
@@ -28,6 +30,8 @@ const producerCommission = computed(() =>
 )
 
 const totalProducerPays = computed(() => props.montantTotalProducteur ?? preview.value.totalProducerPays)
+
+const platformRevenue = computed(() => producerCommission.value + faceCommission.value)
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('fr-FR', {
@@ -72,5 +76,11 @@ function formatCurrency(amount: number): string {
         </div>
       </div>
     </template>
+
+    <!-- Platform revenue row (optional) -->
+    <div v-if="showPlatformRevenue" class="flex justify-between items-center text-sm border-t border-gray-100 pt-2 mt-2">
+      <span class="text-gray-500">Revenu plateforme</span>
+      <span class="font-medium text-gray-700">{{ formatCurrency(platformRevenue) }}</span>
+    </div>
   </div>
 </template>

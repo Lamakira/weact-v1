@@ -272,6 +272,70 @@ class CreateBookingTest extends TestCase
             ->assertJsonValidationErrors('face_id');
     }
 
+    public function test_server_ignores_client_submitted_amounts(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        // Client submits manipulated/fake amounts — server must ignore them
+        $data = $this->getValidBookingData();
+        $data['duree_heures'] = 8;
+        $data['tarif_base'] = 1;               // Fake — should be ignored
+        $data['montant_total_producteur'] = 1; // Fake — should be ignored
+        $data['montant_face_recoit'] = 1;      // Fake — should be ignored
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertCreated();
+
+        // Server recalculates: 8h → daily rate: 1 day * 30000 = 30000
+        $expectedPricing = new BookingPricing(30000);
+
+        // Stored amounts must match server calculation, NOT client-submitted values
+        $this->assertDatabaseHas('bookings', [
+            'tarif_base' => $expectedPricing->baseTarif,
+            'montant_total_producteur' => $expectedPricing->totalProducerPays,
+            'montant_face_recoit' => $expectedPricing->faceReceives,
+        ]);
+
+        $this->assertDatabaseMissing('bookings', [
+            'tarif_base' => 1,
+        ]);
+    }
+
+    public function test_booking_resource_returns_amounts_matching_booking_pricing_vo(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        $data = $this->getValidBookingData();
+        $data['duree_heures'] = 4; // 4h → hourly: 4 * 5000 = 20000
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertCreated();
+
+        $expectedPricing = new BookingPricing(20000);
+
+        // BookingResource must expose amounts that match BookingPricing VO output
+        $response
+            ->assertJsonPath('data.tarif_base', $expectedPricing->baseTarif)
+            ->assertJsonPath('data.montant_total_producteur', $expectedPricing->totalProducerPays)
+            ->assertJsonPath('data.montant_face_recoit', $expectedPricing->faceReceives);
+
+        // Verify the relationship: totalProducerPays = tarif_base + 15% commission
+        $this->assertSame(
+            $expectedPricing->baseTarif + $expectedPricing->producerCommission,
+            $expectedPricing->totalProducerPays
+        );
+
+        // Verify Face receives tarif_base - 15% commission
+        $this->assertSame(
+            $expectedPricing->baseTarif - $expectedPricing->faceCommission,
+            $expectedPricing->faceReceives
+        );
+    }
+
     public function test_booking_resource_returns_correct_structure(): void
     {
         Event::fake([BookingCreated::class]);

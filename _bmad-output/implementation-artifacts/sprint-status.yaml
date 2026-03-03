@@ -240,7 +240,7 @@ development_status:
   booking-epic-2: in-progress
   b2-1-producer-pays-mobile-money-fedapay: done
   b2-2-financial-audit-trail-idempotency: done
-  b2-3-commission-calculation-pricing-transparency: backlog
+  b2-3-commission-calculation-pricing-transparency: done
   booking-epic-2-retrospective: optional
 
   # Booking Epic 3: Booking Completion, Wallet & Payouts (3 stories)

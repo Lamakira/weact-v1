@@ -5,6 +5,7 @@ import { toTypedSchema } from '@vee-validate/zod'
 import { bookingSchema } from '../schemas/booking'
 import { useBookingCreate } from '../composables/useBookingCreate'
 import { calculatePricingPreview, type CreateBookingData, type Booking } from '../types'
+import BookingPricingBreakdown from './BookingPricingBreakdown.vue'
 import { FloatingField, FloatingDateField, FloatingTextarea, FloatingSelect } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/composables/useToast'
@@ -87,11 +88,6 @@ const pricingPreview = computed(() => {
   if (tarifBase === 0) return null
   return calculatePricingPreview(tarifBase)
 })
-
-// Format money in XOF
-function formatXOF(amount: number): string {
-  return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA'
-}
 
 // Reset form and manage focus when opened/closed
 watch(
@@ -313,21 +309,7 @@ const onSubmit = handleSubmit(async (values) => {
                   <Receipt :size="16" />
                   Estimation tarifaire
                 </div>
-                <div class="space-y-2 text-sm">
-                  <div class="flex justify-between text-gray-600">
-                    <span>Tarif de base</span>
-                    <span>{{ formatXOF(pricingPreview.tarifBase) }}</span>
-                  </div>
-                  <div class="flex justify-between text-gray-600">
-                    <span>Commission plateforme (15%)</span>
-                    <span>{{ formatXOF(pricingPreview.producerCommission) }}</span>
-                  </div>
-                  <hr class="border-gray-200" />
-                  <div class="flex justify-between font-semibold text-gray-900">
-                    <span>Total à payer</span>
-                    <span>{{ formatXOF(pricingPreview.totalProducerPays) }}</span>
-                  </div>
-                </div>
+                <BookingPricingBreakdown :tarif-base="pricingPreview.tarifBase" role="producer" />
                 <p class="text-xs text-gray-400 mt-1">
                   Le montant final sera confirmé après acceptation de la Face.
                 </p>

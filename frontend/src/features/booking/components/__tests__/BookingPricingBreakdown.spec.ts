@@ -76,4 +76,25 @@ describe('BookingPricingBreakdown', () => {
     const producerText = producerWrapper.text().replace(/\s/g, '')
     expect(producerText).toContain(formatXOF(serverTotalProducteur))
   })
+
+  it('shows "Revenu plateforme" row when showPlatformRevenue is true', () => {
+    const pricing = calculatePricingPreview(tarifBase)
+
+    const wrapper = mount(BookingPricingBreakdown, {
+      props: { tarifBase, role: 'producer', showPlatformRevenue: true },
+    })
+
+    expect(wrapper.text()).toContain('Revenu plateforme')
+
+    const platformRevenue = pricing.producerCommission + pricing.faceCommission
+    expect(wrapper.text().replace(/\s/g, '')).toContain(formatXOF(platformRevenue))
+  })
+
+  it('does not show "Revenu plateforme" row when showPlatformRevenue is omitted', () => {
+    const wrapper = mount(BookingPricingBreakdown, {
+      props: { tarifBase, role: 'producer' },
+    })
+
+    expect(wrapper.text()).not.toContain('Revenu plateforme')
+  })
 })
