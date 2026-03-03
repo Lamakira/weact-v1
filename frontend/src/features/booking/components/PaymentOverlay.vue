@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useBookingPayment } from '../composables/useBookingPayment'
-import { PAYMENT_MODES, type Booking, type PaymentMode } from '../types'
+import { PAYMENT_MODES, PHONE_COUNTRIES, type Booking, type PaymentMode, type PhoneCountry } from '../types'
 import { Button } from '@/components/ui/button'
 import {
   X,
@@ -26,6 +26,8 @@ const { isInitiating, isPolling, paymentStatus, error, initiatePayment, stopPoll
   useBookingPayment()
 
 const selectedMode = ref<PaymentMode | null>(null)
+const phoneNumber = ref('')
+const phoneCountry = ref<PhoneCountry>('bj')
 const elapsedSeconds = ref(0)
 let timerInterval: ReturnType<typeof setInterval> | null = null
 
@@ -72,11 +74,25 @@ const formattedTimer = computed((): string => {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 })
 
+const selectedCountryPrefix = computed(() => {
+  const country = PHONE_COUNTRIES.find((c) => c.value === phoneCountry.value)
+  return country?.prefix ?? '+229'
+})
+
+const canPay = computed(() => {
+  return selectedMode.value && phoneNumber.value.length >= 6
+})
+
 async function handlePay(): Promise<void> {
-  if (!selectedMode.value) return
+  if (!selectedMode.value || !phoneNumber.value) return
 
   startTimer()
-  const result = await initiatePayment(props.booking.id, selectedMode.value)
+  const result = await initiatePayment(
+    props.booking.id,
+    selectedMode.value,
+    phoneNumber.value,
+    phoneCountry.value,
+  )
 
   if (!result) {
     stopTimer()
@@ -87,6 +103,7 @@ function handleRetry(): void {
   stopTimer()
   reset()
   selectedMode.value = null
+  phoneNumber.value = ''
 }
 
 function handleClose(): void {
@@ -94,6 +111,7 @@ function handleClose(): void {
   stopTimer()
   reset()
   selectedMode.value = null
+  phoneNumber.value = ''
   emit('update:modelValue', false)
 }
 
@@ -121,6 +139,7 @@ watch(
       stopTimer()
       reset()
       selectedMode.value = null
+      phoneNumber.value = ''
     }
   },
 )
@@ -217,6 +236,31 @@ watch(
               </div>
             </div>
 
+            <!-- Phone number input -->
+            <div class="space-y-2">
+              <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Numero de telephone Mobile Money
+              </p>
+              <div class="flex gap-2">
+                <select
+                  v-model="phoneCountry"
+                  class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                >
+                  <option v-for="c in PHONE_COUNTRIES" :key="c.value" :value="c.value">
+                    {{ c.prefix }} {{ c.label }}
+                  </option>
+                </select>
+                <input
+                  v-model="phoneNumber"
+                  type="tel"
+                  inputmode="numeric"
+                  placeholder="64000001"
+                  class="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-500"
+                  maxlength="15"
+                />
+              </div>
+            </div>
+
             <!-- Error -->
             <div
               v-if="error"
@@ -229,7 +273,7 @@ watch(
             <!-- Pay button -->
             <Button
               class="w-full"
-              :disabled="!selectedMode || isInitiating"
+              :disabled="!canPay || isInitiating"
               @click="handlePay"
             >
               <Loader2 v-if="isInitiating" :size="16" class="mr-2 animate-spin" />

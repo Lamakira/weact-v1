@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Concerns\RecordsFinancialEvent;
 use App\Enums\BookingStatus;
 use App\Enums\FinancialEventType;
 use App\Events\BookingAccepted;
@@ -12,15 +13,15 @@ use App\Events\BookingPaid;
 use App\Events\BookingRefused;
 use App\Models\Booking;
 use App\Models\Face;
-use App\Models\FinancialEvent;
 use App\Models\User;
 use App\ValueObjects\BookingPricing;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class BookingService
 {
+    use RecordsFinancialEvent;
+
     public function __construct(
         private readonly FedapayService $fedapayService,
     ) {}
@@ -137,12 +138,29 @@ class BookingService
     /**
      * Initiate a Mobile Money payment for an accepted booking.
      *
+     * @param  array{number: string, country: string}  $phoneData
+     *
      * @throws ValidationException
      */
-    public function initiatePayment(Booking $booking, string $paymentMode): Booking
+    public function initiatePayment(Booking $booking, string $paymentMode, array $phoneData): Booking
     {
-        return DB::transaction(function () use ($booking, $paymentMode) {
+        return DB::transaction(function () use ($booking, $paymentMode, $phoneData) {
             $booking = $booking->lockForUpdate()->find($booking->id);
+
+            // Idempotent: if booking already has a Fedapay transaction, check its actual
+            // status via the Fedapay API. Only block if the transaction is still pending/approved.
+            // If it was declined/canceled, allow creating a new transaction.
+            if ($booking->fedapay_transaction_id !== null) {
+                $existing = $this->fedapayService->retrieveTransaction($booking->fedapay_transaction_id);
+                $terminalFailedStatuses = ['declined', 'canceled', 'refunded'];
+
+                if (! in_array($existing->status, $terminalFailedStatuses, true)) {
+                    return $booking;
+                }
+
+                // Previous transaction failed — reset to allow a new attempt
+                $booking->update(['fedapay_transaction_id' => null, 'payment_mode' => null]);
+            }
 
             if ($booking->status !== BookingStatus::Accepted) {
                 throw ValidationException::withMessages([
@@ -150,17 +168,13 @@ class BookingService
                 ]);
             }
 
-            $idempotencyKey = Str::uuid()->toString();
+            $event = $this->recordFinancialEvent(
+                FinancialEventType::PaymentInitiated,
+                $booking,
+                $booking->montant_total_producteur,
+            );
 
-            FinancialEvent::create([
-                'type' => FinancialEventType::PaymentInitiated,
-                'booking_id' => $booking->id,
-                'amount' => $booking->montant_total_producteur,
-                'idempotency_key' => $idempotencyKey,
-                'status' => 'pending',
-            ]);
-
-            $result = $this->fedapayService->initiatePayment($booking, $paymentMode, $idempotencyKey);
+            $result = $this->fedapayService->initiatePayment($booking, $paymentMode, $event->idempotency_key, $phoneData);
 
             $booking->update([
                 'fedapay_transaction_id' => $result['fedapay_transaction_id'],
@@ -193,16 +207,19 @@ class BookingService
                 ]);
             }
 
+            // Guard: prevent duplicate PaymentConfirmed FinancialEvent
+            if ($this->hasExistingFinancialEvent($booking->id, FinancialEventType::PaymentConfirmed)) {
+                return $booking;
+            }
+
             $booking->update(['status' => BookingStatus::Paid]);
 
-            FinancialEvent::create([
-                'type' => FinancialEventType::PaymentConfirmed,
-                'booking_id' => $booking->id,
-                'amount' => $booking->montant_total_producteur,
-                'fedapay_ref' => $fedapayRef,
-                'idempotency_key' => Str::uuid()->toString(),
-                'status' => 'confirmed',
-            ]);
+            $this->recordFinancialEvent(
+                FinancialEventType::PaymentConfirmed,
+                $booking,
+                $booking->montant_total_producteur,
+                ['fedapay_ref' => $fedapayRef, 'status' => 'confirmed'],
+            );
 
             BookingPaid::dispatch($booking);
 
@@ -216,17 +233,19 @@ class BookingService
     public function markPaymentFailed(Booking $booking, string $fedapayRef, string $reason): void
     {
         DB::transaction(function () use ($booking, $fedapayRef, $reason) {
-            $booking->lockForUpdate()->find($booking->id);
+            $booking = $booking->lockForUpdate()->find($booking->id);
 
-            FinancialEvent::create([
-                'type' => FinancialEventType::PaymentFailed,
-                'booking_id' => $booking->id,
-                'amount' => $booking->montant_total_producteur,
-                'fedapay_ref' => $fedapayRef,
-                'idempotency_key' => Str::uuid()->toString(),
-                'status' => 'failed',
-                'metadata' => ['reason' => $reason],
-            ]);
+            // Guard: prevent duplicate PaymentFailed for same fedapay_ref
+            if ($this->hasExistingFinancialEvent($booking->id, FinancialEventType::PaymentFailed, $fedapayRef)) {
+                return;
+            }
+
+            $this->recordFinancialEvent(
+                FinancialEventType::PaymentFailed,
+                $booking,
+                $booking->montant_total_producteur,
+                ['fedapay_ref' => $fedapayRef, 'status' => 'failed', 'metadata' => ['reason' => $reason]],
+            );
         });
     }
 

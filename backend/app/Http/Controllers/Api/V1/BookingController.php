@@ -144,7 +144,11 @@ class BookingController extends Controller
 
         $booking = $this->bookingService->initiatePayment(
             $booking,
-            $request->validated('payment_mode')
+            $request->validated('payment_mode'),
+            [
+                'number' => $request->validated('phone_number'),
+                'country' => $request->validated('phone_country'),
+            ]
         );
 
         return response()->json([

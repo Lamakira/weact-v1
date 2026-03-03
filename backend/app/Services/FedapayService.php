@@ -20,9 +20,10 @@ class FedapayService
     /**
      * Initiate a Mobile Money payment for a booking.
      *
+     * @param  array{number: string, country: string}  $phoneData
      * @return array{fedapay_transaction_id: int, status: string}
      */
-    public function initiatePayment(Booking $booking, string $mode, string $idempotencyKey): array
+    public function initiatePayment(Booking $booking, string $mode, string $idempotencyKey, array $phoneData): array
     {
         $producer = $booking->producer;
 
@@ -38,11 +39,18 @@ class FedapayService
             'customer' => [
                 'firstname' => $producer->name,
                 'email' => $producer->email,
+                'phone_number' => [
+                    'number' => $phoneData['number'],
+                    'country' => $phoneData['country'],
+                ],
             ],
         ]);
 
         $token = $transaction->generateToken()->token;
-        $transaction->sendNowWithToken($mode, $token);
+        $transaction->sendNowWithToken($mode, $token, [
+            'number' => $phoneData['number'],
+            'country' => $phoneData['country'],
+        ]);
 
         return [
             'fedapay_transaction_id' => (int) $transaction->id,

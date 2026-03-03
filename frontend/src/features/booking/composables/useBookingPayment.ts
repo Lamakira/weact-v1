@@ -12,7 +12,7 @@ export interface UseBookingPaymentReturn {
   isPolling: Ref<boolean>
   paymentStatus: Ref<PaymentStatus>
   error: Ref<string | null>
-  initiatePayment: (bookingId: number, paymentMode: string) => Promise<Booking | null>
+  initiatePayment: (bookingId: number, paymentMode: string, phoneNumber: string, phoneCountry: string) => Promise<Booking | null>
   stopPolling: () => void
   reset: () => void
 }
@@ -64,13 +64,13 @@ export function useBookingPayment(): UseBookingPaymentReturn {
     }, POLL_TIMEOUT_MS)
   }
 
-  async function initiatePayment(bookingId: number, paymentMode: string): Promise<Booking | null> {
+  async function initiatePayment(bookingId: number, paymentMode: string, phoneNumber: string, phoneCountry: string): Promise<Booking | null> {
     isInitiating.value = true
     error.value = null
     paymentStatus.value = 'idle'
 
     try {
-      const response = await bookingApi.payBooking(bookingId, paymentMode)
+      const response = await bookingApi.payBooking(bookingId, paymentMode, phoneNumber, phoneCountry)
       paymentStatus.value = 'waiting'
 
       // Start polling for payment confirmation

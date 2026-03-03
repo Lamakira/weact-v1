@@ -157,7 +157,7 @@ export interface BookingPricingPreview {
 }
 
 // Payment mode types
-export type PaymentMode = 'mtn_open' | 'moov' | 'celtiis'
+export type PaymentMode = 'mtn' | 'moov' | 'momo_test'
 
 export interface PaymentModeOption {
   label: string
@@ -166,9 +166,26 @@ export interface PaymentModeOption {
 }
 
 export const PAYMENT_MODES: PaymentModeOption[] = [
-  { label: 'MTN MoMo', value: 'mtn_open', icon: '📱' },
+  { label: 'MTN MoMo', value: 'mtn', icon: '📱' },
   { label: 'Moov Money', value: 'moov', icon: '📱' },
-  { label: 'Celtiis', value: 'celtiis', icon: '📱' },
+  { label: 'MoMo Test', value: 'momo_test', icon: '🧪' },
+]
+
+// Phone country options for Mobile Money
+export type PhoneCountry = 'bj' | 'tg' | 'ci' | 'sn' | 'bf'
+
+export interface PhoneCountryOption {
+  label: string
+  value: PhoneCountry
+  prefix: string
+}
+
+export const PHONE_COUNTRIES: PhoneCountryOption[] = [
+  { label: 'Bénin', value: 'bj', prefix: '+229' },
+  { label: 'Togo', value: 'tg', prefix: '+228' },
+  { label: 'Côte d\'Ivoire', value: 'ci', prefix: '+225' },
+  { label: 'Sénégal', value: 'sn', prefix: '+221' },
+  { label: 'Burkina Faso', value: 'bf', prefix: '+226' },
 ]
 
 // Payment status for frontend tracking

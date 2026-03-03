@@ -76,17 +76,19 @@ class BookingPaymentTest extends TestCase
 
         $response = $this->actingAs($this->producerUser)
             ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay", [
-                'payment_mode' => 'mtn_open',
+                'payment_mode' => 'mtn',
+                'phone_number' => '64000001',
+                'phone_country' => 'bj',
             ]);
 
         $response->assertOk()
             ->assertJsonPath('data.fedapay_transaction_id', 12345678)
-            ->assertJsonPath('data.payment_mode', 'mtn_open');
+            ->assertJsonPath('data.payment_mode', 'mtn');
 
         $this->assertDatabaseHas('bookings', [
             'id' => $this->acceptedBooking->id,
             'fedapay_transaction_id' => 12345678,
-            'payment_mode' => 'mtn_open',
+            'payment_mode' => 'mtn',
             'status' => BookingStatus::Accepted->value, // Still accepted until webhook confirms
         ]);
     }
@@ -100,7 +102,9 @@ class BookingPaymentTest extends TestCase
 
         $response = $this->actingAs($this->producerUser)
             ->postJson("/api/v1/bookings/{$pendingBooking->id}/pay", [
-                'payment_mode' => 'mtn_open',
+                'payment_mode' => 'mtn',
+                'phone_number' => '64000001',
+                'phone_country' => 'bj',
             ]);
 
         $response->assertForbidden();
@@ -110,7 +114,9 @@ class BookingPaymentTest extends TestCase
     {
         $response = $this->actingAs($this->faceUser)
             ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay", [
-                'payment_mode' => 'mtn_open',
+                'payment_mode' => 'mtn',
+                'phone_number' => '64000001',
+                'phone_country' => 'bj',
             ]);
 
         $response->assertForbidden();
@@ -119,7 +125,9 @@ class BookingPaymentTest extends TestCase
     public function test_unauthenticated_user_gets_401_on_pay(): void
     {
         $this->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay", [
-            'payment_mode' => 'mtn_open',
+            'payment_mode' => 'mtn',
+            'phone_number' => '64000001',
+            'phone_country' => 'bj',
         ])->assertUnauthorized();
     }
 
@@ -148,6 +156,8 @@ class BookingPaymentTest extends TestCase
         $this->actingAs($this->producerUser)
             ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay", [
                 'payment_mode' => 'moov',
+                'phone_number' => '64000001',
+                'phone_country' => 'bj',
             ])
             ->assertOk();
 
@@ -331,7 +341,9 @@ class BookingPaymentTest extends TestCase
 
         $this->actingAs($this->producerUser)
             ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay", [
-                'payment_mode' => 'mtn_open',
+                'payment_mode' => 'mtn',
+                'phone_number' => '64000001',
+                'phone_country' => 'bj',
             ])
             ->assertOk();
 
@@ -360,7 +372,9 @@ class BookingPaymentTest extends TestCase
 
         $this->actingAs($this->producerUser)
             ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay", [
-                'payment_mode' => 'mtn_open',
+                'payment_mode' => 'mtn',
+                'phone_number' => '64000001',
+                'phone_country' => 'bj',
             ])
             ->assertOk();
 
