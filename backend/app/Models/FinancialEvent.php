@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\FinancialEventType;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -62,5 +63,37 @@ class FinancialEvent extends Model
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
+    }
+
+    /**
+     * Scope: filter by booking ID.
+     */
+    public function scopeForBooking(Builder $query, int $bookingId): Builder
+    {
+        return $query->where('booking_id', $bookingId);
+    }
+
+    /**
+     * Scope: filter by event type.
+     */
+    public function scopeOfType(Builder $query, FinancialEventType $type): Builder
+    {
+        return $query->where('type', $type);
+    }
+
+    /**
+     * Scope: filter by idempotency key.
+     */
+    public function scopeWithIdempotencyKey(Builder $query, string $key): Builder
+    {
+        return $query->where('idempotency_key', $key);
+    }
+
+    /**
+     * Check if a FinancialEvent with the given idempotency key exists.
+     */
+    public static function existsForKey(string $idempotencyKey): bool
+    {
+        return static::withIdempotencyKey($idempotencyKey)->exists();
     }
 }
