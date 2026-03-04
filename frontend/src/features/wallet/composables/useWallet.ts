@@ -1,12 +1,17 @@
 import { ref, computed } from 'vue'
+import { isAxiosError } from 'axios'
 import { walletApi } from '../services/walletApi'
 import type { WalletData, WalletTransaction, WalletTransactionsMeta } from '../types/wallet'
+import type { WithdrawPayload } from '../services/walletApi'
 
 export function useWallet() {
   const walletData = ref<WalletData | null>(null)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const currentPage = ref(1)
+
+  const isWithdrawing = ref(false)
+  const withdrawError = ref<string | null>(null)
 
   const balance = computed<number>(() => walletData.value?.balance ?? 0)
   const pendingEscrow = computed<number>(() => walletData.value?.pending_escrow ?? 0)
@@ -47,6 +52,27 @@ export function useWallet() {
     }
   }
 
+  async function withdraw(payload: WithdrawPayload): Promise<boolean> {
+    isWithdrawing.value = true
+    withdrawError.value = null
+    try {
+      await walletApi.withdraw(payload)
+      await fetchWallet(1) // Refresh balance + transaction list
+      return true
+    } catch (err: unknown) {
+      if (isAxiosError(err) && err.response?.data?.errors?.amount) {
+        withdrawError.value = err.response.data.errors.amount[0]
+      } else if (isAxiosError(err) && err.response?.data?.message) {
+        withdrawError.value = err.response.data.message
+      } else {
+        withdrawError.value = 'Retrait échoué. Veuillez réessayer.'
+      }
+      return false
+    } finally {
+      isWithdrawing.value = false
+    }
+  }
+
   return {
     isLoading,
     error,
@@ -57,5 +83,8 @@ export function useWallet() {
     hasMore,
     fetchWallet,
     loadMore,
+    isWithdrawing,
+    withdrawError,
+    withdraw,
   }
 }

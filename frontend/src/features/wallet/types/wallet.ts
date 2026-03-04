@@ -5,6 +5,7 @@ export interface WalletTransaction {
   reference: string
   description: string
   booking_id: number | null
+  status: 'pending' | 'completed' | 'failed' | null
   created_at: string
 }
 

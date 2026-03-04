@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Wallet, Info, AlertCircle } from 'lucide-vue-next'
+import { Wallet, Info, AlertCircle, ArrowUpRight } from 'lucide-vue-next'
 
 interface Props {
   balance: number
@@ -8,6 +8,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+defineEmits<{ withdraw: [] }>()
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('fr-FR', {
@@ -40,6 +41,14 @@ const hasNoFunds = computed(() => props.balance === 0 && props.pendingEscrow ===
       </div>
 
       <div class="flex flex-col md:items-end space-y-1.5">
+        <button
+          v-if="props.balance > 0"
+          class="flex items-center gap-1.5 text-sm font-medium text-[#198496] border border-[#198496] px-4 py-1.5 rounded-md hover:bg-[#198496]/5 transition-colors"
+          @click="$emit('withdraw')"
+        >
+          <ArrowUpRight class="w-4 h-4" />
+          Retirer
+        </button>
         <div class="group relative flex items-center gap-1.5 text-sm text-gray-500">
           <span>Fonds en attente</span>
           <div class="cursor-help text-gray-400 hover:text-[#198496] transition-colors">

@@ -69,7 +69,21 @@ const formatDate = (dateString: string) =>
 
               <!-- Description + meta -->
               <div>
-                <p class="text-sm font-medium text-gray-900">{{ transaction.description }}</p>
+                <div class="flex items-center gap-2">
+                  <p class="text-sm font-medium text-gray-900">{{ transaction.description }}</p>
+                  <!-- Withdrawal status badge (only for debits with a status) -->
+                  <span
+                    v-if="transaction.type === 'debit' && transaction.status"
+                    :class="[
+                      'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
+                      transaction.status === 'completed' ? 'bg-green-50 text-green-700' :
+                      transaction.status === 'pending'   ? 'bg-amber-50 text-amber-700' :
+                                                           'bg-red-50 text-red-700',
+                    ]"
+                  >
+                    {{ transaction.status === 'completed' ? 'Terminé' : transaction.status === 'pending' ? 'En cours' : 'Échoué' }}
+                  </span>
+                </div>
                 <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
                   <span class="text-xs text-gray-400 font-mono">{{ transaction.reference }}</span>
                   <span
