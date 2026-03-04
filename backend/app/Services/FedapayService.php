@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Booking;
+use App\Models\User;
 use FedaPay\FedaPay;
+use FedaPay\Payout;
 use FedaPay\Transaction;
 use FedaPay\Webhook;
 
@@ -78,5 +80,46 @@ class FedapayService
     public function retrieveTransaction(int $id): Transaction
     {
         return Transaction::retrieve($id);
+    }
+
+    /**
+     * Initiate a Mobile Money payout (withdrawal) to a Face.
+     * Uses Fedapay Payout API: Payout::create() + sendNow().
+     *
+     * @param  array{number: string, country: string}  $phoneData
+     * @return array{fedapay_payout_id: int, status: string}
+     * @throws \FedaPay\Error\ApiError on Fedapay failure
+     */
+    public function initiateWithdrawal(int $amount, string $mode, string $idempotencyKey, array $phoneData, User $user): array
+    {
+        $payout = Payout::create([
+            'amount'   => $amount,
+            'currency' => ['iso' => 'XOF'],
+            'mode'     => $mode,
+            'customer' => [
+                'firstname' => $user->name,
+                'email'     => $user->email,
+                'phone_number' => [
+                    'number'  => $phoneData['number'],
+                    'country' => $phoneData['country'],
+                ],
+            ],
+            'metadata' => [
+                'user_id'         => $user->id,
+                'idempotency_key' => $idempotencyKey,
+            ],
+        ]);
+
+        $payout->sendNow([
+            'phone_number' => [
+                'number'  => $phoneData['number'],
+                'country' => $phoneData['country'],
+            ],
+        ]);
+
+        return [
+            'fedapay_payout_id' => (int) $payout->id,
+            'status'            => $payout->status,
+        ];
     }
 }

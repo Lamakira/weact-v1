@@ -23,6 +23,7 @@ class WalletTransactionResource extends JsonResource
             'reference'   => $this->reference,
             'description' => $this->description,
             'booking_id'  => $this->booking_id,
+            'status'      => $this->status,
             'created_at'  => $this->created_at->toIso8601String(),
         ];
     }

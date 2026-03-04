@@ -22,6 +22,7 @@ class WalletTransaction extends Model
         'amount',
         'reference',
         'description',
+        'status',
     ];
 
     /**

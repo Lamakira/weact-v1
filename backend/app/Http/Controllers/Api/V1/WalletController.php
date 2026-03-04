@@ -5,10 +5,18 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Booking\WithdrawWalletRequest;
 use App\Http\Resources\WalletResource;
 use App\Models\EscrowTransaction;
+use App\Models\FinancialEvent;
 use App\Models\WalletTransaction;
+use App\Enums\FinancialEventType;
+use App\Services\FedapayService;
+use App\Services\WalletService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class WalletController extends Controller
 {
@@ -31,6 +39,66 @@ class WalletController extends Controller
             'balance'        => (int) $user->balance,
             'pending_escrow' => $pendingEscrow,
             'transactions'   => $transactions,
+        ]);
+    }
+
+    public function withdraw(
+        WithdrawWalletRequest $request,
+        WalletService $walletService,
+        FedapayService $fedapayService,
+    ): JsonResponse {
+        $user = $request->user();
+        $validated = $request->validated();
+
+        $idempotencyKey = 'withdrawal_' . Str::uuid()->toString();
+
+        try {
+            DB::transaction(function () use ($user, $validated, $walletService, $fedapayService, $idempotencyKey): void {
+                // 1. Debit balance atomically (throws RuntimeException if insufficient)
+                $tx = $walletService->debit(
+                    userId: $user->id,
+                    amount: $validated['amount'],
+                    description: "Retrait vers {$validated['payment_mode']} — {$validated['phone_number']}",
+                );
+
+                // 2. Log financial event
+                FinancialEvent::create([
+                    'type'            => FinancialEventType::Withdrawal,
+                    'booking_id'      => null,
+                    'amount'          => $validated['amount'],
+                    'idempotency_key' => $idempotencyKey,
+                    'status'          => 'pending',
+                    'metadata'        => [
+                        'payment_mode'  => $validated['payment_mode'],
+                        'phone_number'  => $validated['phone_number'],
+                        'phone_country' => $validated['phone_country'],
+                    ],
+                ]);
+
+                // 3. Initiate Fedapay payout (throws ApiError on failure → rolls back)
+                $fedapayService->initiateWithdrawal(
+                    amount: $validated['amount'],
+                    mode: $validated['payment_mode'],
+                    idempotencyKey: $idempotencyKey,
+                    phoneData: [
+                        'number'  => $validated['phone_number'],
+                        'country' => $validated['phone_country'],
+                    ],
+                    user: $user,
+                );
+
+                // 4. Mark wallet transaction as completed
+                $tx->update(['status' => 'completed']);
+            });
+        } catch (\RuntimeException) {
+            return response()->json(['message' => 'Solde insuffisant.'], 422);
+        } catch (\Exception) {
+            return response()->json(['message' => 'Retrait échoué. Veuillez réessayer.'], 500);
+        }
+
+        return response()->json([
+            'message' => 'Retrait initié avec succès.',
+            'status'  => 'ok',
         ]);
     }
 }

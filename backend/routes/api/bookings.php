@@ -38,8 +38,12 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
         ->middleware('throttle:30,1')
         ->name('bookings.payment-status');
 
-    // Wallet (Face-only — controller enforces userable_type check)
+    // Wallet (Face-only — 'face' middleware enforces userable_type)
     Route::get('/wallet', [WalletController::class, 'index'])
         ->middleware(['face', 'throttle:60,1'])
         ->name('wallet.index');
+
+    Route::post('/wallet/withdraw', [WalletController::class, 'withdraw'])
+        ->middleware(['face', 'throttle:5,1'])
+        ->name('wallet.withdraw');
 });
