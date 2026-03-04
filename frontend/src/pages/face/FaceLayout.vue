@@ -6,7 +6,7 @@
  * Child routes render via <router-view> in the content area.
  */
 import { onMounted, ref, computed } from 'vue'
-import { LayoutDashboard, FileText, MessageCircle, User, Briefcase, CalendarCheck } from 'lucide-vue-next'
+import { LayoutDashboard, FileText, MessageCircle, User, Briefcase, CalendarCheck, Wallet } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { DashboardLayout, type SidebarItem } from '@/components/layout'
@@ -27,6 +27,7 @@ const sidebarItems: SidebarItem[] = [
   { label: 'Mes candidatures', icon: FileText, to: '/face/candidatures' },
   { label: 'Mes bookings', icon: CalendarCheck, to: '/face/bookings' },
   { label: 'Messages', icon: MessageCircle, to: '/face/messages' },
+  { label: 'Portefeuille', icon: Wallet, to: '/face/wallet' },
   { label: 'Mon profil', icon: User, to: '/face/profile' },
 ]
 

@@ -174,6 +174,12 @@ const router = createRouter({
           name: 'face-booking-detail',
           component: () => import('../pages/face/booking/FaceBookingDetailPage.vue'),
         },
+        {
+          path: 'wallet',
+          name: 'face-wallet',
+          component: () => import('../pages/face/wallet/FaceWalletPage.vue'),
+          meta: { title: 'Mon portefeuille - WEACT' },
+        },
       ],
     },
     {

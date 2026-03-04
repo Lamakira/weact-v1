@@ -5,7 +5,7 @@
  * Two-column layout: profile photo (left) and stats/actions (right).
  */
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, RouterLink } from 'vue-router'
 import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
 import {
   AlertCircle,
@@ -25,6 +25,7 @@ import {
   ActivityChart,
 } from '@/features/dashboard'
 import { faceApi } from '@/features/face/services/faceApi'
+import { useWallet } from '@/features/wallet'
 import type { FaceProfile, CategoryNicheInfo, BioLocationInfo } from '@/features/face/types'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -69,6 +70,9 @@ const {
   isLoading: isMissionsCountLoading,
   fetchMissionsCount,
 } = useMissionsCount()
+
+// Wallet balance composable
+const { balance: walletBalance, fetchWallet } = useWallet()
 
 // Computed values
 const fullName = computed(() => {
@@ -115,7 +119,7 @@ onMounted(async () => {
     isProfileLoading.value = false
   })
 
-  await Promise.all([profilePromise, fetchCompletion(), fetchStats(), fetchChartStats(), fetchMissionsCount()])
+  await Promise.all([profilePromise, fetchCompletion(), fetchStats(), fetchChartStats(), fetchMissionsCount(), fetchWallet()])
 })
 
 function goToProfile(): void {
@@ -379,18 +383,21 @@ function goToMessages(): void {
           </button>
 
           <!-- Wallet -->
-          <div
-            class="bg-white px-4 py-3 rounded-xl border border-gray-200 shadow-sm flex items-center gap-3"
+          <RouterLink
+            :to="{ name: 'face-wallet' }"
+            class="group bg-white px-4 py-3 rounded-xl border border-gray-200 shadow-sm transition-all duration-200 hover:border-[#198496] hover:shadow-md flex items-center gap-3"
             data-testid="wallet-card"
           >
-            <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500 flex-shrink-0">
+            <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500 group-hover:bg-[#198496]/10 group-hover:text-[#198496] transition-colors flex-shrink-0">
               <Wallet :size="16" />
             </div>
             <div class="min-w-0">
-              <p class="font-semibold text-gray-300 text-xs sm:text-sm truncate">0 XOF</p>
+              <p class="font-semibold text-gray-900 text-xs sm:text-sm truncate">
+                {{ new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(walletBalance) }}
+              </p>
             </div>
-            <span class="bg-gray-100 text-[8px] uppercase font-bold text-gray-400 px-1.5 py-0.5 rounded tracking-widest flex-shrink-0 ml-auto">Bientôt</span>
-          </div>
+            <span class="ml-auto text-[10px] sm:text-xs font-medium text-[#198496] group-hover:underline flex-shrink-0">Voir</span>
+          </RouterLink>
         </div>
 
       </div>

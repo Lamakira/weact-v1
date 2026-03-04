@@ -246,7 +246,7 @@ development_status:
   # Booking Epic 3: Booking Completion, Wallet & Payouts (3 stories)
   booking-epic-3: in-progress
   b3-1-double-confirmation-booking-completion: done
-  b3-2-face-wallet-dashboard: backlog
+  b3-2-face-wallet-dashboard: done
   b3-3-face-withdraws-mobile-money: backlog
   booking-epic-3-retrospective: optional
 

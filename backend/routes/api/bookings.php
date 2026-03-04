@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\BookingController;
+use App\Http\Controllers\Api\V1\WalletController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
@@ -36,4 +37,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
     Route::get('/bookings/{booking}/payment-status', [BookingController::class, 'checkPaymentStatus'])
         ->middleware('throttle:30,1')
         ->name('bookings.payment-status');
+
+    // Wallet (Face-only — controller enforces userable_type check)
+    Route::get('/wallet', [WalletController::class, 'index'])
+        ->middleware(['face', 'throttle:60,1'])
+        ->name('wallet.index');
 });

@@ -1,54 +1,44 @@
 <script setup lang="ts">
 /**
  * WalletCard Component
- * Displays a placeholder state for the wallet feature (FR52).
- * UI present but functionality inactive for MVP.
- * Pattern matched to existing KpiCard component styles.
+ * Displays the Face's wallet balance as a quick-access card on the dashboard.
+ * Links to /face/wallet for the full wallet page.
  */
+import { computed } from 'vue'
+import { RouterLink } from 'vue-router'
 import { Wallet } from 'lucide-vue-next'
 
-/**
- * Format number for French locale display (no currency suffix)
- * XOF suffix is added separately in template for styling flexibility
- * Establishes pattern for V2 when real balance is available
- */
-const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('fr-FR', {
+interface Props {
+  balance?: number
+}
+
+const props = withDefaults(defineProps<Props>(), { balance: 0 })
+
+const formattedBalance = computed(() =>
+  new Intl.NumberFormat('fr-FR', {
     style: 'decimal',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(amount)
-}
-
-// Static balance for MVP - always 0
-const balance = 0
-const formattedBalance = formatCurrency(balance)
+  }).format(props.balance),
+)
 </script>
 
 <template>
-  <div
-    class="relative bg-white border border-gray-100 rounded-2xl p-4 shadow-sm opacity-75 cursor-default select-none overflow-hidden"
-    aria-label="Portefeuille: 0 XOF (Bientôt disponible)"
-    role="region"
+  <RouterLink
+    :to="{ name: 'face-wallet' }"
+    class="group relative bg-white border border-gray-100 rounded-2xl p-4 shadow-sm overflow-hidden hover:border-[#198496] hover:shadow-md transition-all duration-200"
+    :aria-label="`Portefeuille: ${formattedBalance} XOF`"
     data-testid="wallet-card"
   >
     <div class="flex flex-col gap-3">
       <div class="flex items-center justify-between">
         <!-- Icon Container -->
         <div
-          class="h-11 w-11 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-100"
+          class="h-11 w-11 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-100 group-hover:bg-[#198496]/10 group-hover:border-[#198496]/20 transition-colors"
           data-testid="wallet-card-icon"
         >
-          <Wallet class="h-5 w-5 text-gray-400" />
+          <Wallet class="h-5 w-5 text-gray-400 group-hover:text-[#198496] transition-colors" />
         </div>
-
-        <!-- Status Badge -->
-        <span
-          class="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500 uppercase tracking-wider"
-          data-testid="wallet-card-badge"
-        >
-          Bientôt disponible
-        </span>
       </div>
 
       <div class="space-y-1">
@@ -70,9 +60,9 @@ const formattedBalance = formatCurrency(balance)
       </div>
     </div>
 
-    <!-- Subdued Decorative Element -->
+    <!-- Decorative element -->
     <div class="absolute -bottom-2 -right-2 opacity-5 pointer-events-none">
       <Wallet class="h-16 w-16 text-gray-900" />
     </div>
-  </div>
+  </RouterLink>
 </template>
