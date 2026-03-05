@@ -46,7 +46,7 @@ const canSubmit = computed(() =>
   amount.value >= 1 &&
   amount.value <= props.balance &&
   selectedMode.value !== null &&
-  phoneNumber.value.length >= 6,
+  /^[0-9]{6,15}$/.test(phoneNumber.value),
 )
 
 function handleSubmit(): void {

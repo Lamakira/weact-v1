@@ -106,9 +106,11 @@ class WalletWithdrawalTest extends TestCase
             ->assertOk();
 
         $this->assertDatabaseHas('financial_events', [
-            'type'       => 'withdrawal',
-            'booking_id' => null,
-            'amount'     => 20000,
+            'type'        => 'withdrawal',
+            'booking_id'  => null,
+            'amount'      => 20000,
+            'status'      => 'completed',
+            'fedapay_ref' => '999',
         ]);
     }
 

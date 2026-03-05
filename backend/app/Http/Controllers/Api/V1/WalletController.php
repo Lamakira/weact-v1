@@ -61,22 +61,8 @@ class WalletController extends Controller
                     description: "Retrait vers {$validated['payment_mode']} — {$validated['phone_number']}",
                 );
 
-                // 2. Log financial event
-                FinancialEvent::create([
-                    'type'            => FinancialEventType::Withdrawal,
-                    'booking_id'      => null,
-                    'amount'          => $validated['amount'],
-                    'idempotency_key' => $idempotencyKey,
-                    'status'          => 'pending',
-                    'metadata'        => [
-                        'payment_mode'  => $validated['payment_mode'],
-                        'phone_number'  => $validated['phone_number'],
-                        'phone_country' => $validated['phone_country'],
-                    ],
-                ]);
-
-                // 3. Initiate Fedapay payout (throws ApiError on failure → rolls back)
-                $fedapayService->initiateWithdrawal(
+                // 2. Initiate Fedapay payout (throws ApiError on failure → rolls back)
+                $fedapayResult = $fedapayService->initiateWithdrawal(
                     amount: $validated['amount'],
                     mode: $validated['payment_mode'],
                     idempotencyKey: $idempotencyKey,
@@ -86,6 +72,21 @@ class WalletController extends Controller
                     ],
                     user: $user,
                 );
+
+                // 3. Log financial event AFTER Fedapay succeeds — status=completed, fedapay_ref stored
+                FinancialEvent::create([
+                    'type'            => FinancialEventType::Withdrawal,
+                    'booking_id'      => null,
+                    'amount'          => $validated['amount'],
+                    'fedapay_ref'     => (string) $fedapayResult['fedapay_payout_id'],
+                    'idempotency_key' => $idempotencyKey,
+                    'status'          => 'completed',
+                    'metadata'        => [
+                        'payment_mode'  => $validated['payment_mode'],
+                        'phone_number'  => $validated['phone_number'],
+                        'phone_country' => $validated['phone_country'],
+                    ],
+                ]);
 
                 // 4. Mark wallet transaction as completed
                 $tx->update(['status' => 'completed']);
