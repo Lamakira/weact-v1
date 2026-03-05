@@ -91,9 +91,11 @@ class WalletController extends Controller
                 // 4. Mark wallet transaction as completed
                 $tx->update(['status' => 'completed']);
             });
-        } catch (\RuntimeException) {
+        } catch (\RuntimeException $e) {
+            \Log::warning('Withdrawal insufficient balance', ['user_id' => $request->user()->id, 'error' => $e->getMessage()]);
             return response()->json(['message' => 'Solde insuffisant.'], 422);
-        } catch (\Exception) {
+        } catch (\Exception $e) {
+            \Log::error('Withdrawal failed', ['user_id' => $request->user()->id, 'error' => $e->getMessage(), 'class' => get_class($e)]);
             return response()->json(['message' => 'Retrait échoué. Veuillez réessayer.'], 500);
         }
 
