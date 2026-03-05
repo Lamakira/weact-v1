@@ -22,7 +22,10 @@ import {
   useDashboardStats,
   useDashboardCharts,
   useMissionsCount,
+  useBookingStats,
+  useDashboardBookingCharts,
   ActivityChart,
+  BookingActivityChart,
 } from '@/features/dashboard'
 import { faceApi } from '@/features/face/services/faceApi'
 import { useWallet } from '@/features/wallet'
@@ -74,6 +77,23 @@ const {
 // Wallet balance composable
 const { balance: walletBalance, fetchWallet } = useWallet()
 
+// Booking stats composable
+const {
+  bookingStats,
+  isLoading: isBookingStatsLoading,
+  fetchBookingStats,
+} = useBookingStats()
+
+// Booking chart composable
+const {
+  bookingsByMonth,
+  bookingsCompletedByMonth,
+  isLoading: isBookingChartsLoading,
+  error: bookingChartsError,
+  fetchBookingChartStats,
+  retry: retryBookingCharts,
+} = useDashboardBookingCharts()
+
 // Computed values
 const fullName = computed(() => {
   if (profile.value) return `${profile.value.prenom} ${profile.value.nom}`
@@ -119,7 +139,7 @@ onMounted(async () => {
     isProfileLoading.value = false
   })
 
-  await Promise.all([profilePromise, fetchCompletion(), fetchStats(), fetchChartStats(), fetchMissionsCount(), fetchWallet()])
+  await Promise.all([profilePromise, fetchCompletion(), fetchStats(), fetchChartStats(), fetchMissionsCount(), fetchWallet(), fetchBookingStats(), fetchBookingChartStats()])
 })
 
 function goToProfile(): void {
@@ -137,12 +157,12 @@ function goToMessages(): void {
 
 <template>
   <div data-testid="face-dashboard-page">
-    <div class="grid grid-cols-1 lg:grid-cols-10 gap-6 items-stretch">
+    <div class="grid grid-cols-1 lg:grid-cols-10 gap-6 items-start">
 
-      <!-- LEFT COLUMN: Profile Photo Card -->
-      <div class="lg:col-span-4 h-full">
+      <!-- LEFT COLUMN: Profile Photo + Wallet (sticky) -->
+      <div class="lg:col-span-3 sticky top-0 self-start flex flex-col gap-4">
         <div
-          class="relative h-full min-h-[420px] lg:min-h-full rounded-2xl overflow-hidden shadow-sm group bg-white border border-gray-200 transition-all duration-200 hover:shadow-md"
+          class="relative h-96 rounded-2xl overflow-hidden shadow-sm group bg-white border border-gray-200 transition-all duration-200 hover:shadow-md"
           data-testid="profile-photo-card"
         >
           <!-- Loading skeleton -->
@@ -203,10 +223,28 @@ function goToMessages(): void {
             </div>
           </template>
         </div>
+
+        <!-- Wallet Balance Card (always visible, anchored below photo) -->
+        <RouterLink
+          :to="{ name: 'face-wallet' }"
+          class="group bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex items-center gap-4 transition-all duration-200 hover:border-[#198496] hover:shadow-md"
+          data-testid="wallet-card"
+        >
+          <div class="w-11 h-11 rounded-xl bg-[#198496]/10 flex items-center justify-center text-[#198496] flex-shrink-0 group-hover:bg-[#198496]/20 transition-colors">
+            <Wallet :size="20" />
+          </div>
+          <div class="min-w-0">
+            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Mon portefeuille</p>
+            <p class="text-xl font-bold text-gray-900 mt-0.5">
+              {{ new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(walletBalance) }}
+            </p>
+          </div>
+          <span class="ml-auto text-xs font-medium text-[#198496] group-hover:underline flex-shrink-0">Gérer →</span>
+        </RouterLink>
       </div>
 
-      <!-- RIGHT COLUMN: Stats + Quick Access -->
-      <div class="lg:col-span-6 flex flex-col gap-6">
+      <!-- RIGHT COLUMN: Stats + Quick Access (scrolls with page) -->
+      <div class="lg:col-span-7 flex flex-col gap-6">
 
         <!-- Stats Panel -->
         <div
@@ -355,8 +393,85 @@ function goToMessages(): void {
           </div>
         </div>
 
+        <!-- Booking Stats Panel -->
+        <div
+          class="bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 shadow-sm"
+          data-testid="booking-stats-panel"
+        >
+          <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-6">Mes bookings</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
+            <!-- En attente -->
+            <div class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50/50" data-testid="booking-kpi-pending">
+              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 flex-shrink-0">
+                <template v-if="isBookingStatsLoading">
+                  <Skeleton class="w-5 h-5 sm:w-6 sm:h-6 rounded" />
+                </template>
+                <Clock v-else :size="22" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wider truncate">En attente</p>
+                <template v-if="isBookingStatsLoading">
+                  <Skeleton class="h-7 w-10 mt-1" />
+                </template>
+                <p v-else class="text-xl sm:text-2xl font-bold text-gray-900">{{ bookingStats?.pending ?? 0 }}</p>
+              </div>
+            </div>
+
+            <!-- Acceptés -->
+            <div class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50/50" data-testid="booking-kpi-accepted">
+              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-green-50 flex items-center justify-center text-green-600 flex-shrink-0">
+                <template v-if="isBookingStatsLoading">
+                  <Skeleton class="w-5 h-5 sm:w-6 sm:h-6 rounded" />
+                </template>
+                <CheckCircle2 v-else :size="22" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wider truncate">Acceptés</p>
+                <template v-if="isBookingStatsLoading">
+                  <Skeleton class="h-7 w-10 mt-1" />
+                </template>
+                <p v-else class="text-xl sm:text-2xl font-bold text-gray-900">{{ bookingStats?.accepted ?? 0 }}</p>
+              </div>
+            </div>
+
+            <!-- En cours -->
+            <div class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50/50" data-testid="booking-kpi-in-progress">
+              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
+                <template v-if="isBookingStatsLoading">
+                  <Skeleton class="w-5 h-5 sm:w-6 sm:h-6 rounded" />
+                </template>
+                <PlayCircle v-else :size="22" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wider truncate">En cours</p>
+                <template v-if="isBookingStatsLoading">
+                  <Skeleton class="h-7 w-10 mt-1" />
+                </template>
+                <p v-else class="text-xl sm:text-2xl font-bold text-gray-900">{{ bookingStats?.in_progress ?? 0 }}</p>
+              </div>
+            </div>
+
+            <!-- Terminés -->
+            <div class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50/50" data-testid="booking-kpi-completed">
+              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#198496]/10 flex items-center justify-center text-[#198496] flex-shrink-0">
+                <template v-if="isBookingStatsLoading">
+                  <Skeleton class="w-5 h-5 sm:w-6 sm:h-6 rounded" />
+                </template>
+                <CheckSquare v-else :size="22" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wider truncate">Terminés</p>
+                <template v-if="isBookingStatsLoading">
+                  <Skeleton class="h-7 w-10 mt-1" />
+                </template>
+                <p v-else class="text-xl sm:text-2xl font-bold text-gray-900">{{ bookingStats?.completed ?? 0 }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Quick Access Cards — compact row -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" data-testid="quick-access-cards-grid">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" data-testid="quick-access-cards-grid">
           <!-- Missions -->
           <button
             @click="goToMissions"
@@ -381,29 +496,12 @@ function goToMessages(): void {
             </div>
             <p class="font-semibold text-gray-900 text-xs sm:text-sm truncate">Messages</p>
           </button>
-
-          <!-- Wallet -->
-          <RouterLink
-            :to="{ name: 'face-wallet' }"
-            class="group bg-white px-4 py-3 rounded-xl border border-gray-200 shadow-sm transition-all duration-200 hover:border-[#198496] hover:shadow-md flex items-center gap-3"
-            data-testid="wallet-card"
-          >
-            <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500 group-hover:bg-[#198496]/10 group-hover:text-[#198496] transition-colors flex-shrink-0">
-              <Wallet :size="16" />
-            </div>
-            <div class="min-w-0">
-              <p class="font-semibold text-gray-900 text-xs sm:text-sm truncate">
-                {{ new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(walletBalance) }}
-              </p>
-            </div>
-            <span class="ml-auto text-[10px] sm:text-xs font-medium text-[#198496] group-hover:underline flex-shrink-0">Voir</span>
-          </RouterLink>
         </div>
 
       </div>
     </div>
 
-    <!-- Charts Section (full width below) -->
+    <!-- Candidatures Charts -->
     <section class="mt-8">
       <ActivityChart
         :candidatures-by-month="candidaturesByMonth"
@@ -411,6 +509,17 @@ function goToMessages(): void {
         :is-loading="isChartsLoading"
         :error="chartsError"
         @retry="retryCharts"
+      />
+    </section>
+
+    <!-- Booking Charts -->
+    <section class="mt-8">
+      <BookingActivityChart
+        :bookings-by-month="bookingsByMonth"
+        :bookings-completed-by-month="bookingsCompletedByMonth"
+        :is-loading="isBookingChartsLoading"
+        :error="bookingChartsError"
+        @retry="retryBookingCharts"
       />
     </section>
   </div>

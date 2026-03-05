@@ -62,6 +62,52 @@ export interface DashboardStatsResponse {
 }
 
 /**
+ * Booking statistics for Face dashboard
+ * Booking counts grouped into 4 UI-friendly buckets
+ */
+export interface BookingStats {
+  pending: number     // Awaiting Face response
+  accepted: number    // Accepted + paid (awaiting mission start)
+  in_progress: number // Active (confirmed / in progress)
+  completed: number   // Finished
+}
+
+/**
+ * API response for Face booking stats
+ */
+export interface BookingStatsResponse {
+  data: BookingStats
+  message: string
+}
+
+/**
+ * Monthly booking statistics grouped by status bucket
+ */
+export interface BookingMonthlyStats {
+  month: string
+  pending: number
+  accepted: number
+  in_progress: number
+  completed: number
+}
+
+/**
+ * Booking chart statistics for the last 6 months
+ */
+export interface BookingChartStats {
+  bookings_by_month: BookingMonthlyStats[]
+  bookings_completed_by_month: MonthlyCount[]
+}
+
+/**
+ * API response for booking chart stats
+ */
+export interface BookingChartStatsResponse {
+  data: BookingChartStats
+  message: string
+}
+
+/**
  * Available missions count data
  */
 export interface MissionsCount {

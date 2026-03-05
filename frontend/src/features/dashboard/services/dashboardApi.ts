@@ -4,6 +4,8 @@ import type {
   ChartStatsResponse,
   MissionsCountResponse,
   ProducerDashboardStatsResponse,
+  BookingStatsResponse,
+  BookingChartStatsResponse,
 } from '../types'
 
 /**
@@ -40,6 +42,24 @@ export const dashboardApi = {
    */
   async getAvailableMissionsCount(): Promise<MissionsCountResponse> {
     const response = await apiClient.get<MissionsCountResponse>('/face/dashboard/available-missions-count')
+    return response.data
+  },
+
+  /**
+   * Get Face booking statistics
+   * Returns booking counts grouped into pending, accepted, in_progress, completed
+   */
+  async getBookingStats(): Promise<BookingStatsResponse> {
+    const response = await apiClient.get<BookingStatsResponse>('/face/dashboard/booking-stats')
+    return response.data
+  },
+
+  /**
+   * Get Face booking chart statistics
+   * Returns bookings grouped by month for the last 6 months
+   */
+  async getBookingChartStats(): Promise<BookingChartStatsResponse> {
+    const response = await apiClient.get<BookingChartStatsResponse>('/face/dashboard/booking-chart-stats')
     return response.data
   },
 

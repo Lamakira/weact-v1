@@ -46,6 +46,10 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
         ->middleware('throttle:60,1');
     Route::get('/dashboard/available-missions-count', [FaceDashboardController::class, 'availableMissionsCount'])
         ->middleware('throttle:60,1');
+    Route::get('/dashboard/booking-stats', [FaceDashboardController::class, 'bookingStats'])
+        ->middleware('throttle:60,1');
+    Route::get('/dashboard/booking-chart-stats', [FaceDashboardController::class, 'bookingChartStats'])
+        ->middleware('throttle:60,1');
 
     // Basic info routes (nom, prenom, username)
     Route::get('/basic-info', [BasicInfoController::class, 'show'])

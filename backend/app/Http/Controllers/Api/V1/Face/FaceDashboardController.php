@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Face;
 
+use App\Enums\BookingStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ChartStatsResource;
 use App\Http\Resources\FaceDashboardStatsResource;
+use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
@@ -49,6 +51,127 @@ class FaceDashboardController extends Controller
         return response()->json([
             'data' => new FaceDashboardStatsResource($statusCounts),
             'message' => 'Dashboard stats retrieved successfully',
+        ]);
+    }
+
+    /**
+     * Get booking statistics for the authenticated Face.
+     *
+     * Returns booking counts grouped into 4 UI-friendly buckets:
+     * - pending: Bookings awaiting Face response
+     * - accepted: Accepted or paid bookings (awaiting mission start)
+     * - in_progress: Active bookings (confirmed / in progress)
+     * - completed: Finished bookings
+     */
+    public function bookingStats(Request $request): JsonResponse
+    {
+        $result = $this->getAuthenticatedFace($request);
+
+        if ($result instanceof JsonResponse) {
+            return $result;
+        }
+
+        // bookings.face_id references users.id, not faces.id
+        $userId = $request->user()->id;
+
+        $counts = Booking::where('face_id', $userId)
+            ->selectRaw('status, COUNT(*) as count')
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->toArray();
+
+        $get = fn (BookingStatus $s) => (int) ($counts[$s->value] ?? 0);
+
+        return response()->json([
+            'data' => [
+                'pending'     => $get(BookingStatus::Pending),
+                'accepted'    => $get(BookingStatus::Accepted) + $get(BookingStatus::Paid),
+                'in_progress' => $get(BookingStatus::InProgress) + $get(BookingStatus::ConfirmedByFace) + $get(BookingStatus::ConfirmedByProducer),
+                'completed'   => $get(BookingStatus::Completed),
+            ],
+            'message' => 'Booking stats retrieved successfully',
+        ]);
+    }
+
+    /**
+     * Get booking chart statistics for the authenticated Face.
+     *
+     * Returns aggregated data for the last 6 months:
+     * - bookings_by_month: Bookings grouped by month and status bucket
+     * - bookings_completed_by_month: Completed bookings grouped by month
+     */
+    public function bookingChartStats(Request $request): JsonResponse
+    {
+        $result = $this->getAuthenticatedFace($request);
+
+        if ($result instanceof JsonResponse) {
+            return $result;
+        }
+
+        // bookings.face_id references users.id, not faces.id
+        $userId = $request->user()->id;
+        $sixMonthsAgo = Carbon::now()->subMonths(6)->startOfMonth();
+        $months = $this->generateMonthsRange($sixMonthsAgo);
+
+        // Bookings grouped by month and status bucket
+        $rawData = Booking::where('face_id', $userId)
+            ->where('created_at', '>=', $sixMonthsAgo)
+            ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as month, status, COUNT(*) as count")
+            ->groupBy('month', 'status')
+            ->orderBy('month')
+            ->get();
+
+        $bookingsByMonth = [];
+        foreach ($months as $month) {
+            $bookingsByMonth[$month] = ['month' => $month, 'pending' => 0, 'accepted' => 0, 'in_progress' => 0, 'completed' => 0];
+        }
+
+        foreach ($rawData as $row) {
+            $month = $row->month;
+            $status = $row->status instanceof BookingStatus ? $row->status : BookingStatus::from($row->status);
+
+            if (!isset($bookingsByMonth[$month])) {
+                continue;
+            }
+
+            $bucket = match ($status) {
+                BookingStatus::Pending                                                          => 'pending',
+                BookingStatus::Accepted, BookingStatus::Paid                                   => 'accepted',
+                BookingStatus::InProgress, BookingStatus::ConfirmedByFace,
+                BookingStatus::ConfirmedByProducer                                             => 'in_progress',
+                BookingStatus::Completed                                                       => 'completed',
+                default                                                                        => null,
+            };
+
+            if ($bucket !== null) {
+                $bookingsByMonth[$month][$bucket] += (int) $row->count;
+            }
+        }
+
+        // Completed bookings grouped by month
+        $completedRaw = Booking::where('face_id', $userId)
+            ->where('status', BookingStatus::Completed)
+            ->where('updated_at', '>=', $sixMonthsAgo)
+            ->selectRaw("DATE_FORMAT(updated_at, '%Y-%m') as month, COUNT(*) as count")
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->keyBy('month');
+
+        $bookingsCompletedByMonth = [];
+        foreach ($months as $month) {
+            $bookingsCompletedByMonth[] = [
+                'month' => $month,
+                'count' => isset($completedRaw[$month]) ? (int) $completedRaw[$month]->count : 0,
+            ];
+        }
+
+        return response()->json([
+            'data' => [
+                'bookings_by_month'           => array_values($bookingsByMonth),
+                'bookings_completed_by_month' => $bookingsCompletedByMonth,
+            ],
+            'message' => 'Booking chart stats retrieved successfully',
         ]);
     }
 
