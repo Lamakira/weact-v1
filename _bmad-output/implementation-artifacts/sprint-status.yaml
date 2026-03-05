@@ -244,11 +244,11 @@ development_status:
   booking-epic-2-retrospective: done
 
   # Booking Epic 3: Booking Completion, Wallet & Payouts (3 stories)
-  booking-epic-3: in-progress
+  booking-epic-3: done
   b3-1-double-confirmation-booking-completion: done
   b3-2-face-wallet-dashboard: done
   b3-3-face-withdraws-mobile-money: done
-  booking-epic-3-retrospective: optional
+  booking-epic-3-retrospective: done
 
   # Booking Epic 4: Booking Chat (2 stories)
   booking-epic-4: backlog

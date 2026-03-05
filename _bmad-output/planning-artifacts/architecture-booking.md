@@ -370,6 +370,131 @@ POST   /api/v1/webhooks/fedapay            # Fedapay callback (no auth middlewar
 - Broadcasting on public channels for booking data
 - Mixing booking logic into existing Mission controllers/services
 
+---
+
+### Implementation Notes (Discovered during Epics 2 & 3)
+
+> These notes document gotchas and corrections discovered during implementation. They override or clarify the original architecture where discrepancies exist.
+
+#### 1. Fedapay SDK: Payout vs Transaction
+
+For **withdrawals** (Face → Mobile Money), use `FedaPay\Payout`, **not** `FedaPay\Transaction`.
+
+These are two completely separate SDK classes. `FedaPay\Transaction` handles payments (Producer → Fedapay escrow). `FedaPay\Payout` handles disbursements (Fedapay → Mobile Money recipient). Using `Transaction` for withdrawals silently does nothing.
+
+```php
+// CORRECT: Withdrawals use FedaPay\Payout
+use FedaPay\Payout;
+
+$payout = Payout::create([
+    'amount'      => $amount,
+    'currency'    => ['iso' => 'XOF'],
+    'description' => $description,
+    'customer'    => [
+        'firstname'    => $user->name,
+        'email'        => $user->email,
+        'phone_number' => [
+            'number'  => $phoneData['number'],
+            'country' => $phoneData['country'],
+        ],
+    ],
+]);
+$payout->sendNow(); // NOT sendNowWithToken()
+
+// WRONG: Transaction is for payments only
+use FedaPay\Transaction; // ❌ Does nothing for withdrawals
+```
+
+**Payment modes (up to date):**
+
+| Mode | Environment | Description |
+|------|------------|-------------|
+| `momo_test` | Sandbox only | Recommended for sandbox testing |
+| `mtn` | Production | MTN Mobile Money |
+| `moov` | Production | Moov Money |
+
+**Note**: `mtn_open` is not a valid mode — use `mtn`.
+
+#### 2. face_id vs users.id Disambiguation
+
+`bookings.face_id` references **`users.id`**, NOT `faces.id`.
+
+This is a critical gotcha. The `Face` model has its own `faces.id` primary key, but the booking relation stores the `users.id` of the Face user.
+
+```php
+// CORRECT: Use the authenticated user's id for booking queries
+$userId = $request->user()->id;                    // ✅ users.id
+Booking::where('face_id', $userId)->get();
+
+// WRONG: Using the Face model's own id
+$face = Face::findOrFail($user->userable_id);
+Booking::where('face_id', $face->id)->get();       // ❌ faces.id ≠ users.id
+```
+
+This affects every controller method that queries bookings for the authenticated Face, including dashboard stats, booking lists, and chart data. Always derive `face_id` from `$request->user()->id`.
+
+#### 3. FinancialEvent: booking_id is nullable
+
+`financial_events.booking_id` is a **nullable** foreign key. Withdrawal `FinancialEvent` records have no associated booking — they are user-level operations.
+
+```php
+// Withdrawal FinancialEvent: booking_id is null
+FinancialEvent::create([
+    'type'             => FinancialEventType::Withdrawal,
+    'booking_id'       => null,   // ✅ explicitly null — no booking context
+    'user_id'          => $userId,
+    'amount'           => $amount,
+    'fedapay_ref'      => $payoutRef,
+    'idempotency_key'  => $idempotencyKey,
+    'status'           => 'completed',
+]);
+```
+
+Always create `FinancialEvent` **after** the Fedapay call succeeds — not before. `FinancialEvent` is immutable (no updates), so it must be created with the final confirmed state.
+
+#### 4. End-to-End Webhook Test Setup (ngrok)
+
+Validated in Epic 3. Use this setup to test the full Fedapay sandbox → webhook → booking state transition flow locally.
+
+**Prerequisites:**
+- ngrok account + authtoken configured (`ngrok config add-authtoken <token>`)
+- Fedapay sandbox webhook configured to point to your ngrok URL
+- Laravel app running locally (`php artisan serve`)
+
+**Steps:**
+
+```bash
+# 1. Start ngrok tunnel (expose local port 8000)
+ngrok http 8000
+
+# 2. Copy the https forwarding URL, e.g.:
+#    https://abc123.ngrok-free.app
+
+# 3. In Fedapay sandbox dashboard → Webhooks → set URL to:
+#    https://abc123.ngrok-free.app/api/v1/webhooks/fedapay
+
+# 4. Run the payment flow (initiate a booking payment via the app)
+# 5. Watch ngrok inspector at http://localhost:4040 to see the webhook hit
+# 6. Check booking status transitions in DB:
+php artisan tinker
+>>> Booking::latest()->first()->status
+```
+
+**What to verify:**
+- Fedapay sends `transaction.approved` event → webhook receives it → booking transitions `accepted → paid → in_progress`
+- `FinancialEvent` record created with correct `fedapay_ref`
+- `EscrowTransaction` status changes to `locked`
+- `FedapayWebhookEvent` marked as `processed` (idempotency)
+
+**Test phone numbers (Fedapay sandbox):**
+
+| Network | Number | Expected result |
+|---------|--------|----------------|
+| MTN test | `64000001` | Success |
+| Moov test | `96000001` | Success |
+
+---
+
 ## Project Structure & Boundaries (Booking Extension)
 
 ### New Backend Files
