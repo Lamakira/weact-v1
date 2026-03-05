@@ -247,7 +247,7 @@ development_status:
   booking-epic-3: in-progress
   b3-1-double-confirmation-booking-completion: done
   b3-2-face-wallet-dashboard: done
-  b3-3-face-withdraws-mobile-money: review
+  b3-3-face-withdraws-mobile-money: done
   booking-epic-3-retrospective: optional
 
   # Booking Epic 4: Booking Chat (2 stories)
