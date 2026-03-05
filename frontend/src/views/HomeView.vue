@@ -76,8 +76,13 @@ const missionCarouselRef = ref<HTMLElement | null>(null)
 function scrollToMission(index: number): void {
   if (!missionCarouselRef.value) return
   const cards = missionCarouselRef.value.querySelectorAll('[data-mission-card]')
-  if (cards[index]) {
-    cards[index].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  const card = cards[index] as HTMLElement | undefined
+  if (card) {
+    const containerWidth = missionCarouselRef.value.offsetWidth
+    const cardWidth = card.offsetWidth
+    // Center the card horizontally within the carousel (no page scroll)
+    const scrollLeft = card.offsetLeft - (containerWidth - cardWidth) / 2
+    missionCarouselRef.value.scrollTo({ left: scrollLeft, behavior: 'smooth' })
     missionCarouselIndex.value = index
   }
 }
