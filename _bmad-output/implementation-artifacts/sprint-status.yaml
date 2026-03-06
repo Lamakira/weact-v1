@@ -253,7 +253,7 @@ development_status:
   # Booking Epic 4: Booking Chat (2 stories)
   booking-epic-4: in-progress
   b4-1-booking-chat-backend-realtime-infrastructure: done
-  b4-2-booking-chat-frontend-realtime-ui: review
+  b4-2-booking-chat-frontend-realtime-ui: done
   booking-epic-4-retrospective: optional
 
   # Booking Epic 5: Cancellation & Refunds (2 stories)

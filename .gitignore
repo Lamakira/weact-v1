@@ -96,7 +96,8 @@ public/hot/
 _bmad/
 _bmad-output/implementation-artifacts/
 CLAUDE.md
-opencode/
+.opencode/
+.agents/
 
 .mcp.json
 
