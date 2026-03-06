@@ -100,4 +100,5 @@ CLAUDE.md
 .agents/
 
 .mcp.json
+nginx-weact.conf
 
