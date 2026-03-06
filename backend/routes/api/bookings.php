@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\BookingController;
+use App\Http\Controllers\Api\V1\BookingMessageController;
 use App\Http\Controllers\Api\V1\WalletController;
 use Illuminate\Support\Facades\Route;
 
@@ -37,6 +38,15 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
     Route::get('/bookings/{booking}/payment-status', [BookingController::class, 'checkPaymentStatus'])
         ->middleware('throttle:30,1')
         ->name('bookings.payment-status');
+
+    // Booking Chat (b4-1)
+    Route::get('/bookings/{booking}/messages', [BookingMessageController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('bookings.messages.index');
+
+    Route::post('/bookings/{booking}/messages', [BookingMessageController::class, 'store'])
+        ->middleware('throttle:60,1')
+        ->name('bookings.messages.store');
 
     // Wallet (Face-only — 'face' middleware enforces userable_type)
     Route::get('/wallet', [WalletController::class, 'index'])

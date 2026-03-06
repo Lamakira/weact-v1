@@ -84,4 +84,42 @@ class BookingPolicy
 
         return $isParty && in_array($booking->status, $confirmableStatuses, true);
     }
+
+    /**
+     * Determine if the user can view booking chat messages.
+     * Both parties can read messages when booking is paid or beyond.
+     * Completed bookings still allow reading history.
+     */
+    public function viewMessages(User $user, Booking $booking): bool
+    {
+        $isParty = $user->id === $booking->face_id || $user->id === $booking->producer_id;
+
+        $chatEligibleStatuses = [
+            BookingStatus::Paid,
+            BookingStatus::InProgress,
+            BookingStatus::ConfirmedByFace,
+            BookingStatus::ConfirmedByProducer,
+            BookingStatus::Completed,
+        ];
+
+        return $isParty && in_array($booking->status, $chatEligibleStatuses, true);
+    }
+
+    /**
+     * Determine if the user can send a booking chat message.
+     * Both parties can send messages only while the booking is active (not completed/cancelled).
+     */
+    public function sendMessage(User $user, Booking $booking): bool
+    {
+        $isParty = $user->id === $booking->face_id || $user->id === $booking->producer_id;
+
+        $chatActiveStatuses = [
+            BookingStatus::Paid,
+            BookingStatus::InProgress,
+            BookingStatus::ConfirmedByFace,
+            BookingStatus::ConfirmedByProducer,
+        ];
+
+        return $isParty && in_array($booking->status, $chatActiveStatuses, true);
+    }
 }

@@ -8,6 +8,7 @@ use App\Enums\BookingStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Booking extends Model
@@ -85,5 +86,13 @@ class Booking extends Model
     public function escrowTransaction(): HasOne
     {
         return $this->hasOne(EscrowTransaction::class);
+    }
+
+    /**
+     * Get the chat messages for this booking.
+     */
+    public function messages(): HasMany
+    {
+        return $this->hasMany(BookingMessage::class)->orderBy('created_at');
     }
 }
