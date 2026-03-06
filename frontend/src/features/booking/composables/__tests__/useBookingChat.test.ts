@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
 import { useBookingChat, type UseBookingChatReturn } from '../useBookingChat'
@@ -37,6 +37,8 @@ vi.mock('../../services/bookingChatApi', () => ({
 
 import { bookingChatApi } from '../../services/bookingChatApi'
 
+const mountedWrappers: Array<ReturnType<typeof mount>> = []
+
 // ──────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────
@@ -65,8 +67,9 @@ function makeListResponse(messages: BookingMessage[]): BookingMessageListRespons
 async function mountComposable(
   bookingId: number,
   currentUserId: number,
-): Promise<{ wrapper: ReturnType<typeof mount>; result: UseBookingChatReturn }> {
+): Promise<{ wrapper: ReturnType<typeof mount>; result: UseBookingChatReturn; listenCallStart: number }> {
   let result!: UseBookingChatReturn
+  const listenCallStart = mockChannel.listen.mock.calls.length
 
   const wrapper = mount(
     defineComponent({
@@ -77,12 +80,43 @@ async function mountComposable(
       template: '<div />',
     }),
   )
+  mountedWrappers.push(wrapper)
 
   // Wait for onMounted async operations to complete
   await flushPromises()
+  await flushPromises()
+  for (let i = 0; i < 6 && mockChannel.listen.mock.calls.length === 0; i += 1) {
+    await flushPromises()
+    await nextTick()
+  }
   await nextTick()
 
-  return { wrapper, result }
+  return { wrapper, result, listenCallStart }
+}
+
+type WsPayload = {
+  id: number
+  booking_id: number
+  sender_id: number
+  sender_name: string
+  content: string
+  created_at: string
+}
+
+async function emitWsPayload(fromCall: number, payload: WsPayload): Promise<void> {
+  for (let i = 0; i < 15 && mockChannel.listen.mock.calls.length <= fromCall; i += 1) {
+    await flushPromises()
+    await nextTick()
+  }
+
+  const callbacks = mockChannel.listen.mock.calls
+    .slice(fromCall)
+    .map((call) => call[1])
+    .filter((cb): cb is (event: WsPayload) => void => typeof cb === 'function')
+
+  expect(callbacks.length).toBeGreaterThan(0)
+
+  callbacks.forEach((cb) => cb(payload))
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -104,6 +138,13 @@ describe('useBookingChat', () => {
     mockEcho.private.mockReturnValue(mockChannel)
     // Default: fetchMessages returns empty list
     vi.mocked(bookingChatApi.fetchMessages).mockResolvedValue(makeListResponse([]))
+  })
+
+  afterEach(() => {
+    while (mountedWrappers.length > 0) {
+      const wrapper = mountedWrappers.pop()
+      wrapper?.unmount()
+    }
   })
 
   it('loads messages on mount', async () => {
@@ -156,10 +197,9 @@ describe('useBookingChat', () => {
   })
 
   it('incoming WS event adds message to list', async () => {
-    const { result } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
-    expect(mockListenCallback).toBeDefined()
+    const { result, listenCallStart } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
 
-    mockListenCallback({
+    await emitWsPayload(listenCallStart, {
       id: 99,
       booking_id: BOOKING_ID,
       sender_id: 77,
@@ -175,9 +215,9 @@ describe('useBookingChat', () => {
   })
 
   it('WS event sets is_own_message=true when sender_id matches currentUserId', async () => {
-    const { result } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
+    const { result, listenCallStart } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
 
-    mockListenCallback({
+    await emitWsPayload(listenCallStart, {
       id: 50,
       booking_id: BOOKING_ID,
       sender_id: CURRENT_USER_ID,
@@ -192,9 +232,9 @@ describe('useBookingChat', () => {
   })
 
   it('WS event sets is_own_message=false when sender_id differs from currentUserId', async () => {
-    const { result } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
+    const { result, listenCallStart } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
 
-    mockListenCallback({
+    await emitWsPayload(listenCallStart, {
       id: 51,
       booking_id: BOOKING_ID,
       sender_id: 999,
@@ -212,10 +252,10 @@ describe('useBookingChat', () => {
     const existingMsg = makeMessage({ id: 10, content: 'Original' })
     vi.mocked(bookingChatApi.fetchMessages).mockResolvedValue(makeListResponse([existingMsg]))
 
-    const { result } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
+    const { result, listenCallStart } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
     expect(result.messages.value).toHaveLength(1)
 
-    mockListenCallback({
+    await emitWsPayload(listenCallStart, {
       id: 10,
       booking_id: BOOKING_ID,
       sender_id: 1,
@@ -249,6 +289,7 @@ describe('useBookingChat', () => {
     const { wrapper } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
 
     wrapper.unmount()
+    await flushPromises()
     await nextTick()
 
     expect(mockEcho.leave).toHaveBeenCalledWith(`booking.${BOOKING_ID}`)

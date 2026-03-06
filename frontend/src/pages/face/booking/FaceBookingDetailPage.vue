@@ -262,9 +262,8 @@ onMounted(() => {
                 <p class="font-medium text-gray-900 truncate">{{ producerName }}</p>
                 <RatingDisplay
                   v-if="producerRating !== null"
-                  :rating="producerRating"
-                  :count="producerRatingsCount"
-                  size="sm"
+                  :average-rating="producerRating"
+                  :review-count="producerRatingsCount"
                 />
                 <p v-else class="text-xs text-gray-400">Pas encore noté</p>
               </div>
@@ -389,7 +388,7 @@ onMounted(() => {
         class="mt-6"
         data-testid="booking-chat-section"
       >
-        <div class="bg-white rounded-[24px] shadow-sm overflow-hidden h-[500px] sm:h-[600px]">
+        <div class="bg-white rounded-[24px] shadow-sm overflow-hidden h-[calc(100dvh-6.5rem)] sm:h-[600px]">
           <BookingChat :booking="booking" :current-user-id="currentUserId" />
         </div>
       </section>

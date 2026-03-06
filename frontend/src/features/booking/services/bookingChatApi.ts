@@ -21,9 +21,25 @@ export const bookingChatApi = {
    */
   async sendMessage(bookingId: number, content: string): Promise<BookingMessageResponse> {
     await getCsrfCookie()
+
+    let socketId: string | undefined
+    try {
+      const { echo } = await import('@/plugins/echo')
+      socketId = echo.socketId()
+    } catch {
+      // If Echo is not ready, send without socket id (server still accepts request)
+    }
+
     const response = await apiClient.post<BookingMessageResponse>(
       `/bookings/${bookingId}/messages`,
       { content },
+      socketId
+        ? {
+            headers: {
+              'X-Socket-ID': socketId,
+            },
+          }
+        : undefined,
     )
     return response.data
   },

@@ -34,12 +34,15 @@ const otherPartyPhoto = computed((): string | null => {
 })
 
 const otherPartyInitials = computed((): string => {
-  const name = otherPartyName.value
-  const parts = name.trim().split(' ')
-  if (parts.length >= 2) {
-    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
-  }
-  return name.slice(0, 2).toUpperCase()
+  const name = otherPartyName.value.trim()
+  if (!name) return 'U'
+
+  const parts = name.split(/\s+/).filter(Boolean)
+  const firstInitial = parts[0]?.[0] ?? ''
+  const lastInitial = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : ''
+  const initials = `${firstInitial}${lastInitial || firstInitial}`
+
+  return initials.toUpperCase().slice(0, 2)
 })
 
 const bookingDateLabel = computed((): string => {
