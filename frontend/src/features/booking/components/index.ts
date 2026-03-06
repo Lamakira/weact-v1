@@ -8,3 +8,4 @@ export { default as BookingPricingBreakdown } from './BookingPricingBreakdown.vu
 export { default as BookingChat } from './BookingChat.vue'
 export { default as BookingChatMessage } from './BookingChatMessage.vue'
 export { default as ChatHeader } from './ChatHeader.vue'
+export { default as CancellationDialog } from './CancellationDialog.vue'

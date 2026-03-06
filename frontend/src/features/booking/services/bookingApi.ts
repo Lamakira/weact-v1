@@ -1,5 +1,11 @@
 import apiClient, { getCsrfCookie } from '@/services/apiClient'
-import type { CreateBookingData, BookingResponse, BookingListResponse, BookingFilterStatus } from '../types'
+import type {
+  CreateBookingData,
+  BookingResponse,
+  BookingListResponse,
+  BookingFilterStatus,
+  CancellationReasonValue,
+} from '../types'
 
 /**
  * Booking API service
@@ -51,6 +57,17 @@ export const bookingApi = {
     await getCsrfCookie()
     const response = await apiClient.post<BookingResponse>(`/bookings/${id}/refuse`, {
       cancellation_reason: reason || undefined,
+    })
+    return response.data
+  },
+
+  /**
+   * Cancel a booking (Producer only)
+   */
+  async cancelBooking(id: number, cancellationReason: CancellationReasonValue): Promise<BookingResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<BookingResponse>(`/bookings/${id}/cancel`, {
+      cancellation_reason: cancellationReason,
     })
     return response.data
   },

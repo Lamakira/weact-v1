@@ -15,8 +15,22 @@ import {
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useBookingDetail, useBookingActions } from '@/features/booking/composables'
-import { BookingTimeline, BookingStatusBadge, PaymentOverlay, BookingPricingBreakdown, BookingChat } from '@/features/booking/components'
-import { BookingStatus, CHAT_VIEW_STATUSES, type BookingStatusType } from '@/features/booking/types'
+import {
+  BookingTimeline,
+  BookingStatusBadge,
+  PaymentOverlay,
+  BookingPricingBreakdown,
+  BookingChat,
+  CancellationDialog,
+} from '@/features/booking/components'
+import {
+  BookingStatus,
+  CHAT_VIEW_STATUSES,
+  CANCELLABLE_BY_PRODUCER_STATUSES,
+  getCancellationReasonLabel,
+  type BookingStatusType,
+  type CancellationReasonValue,
+} from '@/features/booking/types'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import { useToast } from '@/composables/useToast'
 
@@ -29,7 +43,18 @@ const isFace = computed(() => authStore.user?.userable_type === 'Face')
 const currentUserId = computed(() => authStore.user?.id ?? 0)
 
 const { booking, isLoading, error, notFound, fetchBooking, refresh } = useBookingDetail()
-const { isAccepting, isRefusing, isConfirming, error: actionError, accept, refuse, confirm, clearError } = useBookingActions()
+const {
+  isAccepting,
+  isRefusing,
+  isConfirming,
+  isCancelling,
+  error: actionError,
+  accept,
+  refuse,
+  confirm,
+  cancel,
+  clearError,
+} = useBookingActions()
 
 // Payment overlay state
 const showPaymentOverlay = ref(false)
@@ -38,6 +63,9 @@ const showPaymentOverlay = ref(false)
 const showRefuseDialog = ref(false)
 const refuseReason = ref('')
 const showReasonField = ref(false)
+
+// Cancellation dialog state
+const showCancellationDialog = ref(false)
 
 // Get booking ID from route params
 const bookingId = computed(() => {
@@ -170,6 +198,20 @@ async function handleConfirm(): Promise<void> {
     toast.success('Confirmation enregistrée !')
   } else {
     toast.error(actionError.value || 'Erreur lors de la confirmation')
+  }
+}
+
+async function handleCancel(reason: CancellationReasonValue): Promise<void> {
+  if (!booking.value) return
+  clearError()
+
+  const result = await cancel(booking.value.id, reason)
+  if (result) {
+    booking.value = result
+    showCancellationDialog.value = false
+    toast.success('Booking annulé')
+  } else {
+    toast.error(actionError.value || 'Erreur lors de l\'annulation')
   }
 }
 
@@ -332,8 +374,10 @@ onMounted(() => {
             v-if="booking.cancellation_reason"
             class="bg-red-50 rounded-xl border border-red-200 p-5"
           >
-            <h2 class="text-sm font-semibold text-red-700 mb-2">Raison du refus</h2>
-            <p class="text-sm text-red-600">{{ booking.cancellation_reason }}</p>
+            <h2 class="text-sm font-semibold text-red-700 mb-2">
+              {{ booking.status === BookingStatus.REFUSED ? 'Raison du refus' : 'Raison de l\'annulation' }}
+            </h2>
+            <p class="text-sm text-red-600">{{ getCancellationReasonLabel(booking.cancellation_reason) }}</p>
           </div>
 
           <!-- Confirm button (double-confirmation) -->
@@ -346,6 +390,17 @@ onMounted(() => {
               <Loader2 v-if="isConfirming" class="w-4 h-4 animate-spin" />
               <CheckCircle v-else class="w-4 h-4" />
               {{ confirmLabel }}
+            </button>
+          </div>
+
+          <!-- Producer cancellation -->
+          <div v-if="!isFace && CANCELLABLE_BY_PRODUCER_STATUSES.includes(booking.status)" class="flex gap-3">
+            <button
+              class="flex-1 flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+              @click="showCancellationDialog = true"
+            >
+              <XCircle class="w-4 h-4" />
+              Annuler le booking
             </button>
           </div>
 
@@ -400,6 +455,15 @@ onMounted(() => {
       v-model="showPaymentOverlay"
       :booking="booking"
       @payment-success="handlePaymentSuccess"
+    />
+
+    <CancellationDialog
+      v-if="booking"
+      :booking="booking"
+      :is-open="showCancellationDialog"
+      :is-cancelling="isCancelling"
+      @confirm="handleCancel"
+      @cancel="showCancellationDialog = false"
     />
 
     <!-- Refuse dialog overlay -->

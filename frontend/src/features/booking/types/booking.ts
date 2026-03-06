@@ -35,6 +35,27 @@ export const BookingStatusLabel: Record<BookingStatusType, string> = {
 // Commission rate (mirrors backend BookingPricing VO)
 export const COMMISSION_RATE = 0.15
 
+export const CANCELLATION_REASONS = [
+  { value: 'schedule_conflict', label: "Conflit d'agenda" },
+  { value: 'price_disagreement', label: 'Désaccord sur le prix' },
+  { value: 'other', label: 'Autre raison' },
+] as const
+
+export type CancellationReasonValue = (typeof CANCELLATION_REASONS)[number]['value']
+
+// Statuses where a Producer can cancel
+export const CANCELLABLE_BY_PRODUCER_STATUSES: BookingStatusType[] = [
+  BookingStatus.PENDING,
+  BookingStatus.ACCEPTED,
+  BookingStatus.PAID,
+]
+
+export function getCancellationReasonLabel(reason: string | null | undefined): string {
+  if (!reason) return ''
+  const match = CANCELLATION_REASONS.find((item) => item.value === reason)
+  return match?.label ?? reason
+}
+
 // Face userable data nested in BookingUser
 export interface BookingFaceUserable {
   id: number
