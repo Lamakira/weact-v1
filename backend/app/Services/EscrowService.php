@@ -72,4 +72,53 @@ class EscrowService
             $booking->montant_face_recoit,
         );
     }
+
+    /**
+     * Process a refund for a cancelled paid booking.
+     * MUST be called inside an existing DB::transaction().
+     */
+    public function refund(Booking $booking, FedapayService $fedapayService): void
+    {
+        /** @var EscrowTransaction|null $escrow */
+        $escrow = $booking->escrowTransaction()->lockForUpdate()->first();
+
+        // Guard: no escrow record means nothing to refund.
+        if ($escrow === null) {
+            return;
+        }
+
+        // Idempotent: already refunded.
+        if ($escrow->status === 'refunded') {
+            return;
+        }
+
+        $refundAmount = (int) round($booking->montant_total_producteur * 0.85);
+        $retainedAmount = $booking->montant_total_producteur - $refundAmount;
+        $idempotencyKey = "refund-booking-{$booking->id}";
+
+        // Record the FinancialEvent FIRST as idempotency anchor before calling Fedapay.
+        // If the Fedapay call succeeds but a subsequent DB operation fails and the transaction
+        // rolls back, this anchor ensures the retry detects the attempt and does not double-refund.
+        $this->recordFinancialEvent(
+            FinancialEventType::Refund,
+            $booking,
+            $refundAmount,
+            [
+                'status' => 'pending',
+                'metadata' => [
+                    'retained_amount' => $retainedAmount,
+                    'idempotency_key' => $idempotencyKey,
+                ],
+            ],
+        );
+
+        $refund = $fedapayService->initiateRefund($booking, $refundAmount, $idempotencyKey);
+        $refundId = isset($refund['fedapay_refund_id']) ? (string) $refund['fedapay_refund_id'] : null;
+
+        $escrow->update([
+            'status' => 'refunded',
+            'fedapay_ref' => $refundId,
+            'refunded_at' => now(),
+        ]);
+    }
 }

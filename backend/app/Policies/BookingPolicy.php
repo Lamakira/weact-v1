@@ -58,6 +58,22 @@ class BookingPolicy
     }
 
     /**
+     * Determine if the user can cancel the booking.
+     * Only the Producer can cancel, and only when status is pending, accepted, or paid.
+     */
+    public function cancel(User $user, Booking $booking): bool
+    {
+        $cancellableStatuses = [
+            BookingStatus::Pending,
+            BookingStatus::Accepted,
+            BookingStatus::Paid,
+        ];
+
+        return $user->id === $booking->producer_id
+            && in_array($booking->status, $cancellableStatuses, true);
+    }
+
+    /**
      * Determine if the user can pay for the booking.
      * Only the Producer can pay, and only when status is accepted.
      */

@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Concerns\RecordsFinancialEvent;
+use App\Enums\BookingCancellationReason;
 use App\Enums\BookingStatus;
 use App\Enums\FinancialEventType;
 use App\Events\BookingAccepted;
+use App\Events\BookingCancelled;
 use App\Events\BookingCompleted;
 use App\Events\BookingCreated;
 use App\Events\BookingPaid;
@@ -135,6 +137,46 @@ class BookingService
             BookingRefused::dispatch($booking);
 
             return $booking->fresh();
+        });
+    }
+
+    /**
+     * Cancel a booking (Producer only).
+     * - pending/accepted: immediate cancel with no financial operation
+     * - paid: refund 85% and mark escrow as refunded
+     *
+     * @throws ValidationException
+     */
+    public function cancel(Booking $booking, string $reason): Booking
+    {
+        return DB::transaction(function () use ($booking, $reason) {
+            $booking = $booking->lockForUpdate()->find($booking->id);
+
+            $cancellableStatuses = [
+                BookingStatus::Pending,
+                BookingStatus::Accepted,
+                BookingStatus::Paid,
+            ];
+
+            if (! in_array($booking->status, $cancellableStatuses, true)) {
+                throw ValidationException::withMessages([
+                    'status' => ['Ce booking ne peut pas être annulé dans son état actuel.'],
+                ]);
+            }
+
+            if ($booking->status === BookingStatus::Paid) {
+                $this->escrowService->refund($booking, $this->fedapayService);
+            }
+
+            $booking->update([
+                'status' => BookingStatus::CancelledByProducer,
+                'cancellation_reason' => BookingCancellationReason::from($reason)->value,
+            ]);
+
+            $freshBooking = $booking->fresh();
+            BookingCancelled::dispatch($freshBooking);
+
+            return $freshBooking;
         });
     }
 

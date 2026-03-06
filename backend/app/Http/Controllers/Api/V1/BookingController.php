@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\BookingStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\AcceptBookingRequest;
+use App\Http\Requests\Booking\CancelBookingRequest;
 use App\Http\Requests\Booking\ConfirmBookingRequest;
 use App\Http\Requests\Booking\CreateBookingRequest;
 use App\Http\Requests\Booking\PayBookingRequest;
@@ -133,6 +134,24 @@ class BookingController extends Controller
         return response()->json([
             'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
             'message' => 'Booking refusé',
+        ]);
+    }
+
+    /**
+     * Cancel a booking (Producer only).
+     */
+    public function cancel(CancelBookingRequest $request, Booking $booking): JsonResponse
+    {
+        Gate::authorize('cancel', $booking);
+
+        $booking = $this->bookingService->cancel(
+            $booking,
+            $request->validated('cancellation_reason')
+        );
+
+        return response()->json([
+            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+            'message' => 'Booking annulé',
         ]);
     }
 
