@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace App\Events;
 
-use App\Http\Resources\BookingMessageResource;
 use App\Models\BookingMessage;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class BookingMessageSent implements ShouldBroadcast
+class BookingMessageSent implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
