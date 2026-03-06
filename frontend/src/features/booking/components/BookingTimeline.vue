@@ -34,12 +34,14 @@ const statusToStepIndex: Record<string, number> = {
   [BookingStatus.COMPLETED]: 6,
 }
 
+const terminalNegativeStatuses: BookingStatusType[] = [
+  BookingStatus.REFUSED,
+  BookingStatus.CANCELLED_BY_FACE,
+  BookingStatus.CANCELLED_BY_PRODUCER,
+]
+
 const isTerminalNegative = computed(() => {
-  return [
-    BookingStatus.REFUSED,
-    BookingStatus.CANCELLED_BY_FACE,
-    BookingStatus.CANCELLED_BY_PRODUCER,
-  ].includes(props.status)
+  return terminalNegativeStatuses.includes(props.status)
 })
 
 const currentStepIndex = computed(() => {
