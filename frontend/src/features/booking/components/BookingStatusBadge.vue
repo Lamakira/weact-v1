@@ -15,6 +15,7 @@ const statusColorClasses: Record<BookingStatusType, string> = {
   confirmed_by_face: 'bg-emerald-100 text-emerald-800',
   confirmed_by_producer: 'bg-emerald-100 text-emerald-800',
   completed: 'bg-emerald-100 text-emerald-800',
+  expired: 'bg-red-100 text-red-800',
   cancelled_by_producer: 'bg-red-100 text-red-800',
   cancelled_by_face: 'bg-red-100 text-red-800',
 }

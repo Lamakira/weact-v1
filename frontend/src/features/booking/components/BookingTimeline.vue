@@ -36,6 +36,7 @@ const statusToStepIndex: Record<string, number> = {
 
 const terminalNegativeStatuses: BookingStatusType[] = [
   BookingStatus.REFUSED,
+  BookingStatus.EXPIRED,
   BookingStatus.CANCELLED_BY_FACE,
   BookingStatus.CANCELLED_BY_PRODUCER,
 ]
@@ -118,7 +119,7 @@ function getStepState(index: number): 'completed' | 'current' | 'future' {
         </svg>
       </div>
       <span class="text-sm font-medium text-red-700">
-        {{ status === 'refused' ? 'Refusé' : 'Annulé' }}
+        {{ status === BookingStatus.REFUSED ? 'Refusé' : status === BookingStatus.EXPIRED ? 'Expiré' : 'Annulé' }}
       </span>
     </div>
   </div>

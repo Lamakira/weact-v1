@@ -12,6 +12,7 @@ export const BookingStatus = {
   CONFIRMED_BY_FACE: 'confirmed_by_face',
   CONFIRMED_BY_PRODUCER: 'confirmed_by_producer',
   COMPLETED: 'completed',
+  EXPIRED: 'expired',
   CANCELLED_BY_PRODUCER: 'cancelled_by_producer',
   CANCELLED_BY_FACE: 'cancelled_by_face',
 } as const
@@ -28,6 +29,7 @@ export const BookingStatusLabel: Record<BookingStatusType, string> = {
   [BookingStatus.CONFIRMED_BY_FACE]: 'Confirmée par la Face',
   [BookingStatus.CONFIRMED_BY_PRODUCER]: 'Confirmée par le Producteur',
   [BookingStatus.COMPLETED]: 'Terminée',
+  [BookingStatus.EXPIRED]: 'Expiré',
   [BookingStatus.CANCELLED_BY_PRODUCER]: 'Annulée par le Producteur',
   [BookingStatus.CANCELLED_BY_FACE]: 'Annulée par la Face',
 }
@@ -105,6 +107,7 @@ export interface Booking {
   cancellation_reason: string | null
   fedapay_transaction_id: number | null
   payment_mode: string | null
+  accepted_at: string | null
   face?: BookingUser
   producer?: BookingUser
   can_accept: boolean

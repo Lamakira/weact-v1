@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -66,6 +66,9 @@ const showReasonField = ref(false)
 
 // Cancellation dialog state
 const showCancellationDialog = ref(false)
+const nowTimestamp = ref(Date.now())
+const hasExpiryRealtimeListener = ref(false)
+let countdownTicker: ReturnType<typeof setInterval> | null = null
 
 // Get booking ID from route params
 const bookingId = computed(() => {
@@ -118,6 +121,30 @@ const confirmLabel = computed<string | null>(() => {
   // Producer sees "Confirmer aussi" when Face already confirmed
   if (!isFace.value && status === BookingStatus.CONFIRMED_BY_FACE) return 'Confirmer aussi'
   return null
+})
+
+const paymentDeadline = computed<Date | null>(() => {
+  if (!booking.value?.accepted_at) return null
+  return new Date(new Date(booking.value.accepted_at).getTime() + 24 * 60 * 60 * 1000)
+})
+
+const shouldShowPaymentDeadline = computed<boolean>(() => {
+  return !isFace.value
+    && booking.value?.status === BookingStatus.ACCEPTED
+    && !!booking.value.accepted_at
+})
+
+const isPaymentOverdue = computed<boolean>(() => {
+  if (!paymentDeadline.value) return false
+  return paymentDeadline.value.getTime() <= nowTimestamp.value
+})
+
+const formattedPaymentDeadline = computed<string>(() => {
+  if (!paymentDeadline.value) return ''
+  return new Intl.DateTimeFormat('fr-FR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(paymentDeadline.value)
 })
 
 /**
@@ -223,13 +250,76 @@ async function handlePaymentSuccess(): Promise<void> {
   }
 }
 
+interface EchoChannel {
+  listen: (event: string, callback: () => void) => EchoChannel
+  stopListening: (event: string) => EchoChannel
+}
+
+async function attachExpiryRealtimeListener(): Promise<void> {
+  if (hasExpiryRealtimeListener.value || bookingId.value === null) return
+
+  try {
+    const { echo } = await import('@/plugins/echo')
+    ;(echo.private(`booking.${bookingId.value}`) as EchoChannel)
+      .listen('.booking.expired', async () => {
+        if (bookingId.value !== null) {
+          await fetchBooking(bookingId.value)
+        }
+      })
+
+    hasExpiryRealtimeListener.value = true
+  } catch {
+    hasExpiryRealtimeListener.value = false
+  }
+}
+
+async function detachExpiryRealtimeListener(): Promise<void> {
+  if (!hasExpiryRealtimeListener.value || bookingId.value === null) return
+
+  try {
+    const { echo } = await import('@/plugins/echo')
+    // Stop only the expiry listener — do not leave the channel, as other
+    // components (BookingChat) may subscribe to the same private channel.
+    ;(echo.private(`booking.${bookingId.value}`) as EchoChannel)
+      .stopListening('.booking.expired')
+  } catch {
+    // Ignore realtime cleanup errors.
+  } finally {
+    hasExpiryRealtimeListener.value = false
+  }
+}
+
 /**
  * LIFECYCLE
  */
-onMounted(() => {
+watch(
+  () => booking.value?.status,
+  async (status) => {
+    if (status === BookingStatus.ACCEPTED) {
+      await attachExpiryRealtimeListener()
+    } else {
+      await detachExpiryRealtimeListener()
+    }
+  },
+)
+
+onMounted(async () => {
   if (bookingId.value) {
-    fetchBooking(bookingId.value)
+    await fetchBooking(bookingId.value)
   }
+
+  countdownTicker = setInterval(() => {
+    nowTimestamp.value = Date.now()
+  }, 60000)
+})
+
+onUnmounted(() => {
+  if (countdownTicker !== null) {
+    clearInterval(countdownTicker)
+    countdownTicker = null
+  }
+
+  void detachExpiryRealtimeListener()
 })
 </script>
 
@@ -378,6 +468,17 @@ onMounted(() => {
               {{ booking.status === BookingStatus.REFUSED ? 'Raison du refus' : 'Raison de l\'annulation' }}
             </h2>
             <p class="text-sm text-red-600">{{ getCancellationReasonLabel(booking.cancellation_reason) }}</p>
+          </div>
+
+          <div
+            v-if="shouldShowPaymentDeadline"
+            class="rounded-xl border px-4 py-3 text-sm"
+            :class="isPaymentOverdue
+              ? 'border-red-200 bg-red-50 text-red-800'
+              : 'border-amber-200 bg-amber-50 text-amber-800'"
+          >
+            <span v-if="isPaymentOverdue">Délai expiré — ce booking sera bientôt annulé</span>
+            <span v-else>Paiement requis avant {{ formattedPaymentDeadline }}</span>
           </div>
 
           <!-- Confirm button (double-confirmation) -->
