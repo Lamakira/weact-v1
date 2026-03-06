@@ -205,3 +205,68 @@ export function calculatePricingPreview(tarifBase: number): BookingPricingPrevie
     faceReceives: tarifBase - faceCommission,
   }
 }
+
+// ============================================
+// CHAT TYPES
+// ============================================
+
+// Message from REST API (includes is_own_message computed by server)
+export interface BookingMessage {
+  id: number
+  booking_id: number
+  sender_id: number
+  sender_name: string
+  content: string
+  is_own_message: boolean
+  created_at: string // ISO 8601
+}
+
+// Message from WebSocket broadcast (no is_own_message — computed client-side)
+export interface BookingMessageBroadcast {
+  id: number
+  booking_id: number
+  sender_id: number
+  sender_name: string
+  content: string
+  created_at: string // ISO 8601
+}
+
+// Paginated message list from REST API
+export interface BookingMessageListResponse {
+  data: BookingMessage[]
+  links: {
+    first: string | null
+    last: string | null
+    prev: string | null
+    next: string | null
+  }
+  meta: {
+    current_page: number
+    last_page: number
+    per_page: number
+    total: number
+  }
+}
+
+// Single message creation response
+export interface BookingMessageResponse {
+  data: BookingMessage
+  message: string
+}
+
+// Chat-eligible statuses (can VIEW messages — includes completed for read-only)
+export const CHAT_VIEW_STATUSES: BookingStatusType[] = [
+  BookingStatus.PAID,
+  BookingStatus.IN_PROGRESS,
+  BookingStatus.CONFIRMED_BY_FACE,
+  BookingStatus.CONFIRMED_BY_PRODUCER,
+  BookingStatus.COMPLETED,
+]
+
+// Active chat statuses (can SEND messages — excludes completed)
+export const CHAT_SEND_STATUSES: BookingStatusType[] = [
+  BookingStatus.PAID,
+  BookingStatus.IN_PROGRESS,
+  BookingStatus.CONFIRMED_BY_FACE,
+  BookingStatus.CONFIRMED_BY_PRODUCER,
+]

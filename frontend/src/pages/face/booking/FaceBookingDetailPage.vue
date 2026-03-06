@@ -15,8 +15,8 @@ import {
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useBookingDetail, useBookingActions } from '@/features/booking/composables'
-import { BookingTimeline, BookingStatusBadge, PaymentOverlay, BookingPricingBreakdown } from '@/features/booking/components'
-import { BookingStatus, type BookingStatusType } from '@/features/booking/types'
+import { BookingTimeline, BookingStatusBadge, PaymentOverlay, BookingPricingBreakdown, BookingChat } from '@/features/booking/components'
+import { BookingStatus, CHAT_VIEW_STATUSES, type BookingStatusType } from '@/features/booking/types'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import { useToast } from '@/composables/useToast'
 
@@ -26,6 +26,7 @@ const toast = useToast()
 
 const authStore = useAuthStore()
 const isFace = computed(() => authStore.user?.userable_type === 'Face')
+const currentUserId = computed(() => authStore.user?.id ?? 0)
 
 const { booking, isLoading, error, notFound, fetchBooking, refresh } = useBookingDetail()
 const { isAccepting, isRefusing, isConfirming, error: actionError, accept, refuse, confirm, clearError } = useBookingActions()
@@ -381,6 +382,17 @@ onMounted(() => {
           </div>
         </div>
       </div>
+
+      <!-- Booking Chat Section (AC6: only for eligible statuses) -->
+      <section
+        v-if="CHAT_VIEW_STATUSES.includes(booking.status)"
+        class="mt-6"
+        data-testid="booking-chat-section"
+      >
+        <div class="bg-white rounded-[24px] shadow-sm overflow-hidden h-[500px] sm:h-[600px]">
+          <BookingChat :booking="booking" :current-user-id="currentUserId" />
+        </div>
+      </section>
     </template>
 
     <!-- Payment overlay -->
