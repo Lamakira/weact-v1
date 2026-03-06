@@ -39,6 +39,7 @@ class BookingController extends Controller
         'completed' => [BookingStatus::Completed],
         'cancelled' => [
             BookingStatus::Refused,
+            BookingStatus::Expired,
             BookingStatus::CancelledByProducer,
             BookingStatus::CancelledByFace,
         ],

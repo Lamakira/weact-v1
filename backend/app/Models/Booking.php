@@ -33,6 +33,7 @@ class Booking extends Model
         'face_id',
         'producer_id',
         'status',
+        'accepted_at',
         'date_debut',
         'date_fin',
         'duree_heures',
@@ -55,6 +56,7 @@ class Booking extends Model
     {
         return [
             'status' => BookingStatus::class,
+            'accepted_at' => 'datetime',
             'date_debut' => 'datetime',
             'date_fin' => 'datetime',
             'duree_heures' => 'integer',

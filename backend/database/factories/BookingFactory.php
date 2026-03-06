@@ -45,6 +45,7 @@ class BookingFactory extends Factory
                 'userable_id' => Producer::factory(),
             ]),
             'status' => BookingStatus::Pending,
+            'accepted_at' => null,
             'date_debut' => $dateDebut,
             'date_fin' => $dateFin,
             'duree_heures' => $dureeHeures,
@@ -80,6 +81,7 @@ class BookingFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'status' => BookingStatus::Accepted,
+            'accepted_at' => now(),
         ]);
     }
 

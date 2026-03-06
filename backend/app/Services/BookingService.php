@@ -12,6 +12,7 @@ use App\Events\BookingAccepted;
 use App\Events\BookingCancelled;
 use App\Events\BookingCompleted;
 use App\Events\BookingCreated;
+use App\Events\BookingExpired;
 use App\Events\BookingPaid;
 use App\Events\BookingRefused;
 use App\Models\Booking;
@@ -105,7 +106,10 @@ class BookingService
                 ]);
             }
 
-            $booking->update(['status' => BookingStatus::Accepted]);
+            $booking->update([
+                'status' => BookingStatus::Accepted,
+                'accepted_at' => now(),
+            ]);
 
             BookingAccepted::dispatch($booking);
 
@@ -395,6 +399,25 @@ class BookingService
             }
 
             $this->completeBooking($booking);
+        });
+    }
+
+    /**
+     * Expire an unpaid accepted booking after timeout.
+     */
+    public function expire(Booking $booking): void
+    {
+        DB::transaction(function () use ($booking) {
+            $booking = $booking->lockForUpdate()->find($booking->id);
+
+            // Idempotent: only accepted bookings can be expired.
+            if ($booking->status !== BookingStatus::Accepted) {
+                return;
+            }
+
+            $booking->update(['status' => BookingStatus::Expired]);
+
+            BookingExpired::dispatch($booking->fresh());
         });
     }
 

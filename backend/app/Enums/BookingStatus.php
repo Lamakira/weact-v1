@@ -14,6 +14,7 @@ enum BookingStatus: string
     case ConfirmedByFace = 'confirmed_by_face';
     case ConfirmedByProducer = 'confirmed_by_producer';
     case Completed = 'completed';
+    case Expired = 'expired';
     case CancelledByProducer = 'cancelled_by_producer';
     case CancelledByFace = 'cancelled_by_face';
 
@@ -31,6 +32,7 @@ enum BookingStatus: string
             self::ConfirmedByFace => 'Confirmee par la Face',
             self::ConfirmedByProducer => 'Confirmee par le Producteur',
             self::Completed => 'Terminee',
+            self::Expired => 'Expire',
             self::CancelledByProducer => 'Annulee par le Producteur',
             self::CancelledByFace => 'Annulee par la Face',
         };
