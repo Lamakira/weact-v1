@@ -132,6 +132,24 @@ class BookingNotificationTest extends TestCase
         $this->assertNotNull($notification);
         $this->assertStringContainsString('Paiement confirmé', $notification->data['message']);
         $this->assertStringContainsString('chat', $notification->data['message']);
+        $this->assertEquals("/producer/bookings/{$this->booking->id}", $notification->data['url']);
+    }
+
+    public function test_booking_paid_creates_notification_for_face(): void
+    {
+        $this->booking->update(['status' => BookingStatus::Paid]);
+
+        $listener = new NotifyProducerOnBookingPaid;
+        $listener->handle(new BookingPaid($this->booking));
+
+        $notification = Notification::where('user_id', $this->faceUser->id)
+            ->where('type', 'booking_paid')
+            ->first();
+
+        $this->assertNotNull($notification);
+        $this->assertStringContainsString('paiement', $notification->data['message']);
+        $this->assertStringContainsString('chat', $notification->data['message']);
+        $this->assertEquals("/face/bookings/{$this->booking->id}", $notification->data['url']);
     }
 
     public function test_partial_confirmation_creates_notification_for_other_party(): void
