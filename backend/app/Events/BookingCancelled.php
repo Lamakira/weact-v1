@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Events;
 
+use App\Enums\BookingStatus;
 use App\Models\Booking;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -42,7 +43,7 @@ class BookingCancelled implements ShouldBroadcastNow
         return [
             'booking_id' => $this->booking->id,
             'status' => $this->booking->status->value,
-            'cancelled_by' => 'producer',
+            'cancelled_by' => $this->booking->status === BookingStatus::CancelledByFace ? 'face' : 'producer',
             'cancellation_reason' => $this->booking->cancellation_reason,
         ];
     }

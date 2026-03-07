@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Enums\BookingStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Auth;
@@ -42,6 +43,14 @@ class BookingResource extends JsonResource
             'can_accept' => $user && $user->can('accept', $this->resource),
             'can_refuse' => $user && $user->can('refuse', $this->resource),
             'can_pay' => $user && $user->can('pay', $this->resource),
+            // Short-circuit: skip the DB exists() check for non-completed bookings
+            // to avoid N+1 on list endpoints.
+            'can_rate' => $user && $this->status === BookingStatus::Completed && $user->can('rate', $this->resource),
+            'my_rating' => $this->when(
+                $this->relationLoaded('raterBookingRating'),
+                fn () => $this->raterBookingRating ? new BookingRatingResource($this->raterBookingRating) : null,
+                null,
+            ),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

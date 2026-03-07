@@ -186,6 +186,70 @@ class BookingService
     }
 
     /**
+     * Cancel a booking as Face.
+     * - accepted: immediate cancel with no financial operation
+     * - paid: refund 85% and mark escrow as refunded
+     * - after cancellation, apply face rating penalty (+1.0)
+     *
+     * @throws ValidationException
+     */
+    public function cancelByFace(Booking $booking, string $reason): Booking
+    {
+        $cancelledBooking = DB::transaction(function () use ($booking, $reason) {
+            $booking = $booking->lockForUpdate()->find($booking->id);
+
+            $cancellableStatuses = [
+                BookingStatus::Accepted,
+                BookingStatus::Paid,
+            ];
+
+            if (! in_array($booking->status, $cancellableStatuses, true)) {
+                throw ValidationException::withMessages([
+                    'status' => ['Ce booking ne peut pas être annulé dans son état actuel.'],
+                ]);
+            }
+
+            if ($booking->status === BookingStatus::Paid) {
+                $this->escrowService->refund($booking, $this->fedapayService);
+            }
+
+            $booking->update([
+                'status' => BookingStatus::CancelledByFace,
+                'cancellation_reason' => BookingCancellationReason::from($reason)->value,
+            ]);
+
+            return $booking->fresh();
+        });
+
+        // Dispatch after transaction commits. A broadcast failure is non-fatal:
+        // the booking status is already persisted in DB.
+        try {
+            BookingCancelled::dispatch($cancelledBooking);
+        } catch (\Throwable $e) {
+            Log::warning('BookingCancelled broadcast failed', [
+                'booking_id' => $cancelledBooking->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        try {
+            $cancelledBooking->loadMissing('face.userable');
+
+            $faceProfile = $cancelledBooking->face?->userable;
+            if ($faceProfile instanceof Face) {
+                $faceProfile->increment('rating_penalty', 1.0);
+            }
+        } catch (\Throwable $exception) {
+            Log::warning('Failed to apply face rating penalty after cancellation', [
+                'booking_id' => $cancelledBooking->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
+        return $cancelledBooking;
+    }
+
+    /**
      * Initiate a Mobile Money payment for an accepted booking.
      *
      * @param  array{number: string, country: string}  $phoneData

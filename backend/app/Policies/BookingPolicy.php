@@ -6,6 +6,7 @@ namespace App\Policies;
 
 use App\Enums\BookingStatus;
 use App\Models\Booking;
+use App\Models\BookingRating;
 use App\Models\Producer;
 use App\Models\User;
 
@@ -74,6 +75,21 @@ class BookingPolicy
     }
 
     /**
+     * Determine if the Face can cancel the booking.
+     * Face can cancel only accepted or paid bookings.
+     */
+    public function cancelByFace(User $user, Booking $booking): bool
+    {
+        $cancellableStatuses = [
+            BookingStatus::Accepted,
+            BookingStatus::Paid,
+        ];
+
+        return $user->id === $booking->face_id
+            && in_array($booking->status, $cancellableStatuses, true);
+    }
+
+    /**
      * Determine if the user can pay for the booking.
      * Only the Producer can pay, and only when status is accepted.
      */
@@ -99,6 +115,28 @@ class BookingPolicy
         ];
 
         return $isParty && in_array($booking->status, $confirmableStatuses, true);
+    }
+
+    /**
+     * Determine if the user can rate the booking counterparty.
+     * User must be booking party, booking must be completed, and user has not rated yet.
+     */
+    public function rate(User $user, Booking $booking): bool
+    {
+        $isParty = $user->id === $booking->face_id || $user->id === $booking->producer_id;
+
+        if (! $isParty) {
+            return false;
+        }
+
+        if ($booking->status !== BookingStatus::Completed) {
+            return false;
+        }
+
+        return ! BookingRating::query()
+            ->where('booking_id', $booking->id)
+            ->where('rater_id', $user->id)
+            ->exists();
     }
 
     /**

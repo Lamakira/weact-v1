@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\BookingMessageController;
+use App\Http\Controllers\Api\V1\BookingRatingController;
 use App\Http\Controllers\Api\V1\WalletController;
 use Illuminate\Support\Facades\Route;
 
@@ -38,6 +39,10 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
     Route::post('/bookings/{booking}/confirm', [BookingController::class, 'confirm'])
         ->middleware('throttle:60,1')
         ->name('bookings.confirm');
+
+    Route::post('/bookings/{booking}/rate', [BookingRatingController::class, 'store'])
+        ->middleware('throttle:60,1')
+        ->name('bookings.rate');
 
     Route::get('/bookings/{booking}/payment-status', [BookingController::class, 'checkPaymentStatus'])
         ->middleware('throttle:30,1')

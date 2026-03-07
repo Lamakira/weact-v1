@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 
@@ -49,6 +50,7 @@ class Face extends Model
         'tarif_horaire',
         'tarif_journalier',
         'is_available',
+        'rating_penalty',
     ];
 
     /**
@@ -63,6 +65,7 @@ class Face extends Model
         'categories' => 'array',
         'niches' => 'array',
         'is_available' => 'boolean',
+        'rating_penalty' => 'float',
     ];
 
     /**
@@ -425,22 +428,45 @@ class Face extends Model
     }
 
     /**
+     * Get the booking ratings received by this Face.
+     */
+    public function bookingRatingsReceived(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            BookingRating::class,
+            User::class,
+            'userable_id',
+            'rated_id',
+            'id',
+            'id',
+        )->where('users.userable_type', self::class);
+    }
+
+    /**
      * Get the average rating score for this Face.
      */
     protected function averageRating(): Attribute
     {
         return Attribute::make(
             get: function (): ?float {
-                // Use eager-loaded aggregate when available (withAvg)
-                if (array_key_exists('ratings_received_avg_score', $this->attributes)) {
-                    $avg = $this->attributes['ratings_received_avg_score'];
+                $candidatureRatings = $this->ratingsReceived()->selectRaw('COALESCE(SUM(score), 0) as score_sum, COUNT(*) as score_count')->first();
+                $bookingRatings = $this->bookingRatingsReceived()->selectRaw('COALESCE(SUM(score), 0) as score_sum, COUNT(*) as score_count')->groupBy('users.userable_id')->first();
 
-                    return $avg !== null ? (float) $avg : null;
+                $candidatureCount = (int) ($candidatureRatings?->score_count ?? 0);
+                $bookingCount = (int) ($bookingRatings?->score_count ?? 0);
+                $totalCount = $candidatureCount + $bookingCount;
+
+                if ($totalCount === 0) {
+                    return null;
                 }
 
-                $avg = $this->ratingsReceived()->avg('score');
+                $totalScore = (float) ($candidatureRatings?->score_sum ?? 0.0)
+                    + (float) ($bookingRatings?->score_sum ?? 0.0);
 
-                return $avg !== null ? (float) $avg : null;
+                $avg = $totalScore / $totalCount;
+                $penalized = $avg - (float) ($this->rating_penalty ?? 0.0);
+
+                return max(1.0, $penalized);
             },
         );
     }
@@ -451,7 +477,7 @@ class Face extends Model
     protected function ratingsCount(): Attribute
     {
         return Attribute::make(
-            get: fn (): int => $this->ratingsReceived()->count(),
+            get: fn (): int => $this->ratingsReceived()->count() + $this->bookingRatingsReceived()->count(),
         );
     }
 }

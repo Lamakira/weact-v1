@@ -97,7 +97,15 @@ class BookingController extends Controller
     {
         Gate::authorize('view', $booking);
 
-        $booking->load(['face.userable', 'producer.userable']);
+        $booking->load([
+            'face.userable',
+            'producer.userable',
+            'raterBookingRating' => function ($query) {
+                $query
+                    ->where('rater_id', auth()->id())
+                    ->with(['rater.userable', 'rated.userable']);
+            },
+        ]);
 
         return response()->json([
             'data' => new BookingResource($booking),
@@ -139,16 +147,24 @@ class BookingController extends Controller
     }
 
     /**
-     * Cancel a booking (Producer only).
+     * Cancel a booking.
+     * Producer: pending/accepted/paid
+     * Face: accepted/paid
      */
     public function cancel(CancelBookingRequest $request, Booking $booking): JsonResponse
     {
-        Gate::authorize('cancel', $booking);
+        $user = $request->user();
+        $reason = $request->validated('cancellation_reason');
 
-        $booking = $this->bookingService->cancel(
-            $booking,
-            $request->validated('cancellation_reason')
-        );
+        if ($user->id === $booking->face_id) {
+            Gate::authorize('cancelByFace', $booking);
+
+            $booking = $this->bookingService->cancelByFace($booking, $reason);
+        } else {
+            Gate::authorize('cancel', $booking);
+
+            $booking = $this->bookingService->cancel($booking, $reason);
+        }
 
         return response()->json([
             'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),

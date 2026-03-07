@@ -75,6 +75,11 @@ class BookingCancellationTest extends TestCase
             'type' => FinancialEventType::Refund->value,
         ]);
 
+        $this->assertDatabaseHas('faces', [
+            'id' => $this->face->id,
+            'rating_penalty' => 0.0,
+        ]);
+
         Event::assertDispatched(BookingCancelled::class);
     }
 
@@ -99,6 +104,11 @@ class BookingCancellationTest extends TestCase
         $this->assertDatabaseMissing('financial_events', [
             'booking_id' => $booking->id,
             'type' => FinancialEventType::Refund->value,
+        ]);
+
+        $this->assertDatabaseHas('faces', [
+            'id' => $this->face->id,
+            'rating_penalty' => 0.0,
         ]);
 
         Event::assertDispatched(BookingCancelled::class);
@@ -156,12 +166,49 @@ class BookingCancellationTest extends TestCase
             'fedapay_ref' => '654321',
         ]);
 
+        $this->assertDatabaseHas('faces', [
+            'id' => $this->face->id,
+            'rating_penalty' => 0.0,
+        ]);
+
         Event::assertDispatched(BookingCancelled::class);
     }
 
-    public function test_face_cannot_cancel_booking(): void
+    public function test_face_can_cancel_accepted_booking_and_get_penalty(): void
     {
+        Event::fake([BookingCancelled::class]);
+
         $booking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                'cancellation_reason' => 'schedule_conflict',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::CancelledByFace->value)
+            ->assertJsonPath('data.cancellation_reason', 'schedule_conflict');
+
+        $this->assertDatabaseHas('bookings', [
+            'id' => $booking->id,
+            'status' => BookingStatus::CancelledByFace->value,
+            'cancellation_reason' => 'schedule_conflict',
+        ]);
+
+        $this->assertDatabaseHas('faces', [
+            'id' => $this->face->id,
+            'rating_penalty' => 1.0,
+        ]);
+
+        Event::assertDispatched(BookingCancelled::class);
+    }
+
+    public function test_face_cannot_cancel_pending_booking(): void
+    {
+        $booking = Booking::factory()->pending()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);

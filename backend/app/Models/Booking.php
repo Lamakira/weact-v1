@@ -97,4 +97,26 @@ class Booking extends Model
     {
         return $this->hasMany(BookingMessage::class)->orderBy('created_at');
     }
+
+    /**
+     * Get all ratings for this booking.
+     */
+    public function bookingRatings(): HasMany
+    {
+        return $this->hasMany(BookingRating::class);
+    }
+
+    /**
+     * Get one rating for this booking constrained to the authenticated rater.
+     *
+     * IMPORTANT: This relation has no built-in WHERE clause. It MUST be loaded
+     * via an eager-load closure that constrains by rater_id, e.g.:
+     *   ->load(['raterBookingRating' => fn($q) => $q->where('rater_id', auth()->id())])
+     * Accessing it without that closure returns the first BookingRating found,
+     * regardless of who the rater is.
+     */
+    public function raterBookingRating(): HasOne
+    {
+        return $this->hasOne(BookingRating::class);
+    }
 }
