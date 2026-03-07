@@ -5,6 +5,7 @@ import type {
   BookingListResponse,
   BookingFilterStatus,
   CancellationReasonValue,
+  BookingRatingResponse,
 } from '../types'
 
 /**
@@ -62,7 +63,7 @@ export const bookingApi = {
   },
 
   /**
-   * Cancel a booking (Producer only)
+   * Cancel a booking (Producer or Face, depending on status/role)
    */
   async cancelBooking(id: number, cancellationReason: CancellationReasonValue): Promise<BookingResponse> {
     await getCsrfCookie()
@@ -78,6 +79,18 @@ export const bookingApi = {
   async confirmBooking(id: number): Promise<BookingResponse> {
     await getCsrfCookie()
     const response = await apiClient.post<BookingResponse>(`/bookings/${id}/confirm`)
+    return response.data
+  },
+
+  /**
+   * Submit a rating for a completed booking.
+   */
+  async rateBooking(bookingId: number, score: number, comment?: string): Promise<BookingRatingResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<BookingRatingResponse>(`/bookings/${bookingId}/rate`, {
+      score,
+      comment: comment || undefined,
+    })
     return response.data
   },
 

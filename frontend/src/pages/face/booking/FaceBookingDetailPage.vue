@@ -12,6 +12,7 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
+  Star,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useBookingDetail, useBookingActions } from '@/features/booking/composables'
@@ -22,13 +23,16 @@ import {
   BookingPricingBreakdown,
   BookingChat,
   CancellationDialog,
+  BookingRatingForm,
 } from '@/features/booking/components'
 import {
   BookingStatus,
   CHAT_VIEW_STATUSES,
+  CANCELLABLE_BY_FACE_STATUSES,
   CANCELLABLE_BY_PRODUCER_STATUSES,
   getCancellationReasonLabel,
   type BookingStatusType,
+  type BookingRating,
   type CancellationReasonValue,
 } from '@/features/booking/types'
 import RatingDisplay from '@/components/RatingDisplay.vue'
@@ -105,6 +109,26 @@ const producerRatingsCount = computed(() => {
   const producer = booking.value?.producer
   if (!producer?.userable) return 0
   return (producer.userable as { ratings_count?: number }).ratings_count ?? 0
+})
+
+const faceName = computed(() => {
+  const face = booking.value?.face
+  if (!face?.userable) return 'Face'
+  const userable = face.userable as { prenom?: string; nom?: string; username?: string }
+  const fullName = `${userable.prenom ?? ''} ${userable.nom ?? ''}`.trim()
+  return fullName || userable.username || 'Face'
+})
+
+const ratedName = computed(() => (isFace.value ? producerName.value : faceName.value))
+
+const canCancelBooking = computed(() => {
+  if (!booking.value) return false
+
+  if (isFace.value) {
+    return CANCELLABLE_BY_FACE_STATUSES.includes(booking.value.status)
+  }
+
+  return CANCELLABLE_BY_PRODUCER_STATUSES.includes(booking.value.status)
 })
 
 // Whether refuse needs a mandatory reason (paid bookings)
@@ -240,6 +264,14 @@ async function handleCancel(reason: CancellationReasonValue): Promise<void> {
   } else {
     toast.error(actionError.value || 'Erreur lors de l\'annulation')
   }
+}
+
+function handleRatingSubmitted(rating: BookingRating): void {
+  if (!booking.value) return
+
+  booking.value.my_rating = rating
+  booking.value.can_rate = false
+  toast.success('Évaluation envoyée avec succès')
 }
 
 async function handlePaymentSuccess(): Promise<void> {
@@ -494,8 +526,8 @@ onUnmounted(() => {
             </button>
           </div>
 
-          <!-- Producer cancellation -->
-          <div v-if="!isFace && CANCELLABLE_BY_PRODUCER_STATUSES.includes(booking.status)" class="flex gap-3">
+          <!-- Booking cancellation -->
+          <div v-if="canCancelBooking" class="flex gap-3">
             <button
               class="flex-1 flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
               @click="showCancellationDialog = true"
@@ -534,6 +566,45 @@ onUnmounted(() => {
               <XCircle class="w-4 h-4" />
               Refuser
             </button>
+          </div>
+
+          <!-- Rating section (completed only) -->
+          <div
+            v-if="booking.status === BookingStatus.COMPLETED"
+            class="mt-1"
+          >
+            <BookingRatingForm
+              v-if="booking.can_rate"
+              :booking-id="booking.id"
+              :rated-name="ratedName"
+              @rated="handleRatingSubmitted"
+            />
+
+            <section
+              v-else-if="booking.my_rating"
+              class="bg-white rounded-xl border border-gray-200 p-5"
+              data-testid="booking-my-rating-readonly"
+            >
+              <h2 class="text-sm font-semibold text-gray-700">Votre évaluation</h2>
+              <p class="mt-1 text-sm text-gray-500">Vous avez noté {{ booking.my_rating.rated.name }}.</p>
+
+              <div class="mt-3 flex items-center gap-1.5 text-amber-400">
+                <Star
+                  v-for="star in 5"
+                  :key="`readonly-star-${star}`"
+                  class="h-5 w-5"
+                  :fill="booking.my_rating.score >= star ? 'currentColor' : 'none'"
+                />
+                <span class="ml-2 text-sm text-gray-600">{{ booking.my_rating.score }}/5</span>
+              </div>
+
+              <p
+                v-if="booking.my_rating.comment"
+                class="mt-3 rounded-lg bg-gray-50 p-3 text-sm text-gray-700"
+              >
+                {{ booking.my_rating.comment }}
+              </p>
+            </section>
           </div>
         </div>
       </div>

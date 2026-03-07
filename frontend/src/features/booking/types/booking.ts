@@ -52,10 +52,26 @@ export const CANCELLABLE_BY_PRODUCER_STATUSES: BookingStatusType[] = [
   BookingStatus.PAID,
 ]
 
+// Statuses where a Face can cancel
+export const CANCELLABLE_BY_FACE_STATUSES: BookingStatusType[] = [
+  BookingStatus.ACCEPTED,
+  BookingStatus.PAID,
+]
+
 export function getCancellationReasonLabel(reason: string | null | undefined): string {
   if (!reason) return ''
   const match = CANCELLATION_REASONS.find((item) => item.value === reason)
   return match?.label ?? reason
+}
+
+export interface BookingRating {
+  id: number
+  booking_id: number
+  score: number
+  comment: string | null
+  created_at: string
+  rater: { id: number; name: string; photo_url: string | null }
+  rated: { id: number; name: string; photo_url: string | null }
 }
 
 // Face userable data nested in BookingUser
@@ -113,6 +129,8 @@ export interface Booking {
   can_accept: boolean
   can_refuse: boolean
   can_pay: boolean
+  can_rate: boolean
+  my_rating: BookingRating | null
   created_at: string
   updated_at: string
 }
@@ -130,6 +148,11 @@ export interface CreateBookingData {
 // Booking API response
 export interface BookingResponse {
   data: Booking
+  message?: string
+}
+
+export interface BookingRatingResponse {
+  data: BookingRating
   message?: string
 }
 
