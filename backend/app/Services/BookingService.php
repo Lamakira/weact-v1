@@ -20,6 +20,7 @@ use App\Models\Face;
 use App\Models\User;
 use App\ValueObjects\BookingPricing;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class BookingService
@@ -407,7 +408,9 @@ class BookingService
      */
     public function expire(Booking $booking): void
     {
-        DB::transaction(function () use ($booking) {
+        $expired = false;
+
+        DB::transaction(function () use ($booking, &$expired) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
             // Idempotent: only accepted bookings can be expired.
@@ -416,9 +419,21 @@ class BookingService
             }
 
             $booking->update(['status' => BookingStatus::Expired]);
-
-            BookingExpired::dispatch($booking->fresh());
+            $expired = true;
         });
+
+        // Dispatch after the transaction commits. A broadcast failure is
+        // non-fatal: the booking status is already persisted in DB.
+        if ($expired) {
+            try {
+                BookingExpired::dispatch($booking->fresh());
+            } catch (\Throwable $e) {
+                Log::warning('BookingExpired broadcast failed', [
+                    'booking_id' => $booking->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     /**

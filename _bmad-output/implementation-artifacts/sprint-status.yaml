@@ -257,10 +257,10 @@ development_status:
   booking-epic-4-retrospective: done
 
   # Booking Epic 5: Cancellation & Refunds (2 stories)
-  booking-epic-5: in-progress
+  booking-epic-5: done
   b5-1-producer-cancels-booking: done
-  b5-2-automatic-expiry-unpaid-bookings: backlog
-  booking-epic-5-retrospective: optional
+  b5-2-automatic-expiry-unpaid-bookings: done
+  booking-epic-5-retrospective: done
 
   # Booking Epic 6: Rating, Notifications & Lifecycle Polish (3 stories)
   booking-epic-6: backlog
