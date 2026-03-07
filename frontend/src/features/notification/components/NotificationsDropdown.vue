@@ -10,7 +10,7 @@ import { useToast } from '@/composables/useToast'
 /**
  * NotificationsDropdown component
  * Shows list of notifications with mark as read functionality
- * Navigates to candidatures page on click
+ * Navigates to deep link (data.url) when available, otherwise candidatures
  */
 
 const emit = defineEmits<{
@@ -77,9 +77,13 @@ async function handleNotificationClick(notification: Notification): Promise<void
     }
   }
 
-  // Navigate to candidatures page and close dropdown
+  // Navigate to the deep link if available, otherwise fall back to candidatures
   emit('close')
-  router.push({ name: 'face-candidatures' })
+  if (notification.data.url) {
+    await router.push(notification.data.url)
+  } else {
+    await router.push({ name: 'face-candidatures' })
+  }
 }
 
 /**
@@ -99,6 +103,27 @@ async function handleMarkAllAsRead(): Promise<void> {
     console.error('[NotificationsDropdown] Failed to mark all as read:', error)
     toast.error('Impossible de marquer tout comme lu')
   }
+}
+
+/**
+ * Returns the icon variant for a notification based on its type.
+ * Positive events → 'check', negative events → 'x', informational → 'bell'
+ */
+function getNotificationIcon(type: string): 'check' | 'x' | 'bell' {
+  const positiveTypes: string[] = [
+    NotificationType.CANDIDATURE_ACCEPTED,
+    NotificationType.BOOKING_ACCEPTED,
+    NotificationType.BOOKING_PAID,
+    NotificationType.BOOKING_WALLET_CREDITED,
+    NotificationType.BOOKING_COMPLETED,
+  ]
+  const negativeTypes: string[] = [
+    NotificationType.BOOKING_REFUSED,
+    NotificationType.BOOKING_CANCELLED,
+  ]
+  if (positiveTypes.includes(type)) return 'check'
+  if (negativeTypes.includes(type)) return 'x'
+  return 'bell'
 }
 
 onMounted(() => {
@@ -175,23 +200,39 @@ onMounted(() => {
               <!-- Icon -->
               <div class="flex-shrink-0 mt-0.5">
                 <CheckCircle
-                  v-if="notification.type === NotificationType.CANDIDATURE_ACCEPTED"
+                  v-if="getNotificationIcon(notification.type) === 'check'"
                   class="w-5 h-5 text-green-600"
                 />
-                <XCircle v-else class="w-5 h-5 text-red-500" />
+                <XCircle
+                  v-else-if="getNotificationIcon(notification.type) === 'x'"
+                  class="w-5 h-5 text-red-500"
+                />
+                <Bell v-else class="w-5 h-5 text-primary" />
               </div>
 
               <!-- Content -->
               <div class="flex-1 min-w-0">
                 <div class="flex items-start justify-between gap-2 mb-1">
-                  <p class="text-sm font-medium text-foreground line-clamp-1">
+                  <!-- Candidature notifications have a mission_title as bold header -->
+                  <p
+                    v-if="notification.data.mission_title"
+                    class="text-sm font-medium text-foreground line-clamp-1"
+                  >
                     {{ notification.data.mission_title }}
                   </p>
                   <span class="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
                     {{ formatRelativeTime(notification.created_at) }}
                   </span>
                 </div>
-                <p class="text-xs text-muted-foreground line-clamp-2">
+                <!-- Message: primary text for booking types, secondary for candidature types -->
+                <p
+                  class="line-clamp-2"
+                  :class="
+                    notification.data.mission_title
+                      ? 'text-xs text-muted-foreground'
+                      : 'text-sm font-medium text-foreground'
+                  "
+                >
                   {{ notification.data.message }}
                 </p>
               </div>

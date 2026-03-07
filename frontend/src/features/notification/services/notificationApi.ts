@@ -18,7 +18,7 @@ export const notificationApi = {
    */
   async getNotifications(page: number = 1): Promise<NotificationListResponse> {
     const response = await apiClient.get<NotificationListResponse>(
-      `/face/notifications?page=${page}`,
+      `/me/notifications?page=${page}`,
     )
     return response.data
   },
@@ -28,7 +28,7 @@ export const notificationApi = {
    * @returns Unread count object
    */
   async getUnreadCount(): Promise<UnreadCountResponse> {
-    const response = await apiClient.get<UnreadCountResponse>('/face/notifications/unread-count')
+    const response = await apiClient.get<UnreadCountResponse>('/me/notifications/unread-count')
     return response.data
   },
 
@@ -39,7 +39,7 @@ export const notificationApi = {
    */
   async markAsRead(notificationId: number): Promise<NotificationResponse> {
     const response = await apiClient.post<NotificationResponse>(
-      `/face/notifications/${notificationId}/read`,
+      `/me/notifications/${notificationId}/read`,
     )
     return response.data
   },
@@ -49,7 +49,7 @@ export const notificationApi = {
    * @returns Success message
    */
   async markAllAsRead(): Promise<MarkAllAsReadResponse> {
-    const response = await apiClient.post<MarkAllAsReadResponse>('/face/notifications/read-all')
+    const response = await apiClient.post<MarkAllAsReadResponse>('/me/notifications/read-all')
     return response.data
   },
 }
