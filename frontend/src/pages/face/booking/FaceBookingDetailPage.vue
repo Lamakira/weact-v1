@@ -508,7 +508,7 @@ onUnmounted(() => {
           <!-- Action buttons -->
           <div v-if="booking.can_accept || booking.can_refuse || booking.can_pay" class="flex gap-3">
             <button
-              v-if="booking.can_pay"
+              v-if="booking.can_pay && !isPaymentOverdue"
               class="flex-1 flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
               @click="showPaymentOverlay = true"
             >
