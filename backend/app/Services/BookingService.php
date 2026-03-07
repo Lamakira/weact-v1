@@ -17,6 +17,7 @@ use App\Events\BookingPaid;
 use App\Events\BookingRefused;
 use App\Models\Booking;
 use App\Models\Face;
+use App\Models\Notification;
 use App\Models\User;
 use App\ValueObjects\BookingPricing;
 use Illuminate\Support\Facades\DB;
@@ -444,6 +445,32 @@ class BookingService
                 : BookingStatus::ConfirmedByProducer;
 
             $booking->update(['status' => $newStatus]);
+
+            // Notify the other party of partial confirmation (non-fatal)
+            try {
+                $otherUserId = $isFace ? $booking->producer_id : $booking->face_id;
+                $url = $isFace
+                    ? "/producer/bookings/{$booking->id}"
+                    : "/face/bookings/{$booking->id}";
+                $message = $isFace
+                    ? 'La Face a confirmé. À votre tour !'
+                    : 'Le producteur a confirmé. À votre tour !';
+
+                Notification::create([
+                    'user_id' => $otherUserId,
+                    'type'    => 'booking_confirmation_pending',
+                    'data'    => [
+                        'message'    => $message,
+                        'booking_id' => $booking->id,
+                        'url'        => $url,
+                    ],
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('Partial confirmation notification failed', [
+                    'booking_id' => $booking->id,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
 
             return $booking->fresh();
         });

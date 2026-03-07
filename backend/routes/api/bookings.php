@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\BookingMessageController;
 use App\Http\Controllers\Api\V1\BookingRatingController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\WalletController;
 use Illuminate\Support\Facades\Route;
 
@@ -56,6 +57,23 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
     Route::post('/bookings/{booking}/messages', [BookingMessageController::class, 'store'])
         ->middleware('throttle:60,1')
         ->name('bookings.messages.store');
+
+    // Shared notifications (Face + Producer — auth:sanctum only, b6-2)
+    Route::get('/me/notifications', [NotificationController::class, 'index'])
+        ->middleware('throttle:60,1')
+        ->name('me.notifications.index');
+
+    Route::get('/me/notifications/unread-count', [NotificationController::class, 'unreadCount'])
+        ->middleware('throttle:60,1')
+        ->name('me.notifications.unread-count');
+
+    Route::post('/me/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
+        ->middleware('throttle:60,1')
+        ->name('me.notifications.mark-read');
+
+    Route::post('/me/notifications/read-all', [NotificationController::class, 'markAllAsRead'])
+        ->middleware('throttle:30,1')
+        ->name('me.notifications.mark-all-read');
 
     // Wallet (Face-only — 'face' middleware enforces userable_type)
     Route::get('/wallet', [WalletController::class, 'index'])
