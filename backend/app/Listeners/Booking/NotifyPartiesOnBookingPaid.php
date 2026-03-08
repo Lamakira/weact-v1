@@ -10,7 +10,7 @@ use Illuminate\Events\Attributes\AsEventListener;
 use Illuminate\Support\Facades\Log;
 
 #[AsEventListener(event: BookingPaid::class)]
-class NotifyProducerOnBookingPaid
+class NotifyPartiesOnBookingPaid
 {
     /**
      * Handle the event — notify both parties that payment is confirmed and chat is unlocked.

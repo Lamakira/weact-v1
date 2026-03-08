@@ -15,7 +15,7 @@ use App\Listeners\Booking\NotifyFaceOnBookingReceived;
 use App\Listeners\Booking\NotifyPartiesOnBookingCompleted;
 use App\Listeners\Booking\NotifyPartyOnBookingCancelled;
 use App\Listeners\Booking\NotifyProducerOnBookingAccepted;
-use App\Listeners\Booking\NotifyProducerOnBookingPaid;
+use App\Listeners\Booking\NotifyPartiesOnBookingPaid;
 use App\Listeners\Booking\NotifyProducerOnBookingRefused;
 use App\Models\Booking;
 use App\Models\Face;
@@ -122,7 +122,7 @@ class BookingNotificationTest extends TestCase
     {
         $this->booking->update(['status' => BookingStatus::Paid]);
 
-        $listener = new NotifyProducerOnBookingPaid;
+        $listener = new NotifyPartiesOnBookingPaid;
         $listener->handle(new BookingPaid($this->booking));
 
         $notification = Notification::where('user_id', $this->producerUser->id)
@@ -139,7 +139,7 @@ class BookingNotificationTest extends TestCase
     {
         $this->booking->update(['status' => BookingStatus::Paid]);
 
-        $listener = new NotifyProducerOnBookingPaid;
+        $listener = new NotifyPartiesOnBookingPaid;
         $listener->handle(new BookingPaid($this->booking));
 
         $notification = Notification::where('user_id', $this->faceUser->id)
