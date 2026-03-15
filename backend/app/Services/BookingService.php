@@ -251,15 +251,16 @@ class BookingService
     }
 
     /**
-     * Initiate a Mobile Money payment for an accepted booking.
+     * Initiate a hosted checkout payment for an accepted booking.
+     * Returns the booking and the FedaPay checkout URL.
      *
-     * @param  array{number: string, country: string}  $phoneData
+     * @return array{booking: Booking, checkout_url: string}
      *
      * @throws ValidationException
      */
-    public function initiatePayment(Booking $booking, string $paymentMode, array $phoneData): Booking
+    public function initiatePayment(Booking $booking): array
     {
-        return DB::transaction(function () use ($booking, $paymentMode, $phoneData) {
+        return DB::transaction(function () use ($booking) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
             // Idempotent: if booking already has a Fedapay transaction, check its actual
@@ -270,7 +271,9 @@ class BookingService
                 $terminalFailedStatuses = ['declined', 'canceled', 'refunded'];
 
                 if (! in_array($existing->status, $terminalFailedStatuses, true)) {
-                    return $booking;
+                    // Re-generate a fresh checkout URL for the existing transaction
+                    $tokenObj = $existing->generateToken();
+                    return ['booking' => $booking, 'checkout_url' => $tokenObj->url];
                 }
 
                 // Previous transaction failed — reset to allow a new attempt
@@ -289,14 +292,13 @@ class BookingService
                 $booking->montant_total_producteur,
             );
 
-            $result = $this->fedapayService->initiatePayment($booking, $paymentMode, $event->idempotency_key, $phoneData);
+            $result = $this->fedapayService->initiatePayment($booking, $event->idempotency_key);
 
             $booking->update([
                 'fedapay_transaction_id' => $result['fedapay_transaction_id'],
-                'payment_mode' => $paymentMode,
             ]);
 
-            return $booking->fresh();
+            return ['booking' => $booking->fresh(), 'checkout_url' => $result['checkout_url']];
         });
     }
 

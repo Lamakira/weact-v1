@@ -70,25 +70,20 @@ class BookingPaymentTest extends TestCase
                 ->once()
                 ->andReturn([
                     'fedapay_transaction_id' => 12345678,
-                    'status' => 'pending',
+                    'checkout_url' => 'https://checkout.fedapay.com/test-token',
                 ]);
         });
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay", [
-                'payment_mode' => 'mtn',
-                'phone_number' => '64000001',
-                'phone_country' => 'bj',
-            ]);
+            ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay");
 
         $response->assertOk()
             ->assertJsonPath('data.fedapay_transaction_id', 12345678)
-            ->assertJsonPath('data.payment_mode', 'mtn');
+            ->assertJsonPath('checkout_url', 'https://checkout.fedapay.com/test-token');
 
         $this->assertDatabaseHas('bookings', [
             'id' => $this->acceptedBooking->id,
             'fedapay_transaction_id' => 12345678,
-            'payment_mode' => 'mtn',
             'status' => BookingStatus::Accepted->value, // Still accepted until webhook confirms
         ]);
     }
@@ -101,11 +96,7 @@ class BookingPaymentTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$pendingBooking->id}/pay", [
-                'payment_mode' => 'mtn',
-                'phone_number' => '64000001',
-                'phone_country' => 'bj',
-            ]);
+            ->postJson("/api/v1/bookings/{$pendingBooking->id}/pay");
 
         $response->assertForbidden();
     }
@@ -113,33 +104,15 @@ class BookingPaymentTest extends TestCase
     public function test_face_cannot_initiate_payment(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay", [
-                'payment_mode' => 'mtn',
-                'phone_number' => '64000001',
-                'phone_country' => 'bj',
-            ]);
+            ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay");
 
         $response->assertForbidden();
     }
 
     public function test_unauthenticated_user_gets_401_on_pay(): void
     {
-        $this->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay", [
-            'payment_mode' => 'mtn',
-            'phone_number' => '64000001',
-            'phone_country' => 'bj',
-        ])->assertUnauthorized();
-    }
-
-    public function test_invalid_payment_mode_returns_422(): void
-    {
-        $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay", [
-                'payment_mode' => 'invalid_mode',
-            ]);
-
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors('payment_mode');
+        $this->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay")
+            ->assertUnauthorized();
     }
 
     public function test_payment_initiation_creates_financial_event(): void
@@ -149,16 +122,12 @@ class BookingPaymentTest extends TestCase
                 ->once()
                 ->andReturn([
                     'fedapay_transaction_id' => 99999,
-                    'status' => 'pending',
+                    'checkout_url' => 'https://checkout.fedapay.com/test-token',
                 ]);
         });
 
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay", [
-                'payment_mode' => 'moov',
-                'phone_number' => '64000001',
-                'phone_country' => 'bj',
-            ])
+            ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay")
             ->assertOk();
 
         $this->assertDatabaseHas('financial_events', [
@@ -335,16 +304,12 @@ class BookingPaymentTest extends TestCase
                 ->once()
                 ->andReturn([
                     'fedapay_transaction_id' => 11111,
-                    'status' => 'pending',
+                    'checkout_url' => 'https://checkout.fedapay.com/test-token',
                 ]);
         });
 
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay", [
-                'payment_mode' => 'mtn',
-                'phone_number' => '64000001',
-                'phone_country' => 'bj',
-            ])
+            ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay")
             ->assertOk();
 
         $event = FinancialEvent::where('booking_id', $this->acceptedBooking->id)->first();
@@ -366,16 +331,12 @@ class BookingPaymentTest extends TestCase
                 ->once()
                 ->andReturn([
                     'fedapay_transaction_id' => 22222,
-                    'status' => 'pending',
+                    'checkout_url' => 'https://checkout.fedapay.com/test-token',
                 ]);
         });
 
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay", [
-                'payment_mode' => 'mtn',
-                'phone_number' => '64000001',
-                'phone_country' => 'bj',
-            ])
+            ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay")
             ->assertOk();
 
         $event = FinancialEvent::where('booking_id', $this->acceptedBooking->id)->first();

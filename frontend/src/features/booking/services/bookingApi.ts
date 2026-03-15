@@ -104,20 +104,14 @@ export const bookingApi = {
   },
 
   /**
-   * Initiate payment for an accepted booking (Producer only)
+   * Initiate payment for an accepted booking (Producer only).
+   * Returns the booking and a FedaPay hosted checkout URL.
    */
-  async payBooking(
-    bookingId: number,
-    paymentMode: string,
-    phoneNumber: string,
-    phoneCountry: string,
-  ): Promise<BookingResponse> {
+  async payBooking(bookingId: number): Promise<BookingResponse & { checkout_url: string }> {
     await getCsrfCookie()
-    const response = await apiClient.post<BookingResponse>(`/bookings/${bookingId}/pay`, {
-      payment_mode: paymentMode,
-      phone_number: phoneNumber,
-      phone_country: phoneCountry,
-    })
+    const response = await apiClient.post<BookingResponse & { checkout_url: string }>(
+      `/bookings/${bookingId}/pay`,
+    )
     return response.data
   },
 }

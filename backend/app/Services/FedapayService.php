@@ -20,12 +20,12 @@ class FedapayService
     }
 
     /**
-     * Initiate a Mobile Money payment for a booking.
+     * Initiate a hosted checkout payment for a booking.
+     * Returns the FedaPay checkout URL to redirect the producer.
      *
-     * @param  array{number: string, country: string}  $phoneData
-     * @return array{fedapay_transaction_id: int, status: string}
+     * @return array{fedapay_transaction_id: int, checkout_url: string}
      */
-    public function initiatePayment(Booking $booking, string $mode, string $idempotencyKey, array $phoneData): array
+    public function initiatePayment(Booking $booking, string $idempotencyKey): array
     {
         $producer = $booking->producer;
 
@@ -41,22 +41,14 @@ class FedapayService
             'customer' => [
                 'firstname' => $producer->name,
                 'email' => $producer->email,
-                'phone_number' => [
-                    'number' => $phoneData['number'],
-                    'country' => $phoneData['country'],
-                ],
             ],
         ]);
 
-        $token = $transaction->generateToken()->token;
-        $transaction->sendNowWithToken($mode, $token, [
-            'number' => $phoneData['number'],
-            'country' => $phoneData['country'],
-        ]);
+        $tokenObj = $transaction->generateToken();
 
         return [
             'fedapay_transaction_id' => (int) $transaction->id,
-            'status' => $transaction->status,
+            'checkout_url' => $tokenObj->url,
         ];
     }
 

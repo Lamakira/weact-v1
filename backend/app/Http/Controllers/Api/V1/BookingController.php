@@ -196,17 +196,11 @@ class BookingController extends Controller
     {
         Gate::authorize('pay', $booking);
 
-        $booking = $this->bookingService->initiatePayment(
-            $booking,
-            $request->validated('payment_mode'),
-            [
-                'number' => $request->validated('phone_number'),
-                'country' => $request->validated('phone_country'),
-            ]
-        );
+        $result = $this->bookingService->initiatePayment($booking);
 
         return response()->json([
-            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+            'data' => new BookingResource($result['booking']->load(['face.userable', 'producer.userable'])),
+            'checkout_url' => $result['checkout_url'],
             'message' => 'Paiement initié',
         ]);
     }

@@ -12,7 +12,7 @@ export interface UseBookingPaymentReturn {
   isPolling: Ref<boolean>
   paymentStatus: Ref<PaymentStatus>
   error: Ref<string | null>
-  initiatePayment: (bookingId: number, paymentMode: string, phoneNumber: string, phoneCountry: string) => Promise<Booking | null>
+  initiatePayment: (bookingId: number) => Promise<Booking | null>
   stopPolling: () => void
   reset: () => void
 }
@@ -66,16 +66,20 @@ export function useBookingPayment(): UseBookingPaymentReturn {
     }, POLL_TIMEOUT_MS)
   }
 
-  async function initiatePayment(bookingId: number, paymentMode: string, phoneNumber: string, phoneCountry: string): Promise<Booking | null> {
+  async function initiatePayment(bookingId: number): Promise<Booking | null> {
     isInitiating.value = true
     error.value = null
     paymentStatus.value = 'idle'
 
     try {
-      const response = await bookingApi.payBooking(bookingId, paymentMode, phoneNumber, phoneCountry)
+      const response = await bookingApi.payBooking(bookingId)
+
+      // Open FedaPay hosted checkout in a new tab
+      window.open(response.checkout_url, '_blank', 'noopener,noreferrer')
+
       paymentStatus.value = 'waiting'
 
-      // Start polling for payment confirmation
+      // Poll for payment confirmation (webhook updates booking status)
       let resolvedBooking: Booking | null = response.data
       startPolling(bookingId, (paidBooking) => {
         resolvedBooking = paidBooking
