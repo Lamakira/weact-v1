@@ -542,22 +542,11 @@ class BookingService
     }
 
     /**
-     * Calculate the base tariff based on Face rates and duration.
-     * Uses daily rate if duration >= 8h, otherwise hourly rate.
+     * Calculate the base tariff: always tarif_journalier / 8 × duree_heures.
+     * Mirrors the frontend preview formula exactly.
      */
     private function calculateTarifBase(Face $face, int $dureeHeures): int
     {
-        if ($dureeHeures >= 8 && $face->tarif_journalier !== null) {
-            $days = (int) ceil($dureeHeures / 8);
-
-            return $days * $face->tarif_journalier;
-        }
-
-        if ($face->tarif_horaire !== null) {
-            return $dureeHeures * $face->tarif_horaire;
-        }
-
-        // Fallback to daily rate prorated
         if ($face->tarif_journalier !== null) {
             return (int) round(($face->tarif_journalier / 8) * $dureeHeures);
         }

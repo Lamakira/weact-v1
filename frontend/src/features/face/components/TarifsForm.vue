@@ -15,35 +15,27 @@ const emit = defineEmits<{
 }>()
 
 const form = reactive({
-  tarif_horaire: '' as string | number,
   tarif_journalier: '' as string | number,
 })
 
-// Format number with French thousand separators for display
-const formatCurrency = (value: number | string | null): string => {
-  if (value === null || value === '' || value === undefined) return ''
-  const num = typeof value === 'string' ? parseInt(value, 10) : value
-  if (isNaN(num)) return ''
-  return new Intl.NumberFormat('fr-FR').format(num)
-}
-
-// Computed formatted display values
-const formattedTarifHoraire = computed(() => {
-  const formatted = formatCurrency(form.tarif_horaire)
-  return formatted ? `${formatted} XOF` : ''
-})
-
 const formattedTarifJournalier = computed(() => {
-  const formatted = formatCurrency(form.tarif_journalier)
-  return formatted ? `${formatted} XOF` : ''
+  if (form.tarif_journalier === '' || form.tarif_journalier === undefined) return ''
+  const num = typeof form.tarif_journalier === 'string' ? parseInt(form.tarif_journalier, 10) : form.tarif_journalier
+  if (isNaN(num)) return ''
+  return `${new Intl.NumberFormat('fr-FR').format(num)} F CFA`
 })
 
-// Watch for tarifsInfo changes and update form
+const formattedTarifDemiJournee = computed(() => {
+  if (form.tarif_journalier === '' || form.tarif_journalier === undefined) return ''
+  const num = typeof form.tarif_journalier === 'string' ? parseInt(form.tarif_journalier, 10) : form.tarif_journalier
+  if (isNaN(num) || num === 0) return ''
+  return `${new Intl.NumberFormat('fr-FR').format(Math.round(num / 2))} F CFA`
+})
+
 watch(
   () => props.tarifsInfo,
   (info) => {
     if (info) {
-      form.tarif_horaire = info.tarif_horaire ?? ''
       form.tarif_journalier = info.tarif_journalier ?? ''
     }
   },
@@ -51,9 +43,10 @@ watch(
 )
 
 const handleSubmit = () => {
+  const journalier = form.tarif_journalier === '' ? null : Number(form.tarif_journalier)
   emit('save', {
-    tarif_horaire: form.tarif_horaire === '' ? null : Number(form.tarif_horaire),
-    tarif_journalier: form.tarif_journalier === '' ? null : Number(form.tarif_journalier),
+    tarif_horaire: journalier !== null ? Math.round(journalier / 8) : null,
+    tarif_journalier: journalier,
   })
 }
 </script>
@@ -82,42 +75,22 @@ const handleSubmit = () => {
       <span class="text-sm text-red-700 font-medium">{{ error }}</span>
     </div>
 
-    <!-- Tarifs Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <!-- Tarif Demi-journée -->
-      <div>
-        <FloatingField
-          id="tarif_horaire"
-          v-model="form.tarif_horaire"
-          type="number"
-          label="Tarif demi-journée (XOF)"
-          :icon="Wallet"
-          min="0"
-          max="10000000"
-          step="1"
-          data-testid="tarif-horaire-input"
-        />
-        <p v-if="formattedTarifHoraire" class="mt-1 text-xs text-gray-500" data-testid="tarif-horaire-preview">
-          {{ formattedTarifHoraire }}/demi-journée
-        </p>
-      </div>
-
-      <!-- Tarif Journalier -->
-      <div>
-        <FloatingField
-          id="tarif_journalier"
-          v-model="form.tarif_journalier"
-          type="number"
-          label="Tarif journalier (XOF)"
-          :icon="Wallet"
-          min="0"
-          max="100000000"
-          step="1"
-          data-testid="tarif-journalier-input"
-        />
-        <p v-if="formattedTarifJournalier" class="mt-1 text-xs text-gray-500" data-testid="tarif-journalier-preview">
-          {{ formattedTarifJournalier }}/jour
-        </p>
+    <!-- Tarif Journalier -->
+    <div>
+      <FloatingField
+        id="tarif_journalier"
+        v-model="form.tarif_journalier"
+        type="number"
+        label="Tarif journalier (F CFA)"
+        :icon="Wallet"
+        min="0"
+        max="100000000"
+        step="1"
+        data-testid="tarif-journalier-input"
+      />
+      <div v-if="formattedTarifJournalier" class="mt-2 flex flex-wrap gap-4 text-xs text-gray-500" data-testid="tarif-preview">
+        <span>Journée (8h) : <strong class="text-gray-700">{{ formattedTarifJournalier }}</strong></span>
+        <span>Demi-journée (4h) : <strong class="text-gray-700">{{ formattedTarifDemiJournee }}</strong></span>
       </div>
     </div>
 
@@ -146,7 +119,7 @@ const handleSubmit = () => {
           <path
             class="opacity-75"
             fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.824 3 7.938l3-2.647z"
           ></path>
         </svg>
         {{ isSaving ? 'Enregistrement...' : 'Enregistrer' }}
