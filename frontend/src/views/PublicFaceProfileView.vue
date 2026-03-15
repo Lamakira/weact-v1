@@ -325,14 +325,16 @@ async function handleRetry(): Promise<void> {
               :has-videos="hasVideos"
               :videos-count="videosCount"
               :access-level="accessLevel"
-              :tarif-horaire="accessLevel === 'producer_with_access' ? fullProfile?.formatted_tarif_horaire : null"
-              :tarif-journalier="accessLevel === 'producer_with_access' ? fullProfile?.formatted_tarif_journalier : null"
+              :tarif-horaire="null"
+              :tarif-journalier="null"
             />
 
             <!-- Resume Summary (producer only, inside right column on desktop) -->
             <CandidateResumeSummary
               v-if="accessLevel === 'producer_with_access' && fullProfile"
               :candidate="fullProfile"
+              :tarif-horaire="fullProfile.formatted_tarif_horaire"
+              :tarif-journalier="fullProfile.formatted_tarif_journalier"
             />
 
             <!-- Booking CTA Button -->
@@ -348,7 +350,7 @@ async function handleRetry(): Promise<void> {
                 @click="handleBookingClick"
               >
                 <CalendarPlus :size="18" aria-hidden="true" />
-                Réserver cette Face
+                Booker cette Face
               </button>
               <div
                 v-if="bookingButtonDisabled"

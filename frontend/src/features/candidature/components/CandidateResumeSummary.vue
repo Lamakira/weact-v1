@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { User, Calendar, Languages, MapPin, Flag, Ruler, Palette, FileText } from 'lucide-vue-next'
+import { User, Calendar, Languages, MapPin, Flag, Ruler, Palette, FileText, Wallet } from 'lucide-vue-next'
 import type { CandidateFullProfile } from '../types'
 
 const props = defineProps<{
   candidate: CandidateFullProfile
+  tarifHoraire?: string | null
+  tarifJournalier?: string | null
 }>()
 
 const languesDisplay = computed((): string | null => {
@@ -148,6 +150,27 @@ const fields = computed((): ResumeField[] => [
       >
         Non renseigné
       </p>
+    </div>
+
+    <!-- Tarifs Section -->
+    <div
+      v-if="tarifHoraire || tarifJournalier"
+      class="border-t border-border px-6 py-4"
+      data-testid="resume-tarifs-section"
+    >
+      <div class="flex items-center gap-2 mb-3">
+        <Wallet class="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        <span class="text-sm font-medium text-foreground">Tarifs</span>
+      </div>
+      <div class="flex flex-wrap gap-6 pl-6">
+        <div v-if="tarifHoraire" data-testid="tarif-horaire">
+          <p class="text-xs text-muted-foreground">Demi-journée</p>
+          <p class="text-xl font-bold text-[#198496]">{{ tarifHoraire }}</p>
+        </div>
+        <div v-if="tarifJournalier" data-testid="tarif-journalier">
+          <p class="text-xl font-bold text-[#198496]">{{ tarifJournalier }}</p>
+        </div>
+      </div>
     </div>
   </div>
 </template>
