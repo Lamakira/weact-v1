@@ -6,7 +6,7 @@ import { bookingSchema } from '../schemas/booking'
 import { useBookingCreate } from '../composables/useBookingCreate'
 import { calculatePricingPreview, type CreateBookingData, type Booking } from '../types'
 import BookingPricingBreakdown from './BookingPricingBreakdown.vue'
-import { FloatingField, FloatingDateField, FloatingTextarea, FloatingSelect } from '@/components/ui/form'
+import { FloatingField, FloatingDateField, FloatingSelect } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/composables/useToast'
 import {
@@ -14,11 +14,11 @@ import {
   Calendar,
   Clock,
   Film,
-  MessageSquare,
   Loader2,
   Send,
   AlertCircle,
   Receipt,
+  Info,
 } from 'lucide-vue-next'
 
 const props = defineProps<{
@@ -41,6 +41,25 @@ const toast = useToast()
 const dialogRef = ref<HTMLElement | null>(null)
 let previouslyFocused: HTMLElement | null = null
 
+// Duration presets (½ journée → 5 journées, puis custom)
+const durationPresets = [
+  { value: '4',      label: '½ journée (4h)' },
+  { value: '8',      label: '1 journée (8h)' },
+  { value: '12',     label: '1,5 jour (12h)' },
+  { value: '16',     label: '2 journées (16h)' },
+  { value: '20',     label: '2,5 jours (20h)' },
+  { value: '24',     label: '3 journées (24h)' },
+  { value: '28',     label: '3,5 jours (28h)' },
+  { value: '32',     label: '4 journées (32h)' },
+  { value: '36',     label: '4,5 jours (36h)' },
+  { value: '40',     label: '5 journées (40h)' },
+  { value: 'custom', label: 'Plus de 5 jours...' },
+]
+
+const selectedPreset = ref<string>('4')
+const customDays = ref<number>(6)
+const customDaysError = ref<string>('')
+
 const contentTypeOptions = [
   { value: 'Publicité', label: 'Publicité' },
   { value: 'Film', label: 'Film' },
@@ -59,7 +78,6 @@ const { handleSubmit, setFieldError, resetForm } = useForm({
     date_fin: '',
     duree_heures: 4,
     type_contenu: 'Publicité',
-    message: '',
   },
 })
 
@@ -67,24 +85,29 @@ const { value: date_debut, errorMessage: dateDebutError } = useField<string>('da
 const { value: date_fin, errorMessage: dateFinError } = useField<string>('date_fin')
 const { value: duree_heures, errorMessage: dureeError } = useField<number>('duree_heures')
 const { value: type_contenu, errorMessage: typeContenuError } = useField<string>('type_contenu')
-const { value: message, errorMessage: messageError } = useField<string>('message')
+
+// Sync duration preset / custom days → duree_heures field
+watch([selectedPreset, customDays], () => {
+  if (selectedPreset.value === 'custom') {
+    const days = customDays.value
+    if (!Number.isInteger(days) || days <= 5) {
+      customDaysError.value = 'Entrez un nombre de jours entier supérieur à 5'
+      return
+    }
+    customDaysError.value = ''
+    duree_heures.value = days * 8
+  } else {
+    customDaysError.value = ''
+    duree_heures.value = Number(selectedPreset.value)
+  }
+})
 
 // Pricing preview
 const pricingPreview = computed(() => {
   if (!duree_heures.value || duree_heures.value < 4) return null
+  if (!props.tarifJournalier) return null
 
-  let tarifBase = 0
-  const hours = duree_heures.value
-
-  if (hours >= 8 && props.tarifJournalier) {
-    const days = Math.ceil(hours / 8)
-    tarifBase = days * props.tarifJournalier
-  } else if (props.tarifHoraire) {
-    tarifBase = hours * props.tarifHoraire
-  } else if (props.tarifJournalier) {
-    tarifBase = Math.round((props.tarifJournalier / 8) * hours)
-  }
-
+  const tarifBase = Math.round((props.tarifJournalier / 8) * duree_heures.value)
   if (tarifBase === 0) return null
   return calculatePricingPreview(tarifBase)
 })
@@ -95,6 +118,9 @@ watch(
   (isOpen) => {
     if (isOpen) {
       previouslyFocused = document.activeElement as HTMLElement
+      selectedPreset.value = '4'
+      customDays.value = 6
+      customDaysError.value = ''
       resetForm({
         values: {
           face_id: props.faceId,
@@ -102,7 +128,6 @@ watch(
           date_fin: '',
           duree_heures: 4,
           type_contenu: 'Publicité',
-          message: '',
         },
       })
       nextTick(() => {
@@ -152,7 +177,6 @@ const onSubmit = handleSubmit(async (values) => {
     date_fin: values.date_fin,
     duree_heures: values.duree_heures,
     type_contenu: values.type_contenu,
-    message: values.message || undefined,
   }
 
   const result = await createBooking(data)
@@ -168,7 +192,6 @@ const onSubmit = handleSubmit(async (values) => {
       'date_fin',
       'duree_heures',
       'type_contenu',
-      'message',
     ] as const
     type ValidField = (typeof validFields)[number]
 
@@ -219,7 +242,7 @@ const onSubmit = handleSubmit(async (values) => {
             <div class="sticky top-0 z-10 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl">
               <div>
                 <h2 id="booking-sheet-title" class="text-lg font-semibold text-gray-900">
-                  Réserver {{ faceName }}
+                  Booker {{ faceName }}
                 </h2>
                 <p class="text-sm text-gray-500 mt-0.5">
                   Envoyez une demande de booking
@@ -270,15 +293,30 @@ const onSubmit = handleSubmit(async (values) => {
               </div>
 
               <!-- Duration -->
-              <FloatingField
-                id="duree_heures"
-                v-model="duree_heures"
-                type="number"
-                label="Durée (heures)"
+              <FloatingSelect
+                id="duree_preset"
+                v-model="selectedPreset"
+                label="Durée du tournage"
                 :icon="Clock"
-                :error="dureeError"
+                :error="selectedPreset !== 'custom' ? dureeError : undefined"
+                :options="durationPresets"
                 required
               />
+              <template v-if="selectedPreset === 'custom'">
+                <FloatingField
+                  id="custom_days"
+                  v-model="customDays"
+                  type="number"
+                  label="Nombre de jours (> 5)"
+                  :icon="Clock"
+                  :error="customDaysError || dureeError"
+                  required
+                />
+                <div class="flex items-start gap-2 text-xs text-gray-500 -mt-2">
+                  <Info :size="14" class="shrink-0 mt-0.5 text-blue-400" />
+                  <span>À partir de 5 jours, seuls des jours entiers sont possibles.</span>
+                </div>
+              </template>
 
               <!-- Content type -->
               <FloatingSelect
@@ -289,15 +327,6 @@ const onSubmit = handleSubmit(async (values) => {
                 :error="typeContenuError"
                 :options="contentTypeOptions"
                 required
-              />
-
-              <!-- Message -->
-              <FloatingTextarea
-                id="message"
-                v-model="message"
-                label="Message (optionnel)"
-                :icon="MessageSquare"
-                :error="messageError"
               />
 
               <!-- Pricing Preview -->

@@ -52,7 +52,7 @@ function formatCurrency(amount: number): string {
     <!-- Face view: commission deducted -->
     <template v-if="role === 'face'">
       <div class="flex justify-between items-center text-sm">
-        <span class="text-gray-500">Commission plateforme (-15%)</span>
+        <span class="text-gray-500">Frais de service</span>
         <span class="text-red-500">-{{ formatCurrency(faceCommission) }}</span>
       </div>
       <div class="border-t border-gray-100 pt-2 mt-2">
@@ -66,7 +66,7 @@ function formatCurrency(amount: number): string {
     <!-- Producer view: commission added -->
     <template v-else>
       <div class="flex justify-between items-center text-sm">
-        <span class="text-gray-500">Commission plateforme (+15%)</span>
+        <span class="text-gray-500">Frais de service</span>
         <span class="text-gray-500">+{{ formatCurrency(producerCommission) }}</span>
       </div>
       <div class="border-t border-gray-100 pt-2 mt-2">
