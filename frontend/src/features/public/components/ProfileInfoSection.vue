@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { MapPin, Star, Video, Lock, ChevronRight, Wallet } from 'lucide-vue-next'
+import { MapPin, Star, Video, Lock, Wallet } from 'lucide-vue-next'
 import type { AccessLevel } from '@/features/public/composables/usePublicFaceAccess'
 
 interface Props {
@@ -153,19 +153,5 @@ const hasPricing = computed(() => !!props.tarifHoraire || !!props.tarifJournalie
       </div>
     </div>
 
-    <!-- Conversion CTA (guests only) -->
-    <div v-if="accessLevel === 'guest'" class="mt-4">
-      <RouterLink
-        to="/register/producer"
-        class="flex items-center justify-center gap-2 w-full text-sm font-semibold bg-[#198496] text-white px-6 py-3 rounded-md hover:bg-[#146c7a] transition-all transform active:scale-[0.98] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#198496]/20"
-        data-testid="producer-cta"
-      >
-        Créer un compte producteur pour accéder au profil complet
-        <ChevronRight class="w-4 h-4" aria-hidden="true" />
-      </RouterLink>
-      <p class="text-center text-[11px] text-gray-400 mt-3 uppercase tracking-widest font-medium">
-        Réservé aux professionnels vérifiés
-      </p>
-    </div>
   </div>
 </template>

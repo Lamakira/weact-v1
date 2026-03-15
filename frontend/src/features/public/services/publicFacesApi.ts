@@ -1,5 +1,6 @@
 import { AxiosError } from 'axios'
 import { publicApiClient } from './apiClient'
+import type { FacePhoto, FaceExperience } from '@/features/candidature/types'
 
 /**
  * Public Face data exposed by the API
@@ -28,17 +29,34 @@ export interface PublicFace {
 }
 
 /**
- * Public Face Profile data (extended for profile detail view)
- * Includes additional fields like niches, photo URL, and content indicators
+ * Public Face Profile data (extended for profile detail view).
+ * Includes all public-safe fields: bio, photos, videos, experiences.
+ * Tariffs are excluded — only accessible to authenticated producers.
  */
 export interface PublicFaceProfile extends PublicFace {
   niches: ValueLabel[]
-  profile_photo_url: string | null // Full size, not thumbnail
+  profile_photo_url: string | null
   ratings_count: number
+  sexe: string | null
+  sexe_label: string | null
+  age: number | null
+  nationalite: string | null
+  langues: string[]
+  taille: number | null
+  bio: string | null
+  quartier: string | null
+  pays: string | null
+  formatted_location: string | null
+  presentation_video_url: string | null
+  presentation_video_thumbnail_url: string | null
+  acting_video_url: string | null
+  acting_video_thumbnail_url: string | null
   has_album_photos: boolean
   album_photos_count: number
   has_presentation_video: boolean
   has_acting_video: boolean
+  photos: FacePhoto[]
+  experiences: FaceExperience[]
 }
 
 /**

@@ -2,12 +2,11 @@
 import { ref, watch, computed, watchEffect, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTitle } from '@vueuse/core'
-import { ChevronLeft, AlertCircle, RefreshCw, UserX, FileText, Banknote, Lock, CalendarPlus } from 'lucide-vue-next'
+import { ChevronLeft, AlertCircle, RefreshCw, UserX, Lock, CalendarPlus } from 'lucide-vue-next'
 import { useFaceProfile } from '@/features/public/composables/useFaceProfile'
 import { usePublicFaceAccess } from '@/features/public/composables/usePublicFaceAccess'
 import ProfilePhotoSection from '@/features/public/components/ProfilePhotoSection.vue'
 import ProfileInfoSection from '@/features/public/components/ProfileInfoSection.vue'
-import LockedContentTeaser from '@/features/public/components/LockedContentTeaser.vue'
 import CandidateVideosSection from '@/features/candidature/components/CandidateVideosSection.vue'
 import CandidatePhotoGallery from '@/features/candidature/components/CandidatePhotoGallery.vue'
 import CandidateResumeSummary from '@/features/candidature/components/CandidateResumeSummary.vue'
@@ -17,6 +16,7 @@ import { publicApi } from '@/features/public/services/publicApi'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BookingFormSheet } from '@/features/booking/components'
 import type { Review } from '@/features/rating/types'
+import type { CandidateFullProfile } from '@/features/candidature/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -60,6 +60,26 @@ const bookingButtonDisabled = computed(() =>
   fullProfile.value?.is_available !== true
 )
 
+function formatXOF(amount: number): string {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'XOF',
+    maximumFractionDigits: 0,
+  }).format(amount)
+}
+
+const tarifJournalierFormatted = computed((): string | null => {
+  if (accessLevel.value !== 'producer_with_access') return null
+  const journalier = fullProfile.value?.tarif_journalier
+  return journalier ? formatXOF(journalier) : null
+})
+
+const tarifDemiJourneeFormatted = computed((): string | null => {
+  if (accessLevel.value !== 'producer_with_access') return null
+  const journalier = fullProfile.value?.tarif_journalier
+  return journalier ? formatXOF(journalier / 2) : null
+})
+
 async function fetchReviews(id: number, page: number = 1): Promise<void> {
   reviewsLoading.value = true
   reviewsError.value = false
@@ -83,11 +103,61 @@ function handleReviewsPageChange(page: number): void {
   }
 }
 
-// Fetch reviews when producer has access
+// displayProfile: full profile for producers, or face data (without tarifs) for guests
+const displayProfile = computed((): CandidateFullProfile | null => {
+  if (accessLevel.value === 'producer_with_access' && fullProfile.value) {
+    return fullProfile.value
+  }
+  if (face.value) {
+    const f = face.value
+    return {
+      id: f.id,
+      nom: '',
+      prenom: f.prenom,
+      username: f.username,
+      sexe: (f as any).sexe ?? null,
+      sexe_label: (f as any).sexe_label ?? null,
+      age: (f as any).age ?? null,
+      nationalite: (f as any).nationalite ?? null,
+      langues: (f as any).langues ?? [],
+      taille: (f as any).taille ?? null,
+      poids: null,
+      bio: (f as any).bio ?? null,
+      ville: f.ville,
+      quartier: (f as any).quartier ?? null,
+      pays: (f as any).pays ?? null,
+      formatted_location: (f as any).formatted_location ?? null,
+      categories: f.categories,
+      niches: f.niches ?? [],
+      profile_photo_url: f.profile_photo_url,
+      thumbnail_url: null,
+      presentation_video_url: (f as any).presentation_video_url ?? null,
+      presentation_video_thumbnail_url: (f as any).presentation_video_thumbnail_url ?? null,
+      acting_video_url: (f as any).acting_video_url ?? null,
+      acting_video_thumbnail_url: (f as any).acting_video_thumbnail_url ?? null,
+      tarif_horaire: null,
+      tarif_journalier: null,
+      formatted_tarif_horaire: null,
+      formatted_tarif_journalier: null,
+      is_available: f.is_available,
+      availability_badge: f.is_available ? 'Disponible' : 'Indisponible',
+      availability_badge_color: f.is_available ? 'green' : 'gray',
+      profile_completion_percentage: 0,
+      profile_completion_is_complete: false,
+      average_rating: f.average_rating,
+      ratings_count: (f as any).ratings_count ?? 0,
+      experiences: (f as any).experiences ?? [],
+      photos: (f as any).photos ?? [],
+    }
+  }
+  return null
+})
+
+// Fetch reviews for all visitors (guests + producers)
 watch(
-  [accessLevel, faceId],
-  ([level, id]) => {
-    if (level === 'producer_with_access' && id && id > 0) {
+  faceId,
+  (id) => {
+    if (id && id > 0) {
       fetchReviews(id)
     } else {
       reviews.value = []
@@ -309,7 +379,7 @@ async function handleRetry(): Promise<void> {
               :is-available="face.is_available"
               :has-album-photos="face.has_album_photos"
               :album-photos-count="face.album_photos_count"
-              :show-album-lock="accessLevel === 'guest'"
+              :show-album-lock="false"
             />
           </aside>
 
@@ -329,12 +399,12 @@ async function handleRetry(): Promise<void> {
               :tarif-journalier="null"
             />
 
-            <!-- Resume Summary (producer only, inside right column on desktop) -->
+            <!-- Resume Summary (all visitors) -->
             <CandidateResumeSummary
-              v-if="accessLevel === 'producer_with_access' && fullProfile"
-              :candidate="fullProfile"
-              :tarif-horaire="fullProfile.formatted_tarif_horaire"
-              :tarif-journalier="fullProfile.formatted_tarif_journalier"
+              v-if="displayProfile"
+              :candidate="displayProfile"
+              :tarif-horaire="tarifDemiJourneeFormatted"
+              :tarif-journalier="tarifJournalierFormatted"
             />
 
             <!-- Booking CTA Button -->
@@ -363,38 +433,16 @@ async function handleRetry(): Promise<void> {
           </div>
         </div>
 
-        <!-- GUEST: Locked Content Teasers -->
-        <div
-          v-if="accessLevel === 'guest'"
-          class="grid md:grid-cols-2 gap-6"
-          data-testid="locked-teasers"
-        >
-          <LockedContentTeaser
-            title="Bio & Expériences professionnelles"
-            description="Découvrez le parcours complet et les expériences de ce talent."
-            cta-text="S'inscrire pour voir"
-            cta-link="/register/producer"
-            :icon="FileText"
-          />
-          <LockedContentTeaser
-            title="Tarifs & Caractéristiques"
-            description="Accédez aux tarifs, mensurations et détails physiques."
-            cta-text="S'inscrire pour voir"
-            cta-link="/register/producer"
-            :icon="Banknote"
-          />
-        </div>
-
-        <!-- PRODUCER WITH ACCESS: Full Profile -->
-        <template v-else-if="accessLevel === 'producer_with_access' && fullProfile">
+        <!-- Full Profile Sections (all visitors) -->
+        <template v-if="displayProfile">
           <!-- Photo Gallery -->
-          <CandidatePhotoGallery id="album-photos" :photos="fullProfile.photos" />
+          <CandidatePhotoGallery id="album-photos" :photos="displayProfile.photos" />
 
           <!-- Videos Section -->
-          <CandidateVideosSection :candidate="fullProfile" />
+          <CandidateVideosSection :candidate="displayProfile" />
 
           <!-- Experiences -->
-          <CandidateExperiencesSection :experiences="fullProfile.experiences" />
+          <CandidateExperiencesSection :experiences="displayProfile.experiences" />
 
           <!-- Reviews Section -->
           <div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
@@ -424,7 +472,6 @@ async function handleRetry(): Promise<void> {
               @page-change="handleReviewsPageChange"
             />
           </div>
-
         </template>
 
         <!-- LOADING FULL PROFILE (Producer) -->
