@@ -56,23 +56,9 @@ function getCategoryColor(categoryValue: string): string {
 </script>
 
 <template>
-  <div class="py-8" data-testid="ressources-view">
+  <div data-testid="ressources-view">
     <!-- Page Header -->
     <header class="mb-8 text-center">
-      <div class="flex items-center justify-center gap-2 mb-4">
-        <div class="bg-[#198496] text-white p-1.5 rounded">
-          <FileText class="w-4 h-4" aria-hidden="true" />
-        </div>
-        <span class="text-xs font-bold tracking-widest uppercase text-[#198496]">
-          Ressources
-        </span>
-      </div>
-      <h1
-        class="text-3xl sm:text-4xl font-bold text-gray-900 mb-3"
-        data-testid="ressources-page-title"
-      >
-        Nos articles
-      </h1>
       <p class="text-gray-600 text-lg max-w-2xl mx-auto">
         Conseils, guides et actualités pour les talents et producteurs du Bénin.
       </p>

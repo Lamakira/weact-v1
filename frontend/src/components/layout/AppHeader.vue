@@ -104,21 +104,24 @@ async function handleLogout(): Promise<void> {
         >
           <RouterLink
             to="/faces"
-            class="text-sm text-gray-700 hover:text-[#198496] transition-colors"
+            class="text-sm transition-colors pb-0.5 border-b-2"
+            :class="route.path.startsWith('/faces') ? 'text-[#198496] font-semibold border-[#198496]' : 'text-gray-700 hover:text-[#198496] border-transparent'"
             data-testid="nav-faces"
           >
             Trouver des faces
           </RouterLink>
           <RouterLink
             to="/missions"
-            class="text-sm text-gray-700 hover:text-[#198496] transition-colors"
+            class="text-sm transition-colors pb-0.5 border-b-2"
+            :class="route.path.startsWith('/missions') ? 'text-[#198496] font-semibold border-[#198496]' : 'text-gray-700 hover:text-[#198496] border-transparent'"
             data-testid="nav-missions"
           >
             Missions
           </RouterLink>
           <RouterLink
             to="/ressources"
-            class="text-sm text-gray-700 hover:text-[#198496] transition-colors"
+            class="text-sm transition-colors pb-0.5 border-b-2"
+            :class="route.path.startsWith('/ressources') ? 'text-[#198496] font-semibold border-[#198496]' : 'text-gray-700 hover:text-[#198496] border-transparent'"
             data-testid="nav-ressources"
           >
             Ressources
@@ -128,7 +131,8 @@ async function handleLogout(): Promise<void> {
           <RouterLink
             v-if="authStore.isAuthenticated && authStore.isFace"
             to="/face/candidatures"
-            class="text-sm text-gray-700 hover:text-[#198496] transition-colors"
+            class="text-sm transition-colors pb-0.5 border-b-2"
+            :class="route.path.startsWith('/face/candidatures') ? 'text-[#198496] font-semibold border-[#198496]' : 'text-gray-700 hover:text-[#198496] border-transparent'"
             data-testid="nav-candidatures"
           >
             Mes candidatures
@@ -138,7 +142,8 @@ async function handleLogout(): Promise<void> {
           <RouterLink
             v-if="authStore.isAuthenticated && authStore.isProducer"
             to="/producer/missions"
-            class="text-sm text-gray-700 hover:text-[#198496] transition-colors"
+            class="text-sm transition-colors pb-0.5 border-b-2"
+            :class="route.path.startsWith('/producer/missions') ? 'text-[#198496] font-semibold border-[#198496]' : 'text-gray-700 hover:text-[#198496] border-transparent'"
             data-testid="nav-producer-missions"
           >
             Mes missions
@@ -237,21 +242,24 @@ async function handleLogout(): Promise<void> {
           <nav class="flex flex-col space-y-4" data-testid="mobile-nav-links">
             <RouterLink
               to="/faces"
-              class="text-sm text-gray-700 hover:text-[#198496] transition-colors"
+              class="text-sm transition-colors pl-3 border-l-2"
+              :class="route.path.startsWith('/faces') ? 'text-[#198496] font-semibold border-[#198496]' : 'text-gray-700 hover:text-[#198496] border-transparent'"
               @click="closeMobileMenu"
             >
               Trouver des faces
             </RouterLink>
             <RouterLink
               to="/missions"
-              class="text-sm text-gray-700 hover:text-[#198496] transition-colors"
+              class="text-sm transition-colors pl-3 border-l-2"
+              :class="route.path.startsWith('/missions') ? 'text-[#198496] font-semibold border-[#198496]' : 'text-gray-700 hover:text-[#198496] border-transparent'"
               @click="closeMobileMenu"
             >
               Missions
             </RouterLink>
             <RouterLink
               to="/ressources"
-              class="text-sm text-gray-700 hover:text-[#198496] transition-colors"
+              class="text-sm transition-colors pl-3 border-l-2"
+              :class="route.path.startsWith('/ressources') ? 'text-[#198496] font-semibold border-[#198496]' : 'text-gray-700 hover:text-[#198496] border-transparent'"
               @click="closeMobileMenu"
             >
               Ressources

@@ -14,7 +14,6 @@ const footerLinks = {
     links: [
       { label: 'Parcourir les profils', to: '/faces', testId: 'footer-link-faces' },
       { label: 'Publier une mission', to: '/register/producer', testId: 'footer-link-publish' },
-      { label: 'Tarifs producteurs', to: '/pricing', testId: 'footer-link-pricing' },
     ],
   },
   company: {

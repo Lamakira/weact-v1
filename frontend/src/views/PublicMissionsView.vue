@@ -25,15 +25,9 @@ function handlePageChange(page: number): void {
 </script>
 
 <template>
-  <div class="py-8" data-testid="public-missions-view">
+  <div data-testid="public-missions-view">
     <!-- Page Header -->
     <header class="mb-8 text-center">
-      <h1
-        class="text-3xl sm:text-4xl font-bold text-gray-900 mb-3"
-        data-testid="missions-page-title"
-      >
-        Missions disponibles
-      </h1>
       <p class="text-gray-600 text-lg max-w-2xl mx-auto">
         Découvrez les opportunités de casting au Bénin.
         Publicités, films, courts-métrages, clips musicaux et plus encore.
