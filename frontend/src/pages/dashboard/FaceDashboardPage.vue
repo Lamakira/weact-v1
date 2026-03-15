@@ -160,7 +160,7 @@ function goToMessages(): void {
     <div class="grid grid-cols-1 lg:grid-cols-10 gap-6 items-start">
 
       <!-- LEFT COLUMN: Profile Photo + Wallet (sticky) -->
-      <div class="lg:col-span-3 sticky top-0 self-start flex flex-col gap-4">
+      <div class="lg:col-span-3 lg:sticky lg:top-0 lg:self-start flex flex-col gap-4">
         <div
           class="relative h-96 rounded-2xl overflow-hidden shadow-sm group bg-white border border-gray-200 transition-all duration-200 hover:shadow-md"
           data-testid="profile-photo-card"
