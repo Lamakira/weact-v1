@@ -280,7 +280,7 @@ async function handleRetry(): Promise<void> {
       </RouterLink>
     </nav>
 
-    <main id="main-content" class="max-w-7xl mx-auto px-4 md:px-6 pt-6 pb-8 md:pt-8 md:pb-12">
+    <main id="main-content" class="max-w-7xl mx-auto px-4 md:px-6 pt-6 pb-24 md:pt-8 lg:pb-12">
       <!-- LOADING STATE -->
       <div
         v-if="isLoading"
@@ -407,8 +407,8 @@ async function handleRetry(): Promise<void> {
               :tarif-journalier="tarifJournalierFormatted"
             />
 
-            <!-- Booking CTA Button -->
-            <div v-if="showBookingButton" class="relative group">
+            <!-- Booking CTA Button — desktop only (mobile uses fixed bottom bar) -->
+            <div v-if="showBookingButton" class="relative group hidden lg:block">
               <button
                 type="button"
                 :disabled="bookingButtonDisabled"
@@ -503,6 +503,37 @@ async function handleRetry(): Promise<void> {
             </p>
           </div>
         </div>
+
+        <!-- Booking CTA — mobile fixed bottom bar -->
+        <Teleport to="body">
+          <div
+            v-if="showBookingButton"
+            class="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] px-4 py-3"
+            data-testid="booking-cta-mobile"
+          >
+            <div class="relative group">
+              <button
+                type="button"
+                :disabled="bookingButtonDisabled"
+                class="w-full flex items-center justify-center gap-2 text-sm font-semibold px-6 py-3.5 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-[#198496]/20"
+                :class="bookingButtonDisabled
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-[#198496] text-white hover:bg-[#146c7a] active:scale-[0.98]'"
+                @click="handleBookingClick"
+              >
+                <CalendarPlus :size="18" aria-hidden="true" />
+                Booker cette Face
+              </button>
+              <div
+                v-if="bookingButtonDisabled"
+                class="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none"
+                role="tooltip"
+              >
+                Cette Face n'est pas disponible
+              </div>
+            </div>
+          </div>
+        </Teleport>
 
         <!-- Booking Form Sheet (outside access-level conditionals, uses Teleport) -->
         <BookingFormSheet
