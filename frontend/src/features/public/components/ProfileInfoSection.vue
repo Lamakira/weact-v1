@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { MapPin, Star, Video, Lock, ChevronRight } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { MapPin, Star, Video, Lock, ChevronRight, Wallet } from 'lucide-vue-next'
 import type { AccessLevel } from '@/features/public/composables/usePublicFaceAccess'
 
 interface Props {
@@ -12,15 +13,21 @@ interface Props {
   hasVideos: boolean
   videosCount: number
   accessLevel?: AccessLevel
+  tarifHoraire?: string | null
+  tarifJournalier?: string | null
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   accessLevel: 'guest',
+  tarifHoraire: null,
+  tarifJournalier: null,
 })
+
+const hasPricing = computed(() => !!props.tarifHoraire || !!props.tarifJournalier)
 </script>
 
 <template>
-  <div class="flex flex-col gap-6 p-1 bg-white" data-testid="profile-info-section">
+  <div class="flex flex-col gap-6" data-testid="profile-info-section">
     <!-- Header Section -->
     <div class="space-y-1">
       <h1
@@ -59,6 +66,32 @@ withDefaults(defineProps<Props>(), {
       </span>
     </div>
 
+    <!-- Tarifs (producers only) -->
+    <div
+      v-if="hasPricing"
+      class="flex flex-wrap gap-4"
+      data-testid="tarifs-section"
+    >
+      <div v-if="tarifHoraire" class="flex items-center gap-2">
+        <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100">
+          <Wallet class="h-4 w-4 text-green-600" aria-hidden="true" />
+        </div>
+        <div>
+          <p class="text-xs text-gray-500">Tarif demi-journée</p>
+          <p class="font-semibold text-gray-900">{{ tarifHoraire }}</p>
+        </div>
+      </div>
+      <div v-if="tarifJournalier" class="flex items-center gap-2">
+        <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100">
+          <Wallet class="h-4 w-4 text-blue-600" aria-hidden="true" />
+        </div>
+        <div>
+          <p class="text-xs text-gray-500">Tarif journalier</p>
+          <p class="font-semibold text-gray-900">{{ tarifJournalier }}</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Rating Section -->
     <div
       class="flex items-center gap-2"
@@ -83,7 +116,6 @@ withDefaults(defineProps<Props>(), {
       <span class="text-sm text-gray-500">({{ ratingsCount }} avis)</span>
     </div>
 
-    <hr class="border-gray-100" />
 
     <!-- Video Teaser Section (guests only) -->
     <div

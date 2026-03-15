@@ -5,17 +5,15 @@ import { useTitle } from '@vueuse/core'
 import { ChevronLeft, AlertCircle, RefreshCw, UserX, FileText, Banknote, Lock, CalendarPlus } from 'lucide-vue-next'
 import { useFaceProfile } from '@/features/public/composables/useFaceProfile'
 import { usePublicFaceAccess } from '@/features/public/composables/usePublicFaceAccess'
-import { publicApi } from '@/features/public/services/publicApi'
 import ProfilePhotoSection from '@/features/public/components/ProfilePhotoSection.vue'
 import ProfileInfoSection from '@/features/public/components/ProfileInfoSection.vue'
 import LockedContentTeaser from '@/features/public/components/LockedContentTeaser.vue'
 import CandidateVideosSection from '@/features/candidature/components/CandidateVideosSection.vue'
 import CandidatePhotoGallery from '@/features/candidature/components/CandidatePhotoGallery.vue'
-import CandidateInfoSection from '@/features/candidature/components/CandidateInfoSection.vue'
 import CandidateResumeSummary from '@/features/candidature/components/CandidateResumeSummary.vue'
 import CandidateExperiencesSection from '@/features/candidature/components/CandidateExperiencesSection.vue'
-import RatingDisplay from '@/components/RatingDisplay.vue'
 import ReviewsList from '@/components/ReviewsList.vue'
+import { publicApi } from '@/features/public/services/publicApi'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BookingFormSheet } from '@/features/booking/components'
 import type { Review } from '@/features/rating/types'
@@ -62,22 +60,6 @@ const bookingButtonDisabled = computed(() =>
   fullProfile.value?.is_available !== true
 )
 
-function handleBookingClick(): void {
-  if (accessLevel.value === 'guest') {
-    router.push({ path: '/login', query: { redirect: route.fullPath } })
-    return
-  }
-  if (canBook.value) {
-    isBookingSheetOpen.value = true
-  }
-}
-
-function handleBookingSuccess(): void {
-  isBookingSheetOpen.value = false
-  // TODO: redirect to booking detail page when story b1-3 implements the route
-  router.push('/producer')
-}
-
 async function fetchReviews(id: number, page: number = 1): Promise<void> {
   reviewsLoading.value = true
   reviewsError.value = false
@@ -113,7 +95,25 @@ watch(
       reviewsError.value = false
     }
   },
+  { immediate: true },
 )
+
+function handleBookingClick(): void {
+  if (accessLevel.value === 'guest') {
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  if (canBook.value) {
+    isBookingSheetOpen.value = true
+  }
+}
+
+function handleBookingSuccess(): void {
+  isBookingSheetOpen.value = false
+  // TODO: redirect to booking detail page when story b1-3 implements the route
+  router.push('/producer')
+}
+
 
 // Get face username from route params with validation
 const faceUsername = computed(() => {
@@ -315,19 +315,19 @@ async function handleRetry(): Promise<void> {
 
           <!-- Info Section (Right on desktop, bottom on mobile) -->
           <div class="space-y-6">
-            <article class="bg-white rounded-2xl p-6 md:p-8 border border-gray-100 shadow-sm">
-              <ProfileInfoSection
-                :prenom="face.prenom"
-                :ville="face.ville"
-                :categories="face.categories"
-                :niches="face.niches"
-                :average-rating="face.average_rating"
-                :ratings-count="face.ratings_count"
-                :has-videos="hasVideos"
-                :videos-count="videosCount"
-                :access-level="accessLevel"
-              />
-            </article>
+            <ProfileInfoSection
+              :prenom="face.prenom"
+              :ville="face.ville"
+              :categories="face.categories"
+              :niches="face.niches"
+              :average-rating="face.average_rating"
+              :ratings-count="face.ratings_count"
+              :has-videos="hasVideos"
+              :videos-count="videosCount"
+              :access-level="accessLevel"
+              :tarif-horaire="accessLevel === 'producer_with_access' ? fullProfile?.formatted_tarif_horaire : null"
+              :tarif-journalier="accessLevel === 'producer_with_access' ? fullProfile?.formatted_tarif_journalier : null"
+            />
 
             <!-- Resume Summary (producer only, inside right column on desktop) -->
             <CandidateResumeSummary
@@ -385,22 +385,11 @@ async function handleRetry(): Promise<void> {
 
         <!-- PRODUCER WITH ACCESS: Full Profile -->
         <template v-else-if="accessLevel === 'producer_with_access' && fullProfile">
-          <!-- Rating Display -->
-          <div class="px-2">
-            <RatingDisplay
-              :average-rating="fullProfile.average_rating"
-              :review-count="fullProfile.ratings_count"
-            />
-          </div>
-
           <!-- Photo Gallery -->
-          <CandidatePhotoGallery :photos="fullProfile.photos" />
+          <CandidatePhotoGallery id="album-photos" :photos="fullProfile.photos" />
 
           <!-- Videos Section -->
           <CandidateVideosSection :candidate="fullProfile" />
-
-          <!-- Bio and Info -->
-          <CandidateInfoSection :candidate="fullProfile" />
 
           <!-- Experiences -->
           <CandidateExperiencesSection :experiences="fullProfile.experiences" />
@@ -433,6 +422,7 @@ async function handleRetry(): Promise<void> {
               @page-change="handleReviewsPageChange"
             />
           </div>
+
         </template>
 
         <!-- LOADING FULL PROFILE (Producer) -->

@@ -13,6 +13,16 @@ interface Props {
 withDefaults(defineProps<Props>(), {
   showAlbumLock: true,
 })
+
+const emit = defineEmits<{ 'album-click': [] }>()
+
+function scrollToAlbum(): void {
+  const el = document.getElementById('album-photos')
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+  emit('album-click')
+}
 </script>
 
 <template>
@@ -70,12 +80,15 @@ withDefaults(defineProps<Props>(), {
         data-testid="album-indicator"
       >
         <div class="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-2">
-          <div
-            class="flex items-center gap-2 bg-white/20 backdrop-blur-md px-3 py-2 rounded-lg border border-white/30 text-white"
+          <button
+            type="button"
+            class="flex items-center gap-2 bg-white/20 backdrop-blur-md px-3 py-2 rounded-lg border border-white/30 text-white hover:bg-white/30 transition-colors cursor-pointer"
+            :aria-label="`Voir les ${albumPhotosCount} photos de l'album`"
+            @click="scrollToAlbum"
           >
             <ImageIcon :size="16" aria-hidden="true" />
             <span class="text-sm font-medium">+{{ albumPhotosCount }} photos</span>
-          </div>
+          </button>
 
           <!-- Registration Tease (guests only) -->
           <div
