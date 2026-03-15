@@ -58,15 +58,9 @@ function handlePageChange(page: number): void {
 </script>
 
 <template>
-  <div class="py-8" data-testid="public-faces-view">
+  <div data-testid="public-faces-view">
     <!-- Page Header -->
     <header class="mb-8 text-center">
-      <h1
-        class="text-3xl sm:text-4xl font-bold text-gray-900 mb-3"
-        data-testid="faces-page-title"
-      >
-        Nos Faces
-      </h1>
       <p class="text-gray-600 text-lg max-w-2xl mx-auto">
         Découvrez notre vivier de talents béninois pour tous vos projets audiovisuels.
       </p>
