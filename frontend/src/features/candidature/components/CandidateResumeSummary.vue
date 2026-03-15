@@ -163,12 +163,13 @@ const fields = computed((): ResumeField[] => [
         <span class="text-sm font-medium text-foreground">Tarifs</span>
       </div>
       <div class="flex flex-wrap gap-6 pl-6">
-        <div v-if="tarifHoraire" data-testid="tarif-horaire">
-          <p class="text-xs text-muted-foreground">Demi-journée</p>
-          <p class="text-xl font-bold text-[#198496]">{{ tarifHoraire }}</p>
-        </div>
         <div v-if="tarifJournalier" data-testid="tarif-journalier">
+          <p class="text-xs text-muted-foreground">Journée complète (8h)</p>
           <p class="text-xl font-bold text-[#198496]">{{ tarifJournalier }}</p>
+        </div>
+        <div v-if="tarifHoraire" data-testid="tarif-horaire">
+          <p class="text-xs text-muted-foreground">Demi-journée (4h)</p>
+          <p class="text-xl font-bold text-[#198496]">{{ tarifHoraire }}</p>
         </div>
       </div>
     </div>
