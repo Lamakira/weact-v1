@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { watch, computed, watchEffect, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useTitle } from '@vueuse/core'
 import {
   ChevronLeft,
@@ -16,8 +16,11 @@ import {
 } from 'lucide-vue-next'
 import { useMissionDetail } from '@/features/public/composables/useMissionDetail'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
 const { mission, isLoading, error, notFound, fetchMission } = useMissionDetail()
 
 // Get mission slug from route params with validation
@@ -27,11 +30,15 @@ const missionSlug = computed(() => {
 })
 
 // Fetch mission on mount and when slug changes
+// Redirect authenticated Face users to the protected mission detail page
 watch(
   missionSlug,
   async (newSlug) => {
     if (newSlug) {
       await fetchMission(newSlug)
+      if (mission.value && authStore.isFace) {
+        router.replace({ name: 'face-mission-detail', params: { id: mission.value.id } })
+      }
     }
   },
   { immediate: true }
