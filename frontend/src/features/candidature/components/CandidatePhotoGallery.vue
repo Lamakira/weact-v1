@@ -98,7 +98,7 @@ function handleKeydown(event: KeyboardEvent): void {
         @click="openLightbox(index)"
       >
         <img
-          :src="photo.thumbnail_url || photo.photo_url"
+          :src="photo.photo_url"
           :alt="`Photo ${index + 1}`"
           class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
         />
