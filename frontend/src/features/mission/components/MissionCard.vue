@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Calendar, Wallet, Users, Pencil, Trash2, XCircle, RefreshCw, CheckCircle2 } from 'lucide-vue-next'
+import { Calendar, Wallet, Users, Pencil, Trash2, XCircle, RefreshCw, CheckCircle2, ArrowRight } from 'lucide-vue-next'
 import type { Mission, MissionStatusType } from '../types'
 
 const props = withDefaults(defineProps<{
@@ -68,6 +68,8 @@ const candidaturesCount = computed(() => props.mission.candidatures_count ?? 0)
 <template>
   <div
     class="group relative bg-card border border-border rounded-lg overflow-hidden transition-all duration-300 hover:shadow-md hover:border-primary/30"
+    :class="{ 'cursor-pointer': canEdit }"
+    @click="canEdit && emit('edit', mission.id)"
   >
     <!-- Card Content -->
     <div class="p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -117,10 +119,21 @@ const candidaturesCount = computed(() => props.mission.candidatures_count ?? 0)
       <!-- Right Section: Actions -->
       <div class="flex items-center gap-3 pt-4 md:pt-0 border-t md:border-t-0 border-border">
         <button
+          type="button"
+          class="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-muted text-foreground border border-border rounded-lg font-medium transition-all hover:bg-primary/10 hover:text-primary hover:border-primary/30 active:scale-95"
+          @click.stop="emit('viewCandidatures', mission.id)"
+        >
+          <Users :size="16" />
+          <span>Candidatures</span>
+          <span class="ml-0.5 rounded-full bg-primary/15 px-1.5 py-0.5 text-xs font-bold text-primary">{{ candidaturesCount }}</span>
+          <ArrowRight :size="14" class="opacity-50" />
+        </button>
+
+        <button
           v-if="canEdit"
           type="button"
           class="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg font-medium transition-all hover:bg-primary/90 active:scale-95 focus:ring-2 focus:ring-primary/20"
-          @click="emit('edit', mission.id)"
+          @click.stop="emit('edit', mission.id)"
         >
           <Pencil :size="16" />
           <span>Modifier</span>
@@ -131,7 +144,7 @@ const candidaturesCount = computed(() => props.mission.candidatures_count ?? 0)
           type="button"
           class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-orange-500 text-white rounded-lg font-medium transition-all hover:bg-orange-600 active:scale-95 focus:ring-2 focus:ring-orange-500/20"
           title="Clôturer les candidatures"
-          @click="emit('close', mission.id)"
+          @click.stop="emit('close', mission.id)"
         >
           <XCircle :size="16" />
           <span>Clôturer</span>
@@ -142,7 +155,7 @@ const candidaturesCount = computed(() => props.mission.candidatures_count ?? 0)
           type="button"
           class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 text-white rounded-lg font-medium transition-all hover:bg-green-600 active:scale-95 focus:ring-2 focus:ring-green-500/20"
           title="Réouvrir la mission"
-          @click="emit('reopen', mission.id)"
+          @click.stop="emit('reopen', mission.id)"
         >
           <RefreshCw :size="16" />
           <span>Réouvrir</span>
@@ -153,7 +166,7 @@ const candidaturesCount = computed(() => props.mission.candidatures_count ?? 0)
           type="button"
           class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-500 text-white rounded-lg font-medium transition-all hover:bg-blue-600 active:scale-95 focus:ring-2 focus:ring-blue-500/20"
           title="Marquer comme terminée"
-          @click="emit('complete', mission.id)"
+          @click.stop="emit('complete', mission.id)"
         >
           <CheckCircle2 :size="16" />
           <span>Terminer</span>
@@ -164,7 +177,7 @@ const candidaturesCount = computed(() => props.mission.candidatures_count ?? 0)
           type="button"
           class="inline-flex items-center justify-center p-2.5 text-destructive bg-destructive/10 border border-destructive/20 rounded-lg transition-all hover:bg-destructive hover:text-destructive-foreground active:scale-95"
           title="Supprimer la mission"
-          @click="emit('delete', mission.id)"
+          @click.stop="emit('delete', mission.id)"
         >
           <Trash2 :size="18" />
         </button>

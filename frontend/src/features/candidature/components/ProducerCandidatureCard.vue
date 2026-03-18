@@ -261,8 +261,8 @@ const categoryLabel = computed(() => {
         </span>
         <div class="flex items-center gap-1.5 text-sm font-medium text-foreground">
           <Wallet class="h-3.5 w-3.5 text-primary" />
-          <span v-if="candidature.face.tarif_horaire">
-            {{ formatCurrency(candidature.face.tarif_horaire) }}/½j
+          <span v-if="candidature.face.tarif_journalier">
+            {{ formatCurrency(Math.round(candidature.face.tarif_journalier / 2)) }}/½j
           </span>
           <span v-else class="text-xs font-normal italic text-muted-foreground">
             Non spécifié
