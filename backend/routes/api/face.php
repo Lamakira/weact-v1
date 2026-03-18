@@ -66,26 +66,26 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     // Profile routes
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile/photo', [ProfileController::class, 'updatePhoto'])
-        ->middleware('throttle:10,1'); // Rate limit: 10 requests per minute
+        ->middleware('throttle:uploads');
     Route::delete('/profile/photo', [ProfileController::class, 'deletePhoto']);
 
     // Album routes
     Route::get('/album', [AlbumController::class, 'index']);
     Route::post('/album', [AlbumController::class, 'store'])
-        ->middleware('throttle:10,1'); // Rate limit: 10 requests per minute
+        ->middleware('throttle:uploads');
     Route::delete('/album/{photo}', [AlbumController::class, 'destroy']);
     Route::put('/album/reorder', [AlbumController::class, 'reorder']);
 
     // Presentation video routes
     Route::get('/presentation-video', [PresentationVideoController::class, 'show']);
     Route::post('/presentation-video', [PresentationVideoController::class, 'store'])
-        ->middleware('throttle:10,1'); // Rate limit: 10 requests per minute
+        ->middleware('throttle:uploads');
     Route::delete('/presentation-video', [PresentationVideoController::class, 'destroy']);
 
     // Acting video routes
     Route::get('/acting-video', [ActingVideoController::class, 'show']);
     Route::post('/acting-video', [ActingVideoController::class, 'store'])
-        ->middleware('throttle:10,1'); // Rate limit: 10 requests per minute
+        ->middleware('throttle:uploads');
     Route::delete('/acting-video', [ActingVideoController::class, 'destroy']);
 
     // Bio and location routes

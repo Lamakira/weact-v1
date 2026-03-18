@@ -3,6 +3,9 @@
 namespace App\Providers;
 
 use Carbon\Carbon;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,5 +25,10 @@ class AppServiceProvider extends ServiceProvider
     {
         // Set Carbon locale globally for French date formatting
         Carbon::setLocale('fr');
+
+        // Rate limiter for upload routes — keyed by authenticated user ID, not IP
+        RateLimiter::for('uploads', function (Request $request) {
+            return Limit::perMinute(20)->by($request->user()?->id ?: $request->ip());
+        });
     }
 }
