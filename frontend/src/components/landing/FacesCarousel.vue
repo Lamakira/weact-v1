@@ -136,7 +136,7 @@ const countDisplay = computed((): string | null => {
         class="bg-[#198496] text-white px-10 py-4 rounded-md font-bold shadow-lg hover:shadow-[#198496]/20 hover:scale-105 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#198496]/10"
         data-testid="deviens-face-cta"
       >
-        Je crée mon profil
+        Explorer nos Faces
       </RouterLink>
       <p v-if="countDisplay" class="mt-4 text-sm text-gray-500 font-medium" data-testid="faces-count">
         {{ countDisplay }}
