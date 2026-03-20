@@ -170,7 +170,7 @@ Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])
         ->middleware(['face', 'throttle:60,1']);
     Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount'])
-        ->middleware(['face', 'throttle:60,1']);
+        ->middleware(['face', 'throttle:polling']);
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
         ->middleware(['face', 'throttle:60,1']);
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])

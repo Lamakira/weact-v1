@@ -46,12 +46,12 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
         ->name('bookings.rate');
 
     Route::get('/bookings/{booking}/payment-status', [BookingController::class, 'checkPaymentStatus'])
-        ->middleware('throttle:30,1')
+        ->middleware('throttle:polling')
         ->name('bookings.payment-status');
 
     // Booking Chat (b4-1)
     Route::get('/bookings/{booking}/messages', [BookingMessageController::class, 'index'])
-        ->middleware('throttle:60,1')
+        ->middleware('throttle:polling')
         ->name('bookings.messages.index');
 
     Route::post('/bookings/{booking}/messages', [BookingMessageController::class, 'store'])
@@ -64,7 +64,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
         ->name('me.notifications.index');
 
     Route::get('/me/notifications/unread-count', [NotificationController::class, 'unreadCount'])
-        ->middleware('throttle:60,1')
+        ->middleware('throttle:polling')
         ->name('me.notifications.unread-count');
 
     Route::post('/me/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
