@@ -23,18 +23,17 @@ class MissionController extends Controller
      */
     public function show(Request $request, Mission $mission): JsonResponse
     {
-        // Only allow viewing published missions
-        if ($mission->status !== MissionStatus::Published) {
-            abort(404);
-        }
-
         $mission->load('producer');
 
-        // Check if the authenticated Face has already applied to this mission
         $face = $request->user()->userable;
         $candidature = Candidature::where('face_id', $face->id)
             ->where('mission_id', $mission->id)
             ->first();
+
+        // Allow viewing if mission is published OR if the face has a candidature on it
+        if ($mission->status !== MissionStatus::Published && ! $candidature) {
+            abort(404);
+        }
 
         return response()->json([
             'data' => new MissionResource($mission),
