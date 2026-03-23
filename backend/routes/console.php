@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\Commands\AutoCompleteBookingsCommand;
+use App\Console\Commands\AutoReleaseMissionFundsCommand;
 use App\Console\Commands\ExpireUnpaidBookingsCommand;
 use App\Console\Commands\ReconcileWalletCommand;
 use Illuminate\Console\Scheduling\Schedule;
@@ -15,3 +16,4 @@ Artisan::command('inspire', function () {
 app(Schedule::class)->command(AutoCompleteBookingsCommand::class)->hourly();
 app(Schedule::class)->command(ExpireUnpaidBookingsCommand::class)->hourly();
 app(Schedule::class)->command(ReconcileWalletCommand::class)->daily();
+app(Schedule::class)->command(AutoReleaseMissionFundsCommand::class)->daily();
