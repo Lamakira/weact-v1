@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Booking;
+use App\Models\MissionPayment;
+use App\Models\Producer;
 use App\Models\User;
 use FedaPay\FedaPay;
 use FedaPay\Payout;
@@ -41,6 +43,43 @@ class FedapayService
             'customer' => [
                 'firstname' => $producer->name,
                 'email' => $producer->email,
+            ],
+        ]);
+
+        $tokenObj = $transaction->generateToken();
+
+        return [
+            'fedapay_transaction_id' => (int) $transaction->id,
+            'checkout_url' => $tokenObj->url,
+        ];
+    }
+
+    /**
+     * Initiate a hosted checkout payment for a mission payment.
+     *
+     * @return array{fedapay_transaction_id: int, checkout_url: string}
+     */
+    public function initiatePaymentForMission(MissionPayment $payment, string $idempotencyKey): array
+    {
+        $producerUser = \App\Models\User::where('userable_type', Producer::class)
+            ->where('userable_id', $payment->producer_id)
+            ->firstOrFail();
+
+        $mission = $payment->mission;
+
+        $transaction = Transaction::create([
+            'description' => "Mission #{$mission->id} — {$mission->titre}",
+            'amount' => $payment->montant_total_producteur,
+            'currency' => ['iso' => 'XOF'],
+            'callback_url' => route('webhooks.fedapay'),
+            'custom_metadata' => [
+                'mission_payment_id' => $payment->id,
+                'idempotency_key' => $idempotencyKey,
+                'type' => 'mission',
+            ],
+            'customer' => [
+                'firstname' => $producerUser->name,
+                'email' => $producerUser->email,
             ],
         ]);
 

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Producer\ConversationController;
 use App\Http\Controllers\Api\V1\Producer\FaceController;
 use App\Http\Controllers\Api\V1\Producer\MessageController;
 use App\Http\Controllers\Api\V1\Producer\MissionController;
+use App\Http\Controllers\Api\V1\Producer\MissionPaymentController;
 use App\Http\Controllers\Api\V1\Producer\ProducerDashboardController;
 use App\Http\Controllers\Api\V1\Producer\ProfileController;
 use App\Http\Controllers\Api\V1\Producer\RatingController;
@@ -55,6 +56,12 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->gro
     Route::post('/missions/{mission}/close', [MissionController::class, 'close']);
     Route::post('/missions/{mission}/reopen', [MissionController::class, 'reopen']);
     Route::post('/missions/{mission}/complete', [MissionController::class, 'complete']);
+
+    // Mission payment routes
+    Route::post('/missions/{mission}/confirm-selection', [MissionPaymentController::class, 'confirmAndPay'])
+        ->middleware('throttle:10,1');
+    Route::get('/missions/{mission}/payment-status', [MissionPaymentController::class, 'paymentStatus'])
+        ->middleware('throttle:polling');
 
     // Candidature routes (nested under missions)
     Route::get('/missions/{mission}/candidatures', [CandidatureController::class, 'index']);

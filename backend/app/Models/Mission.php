@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 class Mission extends Model
@@ -127,6 +128,14 @@ class Mission extends Model
     }
 
     /**
+     * Get the payment record for this mission.
+     */
+    public function payment(): HasOne
+    {
+        return $this->hasOne(MissionPayment::class);
+    }
+
+    /**
      * Scope a query to only include missions with a specific status.
      */
     public function scopeStatus(Builder $query, MissionStatus $status): Builder
@@ -148,6 +157,14 @@ class Mission extends Model
     public function scopePublished(Builder $query): Builder
     {
         return $query->where('status', MissionStatus::Published);
+    }
+
+    /**
+     * Scope a query to only include missions pending payment.
+     */
+    public function scopePendingPayment(Builder $query): Builder
+    {
+        return $query->where('status', MissionStatus::PendingPayment);
     }
 
     /**
@@ -182,5 +199,13 @@ class Mission extends Model
     {
         return $this->status === MissionStatus::Published
             && $this->date_limite_candidature >= now()->toDateString();
+    }
+
+    /**
+     * Check if this mission has a pending (unpaid) payment record.
+     */
+    public function hasPendingPayment(): bool
+    {
+        return $this->status === MissionStatus::PendingPayment;
     }
 }

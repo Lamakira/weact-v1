@@ -6,7 +6,9 @@ namespace App\Jobs;
 
 use App\Models\Booking;
 use App\Models\FedapayWebhookEvent;
+use App\Models\MissionPayment;
 use App\Services\BookingService;
+use App\Services\MissionPaymentService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -24,7 +26,7 @@ class HandleFedapayWebhook implements ShouldQueue
         public readonly array $payload,
     ) {}
 
-    public function handle(BookingService $bookingService): void
+    public function handle(BookingService $bookingService, MissionPaymentService $missionPaymentService): void
     {
         $webhookEvent = FedapayWebhookEvent::find($this->webhookEventId);
 
@@ -46,27 +48,47 @@ class HandleFedapayWebhook implements ShouldQueue
             return;
         }
 
+        // Try to find a Booking first
         $booking = Booking::where('fedapay_transaction_id', $transactionId)->first();
 
-        if (! $booking) {
-            Log::warning('Fedapay webhook: booking not found for transaction', [
-                'transaction_id' => $transactionId,
-                'event_name' => $this->eventName,
-            ]);
+        if ($booking) {
+            match ($this->eventName) {
+                'transaction.approved' => $bookingService->markAsPaid($booking, $fedapayRef),
+                'transaction.declined', 'transaction.canceled' => $bookingService->markPaymentFailed(
+                    $booking,
+                    $fedapayRef,
+                    "Payment {$this->eventName}"
+                ),
+                default => Log::info('Fedapay webhook: unhandled event', ['event' => $this->eventName]),
+            };
+
             $this->markProcessed($webhookEvent);
 
             return;
         }
 
-        match ($this->eventName) {
-            'transaction.approved' => $bookingService->markAsPaid($booking, $fedapayRef),
-            'transaction.declined', 'transaction.canceled' => $bookingService->markPaymentFailed(
-                $booking,
-                $fedapayRef,
-                "Payment {$this->eventName}"
-            ),
-            default => Log::info('Fedapay webhook: unhandled event', ['event' => $this->eventName]),
-        };
+        // Try to find a MissionPayment
+        $missionPayment = MissionPayment::where('fedapay_transaction_id', (string) $transactionId)->first();
+
+        if ($missionPayment) {
+            match ($this->eventName) {
+                'transaction.approved' => $missionPaymentService->markAsPaid($missionPayment, $fedapayRef),
+                'transaction.declined', 'transaction.canceled' => Log::info('Fedapay webhook: mission payment declined/canceled', [
+                    'mission_payment_id' => $missionPayment->id,
+                    'event' => $this->eventName,
+                ]),
+                default => Log::info('Fedapay webhook: unhandled event', ['event' => $this->eventName]),
+            };
+
+            $this->markProcessed($webhookEvent);
+
+            return;
+        }
+
+        Log::warning('Fedapay webhook: no booking or mission payment found for transaction', [
+            'transaction_id' => $transactionId,
+            'event_name' => $this->eventName,
+        ]);
 
         $this->markProcessed($webhookEvent);
     }

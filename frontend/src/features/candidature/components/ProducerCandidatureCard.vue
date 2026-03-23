@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, Check, X, Loader2 } from 'lucide-vue-next'
+import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, Check, X, Loader2, CheckSquare, Square } from 'lucide-vue-next'
 import type { ProducerCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
 
@@ -10,6 +10,8 @@ import { CandidatureStatusColor } from '../types'
  */
 const props = defineProps<{
   candidature: ProducerCandidature
+  selectionMode?: boolean
+  isSelected?: boolean
 }>()
 
 /**
@@ -18,6 +20,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   accept: [candidatureId: number]
   reject: [candidatureId: number]
+  'toggle-selection': [candidatureId: number]
 }>()
 
 /**
@@ -189,11 +192,29 @@ const categoryLabel = computed(() => {
 
 <template>
   <div
-    class="group relative block rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-md sm:p-5"
+    class="group relative block rounded-xl border bg-card p-4 transition-all hover:shadow-md sm:p-5"
+    :class="[
+      selectionMode && candidature.status === 'pending'
+        ? isSelected
+          ? 'border-primary ring-2 ring-primary/30 cursor-pointer'
+          : 'border-border hover:border-primary/50 cursor-pointer'
+        : 'border-border hover:border-primary/50',
+    ]"
+    @click="selectionMode && candidature.status === 'pending' ? emit('toggle-selection', candidature.id) : undefined"
   >
     <!-- Header: Status & Date -->
     <div class="mb-4 flex items-center justify-between">
+      <!-- Selection checkbox (only shown in selection mode for pending candidatures) -->
+      <div
+        v-if="selectionMode && candidature.status === 'pending'"
+        class="flex items-center gap-2"
+        @click.stop="emit('toggle-selection', candidature.id)"
+      >
+        <CheckSquare v-if="isSelected" class="h-5 w-5 text-primary" />
+        <Square v-else class="h-5 w-5 text-muted-foreground" />
+      </div>
       <span
+        v-else
         class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
         :class="statusBadgeClass"
       >
@@ -299,8 +320,8 @@ const categoryLabel = computed(() => {
 
     <!-- Actions -->
     <div class="mt-4 flex items-center justify-between gap-3">
-      <!-- Action Buttons (only for pending) -->
-      <div v-if="canTakeAction" class="flex gap-2">
+      <!-- Action Buttons (only for pending and NOT in selection mode) -->
+      <div v-if="canTakeAction && !selectionMode" class="flex gap-2">
         <!-- Accept Button -->
         <button
           type="button"

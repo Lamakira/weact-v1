@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Loader2, AlertCircle } from 'lucide-vue-next'
+import { ArrowLeft, Loader2, AlertCircle, CheckCircle } from 'lucide-vue-next'
 import { ProducerCandidaturesSection } from '@/features/candidature/components'
 import { missionApi } from '@/features/mission/services/missionApi'
+import { useMissionPayment } from '@/features/mission/composables'
 import type { Mission } from '@/features/mission/types'
 
 /**
@@ -18,6 +19,9 @@ const router = useRouter()
 const mission = ref<Mission | null>(null)
 const isLoading = ref(true)
 const error = ref<string | null>(null)
+const paymentSuccessBanner = ref(false)
+
+const { startPolling, stopPolling } = useMissionPayment(0)
 
 /**
  * Computed: Mission ID from route params
@@ -25,7 +29,8 @@ const error = ref<string | null>(null)
 const missionId = computed(() => Number(route.params.id))
 
 /**
- * Fetch mission details for the header
+ * Fetch mission details for the header.
+ * Starts polling automatically if mission is pending_payment.
  */
 async function fetchMission(): Promise<void> {
   isLoading.value = true
@@ -41,6 +46,14 @@ async function fetchMission(): Promise<void> {
   try {
     const response = await missionApi.getMission(missionId.value)
     mission.value = response.data
+
+    // Auto-start polling whenever mission is awaiting payment confirmation
+    if (mission.value.status === 'pending_payment') {
+      startPolling(missionId.value, async () => {
+        paymentSuccessBanner.value = true
+        await fetchMission()
+      })
+    }
   } catch (err: unknown) {
     console.error('Failed to fetch mission:', err)
     error.value = 'Impossible de charger les informations de la mission'
@@ -57,10 +70,22 @@ function goBack(): void {
 }
 
 /**
+ * Handle checkout URL from selection confirmation.
+ * Redirects to FedaPay checkout — FedaPay webhook handles the rest.
+ */
+function handleSelectionConfirmed(checkoutUrl: string): void {
+  window.location.href = checkoutUrl
+}
+
+/**
  * Lifecycle
  */
 onMounted(() => {
   fetchMission()
+})
+
+onUnmounted(() => {
+  stopPolling()
 })
 </script>
 
@@ -93,12 +118,41 @@ onMounted(() => {
 
         <!-- Mission Header -->
         <template v-else-if="mission">
-          <h1 class="text-2xl font-bold text-foreground sm:text-3xl">
-            {{ mission.titre }}
-          </h1>
+          <div class="flex flex-wrap items-center gap-3">
+            <h1 class="text-2xl font-bold text-foreground sm:text-3xl">
+              {{ mission.titre }}
+            </h1>
+            <span
+              class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
+              :class="{
+                'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400': mission.status === 'published',
+                'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400': mission.status === 'pending_payment',
+                'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400': mission.status === 'closed',
+                'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400': mission.status === 'completed',
+              }"
+            >
+              {{ mission.status_label }}
+            </span>
+          </div>
           <p class="mt-1 text-muted-foreground">
             Candidatures reçues pour cette mission
           </p>
+          <!-- Payment success banner -->
+          <div
+            v-if="paymentSuccessBanner"
+            class="mt-3 flex items-center gap-2 rounded-lg bg-green-50 px-4 py-2.5 text-sm text-green-800 dark:bg-green-900/20 dark:text-green-400"
+          >
+            <CheckCircle class="h-4 w-4 shrink-0" />
+            Paiement confirmé ! Les fonds sont sécurisés en escrow. La mission est maintenant clôturée.
+          </div>
+          <!-- Pending payment banner -->
+          <div
+            v-else-if="mission.status === 'pending_payment'"
+            class="mt-3 flex items-center gap-2 rounded-lg bg-orange-50 px-4 py-2.5 text-sm text-orange-800 dark:bg-orange-900/20 dark:text-orange-400"
+          >
+            <Loader2 class="h-4 w-4 shrink-0 animate-spin" />
+            Paiement en attente de confirmation...
+          </div>
         </template>
       </div>
     </header>
@@ -109,6 +163,9 @@ onMounted(() => {
       <ProducerCandidaturesSection
         v-if="!isLoading && !error && mission"
         :mission-id="missionId"
+        :mission-budget="mission.budget"
+        :mission-status="mission.status"
+        @selection-confirmed="handleSelectionConfirmed"
       />
     </main>
   </div>

@@ -55,7 +55,27 @@ class CompleteMissionRequest extends FormRequest
             if ($mission->status === MissionStatus::Draft) {
                 $validator->errors()->add(
                     'status',
-                    'Seules les missions publiées ou clôturées peuvent être marquées comme terminées'
+                    'Seules les missions clôturées peuvent être marquées comme terminées'
+                );
+
+                return;
+            }
+
+            // Published missions cannot be completed directly
+            if ($mission->status === MissionStatus::Published) {
+                $validator->errors()->add(
+                    'status',
+                    'Seules les missions clôturées peuvent être marquées comme terminées'
+                );
+
+                return;
+            }
+
+            // Missions pending payment cannot be completed
+            if ($mission->status === MissionStatus::PendingPayment) {
+                $validator->errors()->add(
+                    'status',
+                    'Le paiement doit être confirmé avant de terminer la mission'
                 );
 
                 return;

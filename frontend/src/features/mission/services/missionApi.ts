@@ -6,6 +6,32 @@ import type {
   UpdateMissionData,
 } from '../types'
 
+export interface MissionPaymentData {
+  payment_id: number
+  montant_total: number
+  nombre_faces: number
+  checkout_url: string
+  status: string
+}
+
+export interface ConfirmSelectionResponse {
+  data: MissionPaymentData
+  message: string
+}
+
+export interface PaymentStatusData {
+  has_payment: boolean
+  payment_id?: number
+  status?: string
+  paid_at?: string | null
+  montant_total?: number
+  mission_status: string
+}
+
+export interface PaymentStatusResponse {
+  data: PaymentStatusData
+}
+
 /**
  * Mission API service
  */
@@ -92,6 +118,29 @@ export const missionApi = {
     await getCsrfCookie()
 
     const response = await apiClient.post<MissionResponse>(`/producer/missions/${id}/complete`)
+    return response.data
+  },
+
+  /**
+   * Confirm face selection and initiate payment
+   */
+  async confirmSelection(missionId: number, candidatureIds: number[]): Promise<ConfirmSelectionResponse> {
+    await getCsrfCookie()
+
+    const response = await apiClient.post<ConfirmSelectionResponse>(
+      `/producer/missions/${missionId}/confirm-selection`,
+      { candidature_ids: candidatureIds }
+    )
+    return response.data
+  },
+
+  /**
+   * Poll payment status for a mission
+   */
+  async getPaymentStatus(missionId: number): Promise<PaymentStatusResponse> {
+    const response = await apiClient.get<PaymentStatusResponse>(
+      `/producer/missions/${missionId}/payment-status`
+    )
     return response.data
   },
 }

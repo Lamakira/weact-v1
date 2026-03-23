@@ -31,6 +31,24 @@ class WalletService
     }
 
     /**
+     * Credit a user's wallet for a mission payment (no Booking reference).
+     * MUST be called inside an existing DB::transaction().
+     */
+    public function creditDirect(int $userId, int $amount, string $description): WalletTransaction
+    {
+        User::where('id', $userId)->lockForUpdate()->increment('balance', $amount);
+
+        return WalletTransaction::create([
+            'user_id'     => $userId,
+            'booking_id'  => null,
+            'type'        => 'credit',
+            'amount'      => $amount,
+            'reference'   => 'wlt_' . Str::uuid()->toString(),
+            'description' => $description,
+        ]);
+    }
+
+    /**
      * Debit a user's wallet balance for a withdrawal.
      * MUST be called inside an existing DB::transaction().
      *

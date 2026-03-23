@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   Loader2,
   AlertCircle,
@@ -7,9 +7,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Inbox,
+  CheckSquare,
 } from 'lucide-vue-next'
 import { useProducerCandidatures, useAcceptCandidature, useRejectCandidature } from '../composables'
+import { useMissionPayment } from '@/features/mission/composables'
 import ProducerCandidatureCard from './ProducerCandidatureCard.vue'
+import MissionSelectionSummary from '@/features/mission/components/MissionSelectionSummary.vue'
 import StatusFilter from './StatusFilter.vue'
 import { CandidatureStatusLabel } from '../types'
 import type { CandidatureStatusType } from '../types'
@@ -19,6 +22,12 @@ import type { CandidatureStatusType } from '../types'
  */
 const props = defineProps<{
   missionId: number
+  missionBudget?: number
+  missionStatus?: string
+}>()
+
+const emit = defineEmits<{
+  'selection-confirmed': [checkoutUrl: string]
 }>()
 
 /**
@@ -62,6 +71,27 @@ const {
   rejectCandidature,
   reset: resetReject,
 } = useRejectCandidature()
+
+/**
+ * Mission payment selection composable
+ */
+const {
+  selectedCandidatureIds,
+  isConfirming,
+  error: paymentError,
+  pricing,
+  toggleSelection,
+  isSelected,
+  confirmAndPay,
+} = useMissionPayment(props.missionBudget ?? 0)
+
+/**
+ * Whether selection mode should be active
+ * Only for published missions
+ */
+const isSelectionMode = computed(
+  () => props.missionStatus === 'published'
+)
 
 /**
  * Toast state for notifications
@@ -135,6 +165,18 @@ async function handleFilterChange(status: CandidatureStatusType | ''): Promise<v
 }
 
 /**
+ * Handle confirm and pay
+ */
+async function handleConfirmAndPay(): Promise<void> {
+  const result = await confirmAndPay(props.missionId)
+  if (result) {
+    emit('selection-confirmed', result.checkout_url)
+  } else if (paymentError.value) {
+    displayToast(paymentError.value, 'error')
+  }
+}
+
+/**
  * Generate page numbers for pagination
  */
 function getPageNumbers(): number[] {
@@ -172,6 +214,10 @@ onMounted(() => {
         <p v-if="!isLoading && !error" class="text-sm text-muted-foreground">
           {{ total }} candidature{{ total > 1 ? 's' : '' }} reçue{{ total > 1 ? 's' : '' }}
         </p>
+      </div>
+      <div v-if="isSelectionMode" class="flex items-center gap-2 text-sm text-muted-foreground">
+        <CheckSquare class="h-4 w-4 text-primary" />
+        <span>Sélectionnez les faces à retenir</span>
       </div>
     </div>
 
@@ -251,8 +297,20 @@ onMounted(() => {
           :key="candidature.id"
           :ref="(el) => { if (el) cardRefs[candidature.id] = el as InstanceType<typeof ProducerCandidatureCard> }"
           :candidature="candidature"
+          :selection-mode="isSelectionMode"
+          :is-selected="isSelected(candidature.id)"
           @accept="handleAccept"
           @reject="handleReject"
+          @toggle-selection="toggleSelection"
+        />
+      </div>
+
+      <!-- Selection Summary Panel -->
+      <div v-if="isSelectionMode && pricing" class="mt-6">
+        <MissionSelectionSummary
+          :pricing="pricing"
+          :is-confirming="isConfirming"
+          @confirm="handleConfirmAndPay"
         />
       </div>
 

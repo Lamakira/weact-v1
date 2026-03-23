@@ -8,6 +8,7 @@ enum MissionStatus: string
 {
     case Draft = 'draft';
     case Published = 'published';
+    case PendingPayment = 'pending_payment';
     case Closed = 'closed';
     case Completed = 'completed';
 
@@ -19,6 +20,7 @@ enum MissionStatus: string
         return match ($this) {
             self::Draft => 'Brouillon',
             self::Published => 'Publiée',
+            self::PendingPayment => 'En attente de paiement',
             self::Closed => 'Clôturée',
             self::Completed => 'Terminée',
         };

@@ -7,9 +7,14 @@ namespace App\Services;
 use App\Enums\MissionStatus;
 use App\Models\Mission;
 use App\Models\Producer;
+use App\Services\MissionPaymentService;
 
 class MissionService
 {
+    public function __construct(
+        private readonly MissionPaymentService $missionPaymentService,
+    ) {}
+
     /**
      * Create a new published mission for a Producer.
      *
@@ -102,17 +107,23 @@ class MissionService
 
     /**
      * Mark a mission as completed.
-     * Only published or closed missions can be completed.
+     * Only closed missions (with paid payment) can be completed.
+     * Releases escrowed funds to selected faces.
      * Once completed, the mission cannot be modified (FINAL state).
      *
      * @return Mission The completed mission (fresh from database)
      */
     public function completeMission(Mission $mission): Mission
     {
-        $mission->update([
-            'status' => MissionStatus::Completed,
-        ]);
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($mission): Mission {
+            // Release funds to selected faces if payment exists
+            $this->missionPaymentService->releaseFunds($mission);
 
-        return $mission->fresh();
+            $mission->update([
+                'status' => MissionStatus::Completed,
+            ]);
+
+            return $mission->fresh();
+        });
     }
 }

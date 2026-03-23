@@ -6,6 +6,7 @@
 export const MissionStatus = {
   DRAFT: 'draft',
   PUBLISHED: 'published',
+  PENDING_PAYMENT: 'pending_payment',
   CLOSED: 'closed',
   COMPLETED: 'completed',
 } as const
@@ -16,6 +17,7 @@ export type MissionStatusType = (typeof MissionStatus)[keyof typeof MissionStatu
 export const MissionStatusLabel: Record<MissionStatusType, string> = {
   [MissionStatus.DRAFT]: 'Brouillon',
   [MissionStatus.PUBLISHED]: 'Publiée',
+  [MissionStatus.PENDING_PAYMENT]: 'En attente de paiement',
   [MissionStatus.CLOSED]: 'Clôturée',
   [MissionStatus.COMPLETED]: 'Terminée',
 }
@@ -97,6 +99,7 @@ export interface Mission {
   status: MissionStatusType
   status_label: string
   is_accepting_candidatures: boolean
+  has_paid_payment: boolean
   candidatures_count?: number
   producer?: MissionProducer
   created_at: string

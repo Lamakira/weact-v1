@@ -273,7 +273,7 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
           id="budget"
           v-model="budget"
           type="number"
-          label="Budget estimé (XOF)"
+          label="Rémunération par Face (XOF)"
           :icon="Wallet"
           :error="budgetError"
           required
