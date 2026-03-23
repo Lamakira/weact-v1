@@ -26,6 +26,26 @@ const hasPricing = computed(
 )
 
 /**
+ * Computed: Half-day rate = tarif_journalier / 2
+ */
+const tarifDemiJournee = computed((): number | null =>
+  props.candidate.tarif_journalier ? Math.round(props.candidate.tarif_journalier / 2) : null,
+)
+
+function formatCurrency(amount: number): string {
+  return (
+    new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'XOF',
+      currencyDisplay: 'code',
+    })
+      .format(amount)
+      .replace('XOF', '')
+      .trim() + ' XOF'
+  )
+}
+
+/**
  * Format height in meters (e.g., 180 -> "1m80")
  */
 function formatHeight(taille: number | null): string | null {
@@ -93,7 +113,7 @@ function formatWeight(poids: number | null): string | null {
           Tarifs
         </h3>
         <div class="flex flex-wrap gap-4">
-          <div v-if="candidate.tarif_horaire" class="flex items-center gap-2">
+          <div v-if="tarifDemiJournee" class="flex items-center gap-2">
             <div
               class="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30"
             >
@@ -102,7 +122,7 @@ function formatWeight(poids: number | null): string | null {
             <div>
               <p class="text-xs text-muted-foreground">Tarif demi-journée</p>
               <p class="font-semibold text-foreground">
-                {{ candidate.formatted_tarif_horaire }}
+                {{ formatCurrency(tarifDemiJournee) }}
               </p>
             </div>
           </div>

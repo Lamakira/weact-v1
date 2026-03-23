@@ -25,9 +25,6 @@ const emit = defineEmits<{
 /**
  * State
  */
-const motivation = ref('')
-const MAX_CHARS = 2000
-
 const { isLoading, error, errorCode, isSuccess, apply, reset } = useApplyToMission()
 const toast = useToast()
 
@@ -40,9 +37,7 @@ const isEmailNotVerified = computed(() => errorCode.value === 'EMAIL_NOT_VERIFIE
 /**
  * Computed
  */
-const charCount = computed(() => motivation.value.length)
-const isOverLimit = computed(() => charCount.value > MAX_CHARS)
-const canSubmit = computed(() => !isLoading.value && !isOverLimit.value && !isSuccess.value)
+const canSubmit = computed(() => !isLoading.value && !isSuccess.value)
 
 /**
  * Watch for modal close to reset state
@@ -53,7 +48,6 @@ watch(
     if (!newValue) {
       // Reset state when modal closes
       setTimeout(() => {
-        motivation.value = ''
         isResendingVerification.value = false
         reset()
       }, 300) // Wait for animation
@@ -67,7 +61,7 @@ watch(
 async function handleSubmit(): Promise<void> {
   if (!canSubmit.value) return
 
-  const result = await apply(props.missionId, motivation.value || undefined)
+  const result = await apply(props.missionId, undefined)
 
   if (result.success && result.data) {
     emit('success', {
@@ -227,40 +221,6 @@ function handleBackdropClick(event: MouseEvent): void {
                   <p class="text-sm">{{ error }}</p>
                 </div>
 
-                <!-- Motivation Textarea -->
-                <div class="space-y-2">
-                  <label
-                    for="motivation"
-                    class="block text-sm font-medium text-foreground"
-                  >
-                    Message de motivation
-                    <span class="text-muted-foreground">(optionnel)</span>
-                  </label>
-                  <textarea
-                    id="motivation"
-                    v-model="motivation"
-                    rows="5"
-                    class="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-                    :class="{ 'border-destructive focus:border-destructive focus:ring-destructive/20': isOverLimit }"
-                    placeholder="Expliquez pourquoi vous seriez parfait(e) pour cette mission..."
-                    :disabled="isLoading"
-                  />
-                  <div class="flex items-center justify-between text-xs">
-                    <span
-                      v-if="isOverLimit"
-                      class="text-destructive"
-                    >
-                      Le message ne doit pas dépasser {{ MAX_CHARS }} caractères
-                    </span>
-                    <span v-else />
-                    <span
-                      class="tabular-nums"
-                      :class="isOverLimit ? 'text-destructive' : 'text-muted-foreground'"
-                    >
-                      {{ charCount }} / {{ MAX_CHARS }}
-                    </span>
-                  </div>
-                </div>
               </div>
             </div>
 

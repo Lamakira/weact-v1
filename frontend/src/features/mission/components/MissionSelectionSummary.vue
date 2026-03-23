@@ -39,7 +39,7 @@ function formatCurrency(amount: number): string {
         <span class="font-medium text-foreground">{{ formatCurrency(pricing.sousTotal) }}</span>
       </div>
       <div class="flex justify-between">
-        <span class="text-muted-foreground">Commission plateforme (15%)</span>
+        <span class="text-muted-foreground">Frais de service</span>
         <span class="font-medium text-foreground">{{ formatCurrency(pricing.commissionProducteur) }}</span>
       </div>
       <div class="my-2 border-t border-border/60" />

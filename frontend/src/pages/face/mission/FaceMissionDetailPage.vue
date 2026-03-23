@@ -337,7 +337,7 @@ onMounted(() => {
               <Wallet class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-primary" />
             </div>
             <div>
-              <p class="text-[10px] min-[376px]:text-xs text-muted-foreground uppercase tracking-wider">Budget</p>
+              <p class="text-[10px] min-[376px]:text-xs text-muted-foreground uppercase tracking-wider">Rémunération proposée</p>
               <p class="text-xs min-[376px]:text-sm font-medium text-foreground">{{ formatCurrency(mission.budget) }}</p>
             </div>
           </div>
