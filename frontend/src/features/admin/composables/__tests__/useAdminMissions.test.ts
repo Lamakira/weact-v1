@@ -15,7 +15,7 @@ vi.mock('../../services/adminMissionsApi', () => ({
 }))
 
 vi.mock('../../services/adminAuthApi', () => ({
-  getApiErrorMessage: vi.fn((err: any) => err?.response?.data?.message ?? null),
+  getApiErrorMessage: vi.fn((err: unknown) => (err as { response?: { data?: { message?: unknown } } })?.response?.data?.message ?? null),
 }))
 
 function makeMission(overrides: Partial<AdminMissionData> = {}): AdminMissionData {

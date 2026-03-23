@@ -18,8 +18,8 @@ vi.mock('../../services/adminProducersApi', () => ({
 }))
 
 vi.mock('../../services/adminAuthApi', () => ({
-  getApiErrorDetails: vi.fn((err: any) => err?.response?.data?.errors ?? {}),
-  getApiErrorMessage: vi.fn((err: any) => err?.response?.data?.message ?? null),
+  getApiErrorDetails: vi.fn((err: unknown) => (err as { response?: { data?: { errors?: unknown } } })?.response?.data?.errors ?? {}),
+  getApiErrorMessage: vi.fn((err: unknown) => (err as { response?: { data?: { message?: unknown } } })?.response?.data?.message ?? null),
 }))
 
 function makeProducer(overrides: Partial<AdminProducerData> = {}): AdminProducerData {

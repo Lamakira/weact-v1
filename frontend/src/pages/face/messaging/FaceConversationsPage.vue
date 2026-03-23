@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { Loader2, AlertCircle, MessageSquare, RefreshCw } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useConversationsList } from '@/features/messaging/composables/useConversationsList'
@@ -14,7 +14,6 @@ import type { ConversationListItem } from '@/features/messaging/types'
 
 const authStore = useAuthStore()
 
-const route = useRoute()
 const router = useRouter()
 
 // Conversations list composable
@@ -67,12 +66,6 @@ function handleResize() {
 // Computed: Is a conversation selected
 const hasSelectedConversation = computed(() => selectedConversationId.value !== null)
 
-// Computed: Selected conversation data
-const selectedConversation = computed(() => {
-  if (!selectedConversationId.value) return null
-  return conversations.value.find(c => c.id === selectedConversationId.value) || null
-})
-
 // Scroll to bottom of messages
 const scrollToBottom = async (behavior: ScrollBehavior = 'smooth') => {
   await nextTick()
@@ -96,11 +89,6 @@ async function selectConversation(conversation: ConversationListItem) {
   selectedConversationId.value = conversation.id
   await loadConversation(conversation.id)
   scrollToBottom('auto')
-}
-
-// Close conversation (mobile back button)
-function closeConversation() {
-  selectedConversationId.value = null
 }
 
 // Handle send message

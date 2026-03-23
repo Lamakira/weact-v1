@@ -75,7 +75,7 @@ describe('useAdminDashboardStats', () => {
       data: { message: 'Unauthenticated.' },
       statusText: 'Unauthorized',
       headers: {},
-      config: {} as any,
+      config: {} as unknown,
     })
     mockGetStats.mockRejectedValue(axiosError)
 
@@ -91,7 +91,7 @@ describe('useAdminDashboardStats', () => {
       data: { message: 'Forbidden.' },
       statusText: 'Forbidden',
       headers: {},
-      config: {} as any,
+      config: {} as unknown,
     })
     mockGetStats.mockRejectedValue(axiosError)
 
@@ -117,7 +117,7 @@ describe('useAdminDashboardStats', () => {
       data: { message: 'Internal Server Error' },
       statusText: 'Internal Server Error',
       headers: {},
-      config: {} as any,
+      config: {} as unknown,
     })
     mockGetStats.mockRejectedValue(axiosError)
 

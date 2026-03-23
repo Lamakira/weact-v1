@@ -191,7 +191,7 @@ describe('useProducerBio', () => {
         data: { bio: 'Hello World' },
       })
 
-      const { bio, charCount, fetchBio } = useProducerBio()
+      const { charCount, fetchBio } = useProducerBio()
 
       await fetchBio()
       await flushPromises()

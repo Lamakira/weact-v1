@@ -39,11 +39,12 @@ const handleSubmit = async () => {
     form.email = ''
     form.subject = ''
     form.message = ''
-  } catch (err: any) {
+  } catch (err: unknown) {
     submitStatus.value = 'error'
+    const e = err as { response?: { data?: { message?: string } }; message?: string }
     errorMessage.value =
-      err?.response?.data?.message ||
-      err?.message ||
+      e?.response?.data?.message ||
+      e?.message ||
       "Une erreur est survenue lors de l'envoi du message."
   } finally {
     isSubmitting.value = false

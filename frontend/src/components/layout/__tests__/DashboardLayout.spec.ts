@@ -185,7 +185,7 @@ describe('DashboardLayout', () => {
   describe('Keyboard Navigation', () => {
     it('closes mobile sidebar on Escape key', async () => {
       mockIsMobileOpen.value = true
-      const wrapper = mountLayout()
+      mountLayout()
 
       // Simulate keydown event
       const event = new KeyboardEvent('keydown', { key: 'Escape' })

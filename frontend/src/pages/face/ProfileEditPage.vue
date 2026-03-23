@@ -62,7 +62,6 @@ const {
 // Presentation video composable
 const {
   videoInfo,
-  isLoading: isVideoLoading,
   isUploading: isVideoUploading,
   isDeleting: isVideoDeleting,
   error: videoError,
@@ -75,7 +74,6 @@ const {
 // Acting video composable
 const {
   videoInfo: actingVideoInfo,
-  isLoading: isActingVideoLoading,
   isUploading: isActingVideoUploading,
   isDeleting: isActingVideoDeleting,
   error: actingVideoError,
@@ -88,7 +86,6 @@ const {
 // Bio and location composable
 const {
   bioLocationInfo,
-  isLoading: isBioLocationLoading,
   isSaving: isBioLocationSaving,
   error: bioLocationError,
   fetchBioLocation,
@@ -120,7 +117,6 @@ const {
 // Physical characteristics composable
 const {
   physicalCharacteristicsInfo,
-  isLoading: isPhysicalCharacteristicsLoading,
   isSaving: isPhysicalCharacteristicsSaving,
   error: physicalCharacteristicsError,
   fetchPhysicalCharacteristics,
@@ -159,7 +155,6 @@ const {
 // Tarifs composable
 const {
   tarifsInfo,
-  isLoading: isTarifsLoading,
   isSaving: isTarifsSaving,
   error: tarifsError,
   fetchTarifs,

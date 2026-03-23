@@ -22,7 +22,7 @@ const emit = defineEmits<{
   'payment-success': [booking: Booking]
 }>()
 
-const { isInitiating, isPolling, paymentStatus, error, initiatePayment, stopPolling, reset } =
+const { isInitiating, paymentStatus, error, initiatePayment, stopPolling, reset } =
   useBookingPayment()
 
 const pricing = computed(() => ({

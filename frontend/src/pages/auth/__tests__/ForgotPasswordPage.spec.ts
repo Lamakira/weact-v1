@@ -9,7 +9,7 @@ vi.mock('@/features/auth/services/authApi', () => ({
   authApi: {
     forgotPassword: vi.fn(),
   },
-  getApiErrorMessage: vi.fn((error) => 'Une erreur est survenue'),
+  getApiErrorMessage: vi.fn(() => 'Une erreur est survenue'),
 }))
 
 import { authApi } from '@/features/auth/services/authApi'

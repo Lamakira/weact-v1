@@ -9,7 +9,7 @@ vi.mock('@/features/auth/services/authApi', () => ({
   authApi: {
     resetPassword: vi.fn(),
   },
-  getApiErrorMessage: vi.fn((error) => 'Lien expiré ou invalide'),
+  getApiErrorMessage: vi.fn(() => 'Lien expiré ou invalide'),
 }))
 
 import { authApi } from '@/features/auth/services/authApi'

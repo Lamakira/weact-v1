@@ -8,7 +8,6 @@ import { computed, onMounted, ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
 import { useProducerBio } from '@/features/producer/composables/useProducerBio'
-import { useAgencyLogo } from '@/features/producer/composables/useAgencyLogo'
 import { useToast } from '@/composables/useToast'
 import ProducerProfilePhotoUpload from '@/features/producer/components/ProducerProfilePhotoUpload.vue'
 import ProducerBioEditor from '@/features/producer/components/ProducerBioEditor.vue'
@@ -36,9 +35,6 @@ const {
   fetchBio,
   saveBio,
 } = useProducerBio()
-
-// Agency logo composable (only used for agency producers)
-const agencyLogo = useAgencyLogo()
 
 // Auth store for email
 const authStore = useAuthStore()

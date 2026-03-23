@@ -94,13 +94,13 @@ describe('PublicMissionDetailView (Integration)', () => {
   })
 
   it('shows loading state initially', async () => {
-    let resolvePromise: (value: any) => void
+    let resolvePromise: (value: unknown) => void
     const pendingPromise = new Promise((resolve) => {
       resolvePromise = resolve
     })
 
     vi.mocked(publicMissionsApi.fetchPublicMissionDetail).mockReturnValue(
-      pendingPromise as any
+      pendingPromise as ReturnType<typeof publicMissionsApi.fetchPublicMissionDetail>
     )
 
     const wrapper = mountView()

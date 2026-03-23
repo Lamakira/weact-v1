@@ -34,7 +34,7 @@ const emit = defineEmits<{
   success: [booking: Booking]
 }>()
 
-const { createBooking, isSubmitting, error, validationErrors } = useBookingCreate()
+const { createBooking, isSubmitting, error } = useBookingCreate()
 const toast = useToast()
 
 // Focus trap

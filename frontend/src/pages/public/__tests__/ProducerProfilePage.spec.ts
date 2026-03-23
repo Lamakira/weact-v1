@@ -353,7 +353,7 @@ describe('ProducerProfilePage', () => {
     it('fetches new producer when route param changes', async () => {
       producerRef.value = mockParticulierProducer
 
-      const wrapper = await mountComponent(1)
+      await mountComponent(1)
       await flushPromises()
 
       expect(mockFetchProducer).toHaveBeenCalledWith(1)

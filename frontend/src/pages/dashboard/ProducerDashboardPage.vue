@@ -26,13 +26,7 @@ import {
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useProducerDashboardStats } from '@/features/dashboard/composables/useProducerDashboardStats'
-import {
-  PRODUCER_KPI_CONFIGS,
-  PRODUCER_CANDIDATURES_KPI,
-  PRODUCER_COLLABORATORS_KPI,
-  PRODUCER_ACCEPTANCE_RATE_KPI,
-  PRODUCER_RESPONSE_TIME_KPI,
-} from '@/features/dashboard/types'
+import { PRODUCER_KPI_CONFIGS } from '@/features/dashboard/types'
 import { Skeleton } from '@/components/ui/skeleton'
 import { producerApi } from '@/features/producer/services/producerApi'
 import type { Producer } from '@/features/producer/types'
@@ -100,17 +94,6 @@ const formattedAcceptanceRate = computed(() => {
   return `${rate.toFixed(1)}%`
 })
 
-const formattedResponseTime = computed(() => {
-  const hours = stats.value?.average_response_time_hours
-  if (hours === null || hours === undefined) return 'N/A'
-  return `${hours.toFixed(1)}h`
-})
-
-const responseTimeSubtitle = computed(() => {
-  const hours = stats.value?.average_response_time_hours
-  if (hours === null || hours === undefined) return 'Aucune décision'
-  return 'Délai moyen'
-})
 
 // KPI icon mapping
 const kpiIcons: Record<string, typeof Clock> = {

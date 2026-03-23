@@ -93,7 +93,7 @@ const hasPhoto = computed(() => {
       </p>
       <div class="flex flex-wrap gap-1 mt-0.5">
         <span
-          v-for="(cat, index) in face.categories.slice(0, 2)"
+          v-for="cat in face.categories.slice(0, 2)"
           :key="cat.value"
           class="rounded-full bg-white/95 backdrop-blur-sm px-2 sm:px-3 py-0.5 sm:py-1 text-[8px] sm:text-[10px] font-bold uppercase tracking-widest text-[#198496] shadow-sm truncate max-w-[120px]"
         >

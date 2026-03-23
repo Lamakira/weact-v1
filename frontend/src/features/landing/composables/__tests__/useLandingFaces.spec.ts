@@ -105,7 +105,7 @@ describe('useLandingFaces', () => {
         data: {},
         statusText: 'Internal Server Error',
         headers: {},
-        config: {} as any,
+        config: {} as unknown,
       })
       vi.mocked(landingApi.getFaces).mockRejectedValue(axiosError)
 

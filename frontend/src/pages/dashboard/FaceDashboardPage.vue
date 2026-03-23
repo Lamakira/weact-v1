@@ -44,7 +44,6 @@ const isProfileLoading = ref(true)
 const {
   isLoading: isCompletionLoading,
   percentage: completionPercentage,
-  missingItems: completionMissingItems,
   fetchCompletion,
 } = useProfileCompletion()
 
@@ -69,8 +68,6 @@ const {
 
 // Missions count composable
 const {
-  count: missionsCount,
-  isLoading: isMissionsCountLoading,
   fetchMissionsCount,
 } = useMissionsCount()
 

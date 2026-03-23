@@ -100,7 +100,7 @@ describe('useAdminDashboardTrends', () => {
       data: { message: 'Unauthenticated.' },
       statusText: 'Unauthorized',
       headers: {},
-      config: {} as any,
+      config: {} as unknown,
     })
     mockGetTrends.mockRejectedValue(axiosError)
 
@@ -165,7 +165,7 @@ describe('useAdminDashboardTrends', () => {
       data: { message: 'Internal Server Error' },
       statusText: 'Internal Server Error',
       headers: {},
-      config: {} as any,
+      config: {} as unknown,
     })
     mockGetRecentActivity.mockRejectedValue(axiosError)
 

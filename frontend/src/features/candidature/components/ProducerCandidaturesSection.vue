@@ -76,7 +76,6 @@ const {
  * Mission payment selection composable
  */
 const {
-  selectedCandidatureIds,
   isConfirming,
   error: paymentError,
   pricing,

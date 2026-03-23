@@ -20,7 +20,7 @@ interface Props {
   profileRoute?: string
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   title: 'Dashboard',
   userEmail: '',
   userName: '',

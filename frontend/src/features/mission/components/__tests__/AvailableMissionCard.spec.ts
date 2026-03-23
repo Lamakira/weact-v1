@@ -153,7 +153,7 @@ describe('AvailableMissionCard', () => {
     it('handles missing producer gracefully', () => {
       const mission = createMission()
       // Remove producer
-      delete (mission as any).producer
+      delete (mission as unknown as Record<string, unknown>).producer
 
       const wrapper = mount(AvailableMissionCard, {
         props: { mission },
@@ -215,7 +215,7 @@ describe('AvailableMissionCard', () => {
     it('does not navigate when producer is missing', async () => {
       const mission = createMission()
       // Remove producer
-      delete (mission as any).producer
+      delete (mission as unknown as Record<string, unknown>).producer
 
       const wrapper = mount(AvailableMissionCard, {
         props: { mission },
@@ -354,7 +354,7 @@ describe('AvailableMissionCard', () => {
 
     it('shows fallback when producer is unknown', () => {
       const mission = createMission()
-      delete (mission as any).producer
+      delete (mission as unknown as Record<string, unknown>).producer
 
       const wrapper = mount(AvailableMissionCard, {
         props: { mission },

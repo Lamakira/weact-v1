@@ -18,7 +18,7 @@ interface FAQItem {
 interface Category {
   id: string
   title: string
-  icon: any
+  icon: unknown
   questions: FAQItem[]
 }
 

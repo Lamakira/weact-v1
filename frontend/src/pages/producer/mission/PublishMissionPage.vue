@@ -15,7 +15,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const { success } = useToast()
 
-function handleSuccess(mission: Mission): void {
+function handleSuccess(_mission: Mission): void {
   success('Mission publiée avec succès!')
   router.push({ name: 'producer-missions' })
 }

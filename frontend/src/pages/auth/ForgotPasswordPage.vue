@@ -4,7 +4,7 @@ import { usePasswordReset } from '@/features/auth/composables/usePasswordReset'
 import logoNoir from '@/assets/images/logonoir.png'
 
 const email = ref('')
-const { isLoading, error, successMessage, forgotPassword, clearState } = usePasswordReset()
+const { isLoading, error, successMessage, forgotPassword } = usePasswordReset()
 
 async function handleSubmit(): Promise<void> {
   await forgotPassword(email.value)

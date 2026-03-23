@@ -24,7 +24,7 @@ export function useProducerBio() {
       const response = await producerApi.getBio()
       bio.value = response.data.bio
       return { success: true, data: response.data }
-    } catch (err) {
+    } catch {
       const errorMessage = 'Erreur lors du chargement de la bio'
       error.value = errorMessage
       return { success: false, message: errorMessage }

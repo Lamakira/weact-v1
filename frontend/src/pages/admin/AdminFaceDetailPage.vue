@@ -23,7 +23,7 @@ import {
 } from 'lucide-vue-next'
 import { useAdminFaces } from '@/features/admin/composables/useAdminFaces'
 import type { UpdateAdminFaceForm, AdminFacePhoto } from '@/features/admin/services/adminFacesApi'
-import { getCategoryLabels, getNicheLabels, getCategoryColor } from '@/features/admin/utils/faceLabels'
+import { getCategoryLabels, getNicheLabels } from '@/features/admin/utils/faceLabels'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
 

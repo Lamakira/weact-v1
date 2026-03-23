@@ -49,7 +49,7 @@ const emit = defineEmits<{
   submit: [data: CreateMissionData]
 }>()
 
-const { createMission, isSubmitting: isCreating, error, errorCode, validationErrors } = useMissionCreate()
+const { createMission, isSubmitting: isCreating, error, errorCode } = useMissionCreate()
 const isProcessing = computed(() => props.isSubmitting || isCreating.value)
 const toast = useToast()
 
@@ -83,7 +83,7 @@ async function handleResendVerification(): Promise<void> {
 const missionTypeOptions = getMissionTypeOptions()
 const genderOptions = getMissionGenderOptions()
 
-const { handleSubmit, errors, setFieldError } = useForm({
+const { handleSubmit, setFieldError } = useForm({
   validationSchema: toTypedSchema(missionSchema),
   initialValues: {
     titre: props.initialValues?.titre ?? '',

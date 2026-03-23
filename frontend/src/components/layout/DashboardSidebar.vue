@@ -22,7 +22,7 @@ interface Props {
   logoText?: string
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   logoText: 'WEACT',
 })
 

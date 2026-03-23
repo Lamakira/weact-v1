@@ -2,7 +2,7 @@
 import { Loader2, CreditCard, Users } from 'lucide-vue-next'
 import type { MissionPricingPreview } from '../composables/useMissionPayment'
 
-const props = defineProps<{
+defineProps<{
   pricing: MissionPricingPreview
   isConfirming: boolean
 }>()

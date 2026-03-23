@@ -63,7 +63,7 @@ function handleSubmit(): void {
 <template>
   <Teleport to="body">
     <Transition name="overlay">
-      <div class="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+      <div v-if="true" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
         <div class="relative mx-4 w-full max-w-md rounded-xl bg-white shadow-2xl border border-gray-100 p-6">
           <!-- Header -->
           <div class="flex items-center justify-between mb-6">

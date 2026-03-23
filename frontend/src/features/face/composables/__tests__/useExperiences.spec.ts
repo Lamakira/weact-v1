@@ -244,7 +244,7 @@ describe('useExperiences', () => {
       vi.mocked(faceApi.getExperiences).mockResolvedValue(mockListResponse)
       vi.mocked(faceApi.updateExperience).mockResolvedValue(mockUpdateResponse)
 
-      const { experiences, isSaving, error, fetchExperiences, editExperience } = useExperiences()
+      const { isSaving, error, fetchExperiences, editExperience } = useExperiences()
 
       await fetchExperiences()
       const result = await editExperience(1, {

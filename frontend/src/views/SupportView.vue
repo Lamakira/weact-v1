@@ -14,7 +14,7 @@ import {
 
 interface Category {
   title: string
-  icon: any
+  icon: unknown
   description: string
 }
 

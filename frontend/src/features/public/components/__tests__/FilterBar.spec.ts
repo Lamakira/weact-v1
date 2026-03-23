@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { watch } from 'vue'
 import FilterBar from '../FilterBar.vue'
 import type { FilterOption, FacesFilterParams } from '../../services/publicFacesApi'
 
 // Mock @vueuse/core watchDebounced to fire immediately in tests
 vi.mock('@vueuse/core', () => ({
-  watchDebounced: (source: any, cb: any, _opts?: any) => {
+  watchDebounced: (source: Parameters<typeof watch>[0], cb: Parameters<typeof watch>[1], _opts?: unknown) => {
     // Use a standard watch that fires immediately (no debounce in tests)
-    const { watch } = require('vue')
     return watch(source, cb)
   },
 }))
