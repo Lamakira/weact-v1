@@ -13,6 +13,8 @@ use App\Http\Resources\FaceCandidatureResource;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
+use App\Models\Notification;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -89,6 +91,28 @@ class CandidatureController extends Controller
             'mission_id' => $mission->id,
             'message_motivation' => $request->validated('message_motivation'),
         ]);
+
+        // Notify producer of new candidature
+        $mission->loadMissing('producer');
+        $producerUser = User::where('userable_type', \App\Models\Producer::class)
+            ->where('userable_id', $mission->producer_id)
+            ->first();
+
+        if ($producerUser) {
+            try {
+                Notification::create([
+                    'user_id' => $producerUser->id,
+                    'type' => 'new_candidature',
+                    'data' => [
+                        'message' => "Nouvelle candidature reçue pour la mission \"{$mission->titre}\"",
+                        'mission_id' => $mission->id,
+                        'url' => "/producer/missions/{$mission->id}/candidatures",
+                    ],
+                ]);
+            } catch (\Throwable) {
+                // Non-fatal: notification failure should not block candidature creation
+            }
+        }
 
         return response()->json([
             'data' => new CandidatureResource($candidature),
