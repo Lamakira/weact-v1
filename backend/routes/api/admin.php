@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Admin\AdminController;
 use App\Http\Controllers\Api\V1\Admin\AdminDashboardController;
+use App\Http\Controllers\Api\V1\Admin\AdminFinanceController;
 use App\Http\Controllers\Api\V1\Admin\AdminForgotPasswordController;
 use App\Http\Controllers\Api\V1\Admin\AdminResetPasswordController;
 use App\Http\Controllers\Api\V1\Admin\ArticleController;
@@ -104,6 +105,14 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'admin'])->group(function
         // Mission management routes (read-only)
         Route::get('/missions', [MissionController::class, 'index'])->name('admin.missions.index');
         Route::get('/missions/{mission}', [MissionController::class, 'show'])->name('admin.missions.show');
+
+        // Finance routes (read-only)
+        Route::get('/finance/overview', [AdminFinanceController::class, 'overview'])
+            ->middleware('throttle:30,1')
+            ->name('admin.finance.overview');
+        Route::get('/finance/recent-withdrawals', [AdminFinanceController::class, 'recentWithdrawals'])
+            ->middleware('throttle:30,1')
+            ->name('admin.finance.recent-withdrawals');
     });
 
     // SuperAdmin only

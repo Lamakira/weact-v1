@@ -354,6 +354,12 @@ const router = createRouter({
           meta: { title: 'Détail Mission - WEACT' },
         },
         {
+          path: 'finance',
+          name: 'admin-finance',
+          component: () => import('../pages/admin/AdminFinancePage.vue'),
+          meta: { title: 'Vue financière - WEACT' },
+        },
+        {
           path: 'articles',
           name: 'admin-articles-list',
           component: () => import('../pages/admin/AdminArticlesListPage.vue'),
