@@ -119,6 +119,29 @@ const { value: date_tournage, errorMessage: dateTournageError } = useField<strin
 
 const apiError = computed(() => error.value)
 
+function formatCurrency(amount: number): string {
+  return (
+    new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'XOF',
+      currencyDisplay: 'code',
+    })
+      .format(amount)
+      .replace('XOF', '')
+      .trim() + ' XOF'
+  )
+}
+
+const pricingHint = computed(() => {
+  const b = Number(budget.value) || 0
+  const n = Number(nombre_faces_voulu.value) || 0
+  if (b <= 0 || n <= 0) return null
+  const sousTotal = b * n
+  const commission = Math.round(sousTotal * 0.15)
+  const total = sousTotal + commission
+  return { total, n }
+})
+
 const onSubmit = handleSubmit(async (values) => {
   const data: CreateMissionData = {
     titre: values.titre,
@@ -268,7 +291,7 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
           data-testid="type-mission-autre-input"
         />
 
-        <!-- Budget -->
+        <!-- Rémunération + Nombre de profils -->
         <FloatingField
           id="budget"
           v-model="budget"
@@ -280,6 +303,33 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
           min="1"
           data-testid="budget-input"
         />
+
+        <FloatingField
+          id="nombre_faces_voulu"
+          v-model="nombre_faces_voulu"
+          type="number"
+          label="Nombre de profils voulus"
+          :icon="UserCircle"
+          :error="nombreFacesError"
+          min="1"
+          data-testid="nombre-faces-input"
+        />
+
+        <!-- Hint tarifaire réactif -->
+        <div
+          v-if="pricingHint"
+          class="md:col-span-2 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm"
+        >
+          <Wallet class="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <div class="space-y-0.5 text-muted-foreground">
+            <p>Chaque Face sélectionnée recevra <span class="font-semibold text-foreground">{{ formatCurrency(Number(budget)) }}</span>.</p>
+            <p>
+              Total à payer, frais de service inclus :
+              <span class="font-semibold text-foreground">{{ formatCurrency(pricingHint.total) }}</span>
+              <span class="text-xs"> pour {{ pricingHint.n }} profil{{ pricingHint.n > 1 ? 's' : '' }}</span>
+            </p>
+          </div>
+        </div>
 
         <!-- Description -->
         <div class="md:col-span-2">
@@ -319,18 +369,6 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
           :options="genderOptions"
           required
           data-testid="genre-voulu-select"
-        />
-
-        <!-- Nombre de profils -->
-        <FloatingField
-          id="nombre_faces_voulu"
-          v-model="nombre_faces_voulu"
-          type="number"
-          label="Nombre de profils"
-          :icon="UserCircle"
-          :error="nombreFacesError"
-          min="1"
-          data-testid="nombre-faces-input"
         />
 
         <!-- Profil recherché -->
