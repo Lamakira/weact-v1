@@ -110,7 +110,7 @@ const displayProfile = computed((): CandidateFullProfile | null => {
   }
   if (face.value) {
     const f = face.value
-    const fa = f as unknown as Record<string, unknown>
+    const fa = f as unknown as CandidateFullProfile
     return {
       id: f.id,
       nom: '',
