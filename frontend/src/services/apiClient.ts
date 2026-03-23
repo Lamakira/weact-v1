@@ -48,11 +48,6 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'
 const TOKEN_KEY = 'auth_token'
 
 /**
- * Configure Axios defaults for Sanctum SPA authentication
- */
-axios.defaults.withCredentials = true
-
-/**
  * Create configured Axios instance for API requests
  */
 const apiClient: AxiosInstance = axios.create({

@@ -51,6 +51,16 @@ class ReopenMissionRequest extends FormRequest
             /** @var Mission $mission */
             $mission = $this->route('mission');
 
+            // Missions with a paid payment cannot be reopened (funds are in escrow)
+            if ($mission->payment && $mission->payment->status->value === 'paid') {
+                $validator->errors()->add(
+                    'status',
+                    'Cette mission a été payée et ne peut pas être réouverte'
+                );
+
+                return;
+            }
+
             // Only closed missions can be reopened
             if ($mission->status === MissionStatus::Draft) {
                 $validator->errors()->add(

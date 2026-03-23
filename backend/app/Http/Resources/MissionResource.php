@@ -35,6 +35,7 @@ class MissionResource extends JsonResource
             'status' => $this->status?->value,
             'status_label' => $this->status?->label(),
             'is_accepting_candidatures' => $this->isAcceptingCandidatures(),
+            'has_paid_payment' => \App\Models\MissionPayment::where('mission_id', $this->id)->where('status', 'paid')->exists(),
             'candidatures_count' => $this->candidatures_count ?? ($this->whenLoaded('candidatures') ? $this->candidatures->count() : 0),
             'producer' => new ProducerResource($this->whenLoaded('producer')),
             'created_at' => $this->created_at?->toIso8601String(),
