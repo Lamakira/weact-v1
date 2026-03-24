@@ -14,48 +14,46 @@ class ProducerProfilePhotoService
 {
     private const STORAGE_PATH = 'avatars/producers';
     private const THUMBNAIL_PATH = 'avatars/producers/thumbnails';
+    private const MEDIUM_PATH = 'avatars/producers/medium';
     private const THUMBNAIL_SIZE = 150;
-    private const THUMBNAIL_QUALITY = 85;
+    private const MEDIUM_WIDTH = 800;
+    private const QUALITY = 85;
 
     /**
-     * Upload a profile photo for a Producer and generate thumbnail.
+     * Upload a profile photo for a Producer and generate thumbnail + medium.
      *
      * @param Producer $producer
      * @param UploadedFile $photo
-     * @return array{photo: string, thumbnail: string}
+     * @return array{photo: string, thumbnail: string, medium: string}
      */
     public function uploadProfilePhoto(Producer $producer, UploadedFile $photo): array
     {
-        // Delete old photos if they exist
         $this->deleteProfilePhoto($producer);
 
-        // Generate unique filename with UUID
         $extension = $photo->getClientOriginalExtension() ?: 'jpg';
         $filename = Str::uuid()->toString() . '.' . $extension;
+        $mediumFilename = pathinfo($filename, PATHINFO_FILENAME) . '.webp';
 
-        // Store original photo using the public disk
         Storage::disk('public')->putFileAs(self::STORAGE_PATH, $photo, $filename);
 
-        // Generate and save thumbnail from the uploaded file directly
         $thumbnailFilename = $this->generateThumbnail($photo, $filename);
+        $this->generateMedium($photo, $mediumFilename);
 
-        // Update Producer model
         $producer->update([
             'profile_photo' => $filename,
             'profile_photo_thumbnail' => $thumbnailFilename,
+            'profile_photo_medium' => $mediumFilename,
         ]);
 
         return [
             'photo' => $filename,
             'thumbnail' => $thumbnailFilename,
+            'medium' => $mediumFilename,
         ];
     }
 
     /**
-     * Delete profile photo and thumbnail for a Producer.
-     *
-     * @param Producer $producer
-     * @return bool
+     * Delete profile photo, thumbnail and medium for a Producer.
      */
     public function deleteProfilePhoto(Producer $producer): bool
     {
@@ -63,51 +61,46 @@ class ProducerProfilePhotoService
         $disk = Storage::disk('public');
 
         if ($producer->profile_photo) {
-            $photoPath = self::STORAGE_PATH . '/' . $producer->profile_photo;
-            if ($disk->exists($photoPath)) {
-                $disk->delete($photoPath);
-                $deleted = true;
-            }
+            $path = self::STORAGE_PATH . '/' . $producer->profile_photo;
+            if ($disk->exists($path)) { $disk->delete($path); $deleted = true; }
         }
 
         if ($producer->profile_photo_thumbnail) {
-            $thumbnailPath = self::THUMBNAIL_PATH . '/' . $producer->profile_photo_thumbnail;
-            if ($disk->exists($thumbnailPath)) {
-                $disk->delete($thumbnailPath);
-                $deleted = true;
-            }
+            $path = self::THUMBNAIL_PATH . '/' . $producer->profile_photo_thumbnail;
+            if ($disk->exists($path)) { $disk->delete($path); $deleted = true; }
         }
 
-        // Clear the database fields
-        if ($producer->profile_photo || $producer->profile_photo_thumbnail) {
+        if ($producer->profile_photo_medium) {
+            $path = self::MEDIUM_PATH . '/' . $producer->profile_photo_medium;
+            if ($disk->exists($path)) { $disk->delete($path); $deleted = true; }
+        }
+
+        if ($producer->profile_photo || $producer->profile_photo_thumbnail || $producer->profile_photo_medium) {
             $producer->update([
                 'profile_photo' => null,
                 'profile_photo_thumbnail' => null,
+                'profile_photo_medium' => null,
             ]);
         }
 
         return $deleted;
     }
 
-    /**
-     * Generate a thumbnail from the uploaded photo.
-     *
-     * @param UploadedFile $photo
-     * @param string $filename
-     * @return string The thumbnail filename
-     */
     private function generateThumbnail(UploadedFile $photo, string $filename): string
     {
-        // Read the original image from the uploaded file's temp path
         $image = Image::read($photo->getRealPath());
         $image->cover(self::THUMBNAIL_SIZE, self::THUMBNAIL_SIZE);
-
-        // Convert to JPEG and get the encoded data
-        $encoded = $image->toJpeg(self::THUMBNAIL_QUALITY);
-
-        // Store thumbnail using public disk (works with fake storage in tests)
+        $encoded = $image->toJpeg(self::QUALITY);
         Storage::disk('public')->put(self::THUMBNAIL_PATH . '/' . $filename, $encoded->toString());
 
         return $filename;
+    }
+
+    private function generateMedium(UploadedFile $photo, string $mediumFilename): void
+    {
+        $image = Image::read($photo->getRealPath());
+        $image->scaleDown(width: self::MEDIUM_WIDTH);
+        $encoded = $image->toWebp(self::QUALITY);
+        Storage::disk('public')->put(self::MEDIUM_PATH . '/' . $mediumFilename, $encoded->toString());
     }
 }

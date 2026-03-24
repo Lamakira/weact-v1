@@ -46,6 +46,7 @@ class PublicFaceProfileResource extends JsonResource
             'niches' => $this->nichesWithLabels(),
             'is_available' => $this->is_available,
             'profile_photo_url' => $this->profile_photo_url,
+            'profile_photo_medium_url' => $this->medium_url,
             'presentation_video_url' => $this->presentation_video_url,
             'presentation_video_thumbnail_url' => $this->presentation_video_thumbnail_url,
             'acting_video_url' => $this->acting_video_url,

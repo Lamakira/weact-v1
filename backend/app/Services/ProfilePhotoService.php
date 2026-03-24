@@ -14,15 +14,17 @@ class ProfilePhotoService
 {
     private const STORAGE_PATH = 'avatars/faces';
     private const THUMBNAIL_PATH = 'avatars/faces/thumbnails';
+    private const MEDIUM_PATH = 'avatars/faces/medium';
     private const THUMBNAIL_SIZE = 150;
-    private const THUMBNAIL_QUALITY = 85;
+    private const MEDIUM_WIDTH = 800;
+    private const QUALITY = 85;
 
     /**
-     * Upload a profile photo for a Face and generate thumbnail.
+     * Upload a profile photo for a Face and generate thumbnail + medium.
      *
      * @param Face $face
      * @param UploadedFile $photo
-     * @return array{photo: string, thumbnail: string}
+     * @return array{photo: string, thumbnail: string, medium: string}
      */
     public function uploadProfilePhoto(Face $face, UploadedFile $photo): array
     {
@@ -32,27 +34,31 @@ class ProfilePhotoService
         // Generate unique filename with UUID
         $extension = $photo->getClientOriginalExtension() ?: 'jpg';
         $filename = Str::uuid()->toString() . '.' . $extension;
+        $mediumFilename = pathinfo($filename, PATHINFO_FILENAME) . '.webp';
 
         // Store original photo using the public disk
         Storage::disk('public')->putFileAs(self::STORAGE_PATH, $photo, $filename);
 
-        // Generate and save thumbnail from the uploaded file directly
+        // Generate thumbnail and medium from the uploaded file
         $thumbnailFilename = $this->generateThumbnail($photo, $filename);
+        $this->generateMedium($photo, $mediumFilename);
 
         // Update Face model
         $face->update([
             'profile_photo' => $filename,
             'profile_photo_thumbnail' => $thumbnailFilename,
+            'profile_photo_medium' => $mediumFilename,
         ]);
 
         return [
             'photo' => $filename,
             'thumbnail' => $thumbnailFilename,
+            'medium' => $mediumFilename,
         ];
     }
 
     /**
-     * Delete profile photo and thumbnail for a Face.
+     * Delete profile photo, thumbnail and medium for a Face.
      *
      * @param Face $face
      * @return bool
@@ -78,11 +84,20 @@ class ProfilePhotoService
             }
         }
 
+        if ($face->profile_photo_medium) {
+            $mediumPath = self::MEDIUM_PATH . '/' . $face->profile_photo_medium;
+            if ($disk->exists($mediumPath)) {
+                $disk->delete($mediumPath);
+                $deleted = true;
+            }
+        }
+
         // Clear the database fields
-        if ($face->profile_photo || $face->profile_photo_thumbnail) {
+        if ($face->profile_photo || $face->profile_photo_thumbnail || $face->profile_photo_medium) {
             $face->update([
                 'profile_photo' => null,
                 'profile_photo_thumbnail' => null,
+                'profile_photo_medium' => null,
             ]);
         }
 
@@ -90,24 +105,28 @@ class ProfilePhotoService
     }
 
     /**
-     * Generate a thumbnail from the uploaded photo.
-     *
-     * @param UploadedFile $photo
-     * @param string $filename
-     * @return string The thumbnail filename
+     * Generate a 150×150 JPEG thumbnail.
      */
     private function generateThumbnail(UploadedFile $photo, string $filename): string
     {
-        // Read the original image from the uploaded file's temp path
         $image = Image::read($photo->getRealPath());
         $image->cover(self::THUMBNAIL_SIZE, self::THUMBNAIL_SIZE);
 
-        // Convert to JPEG and get the encoded data
-        $encoded = $image->toJpeg(self::THUMBNAIL_QUALITY);
-
-        // Store thumbnail using public disk (works with fake storage in tests)
+        $encoded = $image->toJpeg(self::QUALITY);
         Storage::disk('public')->put(self::THUMBNAIL_PATH . '/' . $filename, $encoded->toString());
 
         return $filename;
+    }
+
+    /**
+     * Generate an 800px-wide WebP medium image (preserving aspect ratio).
+     */
+    private function generateMedium(UploadedFile $photo, string $mediumFilename): void
+    {
+        $image = Image::read($photo->getRealPath());
+        $image->scaleDown(width: self::MEDIUM_WIDTH);
+
+        $encoded = $image->toWebp(self::QUALITY);
+        Storage::disk('public')->put(self::MEDIUM_PATH . '/' . $mediumFilename, $encoded->toString());
     }
 }

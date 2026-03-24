@@ -13,39 +13,25 @@ class FacePhoto extends Model
 {
     use HasFactory;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'face_id',
         'filename',
         'thumbnail',
+        'medium',
         'position',
     ];
 
-    /**
-     * The attributes that should be appended to the model's array form.
-     *
-     * @var array<int, string>
-     */
     protected $appends = [
         'photo_url',
         'thumbnail_url',
+        'medium_url',
     ];
 
-    /**
-     * Get the face that owns this photo.
-     */
     public function face(): BelongsTo
     {
         return $this->belongsTo(Face::class);
     }
 
-    /**
-     * Get the photo URL.
-     */
     protected function photoUrl(): Attribute
     {
         return Attribute::make(
@@ -55,15 +41,21 @@ class FacePhoto extends Model
         );
     }
 
-    /**
-     * Get the thumbnail URL.
-     */
     protected function thumbnailUrl(): Attribute
     {
         return Attribute::make(
             get: fn () => $this->thumbnail
                 ? asset('storage/avatars/faces/albums/thumbnails/' . $this->thumbnail)
                 : null,
+        );
+    }
+
+    protected function mediumUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => $this->medium
+                ? asset('storage/avatars/faces/albums/medium/' . $this->medium)
+                : $this->photo_url, // fallback to original
         );
     }
 }

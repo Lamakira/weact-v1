@@ -19,6 +19,7 @@ class FacePhotoResource extends JsonResource
         return [
             'id' => $this->id,
             'photo_url' => $this->photo_url,
+            'medium_url' => $this->medium_url,
             'thumbnail_url' => $this->thumbnail_url,
             'position' => $this->position,
         ];

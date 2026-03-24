@@ -33,6 +33,7 @@ class PublicFaceResource extends JsonResource
             'categories' => $this->categoriesWithLabels(),
             'is_available' => $this->is_available,
             'profile_photo_url' => $this->profile_photo_url,
+            'profile_photo_medium_url' => $this->medium_url,
             'profile_photo_thumbnail_url' => $this->thumbnail_url,
             'average_rating' => $this->average_rating,
         ];

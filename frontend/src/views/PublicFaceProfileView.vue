@@ -384,7 +384,7 @@ async function handleRetry(): Promise<void> {
           <!-- Photo Section (Left on desktop, top on mobile) -->
           <aside class="reveal-left mb-8 lg:mb-0 lg:sticky lg:top-8">
             <ProfilePhotoSection
-              :photo-url="face.profile_photo_url"
+              :photo-url="face.profile_photo_medium_url || face.profile_photo_url"
               :prenom="face.prenom"
               :is-available="face.is_available"
               :has-album-photos="face.has_album_photos"

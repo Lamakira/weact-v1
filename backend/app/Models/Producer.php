@@ -30,6 +30,7 @@ class Producer extends Model
         'last_name',
         'profile_photo',
         'profile_photo_thumbnail',
+        'profile_photo_medium',
         'bio',
         'agency_logo',
         'agency_logo_thumbnail',
@@ -43,6 +44,7 @@ class Producer extends Model
     protected $appends = [
         'profile_photo_url',
         'thumbnail_url',
+        'medium_url',
         'display_name',
         'agency_logo_url',
         'agency_logo_thumbnail_url',
@@ -128,6 +130,18 @@ class Producer extends Model
             get: fn (): ?string => $this->profile_photo_thumbnail
                 ? asset('storage/avatars/producers/thumbnails/' . $this->profile_photo_thumbnail)
                 : null,
+        );
+    }
+
+    /**
+     * Get the full URL for the medium profile photo (800px wide WebP).
+     */
+    protected function mediumUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->profile_photo_medium
+                ? asset('storage/avatars/producers/medium/' . $this->profile_photo_medium)
+                : $this->profile_photo_url,
         );
     }
 

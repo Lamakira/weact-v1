@@ -18,8 +18,10 @@ class PhotoAlbumService
     public const MAX_PHOTOS = 4;
     private const STORAGE_PATH = 'avatars/faces/albums';
     private const THUMBNAIL_PATH = 'avatars/faces/albums/thumbnails';
+    private const MEDIUM_PATH = 'avatars/faces/albums/medium';
     private const THUMBNAIL_SIZE = 150;
-    private const THUMBNAIL_QUALITY = 85;
+    private const MEDIUM_WIDTH = 800;
+    private const QUALITY = 85;
 
     /**
      * Add a photo to a Face's album.
@@ -40,30 +42,34 @@ class PhotoAlbumService
         // Generate unique filename with UUID
         $extension = $photo->getClientOriginalExtension() ?: 'jpg';
         $filename = Str::uuid()->toString() . '.' . $extension;
+        $mediumFilename = pathinfo($filename, PATHINFO_FILENAME) . '.webp';
 
         // Calculate next position
         $nextPosition = $currentCount + 1;
 
         // Use transaction to ensure atomicity - cleanup files on DB failure
-        return DB::transaction(function () use ($face, $photo, $filename, $nextPosition) {
+        return DB::transaction(function () use ($face, $photo, $filename, $mediumFilename, $nextPosition) {
             // Store original photo
             Storage::disk('public')->putFileAs(self::STORAGE_PATH, $photo, $filename);
 
             try {
-                // Generate and save thumbnail
+                // Generate thumbnail and medium
                 $thumbnailFilename = $this->generateThumbnail($photo, $filename);
+                $this->generateMedium($photo, $mediumFilename);
 
                 // Create FacePhoto record
                 return FacePhoto::create([
                     'face_id' => $face->id,
                     'filename' => $filename,
                     'thumbnail' => $thumbnailFilename,
+                    'medium' => $mediumFilename,
                     'position' => $nextPosition,
                 ]);
             } catch (\Throwable $e) {
                 // Clean up files on failure
                 Storage::disk('public')->delete(self::STORAGE_PATH . '/' . $filename);
                 Storage::disk('public')->delete(self::THUMBNAIL_PATH . '/' . $filename);
+                Storage::disk('public')->delete(self::MEDIUM_PATH . '/' . $mediumFilename);
                 throw $e;
             }
         });
@@ -92,6 +98,13 @@ class PhotoAlbumService
             $thumbnailPath = self::THUMBNAIL_PATH . '/' . $photo->thumbnail;
             if ($disk->exists($thumbnailPath)) {
                 $disk->delete($thumbnailPath);
+            }
+        }
+
+        if ($photo->medium) {
+            $mediumPath = self::MEDIUM_PATH . '/' . $photo->medium;
+            if ($disk->exists($mediumPath)) {
+                $disk->delete($mediumPath);
             }
         }
 
@@ -191,16 +204,19 @@ class PhotoAlbumService
      */
     private function generateThumbnail(UploadedFile $photo, string $filename): string
     {
-        // Read the original image from the uploaded file's temp path
         $image = Image::read($photo->getRealPath());
         $image->cover(self::THUMBNAIL_SIZE, self::THUMBNAIL_SIZE);
-
-        // Convert to JPEG and get the encoded data
-        $encoded = $image->toJpeg(self::THUMBNAIL_QUALITY);
-
-        // Store thumbnail using public disk
+        $encoded = $image->toJpeg(self::QUALITY);
         Storage::disk('public')->put(self::THUMBNAIL_PATH . '/' . $filename, $encoded->toString());
 
         return $filename;
+    }
+
+    private function generateMedium(UploadedFile $photo, string $mediumFilename): void
+    {
+        $image = Image::read($photo->getRealPath());
+        $image->scaleDown(width: self::MEDIUM_WIDTH);
+        $encoded = $image->toWebp(self::QUALITY);
+        Storage::disk('public')->put(self::MEDIUM_PATH . '/' . $mediumFilename, $encoded->toString());
     }
 }

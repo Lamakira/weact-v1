@@ -35,6 +35,7 @@ class Face extends Model
         'langues',
         'profile_photo',
         'profile_photo_thumbnail',
+        'profile_photo_medium',
         'presentation_video',
         'presentation_video_thumbnail',
         'acting_video',
@@ -76,6 +77,7 @@ class Face extends Model
     protected $appends = [
         'profile_photo_url',
         'thumbnail_url',
+        'medium_url',
         'display_name',
         'presentation_video_url',
         'presentation_video_thumbnail_url',
@@ -149,6 +151,18 @@ class Face extends Model
             get: fn (): ?string => $this->profile_photo_thumbnail
                 ? asset('storage/avatars/faces/thumbnails/' . $this->profile_photo_thumbnail)
                 : null,
+        );
+    }
+
+    /**
+     * Get the full URL for the medium profile photo (800px wide WebP).
+     */
+    protected function mediumUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->profile_photo_medium
+                ? asset('storage/avatars/faces/medium/' . $this->profile_photo_medium)
+                : $this->profile_photo_url, // fallback to original if not generated yet
         );
     }
 

@@ -24,6 +24,7 @@ export interface PublicFace {
   categories: ValueLabel[]
   is_available: boolean
   profile_photo_url: string | null
+  profile_photo_medium_url: string | null
   profile_photo_thumbnail_url: string | null
   average_rating: number | null
 }
