@@ -16,6 +16,7 @@ use App\Models\MissionPaymentCandidature;
 use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Models\WithdrawalRequest;
+use App\Services\FedapayService;
 use Illuminate\Http\JsonResponse;
 
 class AdminFinanceController extends Controller
@@ -30,8 +31,10 @@ class AdminFinanceController extends Controller
      *
      * Plus volume and count metrics.
      */
-    public function overview(): JsonResponse
+    public function overview(FedapayService $fedapayService): JsonResponse
     {
+        $fedapayBalance = $fedapayService->getBalanceSummary();
+
         // ── What faces can withdraw right now ────────────────────────────────
         $walletBalance = (int) User::where('userable_type', Face::class)->sum('balance');
 
@@ -96,6 +99,7 @@ class AdminFinanceController extends Controller
                     'pending_count' => WithdrawalRequest::where('status', 'pending')->count(),
                     'pending_amount' => (int) WithdrawalRequest::where('status', 'pending')->sum('amount'),
                 ],
+                'fedapay_balance' => $fedapayBalance,
             ],
             'message' => 'Financial overview retrieved successfully',
         ]);

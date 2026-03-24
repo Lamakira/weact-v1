@@ -8,10 +8,12 @@ use App\Models\Booking;
 use App\Models\MissionPayment;
 use App\Models\Producer;
 use App\Models\User;
+use FedaPay\Balance;
 use FedaPay\FedaPay;
 use FedaPay\Payout;
 use FedaPay\Transaction;
 use FedaPay\Webhook;
+use Illuminate\Support\Facades\Log;
 
 class FedapayService
 {
@@ -137,6 +139,53 @@ class FedapayService
     public function retrieveTransaction(int $id): Transaction
     {
         return Transaction::retrieve($id);
+    }
+
+    /**
+     * Retrieve a summary of the current FedaPay account balances.
+     *
+     * @return array{
+     *   available: bool,
+     *   total_amount: int|null,
+     *   refreshed_at: string,
+     *   error: string|null
+     * }
+     */
+    public function getBalanceSummary(): array
+    {
+        if ((string) config('services.fedapay.secret_key', '') === '') {
+            return [
+                'available' => false,
+                'total_amount' => null,
+                'refreshed_at' => now()->toIso8601String(),
+                'error' => 'FedaPay n’est pas configuré.',
+            ];
+        }
+
+        try {
+            $response = Balance::all();
+            $totalAmount = (int) collect($response->balances ?? [])
+                ->sum(fn (Balance $balance): int => (int) ($balance->amount ?? 0));
+
+            return [
+                'available' => true,
+                'total_amount' => $totalAmount,
+                'refreshed_at' => now()->toIso8601String(),
+                'error' => null,
+            ];
+        } catch (\Throwable $e) {
+            Log::warning('Unable to fetch FedaPay balances', [
+                'error' => $e->getMessage(),
+                'class' => get_class($e),
+            ]);
+
+            return [
+                'available' => false,
+                'total_amount' => null,
+                'refreshed_at' => now()->toIso8601String(),
+                'error' => 'Impossible de récupérer le solde FedaPay pour le moment.',
+            ];
+        }
     }
 
     /**

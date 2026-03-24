@@ -31,6 +31,12 @@ export interface FinanceOverview {
     pending_count: number
     pending_amount: number
   }
+  fedapay_balance: {
+    available: boolean
+    total_amount: number | null
+    refreshed_at: string
+    error: string | null
+  }
 }
 
 export interface WithdrawalEntry {

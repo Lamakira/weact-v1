@@ -5,6 +5,7 @@ import {
   Wallet,
   TrendingUp,
   ArrowDownLeft,
+  Landmark,
   Users,
   Lock,
   BarChart3,
@@ -182,7 +183,7 @@ function handleRefresh(): void {
     </div>
 
     <!-- Secondary Stats -->
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
 
       <!-- Volume total -->
       <div class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
@@ -224,6 +225,34 @@ function handleRefresh(): void {
           <p class="text-xs text-gray-500">
             <span class="font-semibold text-gray-700">{{ overview.withdrawals.count }}</span>
             retrait{{ overview.withdrawals.count > 1 ? 's' : '' }} complété{{ overview.withdrawals.count > 1 ? 's' : '' }}
+          </p>
+        </div>
+      </div>
+
+      <!-- Solde FedaPay -->
+      <div class="rounded-2xl border border-teal-100 bg-white p-5 shadow-sm">
+        <div class="flex items-center gap-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50">
+            <Landmark class="h-5 w-5 text-teal-600" />
+          </div>
+          <div class="min-w-0">
+            <p class="text-xs text-gray-500 uppercase tracking-wider">Solde FedaPay</p>
+            <Skeleton v-if="isLoadingOverview" class="mt-1 h-6 w-32" />
+            <p v-else class="text-lg font-bold text-gray-900">
+              {{
+                overview?.fedapay_balance.available
+                  ? formatCurrency(overview?.fedapay_balance.total_amount ?? 0)
+                  : 'Indisponible'
+              }}
+            </p>
+          </div>
+        </div>
+        <div v-if="overview && !isLoadingOverview" class="mt-3 border-t border-gray-50 pt-3">
+          <p v-if="overview.fedapay_balance.available" class="text-xs text-gray-500">
+            Mis à jour le {{ formatDate(overview.fedapay_balance.refreshed_at) }}
+          </p>
+          <p v-else class="text-xs text-red-600">
+            {{ overview.fedapay_balance.error }}
           </p>
         </div>
       </div>

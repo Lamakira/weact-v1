@@ -1,7 +1,12 @@
 import { ref, computed } from 'vue'
 import { isAxiosError } from 'axios'
 import { walletApi } from '../services/walletApi'
-import type { WalletData, WalletTransaction, WalletTransactionsMeta } from '../types/wallet'
+import type {
+  WalletData,
+  WalletTransaction,
+  WalletTransactionsMeta,
+  WalletWithdrawalRequest,
+} from '../types/wallet'
 import type { WithdrawPayload } from '../services/walletApi'
 
 export function useWallet() {
@@ -16,6 +21,7 @@ export function useWallet() {
   const balance = computed<number>(() => walletData.value?.balance ?? 0)
   const pendingEscrow = computed<number>(() => walletData.value?.pending_escrow ?? 0)
   const withdrawalMode = computed<'manual' | 'fedapay'>(() => walletData.value?.withdrawal_mode ?? 'manual')
+  const withdrawalRequests = computed<WalletWithdrawalRequest[]>(() => walletData.value?.withdrawal_requests ?? [])
   const transactions = computed<WalletTransaction[]>(() => walletData.value?.transactions ?? [])
   const meta = computed<WalletTransactionsMeta | null>(() => walletData.value?.transactions_meta ?? null)
   const hasMore = computed<boolean>(
@@ -80,6 +86,7 @@ export function useWallet() {
     balance,
     pendingEscrow,
     withdrawalMode,
+    withdrawalRequests,
     transactions,
     meta,
     hasMore,

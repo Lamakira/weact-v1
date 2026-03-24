@@ -4,6 +4,7 @@ import { AlertCircle } from 'lucide-vue-next'
 import {
   WalletBalance,
   WalletTransactionList,
+  WalletWithdrawalRequestList,
   WalletWithdrawForm,
   useWallet,
 } from '@/features/wallet'
@@ -13,6 +14,7 @@ const {
   balance,
   pendingEscrow,
   withdrawalMode,
+  withdrawalRequests,
   transactions,
   isLoading,
   error,
@@ -75,6 +77,8 @@ onMounted(() => {
       @submit="handleWithdraw"
       @cancel="showWithdrawForm = false"
     />
+
+    <WalletWithdrawalRequestList :requests="withdrawalRequests" />
 
     <WalletTransactionList
       :transactions="transactions"

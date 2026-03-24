@@ -11,6 +11,7 @@ use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use App\Models\WithdrawalRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -29,14 +30,14 @@ class WalletBalanceTest extends TestCase
         $face = Face::factory()->create();
         $this->faceUser = User::factory()->create([
             'userable_type' => Face::class,
-            'userable_id'   => $face->id,
-            'balance'       => 0,
+            'userable_id' => $face->id,
+            'balance' => 0,
         ]);
 
         $producer = Producer::factory()->create();
         $this->producerUser = User::factory()->create([
             'userable_type' => Producer::class,
-            'userable_id'   => $producer->id,
+            'userable_id' => $producer->id,
         ]);
     }
 
@@ -53,10 +54,12 @@ class WalletBalanceTest extends TestCase
                     'balance',
                     'pending_escrow',
                     'withdrawal_mode',
+                    'withdrawal_requests',
                     'transactions',
                     'transactions_meta' => ['current_page', 'last_page', 'per_page', 'total'],
                 ],
             ])
+            ->assertJsonPath('data.withdrawal_requests', [])
             ->assertJsonPath('data.transactions', []);
     }
 
@@ -73,14 +76,14 @@ class WalletBalanceTest extends TestCase
     public function test_face_wallet_shows_pending_escrow_from_locked_bookings(): void
     {
         $booking = Booking::factory()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
-            'status'      => BookingStatus::Paid,
+            'status' => BookingStatus::Paid,
         ]);
         EscrowTransaction::factory()->create([
             'booking_id' => $booking->id,
-            'amount'     => 30000,
-            'status'     => 'locked',
+            'amount' => 30000,
+            'status' => 'locked',
         ]);
 
         $this->actingAs($this->faceUser)
@@ -92,14 +95,14 @@ class WalletBalanceTest extends TestCase
     public function test_pending_escrow_does_not_include_released_escrow(): void
     {
         $booking = Booking::factory()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
-            'status'      => BookingStatus::Completed,
+            'status' => BookingStatus::Completed,
         ]);
         EscrowTransaction::factory()->create([
-            'booking_id'  => $booking->id,
-            'amount'      => 30000,
-            'status'      => 'released',
+            'booking_id' => $booking->id,
+            'amount' => 30000,
+            'status' => 'released',
             'released_at' => now(),
         ]);
 
@@ -113,8 +116,8 @@ class WalletBalanceTest extends TestCase
     {
         WalletTransaction::factory()->count(3)->create([
             'user_id' => $this->faceUser->id,
-            'type'    => 'credit',
-            'amount'  => 42500,
+            'type' => 'credit',
+            'amount' => 42500,
         ]);
 
         $response = $this->actingAs($this->faceUser)
@@ -128,13 +131,13 @@ class WalletBalanceTest extends TestCase
     public function test_wallet_transactions_are_ordered_latest_first(): void
     {
         $old = WalletTransaction::factory()->create([
-            'user_id'    => $this->faceUser->id,
-            'amount'     => 10000,
+            'user_id' => $this->faceUser->id,
+            'amount' => 10000,
             'created_at' => now()->subDays(5),
         ]);
         $recent = WalletTransaction::factory()->create([
-            'user_id'    => $this->faceUser->id,
-            'amount'     => 25000,
+            'user_id' => $this->faceUser->id,
+            'amount' => 25000,
             'created_at' => now(),
         ]);
 
@@ -153,7 +156,7 @@ class WalletBalanceTest extends TestCase
         $otherFace = Face::factory()->create();
         $otherUser = User::factory()->create([
             'userable_type' => Face::class,
-            'userable_id'   => $otherFace->id,
+            'userable_id' => $otherFace->id,
         ]);
         WalletTransaction::factory()->count(5)->create(['user_id' => $otherUser->id]);
 
@@ -165,6 +168,84 @@ class WalletBalanceTest extends TestCase
             ->assertOk();
 
         $this->assertCount(2, $response->json('data.transactions'));
+    }
+
+    public function test_wallet_includes_current_user_withdrawal_requests_latest_first(): void
+    {
+        $otherFace = Face::factory()->create();
+        $otherUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $otherFace->id,
+        ]);
+
+        WithdrawalRequest::query()->create([
+            'user_id' => $otherUser->id,
+            'amount' => 99000,
+            'payment_mode' => 'mtn',
+            'phone_number' => '61000000',
+            'phone_country' => 'bj',
+            'status' => 'pending',
+        ]);
+
+        $older = WithdrawalRequest::query()->create([
+            'user_id' => $this->faceUser->id,
+            'amount' => 12500,
+            'payment_mode' => 'moov',
+            'phone_number' => '97000001',
+            'phone_country' => 'bj',
+            'status' => 'approved',
+            'notes' => 'Traité',
+            'processed_at' => now()->subDay(),
+        ]);
+
+        $latest = WithdrawalRequest::query()->create([
+            'user_id' => $this->faceUser->id,
+            'amount' => 25000,
+            'payment_mode' => 'mtn',
+            'phone_number' => '64000001',
+            'phone_country' => 'bj',
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/wallet')
+            ->assertOk();
+
+        $requests = $response->json('data.withdrawal_requests');
+
+        $this->assertCount(2, $requests);
+        $this->assertSame($latest->id, $requests[0]['id']);
+        $this->assertSame($older->id, $requests[1]['id']);
+    }
+
+    public function test_wallet_withdrawal_request_resource_fields_are_correct(): void
+    {
+        $withdrawalRequest = WithdrawalRequest::query()->create([
+            'user_id' => $this->faceUser->id,
+            'amount' => 42500,
+            'payment_mode' => 'mtn',
+            'phone_number' => '64000001',
+            'phone_country' => 'bj',
+            'status' => 'rejected',
+            'notes' => 'Numéro invalide',
+            'processed_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/wallet')
+            ->assertOk();
+
+        $request = $response->json('data.withdrawal_requests.0');
+
+        $this->assertSame($withdrawalRequest->id, $request['id']);
+        $this->assertSame(42500, $request['amount']);
+        $this->assertSame('mtn', $request['payment_mode']);
+        $this->assertSame('64000001', $request['phone_number']);
+        $this->assertSame('bj', $request['phone_country']);
+        $this->assertSame('rejected', $request['status']);
+        $this->assertSame('Numéro invalide', $request['notes']);
+        $this->assertNotNull($request['processed_at']);
+        $this->assertArrayHasKey('created_at', $request);
     }
 
     public function test_producer_cannot_access_wallet(): void
@@ -205,15 +286,15 @@ class WalletBalanceTest extends TestCase
     public function test_wallet_transaction_resource_fields_are_correct(): void
     {
         $booking = Booking::factory()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
         WalletTransaction::factory()->create([
-            'user_id'     => $this->faceUser->id,
-            'booking_id'  => $booking->id,
-            'type'        => 'credit',
-            'amount'      => 42500,
-            'reference'   => 'wlt_test-ref',
+            'user_id' => $this->faceUser->id,
+            'booking_id' => $booking->id,
+            'type' => 'credit',
+            'amount' => 42500,
+            'reference' => 'wlt_test-ref',
             'description' => 'Test payment',
         ]);
 

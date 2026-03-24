@@ -8,7 +8,9 @@ use App\Models\Admin;
 use App\Models\Face;
 use App\Models\User;
 use App\Models\WithdrawalRequest;
+use App\Services\FedapayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery;
 use Tests\TestCase;
 
 class AdminFinanceOverviewTest extends TestCase
@@ -18,6 +20,7 @@ class AdminFinanceOverviewTest extends TestCase
     public function test_finance_overview_includes_pending_withdrawal_requests(): void
     {
         $admin = Admin::factory()->create();
+        $this->mockFedapayBalances();
 
         $face = Face::factory()->create();
         $user = User::factory()->create([
@@ -44,6 +47,41 @@ class AdminFinanceOverviewTest extends TestCase
             ->getJson('/api/v1/admin/finance/overview')
             ->assertOk()
             ->assertJsonPath('data.withdrawal_requests.pending_count', 2)
-            ->assertJsonPath('data.withdrawal_requests.pending_amount', 20000);
+            ->assertJsonPath('data.withdrawal_requests.pending_amount', 20000)
+            ->assertJsonPath('data.fedapay_balance.available', true)
+            ->assertJsonPath('data.fedapay_balance.total_amount', 90000)
+            ->assertJsonPath('data.fedapay_balance.balances.0.mode', 'mtn');
+    }
+
+    public function test_finance_overview_handles_unavailable_fedapay_balance(): void
+    {
+        $admin = Admin::factory()->create();
+
+        $mock = Mockery::mock(FedapayService::class);
+        $mock->shouldReceive('getBalanceSummary')->andReturn([
+            'available' => false,
+            'total_amount' => null,
+            'refreshed_at' => now()->toIso8601String(),
+            'error' => 'Impossible de récupérer le solde FedaPay pour le moment.',
+        ]);
+        $this->app->instance(FedapayService::class, $mock);
+
+        $this->actingAs($admin, 'sanctum')
+            ->getJson('/api/v1/admin/finance/overview')
+            ->assertOk()
+            ->assertJsonPath('data.fedapay_balance.available', false)
+            ->assertJsonPath('data.fedapay_balance.error', 'Impossible de récupérer le solde FedaPay pour le moment.');
+    }
+
+    private function mockFedapayBalances(): void
+    {
+        $mock = Mockery::mock(FedapayService::class);
+        $mock->shouldReceive('getBalanceSummary')->andReturn([
+            'available' => true,
+            'total_amount' => 90000,
+            'refreshed_at' => now()->toIso8601String(),
+            'error' => null,
+        ]);
+        $this->app->instance(FedapayService::class, $mock);
     }
 }
