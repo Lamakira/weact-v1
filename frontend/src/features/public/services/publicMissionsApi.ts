@@ -49,6 +49,13 @@ export interface PublicMissionsResponse {
   message: string
 }
 
+export interface PublicMissionFilters {
+  type_mission?: string
+  lieu?: string
+  budget_min?: number
+  budget_max?: number
+}
+
 /**
  * API response format for a single mission detail
  */
@@ -76,14 +83,20 @@ export interface PublicMissionDetailResult {
  */
 export async function fetchPublicMissions(
   page: number = 1,
-  perPage: number = 15
+  perPage: number = 15,
+  filters: PublicMissionFilters = {}
 ): Promise<PublicMissionsResponse> {
   const validPerPage = Math.min(Math.max(1, perPage), 30)
 
-  const params: Record<string, number> = {
+  const params: Record<string, string | number> = {
     page,
     per_page: validPerPage,
   }
+
+  if (filters.type_mission) params.type_mission = filters.type_mission
+  if (filters.lieu) params.lieu = filters.lieu.trim()
+  if (filters.budget_min != null) params.budget_min = filters.budget_min
+  if (filters.budget_max != null) params.budget_max = filters.budget_max
 
   const response = await publicApiClient.get<PublicMissionsResponse>('/public/missions', {
     params,

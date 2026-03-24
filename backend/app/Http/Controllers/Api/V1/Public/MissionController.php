@@ -36,10 +36,19 @@ class MissionController extends Controller
      */
     public function index(ListPublicMissionsRequest $request): JsonResponse
     {
+        $filters = $request->getFilters();
         $perPage = $request->getPerPage();
 
         $missions = $this->publishedWithProducer()
-            ->orderBy('created_at', 'desc')
+            ->when(! empty($filters['type_mission']), fn ($query) => $query->where('type_mission', $filters['type_mission']))
+            ->when(! empty($filters['lieu']), function ($query) use ($filters) {
+                $escaped = str_replace(['%', '_'], ['\%', '\_'], (string) $filters['lieu']);
+
+                return $query->where('lieu', 'like', "%{$escaped}%");
+            })
+            ->when(isset($filters['budget_min']), fn ($query) => $query->where('budget', '>=', $filters['budget_min']))
+            ->when(isset($filters['budget_max']), fn ($query) => $query->where('budget', '<=', $filters['budget_max']))
+            ->latest()
             ->paginate($perPage);
 
         return response()->json([

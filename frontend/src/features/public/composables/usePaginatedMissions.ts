@@ -1,8 +1,14 @@
-import { ref, computed, watch, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, watch } from 'vue'
+import {
+  useRoute,
+  useRouter,
+  type LocationQuery,
+  type LocationQueryRaw,
+} from 'vue-router'
 import {
   fetchPublicMissions,
   type PublicMission,
+  type PublicMissionFilters,
 } from '../services/publicMissionsApi'
 import type { PaginationMeta } from '../services/publicFacesApi'
 
@@ -18,12 +24,14 @@ import type { PaginationMeta } from '../services/publicFacesApi'
 export function usePaginatedMissions(perPage: number = 15) {
   const route = useRoute()
   const router = useRouter()
+  const trackedQueryKeys = ['page', 'type_mission', 'lieu', 'budget_min', 'budget_max'] as const
 
   // State
   const missions = ref<PublicMission[]>([])
   const meta = ref<PaginationMeta | null>(null)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  const filters = ref<PublicMissionFilters>({})
   let requestId = 0 // Counter to discard stale responses
 
   // Computed: read current page from URL
@@ -37,30 +45,114 @@ export function usePaginatedMissions(perPage: number = 15) {
   const hasNextPage = computed((): boolean => currentPage.value < totalPages.value)
   const hasPreviousPage = computed((): boolean => currentPage.value > 1)
   const isEmpty = computed((): boolean => !isLoading.value && missions.value.length === 0)
+  const hasActiveFilters = computed(() =>
+    Object.values(filters.value).some((value) => value !== undefined && value !== null && value !== '')
+  )
+
+  function parsePositiveNumber(value: unknown): number | undefined {
+    if (typeof value !== 'string' || value.trim() === '') return undefined
+
+    const parsed = Number(value)
+
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return undefined
+    }
+
+    return parsed
+  }
+
+  function normalizeFilters(input: PublicMissionFilters): PublicMissionFilters {
+    const normalized: PublicMissionFilters = {}
+
+    if (input.type_mission) normalized.type_mission = input.type_mission
+
+    const lieu = input.lieu?.trim()
+    if (lieu) normalized.lieu = lieu
+
+    if (typeof input.budget_min === 'number' && Number.isFinite(input.budget_min) && input.budget_min >= 0) {
+      normalized.budget_min = input.budget_min
+    }
+
+    if (typeof input.budget_max === 'number' && Number.isFinite(input.budget_max) && input.budget_max >= 0) {
+      normalized.budget_max = input.budget_max
+    }
+
+    return normalized
+  }
+
+  function parseFiltersFromQuery(query: LocationQuery): PublicMissionFilters {
+    return normalizeFilters({
+      type_mission: typeof query.type_mission === 'string' ? query.type_mission : undefined,
+      lieu: typeof query.lieu === 'string' ? query.lieu : undefined,
+      budget_min: parsePositiveNumber(query.budget_min),
+      budget_max: parsePositiveNumber(query.budget_max),
+    })
+  }
+
+  function buildQuery(
+    page: number = currentPage.value,
+    activeFilters: PublicMissionFilters = filters.value,
+  ): LocationQueryRaw {
+    const query: LocationQueryRaw = {}
+    const normalizedFilters = normalizeFilters(activeFilters)
+    const currentQuery = route.query as Record<string, unknown>
+
+    Object.entries(currentQuery).forEach(([key, value]) => {
+      if (!trackedQueryKeys.includes(key as (typeof trackedQueryKeys)[number])) {
+        query[key] = value as string | string[] | null | undefined
+      }
+    })
+
+    if (page > 1) query.page = String(page)
+    if (normalizedFilters.type_mission) query.type_mission = normalizedFilters.type_mission
+    if (normalizedFilters.lieu) query.lieu = normalizedFilters.lieu
+    if (normalizedFilters.budget_min != null) query.budget_min = String(normalizedFilters.budget_min)
+    if (normalizedFilters.budget_max != null) query.budget_max = String(normalizedFilters.budget_max)
+
+    return query
+  }
+
+  function getQuerySignature(query: LocationQuery | LocationQueryRaw): string {
+    const normalized: Record<string, string> = {}
+
+    trackedQueryKeys.forEach((key) => {
+      const value = query[key]
+
+      if (typeof value === 'string' && value !== '') {
+        normalized[key] = value
+      }
+    })
+
+    return JSON.stringify(normalized)
+  }
 
   /**
    * Load missions for a specific page
    */
   async function loadPage(page: number): Promise<void> {
     const validPage = Math.max(1, page)
+    const nextQuery = buildQuery(validPage)
 
-    // Update URL if page differs from current
-    if (validPage !== currentPage.value) {
+    if (getQuerySignature(nextQuery) !== getQuerySignature(route.query)) {
       await router.push({
-        query: {
-          ...route.query,
-          page: validPage > 1 ? String(validPage) : undefined,
-        },
+        query: nextQuery,
       })
-      return // Watch will trigger load
+      return
     }
 
+    await fetchMissions(validPage, filters.value)
+  }
+
+  async function fetchMissions(
+    page: number = currentPage.value,
+    activeFilters: PublicMissionFilters = filters.value,
+  ): Promise<void> {
     isLoading.value = true
     error.value = null
     const currentRequestId = ++requestId
 
     try {
-      const response = await fetchPublicMissions(validPage, perPage)
+      const response = await fetchPublicMissions(page, perPage, activeFilters)
       // Discard stale responses from superseded requests
       if (currentRequestId !== requestId) return
       missions.value = response.data
@@ -91,21 +183,31 @@ export function usePaginatedMissions(perPage: number = 15) {
   }
 
   function retry(): void {
-    loadPage(currentPage.value)
+    void fetchMissions(currentPage.value, filters.value)
   }
 
-  // Watch for URL page change and reload data
-  watch(
-    () => route.query.page,
-    () => {
-      loadPage(currentPage.value)
-    }
-  )
+  function updateFilters(newFilters: PublicMissionFilters): void {
+    const normalizedFilters = normalizeFilters(newFilters)
+    const nextQuery = buildQuery(1, normalizedFilters)
 
-  // Initial load
-  onMounted(() => {
-    loadPage(currentPage.value)
-  })
+    if (getQuerySignature(nextQuery) === getQuerySignature(route.query)) {
+      filters.value = normalizedFilters
+      void fetchMissions(1, normalizedFilters)
+      return
+    }
+
+    void router.replace({ query: nextQuery })
+  }
+
+  // Watch the route query to keep URL and data in sync.
+  watch(
+    () => trackedQueryKeys.map((key) => route.query[key]),
+    () => {
+      filters.value = parseFiltersFromQuery(route.query)
+      void fetchMissions(currentPage.value, filters.value)
+    },
+    { immediate: true }
+  )
 
   return {
     // State
@@ -113,6 +215,7 @@ export function usePaginatedMissions(perPage: number = 15) {
     meta,
     isLoading,
     error,
+    filters,
 
     // Computed
     currentPage,
@@ -121,11 +224,13 @@ export function usePaginatedMissions(perPage: number = 15) {
     hasNextPage,
     hasPreviousPage,
     isEmpty,
+    hasActiveFilters,
 
     // Methods
     loadPage,
     nextPage,
     previousPage,
     retry,
+    updateFilters,
   }
 }

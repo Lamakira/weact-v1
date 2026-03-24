@@ -3,7 +3,11 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 import PublicMissionsView from '../PublicMissionsView.vue'
 import * as publicMissionsApi from '@/features/public/services/publicMissionsApi'
-import type { PublicMissionsResponse, PublicMission } from '@/features/public/services/publicMissionsApi'
+import type {
+  PublicMissionsResponse,
+  PublicMission,
+  PublicMissionFilters,
+} from '@/features/public/services/publicMissionsApi'
 
 // Mock the API module
 vi.mock('@/features/public/services/publicMissionsApi', () => ({
@@ -197,6 +201,22 @@ describe('PublicMissionsView', () => {
       expect(wrapper.find('[data-testid="missions-empty"]').exists()).toBe(true)
       expect(wrapper.text()).toContain('Aucune mission disponible')
     })
+
+    it('shows filtered empty state when filters are active', async () => {
+      vi.mocked(publicMissionsApi.fetchPublicMissions).mockResolvedValue({
+        ...mockResponse,
+        data: [],
+        meta: { ...mockResponse.meta, total: 0 },
+      })
+
+      const wrapper = await mountView('/missions?type_mission=film')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="missions-empty"]').exists()).toBe(true)
+      expect(wrapper.text()).toContain('Aucune mission ne correspond à vos critères')
+      expect(wrapper.find('[data-testid="missions-empty-reset"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="registration-cta"]').exists()).toBe(false)
+    })
   })
 
   describe('Missions grid', () => {
@@ -226,6 +246,17 @@ describe('PublicMissionsView', () => {
       await flushPromises()
 
       expect(wrapper.find('[data-testid="missions-count"]').text()).toContain('35')
+    })
+
+    it('shows filtered result wording and reset action when filters are active', async () => {
+      vi.mocked(publicMissionsApi.fetchPublicMissions).mockResolvedValue(mockResponse)
+
+      const wrapper = await mountView('/missions?type_mission=film')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="missions-count"]').text()).toContain('missions trouv')
+      expect(wrapper.find('[data-testid="missions-reset-inline"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="registration-cta"]').exists()).toBe(false)
     })
 
     it('uses plural form for multiple missions', async () => {
@@ -296,7 +327,7 @@ describe('PublicMissionsView', () => {
       await mountView()
       await flushPromises()
 
-      expect(publicMissionsApi.fetchPublicMissions).toHaveBeenCalledWith(1, 15)
+      expect(publicMissionsApi.fetchPublicMissions).toHaveBeenCalledWith(1, 15, {})
     })
 
     it('uses page from URL query param', async () => {
@@ -305,7 +336,64 @@ describe('PublicMissionsView', () => {
       await mountView('/missions?page=2')
       await flushPromises()
 
-      expect(publicMissionsApi.fetchPublicMissions).toHaveBeenCalledWith(2, 15)
+      expect(publicMissionsApi.fetchPublicMissions).toHaveBeenCalledWith(2, 15, {})
+    })
+
+    it('hydrates filters from URL query params', async () => {
+      vi.mocked(publicMissionsApi.fetchPublicMissions).mockResolvedValue(mockResponse)
+
+      await mountView('/missions?type_mission=film&lieu=Cotonou&budget_min=100000&budget_max=200000')
+      await flushPromises()
+
+      expect(publicMissionsApi.fetchPublicMissions).toHaveBeenCalledWith(1, 15, {
+        type_mission: 'film',
+        lieu: 'Cotonou',
+        budget_min: 100000,
+        budget_max: 200000,
+      } satisfies PublicMissionFilters)
+    })
+
+    it('updates filters when the filter bar emits a change', async () => {
+      vi.mocked(publicMissionsApi.fetchPublicMissions)
+        .mockResolvedValueOnce(mockResponse)
+        .mockResolvedValueOnce(mockResponse)
+
+      const wrapper = await mountView()
+      await flushPromises()
+
+      const filtersBar = wrapper.findComponent({ name: 'PublicMissionFiltersBar' })
+      filtersBar.vm.$emit('filter-change', {
+        type_mission: 'film',
+        budget_min: 120000,
+      } satisfies PublicMissionFilters)
+      await flushPromises()
+
+      expect(router.currentRoute.value.query.type_mission).toBe('film')
+      expect(router.currentRoute.value.query.budget_min).toBe('120000')
+      expect(router.currentRoute.value.query.page).toBeUndefined()
+      expect(publicMissionsApi.fetchPublicMissions).toHaveBeenLastCalledWith(1, 15, {
+        type_mission: 'film',
+        budget_min: 120000,
+      })
+    })
+
+    it('preserves unrelated query params when filters change', async () => {
+      vi.mocked(publicMissionsApi.fetchPublicMissions)
+        .mockResolvedValueOnce(mockResponse)
+        .mockResolvedValueOnce(mockResponse)
+
+      const wrapper = await mountView('/missions?utm_source=campaign&page=3')
+      await flushPromises()
+
+      const filtersBar = wrapper.findComponent({ name: 'PublicMissionFiltersBar' })
+      filtersBar.vm.$emit('filter-change', {
+        budget_max: 150000,
+      } satisfies PublicMissionFilters)
+      await flushPromises()
+
+      expect(router.currentRoute.value.query.utm_source).toBe('campaign')
+      expect(router.currentRoute.value.query.budget_max).toBe('150000')
+      expect(router.currentRoute.value.query.page).toBeUndefined()
     })
   })
 

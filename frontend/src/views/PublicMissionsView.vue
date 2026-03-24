@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Briefcase, AlertCircle, RefreshCw } from 'lucide-vue-next'
 import { usePaginatedMissions } from '@/features/public/composables/usePaginatedMissions'
+import type { PublicMissionFilters } from '@/features/public/services/publicMissionsApi'
 import PublicMissionCard from '@/features/public/components/PublicMissionCard.vue'
+import PublicMissionFiltersBar from '@/features/public/components/PublicMissionFiltersBar.vue'
 import RegistrationCta from '@/features/public/components/RegistrationCta.vue'
 import { Pagination } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
+import { getMissionTypeOptions } from '@/features/mission/types'
 
-// Initialize pagination composable with 15 items per page
 const {
   missions,
   isLoading,
@@ -15,12 +18,31 @@ const {
   currentPage,
   totalPages,
   totalMissions,
+  filters,
+  hasActiveFilters,
   loadPage,
   retry,
+  updateFilters,
 } = usePaginatedMissions(15)
+
+const missionTypes = getMissionTypeOptions()
+
+const resultsLabel = computed(() => {
+  const plural = totalMissions.value > 1 ? 's' : ''
+
+  if (hasActiveFilters.value) {
+    return `${plural ? 'missions trouvées' : 'mission trouvée'}`
+  }
+
+  return `mission${plural} disponible${plural}`
+})
 
 function handlePageChange(page: number): void {
   loadPage(page)
+}
+
+function handleFilterChange(newFilters: PublicMissionFilters): void {
+  updateFilters(newFilters)
 }
 </script>
 
@@ -28,11 +50,24 @@ function handlePageChange(page: number): void {
   <div data-testid="public-missions-view">
     <!-- Page Header -->
     <header class="mb-8 text-center">
+      <h1
+        class="mb-3 text-3xl font-bold tracking-tight text-gray-900"
+        data-testid="missions-page-title"
+      >
+        Missions disponibles
+      </h1>
       <p class="text-gray-600 text-lg max-w-2xl mx-auto">
         Découvrez les opportunités de casting au Bénin.
         Publicités, films, courts-métrages, clips musicaux et plus encore.
       </p>
     </header>
+
+    <PublicMissionFiltersBar
+      :current-filters="filters"
+      :mission-types="missionTypes"
+      class="mb-8"
+      @filter-change="handleFilterChange"
+    />
 
     <!-- Loading State -->
     <div v-if="isLoading" class="space-y-8" data-testid="missions-loading">
@@ -96,12 +131,25 @@ function handlePageChange(page: number): void {
         <Briefcase class="w-8 h-8" />
       </div>
       <h2 class="text-xl font-bold text-gray-900 mb-2">
-        Aucune mission disponible pour le moment.
+        {{ hasActiveFilters ? 'Aucun résultat pour ces filtres.' : 'Aucune mission disponible pour le moment.' }}
       </h2>
       <p class="text-gray-600 max-w-md mx-auto">
-        Il n'y a pas encore de missions publiées sur la plateforme. Revenez bientôt !
+        {{
+          hasActiveFilters
+            ? 'Aucune mission ne correspond à vos critères.'
+            : 'Il n\'y a pas encore de missions publiées sur la plateforme.'
+        }}
       </p>
-      <RegistrationCta variant="missions" class="mt-8" />
+      <button
+        v-if="hasActiveFilters"
+        type="button"
+        class="mt-8 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-6 py-3 text-sm font-medium text-gray-700 transition-colors hover:border-[#198496]/30 hover:bg-[#198496]/5 hover:text-[#198496] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"
+        data-testid="missions-empty-reset"
+        @click="handleFilterChange({})"
+      >
+        Réinitialiser les filtres
+      </button>
+      <RegistrationCta v-else variant="missions" class="mt-8" />
     </div>
 
     <!-- Missions Grid -->
@@ -110,8 +158,17 @@ function handlePageChange(page: number): void {
       <div class="flex items-center justify-between">
         <p class="text-sm text-gray-500" data-testid="missions-count">
           <span class="font-medium text-gray-900">{{ totalMissions }}</span>
-          mission{{ totalMissions > 1 ? 's' : '' }} disponible{{ totalMissions > 1 ? 's' : '' }}
+          {{ resultsLabel }}
         </p>
+        <button
+          v-if="hasActiveFilters"
+          type="button"
+          class="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-[#198496]/30 hover:bg-[#198496]/5 hover:text-[#198496] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"
+          data-testid="missions-reset-inline"
+          @click="handleFilterChange({})"
+        >
+          Réinitialiser
+        </button>
       </div>
 
       <!-- Grid -->
@@ -127,7 +184,7 @@ function handlePageChange(page: number): void {
       </div>
 
       <!-- Registration CTA -->
-      <RegistrationCta variant="missions" />
+      <RegistrationCta v-if="!hasActiveFilters" variant="missions" />
 
       <!-- Pagination -->
       <div
