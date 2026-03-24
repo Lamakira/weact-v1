@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { MapPin, ChevronRight, ChevronLeft, Users } from 'lucide-vue-next'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useScrollReveal } from '@/composables/useScrollReveal'
 
 // Landing page components
 import HeroFace from '@/components/landing/HeroFace.vue'
@@ -52,6 +53,8 @@ const {
 
 const hasMissions = computed(() => missions.value.length > 0)
 const hasFaces = computed(() => faces.value.length > 0)
+
+useScrollReveal()
 
 onMounted(() => {
   window.addEventListener('scroll', handleScroll, { passive: true })
@@ -164,7 +167,7 @@ function formatDate(date: string): string {
     <section class="py-10 bg-white relative overflow-hidden">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header -->
-        <div class="text-center mb-10 lg:mb-20">
+        <div class="reveal text-center mb-10 lg:mb-20">
           <h2
             class="text-xs font-bold text-[#198496] tracking-[0.2em] uppercase mb-4"
             data-testid="how-it-works-title"
@@ -181,7 +184,7 @@ function formatDate(date: string): string {
           <!-- Desktop: Zigzag layout with overlapping cards & arrows -->
           <div class="hidden lg:block">
             <!-- Row 1: Card 1 (left) -->
-            <div class="relative z-[4] flex justify-start">
+            <div class="reveal-left relative z-[4] flex justify-start">
               <div class="w-1/2 flex justify-center">
                 <div
                   class="group relative bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 w-full max-w-sm h-64"
@@ -227,7 +230,7 @@ function formatDate(date: string): string {
             </svg>
 
             <!-- Row 2: Card 2 (right) — starts at ¾ of card 1 -->
-            <div class="relative z-[3] flex justify-end -mt-16">
+            <div class="reveal-right relative z-[3] flex justify-end -mt-16">
               <div class="w-1/2 flex justify-center">
                 <div
                   class="group relative bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 w-full max-w-sm h-64"
@@ -273,7 +276,7 @@ function formatDate(date: string): string {
             </svg>
 
             <!-- Row 3: Card 3 (left) — starts at ¾ of card 2 -->
-            <div class="relative z-[2] flex justify-start -mt-16">
+            <div class="reveal-left relative z-[2] flex justify-start -mt-16">
               <div class="w-1/2 flex justify-center">
                 <div
                   class="group relative bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 w-full max-w-sm h-64"
@@ -319,7 +322,7 @@ function formatDate(date: string): string {
             </svg>
 
             <!-- Row 4: Card 4 (right) — starts at ¾ of card 3 -->
-            <div class="relative z-[1] flex justify-end -mt-16">
+            <div class="reveal-right relative z-[1] flex justify-end -mt-16">
               <div class="w-1/2 flex justify-center">
                 <div
                   class="group relative bg-white p-8 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 w-full max-w-sm h-64"
@@ -628,7 +631,7 @@ function formatDate(date: string): string {
     <section class="py-10 bg-white">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <!-- Header -->
-        <div class="text-center mb-8">
+        <div class="reveal text-center mb-8">
           <h2
             class="text-3xl lg:text-4xl font-bold text-gray-900 tracking-tight mb-4"
             data-testid="why-weact-title"
@@ -673,7 +676,7 @@ function formatDate(date: string): string {
           <div
             v-for="(feature, index) in content.whyWeact.features"
             :key="index"
-            class="relative text-center p-6 lg:p-8 rounded-2xl border border-gray-200 bg-white hover:border-[#198496]/30 hover:shadow-[0_20px_50px_rgba(25,132,150,0.08)] hover:-translate-y-2 transition-all duration-500 group overflow-hidden"
+            class="stagger-item relative text-center p-6 lg:p-8 rounded-2xl border border-gray-200 bg-white hover:border-[#198496]/30 hover:shadow-[0_20px_50px_rgba(25,132,150,0.08)] hover:-translate-y-2 transition-all duration-500 group overflow-hidden"
             :data-testid="`feature-card-${index + 1}`"
           >
             <!-- Decorative Background Elements -->
@@ -712,7 +715,7 @@ function formatDate(date: string): string {
         </div>
 
         <!-- Certified Badge -->
-        <div class="mt-10 flex flex-col items-center">
+        <div class="reveal mt-10 flex flex-col items-center">
           <div
             class="bg-gray-50 border border-gray-100 px-6 py-3 rounded-full flex items-center gap-3"
           >
@@ -739,7 +742,7 @@ function formatDate(date: string): string {
         <div class="absolute top-1/2 left-1/4 w-32 h-32 bg-[#1bbad4]/20 blur-3xl rounded-full"></div>
 
         <!-- Content -->
-        <div class="relative z-10 space-y-6">
+        <div class="reveal relative z-10 space-y-6">
           <h2
             class="text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight"
             data-testid="final-cta-title"

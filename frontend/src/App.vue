@@ -30,17 +30,29 @@ const isLandingPage = computed(() => {
 <template>
   <!-- Dashboard routes: full-screen, no header/footer -->
   <template v-if="isDashboardRoute">
-    <RouterView />
+    <RouterView v-slot="{ Component }">
+      <Transition name="page" mode="out-in">
+        <component :is="Component" :key="route.path" />
+      </Transition>
+    </RouterView>
   </template>
 
   <!-- Admin routes: full-screen, uses AdminLayout internally -->
   <template v-else-if="isAdminRoute">
-    <RouterView />
+    <RouterView v-slot="{ Component }">
+      <Transition name="page" mode="out-in">
+        <component :is="Component" :key="route.path" />
+      </Transition>
+    </RouterView>
   </template>
 
   <!-- Auth routes: full-screen, no header/footer -->
   <template v-else-if="isAuthRoute">
-    <RouterView />
+    <RouterView v-slot="{ Component }">
+      <Transition name="page" mode="out-in">
+        <component :is="Component" :key="route.path" />
+      </Transition>
+    </RouterView>
   </template>
 
   <!-- Landing page: full-width sections with header/footer -->
@@ -53,7 +65,11 @@ const isLandingPage = computed(() => {
 
       <!-- Main Content - Full width for landing page -->
       <main class="flex-1">
-        <RouterView />
+        <RouterView v-slot="{ Component }">
+          <Transition name="page" mode="out-in">
+            <component :is="Component" :key="route.path" />
+          </Transition>
+        </RouterView>
       </main>
 
       <!-- Footer -->
@@ -69,7 +85,11 @@ const isLandingPage = computed(() => {
 
       <!-- Main Content -->
       <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
-        <RouterView />
+        <RouterView v-slot="{ Component }">
+          <Transition name="page" mode="out-in">
+            <component :is="Component" :key="route.path" />
+          </Transition>
+        </RouterView>
       </main>
 
       <!-- Footer -->

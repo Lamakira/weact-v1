@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch, nextTick } from 'vue'
 import { Users, AlertCircle, RefreshCw } from 'lucide-vue-next'
 import { usePaginatedFaces } from '@/features/public/composables/usePaginatedFaces'
 import { fetchFilterOptions, type FilterOption, type FacesFilterParams } from '@/features/public/services/publicFacesApi'
@@ -8,6 +8,9 @@ import FilterBar from '@/features/public/components/FilterBar.vue'
 import RegistrationCta from '@/features/public/components/RegistrationCta.vue'
 import { Pagination } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useScrollReveal } from '@/composables/useScrollReveal'
+
+const { reinit } = useScrollReveal()
 
 // Initialize pagination composable with 15 items per page
 const {
@@ -55,6 +58,12 @@ function handleFilterChange(newFilters: FacesFilterParams): void {
 function handlePageChange(page: number): void {
   loadPage(page)
 }
+
+// Reinit scroll reveal when faces load (async data)
+watch(faces, async () => {
+  await nextTick()
+  reinit()
+})
 </script>
 
 <template>
@@ -174,6 +183,7 @@ function handlePageChange(page: number): void {
           v-for="face in faces"
           :key="face.id"
           :face="face"
+          class="stagger-item"
         />
       </div>
 

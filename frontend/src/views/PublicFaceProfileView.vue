@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, watchEffect, onUnmounted } from 'vue'
+import { ref, watch, computed, watchEffect, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTitle } from '@vueuse/core'
 import { ChevronLeft, AlertCircle, RefreshCw, UserX, Lock, CalendarPlus } from 'lucide-vue-next'
@@ -17,6 +17,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { BookingFormSheet } from '@/features/booking/components'
 import type { Review } from '@/features/rating/types'
 import type { CandidateFullProfile } from '@/features/candidature/types'
+import { useScrollReveal } from '@/composables/useScrollReveal'
+
+const { reinit } = useScrollReveal()
 
 const route = useRoute()
 const router = useRouter()
@@ -29,6 +32,12 @@ const {
   videosCount,
   fetchFace,
 } = useFaceProfile()
+
+// Reinit scroll reveal when face profile loads
+watch(face, async () => {
+  await nextTick()
+  reinit()
+})
 
 // Auth-aware access level
 const faceId = computed(() => face.value?.id ?? null)
@@ -373,7 +382,7 @@ async function handleRetry(): Promise<void> {
       >
         <div class="lg:grid lg:grid-cols-[35%_1fr] lg:gap-12 xl:gap-16 items-start">
           <!-- Photo Section (Left on desktop, top on mobile) -->
-          <aside class="mb-8 lg:mb-0 lg:sticky lg:top-8">
+          <aside class="reveal-left mb-8 lg:mb-0 lg:sticky lg:top-8">
             <ProfilePhotoSection
               :photo-url="face.profile_photo_url"
               :prenom="face.prenom"
@@ -385,7 +394,7 @@ async function handleRetry(): Promise<void> {
           </aside>
 
           <!-- Info Section (Right on desktop, bottom on mobile) -->
-          <div class="space-y-6">
+          <div class="reveal-right space-y-6">
             <ProfileInfoSection
               :prenom="face.prenom"
               :ville="face.ville"

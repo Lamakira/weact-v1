@@ -32,7 +32,7 @@ onUnmounted(() => {
         <div class="text-center md:text-left px-4 sm:px-6 md:px-0">
           <!-- Hero Title -->
           <div>
-            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
+            <h1 class="hero-title text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight">
               <span class="block">Monétisez votre</span>
               <span class="block">image dans :</span>
             </h1>
@@ -52,14 +52,14 @@ onUnmounted(() => {
               </Transition>
             </div>
           </div>
-          <p class="text-gray-500 text-lg md:pt-4 lg:text-xl max-w-lg mx-auto md:mx-0 md:mb-8 leading-relaxed">
+          <p class="hero-subtitle text-gray-500 text-lg md:pt-4 lg:text-xl max-w-lg mx-auto md:mx-0 md:mb-8 leading-relaxed">
             La première plateforme qui met en relation marques et créateurs pour des castings
             sécurisés au Bénin.
           </p>
           <!-- Desktop CTA -->
           <RouterLink
             to="/register/face"
-            class="hidden md:inline-flex group items-center gap-2 bg-[#198496] text-white px-8 py-3.5 rounded-md font-medium text-base hover:bg-[#146c7a] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"
+            class="hero-cta hidden md:inline-flex group items-center gap-2 bg-[#198496] text-white px-8 py-3.5 rounded-md font-medium text-base hover:bg-[#146c7a] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"
             data-testid="hero-cta"
           >
             Créer mon profil
@@ -68,7 +68,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Right: Hero Images -->
-        <div data-testid="hero-images">
+        <div data-testid="hero-images" class="hero-media">
           <!-- Mobile/Tablet: Portrait only -->
           <div class="lg:hidden flex justify-center px-4 sm:px-6 md:px-0 mt-4 md:mt-0">
             <img
@@ -96,7 +96,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Mobile CTA: after image -->
-        <div class="md:hidden flex justify-center px-4 sm:px-6 mt-4">
+        <div class="hero-cta md:hidden flex justify-center px-4 sm:px-6 mt-4">
           <RouterLink
             to="/register/face"
             class="group inline-flex w-full max-w-xs justify-center items-center gap-2 bg-[#198496] text-white px-8 py-3.5 rounded-md font-medium text-base hover:bg-[#146c7a] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"
