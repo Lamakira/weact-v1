@@ -19,6 +19,7 @@ export interface WalletTransactionsMeta {
 export interface WalletData {
   balance: number
   pending_escrow: number
+  withdrawal_mode: 'manual' | 'fedapay'
   /** Flat array of transactions (no nested `data` key) */
   transactions: WalletTransaction[]
   transactions_meta: WalletTransactionsMeta

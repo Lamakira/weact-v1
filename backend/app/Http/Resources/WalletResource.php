@@ -22,6 +22,7 @@ class WalletResource extends JsonResource
         return [
             'balance'           => $data['balance'],
             'pending_escrow'    => $data['pending_escrow'],
+            'withdrawal_mode'   => config('app.withdrawal_mode', 'manual'),
             'transactions'      => WalletTransactionResource::collection($data['transactions']),
             'transactions_meta' => [
                 'current_page' => $data['transactions']->currentPage(),

@@ -47,10 +47,12 @@ class WalletBalanceTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.balance', 0)
             ->assertJsonPath('data.pending_escrow', 0)
+            ->assertJsonPath('data.withdrawal_mode', 'manual')
             ->assertJsonStructure([
                 'data' => [
                     'balance',
                     'pending_escrow',
+                    'withdrawal_mode',
                     'transactions',
                     'transactions_meta' => ['current_page', 'last_page', 'per_page', 'total'],
                 ],

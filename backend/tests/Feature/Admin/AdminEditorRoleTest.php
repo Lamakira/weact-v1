@@ -139,6 +139,14 @@ class AdminEditorRoleTest extends TestCase
         $response->assertForbidden();
     }
 
+    public function test_editor_cannot_access_withdrawal_requests(): void
+    {
+        $response = $this->actingAs($this->editor, 'sanctum')
+            ->getJson('/api/v1/admin/finance/withdrawal-requests');
+
+        $response->assertForbidden();
+    }
+
     // ─── EDITOR BLOCKED FROM ADMIN MANAGEMENT ────────────────────
 
     public function test_editor_cannot_access_admin_management(): void

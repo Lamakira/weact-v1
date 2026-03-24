@@ -15,6 +15,7 @@ use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use App\Models\WithdrawalRequest;
 use Illuminate\Http\JsonResponse;
 
 class AdminFinanceController extends Controller
@@ -90,6 +91,10 @@ class AdminFinanceController extends Controller
                 'withdrawals' => [
                     'total_amount' => $totalWithdrawals,
                     'count'        => $withdrawalsCount,
+                ],
+                'withdrawal_requests' => [
+                    'pending_count' => WithdrawalRequest::where('status', 'pending')->count(),
+                    'pending_amount' => (int) WithdrawalRequest::where('status', 'pending')->sum('amount'),
                 ],
             ],
             'message' => 'Financial overview retrieved successfully',

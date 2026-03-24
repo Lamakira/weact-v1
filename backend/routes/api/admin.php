@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Admin\AuthController;
 use App\Http\Controllers\Api\V1\Admin\FaceController;
 use App\Http\Controllers\Api\V1\Admin\MissionController;
 use App\Http\Controllers\Api\V1\Admin\ProducerController;
+use App\Http\Controllers\Api\V1\Admin\WithdrawalRequestController;
 use Illuminate\Support\Facades\Route;
 
 // Public admin routes (no auth)
@@ -113,6 +114,15 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'admin'])->group(function
         Route::get('/finance/recent-withdrawals', [AdminFinanceController::class, 'recentWithdrawals'])
             ->middleware('throttle:30,1')
             ->name('admin.finance.recent-withdrawals');
+        Route::get('/finance/withdrawal-requests', [WithdrawalRequestController::class, 'index'])
+            ->middleware('throttle:30,1')
+            ->name('admin.finance.withdrawal-requests.index');
+        Route::post('/finance/withdrawal-requests/{withdrawalRequest}/approve', [WithdrawalRequestController::class, 'approve'])
+            ->middleware('throttle:30,1')
+            ->name('admin.finance.withdrawal-requests.approve');
+        Route::post('/finance/withdrawal-requests/{withdrawalRequest}/reject', [WithdrawalRequestController::class, 'reject'])
+            ->middleware('throttle:30,1')
+            ->name('admin.finance.withdrawal-requests.reject');
     });
 
     // SuperAdmin only

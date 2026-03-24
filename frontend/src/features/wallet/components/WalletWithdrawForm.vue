@@ -5,6 +5,7 @@ import type { WithdrawPayload } from '../services/walletApi'
 
 const props = defineProps<{
   balance: number
+  withdrawalMode: 'manual' | 'fedapay'
   isWithdrawing: boolean
   error: string | null
 }>()
@@ -48,6 +49,8 @@ const canSubmit = computed(() =>
   selectedMode.value !== null &&
   /^[0-9]{6,15}$/.test(phoneNumber.value),
 )
+
+const isManualMode = computed(() => props.withdrawalMode === 'manual')
 
 function handleSubmit(): void {
   if (!canSubmit.value || !selectedMode.value || amount.value === null) return
@@ -153,6 +156,13 @@ function handleSubmit(): void {
               </div>
             </div>
 
+            <div
+              v-if="isManualMode"
+              class="rounded-md border border-amber-100 bg-amber-50 p-3 text-sm leading-relaxed text-amber-800"
+            >
+              Votre demande sera traitée manuellement sous 48h. Vous recevrez un email de confirmation dès que le virement est effectué.
+            </div>
+
             <!-- Error -->
             <div
               v-if="error"
@@ -179,7 +189,17 @@ function handleSubmit(): void {
                 @click="handleSubmit"
               >
                 <Loader2 v-if="isWithdrawing" class="w-4 h-4 animate-spin" />
-                <span>{{ isWithdrawing ? 'Retrait en cours...' : 'Retirer' }}</span>
+                <span>
+                  {{
+                    isWithdrawing
+                      ? isManualMode
+                        ? 'Soumission en cours...'
+                        : 'Retrait en cours...'
+                      : isManualMode
+                        ? 'Soumettre la demande'
+                        : 'Retirer'
+                  }}
+                </span>
               </button>
             </div>
           </div>

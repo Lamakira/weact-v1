@@ -12,6 +12,7 @@ import type { WithdrawPayload } from '@/features/wallet/services/walletApi'
 const {
   balance,
   pendingEscrow,
+  withdrawalMode,
   transactions,
   isLoading,
   error,
@@ -68,6 +69,7 @@ onMounted(() => {
     <WalletWithdrawForm
       v-if="showWithdrawForm"
       :balance="balance"
+      :withdrawal-mode="withdrawalMode"
       :is-withdrawing="isWithdrawing"
       :error="withdrawError"
       @submit="handleWithdraw"

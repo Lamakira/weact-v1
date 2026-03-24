@@ -10,15 +10,35 @@ import {
   BarChart3,
   AlertCircle,
 } from 'lucide-vue-next'
+import { Badge } from '@/components/ui/badge'
 import { useAdminFinance } from '@/features/admin/composables/useAdminFinance'
+import AdminWithdrawalRequestsTable from '@/features/admin/components/AdminWithdrawalRequestsTable.vue'
 import { Skeleton } from '@/components/ui/skeleton'
 
-const { overview, withdrawals, isLoadingOverview, isLoadingWithdrawals, error, fetchOverview, fetchWithdrawals } =
-  useAdminFinance()
+const {
+  overview,
+  withdrawals,
+  withdrawalRequests,
+  withdrawalRequestsPagination,
+  currentWithdrawalRequestsStatus,
+  isLoadingOverview,
+  isLoadingWithdrawals,
+  isLoadingWithdrawalRequests,
+  isSubmittingWithdrawalRequest,
+  error,
+  withdrawalRequestError,
+  withdrawalRequestSuccess,
+  fetchOverview,
+  fetchWithdrawals,
+  fetchWithdrawalRequests,
+  approveWithdrawalRequest,
+  rejectWithdrawalRequest,
+} = useAdminFinance()
 
 onMounted(() => {
   fetchOverview()
   fetchWithdrawals()
+  fetchWithdrawalRequests()
 })
 
 function formatCurrency(amount: number): string {
@@ -47,6 +67,7 @@ function formatDate(iso: string): string {
 function handleRefresh(): void {
   fetchOverview()
   fetchWithdrawals()
+  fetchWithdrawalRequests(currentWithdrawalRequestsStatus.value)
 }
 </script>
 
@@ -206,6 +227,55 @@ function handleRefresh(): void {
           </p>
         </div>
       </div>
+    </div>
+
+    <div class="space-y-4">
+      <div class="flex items-center gap-3">
+        <h2 class="text-lg font-semibold text-gray-900">Demandes de retrait en attente</h2>
+        <Badge
+          v-if="(overview?.withdrawal_requests.pending_count ?? 0) > 0"
+          variant="destructive"
+        >
+          {{ overview?.withdrawal_requests.pending_count }} en attente
+        </Badge>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div class="rounded-2xl border border-red-100 bg-gradient-to-br from-red-50 to-white p-5 shadow-sm">
+          <p class="text-xs uppercase tracking-wider text-red-500">Volume en attente</p>
+          <Skeleton v-if="isLoadingOverview" class="mt-2 h-8 w-36" />
+          <p v-else class="mt-2 text-2xl font-bold text-gray-900">
+            {{ formatCurrency(overview?.withdrawal_requests.pending_amount ?? 0) }}
+          </p>
+          <p class="mt-2 text-sm text-gray-500">Montant cumulé des retraits manuels pas encore traités.</p>
+        </div>
+
+        <div class="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm">
+          <p class="text-xs uppercase tracking-wider text-amber-600">Charge opérationnelle</p>
+          <Skeleton v-if="isLoadingOverview" class="mt-2 h-8 w-24" />
+          <p v-else class="mt-2 text-2xl font-bold text-gray-900">
+            {{ overview?.withdrawal_requests.pending_count ?? 0 }}
+          </p>
+          <p class="mt-2 text-sm text-gray-500">
+            Demande{{ (overview?.withdrawal_requests.pending_count ?? 0) > 1 ? 's' : '' }} à traiter dans le panel admin.
+          </p>
+        </div>
+      </div>
+
+      <AdminWithdrawalRequestsTable
+        :requests="withdrawalRequests"
+        :pagination="withdrawalRequestsPagination"
+        :selected-status="currentWithdrawalRequestsStatus"
+        :is-loading="isLoadingWithdrawalRequests"
+        :is-submitting="isSubmittingWithdrawalRequest"
+        :error="withdrawalRequestError"
+        :success-message="withdrawalRequestSuccess"
+        @refresh="fetchWithdrawalRequests(currentWithdrawalRequestsStatus)"
+        @status-change="fetchWithdrawalRequests($event, 1)"
+        @page-change="fetchWithdrawalRequests(currentWithdrawalRequestsStatus, $event)"
+        @approve="approveWithdrawalRequest"
+        @reject="rejectWithdrawalRequest"
+      />
     </div>
 
     <!-- Recent Withdrawals Table -->

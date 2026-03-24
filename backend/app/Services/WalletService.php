@@ -54,7 +54,13 @@ class WalletService
      *
      * @throws RuntimeException if balance is insufficient
      */
-    public function debit(int $userId, int $amount, string $description, ?int $bookingId = null): WalletTransaction
+    public function debit(
+        int $userId,
+        int $amount,
+        string $description,
+        ?int $bookingId = null,
+        string $status = 'pending',
+    ): WalletTransaction
     {
         // Atomic check + decrement — lockForUpdate prevents race conditions (double-spend)
         $updated = User::where('id', $userId)
@@ -73,7 +79,7 @@ class WalletService
             'amount'      => $amount,
             'reference'   => 'wlt_' . Str::uuid()->toString(),
             'description' => $description,
-            'status'      => 'pending',
+            'status'      => $status,
         ]);
     }
 }

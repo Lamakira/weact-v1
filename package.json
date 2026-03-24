@@ -12,7 +12,7 @@
     "install:all": "cd backend && composer install && cd ../frontend && npm install",
     "lint": "cd frontend && npm run lint",
     "test:backend": "cd backend && php artisan test",
-    "test:frontend": "cd frontend && npm run test:unit"
+    "test:frontend": "cd frontend && npm run test:run --"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
@@ -21,4 +21,3 @@
     "node": ">=20.0.0"
   }
 }
-
