@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Enums\FinancialEventType;
 use App\Models\Booking;
+use App\Models\FinancialEvent;
 use App\Models\FedapayWebhookEvent;
 use App\Models\MissionPayment;
+use App\Models\WalletTransaction;
 use App\Services\BookingService;
 use App\Services\MissionPaymentService;
+use App\Services\WalletService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class HandleFedapayWebhook implements ShouldQueue
@@ -26,7 +31,7 @@ class HandleFedapayWebhook implements ShouldQueue
         public readonly array $payload,
     ) {}
 
-    public function handle(BookingService $bookingService, MissionPaymentService $missionPaymentService): void
+    public function handle(BookingService $bookingService, MissionPaymentService $missionPaymentService, WalletService $walletService): void
     {
         $webhookEvent = FedapayWebhookEvent::find($this->webhookEventId);
 
@@ -85,12 +90,63 @@ class HandleFedapayWebhook implements ShouldQueue
             return;
         }
 
-        Log::warning('Fedapay webhook: no booking or mission payment found for transaction', [
+        // Try to find a withdrawal FinancialEvent (payout.sent / payout.failed)
+        $financialEvent = FinancialEvent::where('fedapay_ref', (string) $transactionId)
+            ->where('type', FinancialEventType::Withdrawal)
+            ->first();
+
+        if ($financialEvent) {
+            $this->handlePayoutWebhook($financialEvent, $walletService);
+            $this->markProcessed($webhookEvent);
+
+            return;
+        }
+
+        Log::warning('Fedapay webhook: no booking, mission payment or withdrawal found for transaction', [
             'transaction_id' => $transactionId,
             'event_name' => $this->eventName,
         ]);
 
         $this->markProcessed($webhookEvent);
+    }
+
+    private function handlePayoutWebhook(FinancialEvent $financialEvent, WalletService $walletService): void
+    {
+        $metadata = $financialEvent->metadata ?? [];
+        $walletTransactionId = $metadata['wallet_transaction_id'] ?? null;
+        $userId = $metadata['user_id'] ?? null;
+
+        if (! $walletTransactionId || ! $userId) {
+            Log::warning('Fedapay payout webhook: missing metadata on FinancialEvent', [
+                'financial_event_id' => $financialEvent->id,
+                'event_name' => $this->eventName,
+            ]);
+
+            return;
+        }
+
+        $walletTx = WalletTransaction::find($walletTransactionId);
+
+        if (! $walletTx || $walletTx->status !== 'pending') {
+            return;
+        }
+
+        match ($this->eventName) {
+            'payout.sent' => $walletTx->update(['status' => 'completed']),
+            'payout.failed' => DB::transaction(function () use ($walletTx, $userId, $financialEvent, $walletService): void {
+                $walletTx->update(['status' => 'failed']);
+                $walletService->creditDirect(
+                    userId: (int) $userId,
+                    amount: $financialEvent->amount,
+                    description: "Remboursement retrait échoué — ref #{$financialEvent->fedapay_ref}",
+                );
+                Log::info('Fedapay payout failed — balance refunded', [
+                    'user_id' => $userId,
+                    'amount' => $financialEvent->amount,
+                ]);
+            }),
+            default => Log::info('Fedapay payout webhook: unhandled event', ['event' => $this->eventName]),
+        };
     }
 
     private function markProcessed(FedapayWebhookEvent $webhookEvent): void

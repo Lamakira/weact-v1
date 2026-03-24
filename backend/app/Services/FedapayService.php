@@ -140,6 +140,17 @@ class FedapayService
     }
 
     /**
+     * Map internal payment mode slugs to FedaPay Payout API mode codes.
+     *
+     * @var array<string, string>
+     */
+    private const PAYOUT_MODE_MAP = [
+        'mtn'       => 'mtn_open',  // MTN Bénin
+        'moov'      => 'moov',      // Moov Bénin
+        'momo_test' => 'mtn_open',  // Sandbox test — uses mtn_open
+    ];
+
+    /**
      * Initiate a Mobile Money payout (withdrawal) to a Face.
      * Uses Fedapay Payout API: Payout::create() + sendNow().
      *
@@ -149,10 +160,12 @@ class FedapayService
      */
     public function initiateWithdrawal(int $amount, string $mode, string $idempotencyKey, array $phoneData, User $user): array
     {
+        $fedapayMode = self::PAYOUT_MODE_MAP[$mode] ?? $mode;
+
         $payout = Payout::create([
             'amount'   => $amount,
             'currency' => ['iso' => 'XOF'],
-            'mode'     => $mode,
+            'mode'     => $fedapayMode,
             'customer' => [
                 'firstname' => $user->name,
                 'email'     => $user->email,

@@ -35,5 +35,16 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('polling', function (Request $request) {
             return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());
         });
+
+        // Rate limiter for withdrawal — 5 attempts per 10 minutes per user
+        RateLimiter::for('withdrawals', function (Request $request) {
+            return Limit::perMinutes(10, 5)
+                ->by($request->user()?->id ?: $request->ip())
+                ->response(function () {
+                    return response()->json([
+                        'message' => 'Trop de tentatives de retrait. Veuillez réessayer dans quelques minutes.',
+                    ], 429);
+                });
+        });
     }
 }

@@ -81,6 +81,6 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
         ->name('wallet.index');
 
     Route::post('/wallet/withdraw', [WalletController::class, 'withdraw'])
-        ->middleware(['face', 'throttle:5,1'])
+        ->middleware(['face', 'throttle:withdrawals'])
         ->name('wallet.withdraw');
 });

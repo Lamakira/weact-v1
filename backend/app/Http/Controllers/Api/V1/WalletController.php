@@ -73,23 +73,26 @@ class WalletController extends Controller
                     user: $user,
                 );
 
-                // 3. Log financial event AFTER Fedapay succeeds — status=completed, fedapay_ref stored
+                // 3. Log financial event AFTER Fedapay succeeds — status=pending until webhook confirms
                 FinancialEvent::create([
                     'type'            => FinancialEventType::Withdrawal,
                     'booking_id'      => null,
                     'amount'          => $validated['amount'],
                     'fedapay_ref'     => (string) $fedapayResult['fedapay_payout_id'],
                     'idempotency_key' => $idempotencyKey,
-                    'status'          => 'completed',
+                    'status'          => 'pending',
                     'metadata'        => [
-                        'payment_mode'  => $validated['payment_mode'],
-                        'phone_number'  => $validated['phone_number'],
-                        'phone_country' => $validated['phone_country'],
+                        'payment_mode'          => $validated['payment_mode'],
+                        'phone_number'          => $validated['phone_number'],
+                        'phone_country'         => $validated['phone_country'],
+                        'fedapay_status'        => $fedapayResult['status'],
+                        'wallet_transaction_id' => $tx->id,
+                        'user_id'               => $user->id,
                     ],
                 ]);
 
-                // 4. Mark wallet transaction as completed
-                $tx->update(['status' => 'completed']);
+                // 4. Mark wallet transaction as pending — confirmed via payout.sent webhook
+                $tx->update(['status' => 'pending']);
             });
         } catch (\RuntimeException $e) {
             \Log::warning('Withdrawal insufficient balance', ['user_id' => $request->user()->id, 'error' => $e->getMessage()]);
