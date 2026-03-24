@@ -51,7 +51,7 @@ export const faceContent: LandingContent = {
     title: 'Missions en cours',
     subtitle: 'Découvre les dernières opportunités disponibles',
     ctaText: 'Voir toutes les missions',
-    ctaLink: '#missions', // TODO: Update to /missions when story 11-6 is implemented
+    ctaLink: '/missions',
   },
   whyWeact: {
     title: 'Pourquoi WEACT ?',
