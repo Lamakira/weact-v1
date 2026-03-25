@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\WithdrawalLockException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\WithdrawWalletRequest;
 use App\Http\Resources\WalletResource;
@@ -50,6 +51,10 @@ class WalletController extends Controller
     ): JsonResponse {
         try {
             $result = $withdrawalService->initiate($request->user(), $request->validated());
+        } catch (WithdrawalLockException $e) {
+            \Log::warning('Withdrawal lock conflict', ['user_id' => $request->user()->id]);
+
+            return response()->json(['message' => $e->getMessage()], 409);
         } catch (\RuntimeException $e) {
             \Log::warning('Withdrawal insufficient balance', ['user_id' => $request->user()->id, 'error' => $e->getMessage()]);
 

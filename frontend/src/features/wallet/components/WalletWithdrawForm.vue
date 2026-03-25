@@ -15,6 +15,19 @@ const emit = defineEmits<{
   cancel: []
 }>()
 
+/** Minimum withdrawal amount in XOF — must mirror backend WithdrawWalletRequest::MIN_AMOUNT */
+const MIN_AMOUNT = 500
+
+/**
+ * ARCEP Bénin official 4-digit EZAB prefixes per operator.
+ * Source: arcep.bj
+ */
+const BENIN_PREFIXES: Record<string, string[]> = {
+  mtn:     ['0142','0146','0150','0151','0152','0153','0154','0156','0157','0159','0161','0162','0166','0167','0169','0190','0191','0196','0197'],
+  moov:    ['0145','0155','0158','0160','0163','0164','0165','0168','0194','0195','0198','0199'],
+  celtiis: ['0120','0121','0122','0123','0124','0128','0129','0140','0141','0143','0144','0147','0148','0149','0192','0193'],
+}
+
 const PAYMENT_MODES: { value: WithdrawPayload['payment_mode']; label: string }[] = [
   { value: 'mtn', label: 'MTN MoMo' },
   { value: 'moov', label: 'Moov Money' },
@@ -43,12 +56,43 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value)
 
+/** Inline error for amount field — null means valid. */
+const amountError = computed((): string | null => {
+  if (amount.value === null) return null
+  if (amount.value < MIN_AMOUNT)
+    return `Montant minimum : ${formatCurrency(MIN_AMOUNT)}`
+  if (amount.value > props.balance)
+    return `Solde insuffisant (disponible : ${formatCurrency(props.balance)})`
+  return null
+})
+
+/** Inline error for phone field — null means valid. */
+const phoneError = computed((): string | null => {
+  if (!phoneNumber.value) return null
+
+  const digits = phoneNumber.value.replace(/\D/g, '')
+
+  if (!/^[0-9]{8,15}$/.test(digits))
+    return 'Numéro invalide (8 à 15 chiffres requis)'
+
+  if (phoneCountry.value === 'bj' && selectedMode.value && selectedMode.value in BENIN_PREFIXES) {
+    if (digits.length !== 10)
+      return 'Les numéros béninois doivent comporter 10 chiffres (ex : 0197XXXXXX)'
+
+    const prefix = digits.substring(0, 4)
+    if (!BENIN_PREFIXES[selectedMode.value].includes(prefix))
+      return `Ce numéro ne correspond pas à un préfixe ${selectedMode.value.toUpperCase()} valide au Bénin`
+  }
+
+  return null
+})
+
 const canSubmit = computed(() =>
   amount.value !== null &&
-  amount.value >= 1 &&
-  amount.value <= props.balance &&
+  amountError.value === null &&
   selectedMode.value !== null &&
-  /^[0-9]{6,15}$/.test(phoneNumber.value),
+  phoneNumber.value.length >= 8 &&
+  phoneError.value === null,
 )
 
 const isManualMode = computed(() => props.withdrawalMode === 'manual')
@@ -99,14 +143,13 @@ function handleSubmit(): void {
                 v-model.number="amount"
                 type="number"
                 inputmode="numeric"
-                :min="1"
+                :min="MIN_AMOUNT"
                 :max="balance"
                 placeholder="Ex: 20000"
-                class="w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[#198496] focus:outline-none focus:ring-1 focus:ring-[#198496] transition-colors"
+                class="w-full rounded-md border px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 transition-colors"
+                :class="amountError ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-gray-200 focus:border-[#198496] focus:ring-[#198496]'"
               />
-              <p v-if="amount !== null && amount > balance" class="text-xs text-red-600">
-                Montant supérieur au solde disponible ({{ formatCurrency(balance) }})
-              </p>
+              <p v-if="amountError" class="text-xs text-red-600">{{ amountError }}</p>
             </div>
 
             <!-- Provider selection -->
@@ -150,11 +193,13 @@ function handleSubmit(): void {
                   v-model="phoneNumber"
                   type="tel"
                   inputmode="numeric"
-                  placeholder="64000001"
+                  :placeholder="phoneCountry === 'bj' ? '0197XXXXXX' : '64000001'"
                   maxlength="15"
-                  class="flex-1 rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-[#198496] focus:outline-none focus:ring-1 focus:ring-[#198496] transition-colors"
+                  class="flex-1 rounded-md border px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 transition-colors"
+                  :class="phoneError ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-gray-200 focus:border-[#198496] focus:ring-[#198496]'"
                 />
               </div>
+              <p v-if="phoneError" class="text-xs text-red-600">{{ phoneError }}</p>
             </div>
 
             <div
