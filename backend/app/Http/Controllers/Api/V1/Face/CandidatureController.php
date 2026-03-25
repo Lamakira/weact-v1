@@ -156,6 +156,40 @@ class CandidatureController extends Controller
         $candidature->status = CandidatureStatus::Confirmed;
         $candidature->save();
 
+        // Notify the producer that this face confirmed
+        $mission = $candidature->mission;
+        $producerUser = User::where('userable_type', \App\Models\Producer::class)
+            ->where('userable_id', $mission->producer_id)
+            ->first();
+
+        if ($producerUser) {
+            Notification::create([
+                'user_id' => $producerUser->id,
+                'type'    => 'face_confirmed_participation',
+                'data'    => [
+                    'message'    => $face->prenom . ' a confirmé sa participation à la mission "' . $mission->titre . '".',
+                    'mission_id' => $mission->id,
+                    'url'        => "/producer/missions/{$mission->id}/candidatures",
+                ],
+            ]);
+        }
+
+        // Check if all selected faces have now confirmed → move candidatures to in_progress
+        $missionPayment = $mission->payment;
+        if ($missionPayment) {
+            $selectedCandidatureIds = $missionPayment->entries->pluck('candidature_id');
+            $pendingConfirmation = Candidature::whereIn('id', $selectedCandidatureIds)
+                ->where('status', CandidatureStatus::Accepted)
+                ->exists();
+
+            if (! $pendingConfirmation) {
+                // All selected faces confirmed — mark candidatures as in_progress
+                Candidature::whereIn('id', $selectedCandidatureIds)
+                    ->where('status', CandidatureStatus::Confirmed)
+                    ->update(['status' => CandidatureStatus::InProgress->value]);
+            }
+        }
+
         return response()->json([
             'data' => new CandidatureResource($candidature),
             'message' => 'Participation confirmée',

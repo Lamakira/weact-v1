@@ -199,11 +199,8 @@ class MissionPaymentService
             $mission = $payment->mission;
             $mission->update(['status' => MissionStatus::Closed]);
 
-            // Move accepted/confirmed candidatures of selected faces to in_progress
-            $selectedCandidatureIds = $payment->entries->pluck('candidature_id');
-            Candidature::whereIn('id', $selectedCandidatureIds)
-                ->whereIn('status', [CandidatureStatus::Accepted->value, CandidatureStatus::Confirmed->value])
-                ->update(['status' => CandidatureStatus::InProgress->value]);
+            // Leave accepted candidatures as-is — each Face must confirm their participation
+            // before the candidature moves to in_progress (via Face\CandidatureController::confirm)
 
             // Notify producer
             $producerUser = User::where('userable_type', \App\Models\Producer::class)
@@ -222,13 +219,13 @@ class MissionPaymentService
                 );
             }
 
-            // Notify each selected face
+            // Notify each selected face — ask them to confirm their participation
             foreach ($payment->entries as $entry) {
                 $this->notifySafely(
                     userId: $this->getUserIdForFace($entry->face_id),
-                    type: 'mission_payment_confirmed',
+                    type: 'mission_participation_confirmation_required',
                     data: [
-                        'message' => 'Le paiement pour la mission ' . $mission->titre . ' a été confirmé.',
+                        'message' => 'Vous avez été sélectionné(e) pour la mission "' . $mission->titre . '". Confirmez votre participation.',
                         'mission_id' => $mission->id,
                         'url' => "/face/candidatures",
                     ]
