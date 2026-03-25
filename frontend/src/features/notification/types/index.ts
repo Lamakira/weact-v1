@@ -16,6 +16,12 @@ export const NotificationType = {
   BOOKING_WALLET_CREDITED: 'booking_wallet_credited',
   BOOKING_COMPLETED: 'booking_completed',
   BOOKING_CANCELLED: 'booking_cancelled',
+  BOOKING_EXPIRED: 'booking_expired',
+  BOOKING_PAYMENT_REMINDER: 'booking_payment_reminder',
+  BOOKING_RATING_RECEIVED: 'booking_rating_received',
+  // Mission domain
+  MISSION_CLOSED_PENDING_CANDIDATURE: 'mission_closed_pending_candidature',
+  SHOOTING_DAY_REMINDER: 'shooting_day_reminder',
 } as const
 
 export type NotificationTypeValue = (typeof NotificationType)[keyof typeof NotificationType]
@@ -25,9 +31,11 @@ export interface NotificationData {
   message: string
   // Candidature domain fields (optional)
   mission_title?: string
+  mission_id?: number
   candidature_id?: number
   // Booking domain fields (optional)
   booking_id?: number
+  score?: number
   url?: string
 }
 

@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
 use App\Models\Mission;
+use App\Models\Notification;
 use App\Models\Producer;
 use App\Services\MissionPaymentService;
+use Illuminate\Support\Facades\Log;
 
 class MissionService
 {
@@ -87,7 +90,47 @@ class MissionService
             'status' => MissionStatus::Closed,
         ]);
 
+        $this->notifyPendingCandidatesOnClose($mission->fresh());
+
         return $mission->fresh();
+    }
+
+    /**
+     * Notify faces with pending candidatures when a mission is manually closed.
+     */
+    private function notifyPendingCandidatesOnClose(Mission $mission): void
+    {
+        $pendingCandidatures = $mission->candidatures()
+            ->where('status', CandidatureStatus::Pending->value)
+            ->with('face.userable')
+            ->get();
+
+        foreach ($pendingCandidatures as $candidature) {
+            $userId = $candidature->face?->userable?->id;
+
+            if (! $userId) {
+                continue;
+            }
+
+            try {
+                Notification::create([
+                    'user_id' => $userId,
+                    'type'    => 'mission_closed_pending_candidature',
+                    'data'    => [
+                        'message'        => "La mission \"{$mission->titre}\" a été clôturée. Votre candidature n'a pas été retenue.",
+                        'mission_id'     => $mission->id,
+                        'candidature_id' => $candidature->id,
+                        'url'            => "/face/candidatures/{$candidature->id}",
+                    ],
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('MissionClosed pending candidature notification failed', [
+                    'mission_id'     => $mission->id,
+                    'candidature_id' => $candidature->id,
+                    'error'          => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     /**

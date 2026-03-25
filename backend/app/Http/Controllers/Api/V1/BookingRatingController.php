@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\BookingStatus;
+use App\Events\BookingRated;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\RateBookingRequest;
 use App\Http\Resources\BookingRatingResource;
@@ -58,7 +59,9 @@ class BookingRatingController extends Controller
             'comment' => $request->validated('comment'),
         ]);
 
-        $rating->load(['rater.userable', 'rated.userable']);
+        $rating->load(['rater.userable', 'rated.userable', 'booking']);
+
+        BookingRated::dispatch($rating);
 
         return response()->json([
             'data' => new BookingRatingResource($rating),

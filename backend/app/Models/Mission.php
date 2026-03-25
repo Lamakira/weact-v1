@@ -81,6 +81,7 @@ class Mission extends Model
         'titre',
         'description',
         'date_tournage',
+        'shooting_reminder_sent_at',
         'profil_recherche',
         'budget',
         'date_limite_candidature',
@@ -102,6 +103,7 @@ class Mission extends Model
     {
         return [
             'date_tournage' => 'date',
+            'shooting_reminder_sent_at' => 'datetime',
             'date_limite_candidature' => 'date',
             'budget' => 'integer',
             'nombre_faces_voulu' => 'integer',
