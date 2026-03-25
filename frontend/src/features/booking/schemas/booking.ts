@@ -58,5 +58,19 @@ export const bookingSchema = z
       path: ['date_fin'],
     },
   )
+  .refine(
+    (data) => {
+      if (!data.date_debut || !data.date_fin) return true
+      const dateDebut = new Date(data.date_debut + 'T00:00:00')
+      const dateFin = new Date(data.date_fin + 'T00:00:00')
+      const millisecondsPerDay = 24 * 60 * 60 * 1000
+      const inclusiveDays = Math.floor((dateFin.getTime() - dateDebut.getTime()) / millisecondsPerDay) + 1
+      return data.duree_heures <= inclusiveDays * 8
+    },
+    {
+      message: 'La durée sélectionnée dépasse le maximum autorisé pour cette plage de dates',
+      path: ['duree_heures'],
+    },
+  )
 
 export type BookingFormData = z.infer<typeof bookingSchema>

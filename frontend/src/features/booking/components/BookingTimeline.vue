@@ -17,7 +17,6 @@ const steps: TimelineStep[] = [
   { label: 'Demande envoyée', key: 'pending' },
   { label: 'Acceptation', key: 'accepted' },
   { label: 'Paiement', key: 'paid' },
-  { label: 'En cours', key: 'in_progress' },
   { label: 'Confirmation Face', key: 'confirmed_by_face' },
   { label: 'Confirmation Producteur', key: 'confirmed_by_producer' },
   { label: 'Terminé', key: 'completed' },
@@ -28,10 +27,10 @@ const statusToStepIndex: Record<string, number> = {
   [BookingStatus.PENDING]: 0,
   [BookingStatus.ACCEPTED]: 1,
   [BookingStatus.PAID]: 2,
-  [BookingStatus.IN_PROGRESS]: 3,
-  [BookingStatus.CONFIRMED_BY_FACE]: 4,
-  [BookingStatus.CONFIRMED_BY_PRODUCER]: 5,
-  [BookingStatus.COMPLETED]: 6,
+  [BookingStatus.IN_PROGRESS]: 2,
+  [BookingStatus.CONFIRMED_BY_FACE]: 3,
+  [BookingStatus.CONFIRMED_BY_PRODUCER]: 4,
+  [BookingStatus.COMPLETED]: 5,
 }
 
 const terminalNegativeStatuses: BookingStatusType[] = [
@@ -51,15 +50,7 @@ const currentStepIndex = computed(() => {
 
 function getStepState(index: number): 'completed' | 'current' | 'future' {
   if (isTerminalNegative.value) {
-    // For refused/cancelled, show steps up to where it stopped as completed
-    let lastReachedIndex: number
-    if (props.status === BookingStatus.REFUSED) {
-      // Refused from paid requires a cancellation_reason (AC4),
-      // so its presence indicates the booking reached the paid step (index 2)
-      lastReachedIndex = props.cancellationReason ? 2 : 0
-    } else {
-      lastReachedIndex = currentStepIndex.value
-    }
+    const lastReachedIndex = props.status === BookingStatus.REFUSED ? 0 : currentStepIndex.value
     if (index <= lastReachedIndex) return 'completed'
     return 'future'
   }

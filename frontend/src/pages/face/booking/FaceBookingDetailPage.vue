@@ -131,15 +131,10 @@ const canCancelBooking = computed(() => {
   return CANCELLABLE_BY_PRODUCER_STATUSES.includes(booking.value.status)
 })
 
-// Whether refuse needs a mandatory reason (paid bookings)
-const refuseNeedsReason = computed(() => {
-  return booking.value?.status === BookingStatus.PAID
-})
-
 // Confirm button visibility and label (role-aware)
 const confirmLabel = computed<string | null>(() => {
   const status = booking.value?.status as BookingStatusType | undefined
-  if (status === BookingStatus.PAID || status === BookingStatus.IN_PROGRESS) return 'Confirmer la réalisation'
+  if (status === BookingStatus.PAID) return 'Confirmer la réalisation'
   // Face sees "Confirmer aussi" when Producer already confirmed
   if (isFace.value && status === BookingStatus.CONFIRMED_BY_PRODUCER) return 'Confirmer aussi'
   // Producer sees "Confirmer aussi" when Face already confirmed
@@ -221,12 +216,6 @@ function closeRefuseDialog(): void {
 
 async function handleRefuse(): Promise<void> {
   if (!booking.value) return
-
-  // Validate reason if needed
-  if (refuseNeedsReason.value && !refuseReason.value.trim()) {
-    toast.error('Veuillez indiquer la raison du refus')
-    return
-  }
 
   clearError()
   const result = await refuse(booking.value.id, refuseReason.value || undefined)
@@ -648,15 +637,12 @@ onUnmounted(() => {
         <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-2">Refuser le booking</h3>
           <p class="text-sm text-gray-500 mb-4">
-            {{ refuseNeedsReason
-              ? 'Ce booking a déjà été payé. Veuillez indiquer la raison de votre refus.'
-              : 'Êtes-vous sûr de vouloir refuser cette demande ?'
-            }}
+            Êtes-vous sûr de vouloir refuser cette demande ?
           </p>
 
-          <div v-if="refuseNeedsReason || showReasonField" class="mb-4">
+          <div v-if="showReasonField" class="mb-4">
             <label for="refuse-reason" class="block text-sm font-medium text-gray-700 mb-1">
-              Raison du refus{{ refuseNeedsReason ? ' *' : '' }}
+              Raison du refus
             </label>
             <textarea
               id="refuse-reason"
@@ -668,9 +654,9 @@ onUnmounted(() => {
             />
           </div>
 
-          <!-- Show optional reason field toggle for non-paid -->
+          <!-- Show optional reason field toggle -->
           <button
-            v-if="!refuseNeedsReason && !showReasonField"
+            v-if="!showReasonField"
             class="text-sm text-gray-500 hover:text-gray-700 underline mb-4 block"
             @click="showReasonField = true"
           >
@@ -687,7 +673,7 @@ onUnmounted(() => {
             </button>
             <button
               class="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="isRefusing || (refuseNeedsReason && !refuseReason.trim())"
+              :disabled="isRefusing"
               @click="handleRefuse"
             >
               <Loader2 v-if="isRefusing" class="w-4 h-4 animate-spin inline mr-1" />
