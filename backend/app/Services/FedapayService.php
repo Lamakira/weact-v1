@@ -196,7 +196,8 @@ class FedapayService
     private const PAYOUT_MODE_MAP = [
         'mtn'       => 'mtn_open',  // MTN Bénin
         'moov'      => 'moov',      // Moov Bénin
-        'momo_test' => 'mtn_open',  // Sandbox test — uses mtn_open
+        'celtiis'   => 'sbin',      // Celtiis Bénin (anciennement BBCI)
+        'momo_test' => 'mtn_open',  // Sandbox local — utilise mtn_open
     ];
 
     /**

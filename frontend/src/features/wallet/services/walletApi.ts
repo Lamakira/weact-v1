@@ -3,7 +3,7 @@ import type { WalletResponse } from '../types/wallet'
 
 export interface WithdrawPayload {
   amount: number
-  payment_mode: 'mtn' | 'moov' | 'momo_test'
+  payment_mode: 'mtn' | 'moov' | 'celtiis' | 'momo_test'
   phone_number: string
   phone_country: 'bj' | 'tg' | 'ci' | 'sn' | 'bf'
 }

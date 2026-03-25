@@ -23,7 +23,7 @@ class WithdrawWalletRequest extends FormRequest
 
         return [
             'amount'        => ['required', 'integer', 'min:1', "max:{$balance}"],
-            'payment_mode'  => ['required', 'string', 'in:mtn,moov,momo_test'],
+            'payment_mode'  => ['required', 'string', 'in:mtn,moov,celtiis' . (app()->environment('local') ? ',momo_test' : '')],
             'phone_number'  => ['required', 'string', 'regex:/^[0-9]{6,15}$/'],
             'phone_country' => ['required', 'string', 'in:bj,tg,ci,sn,bf'],
         ];

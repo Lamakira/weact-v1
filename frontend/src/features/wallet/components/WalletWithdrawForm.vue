@@ -18,7 +18,8 @@ const emit = defineEmits<{
 const PAYMENT_MODES: { value: WithdrawPayload['payment_mode']; label: string }[] = [
   { value: 'mtn', label: 'MTN MoMo' },
   { value: 'moov', label: 'Moov Money' },
-  { value: 'momo_test', label: 'Test MoMo' },
+  { value: 'celtiis', label: 'Celtiis Cash' },
+  ...(import.meta.env.DEV ? [{ value: 'momo_test' as const, label: 'Test MoMo' }] : []),
 ]
 
 const PHONE_COUNTRIES: { value: WithdrawPayload['phone_country']; label: string; prefix: string }[] = [
