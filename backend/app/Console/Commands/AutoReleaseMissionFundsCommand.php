@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Models\Mission;
 use App\Services\MissionService;
@@ -36,7 +37,10 @@ class AutoReleaseMissionFundsCommand extends Command
 
         $missions = Mission::where('status', MissionStatus::Closed)
             ->where('date_tournage', '<=', $cutoff)
-            ->with('payment')
+            ->whereHas('payment', function ($query): void {
+                $query->where('status', MissionPaymentStatus::Paid);
+            })
+            ->with('payment.entries')
             ->get();
 
         $this->info("Found {$missions->count()} mission(s) to auto-complete.");

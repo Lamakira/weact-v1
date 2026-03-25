@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Mission;
 
+use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
 use App\Models\Mission;
 use App\Models\Producer;
@@ -19,7 +20,7 @@ class DeleteMissionRequest extends FormRequest
     {
         $user = $this->user();
 
-        if (!$user || $user->userable_type !== Producer::class) {
+        if (! $user || $user->userable_type !== Producer::class) {
             return false;
         }
 
@@ -61,14 +62,15 @@ class DeleteMissionRequest extends FormRequest
                 return;
             }
 
-            // TODO: Uncomment when Candidature model exists (Epic 6)
-            // Check if mission has active candidatures (not rejected)
-            // if ($mission->candidatures()->whereNotIn('status', ['rejected'])->exists()) {
-            //     $validator->errors()->add(
-            //         'mission',
-            //         'Impossible de supprimer une mission avec des candidatures actives'
-            //     );
-            // }
+            if ($mission->candidatures()->whereNotIn('status', [
+                CandidatureStatus::Rejected->value,
+                CandidatureStatus::Cancelled->value,
+            ])->exists()) {
+                $validator->errors()->add(
+                    'mission',
+                    'Impossible de supprimer une mission avec des candidatures actives'
+                );
+            }
         });
     }
 }

@@ -49,17 +49,34 @@ class MissionPaymentService
                 ]);
             }
 
-            // Validate candidatures belong to this mission and are pending
-            $candidatures = Candidature::whereIn('id', $candidatureIds)
-                ->where('mission_id', $mission->id)
-                ->where('status', CandidatureStatus::Pending)
-                ->get();
+            $requestedIds = array_values(array_unique(array_map('intval', $candidatureIds)));
 
-            if ($candidatures->count() !== count($candidatureIds)) {
+            $candidatures = Candidature::whereIn('id', $requestedIds)
+                ->where('mission_id', $mission->id)
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            $invalidIds = [];
+
+            foreach ($requestedIds as $candidatureId) {
+                $candidature = $candidatures->get($candidatureId);
+
+                if (! $candidature || $candidature->status !== CandidatureStatus::Pending) {
+                    $invalidIds[] = $candidatureId;
+                }
+            }
+
+            if ($invalidIds !== []) {
                 throw ValidationException::withMessages([
-                    'candidature_ids' => ['Certaines candidatures sont invalides ou ne sont plus en attente.'],
+                    'candidature_ids' => [
+                        'Certaines candidatures sont invalides ou ne sont plus en attente pour cette mission : '.implode(', ', $invalidIds).'.',
+                    ],
                 ]);
             }
+
+            $candidatures = collect($requestedIds)
+                ->map(fn (int $candidatureId) => $candidatures->get($candidatureId));
 
             $pricing = new MissionPricing($mission->budget, $candidatures->count());
 
@@ -97,7 +114,7 @@ class MissionPaymentService
                         'message' => 'Votre candidature a été acceptée !',
                         'mission_id' => $mission->id,
                         'mission_titre' => $mission->titre,
-                        'url' => "/face/candidatures",
+                        'url' => '/face/candidatures',
                     ]
                 );
             }
@@ -117,7 +134,7 @@ class MissionPaymentService
                         'message' => 'Votre candidature n\'a pas été retenue.',
                         'mission_id' => $mission->id,
                         'mission_titre' => $mission->titre,
-                        'url' => "/face/candidatures",
+                        'url' => '/face/candidatures',
                     ]
                 );
             }
@@ -149,6 +166,7 @@ class MissionPaymentService
 
                 if (! in_array($existing->status, $terminalFailedStatuses, true)) {
                     $tokenObj = $existing->generateToken();
+
                     return ['payment' => $payment, 'checkout_url' => $tokenObj->url];
                 }
 
@@ -212,7 +230,7 @@ class MissionPaymentService
                     userId: $producerUser->id,
                     type: 'mission_payment_confirmed',
                     data: [
-                        'message' => 'Paiement confirmé pour la mission ' . $mission->titre,
+                        'message' => 'Paiement confirmé pour la mission '.$mission->titre,
                         'mission_id' => $mission->id,
                         'url' => "/producer/missions/{$mission->id}/candidatures",
                     ]
@@ -225,9 +243,9 @@ class MissionPaymentService
                     userId: $this->getUserIdForFace($entry->face_id),
                     type: 'mission_participation_confirmation_required',
                     data: [
-                        'message' => 'Vous avez été sélectionné(e) pour la mission "' . $mission->titre . '". Confirmez votre participation.',
+                        'message' => 'Vous avez été sélectionné(e) pour la mission "'.$mission->titre.'". Confirmez votre participation.',
                         'mission_id' => $mission->id,
-                        'url' => "/face/candidatures",
+                        'url' => '/face/candidatures',
                     ]
                 );
             }
@@ -250,10 +268,22 @@ class MissionPaymentService
 
         $entries = $payment->entries()
             ->where('escrow_status', EscrowStatus::Locked)
-            ->with('face')
+            ->with(['face', 'candidature'])
             ->get();
 
         foreach ($entries as $entry) {
+            if (
+                ! $entry->candidature
+                || ! in_array($entry->candidature->status, [
+                    CandidatureStatus::Confirmed->value,
+                    CandidatureStatus::InProgress->value,
+                ], true)
+            ) {
+                throw new \RuntimeException(
+                    "Mission {$mission->id} cannot release funds for candidature {$entry->candidature_id} without confirmed participation."
+                );
+            }
+
             $userId = $this->getUserIdForFace($entry->face_id);
 
             if ($userId === null) {
@@ -261,6 +291,7 @@ class MissionPaymentService
                     'face_id' => $entry->face_id,
                     'mission_id' => $mission->id,
                 ]);
+
                 continue;
             }
 
@@ -277,7 +308,7 @@ class MissionPaymentService
 
             // Move candidature to completed using candidature_id directly
             Candidature::where('id', $entry->candidature_id)
-                ->whereIn('status', [CandidatureStatus::InProgress->value, CandidatureStatus::Confirmed->value, CandidatureStatus::Accepted->value])
+                ->whereIn('status', [CandidatureStatus::InProgress->value, CandidatureStatus::Confirmed->value])
                 ->update(['status' => CandidatureStatus::Completed->value]);
 
             // Notify face: wallet credited + mission completed
@@ -301,6 +332,25 @@ class MissionPaymentService
     {
         return MissionPayment::where('mission_id', $mission->id)
             ->where('status', MissionPaymentStatus::Paid)
+            ->exists();
+    }
+
+    public function hasUnconfirmedSelectedFaces(Mission $mission): bool
+    {
+        $payment = $mission->payment;
+
+        if (! $payment) {
+            return false;
+        }
+
+        $selectedCandidatureIds = $payment->entries()->pluck('candidature_id');
+
+        if ($selectedCandidatureIds->isEmpty()) {
+            return false;
+        }
+
+        return Candidature::whereIn('id', $selectedCandidatureIds)
+            ->where('status', CandidatureStatus::Accepted)
             ->exists();
     }
 

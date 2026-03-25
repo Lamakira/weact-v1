@@ -21,7 +21,7 @@ class UpdateMissionRequest extends FormRequest
     {
         $user = $this->user();
 
-        if (!$user || $user->userable_type !== Producer::class) {
+        if (! $user || $user->userable_type !== Producer::class) {
             return false;
         }
 
@@ -51,6 +51,15 @@ class UpdateMissionRequest extends FormRequest
         $validator->after(function ($validator) {
             /** @var Mission $mission */
             $mission = $this->route('mission');
+
+            if ($mission->status === MissionStatus::PendingPayment) {
+                $validator->errors()->add(
+                    'mission',
+                    'Une mission en attente de paiement ne peut pas être modifiée'
+                );
+
+                return;
+            }
 
             // Check if mission is editable (not closed or completed)
             if (in_array($mission->status, [MissionStatus::Closed, MissionStatus::Completed], true)) {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Producer;
 
 use App\Enums\CandidatureStatus;
+use App\Enums\MissionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Producer\IndexMissionCandidaturesRequest;
 use App\Http\Resources\CandidatureResource;
@@ -71,7 +72,7 @@ class CandidatureController extends Controller
         $producer = $user->userable;
 
         // Eager load mission to avoid N+1 query
-        $candidature->loadMissing('mission');
+        $candidature->loadMissing('mission.payment');
 
         // Verify candidature's mission belongs to this Producer
         if ($candidature->mission->producer_id !== $producer->id) {
@@ -86,6 +87,24 @@ class CandidatureController extends Controller
                     'message' => 'Seules les candidatures en attente peuvent être acceptées',
                 ],
             ], 400);
+        }
+
+        if ($candidature->mission->status !== MissionStatus::Published) {
+            return response()->json([
+                'error' => [
+                    'code' => 'MISSION_NOT_PUBLISHED',
+                    'message' => 'Seules les missions publiées peuvent accepter des candidatures manuellement',
+                ],
+            ], 422);
+        }
+
+        if ($candidature->mission->payment !== null) {
+            return response()->json([
+                'error' => [
+                    'code' => 'SELECTION_ALREADY_STARTED',
+                    'message' => 'La sélection finale a déjà commencé. Utilisez le workflow de paiement pour gérer cette mission',
+                ],
+            ], 422);
         }
 
         // Update status

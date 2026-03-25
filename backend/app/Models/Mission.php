@@ -30,7 +30,13 @@ class Mission extends Model
         });
 
         static::updating(function (Mission $mission): void {
-            if ($mission->isDirty('titre')) {
+            if (
+                $mission->isDirty('titre')
+                && (
+                    $mission->status === MissionStatus::Draft
+                    || $mission->getOriginal('status') === MissionStatus::Draft->value
+                )
+            ) {
                 $mission->slug = self::generateUniqueSlug($mission->titre, $mission->id);
             }
         });

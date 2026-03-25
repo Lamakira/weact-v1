@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Mission;
 
+use App\Enums\CandidatureStatus;
+use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
+use App\Models\Candidature;
 use App\Models\Mission;
 use App\Models\Producer;
 use Illuminate\Foundation\Http\FormRequest;
@@ -91,23 +94,38 @@ class CompleteMissionRequest extends FormRequest
                 return;
             }
 
-            // TODO: Uncomment when candidatures table exists (Epic 6)
-            // For now, allow completion without candidature check
-            // $hasAcceptedCandidatures = $mission->candidatures()
-            //     ->whereIn('status', [
-            //         CandidatureStatus::Accepted,
-            //         CandidatureStatus::Confirmed,
-            //         CandidatureStatus::InProgress,
-            //         CandidatureStatus::Completed,
-            //     ])
-            //     ->exists();
-            //
-            // if (!$hasAcceptedCandidatures) {
-            //     $validator->errors()->add(
-            //         'candidatures',
-            //         'Cette mission n\'a aucune candidature acceptée'
-            //     );
-            // }
+            $payment = $mission->payment;
+
+            if (! $payment || $payment->status !== MissionPaymentStatus::Paid) {
+                $validator->errors()->add(
+                    'status',
+                    'Le paiement doit être confirmé avant de terminer la mission'
+                );
+
+                return;
+            }
+
+            $selectedCandidatureIds = $payment->entries()->pluck('candidature_id');
+
+            if ($selectedCandidatureIds->isEmpty()) {
+                $validator->errors()->add(
+                    'candidatures',
+                    'Cette mission n\'a aucune candidature sélectionnée'
+                );
+
+                return;
+            }
+
+            $hasUnconfirmedSelectedFaces = Candidature::whereIn('id', $selectedCandidatureIds)
+                ->where('status', CandidatureStatus::Accepted)
+                ->exists();
+
+            if ($hasUnconfirmedSelectedFaces) {
+                $validator->errors()->add(
+                    'candidatures',
+                    'Toutes les faces sélectionnées doivent confirmer leur participation avant de terminer la mission'
+                );
+            }
         });
     }
 }

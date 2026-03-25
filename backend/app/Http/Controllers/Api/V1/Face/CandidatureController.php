@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Face;
 
 use App\Enums\CandidatureStatus;
+use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Face\StoreCandidatureRequest;
@@ -152,26 +153,50 @@ class CandidatureController extends Controller
             ], 400);
         }
 
+        $mission = $candidature->mission()->with('payment.entries')->first();
+        $missionPayment = $mission?->payment;
+
+        if (! $missionPayment || $missionPayment->status !== MissionPaymentStatus::Paid) {
+            return response()->json([
+                'error' => [
+                    'code' => 'PAYMENT_NOT_CONFIRMED',
+                    'message' => 'Le paiement de la mission doit être confirmé avant de pouvoir confirmer votre participation',
+                ],
+            ], 422);
+        }
+
+        if (! $missionPayment->entries->contains('candidature_id', $candidature->id)) {
+            return response()->json([
+                'error' => [
+                    'code' => 'NOT_IN_FINAL_SELECTION',
+                    'message' => 'Cette candidature ne fait pas partie de la sélection finale du producteur',
+                ],
+            ], 422);
+        }
+
         // Update status to confirmed
         $candidature->status = CandidatureStatus::Confirmed;
         $candidature->save();
 
         // Notify the producer that this face confirmed
-        $mission = $candidature->mission;
         $producerUser = User::where('userable_type', \App\Models\Producer::class)
             ->where('userable_id', $mission->producer_id)
             ->first();
 
         if ($producerUser) {
-            Notification::create([
-                'user_id' => $producerUser->id,
-                'type'    => 'face_confirmed_participation',
-                'data'    => [
-                    'message'    => $face->prenom . ' a confirmé sa participation à la mission "' . $mission->titre . '".',
-                    'mission_id' => $mission->id,
-                    'url'        => "/producer/missions/{$mission->id}/candidatures",
-                ],
-            ]);
+            try {
+                Notification::create([
+                    'user_id' => $producerUser->id,
+                    'type' => 'face_confirmed_participation',
+                    'data' => [
+                        'message' => $face->prenom.' a confirmé sa participation à la mission "'.$mission->titre.'".',
+                        'mission_id' => $mission->id,
+                        'url' => "/producer/missions/{$mission->id}/candidatures",
+                    ],
+                ]);
+            } catch (\Throwable) {
+                // Non-fatal: confirmation is already persisted
+            }
         }
 
         // Check if all selected faces have now confirmed → move candidatures to in_progress

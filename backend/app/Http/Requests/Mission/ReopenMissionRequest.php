@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Mission;
 
+use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Models\Mission;
 use App\Models\Producer;
@@ -51,8 +52,20 @@ class ReopenMissionRequest extends FormRequest
             /** @var Mission $mission */
             $mission = $this->route('mission');
 
+            if (
+                $mission->status === MissionStatus::PendingPayment
+                || ($mission->payment && $mission->payment->status === MissionPaymentStatus::Pending)
+            ) {
+                $validator->errors()->add(
+                    'status',
+                    'Cette mission a un paiement en cours et ne peut pas être réouverte'
+                );
+
+                return;
+            }
+
             // Missions with a paid payment cannot be reopened (funds are in escrow)
-            if ($mission->payment && $mission->payment->status->value === 'paid') {
+            if ($mission->payment && $mission->payment->status === MissionPaymentStatus::Paid) {
                 $validator->errors()->add(
                     'status',
                     'Cette mission a été payée et ne peut pas être réouverte'

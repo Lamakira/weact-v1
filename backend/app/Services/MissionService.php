@@ -9,7 +9,7 @@ use App\Enums\MissionStatus;
 use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
-use App\Services\MissionPaymentService;
+use App\Models\User;
 use Illuminate\Support\Facades\Log;
 
 class MissionService
@@ -51,7 +51,10 @@ class MissionService
      */
     public function updateMission(Mission $mission, array $data): Mission
     {
-        $mission->update([
+        $shootingDateChanged = array_key_exists('date_tournage', $data)
+            && $mission->date_tournage?->format('Y-m-d') !== $data['date_tournage'];
+
+        $payload = [
             'titre' => $data['titre'],
             'description' => $data['description'],
             'date_tournage' => $data['date_tournage'],
@@ -64,7 +67,13 @@ class MissionService
             'genre_voulu' => $data['genre_voulu'],
             'lieu' => $data['lieu'],
             'duree' => $data['duree'],
-        ]);
+        ];
+
+        if ($shootingDateChanged) {
+            $payload['shooting_reminder_sent_at'] = null;
+        }
+
+        $mission->update($payload);
 
         return $mission->fresh();
     }
@@ -115,19 +124,19 @@ class MissionService
             try {
                 Notification::create([
                     'user_id' => $userId,
-                    'type'    => 'mission_closed_pending_candidature',
-                    'data'    => [
-                        'message'        => "La mission \"{$mission->titre}\" a été clôturée. Votre candidature n'a pas été retenue.",
-                        'mission_id'     => $mission->id,
+                    'type' => 'mission_closed_pending_candidature',
+                    'data' => [
+                        'message' => "La mission \"{$mission->titre}\" a été clôturée. Votre candidature n'a pas été retenue.",
+                        'mission_id' => $mission->id,
                         'candidature_id' => $candidature->id,
-                        'url'            => "/face/candidatures/{$candidature->id}",
+                        'url' => "/face/candidatures/{$candidature->id}",
                     ],
                 ]);
             } catch (\Throwable $e) {
                 Log::warning('MissionClosed pending candidature notification failed', [
-                    'mission_id'     => $mission->id,
+                    'mission_id' => $mission->id,
                     'candidature_id' => $candidature->id,
-                    'error'          => $e->getMessage(),
+                    'error' => $e->getMessage(),
                 ]);
             }
         }
@@ -159,6 +168,14 @@ class MissionService
     public function completeMission(Mission $mission): Mission
     {
         return \Illuminate\Support\Facades\DB::transaction(function () use ($mission): Mission {
+            if (! $this->missionPaymentService->hasPaidPayment($mission)) {
+                throw new \RuntimeException('Mission completion requires a confirmed payment.');
+            }
+
+            if ($this->missionPaymentService->hasUnconfirmedSelectedFaces($mission)) {
+                throw new \RuntimeException('Mission completion requires all selected faces to confirm participation.');
+            }
+
             // Release funds to selected faces if payment exists
             $this->missionPaymentService->releaseFunds($mission);
 
@@ -166,7 +183,38 @@ class MissionService
                 'status' => MissionStatus::Completed,
             ]);
 
+            $this->notifyProducerOnCompletion($mission->fresh());
+
             return $mission->fresh();
         });
+    }
+
+    private function notifyProducerOnCompletion(Mission $mission): void
+    {
+        $producerUser = User::where('userable_type', Producer::class)
+            ->where('userable_id', $mission->producer_id)
+            ->first();
+
+        if (! $producerUser) {
+            return;
+        }
+
+        try {
+            Notification::create([
+                'user_id' => $producerUser->id,
+                'type' => 'mission_completed_producer',
+                'data' => [
+                    'message' => "La mission \"{$mission->titre}\" est terminée.",
+                    'mission_id' => $mission->id,
+                    'url' => "/producer/missions/{$mission->id}",
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Mission completion notification for producer failed', [
+                'mission_id' => $mission->id,
+                'producer_id' => $mission->producer_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

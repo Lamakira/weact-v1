@@ -39,7 +39,6 @@ class RemindShootingDayCommand extends Command
             ->with([
                 'producer.userable',
                 'candidatures' => fn ($q) => $q->whereIn('status', [
-                    CandidatureStatus::Accepted->value,
                     CandidatureStatus::Confirmed->value,
                     CandidatureStatus::InProgress->value,
                 ])->with('face.userable'),
@@ -48,7 +47,7 @@ class RemindShootingDayCommand extends Command
 
         $this->info("Found {$missions->count()} mission(s) with shooting tomorrow.");
 
-        $sent   = 0;
+        $sent = 0;
         $failed = 0;
 
         foreach ($missions as $mission) {
@@ -60,7 +59,7 @@ class RemindShootingDayCommand extends Command
             } catch (\Throwable $e) {
                 Log::warning('ShootingDay reminder failed', [
                     'mission_id' => $mission->id,
-                    'error'      => $e->getMessage(),
+                    'error' => $e->getMessage(),
                 ]);
                 $this->error("Failed for mission #{$mission->id}: {$e->getMessage()}");
                 $failed++;
@@ -80,11 +79,11 @@ class RemindShootingDayCommand extends Command
         if ($producerUserId) {
             Notification::create([
                 'user_id' => $producerUserId,
-                'type'    => 'shooting_day_reminder',
-                'data'    => [
-                    'message'    => "Rappel : le tournage de votre mission \"{$mission->titre}\" a lieu demain.",
+                'type' => 'shooting_day_reminder',
+                'data' => [
+                    'message' => "Rappel : le tournage de votre mission \"{$mission->titre}\" a lieu demain.",
                     'mission_id' => $mission->id,
-                    'url'        => "/producer/missions/{$mission->id}",
+                    'url' => "/producer/missions/{$mission->id}",
                 ],
             ]);
         }
@@ -100,19 +99,19 @@ class RemindShootingDayCommand extends Command
             try {
                 Notification::create([
                     'user_id' => $faceUserId,
-                    'type'    => 'shooting_day_reminder',
-                    'data'    => [
-                        'message'        => "Rappel : votre tournage pour la mission \"{$mission->titre}\" a lieu demain.",
-                        'mission_id'     => $mission->id,
+                    'type' => 'shooting_day_reminder',
+                    'data' => [
+                        'message' => "Rappel : votre tournage pour la mission \"{$mission->titre}\" a lieu demain.",
+                        'mission_id' => $mission->id,
                         'candidature_id' => $candidature->id,
-                        'url'            => "/face/candidatures/{$candidature->id}",
+                        'url' => "/face/candidatures/{$candidature->id}",
                     ],
                 ]);
             } catch (\Throwable $e) {
                 Log::warning('ShootingDay reminder for Face failed', [
-                    'mission_id'     => $mission->id,
+                    'mission_id' => $mission->id,
                     'candidature_id' => $candidature->id,
-                    'error'          => $e->getMessage(),
+                    'error' => $e->getMessage(),
                 ]);
             }
         }

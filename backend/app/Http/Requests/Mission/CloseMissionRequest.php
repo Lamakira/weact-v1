@@ -78,6 +78,22 @@ class CloseMissionRequest extends FormRequest
 
                 return;
             }
+
+            if ($mission->status === MissionStatus::PendingPayment) {
+                $validator->errors()->add(
+                    'status',
+                    'Une mission en attente de paiement ne peut pas être clôturée manuellement'
+                );
+
+                return;
+            }
+
+            if ($mission->date_tournage !== null && $mission->date_tournage->isBefore(now()->startOfDay())) {
+                $validator->errors()->add(
+                    'status',
+                    'Une mission dont la date de tournage est passée ne peut pas être clôturée manuellement'
+                );
+            }
         });
     }
 }
