@@ -5,6 +5,7 @@ import LoginForm from '@/features/auth/components/LoginForm.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import logoNoir from '@/assets/images/logonoir.png'
+import loginIllustration from '@/assets/images/login-weact-illustration.webp'
 
 const router = useRouter()
 const route = useRoute()
@@ -163,7 +164,7 @@ function handleLoginSuccess(): void {
       <!-- Background Image with Overlay -->
       <div class="absolute inset-0 z-0">
         <img
-          src="https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&q=80&w=2000"
+          :src="loginIllustration"
           alt="Creative Studio"
           class="h-full w-full object-cover opacity-60"
         />
