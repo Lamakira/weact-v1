@@ -60,7 +60,7 @@ class FaceDashboardController extends Controller
      * Returns booking counts grouped into 4 UI-friendly buckets:
      * - pending: Bookings awaiting Face response
      * - accepted: Accepted or paid bookings (awaiting mission start)
-     * - in_progress: Active bookings (confirmed / in progress)
+     * - in_progress: Active bookings (awaiting the second confirmation)
      * - completed: Finished bookings
      */
     public function bookingStats(Request $request): JsonResponse
@@ -84,10 +84,10 @@ class FaceDashboardController extends Controller
 
         return response()->json([
             'data' => [
-                'pending'     => $get(BookingStatus::Pending),
-                'accepted'    => $get(BookingStatus::Accepted) + $get(BookingStatus::Paid),
-                'in_progress' => $get(BookingStatus::InProgress) + $get(BookingStatus::ConfirmedByFace) + $get(BookingStatus::ConfirmedByProducer),
-                'completed'   => $get(BookingStatus::Completed),
+                'pending' => $get(BookingStatus::Pending),
+                'accepted' => $get(BookingStatus::Accepted) + $get(BookingStatus::Paid),
+                'in_progress' => $get(BookingStatus::ConfirmedByFace) + $get(BookingStatus::ConfirmedByProducer),
+                'completed' => $get(BookingStatus::Completed),
             ],
             'message' => 'Booking stats retrieved successfully',
         ]);
@@ -130,17 +130,16 @@ class FaceDashboardController extends Controller
             $month = $row->month;
             $status = $row->status instanceof BookingStatus ? $row->status : BookingStatus::from($row->status);
 
-            if (!isset($bookingsByMonth[$month])) {
+            if (! isset($bookingsByMonth[$month])) {
                 continue;
             }
 
             $bucket = match ($status) {
-                BookingStatus::Pending                                                          => 'pending',
-                BookingStatus::Accepted, BookingStatus::Paid                                   => 'accepted',
-                BookingStatus::InProgress, BookingStatus::ConfirmedByFace,
-                BookingStatus::ConfirmedByProducer                                             => 'in_progress',
-                BookingStatus::Completed                                                       => 'completed',
-                default                                                                        => null,
+                BookingStatus::Pending => 'pending',
+                BookingStatus::Accepted, BookingStatus::Paid => 'accepted',
+                BookingStatus::ConfirmedByFace, BookingStatus::ConfirmedByProducer => 'in_progress',
+                BookingStatus::Completed => 'completed',
+                default => null,
             };
 
             if ($bucket !== null) {
@@ -168,7 +167,7 @@ class FaceDashboardController extends Controller
 
         return response()->json([
             'data' => [
-                'bookings_by_month'           => array_values($bookingsByMonth),
+                'bookings_by_month' => array_values($bookingsByMonth),
                 'bookings_completed_by_month' => $bookingsCompletedByMonth,
             ],
             'message' => 'Booking chart stats retrieved successfully',

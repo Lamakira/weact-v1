@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Booking;
 
+use App\Enums\BookingStatus;
+use App\Models\Booking;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class CreateBookingRequest extends FormRequest
 {
@@ -62,5 +66,57 @@ class CreateBookingRequest extends FormRequest
             'type_contenu.max' => 'Le type de contenu ne peut pas depasser :max caracteres.',
             'message.max' => 'Le message ne peut pas depasser :max caracteres.',
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $faceId = $this->integer('face_id');
+            $dateDebut = $this->input('date_debut');
+            $dateFin = $this->input('date_fin');
+            $dureeHeures = $this->integer('duree_heures');
+
+            if ($faceId <= 0 || ! is_string($dateDebut) || ! is_string($dateFin) || $dureeHeures <= 0) {
+                return;
+            }
+
+            try {
+                $start = CarbonImmutable::parse($dateDebut)->startOfDay();
+                $end = CarbonImmutable::parse($dateFin)->endOfDay();
+            } catch (\Throwable) {
+                return;
+            }
+
+            $inclusiveDays = $start->startOfDay()->diffInDays($end->startOfDay()) + 1;
+            $maxHoursForRange = $inclusiveDays * 8;
+
+            if ($dureeHeures > $maxHoursForRange) {
+                $validator->errors()->add(
+                    'duree_heures',
+                    "La duree selectionnee depasse le maximum de {$maxHoursForRange} heures pour cette plage de dates."
+                );
+            }
+
+            $overlapExists = Booking::query()
+                ->where('face_id', $faceId)
+                ->whereIn('status', [
+                    BookingStatus::Accepted->value,
+                    BookingStatus::Paid->value,
+                    BookingStatus::ConfirmedByFace->value,
+                    BookingStatus::ConfirmedByProducer->value,
+                ])
+                ->where(function ($query) use ($start, $end): void {
+                    $query->where('date_debut', '<=', $end)
+                        ->where('date_fin', '>=', $start);
+                })
+                ->exists();
+
+            if ($overlapExists) {
+                $validator->errors()->add(
+                    'date_debut',
+                    'Cette Face a deja un booking actif sur cette plage de dates.'
+                );
+            }
+        });
     }
 }

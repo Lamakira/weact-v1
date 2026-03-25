@@ -32,7 +32,6 @@ class BookingController extends Controller
         'active' => [
             BookingStatus::Accepted,
             BookingStatus::Paid,
-            BookingStatus::InProgress,
             BookingStatus::ConfirmedByFace,
             BookingStatus::ConfirmedByProducer,
         ],

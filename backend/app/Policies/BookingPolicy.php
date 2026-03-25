@@ -50,12 +50,12 @@ class BookingPolicy
 
     /**
      * Determine if the user can refuse the booking.
-     * Only the Face can refuse, and only when status is pending or paid.
+     * Only the Face can refuse, and only when status is pending.
      */
     public function refuse(User $user, Booking $booking): bool
     {
         return $user->id === $booking->face_id
-            && in_array($booking->status, [BookingStatus::Pending, BookingStatus::Paid], true);
+            && $booking->status === BookingStatus::Pending;
     }
 
     /**
@@ -109,7 +109,6 @@ class BookingPolicy
 
         $confirmableStatuses = [
             BookingStatus::Paid,
-            BookingStatus::InProgress,
             BookingStatus::ConfirmedByFace,
             BookingStatus::ConfirmedByProducer,
         ];
@@ -150,7 +149,6 @@ class BookingPolicy
 
         $chatEligibleStatuses = [
             BookingStatus::Paid,
-            BookingStatus::InProgress,
             BookingStatus::ConfirmedByFace,
             BookingStatus::ConfirmedByProducer,
             BookingStatus::Completed,
@@ -169,7 +167,6 @@ class BookingPolicy
 
         $chatActiveStatuses = [
             BookingStatus::Paid,
-            BookingStatus::InProgress,
             BookingStatus::ConfirmedByFace,
             BookingStatus::ConfirmedByProducer,
         ];

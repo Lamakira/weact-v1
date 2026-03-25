@@ -35,8 +35,8 @@ class AutoCompleteBookingsCommand extends Command
         $cutoff = now()->subHours(72);
 
         $bookings = Booking::whereIn('status', [
-            BookingStatus::InProgress->value,
             BookingStatus::ConfirmedByFace->value,
+            BookingStatus::ConfirmedByProducer->value,
         ])
             ->where('date_fin', '<=', $cutoff)
             ->get();

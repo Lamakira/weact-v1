@@ -40,7 +40,7 @@ class BookingMessageController extends Controller
     /**
      * Send a new message in a booking chat.
      *
-     * Requires: booking is in an active chat status (paid, in_progress, confirmed_*).
+     * Requires: booking is in an active chat status (paid, confirmed_*).
      * Broadcasts to the other party via Reverb.
      */
     public function store(SendBookingMessageRequest $request, Booking $booking): JsonResponse
@@ -53,7 +53,7 @@ class BookingMessageController extends Controller
 
         $message = $booking->messages()->create([
             'sender_id' => $request->user()->id,
-            'content'   => $request->validated('content'),
+            'content' => $request->validated('content'),
         ]);
 
         $message->load('sender.userable');
@@ -61,7 +61,7 @@ class BookingMessageController extends Controller
         broadcast(new BookingMessageSent($message))->toOthers();
 
         return response()->json([
-            'data'    => new BookingMessageResource($message),
+            'data' => new BookingMessageResource($message),
             'message' => 'Message envoyé avec succès',
         ], 201);
     }
@@ -73,7 +73,7 @@ class BookingMessageController extends Controller
     {
         return response()->json([
             'error' => [
-                'code'    => 'CHAT_LOCKED',
+                'code' => 'CHAT_LOCKED',
                 'message' => 'Le chat n\'est pas encore débloqué',
             ],
         ], 403);

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Auth;
 
 class Booking extends Model
 {
@@ -46,6 +47,7 @@ class Booking extends Model
         'cancellation_reason',
         'fedapay_transaction_id',
         'payment_mode',
+        'payment_initiation_key',
     ];
 
     /**
@@ -119,6 +121,13 @@ class Booking extends Model
      */
     public function raterBookingRating(): HasOne
     {
-        return $this->hasOne(BookingRating::class);
+        $relation = $this->hasOne(BookingRating::class);
+        $userId = Auth::id();
+
+        if ($userId === null) {
+            return $relation->whereRaw('1 = 0');
+        }
+
+        return $relation->where('rater_id', $userId);
     }
 }

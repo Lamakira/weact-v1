@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Concerns\RecordsFinancialEvent;
+use App\Enums\EscrowStatus;
 use App\Enums\FinancialEventType;
 use App\Models\Booking;
 use App\Models\EscrowTransaction;
@@ -19,12 +20,18 @@ class EscrowService
      */
     public function lock(Booking $booking): EscrowTransaction
     {
-        $escrow = EscrowTransaction::create([
-            'booking_id' => $booking->id,
-            'amount' => $booking->montant_face_recoit,
-            'status' => 'locked',
-            'locked_at' => now(),
-        ]);
+        $escrow = EscrowTransaction::query()->firstOrCreate(
+            ['booking_id' => $booking->id],
+            [
+                'amount' => $booking->montant_face_recoit,
+                'status' => EscrowStatus::Locked->value,
+                'locked_at' => now(),
+            ]
+        );
+
+        if (! $escrow->wasRecentlyCreated) {
+            return $escrow;
+        }
 
         $this->recordFinancialEvent(
             FinancialEventType::EscrowLock,
@@ -50,12 +57,16 @@ class EscrowService
         }
 
         // Idempotent: already released
-        if ($escrow->status === 'released') {
+        if (in_array($escrow->status, [
+            EscrowStatus::Released->value,
+            EscrowStatus::Refunded->value,
+            EscrowStatus::Pending->value,
+        ], true)) {
             return;
         }
 
         $escrow->update([
-            'status' => 'released',
+            'status' => EscrowStatus::Released->value,
             'released_at' => now(),
         ]);
 
@@ -88,7 +99,10 @@ class EscrowService
         }
 
         // Idempotent: already refunded.
-        if ($escrow->status === 'refunded') {
+        if (in_array($escrow->status, [
+            EscrowStatus::Refunded->value,
+            EscrowStatus::Pending->value,
+        ], true)) {
             return;
         }
 
@@ -99,10 +113,21 @@ class EscrowService
         $refundId = isset($refund['fedapay_refund_id']) ? (string) $refund['fedapay_refund_id'] : null;
         $refundStatus = $refund['status'] ?? 'pending';
 
+        $normalizedRefundStatus = strtolower((string) $refundStatus);
+        $isSettledRefund = in_array($normalizedRefundStatus, [
+            'approved',
+            'completed',
+            'processed',
+            'refunded',
+            'successful',
+            'succeeded',
+        ], true);
+
         $escrow->update([
-            'status' => 'refunded',
+            // Refunds can be asynchronous: keep a non-terminal local state until the provider confirms settlement.
+            'status' => $isSettledRefund ? EscrowStatus::Refunded->value : EscrowStatus::Pending->value,
             'fedapay_ref' => $refundId,
-            'refunded_at' => now(),
+            'refunded_at' => $isSettledRefund ? now() : null,
         ]);
 
         $this->recordFinancialEvent(

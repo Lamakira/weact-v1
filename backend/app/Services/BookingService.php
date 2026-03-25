@@ -14,14 +14,16 @@ use App\Events\BookingCompleted;
 use App\Events\BookingCreated;
 use App\Events\BookingExpired;
 use App\Events\BookingPaid;
+use App\Events\BookingPartiallyConfirmed;
 use App\Events\BookingRefused;
 use App\Models\Booking;
 use App\Models\Face;
-use App\Models\Notification;
 use App\Models\User;
 use App\ValueObjects\BookingPricing;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class BookingService
@@ -39,7 +41,7 @@ class BookingService
      *
      * @param  array<string, mixed>  $data  Validated request data
      * @param  User  $producer  The authenticated Producer user
-     * @return Booking  The newly created booking
+     * @return Booking The newly created booking
      *
      * @throws ValidationException
      */
@@ -111,6 +113,7 @@ class BookingService
             $booking->update([
                 'status' => BookingStatus::Accepted,
                 'accepted_at' => now(),
+                'payment_reminder_sent_at' => null,
             ]);
 
             BookingAccepted::dispatch($booking);
@@ -129,7 +132,7 @@ class BookingService
         return DB::transaction(function () use ($booking, $reason) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
-            if (! in_array($booking->status, [BookingStatus::Pending, BookingStatus::Paid], true)) {
+            if ($booking->status !== BookingStatus::Pending) {
                 throw ValidationException::withMessages([
                     'status' => ['Ce booking ne peut pas être refusé dans son état actuel.'],
                 ]);
@@ -149,7 +152,7 @@ class BookingService
     /**
      * Cancel a booking (Producer only).
      * - pending/accepted: immediate cancel with no financial operation
-     * - paid: refund 85% and mark escrow as refunded
+     * - paid: initiate a refund of 85%
      *
      * @throws ValidationException
      */
@@ -189,7 +192,7 @@ class BookingService
     /**
      * Cancel a booking as Face.
      * - accepted: immediate cancel with no financial operation
-     * - paid: refund 85% and mark escrow as refunded
+     * - paid: initiate a refund of 85%
      * - after cancellation, apply face rating penalty (+1.0)
      *
      * @throws ValidationException
@@ -260,46 +263,141 @@ class BookingService
      */
     public function initiatePayment(Booking $booking): array
     {
-        return DB::transaction(function () use ($booking) {
-            $booking = $booking->lockForUpdate()->find($booking->id);
+        $lock = Cache::lock("booking_payment_{$booking->id}", 30);
 
-            // Idempotent: if booking already has a Fedapay transaction, check its actual
-            // status via the Fedapay API. Only block if the transaction is still pending/approved.
-            // If it was declined/canceled, allow creating a new transaction.
-            if ($booking->fedapay_transaction_id !== null) {
-                $existing = $this->fedapayService->retrieveTransaction($booking->fedapay_transaction_id);
+        if (! $lock->get()) {
+            throw ValidationException::withMessages([
+                'status' => ['Un paiement est deja en cours pour ce booking.'],
+            ]);
+        }
+
+        $initiationKey = null;
+        $remotePaymentCreated = false;
+
+        try {
+            $prepared = DB::transaction(function () use ($booking): array {
+                /** @var Booking $lockedBooking */
+                $lockedBooking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
+
+                if ($lockedBooking->status !== BookingStatus::Accepted) {
+                    throw ValidationException::withMessages([
+                        'status' => ['Ce booking ne peut pas être payé dans son état actuel.'],
+                    ]);
+                }
+
+                if ($lockedBooking->fedapay_transaction_id !== null) {
+                    return [
+                        'booking' => $lockedBooking->fresh(['producer']),
+                        'existing_transaction_id' => (int) $lockedBooking->fedapay_transaction_id,
+                        'idempotency_key' => null,
+                    ];
+                }
+
+                $idempotencyKey = $lockedBooking->payment_initiation_key ?: Str::uuid()->toString();
+                $lockedBooking->update(['payment_initiation_key' => $idempotencyKey]);
+
+                return [
+                    'booking' => $lockedBooking->fresh(['producer']),
+                    'existing_transaction_id' => null,
+                    'idempotency_key' => $idempotencyKey,
+                ];
+            });
+
+            if ($prepared['existing_transaction_id'] !== null) {
+                $existing = $this->fedapayService->retrieveTransaction($prepared['existing_transaction_id']);
                 $terminalFailedStatuses = ['declined', 'canceled', 'refunded'];
 
                 if (! in_array($existing->status, $terminalFailedStatuses, true)) {
-                    // Re-generate a fresh checkout URL for the existing transaction
                     $tokenObj = $existing->generateToken();
-                    return ['booking' => $booking, 'checkout_url' => $tokenObj->url];
+
+                    return [
+                        'booking' => Booking::query()->findOrFail($booking->id),
+                        'checkout_url' => $tokenObj->url,
+                    ];
                 }
 
-                // Previous transaction failed — reset to allow a new attempt
-                $booking->update(['fedapay_transaction_id' => null, 'payment_mode' => null]);
+                $prepared = DB::transaction(function () use ($booking, $prepared): array {
+                    /** @var Booking $lockedBooking */
+                    $lockedBooking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
+
+                    if ($lockedBooking->status !== BookingStatus::Accepted) {
+                        throw ValidationException::withMessages([
+                            'status' => ['Ce booking ne peut pas être payé dans son état actuel.'],
+                        ]);
+                    }
+
+                    if ((int) $lockedBooking->fedapay_transaction_id === $prepared['existing_transaction_id']) {
+                        $lockedBooking->update([
+                            'fedapay_transaction_id' => null,
+                            'payment_mode' => null,
+                        ]);
+                    }
+
+                    $idempotencyKey = Str::uuid()->toString();
+                    $lockedBooking->update(['payment_initiation_key' => $idempotencyKey]);
+
+                    return [
+                        'booking' => $lockedBooking->fresh(['producer']),
+                        'existing_transaction_id' => null,
+                        'idempotency_key' => $idempotencyKey,
+                    ];
+                });
             }
 
-            if ($booking->status !== BookingStatus::Accepted) {
-                throw ValidationException::withMessages([
-                    'status' => ['Ce booking ne peut pas être payé dans son état actuel.'],
+            $initiationKey = $prepared['idempotency_key'];
+            $result = $this->fedapayService->initiatePayment($prepared['booking'], $initiationKey);
+            $remotePaymentCreated = true;
+
+            return DB::transaction(function () use ($booking, $result, $initiationKey): array {
+                /** @var Booking $lockedBooking */
+                $lockedBooking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
+
+                if ($lockedBooking->status !== BookingStatus::Accepted) {
+                    throw ValidationException::withMessages([
+                        'status' => ['Ce booking ne peut pas être payé dans son état actuel.'],
+                    ]);
+                }
+
+                if ($lockedBooking->fedapay_transaction_id !== null) {
+                    return [
+                        'booking' => $lockedBooking->fresh(),
+                        'checkout_url' => $result['checkout_url'],
+                    ];
+                }
+
+                $lockedBooking->update([
+                    'fedapay_transaction_id' => $result['fedapay_transaction_id'],
+                    'payment_initiation_key' => null,
                 ]);
+
+                $this->recordFinancialEvent(
+                    FinancialEventType::PaymentInitiated,
+                    $lockedBooking,
+                    $lockedBooking->montant_total_producteur,
+                    ['idempotency_key' => $initiationKey]
+                );
+
+                return [
+                    'booking' => $lockedBooking->fresh(),
+                    'checkout_url' => $result['checkout_url'],
+                ];
+            });
+        } catch (\Throwable $exception) {
+            if ($initiationKey !== null && ! $remotePaymentCreated) {
+                DB::transaction(function () use ($booking, $initiationKey): void {
+                    /** @var Booking $lockedBooking */
+                    $lockedBooking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
+
+                    if ($lockedBooking->payment_initiation_key === $initiationKey && $lockedBooking->fedapay_transaction_id === null) {
+                        $lockedBooking->update(['payment_initiation_key' => null]);
+                    }
+                });
             }
 
-            $event = $this->recordFinancialEvent(
-                FinancialEventType::PaymentInitiated,
-                $booking,
-                $booking->montant_total_producteur,
-            );
-
-            $result = $this->fedapayService->initiatePayment($booking, $event->idempotency_key);
-
-            $booking->update([
-                'fedapay_transaction_id' => $result['fedapay_transaction_id'],
-            ]);
-
-            return ['booking' => $booking->fresh(), 'checkout_url' => $result['checkout_url']];
-        });
+            throw $exception;
+        } finally {
+            optional($lock)->release();
+        }
     }
 
     /**
@@ -410,7 +508,6 @@ class BookingService
 
             $allowedStatuses = [
                 BookingStatus::Paid,
-                BookingStatus::InProgress,
                 BookingStatus::ConfirmedByFace,
                 BookingStatus::ConfirmedByProducer,
             ];
@@ -448,31 +545,7 @@ class BookingService
 
             $booking->update(['status' => $newStatus]);
 
-            // Notify the other party of partial confirmation (non-fatal)
-            try {
-                $otherUserId = $isFace ? $booking->producer_id : $booking->face_id;
-                $url = $isFace
-                    ? "/producer/bookings/{$booking->id}"
-                    : "/face/bookings/{$booking->id}";
-                $message = $isFace
-                    ? 'La Face a confirmé. À votre tour !'
-                    : 'Le producteur a confirmé. À votre tour !';
-
-                Notification::create([
-                    'user_id' => $otherUserId,
-                    'type'    => 'booking_confirmation_pending',
-                    'data'    => [
-                        'message'    => $message,
-                        'booking_id' => $booking->id,
-                        'url'        => $url,
-                    ],
-                ]);
-            } catch (\Throwable $e) {
-                Log::warning('Partial confirmation notification failed', [
-                    'booking_id' => $booking->id,
-                    'error'      => $e->getMessage(),
-                ]);
-            }
+            BookingPartiallyConfirmed::dispatch($booking->fresh(), $confirmer);
 
             return $booking->fresh();
         });
@@ -487,8 +560,15 @@ class BookingService
         DB::transaction(function () use ($booking) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
-            // Idempotent: already completed or cancelled
+            // Re-fetch under row lock so the command stays idempotent under concurrent runs.
             if ($booking->status === BookingStatus::Completed) {
+                return;
+            }
+
+            if (! in_array($booking->status, [
+                BookingStatus::ConfirmedByFace,
+                BookingStatus::ConfirmedByProducer,
+            ], true)) {
                 return;
             }
 
