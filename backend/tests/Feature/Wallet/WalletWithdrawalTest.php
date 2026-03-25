@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Wallet;
 
+use App\Exceptions\WithdrawalLockException;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
 use App\Mail\WithdrawalRequestSubmittedMail;
 use App\Services\FedapayService;
+use App\Services\WithdrawalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Mockery;
@@ -55,7 +57,7 @@ class WalletWithdrawalTest extends TestCase
         return array_merge([
             'amount'        => 20000,
             'payment_mode'  => 'mtn',
-            'phone_number'  => '64000001',
+            'phone_number'  => '0197000000', // valid MTN BJ EZAB prefix (10 digits)
             'phone_country' => 'bj',
         ], $overrides);
     }
@@ -170,7 +172,7 @@ class WalletWithdrawalTest extends TestCase
             'amount' => 20000,
             'status' => 'pending',
             'payment_mode' => 'mtn',
-            'phone_number' => '64000001',
+            'phone_number' => '0197000000',
         ]);
 
         $this->assertDatabaseCount('wallet_transactions', 0);
@@ -213,5 +215,72 @@ class WalletWithdrawalTest extends TestCase
     {
         $this->postJson('/api/v1/wallet/withdraw', $this->validPayload())
             ->assertUnauthorized();
+    }
+
+    public function test_withdrawal_fails_below_minimum_amount(): void
+    {
+        $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 499]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['amount']);
+    }
+
+    public function test_manual_mode_blocks_second_pending_request(): void
+    {
+        config([
+            'app.withdrawal_mode' => 'manual',
+            'app.admin_email'     => 'admin@example.com',
+        ]);
+        Mail::fake();
+
+        // First request succeeds
+        $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 5000]))
+            ->assertOk();
+
+        // Second request blocked — pending already exists
+        $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 5000]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['amount']);
+    }
+
+    public function test_benin_phone_fails_with_wrong_operator_prefix(): void
+    {
+        // 0197 is an MTN prefix — submitting it under Moov must fail
+        $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/wallet/withdraw', $this->validPayload([
+                'payment_mode'  => 'moov',
+                'phone_number'  => '0197000000',
+                'phone_country' => 'bj',
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['phone_number']);
+    }
+
+    public function test_benin_phone_fails_when_not_10_digits(): void
+    {
+        $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/wallet/withdraw', $this->validPayload([
+                'phone_number'  => '019700000', // 9 digits
+                'phone_country' => 'bj',
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['phone_number']);
+    }
+
+    public function test_concurrent_fedapay_withdrawal_returns_409_with_correct_message(): void
+    {
+        config(['app.withdrawal_mode' => 'fedapay']);
+
+        $mock = Mockery::mock(WithdrawalService::class);
+        $mock->shouldReceive('initiate')
+            ->andThrow(new WithdrawalLockException('Un retrait est déjà en cours pour ce compte. Veuillez patienter.'));
+        $this->app->instance(WithdrawalService::class, $mock);
+
+        $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/wallet/withdraw', $this->validPayload())
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Un retrait est déjà en cours pour ce compte. Veuillez patienter.');
     }
 }
