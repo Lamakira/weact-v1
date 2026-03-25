@@ -1,3 +1,4 @@
+import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { authApi, getApiErrorDetails, getApiErrorMessage, getApiErrorCode } from '../services/authApi'
@@ -28,6 +29,7 @@ export interface UseAuthReturn {
 export function useAuth(): UseAuthReturn {
   const authStore = useAuthStore()
   const router = useRouter()
+  const { isLoading, isAuthenticated, user, isFace, isProducer } = storeToRefs(authStore)
 
   /**
    * Login a user with email and password
@@ -126,10 +128,10 @@ export function useAuth(): UseAuthReturn {
     registerFace,
     registerProducer,
     logout,
-    isAuthenticated: authStore.isAuthenticated,
-    isLoading: authStore.isLoading,
-    user: authStore.user,
-    isFace: authStore.isFace,
-    isProducer: authStore.isProducer,
+    isAuthenticated,
+    isLoading,
+    user,
+    isFace,
+    isProducer,
   }
 }

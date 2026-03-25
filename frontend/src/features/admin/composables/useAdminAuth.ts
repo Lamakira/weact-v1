@@ -1,3 +1,4 @@
+import { storeToRefs } from 'pinia'
 import { useAdminAuthStore } from '@/stores/adminAuth'
 import { useRouter } from 'vue-router'
 import {
@@ -19,6 +20,7 @@ export interface AuthResult {
 export function useAdminAuth() {
   const adminAuthStore = useAdminAuthStore()
   const router = useRouter()
+  const { isLoading, isAuthenticated, admin, adminName, adminEmail } = storeToRefs(adminAuthStore)
 
   /**
    * Login an admin with email and password
@@ -65,10 +67,10 @@ export function useAdminAuth() {
   return {
     login,
     logout,
-    isAuthenticated: adminAuthStore.isAuthenticated,
-    isLoading: adminAuthStore.isLoading,
-    admin: adminAuthStore.admin,
-    adminName: adminAuthStore.adminName,
-    adminEmail: adminAuthStore.adminEmail,
+    isAuthenticated,
+    isLoading,
+    admin,
+    adminName,
+    adminEmail,
   }
 }
