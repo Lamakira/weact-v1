@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Tests\Feature\Candidature;
 
 use App\Enums\CandidatureStatus;
+use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
+use App\Models\MissionPayment;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -245,5 +247,38 @@ class ProducerAcceptCandidatureTest extends TestCase
 
         $this->candidature->refresh();
         $this->assertNotEquals($originalUpdatedAt, $this->candidature->updated_at);
+    }
+
+    public function test_cannot_accept_candidature_when_selection_has_already_started(): void
+    {
+        MissionPayment::create([
+            'mission_id' => $this->mission->id,
+            'producer_id' => $this->producer->id,
+            'nombre_faces_retenues' => 1,
+            'budget_par_face' => 100000,
+            'montant_sous_total' => 100000,
+            'commission_producteur' => 10000,
+            'montant_total_producteur' => 110000,
+            'commission_faces_total' => 10000,
+            'montant_total_faces' => 90000,
+            'status' => MissionPaymentStatus::Pending,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'SELECTION_ALREADY_STARTED');
+    }
+
+    public function test_cannot_accept_candidature_for_non_published_mission(): void
+    {
+        $this->mission->update(['status' => MissionStatus::Closed]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'MISSION_NOT_PUBLISHED');
     }
 }

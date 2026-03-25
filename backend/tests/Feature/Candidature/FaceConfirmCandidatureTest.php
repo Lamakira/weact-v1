@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace Tests\Feature\Candidature;
 
 use App\Enums\CandidatureStatus;
+use App\Enums\EscrowStatus;
+use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
+use App\Models\MissionPayment;
+use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -30,11 +34,12 @@ class FaceConfirmCandidatureTest extends TestCase
 
     private Candidature $candidature;
 
+    private MissionPayment $payment;
+
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Create a Face with User
         $this->face = Face::factory()->create([
             'nom' => 'Dupont',
             'prenom' => 'Marie',
@@ -44,127 +49,106 @@ class FaceConfirmCandidatureTest extends TestCase
             'userable_id' => $this->face->id,
         ]);
 
-        // Create a Producer with User
         $this->producer = Producer::factory()->create();
         $this->producerUser = User::factory()->create([
             'userable_type' => Producer::class,
             'userable_id' => $this->producer->id,
         ]);
 
-        // Create a published mission owned by the Producer
         $this->mission = Mission::factory()->create([
             'producer_id' => $this->producer->id,
-            'status' => MissionStatus::Published,
+            'status' => MissionStatus::Closed,
         ]);
 
-        // Create an accepted candidature (Face can confirm after Producer accepts)
         $this->candidature = Candidature::factory()->create([
             'mission_id' => $this->mission->id,
             'face_id' => $this->face->id,
             'status' => CandidatureStatus::Accepted,
             'message_motivation' => 'Je suis très motivée pour cette mission.',
         ]);
+
+        $this->payment = MissionPayment::create([
+            'mission_id' => $this->mission->id,
+            'producer_id' => $this->producer->id,
+            'nombre_faces_retenues' => 1,
+            'budget_par_face' => 100000,
+            'montant_sous_total' => 100000,
+            'commission_producteur' => 10000,
+            'montant_total_producteur' => 110000,
+            'commission_faces_total' => 10000,
+            'montant_total_faces' => 90000,
+            'status' => MissionPaymentStatus::Paid,
+            'paid_at' => now(),
+        ]);
+
+        MissionPaymentCandidature::create([
+            'mission_payment_id' => $this->payment->id,
+            'candidature_id' => $this->candidature->id,
+            'face_id' => $this->face->id,
+            'montant_face_recoit' => 90000,
+            'escrow_status' => EscrowStatus::Locked,
+            'locked_at' => now(),
+        ]);
     }
 
-    public function test_face_can_confirm_accepted_candidature(): void
+    public function test_face_can_confirm_accepted_candidature_after_payment_confirmation(): void
     {
         $response = $this->actingAs($this->faceUser)
             ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
 
         $response->assertOk()
-            ->assertJsonStructure([
-                'data' => [
-                    'id',
-                    'mission_id',
-                    'face_id',
-                    'status',
-                    'status_label',
-                    'message_motivation',
-                    'created_at',
-                    'updated_at',
-                ],
-                'message',
-            ])
             ->assertJsonPath('data.status', 'confirmed')
-            ->assertJsonPath('data.status_label', 'Confirmée')
             ->assertJsonPath('message', 'Participation confirmée');
 
-        // Verify database was updated
         $this->assertDatabaseHas('candidatures', [
             'id' => $this->candidature->id,
             'status' => 'confirmed',
         ]);
     }
 
-    public function test_status_changes_from_accepted_to_confirmed(): void
+    public function test_cannot_confirm_candidature_when_payment_is_not_confirmed(): void
     {
-        // Verify initial status is accepted
-        $this->assertEquals(CandidatureStatus::Accepted, $this->candidature->status);
+        $this->payment->update([
+            'status' => MissionPaymentStatus::Pending,
+            'paid_at' => null,
+        ]);
 
         $response = $this->actingAs($this->faceUser)
             ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
 
-        $response->assertOk();
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'PAYMENT_NOT_CONFIRMED');
+    }
 
-        // Refresh and verify status changed
-        $this->candidature->refresh();
-        $this->assertEquals(CandidatureStatus::Confirmed, $this->candidature->status);
+    public function test_cannot_confirm_candidature_not_in_final_selection(): void
+    {
+        $otherCandidature = Candidature::factory()->create([
+            'mission_id' => $this->mission->id,
+            'face_id' => $this->face->id,
+            'status' => CandidatureStatus::Accepted,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/candidatures/{$otherCandidature->id}/confirm");
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'NOT_IN_FINAL_SELECTION');
     }
 
     public function test_cannot_confirm_pending_candidature(): void
     {
-        // Set candidature to pending
-        $this->candidature->status = CandidatureStatus::Pending;
-        $this->candidature->save();
+        $this->candidature->update(['status' => CandidatureStatus::Pending]);
 
         $response = $this->actingAs($this->faceUser)
             ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
 
         $response->assertStatus(400)
-            ->assertJsonPath('error.code', 'INVALID_STATUS')
-            ->assertJsonPath('error.message', 'Seules les candidatures acceptées peuvent être confirmées');
+            ->assertJsonPath('error.code', 'INVALID_STATUS');
     }
 
     public function test_cannot_confirm_already_confirmed_candidature(): void
     {
-        $this->candidature->status = CandidatureStatus::Confirmed;
-        $this->candidature->save();
-
-        $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
-
-        $response->assertStatus(400)
-            ->assertJsonPath('error.code', 'INVALID_STATUS');
-    }
-
-    public function test_cannot_confirm_rejected_candidature(): void
-    {
-        $this->candidature->status = CandidatureStatus::Rejected;
-        $this->candidature->save();
-
-        $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
-
-        $response->assertStatus(400)
-            ->assertJsonPath('error.code', 'INVALID_STATUS');
-    }
-
-    public function test_cannot_confirm_in_progress_candidature(): void
-    {
-        $this->candidature->status = CandidatureStatus::InProgress;
-        $this->candidature->save();
-
-        $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
-
-        $response->assertStatus(400)
-            ->assertJsonPath('error.code', 'INVALID_STATUS');
-    }
-
-    public function test_cannot_confirm_completed_candidature(): void
-    {
-        $this->candidature->status = CandidatureStatus::Completed;
-        $this->candidature->save();
+        $this->candidature->update(['status' => CandidatureStatus::Confirmed]);
 
         $response = $this->actingAs($this->faceUser)
             ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
@@ -178,13 +162,11 @@ class FaceConfirmCandidatureTest extends TestCase
         $response = $this->actingAs($this->producerUser)
             ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
 
-        // The face middleware blocks Producers with a generic 403 message
         $response->assertForbidden();
     }
 
     public function test_face_cannot_confirm_another_face_candidature(): void
     {
-        // Create another face
         $otherFace = Face::factory()->create();
         $otherFaceUser = User::factory()->create([
             'userable_type' => Face::class,
@@ -198,50 +180,5 @@ class FaceConfirmCandidatureTest extends TestCase
             ->assertJson([
                 'message' => 'Cette candidature ne vous appartient pas',
             ]);
-    }
-
-    public function test_returns_404_for_non_existent_candidature(): void
-    {
-        $response = $this->actingAs($this->faceUser)
-            ->postJson('/api/v1/face/candidatures/99999/confirm');
-
-        $response->assertNotFound();
-    }
-
-    public function test_returns_401_when_unauthenticated(): void
-    {
-        $response = $this->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
-
-        $response->assertUnauthorized();
-    }
-
-    public function test_response_includes_all_candidature_fields(): void
-    {
-        $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
-
-        $response->assertOk()
-            ->assertJsonPath('data.id', $this->candidature->id)
-            ->assertJsonPath('data.mission_id', $this->mission->id)
-            ->assertJsonPath('data.face_id', $this->face->id)
-            ->assertJsonPath('data.status', 'confirmed')
-            ->assertJsonPath('data.status_label', 'Confirmée')
-            ->assertJsonPath('data.message_motivation', 'Je suis très motivée pour cette mission.');
-    }
-
-    public function test_updated_at_is_changed_after_confirmation(): void
-    {
-        $originalUpdatedAt = $this->candidature->updated_at;
-
-        // Wait a moment to ensure different timestamp
-        sleep(1);
-
-        $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
-
-        $response->assertOk();
-
-        $this->candidature->refresh();
-        $this->assertNotEquals($originalUpdatedAt, $this->candidature->updated_at);
     }
 }

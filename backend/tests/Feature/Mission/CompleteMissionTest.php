@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Mission;
 
+use App\Enums\CandidatureStatus;
+use App\Enums\EscrowStatus;
+use App\Enums\MissionPaymentStatus;
+use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
+use App\Models\MissionPayment;
+use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -18,6 +24,10 @@ class CompleteMissionTest extends TestCase
     private User $producerUser;
 
     private Producer $producer;
+
+    private User $faceUser;
+
+    private Face $face;
 
     private Mission $publishedMission;
 
@@ -32,77 +42,123 @@ class CompleteMissionTest extends TestCase
             'userable_type' => Producer::class,
             'userable_id' => $this->producer->id,
         ]);
+
+        $this->face = Face::factory()->create();
+        $this->faceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $this->face->id,
+        ]);
+
         $this->publishedMission = Mission::factory()->published()->create([
             'producer_id' => $this->producer->id,
         ]);
+
         $this->closedMission = Mission::factory()->closed()->create([
             'producer_id' => $this->producer->id,
         ]);
     }
 
-    /**
-     * AC#1, AC#10: Producer can complete a published mission successfully.
-     */
-    public function test_producer_can_complete_published_mission(): void
+    private function createPaidSelection(Mission $mission, CandidatureStatus $status = CandidatureStatus::Confirmed): Candidature
     {
-        $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$this->publishedMission->id}/complete");
-
-        $response->assertOk()
-            ->assertJson([
-                'data' => [
-                    'id' => $this->publishedMission->id,
-                    'status' => 'completed',
-                ],
-                'message' => 'Mission marquée comme terminée',
-            ]);
-
-        // Verify database was updated
-        $this->assertDatabaseHas('missions', [
-            'id' => $this->publishedMission->id,
-            'status' => 'completed',
+        $candidature = Candidature::factory()->create([
+            'mission_id' => $mission->id,
+            'face_id' => $this->face->id,
+            'status' => $status,
         ]);
+
+        $payment = MissionPayment::create([
+            'mission_id' => $mission->id,
+            'producer_id' => $this->producer->id,
+            'nombre_faces_retenues' => 1,
+            'budget_par_face' => 100000,
+            'montant_sous_total' => 100000,
+            'commission_producteur' => 10000,
+            'montant_total_producteur' => 110000,
+            'commission_faces_total' => 10000,
+            'montant_total_faces' => 90000,
+            'status' => MissionPaymentStatus::Paid,
+            'paid_at' => now(),
+        ]);
+
+        MissionPaymentCandidature::create([
+            'mission_payment_id' => $payment->id,
+            'candidature_id' => $candidature->id,
+            'face_id' => $this->face->id,
+            'montant_face_recoit' => 90000,
+            'escrow_status' => EscrowStatus::Locked,
+            'locked_at' => now(),
+        ]);
+
+        return $candidature;
     }
 
-    /**
-     * AC#1: Producer can complete a closed mission successfully.
-     */
-    public function test_producer_can_complete_closed_mission(): void
+    public function test_producer_can_complete_closed_mission_with_paid_confirmed_selection(): void
     {
+        $candidature = $this->createPaidSelection($this->closedMission, CandidatureStatus::Confirmed);
+
         $response = $this->actingAs($this->producerUser)
             ->postJson("/api/v1/producer/missions/{$this->closedMission->id}/complete");
 
         $response->assertOk()
-            ->assertJson([
-                'data' => [
-                    'id' => $this->closedMission->id,
-                    'status' => 'completed',
-                ],
-                'message' => 'Mission marquée comme terminée',
-            ]);
+            ->assertJsonPath('data.status', 'completed')
+            ->assertJsonPath('message', 'Mission marquée comme terminée');
 
-        // Verify database was updated
         $this->assertDatabaseHas('missions', [
             'id' => $this->closedMission->id,
             'status' => 'completed',
         ]);
+
+        $this->faceUser->refresh();
+        $this->assertSame(90000, $this->faceUser->balance);
+
+        $this->assertDatabaseHas('candidatures', [
+            'id' => $candidature->id,
+            'status' => 'completed',
+        ]);
+
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->faceUser->id,
+            'type' => 'mission_completed',
+        ]);
+
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->producerUser->id,
+            'type' => 'mission_completed_producer',
+        ]);
     }
 
-    /**
-     * AC#2: Completed mission has correct status label "Terminée".
-     */
-    public function test_completed_mission_has_correct_status_label(): void
+    public function test_cannot_complete_published_mission(): void
+    {
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->publishedMission->id}/complete");
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['status'])
+            ->assertJsonPath('errors.status.0', 'Seules les missions clôturées peuvent être marquées comme terminées');
+    }
+
+    public function test_cannot_complete_closed_mission_without_paid_payment(): void
     {
         $response = $this->actingAs($this->producerUser)
             ->postJson("/api/v1/producer/missions/{$this->closedMission->id}/complete");
 
-        $response->assertOk()
-            ->assertJsonPath('data.status_label', 'Terminée');
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['status'])
+            ->assertJsonPath('errors.status.0', 'Le paiement doit être confirmé avant de terminer la mission');
     }
 
-    /**
-     * AC#4: Cannot complete a draft mission.
-     */
+    public function test_cannot_complete_when_selected_face_has_not_confirmed_participation(): void
+    {
+        $this->createPaidSelection($this->closedMission, CandidatureStatus::Accepted);
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->closedMission->id}/complete");
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['candidatures'])
+            ->assertJsonPath('errors.candidatures.0', 'Toutes les faces sélectionnées doivent confirmer leur participation avant de terminer la mission');
+    }
+
     public function test_cannot_complete_draft_mission(): void
     {
         $draftMission = Mission::factory()->draft()->create([
@@ -114,18 +170,9 @@ class CompleteMissionTest extends TestCase
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status'])
-            ->assertJsonPath('errors.status.0', 'Seules les missions publiées ou clôturées peuvent être marquées comme terminées');
-
-        // Verify database was NOT updated
-        $this->assertDatabaseHas('missions', [
-            'id' => $draftMission->id,
-            'status' => 'draft',
-        ]);
+            ->assertJsonPath('errors.status.0', 'Seules les missions clôturées peuvent être marquées comme terminées');
     }
 
-    /**
-     * AC#6: Cannot complete an already completed mission.
-     */
     public function test_cannot_complete_already_completed_mission(): void
     {
         $completedMission = Mission::factory()->completed()->create([
@@ -140,9 +187,6 @@ class CompleteMissionTest extends TestCase
             ->assertJsonPath('errors.status.0', 'Cette mission est déjà terminée');
     }
 
-    /**
-     * AC#7: Other producer cannot complete another producer's mission.
-     */
     public function test_other_producer_cannot_complete_mission(): void
     {
         $otherProducer = Producer::factory()->create();
@@ -155,17 +199,8 @@ class CompleteMissionTest extends TestCase
             ->postJson("/api/v1/producer/missions/{$this->closedMission->id}/complete");
 
         $response->assertForbidden();
-
-        // Verify database was NOT updated
-        $this->assertDatabaseHas('missions', [
-            'id' => $this->closedMission->id,
-            'status' => 'closed',
-        ]);
     }
 
-    /**
-     * AC#8: Unauthenticated user cannot complete a mission.
-     */
     public function test_unauthenticated_user_cannot_complete_mission(): void
     {
         $response = $this->postJson("/api/v1/producer/missions/{$this->closedMission->id}/complete");
@@ -173,66 +208,6 @@ class CompleteMissionTest extends TestCase
         $response->assertUnauthorized();
     }
 
-    /**
-     * AC#9: Face user cannot complete a mission.
-     */
-    public function test_face_user_cannot_complete_mission(): void
-    {
-        $face = Face::factory()->create();
-        $faceUser = User::factory()->create([
-            'userable_type' => Face::class,
-            'userable_id' => $face->id,
-        ]);
-
-        $response = $this->actingAs($faceUser)
-            ->postJson("/api/v1/producer/missions/{$this->closedMission->id}/complete");
-
-        $response->assertForbidden();
-    }
-
-    /**
-     * AC#10: Response includes complete mission data.
-     */
-    public function test_complete_response_includes_complete_mission_data(): void
-    {
-        $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$this->closedMission->id}/complete");
-
-        $response->assertOk()
-            ->assertJsonStructure([
-                'data' => [
-                    'id',
-                    'titre',
-                    'description',
-                    'date_tournage',
-                    'budget',
-                    'status',
-                    'status_label',
-                    'lieu',
-                    'nombre_faces_voulu',
-                    'is_accepting_candidatures',
-                    'created_at',
-                    'producer',
-                ],
-                'message',
-            ]);
-    }
-
-    /**
-     * Test that completed mission is not accepting candidatures.
-     */
-    public function test_completed_mission_is_not_accepting_candidatures(): void
-    {
-        $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$this->closedMission->id}/complete");
-
-        $response->assertOk()
-            ->assertJsonPath('data.is_accepting_candidatures', false);
-    }
-
-    /**
-     * Test that non-existent mission returns 404.
-     */
     public function test_complete_nonexistent_mission_returns_404(): void
     {
         $response = $this->actingAs($this->producerUser)

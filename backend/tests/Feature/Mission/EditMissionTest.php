@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Tests\Feature\Mission;
 
 use App\Enums\MissionGender;
+use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
 use App\Models\Face;
 use App\Models\Mission;
+use App\Models\MissionPayment;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -302,6 +304,58 @@ class EditMissionTest extends TestCase
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['mission'])
             ->assertJsonPath('errors.mission.0', 'Une mission clôturée ou terminée ne peut pas être modifiée');
+    }
+
+    public function test_cannot_edit_pending_payment_mission(): void
+    {
+        $pendingPaymentMission = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::PendingPayment,
+        ]);
+
+        MissionPayment::create([
+            'mission_id' => $pendingPaymentMission->id,
+            'producer_id' => $this->producer->id,
+            'nombre_faces_retenues' => 1,
+            'budget_par_face' => 100000,
+            'montant_sous_total' => 100000,
+            'commission_producteur' => 10000,
+            'montant_total_producteur' => 110000,
+            'commission_faces_total' => 10000,
+            'montant_total_faces' => 90000,
+            'status' => MissionPaymentStatus::Pending,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->putJson("/api/v1/producer/missions/{$pendingPaymentMission->id}", $this->getValidUpdateData());
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['mission'])
+            ->assertJsonPath('errors.mission.0', 'Une mission en attente de paiement ne peut pas être modifiée');
+    }
+
+    public function test_updating_shooting_date_resets_shooting_reminder_timestamp(): void
+    {
+        $mission = Mission::factory()->published()->create([
+            'producer_id' => $this->producer->id,
+            'shooting_reminder_sent_at' => now(),
+            'date_tournage' => now()->addDays(10)->format('Y-m-d'),
+            'date_limite_candidature' => now()->addDays(5)->format('Y-m-d'),
+        ]);
+
+        $data = $this->getValidUpdateData();
+        $data['date_limite_candidature'] = now()->addDays(8)->format('Y-m-d');
+        $data['date_tournage'] = now()->addDays(15)->format('Y-m-d');
+
+        $response = $this->actingAs($this->producerUser)
+            ->putJson("/api/v1/producer/missions/{$mission->id}", $data);
+
+        $response->assertOk();
+
+        $this->assertDatabaseHas('missions', [
+            'id' => $mission->id,
+            'shooting_reminder_sent_at' => null,
+        ]);
     }
 
     public function test_non_owner_cannot_edit_mission(): void

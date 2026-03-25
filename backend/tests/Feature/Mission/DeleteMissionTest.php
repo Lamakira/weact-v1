@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Mission;
 
-use App\Enums\MissionGender;
 use App\Enums\MissionStatus;
-use App\Enums\MissionType;
+use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
 use App\Models\Producer;
@@ -183,6 +182,28 @@ class DeleteMissionTest extends TestCase
         ]);
     }
 
+    public function test_cannot_delete_mission_with_active_candidatures(): void
+    {
+        $face = Face::factory()->create();
+
+        Candidature::factory()->create([
+            'mission_id' => $this->mission->id,
+            'face_id' => $face->id,
+            'status' => 'accepted',
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->deleteJson("/api/v1/producer/missions/{$this->mission->id}");
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['mission'])
+            ->assertJsonPath('errors.mission.0', 'Impossible de supprimer une mission avec des candidatures actives');
+
+        $this->assertDatabaseHas('missions', [
+            'id' => $this->mission->id,
+        ]);
+    }
+
     // ===== RESPONSE FORMAT TESTS =====
 
     public function test_delete_response_has_correct_format(): void
@@ -208,28 +229,4 @@ class DeleteMissionTest extends TestCase
 
         $response->assertNotFound();
     }
-
-    // ===== CANDIDATURE RESTRICTION TEST (STUBBED) =====
-    // Note: Candidature model doesn't exist yet (Epic 6)
-    // This test is commented out but shows the expected behavior
-
-    // public function test_cannot_delete_mission_with_active_candidatures(): void
-    // {
-    //     // Create candidature (when model exists)
-    //     // Candidature::factory()->create([
-    //     //     'mission_id' => $this->mission->id,
-    //     //     'status' => 'pending',
-    //     // ]);
-    //
-    //     $response = $this->actingAs($this->producerUser)
-    //         ->deleteJson("/api/v1/producer/missions/{$this->mission->id}");
-    //
-    //     $response->assertUnprocessable()
-    //         ->assertJsonValidationErrors(['mission'])
-    //         ->assertJson([
-    //             'errors' => [
-    //                 'mission' => ['Impossible de supprimer une mission avec des candidatures actives'],
-    //             ],
-    //         ]);
-    // }
 }

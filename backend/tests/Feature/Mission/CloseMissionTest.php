@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Mission;
 
+use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Models\Face;
 use App\Models\Mission;
+use App\Models\MissionPayment;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -127,6 +129,49 @@ class CloseMissionTest extends TestCase
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status'])
             ->assertJsonPath('errors.status.0', 'Cette mission est déjà terminée');
+    }
+
+    public function test_cannot_close_pending_payment_mission(): void
+    {
+        $pendingPaymentMission = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::PendingPayment,
+        ]);
+
+        MissionPayment::create([
+            'mission_id' => $pendingPaymentMission->id,
+            'producer_id' => $this->producer->id,
+            'nombre_faces_retenues' => 1,
+            'budget_par_face' => 100000,
+            'montant_sous_total' => 100000,
+            'commission_producteur' => 10000,
+            'montant_total_producteur' => 110000,
+            'commission_faces_total' => 10000,
+            'montant_total_faces' => 90000,
+            'status' => MissionPaymentStatus::Pending,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$pendingPaymentMission->id}/close");
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['status'])
+            ->assertJsonPath('errors.status.0', 'Une mission en attente de paiement ne peut pas être clôturée manuellement');
+    }
+
+    public function test_cannot_close_mission_after_shooting_date_has_passed(): void
+    {
+        $pastMission = Mission::factory()->published()->create([
+            'producer_id' => $this->producer->id,
+            'date_tournage' => now()->subDay()->format('Y-m-d'),
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$pastMission->id}/close");
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['status'])
+            ->assertJsonPath('errors.status.0', 'Une mission dont la date de tournage est passée ne peut pas être clôturée manuellement');
     }
 
     /**
