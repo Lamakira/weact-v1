@@ -25,16 +25,16 @@ interface TalentProfile {
 
 const talents: TalentProfile[] = [
   // Left side - closer to content
-  { id: 1, size: 'small', top: '8%', left: '18%', delay: '0s', img: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?q=80&w=256&h=256&auto=format&fit=crop' },
-  { id: 2, size: 'medium', top: '15%', left: '28%', delay: '0.5s', img: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=256&h=256&auto=format&fit=crop' },
-  { id: 3, size: 'large', top: '35%', left: '15%', delay: '1s', img: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=256&h=256&auto=format&fit=crop' },
-  { id: 4, size: 'medium', top: '65%', left: '18%', delay: '1.5s', img: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=256&h=256&auto=format&fit=crop' },
-  { id: 5, size: 'small', top: '80%', left: '28%', delay: '2s', img: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=256&h=256&auto=format&fit=crop' },
+  { id: 1, size: 'small', top: '8%', left: '18%', delay: '0s', img: new URL('@/assets/images/faces/producer-hero-section-face-woman_portrait_1.webp', import.meta.url).href },
+  { id: 2, size: 'medium', top: '15%', left: '28%', delay: '0.5s', img: new URL('@/assets/images/faces/producer-hero-section-face-youngman.webp', import.meta.url).href },
+  { id: 3, size: 'large', top: '35%', left: '15%', delay: '1s', img: new URL('@/assets/images/faces/producer-hero-section-face-woman_smilling_1.webp', import.meta.url).href },
+  { id: 4, size: 'medium', top: '65%', left: '18%', delay: '1.5s', img: new URL('@/assets/images/faces/producer-hero-section-face-oldman.webp', import.meta.url).href },
+  { id: 5, size: 'small', top: '80%', left: '28%', delay: '2s', img: new URL('@/assets/images/faces/producer-hero-section-face-youngwoman.webp', import.meta.url).href },
   // Right side - closer to content
-  { id: 6, size: 'large', top: '22%', right: '15%', delay: '0.3s', img: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=256&h=256&auto=format&fit=crop' },
-  { id: 7, size: 'small', top: '10%', right: '22%', delay: '0.8s', img: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=256&h=256&auto=format&fit=crop' },
-  { id: 8, size: 'medium', top: '52%', right: '14%', delay: '1.2s', img: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?q=80&w=256&h=256&auto=format&fit=crop' },
-  { id: 9, size: 'small', top: '75%', right: '20%', delay: '1.8s', img: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=256&h=256&auto=format&fit=crop' },
+  { id: 6, size: 'large', top: '22%', right: '15%', delay: '0.3s', img: new URL('@/assets/images/faces/producer-hero-section-face-woman_portrait_2.webp', import.meta.url).href },
+  { id: 7, size: 'small', top: '10%', right: '22%', delay: '0.8s', img: new URL('@/assets/images/faces/producer-hero-section-face-youngman_2.webp', import.meta.url).href },
+  { id: 8, size: 'medium', top: '52%', right: '14%', delay: '1.2s', img: new URL('@/assets/images/faces/producer-hero-section-face-woman_smilling_2.webp', import.meta.url).href },
+  { id: 9, size: 'small', top: '75%', right: '20%', delay: '1.8s', img: new URL('@/assets/images/faces/producer-hero-section-face-child.webp', import.meta.url).href },
 ]
 
 function getSizeClass(size: string): string {
