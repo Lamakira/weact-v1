@@ -3,6 +3,7 @@ import { useRouter } from 'vue-router'
 import ProducerRegistrationForm from '@/features/auth/components/ProducerRegistrationForm.vue'
 import { useToast } from '@/composables/useToast'
 import logoNoir from '@/assets/images/logonoir.png'
+import registerProducerIllustration from '@/assets/images/register-producer-illustration.webp'
 
 const router = useRouter()
 const toast = useToast()
@@ -69,7 +70,7 @@ function handleSuccess() {
       <!-- Background Image with Dark Overlay -->
       <div class="absolute inset-0 z-0">
         <img
-          src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&q=80"
+          :src="registerProducerIllustration"
           alt="Creative team collaborating"
           class="h-full w-full object-cover"
         />

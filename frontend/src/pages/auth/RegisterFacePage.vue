@@ -3,6 +3,7 @@ import { useRouter } from 'vue-router'
 import FaceRegistrationForm from '@/features/auth/components/FaceRegistrationForm.vue'
 import { useToast } from '@/composables/useToast'
 import logoNoir from '@/assets/images/logonoir.png'
+import registerFaceIllustration from '@/assets/images/register-face-illustration.webp'
 
 const router = useRouter()
 const toast = useToast()
@@ -80,7 +81,7 @@ function handleSuccess() {
       <!-- Background Image with Overlay -->
       <div class="absolute inset-0 z-0">
         <img
-          src="https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=1974&auto=format&fit=crop"
+          :src="registerFaceIllustration"
           alt="Talent Creative"
           class="h-full w-full object-cover opacity-60"
         />
