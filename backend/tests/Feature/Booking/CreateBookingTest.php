@@ -118,8 +118,8 @@ class CreateBookingTest extends TestCase
 
         $response->assertCreated();
 
-        // 4h < 8h → uses hourly rate: 4 * 5000 = 20000 tarif_base
-        $expectedPricing = new BookingPricing(20000);
+        // 4h → tarif_journalier/8 × 4 = 30000/8 × 4 = 15000 tarif_base
+        $expectedPricing = new BookingPricing(15000);
 
         $response->assertJsonPath('data.tarif_base', $expectedPricing->baseTarif);
         $response->assertJsonPath('data.montant_total_producteur', $expectedPricing->totalProducerPays);
@@ -346,14 +346,14 @@ class CreateBookingTest extends TestCase
         Event::fake([BookingCreated::class]);
 
         $data = $this->getValidBookingData();
-        $data['duree_heures'] = 4; // 4h → hourly: 4 * 5000 = 20000
+        $data['duree_heures'] = 4; // 4h → tarif_journalier/8 × 4 = 30000/8 × 4 = 15000
 
         $response = $this->actingAs($this->producerUser)
             ->postJson('/api/v1/bookings', $data);
 
         $response->assertCreated();
 
-        $expectedPricing = new BookingPricing(20000);
+        $expectedPricing = new BookingPricing(15000);
 
         // BookingResource must expose amounts that match BookingPricing VO output
         $response

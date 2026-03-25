@@ -95,11 +95,11 @@ class BookingChatTest extends TestCase
         Event::assertDispatched(BookingMessageSent::class);
     }
 
-    public function test_face_can_send_message_in_in_progress_booking(): void
+    public function test_face_can_send_message_in_confirmed_by_producer_booking(): void
     {
         Event::fake([BookingMessageSent::class]);
 
-        $booking = Booking::factory()->inProgress()->create([
+        $booking = Booking::factory()->confirmedByProducer()->create([
             'face_id'     => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);

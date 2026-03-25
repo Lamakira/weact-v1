@@ -100,9 +100,10 @@ class FaceConfirmCandidatureTest extends TestCase
             ->assertJsonPath('data.status', 'confirmed')
             ->assertJsonPath('message', 'Participation confirmée');
 
+        // With a single selected face, confirming immediately transitions to in_progress
         $this->assertDatabaseHas('candidatures', [
             'id' => $this->candidature->id,
-            'status' => 'confirmed',
+            'status' => 'in_progress',
         ]);
     }
 
@@ -122,13 +123,19 @@ class FaceConfirmCandidatureTest extends TestCase
 
     public function test_cannot_confirm_candidature_not_in_final_selection(): void
     {
+        // Use a different face to avoid unique(face_id, mission_id) constraint
+        $otherFace = Face::factory()->create();
+        $otherFaceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $otherFace->id,
+        ]);
         $otherCandidature = Candidature::factory()->create([
             'mission_id' => $this->mission->id,
-            'face_id' => $this->face->id,
+            'face_id' => $otherFace->id,
             'status' => CandidatureStatus::Accepted,
         ]);
 
-        $response = $this->actingAs($this->faceUser)
+        $response = $this->actingAs($otherFaceUser)
             ->postJson("/api/v1/face/candidatures/{$otherCandidature->id}/confirm");
 
         $response->assertStatus(422)

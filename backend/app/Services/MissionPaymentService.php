@@ -275,8 +275,8 @@ class MissionPaymentService
             if (
                 ! $entry->candidature
                 || ! in_array($entry->candidature->status, [
-                    CandidatureStatus::Confirmed->value,
-                    CandidatureStatus::InProgress->value,
+                    CandidatureStatus::Confirmed,
+                    CandidatureStatus::InProgress,
                 ], true)
             ) {
                 throw new \RuntimeException(

@@ -8,6 +8,8 @@ use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
 use App\Models\Mission;
 use App\Models\Notification;
+use App\Models\Producer;
+use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -37,11 +39,11 @@ class RemindShootingDayCommand extends Command
             ->whereDate('date_tournage', $tomorrow)
             ->whereNull('shooting_reminder_sent_at')
             ->with([
-                'producer.userable',
+                'producer',
                 'candidatures' => fn ($q) => $q->whereIn('status', [
                     CandidatureStatus::Confirmed->value,
                     CandidatureStatus::InProgress->value,
-                ])->with('face.userable'),
+                ])->with('face'),
             ])
             ->get();
 
@@ -73,7 +75,9 @@ class RemindShootingDayCommand extends Command
 
     private function sendRemindersForMission(Mission $mission): void
     {
-        $producerUserId = $mission->producer?->userable?->id;
+        $producerUserId = User::where('userable_type', Producer::class)
+            ->where('userable_id', $mission->producer_id)
+            ->value('id');
 
         // Notify Producer
         if ($producerUserId) {
@@ -90,7 +94,12 @@ class RemindShootingDayCommand extends Command
 
         // Notify selected Faces
         foreach ($mission->candidatures as $candidature) {
-            $faceUserId = $candidature->face?->userable?->id;
+            $faceId = $candidature->face_id ?? $candidature->face?->id;
+            $faceUserId = $faceId
+                ? User::where('userable_type', \App\Models\Face::class)
+                    ->where('userable_id', $faceId)
+                    ->value('id')
+                : null;
 
             if (! $faceUserId) {
                 continue;
