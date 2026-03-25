@@ -201,7 +201,7 @@ class BookingShowAcceptRefuseTest extends TestCase
         Event::assertDispatched(BookingRefused::class);
     }
 
-    public function test_face_refuses_paid_booking_requires_cancellation_reason(): void
+    public function test_face_cannot_refuse_paid_booking(): void
     {
         $this->booking->update(['status' => BookingStatus::Paid]);
 
@@ -210,20 +210,17 @@ class BookingShowAcceptRefuseTest extends TestCase
                 'cancellation_reason' => 'Empêchement personnel',
             ]);
 
-        $response->assertOk()
-            ->assertJsonPath('data.status', BookingStatus::Refused->value)
-            ->assertJsonPath('data.cancellation_reason', 'Empêchement personnel');
+        $response->assertForbidden();
     }
 
-    public function test_face_refuses_paid_booking_without_reason_returns_422(): void
+    public function test_face_refusing_paid_booking_without_reason_is_still_forbidden(): void
     {
         $this->booking->update(['status' => BookingStatus::Paid]);
 
         $response = $this->actingAs($this->faceUser)
             ->postJson("/api/v1/bookings/{$this->booking->id}/refuse");
 
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors('cancellation_reason');
+        $response->assertForbidden();
     }
 
     public function test_booking_refused_event_is_dispatched(): void

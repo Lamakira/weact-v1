@@ -250,6 +250,44 @@ class CreateBookingTest extends TestCase
             ->assertJsonValidationErrors('duree_heures');
     }
 
+    public function test_booking_fails_when_duration_exceeds_selected_date_range_capacity(): void
+    {
+        $data = $this->getValidBookingData();
+        $sameDay = now()->addWeek()->toDateString();
+        $data['date_debut'] = $sameDay;
+        $data['date_fin'] = $sameDay;
+        $data['duree_heures'] = 12;
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('duree_heures');
+    }
+
+    public function test_booking_fails_when_face_has_overlapping_active_booking(): void
+    {
+        Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => User::factory()->create([
+                'userable_type' => Producer::class,
+                'userable_id' => Producer::factory(),
+            ])->id,
+            'date_debut' => now()->addWeek()->startOfDay(),
+            'date_fin' => now()->addWeek()->addDay()->endOfDay(),
+        ]);
+
+        $data = $this->getValidBookingData();
+        $data['date_debut'] = now()->addWeek()->toDateString();
+        $data['date_fin'] = now()->addWeek()->addDay()->toDateString();
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('date_debut');
+    }
+
     public function test_booking_fails_when_face_has_no_tarifs(): void
     {
         $faceNoTarif = Face::factory()->create([

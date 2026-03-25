@@ -40,11 +40,11 @@ class AutoCompleteBookingsCommandTest extends TestCase
         ]);
     }
 
-    public function test_command_completes_in_progress_booking_past_72h(): void
+    public function test_command_completes_confirmed_by_producer_booking_past_72h(): void
     {
         Event::fake();
 
-        $booking = Booking::factory()->inProgress()->create([
+        $booking = Booking::factory()->confirmedByProducer()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
             'date_fin' => now()->subHours(73),
@@ -90,7 +90,7 @@ class AutoCompleteBookingsCommandTest extends TestCase
 
     public function test_command_does_not_complete_booking_within_72h(): void
     {
-        $booking = Booking::factory()->inProgress()->create([
+        $booking = Booking::factory()->confirmedByProducer()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
             'date_fin' => now()->subHours(48),
@@ -100,7 +100,7 @@ class AutoCompleteBookingsCommandTest extends TestCase
             ->assertSuccessful();
 
         $booking->refresh();
-        $this->assertEquals(BookingStatus::InProgress, $booking->status);
+        $this->assertEquals(BookingStatus::ConfirmedByProducer, $booking->status);
     }
 
     public function test_command_does_not_touch_already_completed_bookings(): void
@@ -141,7 +141,7 @@ class AutoCompleteBookingsCommandTest extends TestCase
     {
         Event::fake();
 
-        $booking = Booking::factory()->inProgress()->create([
+        $booking = Booking::factory()->confirmedByProducer()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
             'date_fin' => now()->subHours(73),
@@ -170,7 +170,7 @@ class AutoCompleteBookingsCommandTest extends TestCase
 
         $bookings = [];
         for ($i = 0; $i < 3; $i++) {
-            $booking = Booking::factory()->inProgress()->create([
+            $booking = Booking::factory()->confirmedByProducer()->create([
                 'face_id' => $this->faceUser->id,
                 'producer_id' => $this->producerUser->id,
                 'date_fin' => now()->subHours(73 + $i),

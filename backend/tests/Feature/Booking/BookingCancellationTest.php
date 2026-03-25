@@ -174,6 +174,41 @@ class BookingCancellationTest extends TestCase
         Event::assertDispatched(BookingCancelled::class);
     }
 
+    public function test_paid_booking_refund_stays_pending_until_provider_settlement(): void
+    {
+        $booking = Booking::factory()->paid()->withFedapayTransaction()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        EscrowTransaction::factory()->create([
+            'booking_id' => $booking->id,
+            'amount' => $booking->montant_face_recoit,
+            'status' => 'locked',
+        ]);
+
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('initiateRefund')
+                ->once()
+                ->andReturn([
+                    'fedapay_refund_id' => 777888,
+                    'status' => 'pending',
+                ]);
+        });
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                'cancellation_reason' => 'other',
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('escrow_transactions', [
+            'booking_id' => $booking->id,
+            'status' => 'pending',
+            'fedapay_ref' => '777888',
+        ]);
+    }
+
     public function test_face_can_cancel_accepted_booking_and_get_penalty(): void
     {
         Event::fake([BookingCancelled::class]);

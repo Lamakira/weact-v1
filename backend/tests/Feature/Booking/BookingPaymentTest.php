@@ -16,6 +16,8 @@ use App\Models\Producer;
 use App\Models\User;
 use App\Services\BookingService;
 use App\Services\FedapayService;
+use App\Services\MissionPaymentService;
+use App\Services\WalletService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
@@ -278,7 +280,11 @@ class BookingPaymentTest extends TestCase
             ]
         );
 
-        $job->handle(app(BookingService::class));
+        $job->handle(
+            app(BookingService::class),
+            app(MissionPaymentService::class),
+            app(WalletService::class),
+        );
 
         // Booking stays accepted (can retry)
         $booking->refresh();
@@ -367,6 +373,22 @@ class BookingPaymentTest extends TestCase
         Event::assertNotDispatched(BookingPaid::class);
     }
 
+    public function test_mark_as_paid_twice_does_not_create_duplicate_escrow_transactions(): void
+    {
+        $booking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'fedapay_transaction_id' => 44444,
+        ]);
+
+        $bookingService = app(BookingService::class);
+
+        $bookingService->markAsPaid($booking, 'ref_unique');
+        $bookingService->markAsPaid($booking->fresh(), 'ref_unique');
+
+        $this->assertSame(1, $booking->escrowTransaction()->count());
+    }
+
     public function test_webhook_approved_marks_booking_as_paid(): void
     {
         Event::fake();
@@ -400,7 +422,11 @@ class BookingPaymentTest extends TestCase
             ]
         );
 
-        $job->handle(app(BookingService::class));
+        $job->handle(
+            app(BookingService::class),
+            app(MissionPaymentService::class),
+            app(WalletService::class),
+        );
 
         $booking->refresh();
         $this->assertEquals(BookingStatus::Paid, $booking->status);

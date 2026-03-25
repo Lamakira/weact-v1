@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Booking;
 
-use App\Enums\BookingStatus;
 use App\Enums\FinancialEventType;
-use App\Events\BookingPaid;
 use App\Models\Booking;
 use App\Models\Face;
 use App\Models\FinancialEvent;
@@ -66,12 +64,12 @@ class FinancialAuditTrailTest extends TestCase
                 ->once()
                 ->andReturn([
                     'fedapay_transaction_id' => 12345,
-                    'status' => 'pending',
+                    'checkout_url' => 'https://checkout.fedapay.com/test-token',
                 ]);
         });
 
         $service = app(BookingService::class);
-        $service->initiatePayment($this->acceptedBooking, 'mtn_open', $this->phoneData);
+        $service->initiatePayment($this->acceptedBooking);
 
         $this->assertDatabaseHas('financial_events', [
             'booking_id' => $this->acceptedBooking->id,
@@ -120,11 +118,15 @@ class FinancialAuditTrailTest extends TestCase
                 ->once() // Only called ONCE despite two calls
                 ->andReturn([
                     'fedapay_transaction_id' => 77777,
-                    'status' => 'pending',
+                    'checkout_url' => 'https://checkout.fedapay.com/test-token',
                 ]);
             // Second call triggers retrieveTransaction to check existing transaction status
             $transactionMock = \Mockery::mock(Transaction::class);
             $transactionMock->status = 'pending';
+            $tokenMock = (object) ['url' => 'https://checkout.fedapay.com/test-token'];
+            $transactionMock->shouldReceive('generateToken')
+                ->once()
+                ->andReturn($tokenMock);
             $mock->shouldReceive('retrieveTransaction')
                 ->once()
                 ->andReturn($transactionMock);
@@ -132,10 +134,13 @@ class FinancialAuditTrailTest extends TestCase
 
         $service = app(BookingService::class);
 
-        $result1 = $service->initiatePayment($this->acceptedBooking, 'mtn_open', $this->phoneData);
-        $result2 = $service->initiatePayment($this->acceptedBooking->fresh(), 'mtn_open', $this->phoneData);
+        $result1 = $service->initiatePayment($this->acceptedBooking);
+        $result2 = $service->initiatePayment($this->acceptedBooking->fresh());
 
-        $this->assertEquals($result1->fedapay_transaction_id, $result2->fedapay_transaction_id);
+        $this->assertEquals(
+            $result1['booking']->fedapay_transaction_id,
+            $result2['booking']->fedapay_transaction_id
+        );
 
         $count = FinancialEvent::where('booking_id', $this->acceptedBooking->id)
             ->where('type', FinancialEventType::PaymentInitiated->value)
@@ -198,7 +203,7 @@ class FinancialAuditTrailTest extends TestCase
         $service = app(BookingService::class);
 
         try {
-            $service->initiatePayment($this->acceptedBooking, 'mtn_open', $this->phoneData);
+            $service->initiatePayment($this->acceptedBooking);
         } catch (\RuntimeException) {
             // Expected
         }
@@ -270,12 +275,12 @@ class FinancialAuditTrailTest extends TestCase
                 ->once()
                 ->andReturn([
                     'fedapay_transaction_id' => 33333,
-                    'status' => 'pending',
+                    'checkout_url' => 'https://checkout.fedapay.com/test-token',
                 ]);
         });
 
         $service = app(BookingService::class);
-        $service->initiatePayment($this->acceptedBooking, 'mtn_open', $this->phoneData);
+        $service->initiatePayment($this->acceptedBooking);
 
         $event = FinancialEvent::where('booking_id', $this->acceptedBooking->id)->first();
 

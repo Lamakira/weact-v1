@@ -46,9 +46,9 @@ class BookingCompletionTest extends TestCase
 
     // === FIRST CONFIRMATION TESTS ===
 
-    public function test_face_can_confirm_in_progress_booking(): void
+    public function test_face_can_confirm_paid_booking(): void
     {
-        $booking = Booking::factory()->inProgress()->create([
+        $booking = Booking::factory()->paid()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
@@ -65,9 +65,9 @@ class BookingCompletionTest extends TestCase
         ]);
     }
 
-    public function test_producer_can_confirm_in_progress_booking(): void
+    public function test_producer_can_confirm_paid_booking(): void
     {
-        $booking = Booking::factory()->inProgress()->create([
+        $booking = Booking::factory()->paid()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
@@ -203,7 +203,7 @@ class BookingCompletionTest extends TestCase
     public function test_third_party_cannot_confirm_booking(): void
     {
         $otherUser = User::factory()->create();
-        $booking = Booking::factory()->inProgress()->create([
+        $booking = Booking::factory()->paid()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
@@ -215,7 +215,7 @@ class BookingCompletionTest extends TestCase
 
     public function test_unauthenticated_user_gets_401_on_confirm(): void
     {
-        $booking = Booking::factory()->inProgress()->create([
+        $booking = Booking::factory()->paid()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
