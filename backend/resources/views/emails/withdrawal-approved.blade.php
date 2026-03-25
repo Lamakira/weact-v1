@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Retrait traite</title>
+    <title>Retrait traité</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 32px 16px;">
@@ -13,26 +13,26 @@
                     <tr>
                         <td style="background-color: #198496; padding: 24px 32px;">
                             <h1 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: 600;">
-                                Votre retrait a ete traite
+                                Votre retrait a été traité
                             </h1>
                         </td>
                     </tr>
                     <tr>
                         <td style="padding: 32px;">
                             <p style="margin: 0 0 20px; color: #374151; font-size: 14px; line-height: 1.6;">
-                                Bonjour {{ $faceFirstName }}, votre retrait de <strong>{{ $formattedAmount }} XOF</strong> a ete envoye.
+                                Bonjour {{ $faceFirstName }}, votre retrait de <strong>{{ $formattedAmount }} XOF</strong> a été envoyé.
                             </p>
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
-                                    <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">Operateur</td>
+                                    <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">Opérateur</td>
                                     <td style="padding: 0 0 12px; color: #111827; font-size: 14px; text-align: right;">{{ $withdrawalRequest->payment_mode }}</td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">Numero</td>
+                                    <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">Numéro</td>
                                     <td style="padding: 0 0 12px; color: #111827; font-size: 14px; text-align: right;">{{ $withdrawalRequest->phone_number }}</td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 0; color: #6b7280; font-size: 13px;">Traite le</td>
+                                    <td style="padding: 0; color: #6b7280; font-size: 13px;">Traité le</td>
                                     <td style="padding: 0; color: #111827; font-size: 14px; text-align: right;">{{ $withdrawalRequest->processed_at?->format('d/m/Y H:i') }}</td>
                                 </tr>
                             </table>

@@ -28,11 +28,11 @@
                                     <td style="padding: 0 0 12px; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{ $formattedAmount }} XOF</td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">Operateur</td>
+                                    <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">Opérateur</td>
                                     <td style="padding: 0 0 12px; color: #111827; font-size: 14px; text-align: right;">{{ $withdrawalRequest->payment_mode }}</td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">Numero</td>
+                                    <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">Numéro</td>
                                     <td style="padding: 0 0 12px; color: #111827; font-size: 14px; text-align: right;">{{ $withdrawalRequest->phone_number }}</td>
                                 </tr>
                                 <tr>
