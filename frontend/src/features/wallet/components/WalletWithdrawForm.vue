@@ -80,7 +80,7 @@ const phoneError = computed((): string | null => {
       return 'Les numéros béninois doivent comporter 10 chiffres (ex : 0197XXXXXX)'
 
     const prefix = digits.substring(0, 4)
-    if (!BENIN_PREFIXES[selectedMode.value].includes(prefix))
+    if (!BENIN_PREFIXES[selectedMode.value]?.includes(prefix))
       return `Ce numéro ne correspond pas à un préfixe ${selectedMode.value.toUpperCase()} valide au Bénin`
   }
 

@@ -1,8 +1,9 @@
 import { storeToRefs } from 'pinia'
+import type { ComputedRef, Ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { authApi, getApiErrorDetails, getApiErrorMessage, getApiErrorCode } from '../services/authApi'
-import type { FaceRegistrationForm, ProducerRegistrationForm, LoginForm } from '../types'
+import type { FaceRegistrationForm, ProducerRegistrationForm, LoginForm, User } from '../types'
 
 export interface AuthResult {
   success: boolean
@@ -16,11 +17,11 @@ export interface UseAuthReturn {
   registerFace: (data: FaceRegistrationForm) => Promise<AuthResult>
   registerProducer: (data: ProducerRegistrationForm) => Promise<AuthResult>
   logout: () => Promise<void>
-  isAuthenticated: ReturnType<typeof useAuthStore>['isAuthenticated']
-  isLoading: ReturnType<typeof useAuthStore>['isLoading']
-  user: ReturnType<typeof useAuthStore>['user']
-  isFace: ReturnType<typeof useAuthStore>['isFace']
-  isProducer: ReturnType<typeof useAuthStore>['isProducer']
+  isAuthenticated: ComputedRef<boolean>
+  isLoading: Ref<boolean>
+  user: Ref<User | null>
+  isFace: ComputedRef<boolean>
+  isProducer: ComputedRef<boolean>
 }
 
 /**
