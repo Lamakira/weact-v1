@@ -129,7 +129,7 @@ class BookingCancellationTest extends TestCase
             'status' => 'locked',
         ]);
 
-        $expectedRefund = (int) round($booking->montant_total_producteur * 0.85);
+        $expectedRefund = (int) round($booking->montant_total_producteur * 0.90);
 
         $this->mock(FedapayService::class, function ($mock) use ($booking, $expectedRefund): void {
             $mock->shouldReceive('initiateRefund')

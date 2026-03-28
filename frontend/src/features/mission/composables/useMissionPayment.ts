@@ -9,7 +9,7 @@ export interface MissionPricingPreview {
   montantTotal: number
 }
 
-const COMMISSION_RATE = 0.15
+const COMMISSION_RATE = 0.10
 
 function computePricing(budgetParFace: number, nombreFaces: number): MissionPricingPreview {
   const sousTotal = budgetParFace * nombreFaces

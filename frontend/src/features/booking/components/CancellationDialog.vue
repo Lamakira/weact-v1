@@ -22,8 +22,8 @@ const emit = defineEmits<{
 const selectedReason = ref<CancellationReasonValue | ''>('')
 
 const isPaid = computed(() => props.booking.status === BookingStatus.PAID)
-const retainedAmount = computed(() => Math.round(props.booking.montant_total_producteur * 0.15))
-const refundAmount = computed(() => Math.round(props.booking.montant_total_producteur * 0.85))
+const retainedAmount = computed(() => Math.round(props.booking.montant_total_producteur * 0.10))
+const refundAmount = computed(() => Math.round(props.booking.montant_total_producteur * 0.90))
 const canConfirm = computed(() => selectedReason.value !== '' && !props.isCancelling)
 
 watch(
@@ -98,7 +98,7 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
                 <span class="font-medium">{{ formatCurrency(booking.montant_total_producteur) }}</span>
               </div>
               <div class="flex items-center justify-between">
-                <span>15% retenus par WEACT</span>
+                <span>10% retenus par WEACT</span>
                 <span class="font-medium">{{ formatCurrency(retainedAmount) }}</span>
               </div>
               <div class="flex items-center justify-between border-t border-amber-200 pt-2 text-emerald-700">

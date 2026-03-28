@@ -26,7 +26,7 @@ describe('BookingPricingBreakdown', () => {
     })
 
     expect(wrapper.text()).toContain('Vous recevrez')
-    expect(wrapper.text()).toContain('Commission plateforme (-15%)')
+    expect(wrapper.text()).toContain('Frais de service')
     expect(wrapper.text()).not.toContain('Total à payer')
   })
 
@@ -36,7 +36,7 @@ describe('BookingPricingBreakdown', () => {
     })
 
     expect(wrapper.text()).toContain('Total à payer')
-    expect(wrapper.text()).toContain('Commission plateforme (+15%)')
+    expect(wrapper.text()).toContain('Frais de service')
     expect(wrapper.text()).not.toContain('Vous recevrez')
   })
 

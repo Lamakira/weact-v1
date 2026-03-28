@@ -137,7 +137,7 @@ const pricingHint = computed(() => {
   const n = Number(nombre_faces_voulu.value) || 0
   if (b <= 0 || n <= 0) return null
   const sousTotal = b * n
-  const commission = Math.round(sousTotal * 0.15)
+  const commission = Math.round(sousTotal * 0.10)
   const total = sousTotal + commission
   return { total, n }
 })

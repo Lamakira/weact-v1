@@ -361,13 +361,13 @@ class CreateBookingTest extends TestCase
             ->assertJsonPath('data.montant_total_producteur', $expectedPricing->totalProducerPays)
             ->assertJsonPath('data.montant_face_recoit', $expectedPricing->faceReceives);
 
-        // Verify the relationship: totalProducerPays = tarif_base + 15% commission
+        // Verify the relationship: totalProducerPays = tarif_base + 10% commission
         $this->assertSame(
             $expectedPricing->baseTarif + $expectedPricing->producerCommission,
             $expectedPricing->totalProducerPays
         );
 
-        // Verify Face receives tarif_base - 15% commission
+        // Verify Face receives tarif_base - 10% commission
         $this->assertSame(
             $expectedPricing->baseTarif - $expectedPricing->faceCommission,
             $expectedPricing->faceReceives

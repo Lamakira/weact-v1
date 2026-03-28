@@ -106,7 +106,7 @@ class EscrowService
             return;
         }
 
-        $refundAmount = (int) round($booking->montant_total_producteur * 0.85);
+        $refundAmount = (int) round($booking->montant_total_producteur * 0.90);
         $retainedAmount = $booking->montant_total_producteur - $refundAmount;
         $idempotencyKey = "refund-booking-{$booking->id}";
         $refund = $fedapayService->initiateRefund($booking, $refundAmount, $idempotencyKey);

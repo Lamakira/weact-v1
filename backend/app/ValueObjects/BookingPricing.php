@@ -6,13 +6,18 @@ namespace App\ValueObjects;
 
 class BookingPricing
 {
-    private const COMMISSION_RATE = 0.15;
+    private const COMMISSION_RATE = 0.10;
 
     public readonly int $baseTarif;
+
     public readonly int $totalProducerPays;
+
     public readonly int $faceReceives;
+
     public readonly int $producerCommission;
+
     public readonly int $faceCommission;
+
     public readonly int $platformRevenue;
 
     public function __construct(int $baseTarif)

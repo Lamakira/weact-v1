@@ -35,7 +35,7 @@ export const BookingStatusLabel: Record<BookingStatusType, string> = {
 }
 
 // Commission rate (mirrors backend BookingPricing VO)
-export const COMMISSION_RATE = 0.15
+export const COMMISSION_RATE = 0.10
 
 export const CANCELLATION_REASONS = [
   { value: 'schedule_conflict', label: "Conflit d'agenda" },

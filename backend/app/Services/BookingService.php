@@ -152,7 +152,7 @@ class BookingService
     /**
      * Cancel a booking (Producer only).
      * - pending/accepted: immediate cancel with no financial operation
-     * - paid: initiate a refund of 85%
+     * - paid: initiate a refund of 90%
      *
      * @throws ValidationException
      */
@@ -192,7 +192,7 @@ class BookingService
     /**
      * Cancel a booking as Face.
      * - accepted: immediate cancel with no financial operation
-     * - paid: initiate a refund of 85%
+     * - paid: initiate a refund of 90%
      * - after cancellation, apply face rating penalty (+1.0)
      *
      * @throws ValidationException

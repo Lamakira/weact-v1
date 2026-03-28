@@ -6,15 +6,22 @@ namespace App\ValueObjects;
 
 class MissionPricing
 {
-    private const COMMISSION_RATE = 0.15;
+    private const COMMISSION_RATE = 0.10;
 
     public readonly int $budgetParFace;
+
     public readonly int $nombreFaces;
+
     public readonly int $sousTotal;
+
     public readonly int $commissionProducteur;
+
     public readonly int $montantTotalProducteur;
+
     public readonly int $commissionFacesTotal;
+
     public readonly int $montantTotalFaces;
+
     public readonly int $montantParFace;
 
     public function __construct(int $budgetParFace, int $nombreFaces)
