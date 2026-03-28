@@ -102,7 +102,7 @@ const countDisplay = computed((): string | null => {
     <div class="relative z-10 text-center">
       <RouterLink
         to="/faces"
-        class="group inline-flex items-center gap-2 bg-[#198496] text-white px-8 py-4 rounded-full font-bold shadow-lg hover:shadow-[#198496]/20 hover:scale-105 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#198496]/10"
+        class="group inline-flex items-center gap-2 bg-[#198496] text-white px-10 py-4 rounded-md font-bold shadow-lg hover:shadow-[#198496]/20 hover:scale-105 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#198496]/10"
         data-testid="talents-cta"
       >
         Explorer tous les talents
