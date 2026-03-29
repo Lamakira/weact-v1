@@ -69,6 +69,21 @@ describe('FaceRegistrationForm', () => {
     expect(wrapper.find('[data-testid="submit-button"]').exists()).toBe(true)
   })
 
+  it('renders nationality and country as selects with shared options', () => {
+    const wrapper = mountComponent()
+
+    const nationaliteSelect = wrapper.find('[data-testid="nationalite-input"]')
+    const paysSelect = wrapper.find('[data-testid="pays-input"]')
+    const nationalityOptions = nationaliteSelect.findAll('option').map((option) => option.text())
+
+    expect(nationaliteSelect.element.tagName).toBe('SELECT')
+    expect(paysSelect.element.tagName).toBe('SELECT')
+    expect(nationaliteSelect.findAll('option').length).toBeGreaterThan(10)
+    expect(paysSelect.findAll('option').length).toBeGreaterThan(10)
+    expect(nationalityOptions).toContain('Béninoise')
+    expect(nationalityOptions).toContain('Française')
+  })
+
   it('displays validation errors for empty fields on submit', async () => {
     const wrapper = mountComponent()
 
@@ -82,7 +97,7 @@ describe('FaceRegistrationForm', () => {
     expect(wrapper.find('[data-testid="username-error"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="sexe-error"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="date_naissance-error"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="nationalite-error"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="nationalite-error"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="email-error"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="password-error"]').exists()).toBe(true)
   })
@@ -94,6 +109,10 @@ describe('FaceRegistrationForm', () => {
     await wrapper.find('[data-testid="nom-input"]').setValue('Doe')
     await wrapper.find('[data-testid="prenom-input"]').setValue('John')
     await wrapper.find('[data-testid="username-input"]').setValue('johndoe')
+    await wrapper.find('[data-testid="sexe-select"]').setValue('homme')
+    await wrapper.find('[data-testid="date-naissance-input"]').setValue('1995-06-15')
+    await wrapper.find('[data-testid="nationalite-input"]').setValue('Béninoise')
+    await wrapper.find('[data-testid="pays-input"]').setValue('Bénin')
     await wrapper.find('[data-testid="email-input"]').setValue('john@example.com')
     await wrapper.find('[data-testid="password-input"]').setValue('Ab1')
     await wrapper.find('[data-testid="password-confirmation-input"]').setValue('Ab1')
@@ -117,6 +136,10 @@ describe('FaceRegistrationForm', () => {
     await wrapper.find('[data-testid="nom-input"]').setValue('Doe')
     await wrapper.find('[data-testid="prenom-input"]').setValue('John')
     await wrapper.find('[data-testid="username-input"]').setValue('johndoe')
+    await wrapper.find('[data-testid="sexe-select"]').setValue('homme')
+    await wrapper.find('[data-testid="date-naissance-input"]').setValue('1995-06-15')
+    await wrapper.find('[data-testid="nationalite-input"]').setValue('Béninoise')
+    await wrapper.find('[data-testid="pays-input"]').setValue('Bénin')
     await wrapper.find('[data-testid="email-input"]').setValue('john@example.com')
     await wrapper.find('[data-testid="password-input"]').setValue('Password123')
     await wrapper.find('[data-testid="password-confirmation-input"]').setValue('DifferentPassword123')
@@ -142,6 +165,14 @@ describe('FaceRegistrationForm', () => {
     const paysInput = wrapper.find('[data-testid="pays-input"]')
     expect(paysInput.exists()).toBe(true)
     expect((paysInput.element as HTMLInputElement).value).toBe('Bénin')
+  })
+
+  it('pre-fills nationalite with Béninoise', () => {
+    const wrapper = mountComponent()
+
+    const nationaliteInput = wrapper.find('[data-testid="nationalite-input"]')
+    expect(nationaliteInput.exists()).toBe(true)
+    expect((nationaliteInput.element as HTMLInputElement).value).toBe('Béninoise')
   })
 
   it('has correct autocomplete attributes', () => {

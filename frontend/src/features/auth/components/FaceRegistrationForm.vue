@@ -4,6 +4,7 @@ import { useForm, useField } from 'vee-validate'
 import { faceRegistrationValidationSchema } from '../schemas/faceRegistration'
 import { useAuth } from '../composables/useAuth'
 import type { FaceRegistrationForm as FormData } from '../types'
+import { COUNTRY_OPTIONS, NATIONALITY_OPTIONS } from '@/shared/constants/territoryOptions'
 import { FloatingField, FloatingSelect } from '@/components/ui/form'
 import { User, AtSign, Mail, Lock, Calendar, Globe, MapPin, Users } from 'lucide-vue-next'
 
@@ -35,7 +36,7 @@ const { handleSubmit, setFieldError } = useForm<FormData>({
     password_confirmation: '',
     sexe: '',
     date_naissance: '',
-    nationalite: '',
+    nationalite: 'Béninoise',
     pays: 'Bénin',
   },
 })
@@ -153,21 +154,25 @@ const onSubmit = handleSubmit(async (values) => {
 
     <!-- Nationalité + Pays (same row) -->
     <div class="grid grid-cols-2 gap-4">
-      <FloatingField
+      <FloatingSelect
         id="nationalite"
         v-model="nationalite"
         label="Nationalité"
         :icon="Globe"
+        :options="NATIONALITY_OPTIONS"
         :error="nationaliteError"
+        placeholder="Sélectionnez une nationalité"
         required
         data-testid="nationalite-input"
       />
-      <FloatingField
+      <FloatingSelect
         id="pays"
         v-model="pays"
         label="Pays"
         :icon="MapPin"
+        :options="COUNTRY_OPTIONS"
         :error="paysError"
+        placeholder="Sélectionnez un pays"
         required
         data-testid="pays-input"
       />

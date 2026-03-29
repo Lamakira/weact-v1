@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { toTypedSchema } from '@vee-validate/zod'
+import { COUNTRY_OPTION_VALUES, NATIONALITY_OPTION_VALUES } from '@/shared/constants/territoryOptions'
 
 /**
  * Zod schema for Face registration validation
@@ -55,12 +56,18 @@ export const faceRegistrationSchema = z
     nationalite: z
       .string({ message: 'La nationalité est obligatoire.' })
       .min(1, 'La nationalité est obligatoire.')
-      .max(100, 'La nationalité ne peut pas dépasser 100 caractères.'),
+      .max(100, 'La nationalité ne peut pas dépasser 100 caractères.')
+      .refine((value) => NATIONALITY_OPTION_VALUES.has(value), {
+        message: 'La nationalité sélectionnée est invalide.',
+      }),
 
     pays: z
       .string({ message: 'Le pays est obligatoire.' })
       .min(1, 'Le pays est obligatoire.')
-      .max(100, 'Le pays ne peut pas dépasser 100 caractères.'),
+      .max(100, 'Le pays ne peut pas dépasser 100 caractères.')
+      .refine((value) => COUNTRY_OPTION_VALUES.has(value), {
+        message: 'Le pays sélectionné est invalide.',
+      }),
   })
   .refine((data) => data.password === data.password_confirmation, {
     message: 'La confirmation du mot de passe ne correspond pas',
