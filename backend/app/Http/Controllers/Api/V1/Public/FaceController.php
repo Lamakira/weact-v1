@@ -46,6 +46,7 @@ class FaceController extends Controller
                         ->orWhere('bio', 'like', "%{$escaped}%");
                 });
             })
+            ->orderByRaw('CASE WHEN profile_photo IS NOT NULL THEN 0 ELSE 1 END')
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
