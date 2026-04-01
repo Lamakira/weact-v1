@@ -4,7 +4,7 @@
 
 WEACT is a marketplace that connects creative talents (Faces) such as actors, influencers, models, and content creators with Producers (agencies and individuals) looking for talent for their projects.
 
-## 🚀 Tech Stack
+## Tech Stack
 
 ### Backend
 - **PHP 8.2+** with **Laravel 12**
@@ -19,7 +19,7 @@ WEACT is a marketplace that connects creative talents (Faces) such as actors, in
 - **Tailwind CSS 4.1** for styling
 - **Vite 6+** for build tooling
 
-## 📋 Prerequisites
+## Prerequisites
 
 Before you begin, ensure you have the following installed:
 
@@ -29,7 +29,7 @@ Before you begin, ensure you have the following installed:
 - **npm** >= 10.x
 - **MySQL** >= 8.0
 
-## 🛠️ Installation
+## Installation
 
 ### 1. Clone the repository
 
@@ -77,7 +77,7 @@ cd backend && php artisan migrate
 cd backend && php artisan key:generate
 ```
 
-## 💻 Development
+## Development
 
 ### Start development servers
 
@@ -103,7 +103,7 @@ npm run dev:frontend  # Vue on http://localhost:5173
 | `npm run test:backend` | Run Laravel tests |
 | `npm run test:frontend` | Run Vue tests |
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 weact/
@@ -141,7 +141,7 @@ weact/
 └── README.md               # This file
 ```
 
-## 🔗 API Endpoints
+## API Endpoints
 
 Base URL: `http://localhost:8000/api/v1`
 
@@ -152,7 +152,7 @@ Base URL: `http://localhost:8000/api/v1`
 
 *More endpoints will be added as features are implemented.*
 
-## 🎨 Design System
+## Design System
 
 The frontend uses a custom design system based on Tailwind CSS:
 
@@ -163,7 +163,7 @@ Color palette available as Tailwind classes:
 - `bg-primary-50` to `bg-primary-900`
 - `text-primary-50` to `text-primary-900`
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Run backend tests
@@ -173,7 +173,7 @@ npm run test:backend
 npm run test:frontend
 ```
 
-## 📝 Code Style
+## Code Style
 
 ### Backend (Laravel)
 - PSR-12 coding standard
@@ -186,18 +186,18 @@ npm run test:frontend
 - TypeScript strict mode
 - ESLint + Prettier for formatting
 
-## 🤝 Contributing
+## Contributing
 
 1. Create a feature branch: `git checkout -b feature/your-feature`
 2. Make your changes
 3. Run tests and linting
 4. Submit a pull request
 
-## 📄 License
+## License
 
 MIT
 
 ---
 
-**WEACT** - Connecting Faces with Producers 🎬
+**WEACT** - Connecting Faces with Producers
 
