@@ -13,12 +13,15 @@ import { DashboardLayout, type SidebarItem } from '@/components/layout'
 import { faceApi } from '@/features/face/services/faceApi'
 import type { FaceProfile } from '@/features/face/types'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
+import TarifsMissingBanner from '@/components/TarifsMissingBanner.vue'
 
 const authStore = useAuthStore()
 const { logout, isLoading } = useAuth()
 
 // Profile data for avatar
 const profile = ref<FaceProfile | null>(null)
+
+const hasTarifs = computed(() => !!profile.value?.tarif_journalier)
 
 // Sidebar navigation items for Face dashboard
 const sidebarItems: SidebarItem[] = [
@@ -68,6 +71,12 @@ async function handleLogout(): Promise<void> {
     <EmailVerificationBanner
       v-if="!authStore.isEmailVerified"
       data-testid="email-verification-banner"
+    />
+
+    <!-- Tarifs missing banner (shown until Face sets their tarifs) -->
+    <TarifsMissingBanner
+      v-if="profile !== null && !hasTarifs"
+      data-testid="tarifs-missing-banner"
     />
 
     <!-- Child routes render here -->

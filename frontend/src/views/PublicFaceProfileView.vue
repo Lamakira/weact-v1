@@ -59,15 +59,25 @@ const showBookingButton = computed(() =>
   accessLevel.value === 'guest'
 )
 
+const hasPricing = computed(() => !!fullProfile.value?.tarif_journalier)
+
 const canBook = computed(() =>
   accessLevel.value === 'producer_with_access' &&
-  fullProfile.value?.is_available === true
+  fullProfile.value?.is_available === true &&
+  hasPricing.value
 )
 
 const bookingButtonDisabled = computed(() =>
   accessLevel.value === 'producer_with_access' &&
-  fullProfile.value?.is_available !== true
+  (fullProfile.value?.is_available !== true || !hasPricing.value)
 )
+
+const bookingBlockedReason = computed((): string | null => {
+  if (accessLevel.value !== 'producer_with_access') return null
+  if (fullProfile.value?.is_available !== true) return "Cette Face n'est pas disponible actuellement"
+  if (!hasPricing.value) return "Cette Face n'a pas encore renseigné ses tarifs"
+  return null
+})
 
 function formatXOF(amount: number): string {
   return new Intl.NumberFormat('fr-FR', {
@@ -433,11 +443,11 @@ async function handleRetry(): Promise<void> {
                 Booker cette Face
               </button>
               <div
-                v-if="bookingButtonDisabled"
+                v-if="bookingBlockedReason"
                 class="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none"
                 role="tooltip"
               >
-                Cette Face n'est pas disponible
+                {{ bookingBlockedReason }}
               </div>
             </div>
           </div>
@@ -535,11 +545,11 @@ async function handleRetry(): Promise<void> {
                 Booker cette Face
               </button>
               <div
-                v-if="bookingButtonDisabled"
+                v-if="bookingBlockedReason"
                 class="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none"
                 role="tooltip"
               >
-                Cette Face n'est pas disponible
+                {{ bookingBlockedReason }}
               </div>
             </div>
           </div>
