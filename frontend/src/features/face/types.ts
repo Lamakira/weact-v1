@@ -12,6 +12,8 @@ export interface FaceProfile {
   thumbnail_url: string | null
   average_rating: number | null
   ratings_count: number
+  tarif_horaire: number | null
+  tarif_journalier: number | null
 }
 
 // Face profile API response
