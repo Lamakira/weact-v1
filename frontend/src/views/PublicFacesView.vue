@@ -26,7 +26,7 @@ const {
   loadPage,
   updateFilters,
   retry,
-} = usePaginatedFaces(15)
+} = usePaginatedFaces(16)
 
 // Filter options from API
 const categories = ref<FilterOption[]>([])
@@ -187,13 +187,10 @@ watch(faces, async () => {
         />
       </div>
 
-      <!-- Registration CTA -->
-      <RegistrationCta variant="faces" />
-
       <!-- Pagination -->
       <div
         v-if="totalPages > 1"
-        class="flex justify-center pt-8"
+        class="flex justify-center pt-4"
         data-testid="faces-pagination"
       >
         <Pagination
@@ -202,6 +199,9 @@ watch(faces, async () => {
           @page-change="handlePageChange"
         />
       </div>
+
+      <!-- Registration CTA -->
+      <RegistrationCta variant="faces" />
     </div>
   </div>
 </template>
