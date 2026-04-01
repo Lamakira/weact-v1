@@ -148,11 +148,10 @@ class DeleteMissionTest extends TestCase
             ->assertJsonValidationErrors(['mission'])
             ->assertJson([
                 'errors' => [
-                    'mission' => ['Une mission clôturée ou terminée ne peut pas être supprimée'],
+                    'mission' => ['Une mission clôturée, en attente de paiement ou terminée ne peut pas être supprimée'],
                 ],
             ]);
 
-        // Mission should still exist
         $this->assertDatabaseHas('missions', [
             'id' => $closedMission->id,
         ]);
@@ -172,35 +171,67 @@ class DeleteMissionTest extends TestCase
             ->assertJsonValidationErrors(['mission'])
             ->assertJson([
                 'errors' => [
-                    'mission' => ['Une mission clôturée ou terminée ne peut pas être supprimée'],
+                    'mission' => ['Une mission clôturée, en attente de paiement ou terminée ne peut pas être supprimée'],
                 ],
             ]);
 
-        // Mission should still exist
         $this->assertDatabaseHas('missions', [
             'id' => $completedMission->id,
         ]);
     }
 
-    public function test_cannot_delete_mission_with_active_candidatures(): void
+    public function test_cannot_delete_pending_payment_mission(): void
+    {
+        $pendingMission = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::PendingPayment,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->deleteJson("/api/v1/producer/missions/{$pendingMission->id}");
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['mission'])
+            ->assertJson([
+                'errors' => [
+                    'mission' => ['Une mission clôturée, en attente de paiement ou terminée ne peut pas être supprimée'],
+                ],
+            ]);
+
+        $this->assertDatabaseHas('missions', [
+            'id' => $pendingMission->id,
+        ]);
+    }
+
+    public function test_deleting_mission_with_active_candidatures_cancels_them(): void
     {
         $face = Face::factory()->create();
+        $faceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
 
-        Candidature::factory()->create([
+        $candidature = Candidature::factory()->create([
             'mission_id' => $this->mission->id,
             'face_id' => $face->id,
-            'status' => 'accepted',
+            'status' => 'pending',
         ]);
 
         $response = $this->actingAs($this->producerUser)
             ->deleteJson("/api/v1/producer/missions/{$this->mission->id}");
 
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['mission'])
-            ->assertJsonPath('errors.mission.0', 'Impossible de supprimer une mission avec des candidatures actives');
+        $response->assertOk();
 
-        $this->assertDatabaseHas('missions', [
-            'id' => $this->mission->id,
+        // Mission is deleted
+        $this->assertDatabaseMissing('missions', ['id' => $this->mission->id]);
+
+        // Candidature is cascade-deleted with the mission
+        $this->assertDatabaseMissing('candidatures', ['id' => $candidature->id]);
+
+        // Face is notified before deletion
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $faceUser->id,
+            'type' => 'mission_deleted_candidature_cancelled',
         ]);
     }
 

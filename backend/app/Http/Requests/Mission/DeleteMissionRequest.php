@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Mission;
 
-use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
 use App\Models\Mission;
 use App\Models\Producer;
@@ -44,7 +43,8 @@ class DeleteMissionRequest extends FormRequest
 
     /**
      * Configure the validator instance.
-     * Add custom validation for mission status and candidature checks.
+     * Add custom validation for mission status.
+     * Active candidatures are auto-cancelled by MissionService::deleteMission().
      */
     public function withValidator($validator): void
     {
@@ -52,23 +52,11 @@ class DeleteMissionRequest extends FormRequest
             /** @var Mission $mission */
             $mission = $this->route('mission');
 
-            // Check if mission is deletable (not closed or completed)
-            if (in_array($mission->status, [MissionStatus::Closed, MissionStatus::Completed], true)) {
+            // Closed, pending_payment and completed missions cannot be deleted
+            if (in_array($mission->status, [MissionStatus::Closed, MissionStatus::PendingPayment, MissionStatus::Completed], true)) {
                 $validator->errors()->add(
                     'mission',
-                    'Une mission clôturée ou terminée ne peut pas être supprimée'
-                );
-
-                return;
-            }
-
-            if ($mission->candidatures()->whereNotIn('status', [
-                CandidatureStatus::Rejected->value,
-                CandidatureStatus::Cancelled->value,
-            ])->exists()) {
-                $validator->errors()->add(
-                    'mission',
-                    'Impossible de supprimer une mission avec des candidatures actives'
+                    'Une mission clôturée, en attente de paiement ou terminée ne peut pas être supprimée'
                 );
             }
         });

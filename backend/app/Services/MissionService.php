@@ -80,11 +80,61 @@ class MissionService
 
     /**
      * Delete a mission from the database.
+     * Auto-cancels active candidatures and notifies affected faces before deleting.
      * This is a hard delete (no soft deletes per PRD).
      */
     public function deleteMission(Mission $mission): void
     {
+        $this->cancelActiveCandidatesOnDelete($mission);
         $mission->delete();
+    }
+
+    /**
+     * Cancel all active candidatures and notify faces when a mission is deleted.
+     */
+    private function cancelActiveCandidatesOnDelete(Mission $mission): void
+    {
+        $activeCandidatures = $mission->candidatures()
+            ->whereNotIn('status', [
+                CandidatureStatus::Rejected->value,
+                CandidatureStatus::Cancelled->value,
+            ])
+            ->with('face')
+            ->get();
+
+        foreach ($activeCandidatures as $candidature) {
+            $candidature->update(['status' => CandidatureStatus::Cancelled]);
+
+            $faceId = $candidature->face_id ?? $candidature->face?->id;
+            $userId = $faceId
+                ? User::where('userable_type', \App\Models\Face::class)
+                    ->where('userable_id', $faceId)
+                    ->value('id')
+                : null;
+
+            if (! $userId) {
+                continue;
+            }
+
+            try {
+                Notification::create([
+                    'user_id' => $userId,
+                    'type' => 'mission_deleted_candidature_cancelled',
+                    'data' => [
+                        'message' => "La mission \"{$mission->titre}\" a été supprimée par le producteur. Votre candidature a été annulée.",
+                        'mission_id' => $mission->id,
+                        'candidature_id' => $candidature->id,
+                        'url' => '/face/candidatures',
+                    ],
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('MissionDeleted candidature notification failed', [
+                    'mission_id' => $mission->id,
+                    'candidature_id' => $candidature->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     /**
