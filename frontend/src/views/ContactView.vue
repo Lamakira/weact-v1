@@ -238,19 +238,18 @@ const handleSubmit = async () => {
                   <p class="text-gray-500 text-sm mb-4">Suivez notre actualité</p>
                   <div class="flex flex-wrap gap-4">
                     <a
-                      href="#"
+                      href="https://www.instagram.com/weact.bj?igsh=MXAwaGg4d3U5amRlcA=="
+                      target="_blank"
+                      rel="noopener noreferrer"
                       class="text-xs font-medium text-gray-700 hover:text-[#198496] transition-colors border border-gray-200 px-3 py-1 rounded-full bg-white"
                       >Instagram</a
                     >
                     <a
-                      href="#"
+                      href="https://www.tiktok.com/@weact.bj?_r=1&_t=ZS-95BYD4Ncjky"
+                      target="_blank"
+                      rel="noopener noreferrer"
                       class="text-xs font-medium text-gray-700 hover:text-[#198496] transition-colors border border-gray-200 px-3 py-1 rounded-full bg-white"
-                      >Facebook</a
-                    >
-                    <a
-                      href="#"
-                      class="text-xs font-medium text-gray-700 hover:text-[#198496] transition-colors border border-gray-200 px-3 py-1 rounded-full bg-white"
-                      >Twitter</a
+                      >TikTok</a
                     >
                   </div>
                 </div>

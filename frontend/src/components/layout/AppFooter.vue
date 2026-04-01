@@ -5,7 +5,8 @@
  * Design: Minimalist & Clean (from design-system.md)
  */
 import { RouterLink } from 'vue-router'
-import { Instagram, Facebook, Twitter, Youtube } from 'lucide-vue-next'
+import { Instagram } from 'lucide-vue-next'
+import IconTiktok from '@/components/icons/IconTiktok.vue'
 import logoBlanc from '@/assets/images/logoblanc.png'
 
 const footerLinks = {
@@ -36,10 +37,8 @@ const footerLinks = {
 }
 
 const socialLinks = [
-  { icon: Instagram, href: '#', label: 'Suivez-nous sur Instagram', testId: 'social-link-instagram' },
-  { icon: Facebook, href: '#', label: 'Suivez-nous sur Facebook', testId: 'social-link-facebook' },
-  { icon: Twitter, href: '#', label: 'Suivez-nous sur Twitter', testId: 'social-link-twitter' },
-  { icon: Youtube, href: '#', label: 'Suivez-nous sur YouTube', testId: 'social-link-youtube' },
+  { icon: Instagram, href: 'https://www.instagram.com/weact.bj?igsh=MXAwaGg4d3U5amRlcA==', label: 'Suivez-nous sur Instagram', testId: 'social-link-instagram' },
+  { icon: IconTiktok, href: 'https://www.tiktok.com/@weact.bj?_r=1&_t=ZS-95BYD4Ncjky', label: 'Suivez-nous sur TikTok', testId: 'social-link-tiktok' },
 ]
 </script>
 
