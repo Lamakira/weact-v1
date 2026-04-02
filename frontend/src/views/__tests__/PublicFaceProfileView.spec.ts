@@ -6,11 +6,18 @@ import type { PublicFaceProfile } from '@/features/public/services/publicFacesAp
 
 // Mock route params - mutable for different test scenarios
 const mockParams: Record<string, string> = { username: 'adjoua' }
+const mockQuery: Record<string, string> = {}
+const mockRouter = {
+  push: vi.fn(),
+}
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({
     params: mockParams,
+    query: mockQuery,
+    fullPath: '/faces/adjoua',
   }),
+  useRouter: () => mockRouter,
   RouterLink: {
     name: 'RouterLink',
     template: '<a :href="to" v-bind="$attrs"><slot /></a>',
@@ -83,11 +90,23 @@ vi.mock('@/features/candidature/components/CandidateInfoSection.vue', () => ({
 vi.mock('@/features/candidature/components/CandidateExperiencesSection.vue', () => ({
   default: { template: '<div></div>', props: ['candidateId'] },
 }))
+vi.mock('@/features/candidature/components/CandidateResumeSummary.vue', () => ({
+  default: {
+    template: '<div data-testid="candidate-resume-summary"></div>',
+    props: ['candidate', 'tarifHoraire', 'tarifJournalier'],
+  },
+}))
 vi.mock('@/components/RatingDisplay.vue', () => ({
   default: { template: '<div></div>', props: ['rating', 'count'] },
 }))
 vi.mock('@/components/ReviewsList.vue', () => ({
   default: { template: '<div></div>', props: ['reviews', 'isLoading'] },
+}))
+vi.mock('@/features/booking/components', () => ({
+  BookingFormSheet: {
+    template: '<div data-testid="booking-form-sheet"></div>',
+    props: ['open', 'candidate', 'pricing'],
+  },
 }))
 
 // Mock lucide-vue-next
@@ -106,6 +125,7 @@ vi.mock('lucide-vue-next', () => {
     Banknote: m('Banknote'),
     Megaphone: m('Megaphone'),
     Lock: m('Lock'),
+    CalendarPlus: m('CalendarPlus'),
   }
 })
 
@@ -146,6 +166,7 @@ describe('PublicFaceProfileView (Integration)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockParams.username = 'adjoua'
+    Object.keys(mockQuery).forEach((key) => delete mockQuery[key])
   })
 
   afterEach(() => {
@@ -197,7 +218,7 @@ describe('PublicFaceProfileView (Integration)', () => {
     expect(wrapper.find('[data-testid="retry-button"]').exists()).toBe(true)
   })
 
-  it('displays locked content teasers with CTA in guest mode', async () => {
+  it('shows a booking CTA in guest mode', async () => {
     vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
       success: true,
       profile: mockProfile,
@@ -206,8 +227,7 @@ describe('PublicFaceProfileView (Integration)', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const teasers = wrapper.find('[data-testid="locked-teasers"]')
-    expect(teasers.exists()).toBe(true)
+    expect(wrapper.find('[data-testid="booking-cta"]').exists()).toBe(true)
   })
 
   it('has breadcrumb navigation with proper ARIA', async () => {
@@ -226,6 +246,20 @@ describe('PublicFaceProfileView (Integration)', () => {
     expect(backLink.exists()).toBe(true)
     expect(backLink.text()).toContain('Retour aux talents')
     expect(backLink.attributes('href')).toBe('/faces')
+  })
+
+  it('preserves the originating list page in the back link', async () => {
+    mockQuery.returnTo = '/faces?page=5&search=Adjoua'
+
+    vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
+      success: true,
+      profile: mockProfile,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="back-to-list"]').attributes('href')).toBe('/faces?page=5&search=Adjoua')
   })
 
   it('renders profile info section in success state', async () => {
@@ -282,7 +316,7 @@ describe('PublicFaceProfileView (Integration)', () => {
     expect(ogImage?.getAttribute('content')).toBe('https://example.com/photo.jpg')
   })
 
-  it('renders locked content teasers with titles in success state', async () => {
+  it('renders the public resume summary in success state', async () => {
     vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
       success: true,
       profile: mockProfile,
@@ -291,9 +325,6 @@ describe('PublicFaceProfileView (Integration)', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const teasers = wrapper.findAll('[data-testid="locked-content-teaser"]')
-    expect(teasers.length).toBe(2)
-    expect(wrapper.text()).toContain('Bio & Expériences professionnelles')
-    expect(wrapper.text()).toContain('Tarifs & Caractéristiques')
+    expect(wrapper.find('[data-testid="candidate-resume-summary"]').exists()).toBe(true)
   })
 })

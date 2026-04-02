@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import { User } from 'lucide-vue-next'
 import type { PublicFace } from '../services/publicFacesApi'
 
@@ -9,6 +9,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const route = useRoute()
 
 // Compute availability indicator classes
 const availabilityClasses = computed(() => {
@@ -29,11 +30,16 @@ const photoUrl = computed(() => {
 const hasPhoto = computed(() => {
   return !!photoUrl.value
 })
+
+const profileUrl = computed(() => {
+  const returnTo = encodeURIComponent(route.fullPath)
+  return `/faces/${props.face.username}?returnTo=${returnTo}`
+})
 </script>
 
 <template>
   <RouterLink
-    :to="`/faces/${face.username}`"
+    :to="profileUrl"
     :data-testid="`face-card-${face.id}`"
     class="group/card relative block aspect-[4/5] overflow-hidden rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg hover:border-[#198496]/30 transition-all duration-300 hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"
     :aria-label="`Voir le profil de ${face.prenom}`"

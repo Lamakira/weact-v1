@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import FaceCard from '../FaceCard.vue'
@@ -9,6 +9,7 @@ const router = createRouter({
   history: createMemoryHistory(),
   routes: [
     { path: '/', name: 'home', component: { template: '<div>Home</div>' } },
+    { path: '/faces', name: 'public-faces-list', component: { template: '<div>Faces List</div>' } },
     { path: '/faces/:username', name: 'public-face-profile', component: { template: '<div>Face Profile</div>' } },
   ],
 })
@@ -26,6 +27,10 @@ const mockFace: PublicFace = {
 }
 
 describe('FaceCard', () => {
+  beforeEach(async () => {
+    await router.push('/faces?page=5&search=Adjoua')
+  })
+
   const mountCard = (face: Partial<PublicFace> = {}) => {
     return mount(FaceCard, {
       props: {
@@ -124,7 +129,7 @@ describe('FaceCard', () => {
     it('links to the correct face profile page', () => {
       const wrapper = mountCard()
 
-      expect(wrapper.attributes('href')).toBe('/faces/adjoua-dossou')
+      expect(wrapper.attributes('href')).toBe('/faces/adjoua-dossou?returnTo=%2Ffaces%3Fpage%3D5%26search%3DAdjoua')
     })
 
     it('is keyboard accessible with RouterLink', () => {

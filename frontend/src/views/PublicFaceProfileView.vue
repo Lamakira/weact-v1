@@ -209,6 +209,16 @@ const faceUsername = computed(() => {
   return typeof username === 'string' && username.length > 0 ? username : null
 })
 
+const backToListUrl = computed(() => {
+  const returnTo = route.query.returnTo
+
+  if (typeof returnTo === 'string' && (returnTo === '/faces' || returnTo.startsWith('/faces?') || returnTo.startsWith('/faces#'))) {
+    return returnTo
+  }
+
+  return '/faces'
+})
+
 // Fetch face on mount and when username changes
 watch(
   faceUsername,
@@ -285,7 +295,7 @@ async function handleRetry(): Promise<void> {
       class="max-w-7xl mx-auto px-4 md:px-6 pt-8 md:pt-10"
     >
       <RouterLink
-        to="/faces"
+        :to="backToListUrl"
         class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#198496] transition-all duration-200 group"
         data-testid="back-to-list"
       >
@@ -374,7 +384,7 @@ async function handleRetry(): Promise<void> {
           </p>
         </div>
         <RouterLink
-          to="/faces"
+          :to="backToListUrl"
           class="text-sm font-medium bg-[#198496] text-white px-6 py-2.5 rounded-md hover:bg-[#146c7a] transition-colors focus:outline-none focus:ring-2 focus:ring-[#198496]/20"
           data-testid="back-to-faces-cta"
         >
