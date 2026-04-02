@@ -28,8 +28,6 @@ const {
   isLoading,
   error,
   notFound,
-  hasVideos,
-  videosCount,
   fetchFace,
 } = useFaceProfile()
 
@@ -412,9 +410,6 @@ async function handleRetry(): Promise<void> {
               :niches="face.niches"
               :average-rating="face.average_rating"
               :ratings-count="face.ratings_count"
-              :has-videos="hasVideos"
-              :videos-count="videosCount"
-              :access-level="accessLevel"
               :tarif-horaire="null"
               :tarif-journalier="null"
             />

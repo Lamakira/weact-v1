@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { MapPin, Star, Video, Lock, Wallet } from 'lucide-vue-next'
-import type { AccessLevel } from '@/features/public/composables/usePublicFaceAccess'
+import { MapPin, Star, Wallet } from 'lucide-vue-next'
 
 interface Props {
   prenom: string
@@ -10,15 +9,11 @@ interface Props {
   niches: Array<{ value: string; label: string }>
   averageRating: number | null
   ratingsCount: number
-  hasVideos: boolean
-  videosCount: number
-  accessLevel?: AccessLevel
   tarifHoraire?: string | null
   tarifJournalier?: string | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  accessLevel: 'guest',
   tarifHoraire: null,
   tarifJournalier: null,
 })
@@ -116,42 +111,6 @@ const hasPricing = computed(() => !!props.tarifHoraire || !!props.tarifJournalie
       <span class="text-sm text-gray-500">({{ ratingsCount }} avis)</span>
     </div>
 
-
-    <!-- Video Teaser Section (guests only) -->
-    <div
-      v-if="hasVideos && accessLevel === 'guest'"
-      class="relative group cursor-default overflow-hidden rounded-xl border border-gray-100 bg-gray-50 p-4"
-      data-testid="video-teaser"
-      aria-label="Vidéos disponibles, réservées aux producteurs inscrits"
-    >
-      <div class="flex items-center justify-between mb-2">
-        <div class="flex items-center gap-2 text-gray-900 font-medium">
-          <Video class="w-4 h-4 text-[#198496]" aria-hidden="true" />
-          <span class="text-sm">Vidéos disponibles ({{ videosCount }})</span>
-        </div>
-        <Lock class="w-4 h-4 text-gray-400" aria-hidden="true" />
-      </div>
-
-      <!-- Locked Visual Placeholder -->
-      <div class="grid grid-cols-3 gap-2 opacity-40 grayscale">
-        <div
-          v-for="n in 3"
-          :key="n"
-          class="aspect-square bg-gray-300 rounded-lg"
-        ></div>
-      </div>
-
-      <!-- Overlay text -->
-      <div
-        class="absolute inset-0 flex items-center justify-center bg-white/30 backdrop-blur-[1px]"
-      >
-        <span
-          class="text-xs font-semibold text-gray-600 bg-white px-3 py-1 rounded-full shadow-sm border border-gray-100"
-        >
-          Inscrivez-vous pour voir
-        </span>
-      </div>
-    </div>
 
   </div>
 </template>

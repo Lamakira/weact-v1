@@ -63,9 +63,7 @@ const lastUpdate = '1er février 2026'
 
               <div>
                 <h3 class="font-semibold text-gray-900 mb-2 uppercase tracking-wider text-[11px]">2. Inscription et Compte</h3>
-                <p>L'accès à la plateforme nécessite la création d'un compte. L'utilisateur s'engage à fournir des informations exactes et à les maintenir à jour.
-                  <span class="text-[#198496] font-medium italic">[TODO: Vérifier l'âge légal minimum pour les Faces au Bénin]</span>.
-                </p>
+                <p>L'accès à la plateforme nécessite la création d'un compte. L'utilisateur s'engage à fournir des informations exactes et à les maintenir à jour.</p>
               </div>
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -192,20 +190,6 @@ const lastUpdate = '1er février 2026'
       </section>
     </div>
 
-    <!-- Legal Review Footer Note -->
-    <footer class="mt-12 p-4 bg-amber-50 border border-amber-100 rounded-md">
-      <div class="flex gap-3">
-        <div class="text-amber-600 shrink-0 mt-0.5">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-        </div>
-        <div>
-          <p class="text-[11px] font-bold text-amber-800 uppercase tracking-wider mb-1">Note de conformité</p>
-          <p class="text-[11px] text-amber-700 leading-normal">
-            Ce document est un modèle préparatoire. <strong>Une revue par un conseiller juridique au Bénin est impérative</strong> pour s'assurer de la pleine conformité avec le Code du Travail béninois, les lois sur le numérique et la protection des données personnelles (APDP).
-          </p>
-        </div>
-      </div>
-    </footer>
   </div>
 </template>
 
