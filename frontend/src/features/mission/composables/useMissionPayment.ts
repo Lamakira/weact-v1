@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { missionApi } from '../services/missionApi'
 
 export interface MissionPricingPreview {
@@ -23,30 +23,99 @@ function computePricing(budgetParFace: number, nombreFaces: number): MissionPric
   }
 }
 
-export function useMissionPayment(budgetParFace: number) {
-  const selectedCandidatureIds = ref<number[]>([])
+export interface SelectedFace {
+  candidatureId: number
+  label: string
+}
+
+export function useMissionPayment(budgetParFace: number, missionId: number, maxSelection?: number) {
+  const storageKey = `weact_selection_${missionId}`
+  const labelsKey = `weact_selection_labels_${missionId}`
+
+  // Restore from sessionStorage (survives pagination + navigation)
+  let restoredIds: number[] = []
+  let restoredLabels: Record<number, string> = {}
+  try {
+    const storedIds = sessionStorage.getItem(storageKey)
+    if (storedIds) {
+      const parsed = JSON.parse(storedIds)
+      if (Array.isArray(parsed)) restoredIds = parsed
+    }
+    const storedLabels = sessionStorage.getItem(labelsKey)
+    if (storedLabels) {
+      const parsed = JSON.parse(storedLabels)
+      if (parsed && typeof parsed === 'object') restoredLabels = parsed
+    }
+  } catch {
+    sessionStorage.removeItem(storageKey)
+    sessionStorage.removeItem(labelsKey)
+  }
+  const selectedCandidatureIds = ref<number[]>(restoredIds)
+  const selectedLabels = ref<Record<number, string>>(restoredLabels)
+
   const isSelectionMode = ref(true)
   const isConfirming = ref(false)
   const error = ref<string | null>(null)
   const pollIntervalId = ref<ReturnType<typeof setInterval> | null>(null)
   const paymentStatus = ref<string | null>(null)
+  const selectionLimitReached = ref(false)
+
+  // Sync to sessionStorage on every change
+  watch(selectedCandidatureIds, (ids) => {
+    sessionStorage.setItem(storageKey, JSON.stringify(ids))
+    selectionLimitReached.value = false
+  }, { deep: true })
+
+  watch(selectedLabels, (labels) => {
+    sessionStorage.setItem(labelsKey, JSON.stringify(labels))
+  }, { deep: true })
+
+  const selectedCount = computed(() => selectedCandidatureIds.value.length)
+
+  const selectedFaces = computed<SelectedFace[]>(() =>
+    selectedCandidatureIds.value.map((id) => ({
+      candidatureId: id,
+      label: selectedLabels.value[id] ?? `#${id}`,
+    }))
+  )
 
   const pricing = computed<MissionPricingPreview | null>(() => {
     if (selectedCandidatureIds.value.length === 0) return null
     return computePricing(budgetParFace, selectedCandidatureIds.value.length)
   })
 
-  function toggleSelection(id: number): void {
+  function toggleSelection(id: number, label?: string): void {
     const idx = selectedCandidatureIds.value.indexOf(id)
     if (idx === -1) {
+      if (maxSelection && selectedCandidatureIds.value.length >= maxSelection) {
+        selectionLimitReached.value = true
+        return
+      }
       selectedCandidatureIds.value.push(id)
+      if (label) selectedLabels.value[id] = label
     } else {
       selectedCandidatureIds.value.splice(idx, 1)
+      delete selectedLabels.value[id]
+    }
+  }
+
+  function removeSelection(id: number): void {
+    const idx = selectedCandidatureIds.value.indexOf(id)
+    if (idx !== -1) {
+      selectedCandidatureIds.value.splice(idx, 1)
+      delete selectedLabels.value[id]
     }
   }
 
   function isSelected(id: number): boolean {
     return selectedCandidatureIds.value.includes(id)
+  }
+
+  function clearSelection(): void {
+    selectedCandidatureIds.value = []
+    selectedLabels.value = {}
+    sessionStorage.removeItem(storageKey)
+    sessionStorage.removeItem(labelsKey)
   }
 
   async function confirmAndPay(missionId: number): Promise<{ checkout_url: string } | null> {
@@ -57,6 +126,7 @@ export function useMissionPayment(budgetParFace: number) {
 
     try {
       const response = await missionApi.confirmSelection(missionId, selectedCandidatureIds.value)
+      clearSelection()
       return { checkout_url: response.data.checkout_url }
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } } }
@@ -100,13 +170,18 @@ export function useMissionPayment(budgetParFace: number) {
 
   return {
     selectedCandidatureIds,
+    selectedCount,
+    selectedFaces,
     isSelectionMode,
     isConfirming,
     error,
     pricing,
     paymentStatus,
+    selectionLimitReached,
     toggleSelection,
+    removeSelection,
     isSelected,
+    clearSelection,
     confirmAndPay,
     startPolling,
     stopPolling,

@@ -24,6 +24,7 @@ const props = defineProps<{
   missionId: number
   missionBudget?: number
   missionStatus?: string
+  nombreFacesVoulu?: number
 }>()
 
 const emit = defineEmits<{
@@ -79,10 +80,14 @@ const {
   isConfirming,
   error: paymentError,
   pricing,
+  selectedCount,
+  selectedFaces,
+  selectionLimitReached,
   toggleSelection,
+  removeSelection,
   isSelected,
   confirmAndPay,
-} = useMissionPayment(props.missionBudget ?? 0)
+} = useMissionPayment(props.missionBudget ?? 0, props.missionId, props.nombreFacesVoulu)
 
 /**
  * Whether selection mode should be active
@@ -290,6 +295,42 @@ onMounted(() => {
 
     <!-- Results List -->
     <template v-else>
+      <!-- Cross-page selection counter + removable chips -->
+      <div
+        v-if="isSelectionMode && selectedCount > 0"
+        class="mb-4 rounded-lg bg-primary/10 px-4 py-3 text-sm"
+      >
+        <div class="flex items-center gap-2 font-medium text-primary mb-2">
+          <CheckSquare class="h-4 w-4" />
+          <span>{{ selectedCount }}{{ nombreFacesVoulu ? ` / ${nombreFacesVoulu}` : '' }} Face(s) sélectionnée(s)</span>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          <span
+            v-for="face in selectedFaces"
+            :key="face.candidatureId"
+            class="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-700 border border-gray-200 shadow-sm"
+          >
+            {{ face.label }}
+            <button
+              type="button"
+              class="ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 hover:bg-red-100 hover:text-red-600 transition-colors"
+              @click="removeSelection(face.candidatureId)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-3 w-3">
+                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+              </svg>
+            </button>
+          </span>
+        </div>
+      </div>
+      <!-- Selection limit reached toast -->
+      <div
+        v-if="selectionLimitReached"
+        class="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-2.5 text-sm text-amber-700"
+      >
+        Vous avez atteint le nombre maximum de Faces pour cette mission ({{ nombreFacesVoulu }}).
+      </div>
+
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <ProducerCandidatureCard
           v-for="candidature in candidatures"
@@ -300,7 +341,7 @@ onMounted(() => {
           :is-selected="isSelected(candidature.id)"
           @accept="handleAccept"
           @reject="handleReject"
-          @toggle-selection="toggleSelection"
+          @toggle-selection="(id: number) => toggleSelection(id, candidature.face.display_name)"
         />
       </div>
 

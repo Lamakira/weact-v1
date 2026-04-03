@@ -21,12 +21,12 @@ const isLoading = ref(true)
 const error = ref<string | null>(null)
 const paymentSuccessBanner = ref(false)
 
-const { startPolling, stopPolling } = useMissionPayment(0)
-
 /**
  * Computed: Mission ID from route params
  */
 const missionId = computed(() => Number(route.params.id))
+
+const { startPolling, stopPolling } = useMissionPayment(0, missionId.value)
 
 /**
  * Fetch mission details for the header.
@@ -165,6 +165,7 @@ onUnmounted(() => {
         :mission-id="missionId"
         :mission-budget="mission.budget"
         :mission-status="mission.status"
+        :nombre-faces-voulu="mission.nombre_faces_voulu"
         @selection-confirmed="handleSelectionConfirmed"
       />
     </main>

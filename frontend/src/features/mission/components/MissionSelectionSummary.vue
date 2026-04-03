@@ -49,6 +49,12 @@ function formatCurrency(amount: number): string {
       </div>
     </div>
 
+    <!-- Payment finality warning -->
+    <div class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 border border-amber-200">
+      <strong>Attention :</strong> une fois le paiement effectué, vous ne pourrez plus sélectionner de Faces
+      pour cette mission. Les candidatures non retenues seront automatiquement refusées.
+    </div>
+
     <button
       type="button"
       class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
