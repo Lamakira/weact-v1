@@ -13,6 +13,7 @@ enum FaceCategory: string
     case FIGURANT = 'figurant';
     case MODELE_PHOTO = 'modele_photo';
     case EGERIE = 'egerie';
+    case VOIX_OFF = 'voix_off';
 
     /**
      * Get the French display name for this category.
@@ -27,6 +28,7 @@ enum FaceCategory: string
             self::FIGURANT => 'Figurant',
             self::MODELE_PHOTO => 'Modèle Photo',
             self::EGERIE => 'Égérie',
+            self::VOIX_OFF => 'Voix off',
         };
     }
 }

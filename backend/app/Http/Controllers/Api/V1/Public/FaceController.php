@@ -69,10 +69,13 @@ class FaceController extends Controller
      */
     public function filterOptions(): JsonResponse
     {
-        $categories = array_map(
+        $categories = array_values(array_map(
             fn (FaceCategory $cat) => ['value' => $cat->value, 'label' => $cat->label()],
-            FaceCategory::cases()
-        );
+            array_filter(
+                FaceCategory::cases(),
+                fn (FaceCategory $cat) => $cat !== FaceCategory::INFLUENCEUR
+            )
+        ));
 
         $niches = array_map(
             fn (FaceNiche $niche) => ['value' => $niche->value, 'label' => $niche->label()],

@@ -27,15 +27,16 @@ class PublicFaceFilterOptionsTest extends TestCase
         $this->assertArrayHasKey('value', $first);
         $this->assertArrayHasKey('label', $first);
 
-        // Verify known categories exist
+        // Verify known categories exist (influenceur excluded, voix_off added)
         $values = array_column($categories, 'value');
         $this->assertContains('acteur', $values);
         $this->assertContains('mannequin', $values);
-        $this->assertContains('influenceur', $values);
+        $this->assertNotContains('influenceur', $values);
         $this->assertContains('createur', $values);
         $this->assertContains('figurant', $values);
         $this->assertContains('modele_photo', $values);
         $this->assertContains('egerie', $values);
+        $this->assertContains('voix_off', $values);
     }
 
     public function test_returns_niches_with_values_and_labels(): void

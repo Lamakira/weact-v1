@@ -8,6 +8,7 @@ use App\Enums\FaceCategory;
 use App\Enums\FaceNiche;
 use App\Models\Face;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
 
 class UpdateCategoryNicheRequest extends FormRequest
@@ -31,7 +32,7 @@ class UpdateCategoryNicheRequest extends FormRequest
     {
         return [
             'categories' => ['nullable', 'array'],
-            'categories.*' => [new Enum(FaceCategory::class)],
+            'categories.*' => [new Enum(FaceCategory::class), Rule::notIn([FaceCategory::INFLUENCEUR->value])],
             'niches' => ['nullable', 'array'],
             'niches.*' => [new Enum(FaceNiche::class)],
         ];

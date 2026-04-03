@@ -21,11 +21,14 @@ class CategoryNicheOptionsController extends Controller
                 'value' => $category->value,
                 'label' => $category->label(),
             ],
-            FaceCategory::cases()
+            array_filter(
+                FaceCategory::cases(),
+                fn (FaceCategory $category) => $category !== FaceCategory::INFLUENCEUR
+            )
         );
 
         return response()->json([
-            'data' => $categories,
+            'data' => array_values($categories),
         ]);
     }
 
