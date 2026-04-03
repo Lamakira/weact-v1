@@ -69,6 +69,23 @@ class FaceRegistrationTest extends TestCase
         $this->assertNotEmpty($response->json('data.token'));
     }
 
+    public function test_registration_persists_optional_whatsapp_number(): void
+    {
+        $data = [
+            ...$this->validData,
+            'whatsapp_number' => '+22997000000',
+        ];
+
+        $response = $this->postJson('/api/v1/auth/register/face', $data);
+
+        $response->assertStatus(201);
+
+        $this->assertDatabaseHas('faces', [
+            'username' => 'johndoe',
+            'whatsapp_number' => '+22997000000',
+        ]);
+    }
+
     public function test_duplicate_email_returns_422_with_error(): void
     {
         // Create existing user with the same email

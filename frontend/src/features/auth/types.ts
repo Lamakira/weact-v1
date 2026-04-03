@@ -20,6 +20,7 @@ export interface FaceRegistrationForm {
   date_naissance: string
   nationalite: string
   pays: string
+  whatsapp_number?: string
 }
 
 // Producer type
@@ -109,4 +110,3 @@ export interface ResetPasswordData {
   password: string
   password_confirmation: string
 }
-

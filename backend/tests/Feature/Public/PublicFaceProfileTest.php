@@ -127,26 +127,23 @@ class PublicFaceProfileTest extends TestCase
         // Should include username (public for slug-based URLs)
         $this->assertArrayHasKey('username', $data);
 
-        // Should NOT include sensitive fields
+        // Public profile detail exposes bio, physical, location (more than list view)
+        $this->assertArrayHasKey('bio', $data);
+        $this->assertArrayHasKey('sexe', $data);
+        $this->assertArrayHasKey('age', $data);
+        $this->assertArrayHasKey('nationalite', $data);
+        $this->assertArrayHasKey('taille', $data);
+        $this->assertArrayHasKey('quartier', $data);
+        $this->assertArrayHasKey('pays', $data);
+
+        // Should NOT include sensitive/admin-only fields
         $this->assertArrayNotHasKey('nom', $data);
-        $this->assertArrayNotHasKey('bio', $data);
         $this->assertArrayNotHasKey('tarif_horaire', $data);
         $this->assertArrayNotHasKey('tarif_journalier', $data);
-        $this->assertArrayNotHasKey('taille', $data);
         $this->assertArrayNotHasKey('poids', $data);
-        $this->assertArrayNotHasKey('quartier', $data);
-        $this->assertArrayNotHasKey('pays', $data);
+        $this->assertArrayNotHasKey('whatsapp_number', $data);
         $this->assertArrayNotHasKey('email', $data);
-        $this->assertArrayNotHasKey('experiences', $data);
-        $this->assertArrayNotHasKey('photos', $data);
-
-        // Should NOT include personal info fields (producer-only)
-        $this->assertArrayNotHasKey('sexe', $data);
-        $this->assertArrayNotHasKey('sexe_label', $data);
-        $this->assertArrayNotHasKey('age', $data);
-        $this->assertArrayNotHasKey('nationalite', $data);
         $this->assertArrayNotHasKey('date_naissance', $data);
-        $this->assertArrayNotHasKey('langues', $data);
     }
 
     public function test_has_album_photos_indicator_is_correct(): void

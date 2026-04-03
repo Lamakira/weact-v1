@@ -14,7 +14,7 @@ class FaceRegistrationService
     /**
      * Register a new Face user.
      *
-     * @param array{nom: string, prenom: string, username: string, email: string, password: string, sexe: string, date_naissance: string, nationalite: string, pays: string} $validated
+     * @param array{nom: string, prenom: string, username: string, email: string, password: string, sexe: string, date_naissance: string, nationalite: string, pays: string, whatsapp_number?: string|null} $validated
      * @return array{user: User, face: Face, token: string}
      */
     public function register(array $validated): array
@@ -29,6 +29,7 @@ class FaceRegistrationService
                 'date_naissance' => $validated['date_naissance'],
                 'nationalite' => $validated['nationalite'],
                 'pays' => $validated['pays'],
+                'whatsapp_number' => $validated['whatsapp_number'] ?? null,
             ]);
 
             // Create User with polymorphic relationship to Face

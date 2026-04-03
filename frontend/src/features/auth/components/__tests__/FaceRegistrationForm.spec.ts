@@ -64,6 +64,7 @@ describe('FaceRegistrationForm', () => {
     expect(wrapper.find('[data-testid="nationalite-input"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="pays-input"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="email-input"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="whatsapp-number-input"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="password-input"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="password-confirmation-input"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="submit-button"]').exists()).toBe(true)
@@ -155,6 +156,7 @@ describe('FaceRegistrationForm', () => {
     const wrapper = mountComponent()
 
     expect(wrapper.find('[data-testid="email-input"]').attributes('type')).toBe('email')
+    expect(wrapper.find('[data-testid="whatsapp-number-input"]').attributes('type')).toBe('tel')
     expect(wrapper.find('[data-testid="password-input"]').attributes('type')).toBe('password')
     expect(wrapper.find('[data-testid="password-confirmation-input"]').attributes('type')).toBe('password')
   })
@@ -182,6 +184,7 @@ describe('FaceRegistrationForm', () => {
     expect(wrapper.find('[data-testid="prenom-input"]').attributes('autocomplete')).toBe('given-name')
     expect(wrapper.find('[data-testid="username-input"]').attributes('autocomplete')).toBe('username')
     expect(wrapper.find('[data-testid="email-input"]').attributes('autocomplete')).toBe('email')
+    expect(wrapper.find('[data-testid="whatsapp-number-input"]').attributes('autocomplete')).toBe('tel')
     expect(wrapper.find('[data-testid="password-input"]').attributes('autocomplete')).toBe('new-password')
   })
 

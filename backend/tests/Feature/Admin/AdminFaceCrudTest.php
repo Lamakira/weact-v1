@@ -133,6 +133,7 @@ class AdminFaceCrudTest extends TestCase
             'nom' => 'Doe',
             'prenom' => 'Jane',
             'bio' => 'Test bio',
+            'whatsapp_number' => '+22997000000',
             'categories' => [FaceCategory::ACTEUR->value],
         ]);
 
@@ -147,6 +148,7 @@ class AdminFaceCrudTest extends TestCase
             ->assertJsonPath('data.nom', 'Doe')
             ->assertJsonPath('data.prenom', 'Jane')
             ->assertJsonPath('data.bio', 'Test bio')
+            ->assertJsonPath('data.whatsapp_number', '+22997000000')
             ->assertJsonPath('data.categories.0.value', 'acteur');
     }
 

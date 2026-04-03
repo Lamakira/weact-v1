@@ -44,6 +44,7 @@ class RegisterFaceRequest extends FormRequest
             'date_naissance' => ['required', 'date', 'before_or_equal:'.now()->subYears(16)->format('Y-m-d')],
             'nationalite' => ['required', 'string', 'max:100'],
             'pays' => ['required', 'string', 'max:100'],
+            'whatsapp_number' => ['nullable', 'string', 'max:30'],
         ];
     }
 
@@ -78,6 +79,7 @@ class RegisterFaceRequest extends FormRequest
             'nationalite.max' => 'La nationalité ne peut pas dépasser :max caractères.',
             'pays.required' => 'Le pays est obligatoire.',
             'pays.max' => 'Le pays ne peut pas dépasser :max caractères.',
+            'whatsapp_number.max' => 'Le numéro WhatsApp ne peut pas dépasser :max caractères.',
         ];
     }
 

@@ -6,7 +6,7 @@ import { useAuth } from '../composables/useAuth'
 import type { FaceRegistrationForm as FormData } from '../types'
 import { COUNTRY_OPTIONS, NATIONALITY_OPTIONS } from '@/shared/constants/territoryOptions'
 import { FloatingField, FloatingSelect } from '@/components/ui/form'
-import { User, AtSign, Mail, Lock, Calendar, Globe, MapPin, Users } from 'lucide-vue-next'
+import { User, AtSign, Mail, Lock, Calendar, Globe, MapPin, Users, Phone } from 'lucide-vue-next'
 
 const emit = defineEmits<{
   success: []
@@ -38,6 +38,7 @@ const { handleSubmit, setFieldError } = useForm<FormData>({
     date_naissance: '',
     nationalite: 'Béninoise',
     pays: 'Bénin',
+    whatsapp_number: '',
   },
 })
 
@@ -53,6 +54,7 @@ const { value: sexe, errorMessage: sexeError } = useField<string>('sexe')
 const { value: date_naissance, errorMessage: dateNaissanceError } = useField<string>('date_naissance')
 const { value: nationalite, errorMessage: nationaliteError } = useField<string>('nationalite')
 const { value: pays, errorMessage: paysError } = useField<string>('pays')
+const { value: whatsapp_number, errorMessage: whatsappNumberError } = useField<string>('whatsapp_number')
 
 // Submit handler
 const onSubmit = handleSubmit(async (values) => {
@@ -189,6 +191,18 @@ const onSubmit = handleSubmit(async (values) => {
       required
       autocomplete="email"
       data-testid="email-input"
+    />
+
+    <!-- WhatsApp Number -->
+    <FloatingField
+      id="whatsapp_number"
+      v-model="whatsapp_number"
+      type="tel"
+      label="Numéro WhatsApp"
+      :icon="Phone"
+      :error="whatsappNumberError"
+      autocomplete="tel"
+      data-testid="whatsapp-number-input"
     />
 
     <!-- Password -->

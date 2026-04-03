@@ -44,6 +44,7 @@ class Face extends Model
         'ville',
         'quartier',
         'pays',
+        'whatsapp_number',
         'taille',
         'poids',
         'categories',

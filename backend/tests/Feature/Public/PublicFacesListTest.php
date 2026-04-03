@@ -105,6 +105,7 @@ class PublicFacesListTest extends TestCase
         $this->assertArrayNotHasKey('tarif_journalier', $faceData);
         $this->assertArrayNotHasKey('quartier', $faceData);
         $this->assertArrayNotHasKey('pays', $faceData);
+        $this->assertArrayNotHasKey('whatsapp_number', $faceData);
     }
 
     public function test_supports_custom_per_page_parameter_with_max_30(): void

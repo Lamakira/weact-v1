@@ -304,6 +304,10 @@ function closeVideoModal(): void {
                 <dt class="text-sm text-gray-500">Username</dt>
                 <dd class="text-sm font-medium text-gray-900">@{{ face.username }}</dd>
               </div>
+              <div class="flex justify-between items-start gap-4">
+                <dt class="text-sm text-gray-500">Numéro WhatsApp</dt>
+                <dd class="text-sm font-medium text-gray-900 text-right">{{ face.whatsapp_number || '—' }}</dd>
+              </div>
               <div class="flex justify-between items-start">
                 <dt class="text-sm text-gray-500">Catégories</dt>
                 <dd class="text-sm font-medium text-gray-900 text-right">{{ getCategoryLabels(face.categories) }}</dd>

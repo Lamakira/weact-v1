@@ -29,6 +29,7 @@ export interface AdminFaceData {
   ville: string | null
   quartier: string | null
   pays: string | null
+  whatsapp_number: string | null
   categories: Array<{ value: string; label: string }>
   niches: Array<{ value: string; label: string }>
   is_available: boolean

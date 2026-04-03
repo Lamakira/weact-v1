@@ -68,6 +68,12 @@ export const faceRegistrationSchema = z
       .refine((value) => COUNTRY_OPTION_VALUES.has(value), {
         message: 'Le pays sélectionné est invalide.',
       }),
+
+    whatsapp_number: z
+      .string()
+      .max(30, 'Le numéro ne peut pas dépasser 30 caractères')
+      .optional()
+      .or(z.literal('')),
   })
   .refine((data) => data.password === data.password_confirmation, {
     message: 'La confirmation du mot de passe ne correspond pas',

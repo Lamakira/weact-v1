@@ -39,6 +39,7 @@ class FaceResource extends JsonResource
             'ville' => $this->ville,
             'quartier' => $this->quartier,
             'pays' => $this->pays,
+            'whatsapp_number' => $this->whatsapp_number,
             'formatted_location' => $this->formatted_location,
             'taille' => $this->taille,
             'poids' => $this->poids,
