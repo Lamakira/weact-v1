@@ -8,6 +8,7 @@ vendor/
 
 # Environment files (never commit secrets)
 .env
+.env.testing
 .env.local
 .env.*.local
 !.env.example

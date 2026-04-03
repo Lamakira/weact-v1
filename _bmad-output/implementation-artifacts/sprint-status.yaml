@@ -268,3 +268,15 @@ development_status:
   b6-2-booking-lifecycle-notifications: done
   b6-3-financial-reconciliation-command: done
   booking-epic-6-retrospective: done
+
+  # ============================================
+  # POST-LAUNCH FIXES (Client requests - 2026-04-03)
+  # Source: epics-postlaunch-fixes.md (1 epic, 2 stories)
+  # ============================================
+
+  # Epic FIX-1: Correctifs Post-Lancement Client (2 stories)
+  epic-fix-1: in-progress
+  fix-1-1-gestion-categories-face: done                   # Désactiver Influenceur + ajouter Voix off
+  fix-1-2-whatsapp-inscription-admin: backlog          # Champ WhatsApp inscription → visible admin only
+  epic-fix-1-retrospective: optional
+
