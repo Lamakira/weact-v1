@@ -16,6 +16,14 @@ import type {
  */
 export const authApi = {
   /**
+   * Check if registration is currently enabled
+   */
+  async getRegistrationStatus(): Promise<{ data: { enabled: boolean } }> {
+    const response = await apiClient.get<{ data: { enabled: boolean } }>('/auth/registration-status')
+    return response.data
+  },
+
+  /**
    * Register a new Face user
    */
   async registerFace(data: FaceRegistrationForm): Promise<AuthResponse> {

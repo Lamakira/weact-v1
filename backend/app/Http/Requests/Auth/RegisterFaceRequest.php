@@ -18,7 +18,7 @@ class RegisterFaceRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        return (bool) config('app.registration_enabled', true);
     }
 
     /**
@@ -81,6 +81,23 @@ class RegisterFaceRequest extends FormRequest
             'pays.max' => 'Le pays ne peut pas dépasser :max caractères.',
             'whatsapp_number.max' => 'Le numéro WhatsApp ne peut pas dépasser :max caractères.',
         ];
+    }
+
+    /**
+     * Handle a failed authorization attempt (registration disabled).
+     *
+     * @throws \Illuminate\Http\Exceptions\HttpResponseException
+     */
+    protected function failedAuthorization(): void
+    {
+        throw new HttpResponseException(
+            response()->json([
+                'error' => [
+                    'code' => 'registration_disabled',
+                    'message' => 'Les inscriptions sont temporairement suspendues. Veuillez réessayer ultérieurement.',
+                ],
+            ], 403)
+        );
     }
 
     /**

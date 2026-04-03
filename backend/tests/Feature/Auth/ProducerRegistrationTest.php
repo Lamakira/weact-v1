@@ -42,6 +42,26 @@ class ProducerRegistrationTest extends TestCase
         ];
     }
 
+    public function test_registration_returns_403_when_disabled(): void
+    {
+        config(['app.registration_enabled' => false]);
+
+        $response = $this->postJson('/api/v1/auth/register/producer', $this->validAgencyData);
+
+        $response->assertStatus(403)
+            ->assertJsonPath('error.code', 'registration_disabled');
+    }
+
+    public function test_registration_returns_403_with_empty_body_when_disabled(): void
+    {
+        config(['app.registration_enabled' => false]);
+
+        $response = $this->postJson('/api/v1/auth/register/producer', []);
+
+        $response->assertStatus(403)
+            ->assertJsonPath('error.code', 'registration_disabled');
+    }
+
     public function test_successful_agency_registration_returns_201_with_token(): void
     {
         $response = $this->postJson('/api/v1/auth/register/producer', $this->validAgencyData);

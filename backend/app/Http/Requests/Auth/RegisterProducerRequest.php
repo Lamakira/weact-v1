@@ -15,7 +15,7 @@ class RegisterProducerRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        return (bool) config('app.registration_enabled', true);
     }
 
     /**
@@ -65,6 +65,23 @@ class RegisterProducerRequest extends FormRequest
             'last_name.required_if' => 'Le nom est obligatoire',
             'last_name.max' => 'Le nom ne peut pas dépasser 255 caractères',
         ];
+    }
+
+    /**
+     * Handle a failed authorization attempt (registration disabled).
+     *
+     * @throws \Illuminate\Http\Exceptions\HttpResponseException
+     */
+    protected function failedAuthorization(): void
+    {
+        throw new HttpResponseException(
+            response()->json([
+                'error' => [
+                    'code' => 'registration_disabled',
+                    'message' => 'Les inscriptions sont temporairement suspendues. Veuillez réessayer ultérieurement.',
+                ],
+            ], 403)
+        );
     }
 
     /**

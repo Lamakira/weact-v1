@@ -86,6 +86,46 @@ class FaceRegistrationTest extends TestCase
         ]);
     }
 
+    public function test_registration_status_endpoint_returns_enabled(): void
+    {
+        $response = $this->getJson('/api/v1/auth/registration-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.enabled', true);
+    }
+
+    public function test_registration_status_endpoint_returns_disabled(): void
+    {
+        config(['app.registration_enabled' => false]);
+
+        $response = $this->getJson('/api/v1/auth/registration-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.enabled', false);
+    }
+
+    public function test_registration_returns_403_when_disabled(): void
+    {
+        config(['app.registration_enabled' => false]);
+
+        $response = $this->postJson('/api/v1/auth/register/face', $this->validData);
+
+        $response->assertStatus(403)
+            ->assertJsonPath('error.code', 'registration_disabled');
+
+        $this->assertDatabaseCount('faces', 0);
+    }
+
+    public function test_registration_returns_403_with_empty_body_when_disabled(): void
+    {
+        config(['app.registration_enabled' => false]);
+
+        $response = $this->postJson('/api/v1/auth/register/face', []);
+
+        $response->assertStatus(403)
+            ->assertJsonPath('error.code', 'registration_disabled');
+    }
+
     public function test_duplicate_email_returns_422_with_error(): void
     {
         // Create existing user with the same email

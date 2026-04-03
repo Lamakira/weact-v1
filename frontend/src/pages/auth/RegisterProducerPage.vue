@@ -1,12 +1,24 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import ProducerRegistrationForm from '@/features/auth/components/ProducerRegistrationForm.vue'
 import { useToast } from '@/composables/useToast'
+import { authApi } from '@/features/auth/services/authApi'
 import logoNoir from '@/assets/images/logonoir.png'
 import registerProducerIllustration from '@/assets/images/register-producer-illustration.webp'
 
 const router = useRouter()
 const toast = useToast()
+const registrationEnabled = ref<boolean | null>(null)
+
+onMounted(async () => {
+  try {
+    const response = await authApi.getRegistrationStatus()
+    registrationEnabled.value = response.data.enabled
+  } catch {
+    registrationEnabled.value = false
+  }
+})
 
 function handleSuccess() {
   // Show email verification reminder
@@ -44,8 +56,25 @@ function handleSuccess() {
           <span class="hidden lg:inline">Créez votre compte et trouvez les talents parfaits pour vos projets</span>
         </p>
 
+        <!-- Loading state -->
+        <div v-if="registrationEnabled === null" class="flex justify-center py-12">
+          <svg class="animate-spin h-6 w-6 text-primary-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
+
+        <!-- Registration suspended message -->
+        <div
+          v-else-if="!registrationEnabled"
+          class="rounded-lg bg-amber-50 border border-amber-200 px-5 py-6 text-center"
+        >
+          <p class="text-sm font-medium text-amber-800">Les inscriptions sont temporairement suspendues.</p>
+          <p class="text-xs text-amber-600 mt-1">Veuillez réessayer ultérieurement.</p>
+        </div>
+
         <!-- Registration Form -->
-        <ProducerRegistrationForm @success="handleSuccess" />
+        <ProducerRegistrationForm v-else @success="handleSuccess" />
 
         <!-- Terms Notice -->
         <p class="mt-6 text-xs text-center text-gray-500">
