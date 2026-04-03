@@ -52,7 +52,7 @@ function toggleNiche(value: string) {
 
 // Categories the Face has but that are not in the selectable options (e.g. "Influenceur")
 const legacyCategories = computed(() => {
-  const optionValues = new Set(props.categoryOptions.map((o) => o.value))
+  const optionValues = new Set(props.categoryOptions.map((o) => String(o.value)))
   return (props.categoryNicheInfo?.categories ?? []).filter((c) => !optionValues.has(c.value))
 })
 
