@@ -32,7 +32,7 @@ class UpdateCategoryNicheRequest extends FormRequest
     {
         return [
             'categories' => ['nullable', 'array'],
-            'categories.*' => [new Enum(FaceCategory::class), Rule::notIn([FaceCategory::INFLUENCEUR->value])],
+            'categories.*' => [new Enum(FaceCategory::class)],
             'niches' => ['nullable', 'array'],
             'niches.*' => [new Enum(FaceNiche::class)],
         ];

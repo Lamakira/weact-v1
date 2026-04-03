@@ -27,11 +27,11 @@ class PublicFaceFilterOptionsTest extends TestCase
         $this->assertArrayHasKey('value', $first);
         $this->assertArrayHasKey('label', $first);
 
-        // Verify known categories exist (influenceur excluded, voix_off added)
+        // Verify known categories exist (all categories including influenceur for filtering)
         $values = array_column($categories, 'value');
         $this->assertContains('acteur', $values);
         $this->assertContains('mannequin', $values);
-        $this->assertNotContains('influenceur', $values);
+        $this->assertContains('influenceur', $values);
         $this->assertContains('createur', $values);
         $this->assertContains('figurant', $values);
         $this->assertContains('modele_photo', $values);

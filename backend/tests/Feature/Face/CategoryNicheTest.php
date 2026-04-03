@@ -307,7 +307,7 @@ class CategoryNicheTest extends TestCase
 
     public function test_can_set_all_category_values(): void
     {
-        $allCategories = ['acteur', 'createur', 'mannequin', 'figurant', 'modele_photo', 'egerie', 'voix_off'];
+        $allCategories = ['acteur', 'influenceur', 'createur', 'mannequin', 'figurant', 'modele_photo', 'egerie', 'voix_off'];
 
         $response = $this->actingAs($this->faceUser)
             ->putJson('/api/v1/face/category-niche', [
@@ -315,17 +315,18 @@ class CategoryNicheTest extends TestCase
             ]);
 
         $response->assertOk()
-            ->assertJsonCount(7, 'data.categories');
+            ->assertJsonCount(8, 'data.categories');
     }
 
-    public function test_cannot_set_influenceur_category(): void
+    public function test_influenceur_accepted_in_save_for_validated_faces(): void
     {
         $response = $this->actingAs($this->faceUser)
             ->putJson('/api/v1/face/category-niche', [
                 'categories' => ['acteur', 'influenceur'],
             ]);
 
-        $response->assertUnprocessable();
+        $response->assertOk()
+            ->assertJsonCount(2, 'data.categories');
     }
 
     public function test_can_set_all_niche_values(): void

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { reactive, watch, computed } from 'vue'
 import type { CategoryNicheInfo, CategoryOption, NicheOption } from '../types'
-import { Tag, Layers, Check } from 'lucide-vue-next'
+import { Tag, Layers, Check, Lock } from 'lucide-vue-next'
 
 const props = defineProps<{
   categoryNicheInfo: CategoryNicheInfo | null
@@ -49,6 +49,12 @@ function toggleNiche(value: string) {
     form.niches.push(value)
   }
 }
+
+// Categories the Face has but that are not in the selectable options (e.g. "Influenceur")
+const legacyCategories = computed(() => {
+  const optionValues = new Set(props.categoryOptions.map((o) => o.value))
+  return (props.categoryNicheInfo?.categories ?? []).filter((c) => !optionValues.has(c.value))
+})
 
 const handleSubmit = () => {
   emit('save', {
@@ -108,6 +114,16 @@ const handleSubmit = () => {
           />
           {{ option.label }}
         </button>
+        <!-- Legacy categories (e.g. Influenceur) — read-only, non-clickable -->
+        <span
+          v-for="legacy in legacyCategories"
+          :key="legacy.value"
+          :data-testid="`category-chip-${legacy.value}-locked`"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+        >
+          <Lock class="h-3 w-3" />
+          {{ legacy.label }}
+        </span>
       </div>
     </div>
 

@@ -36,7 +36,7 @@ class ListFacesRequest extends FormRequest
         return [
             'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', 'min:1'],
-            'categorie' => ['sometimes', 'nullable', Rule::enum(FaceCategory::class), Rule::notIn([FaceCategory::INFLUENCEUR->value])],
+            'categorie' => ['sometimes', 'nullable', Rule::enum(FaceCategory::class)],
             'niche' => ['sometimes', 'nullable', Rule::enum(FaceNiche::class)],
             'ville' => ['sometimes', 'nullable', 'string', 'max:255'],
             'search' => ['sometimes', 'nullable', 'string', 'min:2', 'max:255'],
