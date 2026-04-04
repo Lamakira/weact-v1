@@ -275,8 +275,37 @@ development_status:
   # ============================================
 
   # Epic FIX-1: Correctifs Post-Lancement Client (2 stories)
-  epic-fix-1: in-progress
+  epic-fix-1: done
   fix-1-1-gestion-categories-face: done                   # Désactiver Influenceur + ajouter Voix off
-  fix-1-2-whatsapp-inscription-admin: backlog          # Champ WhatsApp inscription → visible admin only
-  epic-fix-1-retrospective: optional
+  fix-1-2-whatsapp-inscription-admin: done               # Champ WhatsApp inscription → visible admin only
+  fix-1-3-influenceur-partial-revert: done               # Revert partiel — Influenceur visible pour Faces validées
+  epic-fix-1-retrospective: done
 
+  # ============================================
+  # POST-LAUNCH FIXES Sprint 2 (Client requests - 2026-04-03)
+  # Source: epics-postlaunch-fixes-2.md (1 epic, 2 stories)
+  # ============================================
+
+  # Epic FIX-2: Workflow sélection multi-Faces et paiement (2 stories)
+  epic-fix-2: done
+  fix-2-1-persist-selection-across-pagination: done             # Selection lost on page change + warning before payment
+  epic-fix-2-retrospective: optional
+
+  # ============================================
+  # POST-LAUNCH FIXES Sprint 3 (Client requests - 2026-04-03)
+  # ============================================
+
+  # Epic FIX-3: Stabilisation plateforme (1 story)
+  epic-fix-3: done
+  fix-3-1-disable-registration-toggle: done               # Block registrations via env toggle
+  epic-fix-3-retrospective: optional
+
+  # ============================================
+  # LEGAL COMPLIANCE — Code du Numérique du Bénin (Loi 2017-20)
+  # Source: legal-compliance-benin-code-numerique.md
+  # ============================================
+
+  # Epic LEGAL: Conformité Code du Numérique (1 story, 5 phases)
+  epic-legal: in-progress
+  legal-1-conformite-code-numerique: done                   # Mentions légales, cookies, consentement, droits utilisateurs, signalement
+  epic-legal-retrospective: optional

@@ -17,6 +17,7 @@ import {
 import { useMissionDetail } from '@/features/public/composables/useMissionDetail'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuthStore } from '@/stores/auth'
+import ReportButton from '@/components/report/ReportButton.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -431,6 +432,11 @@ async function handleRetry(): Promise<void> {
               </p>
             </div>
           </div>
+        </div>
+
+        <!-- Report button -->
+        <div v-if="mission" class="flex justify-end">
+          <ReportButton reportable-type="mission" :reportable-id="mission.id" />
         </div>
 
         <!-- CTA Section -->
