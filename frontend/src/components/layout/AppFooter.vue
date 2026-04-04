@@ -20,7 +20,9 @@ const footerLinks = {
   company: {
     title: 'ENTREPRISE',
     links: [
-      { label: 'Légal', to: '/legal', testId: 'footer-link-legal' },
+      { label: 'Mentions légales', to: '/mentions-legales', testId: 'footer-link-mentions-legales' },
+      { label: 'CGU', to: '/cgu', testId: 'footer-link-cgu' },
+      { label: 'Confidentialité', to: '/politique-confidentialite', testId: 'footer-link-confidentialite' },
       { label: 'À propos', to: '/about', testId: 'footer-link-about' },
       { label: 'Contact', to: '/contact', testId: 'footer-link-contact' },
     ],

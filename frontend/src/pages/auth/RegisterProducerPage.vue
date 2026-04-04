@@ -79,9 +79,9 @@ function handleSuccess() {
         <!-- Terms Notice -->
         <p class="mt-6 text-xs text-center text-gray-500">
           En vous inscrivant, vous acceptez nos
-          <router-link to="/legal" class="text-primary-500 hover:underline">conditions générales</router-link>
+          <router-link to="/cgu" class="text-primary-500 hover:underline">conditions générales</router-link>
           et notre
-          <router-link to="/legal" class="text-primary-500 hover:underline">politique de confidentialité</router-link>
+          <router-link to="/politique-confidentialite" class="text-primary-500 hover:underline">politique de confidentialité</router-link>
         </p>
 
         <!-- Bottom Link -->
