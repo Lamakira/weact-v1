@@ -11,6 +11,8 @@ use App\Http\Controllers\Api\V1\Auth\PasswordChangeController;
 use App\Http\Controllers\Api\V1\Auth\RegisterFaceController;
 use App\Http\Controllers\Api\V1\Auth\RegisterProducerController;
 use App\Http\Controllers\Api\V1\Auth\ResetPasswordController;
+use App\Http\Controllers\Api\V1\ReportController;
+use App\Http\Controllers\Api\V1\UserDataController;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -125,6 +127,19 @@ Route::prefix('v1')->group(function (): void {
         Route::put('/password', [PasswordChangeController::class, 'update'])
             ->middleware('throttle:5,10')
             ->name('password.update');
+
+        // User data rights (Art. 437-443 Code du Numerique)
+        Route::get('/user/data-export', [UserDataController::class, 'export'])
+            ->name('user.data-export');
+
+        Route::delete('/user/account', [UserDataController::class, 'destroy'])
+            ->middleware('throttle:5,60')
+            ->name('user.account.destroy');
+
+        // Content reporting (Art. 498 Code du Numérique)
+        Route::post('/reports', [ReportController::class, 'store'])
+            ->middleware('throttle:10,60')
+            ->name('reports.store');
     });
 });
 

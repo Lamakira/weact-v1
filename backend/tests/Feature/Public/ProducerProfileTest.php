@@ -17,9 +17,24 @@ class ProducerProfileTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Create a Producer with an active User (required by public visibility filter).
+     */
+    private function createProducerWithUser(array $attributes = []): Producer
+    {
+        $producer = Producer::factory()->create($attributes);
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+            'is_active' => true,
+        ]);
+
+        return $producer;
+    }
+
     public function test_unauthenticated_user_can_view_producer_profile(): void
     {
-        $producer = Producer::factory()->create([
+        $producer = $this->createProducerWithUser([
             'type' => ProducerType::Particulier,
             'first_name' => 'Jean',
             'last_name' => 'Dupont',
@@ -54,7 +69,7 @@ class ProducerProfileTest extends TestCase
 
     public function test_authenticated_face_can_view_producer_profile(): void
     {
-        $producer = Producer::factory()->create([
+        $producer = $this->createProducerWithUser([
             'type' => ProducerType::Agency,
             'agency_name' => 'Test Agency',
             'bio' => 'Agency bio',
@@ -77,7 +92,7 @@ class ProducerProfileTest extends TestCase
 
     public function test_response_includes_all_expected_fields_for_agency_producer(): void
     {
-        $producer = Producer::factory()->create([
+        $producer = $this->createProducerWithUser([
             'type' => ProducerType::Agency,
             'agency_name' => 'My Agency',
             'first_name' => null,
@@ -104,7 +119,7 @@ class ProducerProfileTest extends TestCase
 
     public function test_response_includes_all_expected_fields_for_particulier_producer(): void
     {
-        $producer = Producer::factory()->create([
+        $producer = $this->createProducerWithUser([
             'type' => ProducerType::Particulier,
             'agency_name' => null,
             'first_name' => 'Marie',
@@ -131,14 +146,14 @@ class ProducerProfileTest extends TestCase
 
     public function test_agency_producer_has_agency_logo_url_particulier_has_null(): void
     {
-        $agency = Producer::factory()->create([
+        $agency = $this->createProducerWithUser([
             'type' => ProducerType::Agency,
             'agency_name' => 'Logo Agency',
             'agency_logo' => 'test-logo.png',
             'agency_logo_thumbnail' => 'test-logo-thumb.png',
         ]);
 
-        $particulier = Producer::factory()->create([
+        $particulier = $this->createProducerWithUser([
             'type' => ProducerType::Particulier,
             'first_name' => 'Pierre',
             'last_name' => 'Durand',
@@ -169,7 +184,7 @@ class ProducerProfileTest extends TestCase
 
     public function test_producer_with_no_missions_shows_missions_count_zero(): void
     {
-        $producer = Producer::factory()->create();
+        $producer = $this->createProducerWithUser();
 
         $response = $this->getJson("/api/v1/public/producers/{$producer->id}");
 
@@ -179,7 +194,7 @@ class ProducerProfileTest extends TestCase
 
     public function test_producer_with_published_missions_shows_correct_count(): void
     {
-        $producer = Producer::factory()->create();
+        $producer = $this->createProducerWithUser();
 
         // Create 3 published missions
         Mission::factory()->count(3)->create([
@@ -195,7 +210,7 @@ class ProducerProfileTest extends TestCase
 
     public function test_producer_with_mixed_status_missions_only_counts_published(): void
     {
-        $producer = Producer::factory()->create();
+        $producer = $this->createProducerWithUser();
 
         // Create 2 published missions
         Mission::factory()->count(2)->create([
@@ -229,7 +244,7 @@ class ProducerProfileTest extends TestCase
 
     public function test_producer_with_only_non_published_missions_shows_zero(): void
     {
-        $producer = Producer::factory()->create();
+        $producer = $this->createProducerWithUser();
 
         // Create missions in non-published statuses only
         Mission::factory()->create([
@@ -255,7 +270,7 @@ class ProducerProfileTest extends TestCase
 
     public function test_response_includes_average_rating_null_for_mvp(): void
     {
-        $producer = Producer::factory()->create();
+        $producer = $this->createProducerWithUser();
 
         $response = $this->getJson("/api/v1/public/producers/{$producer->id}");
 
@@ -266,7 +281,7 @@ class ProducerProfileTest extends TestCase
 
     public function test_response_includes_member_since_in_french_format(): void
     {
-        $producer = Producer::factory()->create();
+        $producer = $this->createProducerWithUser();
 
         $response = $this->getJson("/api/v1/public/producers/{$producer->id}");
 
