@@ -36,6 +36,11 @@ const getSchema = (type: ProducerType) => {
     password_confirmation: z
       .string({ message: 'La confirmation du mot de passe est obligatoire' })
       .min(1, 'La confirmation du mot de passe est obligatoire'),
+    accept_cgu: z
+      .boolean({ message: 'Vous devez accepter les CGU et la Politique de Confidentialité.' })
+      .refine((val) => val === true, {
+        message: 'Vous devez accepter les CGU et la Politique de Confidentialité.',
+      }),
   }
 
   if (type === 'agency') {
@@ -82,6 +87,7 @@ const { handleSubmit, setFieldError, setFieldValue } = useForm({
     agency_name: '',
     first_name: '',
     last_name: '',
+    accept_cgu: false,
   },
 })
 
@@ -97,6 +103,9 @@ const { value: agency_name, errorMessage: agencyNameError } = useField<string>('
 // Form fields - particulier
 const { value: first_name, errorMessage: firstNameError } = useField<string>('first_name')
 const { value: last_name, errorMessage: lastNameError } = useField<string>('last_name')
+
+// Form fields - consent
+const { value: accept_cgu, errorMessage: acceptCguError } = useField<boolean>('accept_cgu')
 
 // Watch for type changes and reset form
 watch(selectedType, (newType) => {
@@ -124,6 +133,7 @@ const onSubmit = handleSubmit(async () => {
           password: password.value,
           password_confirmation: password_confirmation.value,
           agency_name: agency_name.value,
+          accept_cgu: accept_cgu.value,
         }
       : {
           type: 'particulier' as const,
@@ -132,6 +142,7 @@ const onSubmit = handleSubmit(async () => {
           password_confirmation: password_confirmation.value,
           first_name: first_name.value,
           last_name: last_name.value,
+          accept_cgu: accept_cgu.value,
         }
 
   const result = await registerProducer(submitData)
@@ -149,6 +160,7 @@ const onSubmit = handleSubmit(async () => {
         'agency_name',
         'first_name',
         'last_name',
+        'accept_cgu',
       ] as const
       type ValidField = (typeof validFields)[number]
 
@@ -301,6 +313,26 @@ const onSubmit = handleSubmit(async () => {
       password-toggle
       data-testid="password-confirmation-input"
     />
+
+    <!-- CGU Consent Checkbox -->
+    <div class="space-y-1" data-testid="accept-cgu-field">
+      <label class="flex items-start gap-2.5 cursor-pointer">
+        <input
+          v-model="accept_cgu"
+          type="checkbox"
+          class="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500 cursor-pointer"
+          data-testid="accept-cgu-checkbox"
+        />
+        <span class="text-xs text-gray-600 leading-relaxed">
+          J'accepte les
+          <router-link to="/cgu" target="_blank" class="text-primary-500 hover:underline font-medium">Conditions Générales d'Utilisation</router-link>
+          et la
+          <router-link to="/politique-confidentialite" target="_blank" class="text-primary-500 hover:underline font-medium">Politique de Confidentialité</router-link>
+          de WEACT.
+        </span>
+      </label>
+      <p v-if="acceptCguError" class="text-xs text-red-500 ml-6" data-testid="accept-cgu-error">{{ acceptCguError }}</p>
+    </div>
 
     <!-- Submit Button -->
     <button

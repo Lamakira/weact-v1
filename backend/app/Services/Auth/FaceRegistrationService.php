@@ -14,12 +14,12 @@ class FaceRegistrationService
     /**
      * Register a new Face user.
      *
-     * @param array{nom: string, prenom: string, username: string, email: string, password: string, sexe: string, date_naissance: string, nationalite: string, pays: string, whatsapp_number?: string|null} $validated
+     * @param array{nom: string, prenom: string, username: string, email: string, password: string, sexe: string, date_naissance: string, nationalite: string, pays: string, whatsapp_number?: string|null, accept_cgu?: bool} $validated
      * @return array{user: User, face: Face, token: string}
      */
-    public function register(array $validated): array
+    public function register(array $validated, ?string $ip = null): array
     {
-        $result = DB::transaction(function () use ($validated): array {
+        $result = DB::transaction(function () use ($validated, $ip): array {
             // Create Face record first
             $face = Face::create([
                 'nom' => $validated['nom'],
@@ -38,6 +38,9 @@ class FaceRegistrationService
                 'password' => Hash::make($validated['password']),
                 'userable_type' => Face::class,
                 'userable_id' => $face->id,
+                'consent_given_at' => now(),
+                'consent_ip' => $ip,
+                'consent_version' => '2026-04-04',
             ]);
 
             // Generate Sanctum token

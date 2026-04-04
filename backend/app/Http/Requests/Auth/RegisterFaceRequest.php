@@ -45,6 +45,7 @@ class RegisterFaceRequest extends FormRequest
             'nationalite' => ['required', 'string', 'max:100'],
             'pays' => ['required', 'string', 'max:100'],
             'whatsapp_number' => ['nullable', 'string', 'max:30'],
+            'accept_cgu' => ['required', 'accepted'],
         ];
     }
 
@@ -80,6 +81,8 @@ class RegisterFaceRequest extends FormRequest
             'pays.required' => 'Le pays est obligatoire.',
             'pays.max' => 'Le pays ne peut pas dépasser :max caractères.',
             'whatsapp_number.max' => 'Le numéro WhatsApp ne peut pas dépasser :max caractères.',
+            'accept_cgu.required' => 'Vous devez accepter les CGU et la Politique de Confidentialité.',
+            'accept_cgu.accepted' => 'Vous devez accepter les CGU et la Politique de Confidentialité.',
         ];
     }
 

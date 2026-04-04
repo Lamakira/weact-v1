@@ -33,6 +33,7 @@ class FaceRegistrationTest extends TestCase
             'date_naissance' => '1995-06-15',
             'nationalite' => 'Béninoise',
             'pays' => 'Bénin',
+            'accept_cgu' => true,
         ];
     }
 

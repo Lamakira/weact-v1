@@ -74,6 +74,12 @@ export const faceRegistrationSchema = z
       .max(30, 'Le numéro ne peut pas dépasser 30 caractères')
       .optional()
       .or(z.literal('')),
+
+    accept_cgu: z
+      .boolean({ message: 'Vous devez accepter les CGU et la Politique de Confidentialité.' })
+      .refine((val) => val === true, {
+        message: 'Vous devez accepter les CGU et la Politique de Confidentialité.',
+      }),
   })
   .refine((data) => data.password === data.password_confirmation, {
     message: 'La confirmation du mot de passe ne correspond pas',

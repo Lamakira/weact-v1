@@ -15,12 +15,12 @@ class ProducerRegistrationService
     /**
      * Register a new Producer user.
      *
-     * @param array{type: string, email: string, password: string, agency_name?: string, first_name?: string, last_name?: string} $validated
+     * @param array{type: string, email: string, password: string, agency_name?: string, first_name?: string, last_name?: string, accept_cgu?: bool} $validated
      * @return array{user: User, producer: Producer, token: string}
      */
-    public function register(array $validated): array
+    public function register(array $validated, ?string $ip = null): array
     {
-        $result = DB::transaction(function () use ($validated): array {
+        $result = DB::transaction(function () use ($validated, $ip): array {
             // Create Producer record first
             $producerData = [
                 'type' => $validated['type'],
@@ -42,6 +42,9 @@ class ProducerRegistrationService
                 'password' => Hash::make($validated['password']),
                 'userable_type' => Producer::class,
                 'userable_id' => $producer->id,
+                'consent_given_at' => now(),
+                'consent_ip' => $ip,
+                'consent_version' => '2026-04-04',
             ]);
 
             // Generate Sanctum token

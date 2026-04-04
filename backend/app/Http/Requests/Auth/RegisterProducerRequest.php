@@ -38,6 +38,7 @@ class RegisterProducerRequest extends FormRequest
             'agency_name' => ['required_if:type,agency', 'nullable', 'string', 'max:255'],
             'first_name' => ['required_if:type,particulier', 'nullable', 'string', 'max:255'],
             'last_name' => ['required_if:type,particulier', 'nullable', 'string', 'max:255'],
+            'accept_cgu' => ['required', 'accepted'],
         ];
     }
 
@@ -64,6 +65,8 @@ class RegisterProducerRequest extends FormRequest
             'first_name.max' => 'Le prénom ne peut pas dépasser 255 caractères',
             'last_name.required_if' => 'Le nom est obligatoire',
             'last_name.max' => 'Le nom ne peut pas dépasser 255 caractères',
+            'accept_cgu.required' => 'Vous devez accepter les CGU et la Politique de Confidentialité.',
+            'accept_cgu.accepted' => 'Vous devez accepter les CGU et la Politique de Confidentialité.',
         ];
     }
 
