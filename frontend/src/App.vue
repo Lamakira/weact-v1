@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
+import CookieConsentBanner from '@/components/cookie/CookieConsentBanner.vue'
 
 const route = useRoute()
 
@@ -96,4 +97,7 @@ const isLandingPage = computed(() => {
       <AppFooter />
     </div>
   </template>
+
+  <!-- Cookie Consent Banner (global, all layouts) -->
+  <CookieConsentBanner />
 </template>
