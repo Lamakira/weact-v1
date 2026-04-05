@@ -22,7 +22,6 @@ function createCandidate(overrides: Partial<CandidateFullProfile> = {}): Candida
     acting_video_thumbnail_url: null,
     bio: 'Acteur passionné avec 5 ans d\'expérience.',
     ville: 'Cotonou',
-    quartier: null,
     pays: 'Bénin',
     formatted_location: 'Cotonou, Bénin',
     taille: 175,

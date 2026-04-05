@@ -36,7 +36,6 @@ const mockFace = {
   username: 'jdupont',
   bio: 'Test bio',
   ville: 'Cotonou',
-  quartier: null,
   pays: 'Bénin',
   categorie: 'acteur',
   niche: 'beaute',

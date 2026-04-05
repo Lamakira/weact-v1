@@ -321,11 +321,11 @@ development_status:
   fix-4-2-admin-featured-faces-ordering: done                 # Admin is_featured checkbox + display ordering
 
   # Epic FIX-5: Correctif booking — validation date de réalisation (1 story)
-  epic-fix-5: backlog
-  fix-5-1-block-completion-before-shooting-date: backlog     # Prevent booking completion confirmation before shooting date
+  epic-fix-5: done
+  fix-5-1-block-completion-before-shooting-date: done           # Prevent booking completion confirmation before shooting date
 
   # Epic FIX-6: UX Header navigation connecté (1 story)
   epic-fix-6: backlog
   fix-6-1-reorganize-authenticated-header: backlog           # Move Mes missions/Mes candidatures out of main header
 
-last_updated: "2026-04-05T13:08:00Z"
+last_updated: "2026-04-05T14:36:00Z"

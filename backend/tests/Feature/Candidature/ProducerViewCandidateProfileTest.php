@@ -35,6 +35,14 @@ class ProducerViewCandidateProfileTest extends TestCase
 
     private Candidature $candidature;
 
+    /** @return array<string, string> */
+    private function authHeaders(User $user): array
+    {
+        return [
+            'Authorization' => 'Bearer '.$user->createToken('test')->plainTextToken,
+        ];
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -59,7 +67,6 @@ class ProducerViewCandidateProfileTest extends TestCase
             'username' => 'marie_dupont',
             'bio' => 'Je suis une actrice passionnée avec 5 ans d\'expérience.',
             'ville' => 'Cotonou',
-            'quartier' => 'Akpakpa',
             'pays' => 'Bénin',
             'taille' => 175,
             'poids' => 65,
@@ -88,8 +95,10 @@ class ProducerViewCandidateProfileTest extends TestCase
 
     public function test_producer_can_view_profile_of_face_who_applied_to_their_mission(): void
     {
-        $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/candidates/{$this->face->id}");
+        $response = $this->getJson(
+            "/api/v1/producer/candidates/{$this->face->id}",
+            $this->authHeaders($this->producerUser),
+        );
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -101,7 +110,6 @@ class ProducerViewCandidateProfileTest extends TestCase
                     'profile_photo_url',
                     'bio',
                     'ville',
-                    'quartier',
                     'pays',
                     'formatted_location',
                     'taille',
@@ -128,15 +136,16 @@ class ProducerViewCandidateProfileTest extends TestCase
 
     public function test_response_includes_all_profile_fields(): void
     {
-        $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/candidates/{$this->face->id}");
+        $response = $this->getJson(
+            "/api/v1/producer/candidates/{$this->face->id}",
+            $this->authHeaders($this->producerUser),
+        );
 
         $response->assertOk()
             ->assertJsonPath('data.bio', 'Je suis une actrice passionnée avec 5 ans d\'expérience.')
             ->assertJsonPath('data.ville', 'Cotonou')
-            ->assertJsonPath('data.quartier', 'Akpakpa')
             ->assertJsonPath('data.pays', 'Bénin')
-            ->assertJsonPath('data.formatted_location', 'Cotonou, Akpakpa, Bénin')
+            ->assertJsonPath('data.formatted_location', 'Cotonou, Bénin')
             ->assertJsonPath('data.taille', 175)
             ->assertJsonPath('data.poids', 65)
             ->assertJsonPath('data.categories.0.value', 'acteur')
@@ -151,8 +160,10 @@ class ProducerViewCandidateProfileTest extends TestCase
 
     public function test_response_includes_video_urls(): void
     {
-        $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/candidates/{$this->face->id}");
+        $response = $this->getJson(
+            "/api/v1/producer/candidates/{$this->face->id}",
+            $this->authHeaders($this->producerUser),
+        );
 
         $response->assertOk();
 
@@ -183,8 +194,10 @@ class ProducerViewCandidateProfileTest extends TestCase
             'position' => 2,
         ]);
 
-        $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/candidates/{$this->face->id}");
+        $response = $this->getJson(
+            "/api/v1/producer/candidates/{$this->face->id}",
+            $this->authHeaders($this->producerUser),
+        );
 
         $response->assertOk()
             ->assertJsonCount(2, 'data.photos')
@@ -216,8 +229,10 @@ class ProducerViewCandidateProfileTest extends TestCase
             'description' => 'Rôle secondaire',
         ]);
 
-        $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/candidates/{$this->face->id}");
+        $response = $this->getJson(
+            "/api/v1/producer/candidates/{$this->face->id}",
+            $this->authHeaders($this->producerUser),
+        );
 
         $response->assertOk()
             ->assertJsonCount(2, 'data.experiences')
@@ -236,8 +251,10 @@ class ProducerViewCandidateProfileTest extends TestCase
 
     public function test_face_cannot_access_producer_candidates_endpoint(): void
     {
-        $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/producer/candidates/{$this->face->id}");
+        $response = $this->getJson(
+            "/api/v1/producer/candidates/{$this->face->id}",
+            $this->authHeaders($this->faceUser),
+        );
 
         $response->assertForbidden()
             ->assertJson([
@@ -253,8 +270,10 @@ class ProducerViewCandidateProfileTest extends TestCase
             'prenom' => 'Jean',
         ]);
 
-        $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/candidates/{$otherFace->id}");
+        $response = $this->getJson(
+            "/api/v1/producer/candidates/{$otherFace->id}",
+            $this->authHeaders($this->producerUser),
+        );
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -264,8 +283,10 @@ class ProducerViewCandidateProfileTest extends TestCase
 
     public function test_returns_404_for_non_existent_face(): void
     {
-        $response = $this->actingAs($this->producerUser)
-            ->getJson('/api/v1/producer/candidates/99999');
+        $response = $this->getJson(
+            '/api/v1/producer/candidates/99999',
+            $this->authHeaders($this->producerUser),
+        );
 
         $response->assertNotFound();
     }
@@ -296,8 +317,10 @@ class ProducerViewCandidateProfileTest extends TestCase
             'face_id' => $minimalFace->id,
         ]);
 
-        $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/candidates/{$minimalFace->id}");
+        $response = $this->getJson(
+            "/api/v1/producer/candidates/{$minimalFace->id}",
+            $this->authHeaders($this->producerUser),
+        );
 
         $response->assertOk()
             ->assertJsonPath('data.id', $minimalFace->id)
@@ -328,8 +351,10 @@ class ProducerViewCandidateProfileTest extends TestCase
         ]);
 
         // Producer should be able to view this Face
-        $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/candidates/{$otherFace->id}");
+        $response = $this->getJson(
+            "/api/v1/producer/candidates/{$otherFace->id}",
+            $this->authHeaders($this->producerUser),
+        );
 
         $response->assertOk()
             ->assertJsonPath('data.id', $otherFace->id);
@@ -345,8 +370,10 @@ class ProducerViewCandidateProfileTest extends TestCase
         ]);
 
         // Any producer can view any Face (needed for direct bookings)
-        $response = $this->actingAs($otherProducerUser)
-            ->getJson("/api/v1/producer/candidates/{$this->face->id}");
+        $response = $this->getJson(
+            "/api/v1/producer/candidates/{$this->face->id}",
+            $this->authHeaders($otherProducerUser),
+        );
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -363,8 +390,10 @@ class ProducerViewCandidateProfileTest extends TestCase
             'nationalite' => 'Béninoise',
         ]);
 
-        $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/candidates/{$this->face->id}");
+        $response = $this->getJson(
+            "/api/v1/producer/candidates/{$this->face->id}",
+            $this->authHeaders($this->producerUser),
+        );
 
         $response->assertOk()
             ->assertJsonPath('data.sexe', 'homme')
@@ -381,8 +410,10 @@ class ProducerViewCandidateProfileTest extends TestCase
             'langues' => ['Français', 'Anglais', 'Fon'],
         ]);
 
-        $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/candidates/{$this->face->id}");
+        $response = $this->getJson(
+            "/api/v1/producer/candidates/{$this->face->id}",
+            $this->authHeaders($this->producerUser),
+        );
 
         $response->assertOk()
             ->assertJsonPath('data.langues', ['Français', 'Anglais', 'Fon']);
@@ -401,8 +432,10 @@ class ProducerViewCandidateProfileTest extends TestCase
             'face_id' => $minimalFace->id,
         ]);
 
-        $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/candidates/{$minimalFace->id}");
+        $response = $this->getJson(
+            "/api/v1/producer/candidates/{$minimalFace->id}",
+            $this->authHeaders($this->producerUser),
+        );
 
         $response->assertOk()
             ->assertJsonPath('data.sexe', null)
@@ -424,8 +457,10 @@ class ProducerViewCandidateProfileTest extends TestCase
             'face_id' => $faceWithoutExtras->id,
         ]);
 
-        $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/candidates/{$faceWithoutExtras->id}");
+        $response = $this->getJson(
+            "/api/v1/producer/candidates/{$faceWithoutExtras->id}",
+            $this->authHeaders($this->producerUser),
+        );
 
         $response->assertOk()
             ->assertJsonPath('data.photos', [])
