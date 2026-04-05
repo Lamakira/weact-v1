@@ -147,16 +147,15 @@ describe('AppHeader', () => {
       expect(wrapper.text()).not.toContain('Devenir une face')
     })
 
-    it('displays Face-specific Mes candidatures link', async () => {
+    it('does not display Mes candidatures link in header for Face user', async () => {
       const wrapper = mountHeader(faceUser)
       const authStore = useAuthStore()
 
-      // Force the computed values to update
       authStore.user = faceUser.user
       authStore.token = faceUser.token
       await flushPromises()
 
-      expect(wrapper.text()).toContain('Mes candidatures')
+      expect(wrapper.text()).not.toContain('Mes candidatures')
     })
 
     it('does not display Producer-specific links for Face user', async () => {
@@ -198,7 +197,7 @@ describe('AppHeader', () => {
       expect(wrapper.text()).toContain('Dashboard')
     })
 
-    it('displays Producer-specific Mes missions link', async () => {
+    it('does not display Mes missions link in header for Producer user', async () => {
       const wrapper = mountHeader(producerUser)
       const authStore = useAuthStore()
 
@@ -206,7 +205,7 @@ describe('AppHeader', () => {
       authStore.token = producerUser.token
       await flushPromises()
 
-      expect(wrapper.text()).toContain('Mes missions')
+      expect(wrapper.text()).not.toContain('Mes missions')
     })
 
     it('does not display Face-specific links for Producer user', async () => {

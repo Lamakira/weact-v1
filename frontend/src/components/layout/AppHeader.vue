@@ -126,28 +126,6 @@ async function handleLogout(): Promise<void> {
           >
             Ressources
           </RouterLink>
-
-          <!-- Face-specific links -->
-          <RouterLink
-            v-if="authStore.isAuthenticated && authStore.isFace"
-            to="/face/candidatures"
-            class="text-sm transition-colors pb-0.5 border-b-2"
-            :class="route.path.startsWith('/face/candidatures') ? 'text-[#198496] font-semibold border-[#198496]' : 'text-gray-700 hover:text-[#198496] border-transparent'"
-            data-testid="nav-candidatures"
-          >
-            Mes candidatures
-          </RouterLink>
-
-          <!-- Producer-specific links -->
-          <RouterLink
-            v-if="authStore.isAuthenticated && authStore.isProducer"
-            to="/producer/missions"
-            class="text-sm transition-colors pb-0.5 border-b-2"
-            :class="route.path.startsWith('/producer/missions') ? 'text-[#198496] font-semibold border-[#198496]' : 'text-gray-700 hover:text-[#198496] border-transparent'"
-            data-testid="nav-producer-missions"
-          >
-            Mes missions
-          </RouterLink>
         </nav>
 
         <!-- Right Actions (Desktop) -->
