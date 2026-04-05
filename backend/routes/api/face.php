@@ -35,7 +35,7 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::prefix('v1/face')->middleware(['auth:sanctum'])->group(function () {
+Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(function () {
     // Dashboard routes (Face only - authorization in controller)
     // Note: Uses controller-level auth instead of 'face' middleware to return
     // proper JSON error format { error: { code, message } } on 403.

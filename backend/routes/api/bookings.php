@@ -9,7 +9,7 @@ use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\WalletController;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('v1')->middleware('auth:sanctum')->group(function (): void {
+Route::prefix('v1')->middleware(['auth:sanctum', 'api.token'])->group(function (): void {
     Route::get('/bookings', [BookingController::class, 'index'])
         ->middleware('throttle:60,1')
         ->name('bookings.index');

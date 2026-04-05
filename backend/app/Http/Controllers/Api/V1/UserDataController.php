@@ -15,6 +15,7 @@ use App\Services\ProfilePhotoService;
 use App\Services\ProducerProfilePhotoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -246,6 +247,14 @@ class UserDataController extends Controller
                 $cleanupFailures[] = 'logo d\'agence';
                 Log::warning('Failed to delete agency logo for deleted user ' . $user->id . ': ' . $e->getMessage());
             }
+        }
+
+        // Clear any lingering stateful session so a deleted browser session
+        // cannot keep authenticating as the anonymized account.
+        Auth::guard('web')->logout();
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
         }
 
         return response()->json([

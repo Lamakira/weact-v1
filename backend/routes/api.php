@@ -73,7 +73,7 @@ Route::prefix('v1')->group(function (): void {
     });
 
     // Protected routes
-    Route::middleware('auth:sanctum')->group(function (): void {
+    Route::middleware(['auth:sanctum', 'api.token'])->group(function (): void {
         // Note: Explicit token validation is required because Sanctum can use
         // session-based auth which may cache the user across requests.
         // This ensures token validity is checked on each request.

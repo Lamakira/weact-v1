@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Auth;
 
 use App\Models\User;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 /**
  * Service for handling user login
@@ -21,13 +21,12 @@ class LoginService
      */
     public function login(string $email, string $password): ?array
     {
-        // Use Laravel's Auth::attempt() for standard authentication flow
-        if (!Auth::attempt(['email' => $email, 'password' => $password])) {
+        // API auth is token-based; do not create a web session while checking credentials.
+        $user = User::where('email', $email)->with('userable')->first();
+
+        if ($user === null || !Hash::check($password, $user->password)) {
             return null;
         }
-
-        // Get the authenticated user with userable relationship
-        $user = User::where('email', $email)->with('userable')->firstOrFail();
 
         // Check if account is deactivated
         if (!$user->is_active) {
@@ -43,4 +42,3 @@ class LoginService
         ];
     }
 }
-
