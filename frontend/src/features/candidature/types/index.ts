@@ -199,7 +199,6 @@ export interface CandidateFullProfile {
   acting_video_thumbnail_url: string | null
   bio: string | null
   ville: string | null
-  quartier: string | null
   pays: string | null
   formatted_location: string | null
   taille: number | null

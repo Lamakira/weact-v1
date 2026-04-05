@@ -335,7 +335,6 @@ async function handleActingVideoDelete(): Promise<void> {
 async function handleBioLocationSave(data: {
   bio: string | null
   ville: string | null
-  quartier: string | null
   pays: string | null
 }): Promise<void> {
   const result = await updateBioLocation(data)

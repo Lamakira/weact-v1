@@ -143,7 +143,6 @@ const displayProfile = computed((): CandidateFullProfile | null => {
       poids: null,
       bio: fa.bio ?? null,
       ville: f.ville,
-      quartier: fa.quartier ?? null,
       pays: fa.pays ?? null,
       formatted_location: fa.formatted_location ?? null,
       categories: f.categories,

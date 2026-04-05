@@ -55,7 +55,6 @@ class UserDataController extends Controller
                 'nationalite' => $face->nationalite,
                 'pays' => $face->pays,
                 'ville' => $face->ville,
-                'quartier' => $face->quartier,
                 'bio' => $face->bio,
                 'whatsapp_number' => $face->whatsapp_number,
                 'taille' => $face->taille,
@@ -165,7 +164,6 @@ class UserDataController extends Controller
                     'bio' => null,
                     'whatsapp_number' => null,
                     'ville' => null,
-                    'quartier' => null,
                     'is_available' => false,
                 ]);
 
