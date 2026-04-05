@@ -27,8 +27,8 @@ const lastUpdate = '4 avril 2026'
           Le responsable du traitement des données à caractère personnel collectées sur la plateforme WEACT est :
         </p>
         <div class="mt-2 p-3 bg-gray-50 rounded border border-gray-100 space-y-1">
-          <p><span class="font-medium text-gray-900">WEACT SAS</span></p>
-          <p>Adresse : <!-- TODO --> [Adresse complète], Cotonou, Bénin</p>
+          <p><span class="font-medium text-gray-900">WEACT</span></p>
+          <p>Siège social : Cotonou, Bénin</p>
           <p>Email : <a href="mailto:contact@weact.bj" class="text-[#198496] hover:underline">contact@weact.bj</a></p>
         </div>
       </div>

@@ -17,6 +17,7 @@ import { Building2, Mail, Phone, MapPin, FileText } from 'lucide-vue-next'
 
     <div class="space-y-6">
       <!-- 1. Éditeur du site -->
+      <!-- TODO: Décommenter et remplir quand les infos RCCM/IFU/adresse seront disponibles -->
       <section class="bg-white border border-gray-200 rounded-md p-6">
         <div class="flex items-center gap-3 mb-4">
           <div class="p-2 rounded-md bg-[#198496]/10 text-[#198496]">
@@ -25,30 +26,13 @@ import { Building2, Mail, Phone, MapPin, FileText } from 'lucide-vue-next'
           <h2 class="text-sm font-semibold text-gray-900">1. Éditeur du site</h2>
         </div>
         <div class="text-sm text-gray-700 leading-relaxed space-y-3">
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="space-y-2">
-              <p><span class="font-medium text-gray-900">Dénomination sociale :</span> WEACT SAS</p>
-              <p><span class="font-medium text-gray-900">Forme juridique :</span> Société par Actions Simplifiée</p>
-              <p><span class="font-medium text-gray-900">Capital social :</span> <!-- TODO: à compléter --> [À compléter] FCFA</p>
-              <p><span class="font-medium text-gray-900">RCCM :</span> <!-- TODO: à compléter --> [À compléter]</p>
-              <p><span class="font-medium text-gray-900">IFU (Identifiant Fiscal Unique) :</span> <!-- TODO: à compléter --> [À compléter]</p>
-            </div>
-            <div class="space-y-2">
-              <p class="flex items-start gap-2">
-                <MapPin :size="14" class="text-gray-400 mt-0.5 shrink-0" />
-                <span><!-- TODO: à compléter --> [Adresse géographique complète], Cotonou, Bénin</span>
-              </p>
-              <p class="flex items-center gap-2">
-                <Mail :size="14" class="text-gray-400 shrink-0" />
-                <a href="mailto:contact@weact.bj" class="text-[#198496] hover:underline">contact@weact.bj</a>
-              </p>
-              <p class="flex items-center gap-2">
-                <Phone :size="14" class="text-gray-400 shrink-0" />
-                <span><!-- TODO: à compléter --> [Numéro de téléphone]</span>
-              </p>
-            </div>
-          </div>
-          <p><span class="font-medium text-gray-900">Directeur de la publication :</span> <!-- TODO: à compléter --> [Nom du directeur de publication]</p>
+          <p><span class="font-medium text-gray-900">Dénomination sociale :</span> WEACT</p>
+          <p><span class="font-medium text-gray-900">Siège social :</span> Cotonou, Bénin</p>
+          <p class="flex items-center gap-2">
+            <Mail :size="14" class="text-gray-400 shrink-0" />
+            <a href="mailto:contact@weact.bj" class="text-[#198496] hover:underline">contact@weact.bj</a>
+          </p>
+          <p class="text-xs text-gray-400 italic">Les informations complémentaires (RCCM, capital social, IFU) seront publiées dès finalisation des formalités d'immatriculation.</p>
         </div>
       </section>
 
@@ -56,10 +40,9 @@ import { Building2, Mail, Phone, MapPin, FileText } from 'lucide-vue-next'
       <section class="bg-white border border-gray-200 rounded-md p-6">
         <h2 class="text-sm font-semibold text-gray-900 mb-3">2. Hébergeur du site</h2>
         <div class="text-sm text-gray-700 leading-relaxed space-y-1">
-          <!-- TODO: à compléter avec les infos de l'hébergeur réel -->
-          <p><span class="font-medium text-gray-900">Raison sociale :</span> [À compléter - ex: DigitalOcean, OVH, etc.]</p>
-          <p><span class="font-medium text-gray-900">Adresse :</span> [Adresse de l'hébergeur]</p>
-          <p><span class="font-medium text-gray-900">Téléphone :</span> [Téléphone de l'hébergeur]</p>
+          <p><span class="font-medium text-gray-900">Raison sociale :</span> Hostinger International Ltd.</p>
+          <p><span class="font-medium text-gray-900">Adresse :</span> 61 Lordou Vironos Street, 6023 Larnaca, Chypre</p>
+          <p><span class="font-medium text-gray-900">Site web :</span> hostinger.fr</p>
         </div>
       </section>
 
