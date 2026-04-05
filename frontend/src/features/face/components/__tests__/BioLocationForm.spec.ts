@@ -30,7 +30,7 @@ describe('BioLocationForm', () => {
 
     expect((bioInput.element as HTMLTextAreaElement).value).toBe(mockBioLocationInfo.bio)
     expect((villeInput.element as HTMLSelectElement).value).toBe(mockBioLocationInfo.ville)
-    expect((paysInput.element as HTMLInputElement).value).toBe(mockBioLocationInfo.pays)
+    expect((paysInput.element as HTMLSelectElement).value).toBe(mockBioLocationInfo.pays)
     expect(wrapper.find('[data-testid="quartier-input"]').exists()).toBe(false)
   })
 
@@ -49,7 +49,7 @@ describe('BioLocationForm', () => {
 
     expect((bioInput.element as HTMLTextAreaElement).value).toBe('')
     expect((villeInput.element as HTMLSelectElement).value).toBe('')
-    expect((paysInput.element as HTMLInputElement).value).toBe('Bénin') // default value
+    expect((paysInput.element as HTMLSelectElement).value).toBe('Bénin') // default value
     expect(wrapper.find('[data-testid="quartier-input"]').exists()).toBe(false)
   })
 
@@ -277,6 +277,45 @@ describe('BioLocationForm', () => {
     expect(wrapper.find('#bio').exists()).toBe(true)
     expect(wrapper.find('#ville').exists()).toBe(true)
     expect(wrapper.find('#pays').exists()).toBe(true)
+  })
+
+  it('renders pays as a select dropdown, not a text input', () => {
+    const wrapper = mount(BioLocationForm, {
+      props: {
+        bioLocationInfo: mockBioLocationInfo,
+        isSaving: false,
+        error: null,
+      },
+    })
+
+    const paysField = wrapper.find('[data-testid="pays-input"]')
+
+    expect(paysField.element.tagName).toBe('SELECT')
+    expect((paysField.element as HTMLSelectElement).value).toBe('Bénin')
+  })
+
+  it('preserves a legacy free-text pays value in the dropdown', async () => {
+    const legacyPays = 'Benin Republic'
+    const wrapper = mount(BioLocationForm, {
+      props: {
+        bioLocationInfo: {
+          bio: 'Bio',
+          ville: null,
+          pays: legacyPays,
+          formatted_location: legacyPays,
+        },
+        isSaving: false,
+        error: null,
+      },
+    })
+
+    await flushPromises()
+
+    const paysField = wrapper.find('[data-testid="pays-input"]')
+    const legacyOption = wrapper.find(`#pays option[value="${legacyPays}"]`)
+
+    expect((paysField.element as HTMLSelectElement).value).toBe(legacyPays)
+    expect(legacyOption.exists()).toBe(true)
   })
 
   it('disables city select and clears it when pays is not Bénin', async () => {

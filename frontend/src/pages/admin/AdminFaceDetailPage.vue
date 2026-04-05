@@ -26,6 +26,7 @@ import type { UpdateAdminFaceForm, AdminFacePhoto } from '@/features/admin/servi
 import { getCategoryLabels, getNicheLabels } from '@/features/admin/utils/faceLabels'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
+import { COUNTRY_OPTIONS, COUNTRY_OPTION_VALUES } from '@/shared/constants/territoryOptions'
 
 const route = useRoute()
 const router = useRouter()
@@ -65,6 +66,16 @@ function normalizeNullableText(value: string | null | undefined): string | null 
 
   return trimmed === '' ? null : trimmed
 }
+
+const countryOptions = computed(() => {
+  const currentPays = normalizeNullableText(editForm.value.pays)
+
+  if (currentPays === null || COUNTRY_OPTION_VALUES.has(currentPays)) {
+    return COUNTRY_OPTIONS
+  }
+
+  return [...COUNTRY_OPTIONS, { value: currentPays, label: currentPays }]
+})
 
 function buildUpdatePayload(): UpdateAdminFaceForm {
   if (!face.value) {
@@ -555,12 +566,16 @@ function closeVideoModal(): void {
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Pays</label>
-                <input
+                <select
                   v-model="editForm.pays"
-                  type="text"
                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   data-testid="edit-pays"
-                />
+                >
+                  <option value="" disabled>Sélectionnez un pays</option>
+                  <option v-for="option in countryOptions" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
                 <p v-if="editErrors.pays" class="mt-1 text-xs text-red-600">{{ editErrors.pays[0] }}</p>
               </div>
             </div>

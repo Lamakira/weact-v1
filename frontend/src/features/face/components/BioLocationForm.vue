@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { reactive, computed, watch } from 'vue'
 import type { BioLocationInfo } from '../types'
-import { FloatingTextarea, FloatingField, FloatingSelect } from '@/components/ui/form'
+import { FloatingTextarea, FloatingSelect } from '@/components/ui/form'
 import { FileText, MapPin, Globe } from 'lucide-vue-next'
 import { BENIN_CITY_OPTIONS } from '@/shared/constants/beninCities'
+import { COUNTRY_OPTIONS, COUNTRY_OPTION_VALUES } from '@/shared/constants/territoryOptions'
 
 const props = defineProps<{
   bioLocationInfo: BioLocationInfo | null
@@ -48,6 +49,15 @@ const bioLength = computed(() => form.bio.length)
 const bioCharactersRemaining = computed(() => MAX_BIO_LENGTH - bioLength.value)
 const isAtLimit = computed(() => bioCharactersRemaining.value === 0)
 const isVilleDisabled = computed(() => form.pays !== 'Bénin')
+const countryOptions = computed(() => {
+  const currentPays = form.pays.trim()
+
+  if (currentPays === '' || COUNTRY_OPTION_VALUES.has(currentPays)) {
+    return COUNTRY_OPTIONS
+  }
+
+  return [...COUNTRY_OPTIONS, { value: currentPays, label: currentPays }]
+})
 
 const counterClass = computed(() => {
   if (isAtLimit.value) return 'text-red-500 font-medium'
@@ -116,15 +126,21 @@ const handleSubmit = () => {
         :disabled="isVilleDisabled"
         data-testid="ville-input"
       />
-      <div class="md:col-span-2">
-        <FloatingField
-          id="pays"
-          v-model="form.pays"
-          label="Pays"
-          :icon="Globe"
-          data-testid="pays-input"
-        />
-      </div>
+      <FloatingSelect
+        id="pays"
+        v-model="form.pays"
+        label="Pays"
+        :icon="Globe"
+        :options="countryOptions"
+        data-testid="pays-input"
+      />
+      <p
+        v-if="isVilleDisabled"
+        class="md:col-span-2 text-sm text-amber-600"
+        data-testid="non-benin-hint"
+      >
+        La sélection de ville n'est disponible que pour le Bénin pour le moment.
+      </p>
     </div>
 
     <!-- Action Button -->

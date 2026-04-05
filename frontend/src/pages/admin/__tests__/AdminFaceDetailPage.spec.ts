@@ -155,6 +155,30 @@ describe('AdminFaceDetailPage', () => {
     expect(mockToastSuccess).toHaveBeenCalled()
   })
 
+  it('renders pays as a select dropdown in edit mode', async () => {
+    const { wrapper } = await mountPage(makeFace())
+
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+
+    const paysField = wrapper.get('[data-testid="edit-pays"]')
+
+    expect(paysField.element.tagName).toBe('SELECT')
+    expect((paysField.element as HTMLSelectElement).value).toBe('Bénin')
+  })
+
+  it('preserves a legacy free-text pays value in the admin dropdown', async () => {
+    const legacyPays = 'Benin Republic'
+    const { wrapper } = await mountPage(makeFace({ pays: legacyPays, formatted_location: legacyPays }))
+
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+
+    const paysField = wrapper.get('[data-testid="edit-pays"]')
+    const optionValues = Array.from((paysField.element as HTMLSelectElement).options).map((option) => option.value)
+
+    expect((paysField.element as HTMLSelectElement).value).toBe(legacyPays)
+    expect(optionValues).toContain(legacyPays)
+  })
+
   it('does not clear ville when only toggling featured on a non-Benin profile', async () => {
     mockUpdateFace.mockResolvedValue({
       success: true,
