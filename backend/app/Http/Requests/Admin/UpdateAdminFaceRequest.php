@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Admin;
 
+use App\Constants\BeninCities;
 use App\Enums\FaceCategory;
 use App\Enums\FaceNiche;
 use Illuminate\Contracts\Validation\Validator;
@@ -14,6 +15,29 @@ use Illuminate\Validation\Rules\Enum;
 
 class UpdateAdminFaceRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if (! $this->has('pays')) {
+            return;
+        }
+
+        $pays = $this->input('pays');
+        $normalizedPays = is_string($pays) ? trim($pays) : $pays;
+        $payload = [];
+
+        if ($normalizedPays !== $pays) {
+            $payload['pays'] = $normalizedPays;
+        }
+
+        if ($normalizedPays !== 'Bénin' && ! $this->has('ville')) {
+            $payload['ville'] = null;
+        }
+
+        if ($payload !== []) {
+            $this->merge($payload);
+        }
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -41,14 +65,14 @@ class UpdateAdminFaceRequest extends FormRequest
                 Rule::unique('faces', 'username')->ignore($faceId),
             ],
             'bio' => ['sometimes', 'nullable', 'string', 'max:1000'],
-            'ville' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'quartier' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'ville' => ['sometimes', 'nullable', 'string', 'max:100', Rule::in(BeninCities::values())],
             'pays' => ['sometimes', 'nullable', 'string', 'max:255'],
             'categories' => ['sometimes', 'nullable', 'array'],
             'categories.*' => [new Enum(FaceCategory::class)],
             'niches' => ['sometimes', 'nullable', 'array'],
             'niches.*' => [new Enum(FaceNiche::class)],
             'is_available' => ['sometimes', 'boolean'],
+            'is_featured' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -65,15 +89,33 @@ class UpdateAdminFaceRequest extends FormRequest
             'username.max' => "Le nom d'utilisateur ne peut pas dépasser 255 caractères.",
             'username.unique' => "Ce nom d'utilisateur est déjà utilisé.",
             'bio.max' => 'La bio ne peut pas dépasser 1000 caractères.',
-            'ville.max' => 'La ville ne peut pas dépasser 255 caractères.',
-            'quartier.max' => 'Le quartier ne peut pas dépasser 255 caractères.',
+            'ville.max' => 'La ville ne peut pas dépasser 100 caractères.',
+            'ville.in' => 'La ville sélectionnée doit faire partie de la liste officielle des communes du Bénin.',
             'pays.max' => 'Le pays ne peut pas dépasser 255 caractères.',
             'categories.array' => 'Les catégories doivent être un tableau.',
             'categories.*.Illuminate\Validation\Rules\Enum' => 'La catégorie sélectionnée est invalide.',
             'niches.array' => 'Les niches doivent être un tableau.',
             'niches.*.Illuminate\Validation\Rules\Enum' => 'La niche sélectionnée est invalide.',
             'is_available.boolean' => 'Le statut de disponibilité doit être vrai ou faux.',
+            'is_featured.boolean' => 'Le statut de mise en vedette doit être vrai ou faux.',
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $ville = $this->input('ville');
+            $effectivePays = $this->has('pays')
+                ? $this->input('pays')
+                : $this->route('face')?->pays;
+
+            if (! empty($ville) && $effectivePays !== 'Bénin') {
+                $validator->errors()->add(
+                    'ville',
+                    'La ville doit être vide lorsque le pays n\'est pas "Bénin".'
+                );
+            }
+        });
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Public;
 
+use App\Constants\BeninCities;
 use App\Enums\FaceCategory;
 use App\Enums\FaceNiche;
 use App\Http\Controllers\Controller;
@@ -32,11 +33,7 @@ class FaceController extends Controller
             ->withAvg('ratingsReceived', 'score')
             ->when($request->validated('categorie'), fn ($q, $cat) => $q->whereJsonContains('categories', $cat))
             ->when($request->validated('niche'), fn ($q, $niche) => $q->whereJsonContains('niches', $niche))
-            ->when($request->validated('ville'), function ($q, $ville) {
-                $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $ville);
-
-                return $q->where('ville', 'like', "%{$escaped}%");
-            })
+            ->when($request->validated('ville'), fn ($q, $ville) => $q->where('ville', $ville))
             ->when($request->validated('search'), function ($q, $search) {
                 $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $search);
 
@@ -47,7 +44,14 @@ class FaceController extends Controller
                         ->orWhere('bio', 'like', "%{$escaped}%");
                 });
             })
-            ->orderByRaw('CASE WHEN profile_photo IS NOT NULL AND tarif_journalier IS NOT NULL THEN 0 WHEN profile_photo IS NOT NULL THEN 1 ELSE 2 END')
+            ->orderByRaw(
+                'CASE
+                    WHEN is_featured = 1 THEN 0
+                    WHEN profile_photo IS NOT NULL AND tarif_journalier IS NOT NULL THEN 1
+                    WHEN profile_photo IS NOT NULL THEN 2
+                    ELSE 3
+                END'
+            )
             ->orderBy('created_at', 'desc')
             ->paginate($perPage);
 
@@ -80,17 +84,7 @@ class FaceController extends Controller
             FaceNiche::cases()
         );
 
-        // Avoid caching here so deleted/deactivated accounts disappear from
-        // filter options immediately after privacy-related account changes.
-        $cities = Face::query()
-            ->whereHas('user', fn ($q) => $q->where('is_active', true))
-            ->whereNotNull('ville')
-            ->where('ville', '!=', '')
-            ->distinct()
-            ->pluck('ville')
-            ->sort()
-            ->values()
-            ->all();
+        $cities = BeninCities::values();
 
         return response()->json([
             'data' => [

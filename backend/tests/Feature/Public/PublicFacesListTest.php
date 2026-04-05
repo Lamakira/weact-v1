@@ -67,7 +67,6 @@ class PublicFacesListTest extends TestCase
             'tarif_horaire' => 50000,
             'tarif_journalier' => 200000,
             'ville' => 'Cotonou',
-            'quartier' => 'Akpakpa',
             'pays' => 'Bénin',
             'is_available' => true,
             'categories' => [FaceCategory::ACTEUR->value],
@@ -103,6 +102,7 @@ class PublicFacesListTest extends TestCase
         $this->assertArrayNotHasKey('bio', $faceData);
         $this->assertArrayNotHasKey('tarif_horaire', $faceData);
         $this->assertArrayNotHasKey('tarif_journalier', $faceData);
+        $this->assertArrayNotHasKey('is_featured', $faceData);
         $this->assertArrayNotHasKey('quartier', $faceData);
         $this->assertArrayNotHasKey('pays', $faceData);
         $this->assertArrayNotHasKey('whatsapp_number', $faceData);
@@ -239,6 +239,82 @@ class PublicFacesListTest extends TestCase
         $this->assertNotEmpty($response->json('message'));
     }
 
+    public function test_orders_faces_by_featured_then_profile_completeness_then_creation_date(): void
+    {
+        $oldFeatured = Face::factory()->create([
+            'prenom' => 'Featured Old',
+            'is_featured' => true,
+            'profile_photo' => 'featured-old.jpg',
+            'profile_photo_thumbnail' => 'featured-old-thumb.jpg',
+            'tarif_journalier' => 120000,
+            'created_at' => now()->subDays(5),
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $oldFeatured->id,
+        ]);
+
+        $newFeatured = Face::factory()->create([
+            'prenom' => 'Featured New',
+            'is_featured' => true,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $newFeatured->id,
+        ]);
+
+        $photoAndTarif = Face::factory()->create([
+            'prenom' => 'Photo Tarif',
+            'profile_photo' => 'photo-tarif.jpg',
+            'profile_photo_thumbnail' => 'photo-tarif-thumb.jpg',
+            'tarif_journalier' => 95000,
+            'created_at' => now()->subHours(6),
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $photoAndTarif->id,
+        ]);
+
+        $photoOnly = Face::factory()->create([
+            'prenom' => 'Photo Only',
+            'profile_photo' => 'photo-only.jpg',
+            'profile_photo_thumbnail' => 'photo-only-thumb.jpg',
+            'tarif_journalier' => null,
+            'created_at' => now()->subHours(4),
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $photoOnly->id,
+        ]);
+
+        $rest = Face::factory()->create([
+            'prenom' => 'Rest',
+            'profile_photo' => null,
+            'profile_photo_thumbnail' => null,
+            'tarif_journalier' => null,
+            'created_at' => now()->subHours(2),
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $rest->id,
+        ]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [
+                $newFeatured->id,
+                $oldFeatured->id,
+                $photoAndTarif->id,
+                $photoOnly->id,
+                $rest->id,
+            ],
+            array_column($response->json('data'), 'id')
+        );
+    }
+
     // ─── Filter Tests ─────────────────────────────────────────────────
 
     public function test_filters_faces_by_categorie(): void
@@ -271,7 +347,7 @@ class PublicFacesListTest extends TestCase
         $this->assertEquals($beaute->id, $response->json('data.0.id'));
     }
 
-    public function test_filters_faces_by_ville_partial_match(): void
+    public function test_filters_faces_by_ville_exact_match(): void
     {
         $cotonou = Face::factory()->create(['ville' => 'Cotonou']);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $cotonou->id]);
@@ -279,11 +355,18 @@ class PublicFacesListTest extends TestCase
         $parakou = Face::factory()->create(['ville' => 'Parakou']);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $parakou->id]);
 
-        $response = $this->getJson('/api/v1/public/faces?ville=Coto');
+        $response = $this->getJson('/api/v1/public/faces?ville=Cotonou');
 
         $response->assertOk();
         $this->assertEquals(1, $response->json('meta.total'));
         $this->assertEquals($cotonou->id, $response->json('data.0.id'));
+    }
+
+    public function test_returns_422_for_invalid_ville_filter(): void
+    {
+        $response = $this->getJson('/api/v1/public/faces?ville=Coto');
+
+        $response->assertUnprocessable();
     }
 
     public function test_combines_multiple_filters_with_and_logic(): void
