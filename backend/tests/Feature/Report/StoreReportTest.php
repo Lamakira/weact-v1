@@ -44,4 +44,36 @@ class StoreReportTest extends TestCase
             'description' => null,
         ]);
     }
+
+    public function test_duplicate_report_returns_success_message_and_does_not_create_new_row(): void
+    {
+        $user = User::factory()->create();
+        $mission = Mission::factory()->create();
+
+        Report::query()->create([
+            'reporter_id' => $user->id,
+            'reportable_type' => Mission::class,
+            'reportable_id' => $mission->id,
+            'reason' => 'fraude',
+            'description' => null,
+            'status' => 'pending',
+        ]);
+
+        $payload = [
+            'reportable_type' => 'mission',
+            'reportable_id' => $mission->id,
+            'reason' => 'autre',
+        ];
+
+        $response = $this->actingAs($user)
+            ->postJson('/api/v1/reports', $payload);
+
+        $response->assertOk()
+            ->assertJsonPath(
+                'message',
+                'Vous avez déjà signalé ce contenu. Nous l\'examinerons dans les meilleurs délais.'
+            );
+
+        $this->assertSame(1, Report::query()->count());
+    }
 }

@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Report;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 
 class ReportController extends Controller
@@ -46,29 +47,32 @@ class ReportController extends Controller
             ], 404);
         }
 
-        // Prevent duplicate reports from the same user on the same target
-        $existingReport = Report::where('reporter_id', $request->user()->id)
-            ->where('reportable_type', $modelClass)
-            ->where('reportable_id', $validated['reportable_id'])
-            ->exists();
+        try {
+            $report = Report::create([
+                'reporter_id' => $request->user()->id,
+                'reportable_type' => $modelClass,
+                'reportable_id' => $validated['reportable_id'],
+                'reason' => $validated['reason'],
+                'description' => $validated['description'] ?? null,
+            ]);
+        } catch (QueryException $exception) {
+            if ($this->isDuplicateReportConstraintViolation($exception)) {
+                return response()->json([
+                    'message' => 'Vous avez déjà signalé ce contenu. Nous l\'examinerons dans les meilleurs délais.',
+                ], 200);
+            }
 
-        if ($existingReport) {
-            return response()->json([
-                'message' => 'Vous avez déjà signalé ce contenu. Nous l\'examinerons dans les meilleurs délais.',
-            ], 200);
+            throw $exception;
         }
-
-        $report = Report::create([
-            'reporter_id' => $request->user()->id,
-            'reportable_type' => $modelClass,
-            'reportable_id' => $validated['reportable_id'],
-            'reason' => $validated['reason'],
-            'description' => $validated['description'] ?? null,
-        ]);
 
         return response()->json([
             'data' => ['id' => $report->id],
             'message' => 'Votre signalement a été enregistré. Nous l\'examinerons dans les meilleurs délais.',
         ], 201);
+    }
+
+    private function isDuplicateReportConstraintViolation(QueryException $exception): bool
+    {
+        return ($exception->errorInfo[0] ?? null) === '23000';
     }
 }
