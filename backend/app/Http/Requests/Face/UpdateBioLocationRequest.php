@@ -4,11 +4,37 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Face;
 
+use App\Constants\BeninCities;
 use App\Models\Face;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class UpdateBioLocationRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        if (! $this->has('pays')) {
+            return;
+        }
+
+        $pays = $this->input('pays');
+        $normalizedPays = is_string($pays) ? trim($pays) : $pays;
+        $payload = [];
+
+        if ($normalizedPays !== $pays) {
+            $payload['pays'] = $normalizedPays;
+        }
+
+        if ($normalizedPays !== 'Bénin' && ! $this->has('ville')) {
+            $payload['ville'] = null;
+        }
+
+        if ($payload !== []) {
+            $this->merge($payload);
+        }
+    }
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -28,8 +54,7 @@ class UpdateBioLocationRequest extends FormRequest
     {
         return [
             'bio' => ['nullable', 'string', 'max:500'],
-            'ville' => ['nullable', 'string', 'max:100'],
-            'quartier' => ['nullable', 'string', 'max:100'],
+            'ville' => ['nullable', 'string', 'max:100', Rule::in(BeninCities::values())],
             'pays' => ['nullable', 'string', 'max:100'],
         ];
     }
@@ -37,17 +62,18 @@ class UpdateBioLocationRequest extends FormRequest
     /**
      * Configure the validator instance.
      */
-    public function withValidator(\Illuminate\Validation\Validator $validator): void
+    public function withValidator(Validator $validator): void
     {
-        $validator->after(function (\Illuminate\Validation\Validator $validator) {
-            $quartier = $this->input('quartier');
+        $validator->after(function (Validator $validator): void {
             $ville = $this->input('ville');
+            $effectivePays = $this->has('pays')
+                ? $this->input('pays')
+                : $this->user()?->userable?->pays;
 
-            // If quartier is provided, ville must also be provided
-            if (!empty($quartier) && empty($ville)) {
+            if (! empty($ville) && $effectivePays !== 'Bénin') {
                 $validator->errors()->add(
-                    'quartier',
-                    'La ville est requise pour enregistrer le quartier'
+                    'ville',
+                    'La ville doit être vide lorsque le pays n\'est pas "Bénin".'
                 );
             }
         });
@@ -63,7 +89,7 @@ class UpdateBioLocationRequest extends FormRequest
         return [
             'bio.max' => 'La bio ne peut pas dépasser 500 caractères',
             'ville.max' => 'La ville ne peut pas dépasser 100 caractères',
-            'quartier.max' => 'Le quartier ne peut pas dépasser 100 caractères',
+            'ville.in' => 'La ville sélectionnée doit faire partie de la liste officielle des communes du Bénin.',
             'pays.max' => 'Le pays ne peut pas dépasser 100 caractères',
         ];
     }

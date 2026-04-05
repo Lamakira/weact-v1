@@ -6,6 +6,7 @@ import {
   type PaginationMeta,
   type FacesFilterParams,
 } from '../services/publicFacesApi'
+import { BENIN_CITY_VALUES } from '@/shared/constants/beninCities'
 
 /**
  * Composable for managing paginated faces list with URL sync and filters
@@ -18,6 +19,14 @@ import {
 export function usePaginatedFaces(perPage: number = 15) {
   const route = useRoute()
   const router = useRouter()
+
+  function getValidCityFilter(rawCity: unknown): string | undefined {
+    if (typeof rawCity !== 'string' || rawCity === '') {
+      return undefined
+    }
+
+    return BENIN_CITY_VALUES.has(rawCity) ? rawCity : undefined
+  }
 
   // State
   const faces = ref<PublicFace[]>([])
@@ -36,7 +45,7 @@ export function usePaginatedFaces(perPage: number = 15) {
   const filters = computed<FacesFilterParams>(() => ({
     categorie: (route.query.categorie as string) || undefined,
     niche: (route.query.niche as string) || undefined,
-    ville: (route.query.ville as string) || undefined,
+    ville: getValidCityFilter(route.query.ville),
     search: (route.query.search as string) || undefined,
   }))
 
@@ -55,6 +64,18 @@ export function usePaginatedFaces(perPage: number = 15) {
    */
   async function loadPage(page: number): Promise<void> {
     const validPage = Math.max(1, page)
+    const currentCity = route.query.ville
+    const validCity = getValidCityFilter(currentCity)
+
+    if (typeof currentCity === 'string' && currentCity !== '' && validCity === undefined) {
+      await router.replace({
+        query: {
+          ...route.query,
+          ville: undefined,
+        },
+      })
+      return
+    }
 
     // Update URL if page differs from current
     if (validPage !== currentPage.value) {

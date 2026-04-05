@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { reactive, computed, watch } from 'vue'
 import type { BioLocationInfo } from '../types'
-import { FloatingTextarea, FloatingField } from '@/components/ui/form'
+import { FloatingTextarea, FloatingField, FloatingSelect } from '@/components/ui/form'
 import { FileText, MapPin, Globe } from 'lucide-vue-next'
+import { BENIN_CITY_OPTIONS } from '@/shared/constants/beninCities'
 
 const props = defineProps<{
   bioLocationInfo: BioLocationInfo | null
@@ -11,13 +12,12 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'save', data: { bio: string | null; ville: string | null; quartier: string | null; pays: string | null }): void
+  (e: 'save', data: { bio: string | null; ville: string | null; pays: string | null }): void
 }>()
 
 const form = reactive({
   bio: '',
   ville: '',
-  quartier: '',
   pays: 'Bénin',
 })
 
@@ -27,18 +27,27 @@ watch(
   (info) => {
     if (info) {
       form.bio = info.bio ?? ''
-      form.ville = info.ville ?? ''
-      form.quartier = info.quartier ?? ''
       form.pays = info.pays ?? 'Bénin'
+      form.ville = form.pays === 'Bénin' ? (info.ville ?? '') : ''
     }
   },
   { immediate: true },
+)
+
+watch(
+  () => form.pays,
+  (pays) => {
+    if (pays !== 'Bénin') {
+      form.ville = ''
+    }
+  },
 )
 
 const MAX_BIO_LENGTH = 500
 const bioLength = computed(() => form.bio.length)
 const bioCharactersRemaining = computed(() => MAX_BIO_LENGTH - bioLength.value)
 const isAtLimit = computed(() => bioCharactersRemaining.value === 0)
+const isVilleDisabled = computed(() => form.pays !== 'Bénin')
 
 const counterClass = computed(() => {
   if (isAtLimit.value) return 'text-red-500 font-medium'
@@ -49,7 +58,6 @@ const handleSubmit = () => {
   emit('save', {
     bio: form.bio || null,
     ville: form.ville || null,
-    quartier: form.quartier || null,
     pays: form.pays || null,
   })
 }
@@ -99,19 +107,14 @@ const handleSubmit = () => {
 
     <!-- Location Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <FloatingField
+      <FloatingSelect
         id="ville"
         v-model="form.ville"
         label="Ville"
         :icon="MapPin"
+        :options="BENIN_CITY_OPTIONS"
+        :disabled="isVilleDisabled"
         data-testid="ville-input"
-      />
-      <FloatingField
-        id="quartier"
-        v-model="form.quartier"
-        label="Quartier"
-        :icon="MapPin"
-        data-testid="quartier-input"
       />
       <div class="md:col-span-2">
         <FloatingField

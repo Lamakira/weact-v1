@@ -3,7 +3,7 @@
  * Mentions Légales - Conformité Art. 328 du Code du Numérique du Bénin (Loi 2017-20)
  */
 import { RouterLink } from 'vue-router'
-import { Building2, Mail, Phone, MapPin, FileText } from 'lucide-vue-next'
+import { Building2, Mail, FileText } from 'lucide-vue-next'
 </script>
 
 <template>

@@ -109,7 +109,6 @@ export interface ActingVideoResult {
 export interface BioLocationInfo {
   bio: string | null
   ville: string | null
-  quartier: string | null
   pays: string | null
   formatted_location: string | null
 }
@@ -385,4 +384,3 @@ export interface PersonalInfoResult {
   errors?: Record<string, string[]>
   message?: string
 }
-

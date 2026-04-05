@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Face;
 
+use App\Constants\BeninCities;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
@@ -18,6 +19,11 @@ class BioLocationTest extends TestCase
 
     private Face $face;
 
+    /**
+     * @var array<string, string>
+     */
+    private array $faceHeaders;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -28,6 +34,7 @@ class BioLocationTest extends TestCase
             'userable_type' => Face::class,
             'userable_id' => $this->face->id,
         ]);
+        $this->faceHeaders = $this->authHeadersFor($this->faceUser);
     }
 
     public function test_can_get_bio_location_info(): void
@@ -35,36 +42,32 @@ class BioLocationTest extends TestCase
         $this->face->update([
             'bio' => 'Je suis acteur professionnel',
             'ville' => 'Cotonou',
-            'quartier' => 'Akpakpa',
             'pays' => 'Bénin',
         ]);
 
-        $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/bio-location');
+        $response = $this->getJson('/api/v1/face/bio-location', $this->faceHeaders);
 
         $response->assertOk()
             ->assertJsonStructure([
                 'data' => [
                     'bio',
                     'ville',
-                    'quartier',
                     'pays',
                     'formatted_location',
                 ],
             ])
             ->assertJsonPath('data.bio', 'Je suis acteur professionnel')
             ->assertJsonPath('data.ville', 'Cotonou')
-            ->assertJsonPath('data.quartier', 'Akpakpa')
             ->assertJsonPath('data.pays', 'Bénin')
-            ->assertJsonPath('data.formatted_location', 'Cotonou, Akpakpa, Bénin');
+            ->assertJsonPath('data.formatted_location', 'Cotonou, Bénin')
+            ->assertJsonMissingPath('data.quartier');
     }
 
     public function test_can_update_bio_successfully(): void
     {
-        $response = $this->actingAs($this->faceUser)
-            ->putJson('/api/v1/face/bio-location', [
-                'bio' => 'Une bio de test pour mon profil',
-            ]);
+        $response = $this->putJson('/api/v1/face/bio-location', [
+            'bio' => 'Une bio de test pour mon profil',
+        ], $this->faceHeaders);
 
         $response->assertOk()
             ->assertJsonPath('data.bio', 'Une bio de test pour mon profil')
@@ -78,45 +81,40 @@ class BioLocationTest extends TestCase
 
     public function test_can_update_location_successfully(): void
     {
-        $response = $this->actingAs($this->faceUser)
-            ->putJson('/api/v1/face/bio-location', [
-                'ville' => 'Porto-Novo',
-                'quartier' => 'Centre',
-                'pays' => 'Bénin',
-            ]);
+        $response = $this->putJson('/api/v1/face/bio-location', [
+            'ville' => 'Porto-Novo',
+            'pays' => 'Bénin',
+        ], $this->faceHeaders);
 
         $response->assertOk()
             ->assertJsonPath('data.ville', 'Porto-Novo')
-            ->assertJsonPath('data.quartier', 'Centre')
             ->assertJsonPath('data.pays', 'Bénin')
-            ->assertJsonPath('data.formatted_location', 'Porto-Novo, Centre, Bénin');
+            ->assertJsonPath('data.formatted_location', 'Porto-Novo, Bénin')
+            ->assertJsonMissingPath('data.quartier');
     }
 
     public function test_can_update_bio_and_location_together(): void
     {
-        $response = $this->actingAs($this->faceUser)
-            ->putJson('/api/v1/face/bio-location', [
-                'bio' => 'Acteur et mannequin professionnel',
-                'ville' => 'Cotonou',
-                'quartier' => 'Ganhi',
-                'pays' => 'Bénin',
-            ]);
+        $response = $this->putJson('/api/v1/face/bio-location', [
+            'bio' => 'Acteur et mannequin professionnel',
+            'ville' => 'Cotonou',
+            'pays' => 'Bénin',
+        ], $this->faceHeaders);
 
         $response->assertOk()
             ->assertJsonPath('data.bio', 'Acteur et mannequin professionnel')
             ->assertJsonPath('data.ville', 'Cotonou')
-            ->assertJsonPath('data.quartier', 'Ganhi')
-            ->assertJsonPath('data.formatted_location', 'Cotonou, Ganhi, Bénin');
+            ->assertJsonPath('data.formatted_location', 'Cotonou, Bénin')
+            ->assertJsonMissingPath('data.quartier');
     }
 
     public function test_rejects_bio_exceeding_500_characters(): void
     {
         $longBio = str_repeat('a', 501);
 
-        $response = $this->actingAs($this->faceUser)
-            ->putJson('/api/v1/face/bio-location', [
-                'bio' => $longBio,
-            ]);
+        $response = $this->putJson('/api/v1/face/bio-location', [
+            'bio' => $longBio,
+        ], $this->faceHeaders);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['bio'])
@@ -127,10 +125,9 @@ class BioLocationTest extends TestCase
     {
         $exactBio = str_repeat('a', 500);
 
-        $response = $this->actingAs($this->faceUser)
-            ->putJson('/api/v1/face/bio-location', [
-                'bio' => $exactBio,
-            ]);
+        $response = $this->putJson('/api/v1/face/bio-location', [
+            'bio' => $exactBio,
+        ], $this->faceHeaders);
 
         $response->assertOk();
 
@@ -140,26 +137,59 @@ class BioLocationTest extends TestCase
         ]);
     }
 
-    public function test_rejects_quartier_without_ville(): void
+    public function test_rejects_city_outside_official_benin_list(): void
     {
-        $response = $this->actingAs($this->faceUser)
-            ->putJson('/api/v1/face/bio-location', [
-                'quartier' => 'Akpakpa',
-            ]);
+        $response = $this->putJson('/api/v1/face/bio-location', [
+            'ville' => 'Ab-Calavi',
+            'pays' => 'Bénin',
+        ], $this->faceHeaders);
 
         $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['quartier'])
-            ->assertJsonPath('errors.quartier.0', 'La ville est requise pour enregistrer le quartier');
+            ->assertJsonValidationErrors(['ville'])
+            ->assertJsonPath('errors.ville.0', 'La ville sélectionnée doit faire partie de la liste officielle des communes du Bénin.');
+    }
+
+    public function test_rejects_city_when_country_is_not_benin(): void
+    {
+        $response = $this->putJson('/api/v1/face/bio-location', [
+            'ville' => 'Cotonou',
+            'pays' => 'Togo',
+        ], $this->faceHeaders);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['ville'])
+            ->assertJsonPath('errors.ville.0', 'La ville doit être vide lorsque le pays n\'est pas "Bénin".');
+    }
+
+    public function test_clears_ville_when_country_changes_away_from_benin_without_ville_payload(): void
+    {
+        $this->face->update([
+            'ville' => 'Cotonou',
+            'pays' => 'Bénin',
+        ]);
+
+        $response = $this->putJson('/api/v1/face/bio-location', [
+            'pays' => 'Togo',
+        ], $this->faceHeaders);
+
+        $response->assertOk()
+            ->assertJsonPath('data.pays', 'Togo')
+            ->assertJsonPath('data.ville', null);
+
+        $this->assertDatabaseHas('faces', [
+            'id' => $this->face->id,
+            'pays' => 'Togo',
+            'ville' => null,
+        ]);
     }
 
     public function test_can_clear_bio(): void
     {
         $this->face->update(['bio' => 'Original bio']);
 
-        $response = $this->actingAs($this->faceUser)
-            ->putJson('/api/v1/face/bio-location', [
-                'bio' => null,
-            ]);
+        $response = $this->putJson('/api/v1/face/bio-location', [
+            'bio' => null,
+        ], $this->faceHeaders);
 
         $response->assertOk()
             ->assertJsonPath('data.bio', null);
@@ -174,10 +204,9 @@ class BioLocationTest extends TestCase
     {
         $this->face->update(['bio' => 'Original bio']);
 
-        $response = $this->actingAs($this->faceUser)
-            ->putJson('/api/v1/face/bio-location', [
-                'bio' => '',
-            ]);
+        $response = $this->putJson('/api/v1/face/bio-location', [
+            'bio' => '',
+        ], $this->faceHeaders);
 
         $response->assertOk();
     }
@@ -186,44 +215,38 @@ class BioLocationTest extends TestCase
     {
         $this->face->update([
             'ville' => 'Cotonou',
-            'quartier' => 'Akpakpa',
             'pays' => 'Bénin',
         ]);
 
-        $response = $this->actingAs($this->faceUser)
-            ->putJson('/api/v1/face/bio-location', [
-                'ville' => null,
-                'quartier' => null,
-                'pays' => null,
-            ]);
+        $response = $this->putJson('/api/v1/face/bio-location', [
+            'ville' => null,
+            'pays' => null,
+        ], $this->faceHeaders);
 
         $response->assertOk()
             ->assertJsonPath('data.ville', null)
-            ->assertJsonPath('data.quartier', null)
-            ->assertJsonPath('data.pays', null);
+            ->assertJsonPath('data.pays', null)
+            ->assertJsonMissingPath('data.quartier');
     }
 
     public function test_formatted_location_with_only_ville(): void
     {
-        // First clear pays to test only ville
-        $this->face->update(['pays' => null]);
+        $this->face->update(['pays' => 'Bénin']);
 
-        $response = $this->actingAs($this->faceUser)
-            ->putJson('/api/v1/face/bio-location', [
-                'ville' => 'Cotonou',
-            ]);
+        $response = $this->putJson('/api/v1/face/bio-location', [
+            'ville' => 'Cotonou',
+        ], $this->faceHeaders);
 
         $response->assertOk()
-            ->assertJsonPath('data.formatted_location', 'Cotonou');
+            ->assertJsonPath('data.formatted_location', 'Cotonou, Bénin');
     }
 
     public function test_formatted_location_with_ville_and_pays(): void
     {
-        $response = $this->actingAs($this->faceUser)
-            ->putJson('/api/v1/face/bio-location', [
-                'ville' => 'Cotonou',
-                'pays' => 'Bénin',
-            ]);
+        $response = $this->putJson('/api/v1/face/bio-location', [
+            'ville' => 'Cotonou',
+            'pays' => 'Bénin',
+        ], $this->faceHeaders);
 
         $response->assertOk()
             ->assertJsonPath('data.formatted_location', 'Cotonou, Bénin');
@@ -236,9 +259,9 @@ class BioLocationTest extends TestCase
             'userable_type' => Producer::class,
             'userable_id' => $producer->id,
         ]);
+        $producerHeaders = $this->authHeadersFor($producerUser);
 
-        $response = $this->actingAs($producerUser)
-            ->getJson('/api/v1/face/bio-location');
+        $response = $this->getJson('/api/v1/face/bio-location', $producerHeaders);
 
         $response->assertForbidden()
             ->assertJsonPath('error.code', 'FORBIDDEN')
@@ -252,11 +275,11 @@ class BioLocationTest extends TestCase
             'userable_type' => Producer::class,
             'userable_id' => $producer->id,
         ]);
+        $producerHeaders = $this->authHeadersFor($producerUser);
 
-        $response = $this->actingAs($producerUser)
-            ->putJson('/api/v1/face/bio-location', [
-                'bio' => 'Test bio',
-            ]);
+        $response = $this->putJson('/api/v1/face/bio-location', [
+            'bio' => 'Test bio',
+        ], $producerHeaders);
 
         $response->assertForbidden();
     }
@@ -272,10 +295,9 @@ class BioLocationTest extends TestCase
     {
         $longVille = str_repeat('a', 101);
 
-        $response = $this->actingAs($this->faceUser)
-            ->putJson('/api/v1/face/bio-location', [
-                'ville' => $longVille,
-            ]);
+        $response = $this->putJson('/api/v1/face/bio-location', [
+            'ville' => $longVille,
+        ], $this->faceHeaders);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['ville'])
@@ -286,7 +308,6 @@ class BioLocationTest extends TestCase
     {
         $face = Face::factory()->create([
             'ville' => null,
-            'quartier' => null,
             'pays' => null,
         ]);
 
@@ -297,11 +318,17 @@ class BioLocationTest extends TestCase
     {
         $face = Face::factory()->create([
             'ville' => 'Cotonou',
-            'quartier' => null,
             'pays' => 'Bénin',
         ]);
 
         $this->assertEquals('Cotonou, Bénin', $face->formatted_location);
+    }
+
+    public function test_benin_cities_constant_contains_77_communes(): void
+    {
+        $this->assertCount(77, BeninCities::values());
+        $this->assertContains('Abomey-Calavi', BeninCities::values());
+        $this->assertContains('Porto-Novo', BeninCities::values());
     }
 
     public function test_default_pays_is_benin(): void
@@ -317,5 +344,17 @@ class BioLocationTest extends TestCase
         $newFace->refresh();
 
         $this->assertEquals('Bénin', $newFace->pays);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function authHeadersFor(User $user): array
+    {
+        $token = $user->createToken('test-token')->plainTextToken;
+
+        return [
+            'Authorization' => "Bearer {$token}",
+        ];
     }
 }
