@@ -70,6 +70,55 @@ describe('useLandingFaces', () => {
       expect(landingApi.getFaces).toHaveBeenCalledWith({ per_page: 30, page: 1 })
     })
 
+    it('fetches additional pages until enough photo-bearing faces are collected', async () => {
+      vi.mocked(landingApi.getFaces)
+        .mockResolvedValueOnce({
+          data: [faceWithoutPhoto],
+          meta: { current_page: 1, last_page: 2, per_page: 30, total: 31 },
+          message: 'Faces retrieved successfully',
+        })
+        .mockResolvedValueOnce({
+          data: [faceWithPhoto, anotherFaceWithPhoto],
+          meta: { current_page: 2, last_page: 2, per_page: 30, total: 31 },
+          message: 'Faces retrieved successfully',
+        })
+
+      const { faces, fetchFaces } = useLandingFaces()
+
+      await fetchFaces()
+
+      expect(landingApi.getFaces).toHaveBeenNthCalledWith(1, { per_page: 30, page: 1 })
+      expect(landingApi.getFaces).toHaveBeenNthCalledWith(2, { per_page: 30, page: 2 })
+      expect(faces.value.map((face) => face.id)).toEqual([1, 3])
+    })
+
+    it('stops after the maximum number of pages even if it still needs more photos', async () => {
+      vi.mocked(landingApi.getFaces)
+        .mockResolvedValueOnce({
+          data: [faceWithoutPhoto],
+          meta: { current_page: 1, last_page: 10, per_page: 30, total: 300 },
+          message: 'Faces retrieved successfully',
+        })
+        .mockResolvedValueOnce({
+          data: [faceWithoutPhoto],
+          meta: { current_page: 2, last_page: 10, per_page: 30, total: 300 },
+          message: 'Faces retrieved successfully',
+        })
+        .mockResolvedValueOnce({
+          data: [faceWithoutPhoto],
+          meta: { current_page: 3, last_page: 10, per_page: 30, total: 300 },
+          message: 'Faces retrieved successfully',
+        })
+
+      const { faces, fetchFaces } = useLandingFaces()
+
+      await fetchFaces()
+
+      expect(landingApi.getFaces).toHaveBeenCalledTimes(3)
+      expect(landingApi.getFaces).toHaveBeenNthCalledWith(3, { per_page: 30, page: 3 })
+      expect(faces.value).toEqual([])
+    })
+
     it('stores totalCount from API meta', async () => {
       vi.mocked(landingApi.getFaces).mockResolvedValue(mockResponse)
 

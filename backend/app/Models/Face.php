@@ -42,7 +42,6 @@ class Face extends Model
         'acting_video_thumbnail',
         'bio',
         'ville',
-        'quartier',
         'pays',
         'whatsapp_number',
         'taille',
@@ -52,6 +51,7 @@ class Face extends Model
         'tarif_horaire',
         'tarif_journalier',
         'is_available',
+        'is_featured',
         'rating_penalty',
     ];
 
@@ -67,6 +67,7 @@ class Face extends Model
         'categories' => 'array',
         'niches' => 'array',
         'is_available' => 'boolean',
+        'is_featured' => 'boolean',
         'rating_penalty' => 'float',
     ];
 
@@ -240,7 +241,7 @@ class Face extends Model
     }
 
     /**
-     * Get the formatted location string (Ville, Quartier, Pays).
+     * Get the formatted location string (Ville, Pays).
      */
     protected function formattedLocation(): Attribute
     {
@@ -248,7 +249,6 @@ class Face extends Model
             get: function (): ?string {
                 $parts = array_filter([
                     $this->ville,
-                    $this->quartier,
                     $this->pays,
                 ]);
 

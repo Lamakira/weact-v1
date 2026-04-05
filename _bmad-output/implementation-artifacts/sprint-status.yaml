@@ -306,6 +306,26 @@ development_status:
   # ============================================
 
   # Epic LEGAL: Conformité Code du Numérique (1 story, 5 phases)
-  epic-legal: in-progress
+  epic-legal: done
   legal-1-conformite-code-numerique: done                   # Mentions légales, cookies, consentement, droits utilisateurs, signalement
   epic-legal-retrospective: optional
+
+  # ============================================
+  # POST-LAUNCH FIXES Sprint 4 (Client requests - 2026-04-05)
+  # Source: epics-postlaunch-fixes-3.md (3 epics, 4 stories)
+  # ============================================
+
+  # Epic FIX-4: Standardisation localisation & mise en avant Faces (2 stories)
+  epic-fix-4: done
+  fix-4-1-standardize-city-select-benin: done                 # Replace free-text ville/quartier with Benin cities select
+  fix-4-2-admin-featured-faces-ordering: done                 # Admin is_featured checkbox + display ordering
+
+  # Epic FIX-5: Correctif booking — validation date de réalisation (1 story)
+  epic-fix-5: backlog
+  fix-5-1-block-completion-before-shooting-date: backlog     # Prevent booking completion confirmation before shooting date
+
+  # Epic FIX-6: UX Header navigation connecté (1 story)
+  epic-fix-6: backlog
+  fix-6-1-reorganize-authenticated-header: backlog           # Move Mes missions/Mes candidatures out of main header
+
+last_updated: "2026-04-05T13:08:00Z"

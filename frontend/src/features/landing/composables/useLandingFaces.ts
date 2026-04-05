@@ -3,6 +3,9 @@ import { isAxiosError } from 'axios'
 import type { LandingFace } from '../types'
 import { landingApi } from '../services/landingApi'
 
+const PAGE_SIZE = 30
+const MAX_PAGES = 3
+
 export function useLandingFaces() {
   const faces = ref<LandingFace[]>([])
   const isLoading = ref(false)
@@ -13,12 +16,27 @@ export function useLandingFaces() {
     isLoading.value = true
     error.value = null
     try {
-      const response = await landingApi.getFaces({ per_page: 30, page: 1 })
-      totalCount.value = response.meta.total
-      // Filter client-side for faces that have a profile photo
-      faces.value = response.data.filter(
-        (face) => face.profile_photo_url !== null,
+      const photoFaces: LandingFace[] = []
+      let page = 1
+      let lastPage = 1
+
+      do {
+        const response = await landingApi.getFaces({ per_page: PAGE_SIZE, page })
+        totalCount.value = response.meta.total
+        lastPage = response.meta.last_page
+
+        photoFaces.push(
+          ...response.data.filter((face) => face.profile_photo_url !== null),
+        )
+
+        page += 1
+      } while (
+        photoFaces.length < PAGE_SIZE &&
+        page <= lastPage &&
+        page <= MAX_PAGES
       )
+
+      faces.value = photoFaces
     } catch (err: unknown) {
       if (isAxiosError(err)) {
         if (err.response) {

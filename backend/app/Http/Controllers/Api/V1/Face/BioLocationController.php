@@ -34,7 +34,6 @@ class BioLocationController extends Controller
             'data' => [
                 'bio' => $face->bio,
                 'ville' => $face->ville,
-                'quartier' => $face->quartier,
                 'pays' => $face->pays,
                 'formatted_location' => $face->formatted_location,
             ],
@@ -63,7 +62,6 @@ class BioLocationController extends Controller
             'data' => [
                 'bio' => $updatedFace->bio,
                 'ville' => $updatedFace->ville,
-                'quartier' => $updatedFace->quartier,
                 'pays' => $updatedFace->pays,
                 'formatted_location' => $updatedFace->formatted_location,
             ],

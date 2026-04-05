@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\Public;
 
+use App\Constants\BeninCities;
 use App\Enums\FaceCategory;
 use App\Enums\FaceNiche;
 use Illuminate\Foundation\Http\FormRequest;
@@ -38,7 +39,7 @@ class ListFacesRequest extends FormRequest
             'per_page' => ['sometimes', 'integer', 'min:1'],
             'categorie' => ['sometimes', 'nullable', Rule::enum(FaceCategory::class)],
             'niche' => ['sometimes', 'nullable', Rule::enum(FaceNiche::class)],
-            'ville' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'ville' => ['sometimes', 'nullable', 'string', Rule::in(BeninCities::values())],
             'search' => ['sometimes', 'nullable', 'string', 'min:2', 'max:255'],
         ];
     }

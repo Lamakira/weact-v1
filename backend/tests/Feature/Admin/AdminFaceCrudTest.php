@@ -135,6 +135,7 @@ class AdminFaceCrudTest extends TestCase
             'bio' => 'Test bio',
             'whatsapp_number' => '+22997000000',
             'categories' => [FaceCategory::ACTEUR->value],
+            'is_featured' => true,
         ]);
 
         $response = $this->withToken($this->adminToken)
@@ -149,6 +150,7 @@ class AdminFaceCrudTest extends TestCase
             ->assertJsonPath('data.prenom', 'Jane')
             ->assertJsonPath('data.bio', 'Test bio')
             ->assertJsonPath('data.whatsapp_number', '+22997000000')
+            ->assertJsonPath('data.is_featured', true)
             ->assertJsonPath('data.categories.0.value', 'acteur');
     }
 
@@ -249,6 +251,7 @@ class AdminFaceCrudTest extends TestCase
         $face = Face::factory()->create([
             'nom' => 'OldName',
             'bio' => 'Old bio',
+            'is_featured' => false,
         ]);
 
         $response = $this->withToken($this->adminToken)
@@ -256,18 +259,21 @@ class AdminFaceCrudTest extends TestCase
                 'nom' => 'NewName',
                 'bio' => 'Updated bio',
                 'is_available' => false,
+                'is_featured' => true,
             ]);
 
         $response->assertOk()
             ->assertJsonPath('data.nom', 'NewName')
             ->assertJsonPath('data.bio', 'Updated bio')
             ->assertJsonPath('data.is_available', false)
+            ->assertJsonPath('data.is_featured', true)
             ->assertJsonPath('message', 'Profil Face mis à jour avec succès');
 
         $this->assertDatabaseHas('faces', [
             'id' => $face->id,
             'nom' => 'NewName',
             'bio' => 'Updated bio',
+            'is_featured' => true,
         ]);
     }
 
@@ -284,6 +290,29 @@ class AdminFaceCrudTest extends TestCase
             ->assertJsonStructure([
                 'error' => ['code', 'message', 'details'],
             ]);
+    }
+
+    public function test_update_clears_ville_when_country_changes_away_from_benin(): void
+    {
+        $face = Face::factory()->create([
+            'pays' => 'Bénin',
+            'ville' => 'Cotonou',
+        ]);
+
+        $response = $this->withToken($this->adminToken)
+            ->putJson("/api/v1/admin/faces/{$face->id}", [
+                'pays' => 'Togo',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.pays', 'Togo')
+            ->assertJsonPath('data.ville', null);
+
+        $this->assertDatabaseHas('faces', [
+            'id' => $face->id,
+            'pays' => 'Togo',
+            'ville' => null,
+        ]);
     }
 
     public function test_update_username_uniqueness_validation(): void

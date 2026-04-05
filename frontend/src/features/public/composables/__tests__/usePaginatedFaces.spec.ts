@@ -5,6 +5,7 @@ import type { PublicFacesResponse, PublicFace } from '../../services/publicFaces
 
 // Mock vue-router - use reactive object like real vue-router does
 const mockPush = vi.fn()
+const mockReplace = vi.fn()
 let mockQuery: Record<string, string | undefined> = {}
 
 vi.mock('vue-router', () => ({
@@ -15,6 +16,7 @@ vi.mock('vue-router', () => ({
   }),
   useRouter: () => ({
     push: mockPush,
+    replace: mockReplace,
   }),
 }))
 
@@ -168,6 +170,19 @@ describe('usePaginatedFaces', () => {
 
       await loadPage(1)
       expect(error.value).toBe(null)
+    })
+
+    it('sanitizes an invalid city query before fetching', async () => {
+      mockQuery = { ville: 'Coto' }
+
+      const { loadPage } = usePaginatedFaces(15)
+
+      await loadPage(1)
+
+      expect(mockReplace).toHaveBeenCalledWith({
+        query: { ville: undefined },
+      })
+      expect(publicFacesApi.fetchPublicFaces).not.toHaveBeenCalled()
     })
   })
 
@@ -356,6 +371,15 @@ describe('usePaginatedFaces', () => {
       const { filters } = usePaginatedFaces(15)
 
       expect(filters.value.search).toBe('Adjoua')
+    })
+
+    it('ignores an invalid city filter from the URL', () => {
+      mockQuery = { ville: 'Coto' }
+
+      const { filters, hasActiveFilters } = usePaginatedFaces(15)
+
+      expect(filters.value.ville).toBeUndefined()
+      expect(hasActiveFilters.value).toBe(false)
     })
 
     it('passes search to API call', async () => {
