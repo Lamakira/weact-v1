@@ -503,6 +503,12 @@ class BookingService
         return DB::transaction(function () use ($booking, $confirmer) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
+            if ($booking->date_debut->isFuture()) {
+                throw ValidationException::withMessages([
+                    'date_debut' => ['La confirmation n\'est possible qu\'à partir du jour du tournage.'],
+                ]);
+            }
+
             $isFace = ($confirmer->id === $booking->face_id);
             $isProducer = ($confirmer->id === $booking->producer_id);
 

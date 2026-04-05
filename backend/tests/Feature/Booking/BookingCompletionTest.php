@@ -44,6 +44,14 @@ class BookingCompletionTest extends TestCase
         ]);
     }
 
+    /** @return array<string, string> */
+    private function authHeaders(User $user): array
+    {
+        return [
+            'Authorization' => 'Bearer '.$user->createToken('test')->plainTextToken,
+        ];
+    }
+
     // === FIRST CONFIRMATION TESTS ===
 
     public function test_face_can_confirm_paid_booking(): void
@@ -51,10 +59,10 @@ class BookingCompletionTest extends TestCase
         $booking = Booking::factory()->paid()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            'date_debut' => now()->subDay(),
         ]);
 
-        $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/confirm");
+        $response = $this->postJson("/api/v1/bookings/{$booking->id}/confirm", [], $this->authHeaders($this->faceUser));
 
         $response->assertOk()
             ->assertJsonPath('data.status', BookingStatus::ConfirmedByFace->value);
@@ -70,10 +78,10 @@ class BookingCompletionTest extends TestCase
         $booking = Booking::factory()->paid()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            'date_debut' => now()->subDay(),
         ]);
 
-        $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/confirm");
+        $response = $this->postJson("/api/v1/bookings/{$booking->id}/confirm", [], $this->authHeaders($this->producerUser));
 
         $response->assertOk()
             ->assertJsonPath('data.status', BookingStatus::ConfirmedByProducer->value);
@@ -94,6 +102,7 @@ class BookingCompletionTest extends TestCase
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
             'montant_face_recoit' => 45000,
+            'date_debut' => now()->subDay(),
         ]);
 
         // Create escrow record as if payment was processed
@@ -103,8 +112,7 @@ class BookingCompletionTest extends TestCase
             'status' => 'locked',
         ]);
 
-        $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/confirm");
+        $response = $this->postJson("/api/v1/bookings/{$booking->id}/confirm", [], $this->authHeaders($this->producerUser));
 
         $response->assertOk()
             ->assertJsonPath('data.status', BookingStatus::Completed->value);
@@ -125,6 +133,7 @@ class BookingCompletionTest extends TestCase
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
             'montant_face_recoit' => 45000,
+            'date_debut' => now()->subDay(),
         ]);
 
         EscrowTransaction::factory()->create([
@@ -133,8 +142,7 @@ class BookingCompletionTest extends TestCase
             'status' => 'locked',
         ]);
 
-        $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/confirm");
+        $response = $this->postJson("/api/v1/bookings/{$booking->id}/confirm", [], $this->authHeaders($this->faceUser));
 
         $response->assertOk()
             ->assertJsonPath('data.status', BookingStatus::Completed->value);
@@ -150,6 +158,7 @@ class BookingCompletionTest extends TestCase
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
             'montant_face_recoit' => 45000,
+            'date_debut' => now()->subDay(),
         ]);
 
         EscrowTransaction::factory()->create([
@@ -158,8 +167,7 @@ class BookingCompletionTest extends TestCase
             'status' => 'locked',
         ]);
 
-        $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/confirm")
+        $this->postJson("/api/v1/bookings/{$booking->id}/confirm", [], $this->authHeaders($this->producerUser))
             ->assertOk();
 
         $this->assertDatabaseHas('wallet_transactions', [
@@ -181,6 +189,7 @@ class BookingCompletionTest extends TestCase
         $booking = Booking::factory()->confirmedByFace()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            'date_debut' => now()->subDay(),
         ]);
 
         $escrow = EscrowTransaction::factory()->create([
@@ -189,8 +198,7 @@ class BookingCompletionTest extends TestCase
             'status' => 'locked',
         ]);
 
-        $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/confirm")
+        $this->postJson("/api/v1/bookings/{$booking->id}/confirm", [], $this->authHeaders($this->producerUser))
             ->assertOk();
 
         $escrow->refresh();
@@ -206,10 +214,10 @@ class BookingCompletionTest extends TestCase
         $booking = Booking::factory()->paid()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            'date_debut' => now()->subDay(),
         ]);
 
-        $this->actingAs($otherUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/confirm")
+        $this->postJson("/api/v1/bookings/{$booking->id}/confirm", [], $this->authHeaders($otherUser))
             ->assertForbidden();
     }
 
@@ -218,6 +226,7 @@ class BookingCompletionTest extends TestCase
         $booking = Booking::factory()->paid()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            'date_debut' => now()->subDay(),
         ]);
 
         $this->postJson("/api/v1/bookings/{$booking->id}/confirm")
@@ -231,8 +240,7 @@ class BookingCompletionTest extends TestCase
             'producer_id' => $this->producerUser->id,
         ]);
 
-        $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/confirm")
+        $this->postJson("/api/v1/bookings/{$booking->id}/confirm", [], $this->authHeaders($this->faceUser))
             ->assertForbidden();
     }
 
@@ -243,8 +251,7 @@ class BookingCompletionTest extends TestCase
             'producer_id' => $this->producerUser->id,
         ]);
 
-        $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/confirm")
+        $this->postJson("/api/v1/bookings/{$booking->id}/confirm", [], $this->authHeaders($this->faceUser))
             ->assertForbidden();
     }
 
@@ -255,8 +262,7 @@ class BookingCompletionTest extends TestCase
             'producer_id' => $this->producerUser->id,
         ]);
 
-        $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/confirm")
+        $this->postJson("/api/v1/bookings/{$booking->id}/confirm", [], $this->authHeaders($this->faceUser))
             ->assertForbidden();
     }
 
@@ -267,6 +273,7 @@ class BookingCompletionTest extends TestCase
         $booking = Booking::factory()->confirmedByFace()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            'date_debut' => now()->subDay(),
         ]);
 
         // Policy denies since ConfirmedByFace is not an allowed confirm status for Face again
@@ -276,8 +283,7 @@ class BookingCompletionTest extends TestCase
 
         // Face tries to confirm again — service won't complete (not confirmedByProducer)
         // but will try to set confirmed_by_face again; this is actually a no-op / 422
-        $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/confirm");
+        $response = $this->postJson("/api/v1/bookings/{$booking->id}/confirm", [], $this->authHeaders($this->faceUser));
 
         // Either 422 from service or booking stays ConfirmedByFace — status unchanged
         if ($response->status() === 200) {
@@ -285,5 +291,77 @@ class BookingCompletionTest extends TestCase
         } else {
             $response->assertUnprocessable();
         }
+    }
+
+    // === DATE GUARD: cannot confirm before shooting date ===
+
+    public function test_face_cannot_confirm_before_shooting_date(): void
+    {
+        $booking = Booking::factory()->paid()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'date_debut' => now()->addWeek(),
+        ]);
+
+        $response = $this->postJson("/api/v1/bookings/{$booking->id}/confirm", [], $this->authHeaders($this->faceUser));
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['date_debut']);
+    }
+
+    public function test_producer_cannot_confirm_before_shooting_date(): void
+    {
+        $booking = Booking::factory()->paid()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'date_debut' => now()->addWeek(),
+        ]);
+
+        $response = $this->postJson("/api/v1/bookings/{$booking->id}/confirm", [], $this->authHeaders($this->producerUser));
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['date_debut']);
+    }
+
+    public function test_second_confirmation_blocked_before_shooting_date(): void
+    {
+        $booking = Booking::factory()->confirmedByFace()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'date_debut' => now()->addWeek(),
+        ]);
+
+        $response = $this->postJson("/api/v1/bookings/{$booking->id}/confirm", [], $this->authHeaders($this->producerUser));
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['date_debut']);
+    }
+
+    public function test_confirmation_succeeds_when_shooting_date_is_today(): void
+    {
+        $booking = Booking::factory()->paid()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'date_debut' => now(),
+        ]);
+
+        $response = $this->postJson("/api/v1/bookings/{$booking->id}/confirm", [], $this->authHeaders($this->faceUser));
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::ConfirmedByFace->value);
+    }
+
+    public function test_confirmation_succeeds_when_shooting_date_is_past(): void
+    {
+        $booking = Booking::factory()->paid()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'date_debut' => now()->subWeek(),
+        ]);
+
+        $response = $this->postJson("/api/v1/bookings/{$booking->id}/confirm", [], $this->authHeaders($this->faceUser));
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::ConfirmedByFace->value);
     }
 }

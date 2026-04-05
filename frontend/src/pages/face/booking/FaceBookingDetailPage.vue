@@ -142,6 +142,11 @@ const confirmLabel = computed<string | null>(() => {
   return null
 })
 
+const isBeforeShootingDate = computed<boolean>(() => {
+  if (!booking.value?.date_debut) return false
+  return new Date(booking.value.date_debut).getTime() > nowTimestamp.value
+})
+
 const paymentDeadline = computed<Date | null>(() => {
   if (!booking.value?.accepted_at) return null
   return new Date(new Date(booking.value.accepted_at).getTime() + 24 * 60 * 60 * 1000)
@@ -503,16 +508,20 @@ onUnmounted(() => {
           </div>
 
           <!-- Confirm button (double-confirmation) -->
-          <div v-if="confirmLabel" class="flex gap-3">
+          <div v-if="confirmLabel" class="relative group">
             <button
-              :disabled="isConfirming"
-              class="flex-1 flex items-center justify-center gap-2 rounded-lg bg-weact px-4 py-3 text-sm font-semibold text-white hover:bg-weact/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="isConfirming || isBeforeShootingDate"
+              class="w-full flex items-center justify-center gap-2 rounded-lg bg-weact px-4 py-3 text-sm font-semibold text-white hover:bg-weact/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              :title="isBeforeShootingDate ? 'La confirmation n\'est possible qu\'à partir du jour du tournage' : undefined"
               @click="handleConfirm"
             >
               <Loader2 v-if="isConfirming" class="w-4 h-4 animate-spin" />
               <CheckCircle v-else class="w-4 h-4" />
               {{ confirmLabel }}
             </button>
+            <p v-if="isBeforeShootingDate" class="mt-2 text-sm text-amber-600">
+              La confirmation n'est possible qu'à partir du jour du tournage.
+            </p>
           </div>
 
           <!-- Booking cancellation -->
