@@ -21,7 +21,7 @@ class RegisterFaceController extends Controller
      */
     public function __invoke(RegisterFaceRequest $request): JsonResponse
     {
-        $result = $this->registrationService->register($request->validated());
+        $result = $this->registrationService->register($request->validated(), $request->ip());
 
         return response()->json([
             'data' => [

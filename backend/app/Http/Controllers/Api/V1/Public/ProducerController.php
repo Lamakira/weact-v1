@@ -18,7 +18,9 @@ class ProducerController extends Controller
      */
     public function show(int $id): JsonResponse
     {
-        $producer = Producer::findOrFail($id);
+        $producer = Producer::query()
+            ->whereHas('user', fn ($q) => $q->where('is_active', true))
+            ->findOrFail($id);
 
         return response()->json([
             'data' => new PublicProducerResource($producer),

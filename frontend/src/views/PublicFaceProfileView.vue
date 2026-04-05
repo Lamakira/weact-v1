@@ -3,6 +3,7 @@ import { ref, watch, computed, watchEffect, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTitle } from '@vueuse/core'
 import { ChevronLeft, AlertCircle, RefreshCw, UserX, Lock, CalendarPlus } from 'lucide-vue-next'
+import ReportButton from '@/components/report/ReportButton.vue'
 import { useFaceProfile } from '@/features/public/composables/useFaceProfile'
 import { usePublicFaceAccess } from '@/features/public/composables/usePublicFaceAccess'
 import ProfilePhotoSection from '@/features/public/components/ProfilePhotoSection.vue'
@@ -468,6 +469,11 @@ async function handleRetry(): Promise<void> {
 
           <!-- Experiences -->
           <CandidateExperiencesSection :experiences="displayProfile.experiences" />
+
+          <!-- Report button -->
+          <div v-if="face" class="flex justify-end">
+            <ReportButton reportable-type="face" :reportable-id="face.id" />
+          </div>
 
           <!-- Reviews Section -->
           <div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">

@@ -39,6 +39,7 @@ const { handleSubmit, setFieldError } = useForm<FormData>({
     nationalite: 'Béninoise',
     pays: 'Bénin',
     whatsapp_number: '',
+    accept_cgu: false,
   },
 })
 
@@ -55,6 +56,7 @@ const { value: date_naissance, errorMessage: dateNaissanceError } = useField<str
 const { value: nationalite, errorMessage: nationaliteError } = useField<string>('nationalite')
 const { value: pays, errorMessage: paysError } = useField<string>('pays')
 const { value: whatsapp_number, errorMessage: whatsappNumberError } = useField<string>('whatsapp_number')
+const { value: accept_cgu, errorMessage: acceptCguError } = useField<boolean>('accept_cgu')
 
 // Submit handler
 const onSubmit = handleSubmit(async (values) => {
@@ -237,6 +239,26 @@ const onSubmit = handleSubmit(async (values) => {
       password-toggle
       data-testid="password-confirmation-input"
     />
+
+    <!-- CGU Consent Checkbox -->
+    <div class="space-y-1" data-testid="accept-cgu-field">
+      <label class="flex items-start gap-2.5 cursor-pointer">
+        <input
+          v-model="accept_cgu"
+          type="checkbox"
+          class="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500 cursor-pointer"
+          data-testid="accept-cgu-checkbox"
+        />
+        <span class="text-xs text-gray-600 leading-relaxed">
+          J'accepte les
+          <router-link to="/cgu" target="_blank" class="text-primary-500 hover:underline font-medium">Conditions Générales d'Utilisation</router-link>
+          et la
+          <router-link to="/politique-confidentialite" target="_blank" class="text-primary-500 hover:underline font-medium">Politique de Confidentialité</router-link>
+          de WEACT.
+        </span>
+      </label>
+      <p v-if="acceptCguError" class="text-xs text-red-500 ml-6" data-testid="accept-cgu-error">{{ acceptCguError }}</p>
+    </div>
 
     <!-- Submit Button -->
     <button

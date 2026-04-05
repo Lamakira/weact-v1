@@ -30,6 +30,7 @@ class ProducerRegistrationTest extends TestCase
             'email' => 'agency@example.com',
             'password' => 'Password123',
             'password_confirmation' => 'Password123',
+            'accept_cgu' => true,
         ];
 
         $this->validParticulierData = [
@@ -39,6 +40,7 @@ class ProducerRegistrationTest extends TestCase
             'email' => 'jean@example.com',
             'password' => 'Password123',
             'password_confirmation' => 'Password123',
+            'accept_cgu' => true,
         ];
     }
 

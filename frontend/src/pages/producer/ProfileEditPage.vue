@@ -15,6 +15,7 @@ import AgencyLogoUpload from '@/features/producer/components/AgencyLogoUpload.vu
 import BasicInfoSection from '@/features/producer/components/BasicInfoSection.vue'
 import EmailChangeForm from '@/features/auth/components/EmailChangeForm.vue'
 import PasswordChangeForm from '@/features/auth/components/PasswordChangeForm.vue'
+import DataPrivacySection from '@/components/account/DataPrivacySection.vue'
 
 const {
   profile,
@@ -232,6 +233,9 @@ async function handleBioSave(newBio: string | null): Promise<void> {
           </div>
           <div class="mt-4 pt-4 border-t border-gray-100">
             <PasswordChangeForm />
+          </div>
+          <div class="mt-4 pt-4 border-t border-gray-100">
+            <DataPrivacySection />
           </div>
         </div>
       </div>

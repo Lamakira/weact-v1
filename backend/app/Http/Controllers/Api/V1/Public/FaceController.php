@@ -12,7 +12,6 @@ use App\Http\Resources\PublicFaceProfileResource;
 use App\Http\Resources\PublicFaceResource;
 use App\Models\Face;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Cache;
 
 class FaceController extends Controller
 {
@@ -27,7 +26,9 @@ class FaceController extends Controller
         $perPage = $request->getPerPage();
 
         // Query faces with optional filters and eager-loaded average rating
+        // Exclude faces whose user account has been deactivated (deleted accounts)
         $faces = Face::query()
+            ->whereHas('user', fn ($q) => $q->where('is_active', true))
             ->withAvg('ratingsReceived', 'score')
             ->when($request->validated('categorie'), fn ($q, $cat) => $q->whereJsonContains('categories', $cat))
             ->when($request->validated('niche'), fn ($q, $niche) => $q->whereJsonContains('niches', $niche))
@@ -79,16 +80,17 @@ class FaceController extends Controller
             FaceNiche::cases()
         );
 
-        $cities = Cache::remember('public_faces_cities', 3600, function () {
-            return Face::query()
-                ->whereNotNull('ville')
-                ->where('ville', '!=', '')
-                ->distinct()
-                ->pluck('ville')
-                ->sort()
-                ->values()
-                ->all();
-        });
+        // Avoid caching here so deleted/deactivated accounts disappear from
+        // filter options immediately after privacy-related account changes.
+        $cities = Face::query()
+            ->whereHas('user', fn ($q) => $q->where('is_active', true))
+            ->whereNotNull('ville')
+            ->where('ville', '!=', '')
+            ->distinct()
+            ->pluck('ville')
+            ->sort()
+            ->values()
+            ->all();
 
         return response()->json([
             'data' => [
@@ -110,6 +112,7 @@ class FaceController extends Controller
     {
         $face = Face::query()
             ->where('username', $username)
+            ->whereHas('user', fn ($q) => $q->where('is_active', true))
             ->with(['photos', 'experiences', 'user'])
             ->first();
 

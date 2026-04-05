@@ -5,6 +5,7 @@ namespace App\Providers;
 use Carbon\Carbon;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -23,6 +24,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Block destructive database commands (migrate:fresh, migrate:refresh, db:wipe)
+        // in production to prevent accidental data loss
+        DB::prohibitDestructiveCommands($this->app->isProduction());
+
         // Set Carbon locale globally for French date formatting
         Carbon::setLocale('fr');
 

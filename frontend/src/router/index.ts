@@ -41,10 +41,26 @@ const router = createRouter({
       meta: { title: 'À propos - WEACT' },
     },
     {
-      path: '/legal',
-      name: 'legal',
-      component: () => import('../views/LegalView.vue'),
+      path: '/mentions-legales',
+      name: 'mentions-legales',
+      component: () => import('../views/MentionsLegalesView.vue'),
       meta: { title: 'Mentions légales - WEACT' },
+    },
+    {
+      path: '/cgu',
+      name: 'cgu',
+      component: () => import('../views/CguView.vue'),
+      meta: { title: 'Conditions Générales d\'Utilisation - WEACT' },
+    },
+    {
+      path: '/politique-confidentialite',
+      name: 'politique-confidentialite',
+      component: () => import('../views/PolitiqueConfidentialiteView.vue'),
+      meta: { title: 'Politique de Confidentialité - WEACT' },
+    },
+    {
+      path: '/legal',
+      redirect: '/mentions-legales',
     },
     {
       path: '/contact',

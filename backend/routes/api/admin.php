@@ -31,7 +31,7 @@ Route::prefix('v1/admin')->group(function () {
 });
 
 // Protected admin routes
-Route::prefix('v1/admin')->middleware(['auth:sanctum', 'admin'])->group(function () {
+Route::prefix('v1/admin')->middleware(['auth:sanctum', 'api.token', 'admin'])->group(function () {
     // Auth routes (all admin roles)
     Route::post('/logout', [AuthController::class, 'logout'])->name('admin.logout');
     Route::get('/me', [AuthController::class, 'me'])->name('admin.me');

@@ -33,6 +33,7 @@ import RatingDisplay from '@/components/RatingDisplay.vue'
 import BasicInfoSection from '@/features/face/components/BasicInfoSection.vue'
 import EmailChangeForm from '@/features/auth/components/EmailChangeForm.vue'
 import PasswordChangeForm from '@/features/auth/components/PasswordChangeForm.vue'
+import DataPrivacySection from '@/components/account/DataPrivacySection.vue'
 import type { ExperienceFormData, TarifsFormData } from '@/features/face/types'
 const {
   profile,
@@ -659,6 +660,9 @@ function handleCompletionItemClick(itemKey: string): void {
           <EmailChangeForm />
           <div class="border-t border-gray-100 pt-4">
             <PasswordChangeForm />
+          </div>
+          <div class="border-t border-gray-100 pt-4">
+            <DataPrivacySection />
           </div>
         </div>
 

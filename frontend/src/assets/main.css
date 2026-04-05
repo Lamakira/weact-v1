@@ -176,6 +176,9 @@
   * {
     @apply border-border outline-ring/50;
   }
+  button, [role="button"], a, summary, [type="submit"], [type="button"], [type="reset"], label[for], select {
+    cursor: pointer;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-family-sans);

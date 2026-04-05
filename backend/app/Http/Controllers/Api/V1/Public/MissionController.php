@@ -22,6 +22,9 @@ class MissionController extends Controller
     {
         return Mission::query()
             ->where('status', MissionStatus::Published)
+            ->whereHas('producer', fn ($q) => $q
+                ->whereHas('user', fn ($u) => $u->where('is_active', true))
+            )
             ->with(['producer' => fn ($q) => $q
                 ->withAvg('ratingsReceived', 'score')
                 ->withCount('ratingsReceived'),

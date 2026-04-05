@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 class LogoutController extends Controller
@@ -21,6 +22,13 @@ class LogoutController extends Controller
     {
         // Revoke only the current token (allows multi-device sessions)
         $request->user()->currentAccessToken()->delete();
+
+        // Clear any stateful Sanctum session that may still be attached to the browser.
+        Auth::guard('web')->logout();
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
 
         return response()->json([
             'data' => null,

@@ -21,6 +21,7 @@ export interface FaceRegistrationForm {
   nationalite: string
   pays: string
   whatsapp_number?: string
+  accept_cgu: boolean
 }
 
 // Producer type
@@ -32,6 +33,7 @@ export interface ProducerRegistrationFormBase {
   email: string
   password: string
   password_confirmation: string
+  accept_cgu: boolean
 }
 
 // Registration form data - Producer Agency

@@ -23,7 +23,7 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::prefix('v1/producer')->middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
+Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token', 'throttle:60,1'])->group(function () {
     // Dashboard routes
     // Note: Controller-level authorization (same pattern as Face) for proper JSON error format
     Route::get('/dashboard/stats', [ProducerDashboardController::class, 'stats']);

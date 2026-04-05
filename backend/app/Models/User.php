@@ -32,6 +32,9 @@ class User extends Authenticatable implements MustVerifyEmail
         'userable_type',
         'userable_id',
         'is_active',
+        'consent_given_at',
+        'consent_ip',
+        'consent_version',
     ];
 
     /**
@@ -53,6 +56,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
+            'consent_given_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
         ];
