@@ -63,7 +63,7 @@ class ReportController extends Controller
             'reportable_type' => $modelClass,
             'reportable_id' => $validated['reportable_id'],
             'reason' => $validated['reason'],
-            'description' => $validated['description'],
+            'description' => $validated['description'] ?? null,
         ]);
 
         return response()->json([
