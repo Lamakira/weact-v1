@@ -124,8 +124,8 @@ export function useBioLocation(): UseBioLocationReturn {
 
     // Validate location
     const locationValidation = validateLocation({
-      ville: data.ville ?? bioLocationInfo.value?.ville,
-      pays: data.pays ?? bioLocationInfo.value?.pays,
+      ville: 'ville' in data ? data.ville : bioLocationInfo.value?.ville,
+      pays: 'pays' in data ? data.pays : bioLocationInfo.value?.pays,
     })
     if (!locationValidation.valid) {
       error.value = locationValidation.error ?? 'Localisation invalide'
