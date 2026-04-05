@@ -90,7 +90,6 @@ class PublicFaceProfileTest extends TestCase
             'taille' => 170,
             'poids' => 65,
             'ville' => 'Cotonou',
-            'quartier' => 'Akpakpa',
             'pays' => 'Bénin',
             'categories' => [FaceCategory::ACTEUR->value],
             'niches' => [FaceNiche::MODE->value],
@@ -133,14 +132,16 @@ class PublicFaceProfileTest extends TestCase
         $this->assertArrayHasKey('age', $data);
         $this->assertArrayHasKey('nationalite', $data);
         $this->assertArrayHasKey('taille', $data);
-        $this->assertArrayHasKey('quartier', $data);
         $this->assertArrayHasKey('pays', $data);
+        $this->assertArrayHasKey('formatted_location', $data);
 
         // Should NOT include sensitive/admin-only fields
         $this->assertArrayNotHasKey('nom', $data);
         $this->assertArrayNotHasKey('tarif_horaire', $data);
         $this->assertArrayNotHasKey('tarif_journalier', $data);
         $this->assertArrayNotHasKey('poids', $data);
+        $this->assertArrayNotHasKey('is_featured', $data);
+        $this->assertArrayNotHasKey('quartier', $data);
         $this->assertArrayNotHasKey('whatsapp_number', $data);
         $this->assertArrayNotHasKey('email', $data);
         $this->assertArrayNotHasKey('date_naissance', $data);

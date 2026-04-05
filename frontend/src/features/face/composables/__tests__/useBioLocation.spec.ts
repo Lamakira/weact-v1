@@ -21,9 +21,8 @@ describe('useBioLocation', () => {
   const mockBioLocationInfo: BioLocationInfo = {
     bio: 'Je suis acteur professionnel',
     ville: 'Cotonou',
-    quartier: 'Akpakpa',
     pays: 'Bénin',
-    formatted_location: 'Cotonou, Akpakpa, Bénin',
+    formatted_location: 'Cotonou, Bénin',
   }
 
   const mockResponse: BioLocationResponse = {
@@ -113,9 +112,8 @@ describe('useBioLocation', () => {
         data: {
           bio: null,
           ville: 'Porto-Novo',
-          quartier: 'Centre',
           pays: 'Bénin',
-          formatted_location: 'Porto-Novo, Centre, Bénin',
+          formatted_location: 'Porto-Novo, Bénin',
         },
         message: 'Profil mis à jour avec succès',
       }
@@ -125,13 +123,12 @@ describe('useBioLocation', () => {
 
       const result = await updateBioLocation({
         ville: 'Porto-Novo',
-        quartier: 'Centre',
         pays: 'Bénin',
       })
 
       expect(result.success).toBe(true)
       expect(bioLocationInfo.value?.ville).toBe('Porto-Novo')
-      expect(bioLocationInfo.value?.quartier).toBe('Centre')
+      expect(bioLocationInfo.value?.formatted_location).toBe('Porto-Novo, Bénin')
     })
 
     it('updates bio and location together', async () => {
@@ -142,7 +139,6 @@ describe('useBioLocation', () => {
       const result = await updateBioLocation({
         bio: 'Ma nouvelle bio',
         ville: 'Cotonou',
-        quartier: 'Akpakpa',
         pays: 'Bénin',
       })
 
@@ -150,7 +146,6 @@ describe('useBioLocation', () => {
       expect(faceApi.updateBioLocation).toHaveBeenCalledWith({
         bio: 'Ma nouvelle bio',
         ville: 'Cotonou',
-        quartier: 'Akpakpa',
         pays: 'Bénin',
       })
     })
@@ -237,39 +232,39 @@ describe('useBioLocation', () => {
   })
 
   describe('validateLocation', () => {
-    it('validates location with both ville and quartier', () => {
+    it('validates a Benin city when pays is Bénin', () => {
       const { validateLocation } = useBioLocation()
 
-      const result = validateLocation({ ville: 'Cotonou', quartier: 'Akpakpa' })
+      const result = validateLocation({ ville: 'Cotonou', pays: 'Bénin' })
 
       expect(result.valid).toBe(true)
     })
 
-    it('validates location with only ville', () => {
+    it('validates empty city for a non-Benin country', () => {
       const { validateLocation } = useBioLocation()
 
-      const result = validateLocation({ ville: 'Cotonou', quartier: null })
+      const result = validateLocation({ ville: null, pays: 'Togo' })
 
       expect(result.valid).toBe(true)
     })
 
-    it('rejects quartier without ville', () => {
+    it('rejects a city outside the official list', () => {
       const { validateLocation } = useBioLocation()
 
-      const result = validateLocation({ ville: null, quartier: 'Akpakpa' })
+      const result = validateLocation({ ville: 'Ab-Calavi', pays: 'Bénin' })
 
       expect(result.valid).toBe(false)
-      expect(result.error).toBe('La ville est requise pour enregistrer le quartier')
+      expect(result.error).toBe('Veuillez sélectionner une ville du Bénin valide')
     })
 
-    it('rejects quartier without ville before calling API', async () => {
+    it('rejects a city when pays is not Bénin before calling API', async () => {
       const { updateBioLocation, error } = useBioLocation()
 
-      const result = await updateBioLocation({ quartier: 'Akpakpa' })
+      const result = await updateBioLocation({ ville: 'Cotonou', pays: 'Togo' })
 
       expect(result.success).toBe(false)
-      expect(result.message).toBe('La ville est requise pour enregistrer le quartier')
-      expect(error.value).toBe('La ville est requise pour enregistrer le quartier')
+      expect(result.message).toBe('La ville doit être vide lorsque le pays n\'est pas "Bénin".')
+      expect(error.value).toBe('La ville doit être vide lorsque le pays n\'est pas "Bénin".')
       expect(faceApi.updateBioLocation).not.toHaveBeenCalled()
     })
   })
@@ -293,7 +288,6 @@ describe('useBioLocation', () => {
       const bioInfo: BioLocationInfo = {
         bio: 'Test bio', // 8 characters
         ville: null,
-        quartier: null,
         pays: null,
         formatted_location: null,
       }
@@ -310,7 +304,6 @@ describe('useBioLocation', () => {
       const bioInfo: BioLocationInfo = {
         bio: 'a'.repeat(500), // 500 characters, 0 remaining
         ville: null,
-        quartier: null,
         pays: null,
         formatted_location: null,
       }
@@ -330,9 +323,8 @@ describe('useBioLocation', () => {
         data: {
           bio: null,
           ville: 'Cotonou',
-          quartier: 'Akpakpa',
           pays: 'Bénin',
-          formatted_location: 'Cotonou, Akpakpa, Bénin',
+          formatted_location: 'Cotonou, Bénin',
         },
         message: 'Profil mis à jour avec succès',
       }

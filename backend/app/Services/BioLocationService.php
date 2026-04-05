@@ -25,10 +25,6 @@ class BioLocationService
             $updateData['ville'] = $data['ville'];
         }
 
-        if (array_key_exists('quartier', $data)) {
-            $updateData['quartier'] = $data['quartier'];
-        }
-
         if (array_key_exists('pays', $data)) {
             $updateData['pays'] = $data['pays'];
         }

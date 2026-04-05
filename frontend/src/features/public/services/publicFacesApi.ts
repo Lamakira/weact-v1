@@ -45,7 +45,6 @@ export interface PublicFaceProfile extends PublicFace {
   langues: string[]
   taille: number | null
   bio: string | null
-  quartier: string | null
   pays: string | null
   formatted_location: string | null
   presentation_video_url: string | null

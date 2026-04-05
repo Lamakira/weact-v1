@@ -26,6 +26,7 @@ import type { UpdateAdminFaceForm, AdminFacePhoto } from '@/features/admin/servi
 import { getCategoryLabels, getNicheLabels } from '@/features/admin/utils/faceLabels'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
+import { COUNTRY_OPTIONS, COUNTRY_OPTION_VALUES } from '@/shared/constants/territoryOptions'
 
 const route = useRoute()
 const router = useRouter()
@@ -56,6 +57,71 @@ onMounted(() => {
   fetchFace(faceId.value)
 })
 
+function normalizeNullableText(value: string | null | undefined): string | null {
+  if (value === undefined || value === null) {
+    return null
+  }
+
+  const trimmed = value.trim()
+
+  return trimmed === '' ? null : trimmed
+}
+
+const countryOptions = computed(() => {
+  const currentPays = normalizeNullableText(editForm.value.pays)
+
+  if (currentPays === null || COUNTRY_OPTION_VALUES.has(currentPays)) {
+    return COUNTRY_OPTIONS
+  }
+
+  return [...COUNTRY_OPTIONS, { value: currentPays, label: currentPays }]
+})
+
+function buildUpdatePayload(): UpdateAdminFaceForm {
+  if (!face.value) {
+    return {}
+  }
+
+  const payload: UpdateAdminFaceForm = {}
+  const currentFace = face.value
+  const currentBio = normalizeNullableText(currentFace.bio)
+  const nextBio = normalizeNullableText(editForm.value.bio)
+  const currentVille = normalizeNullableText(currentFace.ville)
+  const currentPays = normalizeNullableText(currentFace.pays)
+  const nextPays = normalizeNullableText(editForm.value.pays)
+  const nextVille = normalizeNullableText(editForm.value.ville)
+  const hasPaysChanged = nextPays !== currentPays
+
+  if (editForm.value.nom !== currentFace.nom) payload.nom = editForm.value.nom
+  if (editForm.value.prenom !== currentFace.prenom) payload.prenom = editForm.value.prenom
+  if (editForm.value.username !== currentFace.username) payload.username = editForm.value.username
+  if (nextBio !== currentBio) payload.bio = nextBio
+  if (hasPaysChanged && nextPays !== 'Bénin') {
+    payload.ville = null
+  } else if (nextVille !== currentVille) {
+    payload.ville = nextVille
+  }
+  if (hasPaysChanged) payload.pays = nextPays
+
+  if (JSON.stringify(editForm.value.categories ?? []) !== JSON.stringify(currentFace.categories?.map((c) => c.value) ?? [])) {
+    payload.categories = editForm.value.categories
+  }
+
+  if (JSON.stringify(editForm.value.niches ?? []) !== JSON.stringify(currentFace.niches?.map((n) => n.value) ?? [])) {
+    payload.niches = editForm.value.niches
+  }
+
+  if (editForm.value.is_available !== currentFace.is_available) {
+    payload.is_available = editForm.value.is_available
+  }
+
+  if (editForm.value.is_featured !== currentFace.is_featured) {
+    payload.is_featured = editForm.value.is_featured
+  }
+
+  return payload
+}
+
 function startEdit(): void {
   if (!face.value) return
   editForm.value = {
@@ -64,11 +130,11 @@ function startEdit(): void {
     username: face.value.username,
     bio: face.value.bio,
     ville: face.value.ville,
-    quartier: face.value.quartier,
     pays: face.value.pays,
     categories: face.value.categories?.map((c: { value: string }) => c.value) ?? [],
     niches: face.value.niches?.map((n: { value: string }) => n.value) ?? [],
     is_available: face.value.is_available,
+    is_featured: face.value.is_featured,
   }
   editErrors.value = {}
   isEditing.value = true
@@ -82,7 +148,7 @@ function cancelEdit(): void {
 async function saveEdit(): Promise<void> {
   editErrors.value = {}
 
-  const result = await updateFace(faceId.value, editForm.value)
+  const result = await updateFace(faceId.value, buildUpdatePayload())
   if (result.success) {
     isEditing.value = false
     toast.success(result.message ?? 'Profil mis à jour')
@@ -327,6 +393,19 @@ function closeVideoModal(): void {
                   </span>
                 </dd>
               </div>
+              <div class="flex justify-between">
+                <dt class="text-sm text-gray-500">Mise en avant</dt>
+                <dd>
+                  <span
+                    class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium"
+                    :class="face.is_featured ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'"
+                    data-testid="featured-badge"
+                  >
+                    <Star class="h-3.5 w-3.5" />
+                    {{ face.is_featured ? 'En vedette' : 'Standard' }}
+                  </span>
+                </dd>
+              </div>
             </dl>
           </template>
 
@@ -412,15 +491,28 @@ function closeVideoModal(): void {
                   </label>
                 </div>
               </div>
-              <div class="flex items-center gap-2">
-                <input
-                  v-model="editForm.is_available"
-                  type="checkbox"
-                  id="edit-availability"
-                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                  data-testid="edit-availability"
-                />
-                <label for="edit-availability" class="text-sm text-gray-700">Disponible</label>
+              <div class="grid gap-3 sm:grid-cols-2">
+                <label class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2">
+                  <input
+                    v-model="editForm.is_available"
+                    type="checkbox"
+                    id="edit-availability"
+                    class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    data-testid="edit-availability"
+                  />
+                  <span class="text-sm text-gray-700">Disponible</span>
+                </label>
+                <label class="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2">
+                  <input
+                    v-model="editForm.is_featured"
+                    type="checkbox"
+                    id="edit-featured"
+                    class="h-4 w-4 rounded border-amber-300 text-amber-500 focus:ring-amber-400"
+                    data-testid="edit-featured"
+                  />
+                  <Star class="h-4 w-4 text-amber-500" />
+                  <span class="text-sm text-gray-700">En vedette</span>
+                </label>
               </div>
             </div>
           </template>
@@ -442,10 +534,6 @@ function closeVideoModal(): void {
               <div class="flex justify-between">
                 <dt class="text-sm text-gray-500">Ville</dt>
                 <dd class="text-sm font-medium text-gray-900">{{ face.ville || '—' }}</dd>
-              </div>
-              <div class="flex justify-between">
-                <dt class="text-sm text-gray-500">Quartier</dt>
-                <dd class="text-sm font-medium text-gray-900">{{ face.quartier || '—' }}</dd>
               </div>
               <div class="flex justify-between">
                 <dt class="text-sm text-gray-500">Pays</dt>
@@ -474,24 +562,21 @@ function closeVideoModal(): void {
                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   data-testid="edit-ville"
                 />
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Quartier</label>
-                <input
-                  v-model="editForm.quartier"
-                  type="text"
-                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                  data-testid="edit-quartier"
-                />
+                <p v-if="editErrors.ville" class="mt-1 text-xs text-red-600">{{ editErrors.ville[0] }}</p>
               </div>
               <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Pays</label>
-                <input
+                <select
                   v-model="editForm.pays"
-                  type="text"
                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   data-testid="edit-pays"
-                />
+                >
+                  <option value="" disabled>Sélectionnez un pays</option>
+                  <option v-for="option in countryOptions" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
+                <p v-if="editErrors.pays" class="mt-1 text-xs text-red-600">{{ editErrors.pays[0] }}</p>
               </div>
             </div>
           </template>

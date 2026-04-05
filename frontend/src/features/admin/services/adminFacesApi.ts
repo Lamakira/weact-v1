@@ -27,12 +27,12 @@ export interface AdminFaceData {
   username: string
   bio: string | null
   ville: string | null
-  quartier: string | null
   pays: string | null
   whatsapp_number: string | null
   categories: Array<{ value: string; label: string }>
   niches: Array<{ value: string; label: string }>
   is_available: boolean
+  is_featured: boolean
   profile_completion_percentage: number
   profile_completion_missing: Array<{ key: string; label: string }>
   profile_completion_is_complete: boolean
@@ -91,11 +91,11 @@ export interface UpdateAdminFaceForm {
   username?: string
   bio?: string | null
   ville?: string | null
-  quartier?: string | null
   pays?: string | null
   categories?: string[]
   niches?: string[]
   is_available?: boolean
+  is_featured?: boolean
 }
 
 /**

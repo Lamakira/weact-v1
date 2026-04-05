@@ -39,7 +39,6 @@ class PublicFaceProfileResource extends JsonResource
             'taille' => $this->taille,
             'bio' => $this->bio,
             'ville' => $this->ville,
-            'quartier' => $this->quartier,
             'pays' => $this->pays,
             'formatted_location' => $this->formatted_location,
             'categories' => $this->categoriesWithLabels(),

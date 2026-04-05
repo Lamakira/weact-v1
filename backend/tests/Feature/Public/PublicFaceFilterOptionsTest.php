@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Public;
 
+use App\Constants\BeninCities;
 use App\Models\Face;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -55,57 +56,49 @@ class PublicFaceFilterOptionsTest extends TestCase
         $this->assertContains('mode', $values);
     }
 
-    public function test_returns_cities_from_existing_faces(): void
+    public function test_returns_static_benin_cities_list(): void
     {
-        Face::factory()->create(['ville' => 'Cotonou']);
-        Face::factory()->create(['ville' => 'Parakou']);
-        Face::factory()->create(['ville' => 'Cotonou']); // duplicate
-
         $response = $this->getJson('/api/v1/public/faces/options');
 
         $response->assertOk();
 
         $cities = $response->json('data.cities');
-        $this->assertCount(2, $cities);
-        $this->assertContains('Cotonou', $cities);
-        $this->assertContains('Parakou', $cities);
+        $this->assertSame(BeninCities::values(), $cities);
     }
 
     public function test_cities_are_sorted_alphabetically(): void
     {
-        Face::factory()->create(['ville' => 'Porto-Novo']);
-        Face::factory()->create(['ville' => 'Abomey-Calavi']);
-        Face::factory()->create(['ville' => 'Cotonou']);
+        $response = $this->getJson('/api/v1/public/faces/options');
+
+        $response->assertOk();
+
+        $cities = $response->json('data.cities');
+        $this->assertEquals(BeninCities::values(), $cities);
+    }
+
+    public function test_returns_static_cities_even_when_faces_have_inconsistent_values(): void
+    {
+        $face = Face::factory()->create(['ville' => 'Valeur libre']);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+            'is_active' => false,
+        ]);
 
         $response = $this->getJson('/api/v1/public/faces/options');
 
         $response->assertOk();
 
         $cities = $response->json('data.cities');
-        $this->assertEquals(['Abomey-Calavi', 'Cotonou', 'Porto-Novo'], $cities);
+        $this->assertSame(BeninCities::values(), $cities);
     }
 
-    public function test_excludes_null_and_empty_cities(): void
-    {
-        Face::factory()->create(['ville' => 'Cotonou']);
-        Face::factory()->create(['ville' => null]);
-        Face::factory()->create(['ville' => '']);
-
-        $response = $this->getJson('/api/v1/public/faces/options');
-
-        $response->assertOk();
-
-        $cities = $response->json('data.cities');
-        $this->assertCount(1, $cities);
-        $this->assertEquals(['Cotonou'], $cities);
-    }
-
-    public function test_returns_empty_cities_when_no_faces_exist(): void
+    public function test_returns_benin_cities_when_no_faces_exist(): void
     {
         $response = $this->getJson('/api/v1/public/faces/options');
 
         $response->assertOk();
-        $this->assertEmpty($response->json('data.cities'));
+        $this->assertSame(BeninCities::values(), $response->json('data.cities'));
         // Categories and niches should still be present (from enums)
         $this->assertNotEmpty($response->json('data.categories'));
         $this->assertNotEmpty($response->json('data.niches'));
@@ -149,20 +142,23 @@ class PublicFaceFilterOptionsTest extends TestCase
     public function test_filtering_by_single_category_matches_faces_with_multiple_categories(): void
     {
         // Face with multiple categories including 'acteur'
-        Face::factory()->create([
+        $firstFace = Face::factory()->create([
             'categories' => ['acteur', 'mannequin'],
             'niches' => [],
         ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $firstFace->id]);
         // Face without 'acteur'
-        Face::factory()->create([
+        $secondFace = Face::factory()->create([
             'categories' => ['influenceur'],
             'niches' => [],
         ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $secondFace->id]);
         // Face with 'acteur' only
-        Face::factory()->create([
+        $thirdFace = Face::factory()->create([
             'categories' => ['acteur'],
             'niches' => [],
         ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $thirdFace->id]);
 
         $response = $this->getJson('/api/v1/public/faces?categorie=acteur');
 
@@ -172,14 +168,17 @@ class PublicFaceFilterOptionsTest extends TestCase
 
     public function test_filtering_by_single_niche_matches_faces_with_multiple_niches(): void
     {
-        Face::factory()->create([
+        $firstFace = Face::factory()->create([
             'categories' => [],
             'niches' => ['beaute', 'mode'],
         ]);
-        Face::factory()->create([
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $firstFace->id]);
+
+        $secondFace = Face::factory()->create([
             'categories' => [],
             'niches' => ['nourriture'],
         ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $secondFace->id]);
 
         $response = $this->getJson('/api/v1/public/faces?niche=beaute');
 

@@ -2,6 +2,7 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import { faceApi } from '../services/faceApi'
 import type { BioLocationInfo, BioLocationResult } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
+import { BENIN_CITY_VALUES } from '@/shared/constants/beninCities'
 
 const MAX_BIO_LENGTH = 500
 
@@ -15,14 +16,13 @@ export interface UseBioLocationReturn {
   updateBioLocation: (data: {
     bio?: string | null
     ville?: string | null
-    quartier?: string | null
     pays?: string | null
   }) => Promise<BioLocationResult>
   clearError: () => void
   validateBio: (bio: string | null) => { valid: boolean; error?: string }
   validateLocation: (data: {
     ville?: string | null
-    quartier?: string | null
+    pays?: string | null
   }) => { valid: boolean; error?: string }
 }
 
@@ -55,18 +55,26 @@ export function useBioLocation(): UseBioLocationReturn {
   }
 
   /**
-   * Validate location fields (quartier requires ville)
+   * Validate location fields against Benin city rules.
    */
   function validateLocation(data: {
     ville?: string | null
-    quartier?: string | null
+    pays?: string | null
   }): { valid: boolean; error?: string } {
-    if (data.quartier && !data.ville) {
+    if (data.ville && !BENIN_CITY_VALUES.has(data.ville)) {
       return {
         valid: false,
-        error: 'La ville est requise pour enregistrer le quartier',
+        error: 'Veuillez sélectionner une ville du Bénin valide',
       }
     }
+
+    if ((data.pays ?? bioLocationInfo.value?.pays ?? 'Bénin') !== 'Bénin' && data.ville) {
+      return {
+        valid: false,
+        error: 'La ville doit être vide lorsque le pays n\'est pas "Bénin".',
+      }
+    }
+
     return { valid: true }
   }
 
@@ -100,7 +108,6 @@ export function useBioLocation(): UseBioLocationReturn {
   async function updateBioLocation(data: {
     bio?: string | null
     ville?: string | null
-    quartier?: string | null
     pays?: string | null
   }): Promise<BioLocationResult> {
     // Validate bio
@@ -118,7 +125,7 @@ export function useBioLocation(): UseBioLocationReturn {
     // Validate location
     const locationValidation = validateLocation({
       ville: data.ville ?? bioLocationInfo.value?.ville,
-      quartier: data.quartier,
+      pays: data.pays ?? bioLocationInfo.value?.pays,
     })
     if (!locationValidation.valid) {
       error.value = locationValidation.error ?? 'Localisation invalide'

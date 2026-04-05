@@ -225,7 +225,6 @@ export const faceApi = {
   async updateBioLocation(data: {
     bio?: string | null
     ville?: string | null
-    quartier?: string | null
     pays?: string | null
   }): Promise<BioLocationResponse> {
     await getCsrfCookie()
