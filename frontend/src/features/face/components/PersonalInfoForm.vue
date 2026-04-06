@@ -2,7 +2,7 @@
 import { reactive, watch } from 'vue'
 import type { PersonalInfoInfo } from '../types'
 import { FloatingField, FloatingSelect } from '@/components/ui/form'
-import { Users, Calendar, Globe, MapPin } from 'lucide-vue-next'
+import { Users, Calendar, Globe, MapPin, Phone } from 'lucide-vue-next'
 
 const props = defineProps<{
   personalInfo: PersonalInfoInfo | null
@@ -11,7 +11,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'save', data: { sexe: string | null; date_naissance: string | null; nationalite: string | null; pays: string | null; show_age: boolean }): void
+  (e: 'save', data: { sexe: string | null; date_naissance: string | null; nationalite: string | null; pays: string | null; show_age: boolean; whatsapp_number: string | null }): void
 }>()
 
 const sexeOptions = [
@@ -26,6 +26,7 @@ const form = reactive({
   nationalite: '',
   pays: '',
   show_age: true,
+  whatsapp_number: '',
 })
 
 // Watch for personalInfo changes and update form
@@ -38,6 +39,7 @@ watch(
       form.nationalite = info.nationalite ?? ''
       form.pays = info.pays ?? ''
       form.show_age = info.show_age ?? true
+      form.whatsapp_number = info.whatsapp_number ?? ''
     }
   },
   { immediate: true },
@@ -50,6 +52,7 @@ const handleSubmit = () => {
     nationalite: form.nationalite || null,
     pays: form.pays || null,
     show_age: form.show_age,
+    whatsapp_number: form.whatsapp_number || null,
   })
 }
 </script>
@@ -115,6 +118,16 @@ const handleSubmit = () => {
         data-testid="pays-input"
       />
     </div>
+
+    <!-- WhatsApp -->
+    <FloatingField
+      id="whatsapp-number"
+      v-model="form.whatsapp_number"
+      type="tel"
+      label="Numéro WhatsApp"
+      :icon="Phone"
+      data-testid="whatsapp-number-input"
+    />
 
     <!-- Show age toggle -->
     <div class="flex items-center justify-between py-3 px-4 border border-gray-100 rounded-xl bg-white shadow-sm">

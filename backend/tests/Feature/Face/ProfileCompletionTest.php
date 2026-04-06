@@ -65,14 +65,14 @@ class ProfileCompletionTest extends TestCase
             ->assertJsonPath('data.profile_completion_percentage', 0)
             ->assertJsonPath('data.profile_completion_is_complete', false);
 
-        // Should have all 8 missing items
+        // Should have all 9 missing items
         $missing = $response->json('data.profile_completion_missing');
-        $this->assertCount(8, $missing);
+        $this->assertCount(9, $missing);
     }
 
     public function test_partial_profile_shows_correct_percentage(): void
     {
-        // Fill 3 out of 8 fields (profile_photo, bio, ville) = ~38%
+        // Fill 3 out of 9 fields (profile_photo, bio, ville) = ~33%
         $this->face->update([
             'profile_photo' => 'photo.jpg',
             'bio' => 'Test bio',
@@ -83,12 +83,12 @@ class ProfileCompletionTest extends TestCase
             ->getJson('/api/v1/face/profile-completion');
 
         $response->assertOk()
-            ->assertJsonPath('data.profile_completion_percentage', 38) // 3/8 = 37.5% rounds to 38%
+            ->assertJsonPath('data.profile_completion_percentage', 33) // 3/9 = 33.3% rounds to 33%
             ->assertJsonPath('data.profile_completion_is_complete', false);
 
-        // Should have 5 missing items
+        // Should have 6 missing items
         $missing = $response->json('data.profile_completion_missing');
-        $this->assertCount(5, $missing);
+        $this->assertCount(6, $missing);
     }
 
     public function test_complete_profile_shows_hundred_percent(): void
@@ -102,6 +102,7 @@ class ProfileCompletionTest extends TestCase
             'categories' => [FaceCategory::MANNEQUIN->value],
             'tarif_horaire' => 50000,
             'langues' => ['Français'],
+            'whatsapp_number' => '+22990001122',
         ]);
 
         $response = $this->actingAs($this->faceUser)
@@ -135,6 +136,7 @@ class ProfileCompletionTest extends TestCase
         $this->assertContains('categories', $keys);
         $this->assertContains('tarifs', $keys);
         $this->assertContains('langues', $keys);
+        $this->assertContains('whatsapp_number', $keys);
 
         // Check French labels exist
         $labels = array_column($missing, 'label');
@@ -146,6 +148,7 @@ class ProfileCompletionTest extends TestCase
         $this->assertContains('Sélectionnez votre catégorie', $labels);
         $this->assertContains('Ajoutez vos tarifs', $labels);
         $this->assertContains('Ajoutez vos langues parlées', $labels);
+        $this->assertContains('Ajoutez votre numéro WhatsApp', $labels);
     }
 
     public function test_tarif_validation_with_hourly_only(): void
@@ -244,7 +247,7 @@ class ProfileCompletionTest extends TestCase
             ->getJson('/api/v1/face/profile-completion');
 
         $newPercentage = $response2->json('data.profile_completion_percentage');
-        $this->assertEquals(13, $newPercentage); // 1/8 = 12.5% rounds to 13%
+        $this->assertEquals(11, $newPercentage); // 1/9 = 11.1% rounds to 11%
     }
 
     public function test_empty_string_is_treated_as_missing(): void
