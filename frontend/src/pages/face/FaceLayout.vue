@@ -5,7 +5,8 @@
  * Uses DashboardLayout with Face-specific sidebar items.
  * Child routes render via <router-view> in the content area.
  */
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { LayoutDashboard, FileText, MessageCircle, User, Briefcase, CalendarCheck, Wallet } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
@@ -14,7 +15,9 @@ import { faceApi } from '@/features/face/services/faceApi'
 import type { FaceProfile } from '@/features/face/types'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 import TarifsMissingBanner from '@/components/TarifsMissingBanner.vue'
+import WhatsappMissingBanner from '@/components/WhatsappMissingBanner.vue'
 
+const route = useRoute()
 const authStore = useAuthStore()
 const { logout, isLoading } = useAuth()
 
@@ -22,6 +25,8 @@ const { logout, isLoading } = useAuth()
 const profile = ref<FaceProfile | null>(null)
 
 const hasTarifs = computed(() => !!profile.value?.tarif_journalier)
+const personalInfoLoaded = ref(false)
+const hasWhatsapp = ref(false)
 
 // Sidebar navigation items for Face dashboard
 const sidebarItems: SidebarItem[] = [
@@ -50,6 +55,25 @@ onMounted(async () => {
   } catch {
     // Silently fail - avatar will show fallback
   }
+
+  await fetchWhatsappStatus()
+})
+
+async function fetchWhatsappStatus(): Promise<void> {
+  try {
+    const personalInfo = await faceApi.getPersonalInfo()
+    hasWhatsapp.value = !!personalInfo.data.whatsapp_number
+    personalInfoLoaded.value = true
+  } catch {
+    // Silently fail - banner will show (hasWhatsapp stays false)
+    personalInfoLoaded.value = true
+  }
+}
+
+// Re-check WhatsApp status when navigating between child routes
+// (e.g., user fills WhatsApp on /face/profile then navigates back)
+watch(() => route.path, () => {
+  fetchWhatsappStatus()
 })
 
 async function handleLogout(): Promise<void> {
@@ -77,6 +101,11 @@ async function handleLogout(): Promise<void> {
     <TarifsMissingBanner
       v-if="profile !== null && !hasTarifs"
       data-testid="tarifs-missing-banner"
+    />
+
+    <!-- WhatsApp missing banner (shown until Face sets their WhatsApp number) -->
+    <WhatsappMissingBanner
+      v-if="personalInfoLoaded && !hasWhatsapp"
     />
 
     <!-- Child routes render here -->

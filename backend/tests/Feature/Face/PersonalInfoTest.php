@@ -209,6 +209,93 @@ class PersonalInfoTest extends TestCase
             ->assertJsonPath('errors.show_age.0', 'La valeur doit être vrai ou faux.');
     }
 
+    public function test_get_personal_info_includes_whatsapp_number(): void
+    {
+        $this->face->update(['whatsapp_number' => '+22990001122']);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/personal-info');
+
+        $response->assertOk()
+            ->assertJsonPath('data.whatsapp_number', '+22990001122');
+    }
+
+    public function test_can_update_whatsapp_number(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', [
+                'whatsapp_number' => '+22997001234',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.whatsapp_number', '+22997001234');
+
+        $this->assertDatabaseHas('faces', [
+            'id' => $this->face->id,
+            'whatsapp_number' => '+22997001234',
+        ]);
+    }
+
+    public function test_can_clear_whatsapp_number(): void
+    {
+        $this->face->update(['whatsapp_number' => '+22990001122']);
+
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', [
+                'whatsapp_number' => null,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.whatsapp_number', null);
+
+        $this->assertDatabaseHas('faces', [
+            'id' => $this->face->id,
+            'whatsapp_number' => null,
+        ]);
+    }
+
+    public function test_rejects_whatsapp_number_longer_than_30_chars(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', [
+                'whatsapp_number' => str_repeat('1', 31),
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['whatsapp_number'])
+            ->assertJsonPath('errors.whatsapp_number.0', 'Le numéro WhatsApp ne peut pas dépasser 30 caractères.');
+    }
+
+    public function test_profile_completion_counts_whatsapp_number(): void
+    {
+        // Face with all 9 fields filled
+        $this->face->update([
+            'profile_photo' => 'photo.jpg',
+            'presentation_video' => 'video.mp4',
+            'acting_video' => 'acting.mp4',
+            'bio' => 'My bio',
+            'ville' => 'Cotonou',
+            'categories' => ['mannequin'],
+            'tarif_horaire' => 5000,
+            'langues' => ['francais'],
+            'whatsapp_number' => '+22990001122',
+        ]);
+
+        $this->assertEquals(100, $this->face->fresh()->profile_completion_percentage);
+    }
+
+    public function test_profile_completion_missing_includes_whatsapp_when_empty(): void
+    {
+        $face = $this->face->fresh();
+        $missing = $face->profile_completion_missing;
+        $missingKeys = array_column($missing, 'key');
+
+        $this->assertContains('whatsapp_number', $missingKeys);
+
+        $whatsappItem = collect($missing)->firstWhere('key', 'whatsapp_number');
+        $this->assertEquals('Ajoutez votre numéro WhatsApp', $whatsappItem['label']);
+    }
+
     public function test_face_owner_always_sees_own_age_regardless_of_show_age(): void
     {
         $this->face->update([

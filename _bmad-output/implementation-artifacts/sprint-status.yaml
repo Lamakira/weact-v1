@@ -334,12 +334,30 @@ development_status:
   # ============================================
 
   # Epic FIX-7: Standardisation formulaire de publication de mission (2 stories)
-  epic-fix-7: in-progress
+  epic-fix-7: done
   fix-7-1-mission-duration-select: done                           # Replace free-text duree with preset select (like booking)
   fix-7-2-mission-location-benin-cities: done            # Replace free-text lieu with Benin cities select
 
   # Epic FIX-8: Visibilité de l'âge des Faces (1 story)
-  epic-fix-8: backlog
-  fix-8-1-face-age-visibility-toggle: backlog                    # Allow Face to hide/show age publicly
+  epic-fix-8: done
+  fix-8-1-face-age-visibility-toggle: done                    # Allow Face to hide/show age publicly
+
+  # ============================================
+  # POST-LAUNCH FIXES Sprint 6 (Client issues - 2026-04-06)
+  # Source: epics-postlaunch-fixes-5.md (3 epics, 4 stories)
+  # ============================================
+
+  # Epic FIX-9: Champ WhatsApp — édition, complétion profil et hint dashboard (2 stories)
+  epic-fix-9: in-progress
+  fix-9-1-whatsapp-editable-profile-completion: done       # WhatsApp modifiable dans profil + compté dans complétion
+  fix-9-2-whatsapp-dashboard-hint-banner: backlog             # Bandeau hint WhatsApp sur dashboard Face
+
+  # Epic FIX-10: Remboursement Producer en cas d'absence Face (1 story)
+  epic-fix-10: backlog
+  fix-10-1-no-show-report-refund: backlog                     # Signalement absence Face + refund escrow Producer
+
+  # Epic FIX-11: Visibilité emails utilisateurs côté admin (1 story)
+  epic-fix-11: backlog
+  fix-11-1-admin-display-user-emails: backlog                 # Afficher emails dans pages admin Face/Producer
 
 last_updated: "2026-04-06"

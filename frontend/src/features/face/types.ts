@@ -362,6 +362,7 @@ export interface PersonalInfoInfo {
   nationalite: string | null
   pays: string | null
   show_age: boolean
+  whatsapp_number: string | null
 }
 
 // Personal info API response
@@ -377,6 +378,7 @@ export interface PersonalInfoFormData {
   nationalite?: string | null
   pays?: string | null
   show_age?: boolean
+  whatsapp_number?: string | null
 }
 
 // Personal info operation result

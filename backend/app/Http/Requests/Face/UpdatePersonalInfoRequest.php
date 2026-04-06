@@ -34,6 +34,7 @@ class UpdatePersonalInfoRequest extends FormRequest
             'nationalite' => ['nullable', 'string', 'max:100'],
             'pays' => ['nullable', 'string', 'max:100'],
             'show_age' => ['sometimes', 'boolean'],
+            'whatsapp_number' => ['nullable', 'string', 'max:30'],
         ];
     }
 
@@ -51,6 +52,7 @@ class UpdatePersonalInfoRequest extends FormRequest
             'nationalite.max' => 'La nationalité ne peut pas dépasser :max caractères.',
             'pays.max' => 'Le pays ne peut pas dépasser :max caractères.',
             'show_age.boolean' => 'La valeur doit être vrai ou faux.',
+            'whatsapp_number.max' => 'Le numéro WhatsApp ne peut pas dépasser :max caractères.',
         ];
     }
 }

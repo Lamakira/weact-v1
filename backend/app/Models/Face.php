@@ -315,13 +315,14 @@ class Face extends Model
      * - categorie
      * - tarif_horaire OR tarif_journalier (at least one)
      * - langues
+     * - whatsapp_number
      */
     protected function profileCompletionPercentage(): Attribute
     {
         return Attribute::make(
             get: function (): int {
                 $completed = 0;
-                $total = 8;
+                $total = 9;
 
                 if ($this->profile_photo) {
                     $completed++;
@@ -345,6 +346,9 @@ class Face extends Model
                     $completed++;
                 }
                 if (! empty($this->langues)) {
+                    $completed++;
+                }
+                if ($this->whatsapp_number) {
                     $completed++;
                 }
 
@@ -387,6 +391,9 @@ class Face extends Model
                 }
                 if (empty($this->langues)) {
                     $missing[] = ['key' => 'langues', 'label' => 'Ajoutez vos langues parlées'];
+                }
+                if (! $this->whatsapp_number) {
+                    $missing[] = ['key' => 'whatsapp_number', 'label' => 'Ajoutez votre numéro WhatsApp'];
                 }
 
                 return $missing;

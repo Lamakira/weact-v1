@@ -32,6 +32,7 @@ class PersonalInfoController extends Controller
                 'nationalite' => $face->nationalite,
                 'pays' => $face->pays,
                 'show_age' => $face->show_age,
+                'whatsapp_number' => $face->whatsapp_number,
             ],
         ]);
     }
@@ -58,6 +59,7 @@ class PersonalInfoController extends Controller
                 'nationalite' => $face->nationalite,
                 'pays' => $face->pays,
                 'show_age' => $face->show_age,
+                'whatsapp_number' => $face->whatsapp_number,
             ],
             'message' => 'Informations personnelles mises à jour avec succès',
         ]);
