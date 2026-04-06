@@ -14,6 +14,7 @@ export interface UsePersonalInfoReturn {
     date_naissance?: string | null
     nationalite?: string | null
     pays?: string | null
+    show_age?: boolean
   }) => Promise<PersonalInfoResult>
   clearError: () => void
 }
@@ -59,6 +60,7 @@ export function usePersonalInfo(): UsePersonalInfoReturn {
     date_naissance?: string | null
     nationalite?: string | null
     pays?: string | null
+    show_age?: boolean
   }): Promise<PersonalInfoResult> {
     isSaving.value = true
     error.value = null

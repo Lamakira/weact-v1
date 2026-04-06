@@ -35,6 +35,7 @@ interface ResumeField {
   fallback: string
   icon: typeof User
   testId: string
+  hidden?: boolean
 }
 
 const fields = computed((): ResumeField[] => [
@@ -51,6 +52,7 @@ const fields = computed((): ResumeField[] => [
     fallback: 'Non renseigné',
     icon: Calendar,
     testId: 'resume-age',
+    hidden: props.candidate.age == null,
   },
   {
     label: 'Taille',
@@ -108,7 +110,7 @@ const fields = computed((): ResumeField[] => [
     <!-- Fields -->
     <div class="divide-y divide-border">
       <div
-        v-for="field in fields"
+        v-for="field in fields.filter(f => !f.hidden)"
         :key="field.testId"
         class="flex items-center gap-3 px-6 py-3"
         :data-testid="field.testId"

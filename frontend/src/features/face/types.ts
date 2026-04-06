@@ -361,6 +361,7 @@ export interface PersonalInfoInfo {
   date_naissance: string | null
   nationalite: string | null
   pays: string | null
+  show_age: boolean
 }
 
 // Personal info API response
@@ -375,6 +376,7 @@ export interface PersonalInfoFormData {
   date_naissance?: string | null
   nationalite?: string | null
   pays?: string | null
+  show_age?: boolean
 }
 
 // Personal info operation result

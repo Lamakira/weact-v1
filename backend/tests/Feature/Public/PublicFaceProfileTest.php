@@ -8,6 +8,7 @@ use App\Enums\FaceCategory;
 use App\Enums\FaceNiche;
 use App\Models\Face;
 use App\Models\FacePhoto;
+use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -344,5 +345,66 @@ class PublicFaceProfileTest extends TestCase
         $response->assertOk();
         $response->assertHeader('X-RateLimit-Limit');
         $response->assertHeader('X-RateLimit-Remaining');
+    }
+
+    public function test_public_profile_returns_age_when_show_age_is_true(): void
+    {
+        $face = Face::factory()->create([
+            'date_naissance' => '1995-06-15',
+            'show_age' => true,
+            'is_available' => true,
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+
+        $response = $this->getJson("/api/v1/public/faces/{$face->username}");
+
+        $response->assertOk();
+        $this->assertNotNull($response->json('data.age'));
+    }
+
+    public function test_public_profile_returns_null_age_when_show_age_is_false(): void
+    {
+        $face = Face::factory()->create([
+            'date_naissance' => '1995-06-15',
+            'show_age' => false,
+            'is_available' => true,
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+
+        $response = $this->getJson("/api/v1/public/faces/{$face->username}");
+
+        $response->assertOk();
+        $this->assertNull($response->json('data.age'));
+    }
+
+    public function test_producer_sees_null_age_when_show_age_is_false(): void
+    {
+        $face = Face::factory()->create([
+            'date_naissance' => '1995-06-15',
+            'show_age' => false,
+            'is_available' => true,
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+
+        $producer = Producer::factory()->create();
+        $producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+
+        $response = $this->actingAs($producerUser)
+            ->getJson("/api/v1/producer/candidates/{$face->id}");
+
+        $response->assertOk();
+        $this->assertNull($response->json('data.age'));
     }
 }

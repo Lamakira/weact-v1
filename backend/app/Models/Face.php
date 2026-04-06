@@ -52,6 +52,7 @@ class Face extends Model
         'tarif_journalier',
         'is_available',
         'is_featured',
+        'show_age',
         'rating_penalty',
     ];
 
@@ -68,6 +69,7 @@ class Face extends Model
         'niches' => 'array',
         'is_available' => 'boolean',
         'is_featured' => 'boolean',
+        'show_age' => 'boolean',
         'rating_penalty' => 'float',
     ];
 

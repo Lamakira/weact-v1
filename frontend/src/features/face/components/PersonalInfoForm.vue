@@ -11,7 +11,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'save', data: { sexe: string | null; date_naissance: string | null; nationalite: string | null; pays: string | null }): void
+  (e: 'save', data: { sexe: string | null; date_naissance: string | null; nationalite: string | null; pays: string | null; show_age: boolean }): void
 }>()
 
 const sexeOptions = [
@@ -25,6 +25,7 @@ const form = reactive({
   date_naissance: '',
   nationalite: '',
   pays: '',
+  show_age: true,
 })
 
 // Watch for personalInfo changes and update form
@@ -36,6 +37,7 @@ watch(
       form.date_naissance = info.date_naissance ?? ''
       form.nationalite = info.nationalite ?? ''
       form.pays = info.pays ?? ''
+      form.show_age = info.show_age ?? true
     }
   },
   { immediate: true },
@@ -47,6 +49,7 @@ const handleSubmit = () => {
     date_naissance: form.date_naissance || null,
     nationalite: form.nationalite || null,
     pays: form.pays || null,
+    show_age: form.show_age,
   })
 }
 </script>
@@ -111,6 +114,30 @@ const handleSubmit = () => {
         :icon="MapPin"
         data-testid="pays-input"
       />
+    </div>
+
+    <!-- Show age toggle -->
+    <div class="flex items-center justify-between py-3 px-4 border border-gray-100 rounded-xl bg-white shadow-sm">
+      <div class="flex flex-col gap-0.5">
+        <span class="text-sm font-medium text-gray-700">Afficher mon âge publiquement</span>
+        <span class="text-xs text-gray-500">Votre âge sera {{ form.show_age ? 'visible' : 'masqué' }} sur votre profil public</span>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        :aria-checked="form.show_age"
+        aria-label="Afficher mon âge publiquement"
+        class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+        :class="form.show_age ? 'bg-teal-600' : 'bg-gray-200'"
+        data-testid="show-age-toggle"
+        @click="form.show_age = !form.show_age"
+      >
+        <span
+          aria-hidden="true"
+          class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out"
+          :class="form.show_age ? 'translate-x-5' : 'translate-x-1'"
+        />
+      </button>
     </div>
 
     <!-- Action Button -->

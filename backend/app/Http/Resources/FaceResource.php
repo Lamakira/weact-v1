@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Models\Admin;
+use App\Models\Face;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -26,7 +28,7 @@ class FaceResource extends JsonResource
             'username' => $this->username,
             'sexe' => $this->sexe?->value,
             'sexe_label' => $this->sexe?->label(),
-            'age' => $this->age,
+            'age' => $this->resolveAge($request),
             'nationalite' => $this->nationalite,
             'langues' => $this->langues,
             'profile_photo_url' => $this->profile_photo_url,
@@ -66,5 +68,27 @@ class FaceResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Resolve age visibility based on requesting user context.
+     * Admins and the Face owner always see age. Others respect show_age.
+     */
+    private function resolveAge(Request $request): ?int
+    {
+        $user = $request->user();
+
+        // Admin always sees age
+        if ($user instanceof Admin) {
+            return $this->age;
+        }
+
+        // Face owner always sees their own age
+        if ($user && $user->userable_type === Face::class && $user->userable_id === $this->id) {
+            return $this->age;
+        }
+
+        // Everyone else (producers) respects show_age
+        return $this->show_age ? $this->age : null;
     }
 }

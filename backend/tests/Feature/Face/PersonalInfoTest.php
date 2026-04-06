@@ -148,4 +148,78 @@ class PersonalInfoTest extends TestCase
 
         $response->assertUnauthorized();
     }
+
+    public function test_show_age_defaults_to_true(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/personal-info');
+
+        $response->assertOk()
+            ->assertJsonPath('data.show_age', true);
+
+        $this->assertDatabaseHas('faces', [
+            'id' => $this->face->id,
+            'show_age' => true,
+        ]);
+    }
+
+    public function test_can_update_show_age_to_false(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', [
+                'show_age' => false,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.show_age', false);
+
+        $this->assertDatabaseHas('faces', [
+            'id' => $this->face->id,
+            'show_age' => false,
+        ]);
+    }
+
+    public function test_can_update_show_age_to_true(): void
+    {
+        $this->face->update(['show_age' => false]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', [
+                'show_age' => true,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.show_age', true);
+
+        $this->assertDatabaseHas('faces', [
+            'id' => $this->face->id,
+            'show_age' => true,
+        ]);
+    }
+
+    public function test_rejects_non_boolean_show_age(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', [
+                'show_age' => 'yes',
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['show_age'])
+            ->assertJsonPath('errors.show_age.0', 'La valeur doit être vrai ou faux.');
+    }
+
+    public function test_face_owner_always_sees_own_age_regardless_of_show_age(): void
+    {
+        $this->face->update([
+            'date_naissance' => '1995-06-15',
+            'show_age' => false,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/profile');
+
+        $response->assertOk();
+        $this->assertNotNull($response->json('data.age'));
+    }
 }

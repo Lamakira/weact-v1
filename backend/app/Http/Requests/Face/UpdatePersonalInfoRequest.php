@@ -33,6 +33,7 @@ class UpdatePersonalInfoRequest extends FormRequest
             'date_naissance' => ['nullable', 'date', 'before_or_equal:' . now()->subYears(16)->format('Y-m-d')],
             'nationalite' => ['nullable', 'string', 'max:100'],
             'pays' => ['nullable', 'string', 'max:100'],
+            'show_age' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -49,6 +50,7 @@ class UpdatePersonalInfoRequest extends FormRequest
             'date_naissance.before_or_equal' => 'Vous devez avoir au moins 16 ans.',
             'nationalite.max' => 'La nationalité ne peut pas dépasser :max caractères.',
             'pays.max' => 'Le pays ne peut pas dépasser :max caractères.',
+            'show_age.boolean' => 'La valeur doit être vrai ou faux.',
         ];
     }
 }

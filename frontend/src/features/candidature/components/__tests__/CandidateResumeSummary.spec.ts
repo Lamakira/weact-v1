@@ -85,7 +85,7 @@ describe('CandidateResumeSummary', () => {
     )
 
     expect(wrapper.find('[data-testid="resume-sexe"]').text()).toContain('Non renseigné')
-    expect(wrapper.find('[data-testid="resume-age"]').text()).toContain('Non renseigné')
+    expect(wrapper.find('[data-testid="resume-age"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="resume-taille"]').text()).toContain('Non renseigné')
     expect(wrapper.find('[data-testid="resume-nationalite"]').text()).toContain('Non renseigné')
     expect(wrapper.find('[data-testid="resume-langues"]').text()).toContain('Non renseigné')

@@ -31,12 +31,13 @@ class PersonalInfoController extends Controller
                 'date_naissance' => $face->date_naissance?->format('Y-m-d'),
                 'nationalite' => $face->nationalite,
                 'pays' => $face->pays,
+                'show_age' => $face->show_age,
             ],
         ]);
     }
 
     /**
-     * Update personal info (sexe, date_naissance, nationalite, pays).
+     * Update personal info (sexe, date_naissance, nationalite, pays, show_age).
      */
     public function update(UpdatePersonalInfoRequest $request): JsonResponse
     {
@@ -56,6 +57,7 @@ class PersonalInfoController extends Controller
                 'date_naissance' => $face->date_naissance?->format('Y-m-d'),
                 'nationalite' => $face->nationalite,
                 'pays' => $face->pays,
+                'show_age' => $face->show_age,
             ],
             'message' => 'Informations personnelles mises à jour avec succès',
         ]);

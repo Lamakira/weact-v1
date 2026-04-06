@@ -33,7 +33,7 @@ class PublicFaceProfileResource extends JsonResource
             'prenom' => $this->prenom,
             'sexe' => $this->sexe?->value,
             'sexe_label' => $this->sexe?->label(),
-            'age' => $this->age,
+            'age' => $this->show_age ? $this->age : null,
             'nationalite' => $this->nationalite,
             'langues' => $this->langues ?? [],
             'taille' => $this->taille,
