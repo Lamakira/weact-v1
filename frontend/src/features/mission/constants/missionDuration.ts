@@ -48,7 +48,7 @@ export function parseDurationToPreset(duree: string): { preset: string; customDa
 
   const match = duree.match(CUSTOM_PATTERN)
   if (match) {
-    const days = parseInt(match[1], 10)
+    const days = parseInt(match[1]!, 10)
     if (days > 5) {
       return { preset: 'custom', customDays: days }
     }

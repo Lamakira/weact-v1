@@ -93,7 +93,7 @@ const genderOptions = getMissionGenderOptions()
 // Duration preset state
 const initialDuree = props.initialValues?.duree
   ? parseDurationToPreset(props.initialValues.duree)
-  : { preset: MISSION_DURATION_PRESETS[0].value }
+  : { preset: MISSION_DURATION_PRESETS[0]!.value }
 const selectedDureePreset = ref<string>(initialDuree.preset)
 const customDureeJours = ref<number>(initialDuree.customDays ?? 6)
 const customDureeError = ref<string>('')
@@ -113,7 +113,7 @@ const { handleSubmit, setFieldError } = useForm({
     type_mission_autre: props.initialValues?.type_mission_autre ?? '',
     genre_voulu: props.initialValues?.genre_voulu ?? MissionGender.TOUS,
     lieu: props.initialValues?.lieu ?? '',
-    duree: props.initialValues?.duree ?? MISSION_DURATION_PRESETS[0].value,
+    duree: props.initialValues?.duree ?? MISSION_DURATION_PRESETS[0]!.value,
   },
 })
 
