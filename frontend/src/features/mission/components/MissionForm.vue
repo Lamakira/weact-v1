@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useForm, useField } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import { missionSchema } from '../schemas/mission'
 import { useMissionCreate } from '../composables/useMissionCreate'
+import {
+  MISSION_DURATION_PRESETS,
+  formatCustomDuration,
+  parseDurationToPreset,
+} from '../constants/missionDuration'
 import {
   MissionType,
   MissionGender,
@@ -23,6 +28,7 @@ import {
   Calendar,
   UserCircle,
   AlertCircle,
+  Info,
   Loader2,
   Send,
   Save,
@@ -83,6 +89,15 @@ async function handleResendVerification(): Promise<void> {
 const missionTypeOptions = getMissionTypeOptions()
 const genderOptions = getMissionGenderOptions()
 
+// Duration preset state
+const initialDuree = props.initialValues?.duree
+  ? parseDurationToPreset(props.initialValues.duree)
+  : { preset: MISSION_DURATION_PRESETS[0].value }
+const selectedDureePreset = ref<string>(initialDuree.preset)
+const customDureeJours = ref<number>(initialDuree.customDays ?? 6)
+const customDureeError = ref<string>('')
+const isLegacyDuree = ref(initialDuree.isLegacy === true)
+
 const { handleSubmit, setFieldError } = useForm({
   validationSchema: toTypedSchema(missionSchema),
   initialValues: {
@@ -97,7 +112,7 @@ const { handleSubmit, setFieldError } = useForm({
     type_mission_autre: props.initialValues?.type_mission_autre ?? '',
     genre_voulu: props.initialValues?.genre_voulu ?? MissionGender.TOUS,
     lieu: props.initialValues?.lieu ?? '',
-    duree: props.initialValues?.duree ?? '',
+    duree: props.initialValues?.duree ?? MISSION_DURATION_PRESETS[0].value,
   },
 })
 
@@ -116,6 +131,27 @@ const { value: nombre_faces_voulu, errorMessage: nombreFacesError } =
 const { value: date_limite_candidature, errorMessage: dateLimiteError } =
   useField<string>('date_limite_candidature')
 const { value: date_tournage, errorMessage: dateTournageError } = useField<string>('date_tournage')
+
+// Sync duration preset / custom days → duree field
+watch([selectedDureePreset, customDureeJours], () => {
+  // Clear legacy flag on first user interaction — preserve original value until then
+  if (isLegacyDuree.value) {
+    isLegacyDuree.value = false
+    return
+  }
+  if (selectedDureePreset.value === 'custom') {
+    const days = Number(customDureeJours.value)
+    if (!Number.isInteger(days) || days <= 5) {
+      customDureeError.value = 'Entrez un nombre de jours entier supérieur à 5'
+      return
+    }
+    customDureeError.value = ''
+    duree.value = formatCustomDuration(days)
+  } else {
+    customDureeError.value = ''
+    duree.value = selectedDureePreset.value
+  }
+})
 
 const apiError = computed(() => error.value)
 
@@ -411,15 +447,36 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
         />
 
         <!-- Durée -->
-        <FloatingField
-          id="duree"
-          v-model="duree"
-          label="Durée estimée"
-          :icon="Clock"
-          :error="dureeError"
-          required
-          data-testid="duree-input"
-        />
+        <div>
+          <FloatingSelect
+            id="duree_preset"
+            v-model="selectedDureePreset"
+            label="Durée du tournage"
+            :icon="Clock"
+            :error="dureeError"
+            :options="MISSION_DURATION_PRESETS"
+            required
+            data-testid="duree-select"
+          />
+          <template v-if="selectedDureePreset === 'custom'">
+            <FloatingField
+              id="duree_custom_jours"
+              v-model="customDureeJours"
+              type="number"
+              label="Nombre de jours"
+              :icon="Clock"
+              :error="customDureeError"
+              required
+              min="6"
+              class="mt-3"
+              data-testid="duree-custom-days"
+            />
+            <div class="flex items-start gap-2 text-xs text-gray-500 mt-1">
+              <Info :size="14" class="shrink-0 mt-0.5 text-blue-400" />
+              <span>Au-delà de 5 jours, seuls des jours entiers sont possibles.</span>
+            </div>
+          </template>
+        </div>
 
         <!-- Date de tournage -->
         <FloatingField
