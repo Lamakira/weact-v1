@@ -328,4 +328,18 @@ development_status:
   epic-fix-6: done
   fix-6-1-reorganize-authenticated-header: done           # Move Mes missions/Mes candidatures out of main header
 
-last_updated: "2026-04-05"
+  # ============================================
+  # POST-LAUNCH FIXES Sprint 5 (Client requests - 2026-04-05 soir)
+  # Source: epics-postlaunch-fixes-4.md (2 epics, 3 stories)
+  # ============================================
+
+  # Epic FIX-7: Standardisation formulaire de publication de mission (2 stories)
+  epic-fix-7: in-progress
+  fix-7-1-mission-duration-select: done                           # Replace free-text duree with preset select (like booking)
+  fix-7-2-mission-location-benin-cities: done            # Replace free-text lieu with Benin cities select
+
+  # Epic FIX-8: Visibilité de l'âge des Faces (1 story)
+  epic-fix-8: backlog
+  fix-8-1-face-age-visibility-toggle: backlog                    # Allow Face to hide/show age publicly
+
+last_updated: "2026-04-06"

@@ -9,6 +9,7 @@ import {
   formatCustomDuration,
   parseDurationToPreset,
 } from '../constants/missionDuration'
+import { BENIN_CITY_OPTIONS } from '@/shared/constants/beninCities'
 import {
   MissionType,
   MissionGender,
@@ -436,14 +437,15 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Lieu -->
-        <FloatingField
+        <FloatingSelect
           id="lieu"
           v-model="lieu"
           label="Lieu du tournage"
           :icon="MapPin"
           :error="lieuError"
+          :options="BENIN_CITY_OPTIONS"
           required
-          data-testid="lieu-input"
+          data-testid="lieu-select"
         />
 
         <!-- Durée -->
