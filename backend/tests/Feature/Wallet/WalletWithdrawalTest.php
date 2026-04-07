@@ -209,11 +209,52 @@ class WalletWithdrawalTest extends TestCase
             ->assertJsonValidationErrors(['payment_mode']);
     }
 
-    public function test_producer_cannot_access_withdrawal_endpoint(): void
+    public function test_producer_can_submit_withdrawal_request(): void
     {
+        $this->producerUser->increment('balance', 50000);
+
+        config([
+            'app.withdrawal_mode' => 'manual',
+            'app.admin_email' => 'admin@example.com',
+        ]);
+        Mail::fake();
+
         $this->withApiToken($this->producerUser)
-            ->postJson('/api/v1/wallet/withdraw', $this->validPayload())
-            ->assertForbidden();
+            ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 10000]))
+            ->assertOk()
+            ->assertJsonPath('status', 'ok')
+            ->assertJsonPath('withdrawal_mode', 'manual');
+
+        $this->producerUser->refresh();
+        $this->assertSame(50000, $this->producerUser->balance); // manual mode: not debited
+
+        $this->assertDatabaseHas('withdrawal_requests', [
+            'user_id' => $this->producerUser->id,
+            'amount' => 10000,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_producer_cannot_submit_withdrawal_when_one_is_already_pending(): void
+    {
+        $this->producerUser->increment('balance', 50000);
+
+        config([
+            'app.withdrawal_mode' => 'manual',
+            'app.admin_email' => 'admin@example.com',
+        ]);
+        Mail::fake();
+
+        // First request succeeds
+        $this->withApiToken($this->producerUser)
+            ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 5000]))
+            ->assertOk();
+
+        // Second request blocked
+        $this->withApiToken($this->producerUser)
+            ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 5000]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['amount']);
     }
 
     public function test_unauthenticated_user_cannot_withdraw(): void

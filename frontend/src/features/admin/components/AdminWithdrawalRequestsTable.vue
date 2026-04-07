@@ -195,7 +195,7 @@ function submitReject(): void {
         <table class="w-full min-w-[920px] text-sm">
           <thead>
             <tr class="border-b border-gray-50 bg-gray-50/60">
-              <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Face</th>
+              <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Utilisateur</th>
               <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Montant</th>
               <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Opérateur</th>
               <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Numéro</th>
@@ -207,7 +207,7 @@ function submitReject(): void {
           <tbody class="divide-y divide-gray-50">
             <tr v-for="request in requests" :key="request.id" class="align-top transition-colors hover:bg-gray-50/40">
               <td class="px-6 py-4">
-                <div class="font-medium text-gray-900">{{ request.user_prenom || 'Face' }}</div>
+                <div class="font-medium text-gray-900">{{ request.user_name || '—' }}</div>
                 <div class="mt-1 text-xs text-gray-500">{{ request.user_email || '—' }}</div>
               </td>
               <td class="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">
@@ -269,7 +269,7 @@ function submitReject(): void {
   <ConfirmModal
     :is-open="approveTarget !== null"
     title="Approuver la demande"
-    message="Le solde sera débité immédiatement et la Face recevra un email de confirmation."
+    message="Le solde sera débité immédiatement et l'utilisateur recevra un email de confirmation."
     confirm-text="Approuver"
     cancel-text="Annuler"
     variant="warning"
@@ -295,13 +295,13 @@ function submitReject(): void {
           <div class="border-b border-gray-100 px-6 py-4">
             <h3 class="text-lg font-semibold text-gray-900">Rejeter la demande</h3>
             <p class="mt-1 text-sm text-gray-500">
-              Cette note sera envoyée à la Face par email.
+              Cette note sera envoyée à l'utilisateur par email.
             </p>
           </div>
 
           <div class="space-y-4 px-6 py-5">
             <div class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              {{ rejectTarget.user_prenom || 'La Face' }} a demandé {{ formatCurrency(rejectTarget.amount) }} via
+              {{ rejectTarget.user_name || 'L\'utilisateur' }} a demandé {{ formatCurrency(rejectTarget.amount) }} via
               {{ paymentModeLabel(rejectTarget.payment_mode) }}.
             </div>
 

@@ -27,7 +27,7 @@ class WithdrawWalletRequest extends FormRequest
 
     public function authorize(): bool
     {
-        // Authorization handled by 'face' middleware on route
+        // Authorization handled by 'face_or_producer' middleware on route
         return true;
     }
 

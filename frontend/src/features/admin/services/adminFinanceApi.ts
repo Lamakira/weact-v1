@@ -66,7 +66,7 @@ export interface WithdrawalRequestEntry {
   processed_at: string | null
   created_at: string
   user_email: string | null
-  user_prenom: string | null
+  user_name: string | null
 }
 
 export const adminFinanceApi = {

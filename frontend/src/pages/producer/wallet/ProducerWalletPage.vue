@@ -1,22 +1,39 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { AlertCircle } from 'lucide-vue-next'
 import {
   WalletBalance,
   WalletTransactionList,
+  WalletWithdrawalRequestList,
+  WalletWithdrawForm,
   useWallet,
 } from '@/features/wallet'
+import type { WithdrawPayload } from '@/features/wallet/services/walletApi'
 
 const {
   balance,
   pendingEscrow,
+  withdrawalMode,
+  withdrawalRequests,
   transactions,
   isLoading,
   error,
   hasMore,
   fetchWallet,
   loadMore,
+  isWithdrawing,
+  withdrawError,
+  withdraw,
 } = useWallet()
+
+const showWithdrawForm = ref(false)
+
+async function handleWithdraw(payload: WithdrawPayload): Promise<void> {
+  const success = await withdraw(payload)
+  if (success) {
+    showWithdrawForm.value = false
+  }
+}
 
 onMounted(() => {
   fetchWallet()
@@ -48,10 +65,22 @@ onMounted(() => {
     <WalletBalance
       :balance="balance"
       :pending-escrow="pendingEscrow"
-      :show-withdraw="false"
       :show-pending-escrow="false"
       empty-state-description="Les remboursements et crédits apparaîtront ici."
+      @withdraw="showWithdrawForm = true"
     />
+
+    <WalletWithdrawForm
+      v-if="showWithdrawForm"
+      :balance="balance"
+      :withdrawal-mode="withdrawalMode"
+      :is-withdrawing="isWithdrawing"
+      :error="withdrawError"
+      @submit="handleWithdraw"
+      @cancel="showWithdrawForm = false"
+    />
+
+    <WalletWithdrawalRequestList :requests="withdrawalRequests" />
 
     <WalletTransactionList
       :transactions="transactions"
