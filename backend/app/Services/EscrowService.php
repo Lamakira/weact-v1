@@ -85,6 +85,37 @@ class EscrowService
     }
 
     /**
+     * Mark escrow as refunded for a no-show (wallet credit, no FedaPay call).
+     * MUST be called inside an existing DB::transaction().
+     *
+     * @throws \RuntimeException if escrow is missing or already settled
+     */
+    public function markRefundedForNoShow(Booking $booking): void
+    {
+        /** @var EscrowTransaction|null $escrow */
+        $escrow = EscrowTransaction::query()
+            ->where('booking_id', $booking->id)
+            ->lockForUpdate()
+            ->first();
+
+        if ($escrow === null) {
+            throw new \RuntimeException("Missing escrow transaction for paid booking {$booking->id}.");
+        }
+
+        if (in_array($escrow->status, [
+            EscrowStatus::Released->value,
+            EscrowStatus::Refunded->value,
+        ], true)) {
+            throw new \RuntimeException("Escrow already settled for booking {$booking->id}.");
+        }
+
+        $escrow->update([
+            'status' => EscrowStatus::Refunded->value,
+            'refunded_at' => now(),
+        ]);
+    }
+
+    /**
      * Process a refund for a cancelled paid booking.
      * MUST be called inside an existing DB::transaction().
      */

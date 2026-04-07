@@ -41,6 +41,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'api.token'])->group(function (
         ->middleware('throttle:60,1')
         ->name('bookings.confirm');
 
+    Route::post('/bookings/{booking}/report-no-show', [BookingController::class, 'reportNoShow'])
+        ->middleware('throttle:60,1')
+        ->name('bookings.report-no-show');
+
     Route::post('/bookings/{booking}/rate', [BookingRatingController::class, 'store'])
         ->middleware('throttle:60,1')
         ->name('bookings.rate');

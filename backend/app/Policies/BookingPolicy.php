@@ -100,6 +100,15 @@ class BookingPolicy
     }
 
     /**
+     * Determine if the user can report a Face no-show.
+     * Only the Producer can report, and only when status is paid.
+     */
+    public function reportNoShow(User $user, Booking $booking): bool
+    {
+        return $user->id === $booking->producer_id;
+    }
+
+    /**
      * Determine if the user can confirm the booking completion.
      * Either the Face or the Producer can confirm when in a confirmable status.
      */

@@ -95,6 +95,15 @@ export const bookingApi = {
   },
 
   /**
+   * Report a Face no-show on a paid booking (Producer only)
+   */
+  async reportNoShow(bookingId: number): Promise<BookingResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<BookingResponse>(`/bookings/${bookingId}/report-no-show`)
+    return response.data
+  },
+
+  /**
    * Check Fedapay transaction status and process if approved.
    * Fallback polling when webhook delivery is unreliable (sandbox/ngrok).
    */
