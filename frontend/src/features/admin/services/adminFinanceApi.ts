@@ -3,6 +3,8 @@ import adminApiClient, { getCsrfCookie } from './adminApiClient'
 export interface FinanceOverview {
   retirable: {
     amount: number
+    face_balance: number
+    producer_balance: number
     label: string
   }
   faces: {

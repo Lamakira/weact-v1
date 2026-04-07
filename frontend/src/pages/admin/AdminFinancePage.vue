@@ -116,8 +116,17 @@ function handleRefresh(): void {
           <p v-else class="text-2xl font-bold text-gray-900">
             {{ formatCurrency(overview?.retirable.amount ?? 0) }}
           </p>
-          <p class="mt-1 text-sm text-gray-500">Soldes wallets des Faces</p>
-          <p class="mt-3 text-xs text-gray-400">Montant que les Faces peuvent retirer immédiatement</p>
+          <p class="mt-1 text-sm text-gray-500">Soldes wallets (Faces + Producers)</p>
+          <div v-if="overview && !isLoadingOverview" class="mt-3 space-y-1.5">
+            <div class="flex items-center justify-between text-xs">
+              <span class="flex items-center gap-1 text-gray-500"><Users class="h-3 w-3" /> Faces</span>
+              <span class="font-medium text-gray-700">{{ formatCurrency(overview.retirable.face_balance) }}</span>
+            </div>
+            <div class="flex items-center justify-between text-xs">
+              <span class="flex items-center gap-1 text-gray-500"><Wallet class="h-3 w-3" /> Producers</span>
+              <span class="font-medium text-gray-700">{{ formatCurrency(overview.retirable.producer_balance) }}</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -330,7 +339,7 @@ function handleRefresh(): void {
           <thead>
             <tr class="border-b border-gray-50 bg-gray-50/50">
               <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Date</th>
-              <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Face</th>
+              <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Utilisateur</th>
               <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Description</th>
               <th class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Montant</th>
             </tr>
