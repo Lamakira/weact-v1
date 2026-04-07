@@ -10,6 +10,7 @@ import {
   Wallet,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   CheckCircle,
   XCircle,
   Star,
@@ -52,11 +53,13 @@ const {
   isRefusing,
   isConfirming,
   isCancelling,
+  isReportingNoShow,
   error: actionError,
   accept,
   refuse,
   confirm,
   cancel,
+  reportNoShow,
   clearError,
 } = useBookingActions()
 
@@ -70,6 +73,8 @@ const showReasonField = ref(false)
 
 // Cancellation dialog state
 const showCancellationDialog = ref(false)
+// No-show dialog state
+const showNoShowDialog = ref(false)
 const nowTimestamp = ref(Date.now())
 const hasExpiryRealtimeListener = ref(false)
 let countdownTicker: ReturnType<typeof setInterval> | null = null
@@ -129,6 +134,14 @@ const canCancelBooking = computed(() => {
   }
 
   return CANCELLABLE_BY_PRODUCER_STATUSES.includes(booking.value.status)
+})
+
+// No-show report visibility (Producer only, paid, past date_debut)
+const canReportNoShow = computed(() => {
+  if (!booking.value) return false
+  if (isFace.value) return false
+  if (booking.value.status !== BookingStatus.PAID) return false
+  return new Date(booking.value.date_debut).getTime() < nowTimestamp.value
 })
 
 // Confirm button visibility and label (role-aware)
@@ -257,6 +270,20 @@ async function handleCancel(reason: CancellationReasonValue): Promise<void> {
     toast.success('Booking annulé')
   } else {
     toast.error(actionError.value || 'Erreur lors de l\'annulation')
+  }
+}
+
+async function handleReportNoShow(): Promise<void> {
+  if (!booking.value) return
+  clearError()
+
+  const result = await reportNoShow(booking.value.id)
+  if (result) {
+    booking.value = result
+    showNoShowDialog.value = false
+    toast.success('Absence signalée. Le montant a été crédité dans votre portefeuille.')
+  } else {
+    toast.error(actionError.value || 'Erreur lors du signalement')
   }
 }
 
@@ -535,6 +562,18 @@ onUnmounted(() => {
             </button>
           </div>
 
+          <!-- No-show report (Producer only) -->
+          <div v-if="canReportNoShow" class="flex gap-3">
+            <button
+              class="flex-1 flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+              data-testid="report-no-show-btn"
+              @click="showNoShowDialog = true"
+            >
+              <AlertTriangle class="w-4 h-4" />
+              Signaler une absence
+            </button>
+          </div>
+
           <!-- Action buttons -->
           <div v-if="booking.can_accept || booking.can_refuse || booking.can_pay" class="flex gap-3">
             <button
@@ -635,6 +674,40 @@ onUnmounted(() => {
       @confirm="handleCancel"
       @cancel="showCancellationDialog = false"
     />
+
+    <!-- No-show confirmation dialog -->
+    <Teleport to="body">
+      <div
+        v-if="showNoShowDialog"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        @click.self="showNoShowDialog = false"
+      >
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Signaler une absence</h3>
+          <p class="text-sm text-gray-500 mb-4">
+            Cette action est irréversible. Le montant total sera crédité dans votre portefeuille et une pénalité sera appliquée à la Face.
+          </p>
+          <div class="flex gap-3 justify-end">
+            <button
+              class="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
+              :disabled="isReportingNoShow"
+              @click="showNoShowDialog = false"
+            >
+              Annuler
+            </button>
+            <button
+              class="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="isReportingNoShow"
+              data-testid="confirm-no-show-btn"
+              @click="handleReportNoShow"
+            >
+              <Loader2 v-if="isReportingNoShow" class="w-4 h-4 animate-spin inline mr-1" />
+              Confirmer le signalement
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Refuse dialog overlay -->
     <Teleport to="body">

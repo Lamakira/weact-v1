@@ -348,16 +348,18 @@ development_status:
   # ============================================
 
   # Epic FIX-9: Champ WhatsApp — édition, complétion profil et hint dashboard (2 stories)
-  epic-fix-9: in-progress
+  epic-fix-9: done
   fix-9-1-whatsapp-editable-profile-completion: done       # WhatsApp modifiable dans profil + compté dans complétion
-  fix-9-2-whatsapp-dashboard-hint-banner: backlog             # Bandeau hint WhatsApp sur dashboard Face
+  fix-9-2-whatsapp-dashboard-hint-banner: done             # Bandeau hint WhatsApp sur dashboard Face
 
-  # Epic FIX-10: Remboursement Producer en cas d'absence Face (1 story)
-  epic-fix-10: backlog
-  fix-10-1-no-show-report-refund: backlog                     # Signalement absence Face + refund escrow Producer
+  # Epic FIX-10: Wallet Producer, Retrait & Signalement absence Face (3 stories)
+  epic-fix-10: done
+  fix-10-1-producer-wallet-dashboard: done                           # Wallet Producer : solde, historique, page dashboard
+  fix-10-2-producer-wallet-withdrawal: done                               # Retrait Producer : demande retrait → admin traite manuellement
+  fix-10-3-no-show-report-wallet-refund: done                 # Signalement absence Face + crédit wallet Producer + pénalité
 
   # Epic FIX-11: Visibilité emails utilisateurs côté admin (1 story)
-  epic-fix-11: backlog
-  fix-11-1-admin-display-user-emails: backlog                 # Afficher emails dans pages admin Face/Producer
+  epic-fix-11: done
+  fix-11-1-admin-display-user-emails: done                          # Afficher emails dans pages admin Face/Producer
 
-last_updated: "2026-04-06"
+last_updated: "2026-04-08"

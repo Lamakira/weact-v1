@@ -7,6 +7,7 @@ use App\Http\Middleware\EnsureApiBearerToken;
 use App\Http\Middleware\EnsureEmailIsVerified;
 use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\EnsureUserIsAdmin;
+use App\Http\Middleware\EnsureUserIsFaceOrProducer;
 use App\Http\Middleware\EnsureUserIsFace;
 use App\Http\Middleware\EnsureUserIsProducer;
 use Illuminate\Foundation\Application;
@@ -49,6 +50,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'api.token' => EnsureApiBearerToken::class,
             'superadmin' => EnsureSuperAdmin::class,
             'face' => EnsureUserIsFace::class,
+            'face_or_producer' => EnsureUserIsFaceOrProducer::class,
             'producer' => EnsureUserIsProducer::class,
             'verified' => EnsureEmailIsVerified::class,
         ]);

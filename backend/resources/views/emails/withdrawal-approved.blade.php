@@ -20,7 +20,7 @@
                     <tr>
                         <td style="padding: 32px;">
                             <p style="margin: 0 0 20px; color: #374151; font-size: 14px; line-height: 1.6;">
-                                Bonjour {{ $faceFirstName }}, votre retrait de <strong>{{ $formattedAmount }} XOF</strong> a été envoyé.
+                                Bonjour {{ $userDisplayName }}, votre retrait de <strong>{{ $formattedAmount }} XOF</strong> a été envoyé.
                             </p>
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>

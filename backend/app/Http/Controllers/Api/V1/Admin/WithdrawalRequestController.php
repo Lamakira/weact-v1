@@ -46,7 +46,7 @@ class WithdrawalRequestController extends Controller
                 'processed_at' => $withdrawalRequest->processed_at?->toIso8601String(),
                 'created_at' => $withdrawalRequest->created_at?->toIso8601String(),
                 'user_email' => $withdrawalRequest->user?->email,
-                'user_prenom' => data_get($withdrawalRequest->user, 'userable.prenom'),
+                'user_name' => data_get($withdrawalRequest->user, 'userable.display_name'),
             ],
         );
 
@@ -136,7 +136,7 @@ class WithdrawalRequestController extends Controller
             });
         } catch (RuntimeException $e) {
             return response()->json([
-                'message' => 'Solde insuffisant au moment de l’approbation. La Face a probablement depense une partie de ses fonds.',
+                'message' => 'Solde insuffisant au moment de l’approbation. L’utilisateur a probablement dépensé une partie de ses fonds.',
             ], 422);
         }
 

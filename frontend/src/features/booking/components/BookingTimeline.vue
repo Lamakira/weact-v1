@@ -13,7 +13,7 @@ interface TimelineStep {
   key: string
 }
 
-const steps: TimelineStep[] = [
+const baseSteps: TimelineStep[] = [
   { label: 'Demande envoyée', key: 'pending' },
   { label: 'Acceptation', key: 'accepted' },
   { label: 'Paiement', key: 'paid' },
@@ -21,6 +21,19 @@ const steps: TimelineStep[] = [
   { label: 'Confirmation Producteur', key: 'confirmed_by_producer' },
   { label: 'Terminé', key: 'completed' },
 ]
+
+const steps = computed<TimelineStep[]>(() => {
+  if (props.status === BookingStatus.NO_SHOW) {
+    return [
+      baseSteps[0],
+      baseSteps[1],
+      baseSteps[2],
+      { label: 'Absence signalée', key: 'no_show' },
+    ]
+  }
+
+  return baseSteps
+})
 
 // Map booking status to the step index it corresponds to
 const statusToStepIndex: Record<string, number> = {
@@ -31,6 +44,7 @@ const statusToStepIndex: Record<string, number> = {
   [BookingStatus.CONFIRMED_BY_FACE]: 3,
   [BookingStatus.CONFIRMED_BY_PRODUCER]: 4,
   [BookingStatus.COMPLETED]: 5,
+  [BookingStatus.NO_SHOW]: 3,
 }
 
 const terminalNegativeStatuses: BookingStatusType[] = [
@@ -38,6 +52,7 @@ const terminalNegativeStatuses: BookingStatusType[] = [
   BookingStatus.EXPIRED,
   BookingStatus.CANCELLED_BY_FACE,
   BookingStatus.CANCELLED_BY_PRODUCER,
+  BookingStatus.NO_SHOW,
 ]
 
 const isTerminalNegative = computed(() => {
@@ -110,7 +125,7 @@ function getStepState(index: number): 'completed' | 'current' | 'future' {
         </svg>
       </div>
       <span class="text-sm font-medium text-red-700">
-        {{ status === BookingStatus.REFUSED ? 'Refusé' : status === BookingStatus.EXPIRED ? 'Expiré' : 'Annulé' }}
+        {{ status === BookingStatus.REFUSED ? 'Refusé' : status === BookingStatus.EXPIRED ? 'Expiré' : status === BookingStatus.NO_SHOW ? 'Absence signalée' : 'Annulé' }}
       </span>
     </div>
   </div>

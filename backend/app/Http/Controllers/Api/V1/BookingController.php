@@ -41,6 +41,7 @@ class BookingController extends Controller
             BookingStatus::Expired,
             BookingStatus::CancelledByProducer,
             BookingStatus::CancelledByFace,
+            BookingStatus::NoShow,
         ],
     ];
 
@@ -185,6 +186,21 @@ class BookingController extends Controller
         return response()->json([
             'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
             'message' => 'Confirmation enregistrée',
+        ]);
+    }
+
+    /**
+     * Report a Face no-show on a paid booking (Producer only).
+     */
+    public function reportNoShow(Request $request, Booking $booking): JsonResponse
+    {
+        Gate::authorize('reportNoShow', $booking);
+
+        $booking = $this->bookingService->reportNoShow($booking, $request->user());
+
+        return response()->json([
+            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+            'message' => 'Absence signalée',
         ]);
     }
 

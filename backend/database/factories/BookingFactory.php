@@ -168,6 +168,16 @@ class BookingFactory extends Factory
     }
 
     /**
+     * Indicate that the booking is marked as no-show.
+     */
+    public function noShow(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => BookingStatus::NoShow,
+        ]);
+    }
+
+    /**
      * Indicate that the booking has a Fedapay transaction attached.
      */
     public function withFedapayTransaction(): static

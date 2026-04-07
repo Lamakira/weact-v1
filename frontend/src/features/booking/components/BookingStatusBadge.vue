@@ -18,6 +18,7 @@ const statusColorClasses: Record<BookingStatusType, string> = {
   expired: 'bg-red-100 text-red-800',
   cancelled_by_producer: 'bg-red-100 text-red-800',
   cancelled_by_face: 'bg-red-100 text-red-800',
+  no_show: 'bg-red-100 text-red-800',
 }
 
 const label = computed(() => BookingStatusLabel[props.status] || props.status)

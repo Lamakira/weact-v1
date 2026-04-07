@@ -13,6 +13,7 @@ use App\Events\BookingCancelled;
 use App\Events\BookingCompleted;
 use App\Events\BookingCreated;
 use App\Events\BookingExpired;
+use App\Events\BookingNoShowReported;
 use App\Events\BookingPaid;
 use App\Events\BookingPartiallyConfirmed;
 use App\Events\BookingRefused;
@@ -251,6 +252,89 @@ class BookingService
         }
 
         return $cancelledBooking;
+    }
+
+    /**
+     * Report a Face no-show on a paid booking whose shooting date has passed.
+     * Credits 100% of montant_total_producteur to Producer's wallet.
+     * Updates escrow to refunded. Applies rating penalty to Face.
+     *
+     * @throws ValidationException
+     */
+    public function reportNoShow(Booking $booking, User $reporter): Booking
+    {
+        $reportedBooking = DB::transaction(function () use ($booking, $reporter): Booking {
+            $lockedBooking = Booking::query()
+                ->with(['face.userable', 'escrowTransaction'])
+                ->lockForUpdate()
+                ->findOrFail($booking->id);
+
+            if ($lockedBooking->status !== BookingStatus::Paid) {
+                throw ValidationException::withMessages([
+                    'status' => ['Le signalement d\'absence n\'est possible que sur un booking payé.'],
+                ]);
+            }
+
+            if ($lockedBooking->date_debut->isFuture()) {
+                throw ValidationException::withMessages([
+                    'date_debut' => ['Le signalement d\'absence n\'est possible qu\'après la date de tournage.'],
+                ]);
+            }
+
+            if ($reporter->id !== $lockedBooking->producer_id) {
+                throw ValidationException::withMessages([
+                    'reporter' => ['Seul le producteur peut signaler une absence.'],
+                ]);
+            }
+
+            $lockedBooking->update(['status' => BookingStatus::NoShow]);
+
+            // Mark escrow as refunded (no FedaPay — wallet credit instead)
+            $this->escrowService->markRefundedForNoShow($lockedBooking);
+
+            // Credit Producer wallet with 100% of montant_total_producteur
+            $this->walletService->credit(
+                $lockedBooking->producer_id,
+                $lockedBooking->montant_total_producteur,
+                $lockedBooking,
+                "Booking #{$lockedBooking->id} — remboursement absence Face (100%)",
+            );
+
+            // Record financial event for audit trail
+            $this->recordFinancialEvent(
+                FinancialEventType::Refund,
+                $lockedBooking,
+                $lockedBooking->montant_total_producteur,
+                ['status' => 'completed', 'metadata' => ['reason' => 'no_show', 'refund_percentage' => 100]],
+            );
+
+            return $lockedBooking->fresh();
+        });
+
+        // Apply rating penalty (non-fatal, outside transaction)
+        try {
+            $faceProfile = $reportedBooking->face?->userable;
+            if ($faceProfile instanceof Face) {
+                $faceProfile->increment('rating_penalty', 1.0);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Failed to apply face rating penalty after no-show report', [
+                'booking_id' => $reportedBooking->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // Dispatch event (non-fatal)
+        try {
+            BookingNoShowReported::dispatch($reportedBooking);
+        } catch (\Throwable $e) {
+            Log::warning('BookingNoShowReported broadcast failed', [
+                'booking_id' => $reportedBooking->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $reportedBooking;
     }
 
     /**

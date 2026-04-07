@@ -9,6 +9,10 @@ const mockIsLoading = ref(false)
 const mockError = ref<string | null>(null)
 const mockIsConfirming = ref(false)
 const mockActionError = ref<string | null>(null)
+const mockIsReportingNoShow = ref(false)
+const mockReportNoShow = vi.fn()
+const mockUserableType = ref('Face')
+const mockUserId = ref(1)
 
 vi.mock('@/features/booking/composables', () => ({
   useBookingDetail: () => ({
@@ -16,24 +20,28 @@ vi.mock('@/features/booking/composables', () => ({
     isLoading: mockIsLoading,
     error: mockError,
     fetchBooking: vi.fn(),
+    notFound: ref(false),
+    refresh: vi.fn(),
   }),
   useBookingActions: () => ({
     isConfirming: mockIsConfirming,
     isAccepting: ref(false),
     isRefusing: ref(false),
-    actionError: mockActionError,
+    isCancelling: ref(false),
+    isReportingNoShow: mockIsReportingNoShow,
+    error: mockActionError,
     confirm: vi.fn(),
     accept: vi.fn(),
     refuse: vi.fn(),
+    cancel: vi.fn(),
+    reportNoShow: mockReportNoShow,
     clearError: vi.fn(),
   }),
 }))
 
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
-    user: { id: 1, userable_type: 'App\\Models\\Face' },
-    isFace: true,
-    isProducer: false,
+    user: { get id() { return mockUserId.value }, get userable_type() { return mockUserableType.value } },
   }),
 }))
 
@@ -113,6 +121,10 @@ describe('FaceBookingDetailPage — shooting date guard', () => {
     mockError.value = null
     mockIsConfirming.value = false
     mockActionError.value = null
+    mockIsReportingNoShow.value = false
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    mockReportNoShow.mockReset()
   })
 
   it('disables confirm button when shooting date is in the future', async () => {
@@ -163,5 +175,58 @@ describe('FaceBookingDetailPage — shooting date guard', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('FaceBookingDetailPage — no-show report button', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockIsLoading.value = false
+    mockError.value = null
+    mockIsConfirming.value = false
+    mockActionError.value = null
+    mockIsReportingNoShow.value = false
+    mockReportNoShow.mockReset()
+  })
+
+  it('shows "Signaler une absence" button when Producer, status=paid, date_debut past', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const pastDate = new Date(Date.now() - 86400000).toISOString()
+    const wrapper = await mountPage(makeBooking({ date_debut: pastDate, producer_id: 2 }))
+
+    const btn = wrapper.find('[data-testid="report-no-show-btn"]')
+    expect(btn.exists()).toBe(true)
+    expect(btn.text()).toContain('Signaler une absence')
+  })
+
+  it('hides "Signaler une absence" button when user is Face', async () => {
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    const pastDate = new Date(Date.now() - 86400000).toISOString()
+    const wrapper = await mountPage(makeBooking({ date_debut: pastDate }))
+
+    const btn = wrapper.find('[data-testid="report-no-show-btn"]')
+    expect(btn.exists()).toBe(false)
+  })
+
+  it('hides "Signaler une absence" button when status is not paid', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const pastDate = new Date(Date.now() - 86400000).toISOString()
+    const wrapper = await mountPage(makeBooking({ status: 'completed', date_debut: pastDate, producer_id: 2 }))
+
+    const btn = wrapper.find('[data-testid="report-no-show-btn"]')
+    expect(btn.exists()).toBe(false)
+  })
+
+  it('hides "Signaler une absence" button when date_debut is in the future', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const futureDate = new Date(Date.now() + 7 * 86400000).toISOString()
+    const wrapper = await mountPage(makeBooking({ date_debut: futureDate, producer_id: 2 }))
+
+    const btn = wrapper.find('[data-testid="report-no-show-btn"]')
+    expect(btn.exists()).toBe(false)
   })
 })

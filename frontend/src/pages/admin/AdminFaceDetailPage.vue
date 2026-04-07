@@ -20,6 +20,7 @@ import {
   Wallet,
   Play,
   Clock,
+  Mail,
 } from 'lucide-vue-next'
 import { useAdminFaces } from '@/features/admin/composables/useAdminFaces'
 import type { UpdateAdminFaceForm, AdminFacePhoto } from '@/features/admin/services/adminFacesApi'
@@ -369,6 +370,18 @@ function closeVideoModal(): void {
               <div class="flex justify-between">
                 <dt class="text-sm text-gray-500">Username</dt>
                 <dd class="text-sm font-medium text-gray-900">@{{ face.username }}</dd>
+              </div>
+              <div class="flex justify-between">
+                <dt class="text-sm text-gray-500 flex items-center gap-1.5">
+                  <Mail class="w-4 h-4" />
+                  Email
+                </dt>
+                <dd class="text-sm font-medium text-gray-900">
+                  <a v-if="face.email" :href="`mailto:${face.email}`" class="text-weact hover:underline">
+                    {{ face.email }}
+                  </a>
+                  <span v-else>—</span>
+                </dd>
               </div>
               <div class="flex justify-between items-start gap-4">
                 <dt class="text-sm text-gray-500">Numéro WhatsApp</dt>

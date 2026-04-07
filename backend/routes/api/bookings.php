@@ -41,6 +41,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'api.token'])->group(function (
         ->middleware('throttle:60,1')
         ->name('bookings.confirm');
 
+    Route::post('/bookings/{booking}/report-no-show', [BookingController::class, 'reportNoShow'])
+        ->middleware('throttle:60,1')
+        ->name('bookings.report-no-show');
+
     Route::post('/bookings/{booking}/rate', [BookingRatingController::class, 'store'])
         ->middleware('throttle:60,1')
         ->name('bookings.rate');
@@ -75,12 +79,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'api.token'])->group(function (
         ->middleware('throttle:30,1')
         ->name('me.notifications.mark-all-read');
 
-    // Wallet (Face-only — 'face' middleware enforces userable_type)
+    // Wallet (Face + Producer read access)
     Route::get('/wallet', [WalletController::class, 'index'])
-        ->middleware(['face', 'throttle:60,1'])
+        ->middleware(['face_or_producer', 'throttle:60,1'])
         ->name('wallet.index');
 
     Route::post('/wallet/withdraw', [WalletController::class, 'withdraw'])
-        ->middleware(['face', 'throttle:withdrawals'])
+        ->middleware(['face_or_producer', 'throttle:withdrawals'])
         ->name('wallet.withdraw');
 });

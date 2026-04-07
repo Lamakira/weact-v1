@@ -59,11 +59,8 @@ class ProducerController extends Controller
      */
     public function show(Producer $producer): JsonResponse
     {
-        $producer->load(['user', 'missions' => fn ($q) => $q->latest()->limit(50), 'ratingsReceived']);
-        $producer->loadCount('missions');
-
         return response()->json([
-            'data' => new ProducerResource($producer),
+            'data' => new ProducerResource($this->loadDetailRelations($producer)),
             'message' => 'Profil Producteur récupéré avec succès',
         ]);
     }
@@ -78,7 +75,7 @@ class ProducerController extends Controller
         $producer->update($validated);
 
         return response()->json([
-            'data' => new ProducerResource($producer->fresh()),
+            'data' => new ProducerResource($this->loadDetailRelations($producer->refresh())),
             'message' => 'Profil Producteur mis à jour avec succès',
         ]);
     }
@@ -90,7 +87,7 @@ class ProducerController extends Controller
     {
         $user = $producer->user;
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'error' => [
                     'code' => 'no_user_account',
@@ -99,17 +96,17 @@ class ProducerController extends Controller
             ], 422);
         }
 
-        $newStatus = !$user->is_active;
+        $newStatus = ! $user->is_active;
         $user->is_active = $newStatus;
         $user->save();
 
         // Revoke all tokens when deactivating
-        if (!$newStatus) {
+        if (! $newStatus) {
             $user->tokens()->delete();
         }
 
         return response()->json([
-            'data' => new ProducerResource($producer->fresh()->load('user')),
+            'data' => new ProducerResource($this->loadDetailRelations($producer->refresh())),
             'message' => $newStatus ? 'Compte activé avec succès' : 'Compte désactivé avec succès',
         ]);
     }
@@ -163,5 +160,13 @@ class ProducerController extends Controller
         return response()->json([
             'message' => 'Profil Producteur supprimé avec succès',
         ]);
+    }
+
+    private function loadDetailRelations(Producer $producer): Producer
+    {
+        $producer->load(['user', 'missions' => fn ($q) => $q->latest()->limit(50), 'ratingsReceived']);
+        $producer->loadCount('missions');
+
+        return $producer;
     }
 }

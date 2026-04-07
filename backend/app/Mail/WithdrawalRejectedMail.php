@@ -32,9 +32,19 @@ class WithdrawalRejectedMail extends Mailable
             view: 'emails.withdrawal-rejected',
             with: [
                 'withdrawalRequest' => $this->withdrawalRequest,
-                'faceFirstName' => (string) data_get($this->withdrawalRequest->user, 'userable.prenom', 'Face'),
+                'userDisplayName' => $this->userDisplayName(),
                 'formattedAmount' => number_format((int) $this->withdrawalRequest->amount, 0, ',', ' '),
             ],
+        );
+    }
+
+    private function userDisplayName(): string
+    {
+        return (string) (
+            data_get($this->withdrawalRequest->user, 'userable.display_name')
+            ?? data_get($this->withdrawalRequest->user, 'userable.prenom')
+            ?? $this->withdrawalRequest->user?->email
+            ?? 'Utilisateur'
         );
     }
 }

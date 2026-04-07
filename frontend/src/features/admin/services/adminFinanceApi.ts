@@ -3,6 +3,8 @@ import adminApiClient, { getCsrfCookie } from './adminApiClient'
 export interface FinanceOverview {
   retirable: {
     amount: number
+    face_balance: number
+    producer_balance: number
     label: string
   }
   faces: {
@@ -66,7 +68,7 @@ export interface WithdrawalRequestEntry {
   processed_at: string | null
   created_at: string
   user_email: string | null
-  user_prenom: string | null
+  user_name: string | null
 }
 
 export const adminFinanceApi = {

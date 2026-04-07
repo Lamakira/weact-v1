@@ -6,10 +6,13 @@ namespace Tests\Feature\Admin;
 
 use App\Models\Admin;
 use App\Models\Face;
+use App\Models\Producer;
 use App\Models\User;
 use App\Models\WithdrawalRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
+use App\Mail\WithdrawalApprovedMail;
+use App\Mail\WithdrawalRejectedMail;
 use Tests\TestCase;
 
 class AdminWithdrawalRequestTest extends TestCase
@@ -19,6 +22,11 @@ class AdminWithdrawalRequestTest extends TestCase
     private Admin $admin;
 
     private User $faceUser;
+
+    private function withAdminApiToken(Admin $admin): static
+    {
+        return $this->withToken($admin->createToken('admin-token')->plainTextToken);
+    }
 
     protected function setUp(): void
     {
@@ -44,13 +52,13 @@ class AdminWithdrawalRequestTest extends TestCase
             'status' => 'pending',
         ]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withAdminApiToken($this->admin)
             ->getJson('/api/v1/admin/finance/withdrawal-requests?status=pending');
 
         $response->assertOk()
             ->assertJsonPath('meta.total', 1)
             ->assertJsonPath('data.0.user_email', $this->faceUser->email)
-            ->assertJsonPath('data.0.user_prenom', 'Amina')
+            ->assertJsonPath('data.0.user_name', (string) $this->faceUser->userable?->display_name)
             ->assertJsonPath('data.0.status', 'pending');
     }
 
@@ -67,7 +75,7 @@ class AdminWithdrawalRequestTest extends TestCase
             'status' => 'pending',
         ]);
 
-        $this->actingAs($this->admin, 'sanctum')
+        $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/finance/withdrawal-requests/{$withdrawalRequest->id}/approve", [
                 'notes' => 'Traite via depot manuel.',
             ])
@@ -110,14 +118,45 @@ class AdminWithdrawalRequestTest extends TestCase
             ->whereKey($this->faceUser->id)
             ->update(['balance' => 5000]);
 
-        $this->actingAs($this->admin, 'sanctum')
+        $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/finance/withdrawal-requests/{$withdrawalRequest->id}/approve")
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Solde insuffisant au moment de l’approbation. La Face a probablement depense une partie de ses fonds.');
+            ->assertJsonPath('message', 'Solde insuffisant au moment de l’approbation. L’utilisateur a probablement dépensé une partie de ses fonds.');
 
         $withdrawalRequest->refresh();
         $this->assertSame('pending', $withdrawalRequest->status);
         $this->assertDatabaseCount('wallet_transactions', 0);
+    }
+
+    public function test_admin_sees_producer_withdrawal_with_correct_name(): void
+    {
+        $producer = Producer::factory()->create([
+            'first_name' => 'Kofi',
+            'last_name' => 'Mensah',
+            'type' => 'particulier',
+        ]);
+
+        $producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+        $producerUser->increment('balance', 30000);
+
+        WithdrawalRequest::factory()->create([
+            'user_id' => $producerUser->id,
+            'status' => 'pending',
+        ]);
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->getJson('/api/v1/admin/finance/withdrawal-requests?status=pending');
+
+        $response->assertOk();
+
+        $data = $response->json('data');
+        $producerEntry = collect($data)->firstWhere('user_email', $producerUser->email);
+
+        $this->assertNotNull($producerEntry);
+        $this->assertSame('Kofi Mensah', $producerEntry['user_name']);
     }
 
     public function test_admin_can_reject_pending_withdrawal_request(): void
@@ -129,7 +168,7 @@ class AdminWithdrawalRequestTest extends TestCase
             'status' => 'pending',
         ]);
 
-        $this->actingAs($this->admin, 'sanctum')
+        $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/finance/withdrawal-requests/{$withdrawalRequest->id}/reject", [
                 'notes' => 'Numero invalide',
             ])
@@ -141,5 +180,97 @@ class AdminWithdrawalRequestTest extends TestCase
         $this->assertSame('Numero invalide', $withdrawalRequest->notes);
         $this->assertSame($this->admin->id, $withdrawalRequest->processed_by_admin_id);
         $this->assertDatabaseCount('wallet_transactions', 0);
+    }
+
+    public function test_producer_manual_request_email_uses_producer_name(): void
+    {
+        Mail::fake();
+
+        $producer = Producer::factory()->create([
+            'first_name' => 'Kofi',
+            'last_name' => 'Mensah',
+            'type' => 'particulier',
+        ]);
+
+        $producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+
+        $withdrawalRequest = WithdrawalRequest::factory()->create([
+            'user_id' => $producerUser->id,
+            'status' => 'pending',
+            'amount' => 15000,
+        ])->load('user.userable');
+
+        $mail = new \App\Mail\WithdrawalRequestSubmittedMail($withdrawalRequest);
+
+        $this->assertStringContainsString('Kofi Mensah', $mail->render());
+        $this->assertSame('Nouvelle demande de retrait - Kofi Mensah 15 000 XOF', $mail->envelope()->subject);
+    }
+
+    public function test_producer_approval_email_uses_producer_name(): void
+    {
+        Mail::fake();
+
+        $producer = Producer::factory()->create([
+            'first_name' => 'Kofi',
+            'last_name' => 'Mensah',
+            'type' => 'particulier',
+        ]);
+
+        $producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+            'balance' => 30000,
+        ]);
+
+        $withdrawalRequest = WithdrawalRequest::factory()->create([
+            'user_id' => $producerUser->id,
+            'amount' => 10000,
+            'status' => 'pending',
+        ]);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/finance/withdrawal-requests/{$withdrawalRequest->id}/approve", [
+                'notes' => 'Traite via depot manuel.',
+            ])
+            ->assertOk();
+
+        Mail::assertSent(WithdrawalApprovedMail::class, function (WithdrawalApprovedMail $mail): bool {
+            return str_contains($mail->render(), 'Bonjour Kofi Mensah');
+        });
+    }
+
+    public function test_producer_rejection_email_uses_producer_name(): void
+    {
+        Mail::fake();
+
+        $producer = Producer::factory()->create([
+            'first_name' => 'Kofi',
+            'last_name' => 'Mensah',
+            'type' => 'particulier',
+        ]);
+
+        $producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+
+        $withdrawalRequest = WithdrawalRequest::factory()->create([
+            'user_id' => $producerUser->id,
+            'amount' => 10000,
+            'status' => 'pending',
+        ]);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/finance/withdrawal-requests/{$withdrawalRequest->id}/reject", [
+                'notes' => 'Numero invalide',
+            ])
+            ->assertOk();
+
+        Mail::assertSent(WithdrawalRejectedMail::class, function (WithdrawalRejectedMail $mail): bool {
+            return str_contains($mail->render(), 'Bonjour Kofi Mensah');
+        });
     }
 }

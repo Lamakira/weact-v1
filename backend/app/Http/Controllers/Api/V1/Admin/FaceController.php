@@ -63,11 +63,8 @@ class FaceController extends Controller
      */
     public function show(Face $face): JsonResponse
     {
-        $face->load(['user', 'photos', 'experiences', 'ratingsReceived']);
-        $face->loadCount(['candidatures', 'photos', 'experiences']);
-
         return response()->json([
-            'data' => new FaceResource($face),
+            'data' => new FaceResource($this->loadDetailRelations($face)),
             'message' => 'Profil Face récupéré avec succès',
         ]);
     }
@@ -82,7 +79,7 @@ class FaceController extends Controller
         $face->update($validated);
 
         return response()->json([
-            'data' => new FaceResource($face->fresh()),
+            'data' => new FaceResource($this->loadDetailRelations($face->refresh())),
             'message' => 'Profil Face mis à jour avec succès',
         ]);
     }
@@ -94,7 +91,7 @@ class FaceController extends Controller
     {
         $user = $face->user;
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'error' => [
                     'code' => 'no_user_account',
@@ -103,17 +100,17 @@ class FaceController extends Controller
             ], 422);
         }
 
-        $newStatus = !$user->is_active;
+        $newStatus = ! $user->is_active;
         $user->is_active = $newStatus;
         $user->save();
 
         // Revoke all tokens when deactivating
-        if (!$newStatus) {
+        if (! $newStatus) {
             $user->tokens()->delete();
         }
 
         return response()->json([
-            'data' => new FaceResource($face->fresh()->load('user')),
+            'data' => new FaceResource($this->loadDetailRelations($face->refresh())),
             'message' => $newStatus ? 'Compte activé avec succès' : 'Compte désactivé avec succès',
         ]);
     }
@@ -152,5 +149,13 @@ class FaceController extends Controller
         return response()->json([
             'message' => 'Profil Face supprimé avec succès',
         ]);
+    }
+
+    private function loadDetailRelations(Face $face): Face
+    {
+        $face->load(['user', 'photos', 'experiences', 'ratingsReceived']);
+        $face->loadCount(['candidatures', 'photos', 'experiences']);
+
+        return $face;
     }
 }

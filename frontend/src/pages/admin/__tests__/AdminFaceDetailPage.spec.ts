@@ -179,6 +179,57 @@ describe('AdminFaceDetailPage', () => {
     expect(optionValues).toContain(legacyPays)
   })
 
+  it('displays email with mailto link when face has email', async () => {
+    const { wrapper } = await mountPage(makeFace({ email: 'jane@example.com' }))
+
+    const section = wrapper.get('[data-testid="personal-info-section"]')
+    const emailLink = section.find('a[href="mailto:jane@example.com"]')
+
+    expect(emailLink.exists()).toBe(true)
+    expect(emailLink.text()).toBe('jane@example.com')
+  })
+
+  it('displays dash when face has no email', async () => {
+    const { wrapper } = await mountPage(makeFace({ email: undefined }))
+
+    const section = wrapper.get('[data-testid="personal-info-section"]')
+    const emailLink = section.find('a[href^="mailto:"]')
+
+    expect(emailLink.exists()).toBe(false)
+
+    const emailDts = section.findAll('dt').filter((dt) => dt.text().includes('Email'))
+    expect(emailDts.length).toBe(1)
+    const dd = emailDts[0].element.parentElement!.querySelector('dd')!
+    expect(dd.textContent?.trim()).toBe('—')
+  })
+
+  it('keeps email visible after a successful save', async () => {
+    mockUpdateFace.mockImplementation(async () => {
+      faceRef.value = makeFace({
+        prenom: 'Janette',
+        email: 'jane@example.com',
+      })
+
+      return {
+        success: true,
+        message: 'Profil Face mis à jour avec succès',
+      }
+    })
+
+    const { wrapper } = await mountPage(makeFace({ email: 'jane@example.com' }))
+
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+    await wrapper.get('[data-testid="edit-prenom"]').setValue('Janette')
+    await wrapper.get('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+
+    const section = wrapper.get('[data-testid="personal-info-section"]')
+    const emailLink = section.find('a[href="mailto:jane@example.com"]')
+
+    expect(emailLink.exists()).toBe(true)
+    expect(section.text()).toContain('Janette')
+  })
+
   it('does not clear ville when only toggling featured on a non-Benin profile', async () => {
     mockUpdateFace.mockResolvedValue({
       success: true,

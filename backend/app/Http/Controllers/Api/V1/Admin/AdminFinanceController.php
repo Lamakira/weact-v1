@@ -11,6 +11,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\EscrowTransaction;
 use App\Models\Face;
+use App\Models\Producer;
 use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
 use App\Models\User;
@@ -35,8 +36,10 @@ class AdminFinanceController extends Controller
     {
         $fedapayBalance = $fedapayService->getBalanceSummary();
 
-        // ── What faces can withdraw right now ────────────────────────────────
+        // ── What users can withdraw right now ────────────────────────────────
         $walletBalance = (int) User::where('userable_type', Face::class)->sum('balance');
+        $producerWalletBalance = (int) User::where('userable_type', Producer::class)->sum('balance');
+        $totalWalletBalance = $walletBalance + $producerWalletBalance;
 
         // ── Escrow still in flight ───────────────────────────────────────────
         $bookingEscrowLocked = (int) EscrowTransaction::where('status', 'locked')->sum('amount');
@@ -70,8 +73,10 @@ class AdminFinanceController extends Controller
         return response()->json([
             'data' => [
                 'retirable' => [
-                    'amount' => $walletBalance,
-                    'label'  => 'Soldes wallets des Faces',
+                    'amount' => $totalWalletBalance,
+                    'face_balance' => $walletBalance,
+                    'producer_balance' => $producerWalletBalance,
+                    'label'  => 'Soldes wallets (Faces + Producers)',
                 ],
                 'faces' => [
                     'amount'               => $walletBalance + $totalEscrow,

@@ -15,6 +15,7 @@ export const BookingStatus = {
   EXPIRED: 'expired',
   CANCELLED_BY_PRODUCER: 'cancelled_by_producer',
   CANCELLED_BY_FACE: 'cancelled_by_face',
+  NO_SHOW: 'no_show',
 } as const
 
 export type BookingStatusType = (typeof BookingStatus)[keyof typeof BookingStatus]
@@ -32,6 +33,7 @@ export const BookingStatusLabel: Record<BookingStatusType, string> = {
   [BookingStatus.EXPIRED]: 'Expiré',
   [BookingStatus.CANCELLED_BY_PRODUCER]: 'Annulée par le Producteur',
   [BookingStatus.CANCELLED_BY_FACE]: 'Annulée par la Face',
+  [BookingStatus.NO_SHOW]: 'Absence signalée',
 }
 
 // Commission rate (mirrors backend BookingPricing VO)

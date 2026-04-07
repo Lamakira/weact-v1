@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\WithdrawWalletRequest;
 use App\Http\Resources\WalletResource;
 use App\Models\EscrowTransaction;
+use App\Models\Face;
 use App\Models\WalletTransaction;
 use App\Models\WithdrawalRequest;
 use App\Services\WithdrawalService;
@@ -22,11 +23,13 @@ class WalletController extends Controller
         $user = $request->user();
 
         /** @var int $pendingEscrow */
-        $pendingEscrow = (int) EscrowTransaction::whereHas('booking', function ($query) use ($user): void {
-            $query->where('face_id', $user->id);
-        })
-            ->where('status', 'locked')
-            ->sum('amount');
+        $pendingEscrow = ($user->userable_type === Face::class)
+            ? (int) EscrowTransaction::whereHas('booking', function ($query) use ($user): void {
+                $query->where('face_id', $user->id);
+            })
+                ->where('status', 'locked')
+                ->sum('amount')
+            : 0;
 
         $transactions = WalletTransaction::where('user_id', $user->id)
             ->latest()
