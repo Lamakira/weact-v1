@@ -265,6 +265,12 @@ const router = createRouter({
           component: () => import('../features/messaging/components/ProducerConversationView.vue'),
         },
         {
+          path: 'wallet',
+          name: 'producer-wallet',
+          component: () => import('../pages/producer/wallet/ProducerWalletPage.vue'),
+          meta: { title: 'Mon portefeuille - WEACT' },
+        },
+        {
           path: 'bookings',
           name: 'producer-bookings',
           component: () => import('../pages/producer/booking/ProducerBookingsListPage.vue'),

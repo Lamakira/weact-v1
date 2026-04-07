@@ -23,6 +23,11 @@ class WalletWithdrawalTest extends TestCase
     private User $faceUser;
     private User $producerUser;
 
+    private function withApiToken(User $user): static
+    {
+        return $this->withToken($user->createToken('test-token')->plainTextToken);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -68,7 +73,7 @@ class WalletWithdrawalTest extends TestCase
 
         $this->mockFedapaySuccess();
 
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload())
             ->assertOk()
             ->assertJsonPath('status', 'ok')
@@ -81,7 +86,7 @@ class WalletWithdrawalTest extends TestCase
 
         $this->mockFedapaySuccess();
 
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 20000]))
             ->assertOk();
 
@@ -95,7 +100,7 @@ class WalletWithdrawalTest extends TestCase
 
         $this->mockFedapaySuccess();
 
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 20000]))
             ->assertOk();
 
@@ -114,7 +119,7 @@ class WalletWithdrawalTest extends TestCase
 
         $this->mockFedapaySuccess();
 
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 20000]))
             ->assertOk();
 
@@ -136,7 +141,7 @@ class WalletWithdrawalTest extends TestCase
             ->andThrow(new \Exception('Fedapay API error'));
         $this->app->instance(FedapayService::class, $mock);
 
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 20000]))
             ->assertStatus(500)
             ->assertJsonPath('message', 'Retrait échoué. Veuillez réessayer.');
@@ -158,7 +163,7 @@ class WalletWithdrawalTest extends TestCase
         ]);
         Mail::fake();
 
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 20000]))
             ->assertOk()
             ->assertJsonPath('status', 'ok')
@@ -182,7 +187,7 @@ class WalletWithdrawalTest extends TestCase
 
     public function test_withdrawal_fails_when_amount_exceeds_balance(): void
     {
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 99999]))
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['amount']);
@@ -190,7 +195,7 @@ class WalletWithdrawalTest extends TestCase
 
     public function test_withdrawal_fails_with_zero_amount(): void
     {
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 0]))
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['amount']);
@@ -198,7 +203,7 @@ class WalletWithdrawalTest extends TestCase
 
     public function test_withdrawal_fails_with_invalid_payment_mode(): void
     {
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['payment_mode' => 'invalid_mode']))
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['payment_mode']);
@@ -206,7 +211,7 @@ class WalletWithdrawalTest extends TestCase
 
     public function test_producer_cannot_access_withdrawal_endpoint(): void
     {
-        $this->actingAs($this->producerUser)
+        $this->withApiToken($this->producerUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload())
             ->assertForbidden();
     }
@@ -219,7 +224,7 @@ class WalletWithdrawalTest extends TestCase
 
     public function test_withdrawal_fails_below_minimum_amount(): void
     {
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 499]))
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['amount']);
@@ -234,12 +239,12 @@ class WalletWithdrawalTest extends TestCase
         Mail::fake();
 
         // First request succeeds
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 5000]))
             ->assertOk();
 
         // Second request blocked — pending already exists
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 5000]))
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['amount']);
@@ -248,7 +253,7 @@ class WalletWithdrawalTest extends TestCase
     public function test_benin_phone_fails_with_wrong_operator_prefix(): void
     {
         // 0197 is an MTN prefix — submitting it under Moov must fail
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload([
                 'payment_mode'  => 'moov',
                 'phone_number'  => '0197000000',
@@ -260,7 +265,7 @@ class WalletWithdrawalTest extends TestCase
 
     public function test_benin_phone_fails_when_not_10_digits(): void
     {
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload([
                 'phone_number'  => '019700000', // 9 digits
                 'phone_country' => 'bj',
@@ -278,7 +283,7 @@ class WalletWithdrawalTest extends TestCase
             ->andThrow(new WithdrawalLockException('Un retrait est déjà en cours pour ce compte. Veuillez patienter.'));
         $this->app->instance(WithdrawalService::class, $mock);
 
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload())
             ->assertStatus(409)
             ->assertJsonPath('message', 'Un retrait est déjà en cours pour ce compte. Veuillez patienter.');

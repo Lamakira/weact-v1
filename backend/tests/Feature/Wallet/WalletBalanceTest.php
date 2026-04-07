@@ -23,6 +23,11 @@ class WalletBalanceTest extends TestCase
 
     private User $producerUser;
 
+    private function withApiToken(User $user): static
+    {
+        return $this->withToken($user->createToken('test-token')->plainTextToken);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -43,7 +48,7 @@ class WalletBalanceTest extends TestCase
 
     public function test_face_can_view_wallet_with_zero_balance(): void
     {
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->getJson('/api/v1/wallet')
             ->assertOk()
             ->assertJsonPath('data.balance', 0)
@@ -67,7 +72,7 @@ class WalletBalanceTest extends TestCase
     {
         $this->faceUser->increment('balance', 42500);
 
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->getJson('/api/v1/wallet')
             ->assertOk()
             ->assertJsonPath('data.balance', 42500);
@@ -86,7 +91,7 @@ class WalletBalanceTest extends TestCase
             'status' => 'locked',
         ]);
 
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->getJson('/api/v1/wallet')
             ->assertOk()
             ->assertJsonPath('data.pending_escrow', 30000);
@@ -106,7 +111,7 @@ class WalletBalanceTest extends TestCase
             'released_at' => now(),
         ]);
 
-        $this->actingAs($this->faceUser)
+        $this->withApiToken($this->faceUser)
             ->getJson('/api/v1/wallet')
             ->assertOk()
             ->assertJsonPath('data.pending_escrow', 0);
@@ -120,7 +125,7 @@ class WalletBalanceTest extends TestCase
             'amount' => 42500,
         ]);
 
-        $response = $this->actingAs($this->faceUser)
+        $response = $this->withApiToken($this->faceUser)
             ->getJson('/api/v1/wallet')
             ->assertOk();
 
@@ -141,7 +146,7 @@ class WalletBalanceTest extends TestCase
             'created_at' => now(),
         ]);
 
-        $response = $this->actingAs($this->faceUser)
+        $response = $this->withApiToken($this->faceUser)
             ->getJson('/api/v1/wallet')
             ->assertOk();
 
@@ -163,7 +168,7 @@ class WalletBalanceTest extends TestCase
         // Our user has 2 transactions
         WalletTransaction::factory()->count(2)->create(['user_id' => $this->faceUser->id]);
 
-        $response = $this->actingAs($this->faceUser)
+        $response = $this->withApiToken($this->faceUser)
             ->getJson('/api/v1/wallet')
             ->assertOk();
 
@@ -207,7 +212,7 @@ class WalletBalanceTest extends TestCase
             'status' => 'pending',
         ]);
 
-        $response = $this->actingAs($this->faceUser)
+        $response = $this->withApiToken($this->faceUser)
             ->getJson('/api/v1/wallet')
             ->assertOk();
 
@@ -231,7 +236,7 @@ class WalletBalanceTest extends TestCase
             'processed_at' => now(),
         ]);
 
-        $response = $this->actingAs($this->faceUser)
+        $response = $this->withApiToken($this->faceUser)
             ->getJson('/api/v1/wallet')
             ->assertOk();
 
@@ -248,11 +253,15 @@ class WalletBalanceTest extends TestCase
         $this->assertArrayHasKey('created_at', $request);
     }
 
-    public function test_producer_cannot_access_wallet(): void
+    public function test_producer_can_view_wallet_with_zero_pending_escrow(): void
     {
-        $this->actingAs($this->producerUser)
+        $this->withApiToken($this->producerUser)
             ->getJson('/api/v1/wallet')
-            ->assertForbidden();
+            ->assertOk()
+            ->assertJsonPath('data.balance', 0)
+            ->assertJsonPath('data.pending_escrow', 0)
+            ->assertJsonPath('data.withdrawal_requests', [])
+            ->assertJsonPath('data.transactions', []);
     }
 
     public function test_unauthenticated_user_cannot_access_wallet(): void
@@ -265,7 +274,7 @@ class WalletBalanceTest extends TestCase
         // Create 16 transactions — first page should return 15, second page should return 1
         WalletTransaction::factory()->count(16)->create(['user_id' => $this->faceUser->id]);
 
-        $response = $this->actingAs($this->faceUser)
+        $response = $this->withApiToken($this->faceUser)
             ->getJson('/api/v1/wallet')
             ->assertOk();
 
@@ -275,7 +284,7 @@ class WalletBalanceTest extends TestCase
         $this->assertSame(1, $response->json('data.transactions_meta.current_page'));
 
         // Page 2 should return the remaining 1 transaction
-        $page2 = $this->actingAs($this->faceUser)
+        $page2 = $this->withApiToken($this->faceUser)
             ->getJson('/api/v1/wallet?page=2')
             ->assertOk();
 
@@ -298,7 +307,7 @@ class WalletBalanceTest extends TestCase
             'description' => 'Test payment',
         ]);
 
-        $response = $this->actingAs($this->faceUser)
+        $response = $this->withApiToken($this->faceUser)
             ->getJson('/api/v1/wallet')
             ->assertOk();
 

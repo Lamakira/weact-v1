@@ -5,9 +5,16 @@ import { Wallet, Info, AlertCircle, ArrowUpRight } from 'lucide-vue-next'
 interface Props {
   balance: number
   pendingEscrow: number
+  showWithdraw?: boolean
+  showPendingEscrow?: boolean
+  emptyStateDescription?: string
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  showWithdraw: true,
+  showPendingEscrow: true,
+  emptyStateDescription: 'Vos revenus apparaîtront ici après votre premier booking.',
+})
 defineEmits<{ withdraw: [] }>()
 
 const formatCurrency = (value: number) =>
@@ -42,14 +49,14 @@ const hasNoFunds = computed(() => props.balance === 0 && props.pendingEscrow ===
 
       <div class="flex flex-col md:items-end space-y-1.5">
         <button
-          v-if="props.balance > 0"
+          v-if="props.showWithdraw && props.balance > 0"
           class="flex items-center gap-1.5 text-sm font-medium text-[#198496] border border-[#198496] px-4 py-1.5 rounded-md hover:bg-[#198496]/5 transition-colors"
           @click="$emit('withdraw')"
         >
           <ArrowUpRight class="w-4 h-4" />
           Retirer
         </button>
-        <div class="group relative flex items-center gap-1.5 text-sm text-gray-500">
+        <div v-if="props.showPendingEscrow" class="group relative flex items-center gap-1.5 text-sm text-gray-500">
           <span>Fonds en attente</span>
           <div class="cursor-help text-gray-400 hover:text-[#198496] transition-colors">
             <Info class="w-4 h-4" />
@@ -60,7 +67,10 @@ const hasNoFunds = computed(() => props.balance === 0 && props.pendingEscrow ===
             </div>
           </div>
         </div>
-        <p :class="['font-medium', props.pendingEscrow > 0 ? 'text-gray-700' : 'text-gray-400']">
+        <p
+          v-if="props.showPendingEscrow"
+          :class="['font-medium', props.pendingEscrow > 0 ? 'text-gray-700' : 'text-gray-400']"
+        >
           {{ formatCurrency(props.pendingEscrow) }}
         </p>
       </div>
@@ -73,7 +83,7 @@ const hasNoFunds = computed(() => props.balance === 0 && props.pendingEscrow ===
       <div>
         <p class="text-sm text-gray-700 font-medium">Votre portefeuille est vide</p>
         <p class="text-sm text-gray-500 mt-0.5">
-          Vos revenus apparaîtront ici après votre premier booking.
+          {{ props.emptyStateDescription }}
         </p>
       </div>
     </div>
