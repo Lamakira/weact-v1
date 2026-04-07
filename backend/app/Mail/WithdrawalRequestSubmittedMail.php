@@ -24,7 +24,7 @@ class WithdrawalRequestSubmittedMail extends Mailable
         return new Envelope(
             subject: sprintf(
                 'Nouvelle demande de retrait - %s %s XOF',
-                $this->faceFirstName(),
+                $this->userDisplayName(),
                 $this->formattedAmount()
             ),
         );
@@ -36,16 +36,21 @@ class WithdrawalRequestSubmittedMail extends Mailable
             view: 'emails.withdrawal-submitted',
             with: [
                 'withdrawalRequest' => $this->withdrawalRequest,
-                'faceFirstName' => $this->faceFirstName(),
+                'userDisplayName' => $this->userDisplayName(),
                 'formattedAmount' => $this->formattedAmount(),
                 'adminUrl' => rtrim((string) config('app.frontend_url'), '/') . '/admin/finance',
             ],
         );
     }
 
-    private function faceFirstName(): string
+    private function userDisplayName(): string
     {
-        return (string) data_get($this->withdrawalRequest->user, 'userable.prenom', 'Face');
+        return (string) (
+            data_get($this->withdrawalRequest->user, 'userable.display_name')
+            ?? data_get($this->withdrawalRequest->user, 'userable.prenom')
+            ?? $this->withdrawalRequest->user?->email
+            ?? 'Utilisateur'
+        );
     }
 
     private function formattedAmount(): string

@@ -20,7 +20,7 @@
                     <tr>
                         <td style="padding: 32px;">
                             <p style="margin: 0 0 20px; color: #374151; font-size: 14px; line-height: 1.6;">
-                                {{ $faceFirstName }} a soumis une nouvelle demande de retrait.
+                                {{ $userDisplayName }} a soumis une nouvelle demande de retrait.
                             </p>
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>

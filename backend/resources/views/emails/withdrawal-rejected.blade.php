@@ -20,7 +20,7 @@
                     <tr>
                         <td style="padding: 32px;">
                             <p style="margin: 0 0 20px; color: #374151; font-size: 14px; line-height: 1.6;">
-                                Bonjour {{ $faceFirstName }}, votre demande de retrait de <strong>{{ $formattedAmount }} XOF</strong> n'a pas pu être traitée.
+                                Bonjour {{ $userDisplayName }}, votre demande de retrait de <strong>{{ $formattedAmount }} XOF</strong> n'a pas pu être traitée.
                             </p>
                             <p style="margin: 0 0 16px; color: #6b7280; font-size: 13px;">Raison communiquée</p>
                             <div style="padding: 16px; background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; color: #111827; font-size: 14px; line-height: 1.6;">
