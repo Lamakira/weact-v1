@@ -170,6 +170,16 @@ class AdminProducerCrudTest extends TestCase
             'last_name' => 'OldLast',
             'bio' => 'Old bio',
         ]);
+        User::factory()->create([
+            'email' => 'producer-admin@example.com',
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+        Mission::factory()->create([
+            'producer_id' => $producer->id,
+            'titre' => 'Mission mise a jour',
+            'status' => MissionStatus::Published,
+        ]);
 
         $response = $this->withToken($this->adminToken)
             ->putJson("/api/v1/admin/producers/{$producer->id}", [
@@ -182,6 +192,10 @@ class AdminProducerCrudTest extends TestCase
             ->assertJsonPath('data.first_name', 'NewFirst')
             ->assertJsonPath('data.last_name', 'NewLast')
             ->assertJsonPath('data.bio', 'Updated bio')
+            ->assertJsonPath('data.email', 'producer-admin@example.com')
+            ->assertJsonPath('data.missions_count', 1)
+            ->assertJsonCount(1, 'data.missions')
+            ->assertJsonPath('data.missions.0.title', 'Mission mise a jour')
             ->assertJsonPath('message', 'Profil Producteur mis à jour avec succès');
 
         $this->assertDatabaseHas('producers', [

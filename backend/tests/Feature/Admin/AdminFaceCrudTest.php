@@ -253,6 +253,16 @@ class AdminFaceCrudTest extends TestCase
             'bio' => 'Old bio',
             'is_featured' => false,
         ]);
+        User::factory()->create([
+            'email' => 'face-admin@example.com',
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+        FacePhoto::factory()->create(['face_id' => $face->id, 'position' => 1]);
+        Experience::factory()->create([
+            'face_id' => $face->id,
+            'titre' => 'Campagne test',
+        ]);
 
         $response = $this->withToken($this->adminToken)
             ->putJson("/api/v1/admin/faces/{$face->id}", [
@@ -267,6 +277,11 @@ class AdminFaceCrudTest extends TestCase
             ->assertJsonPath('data.bio', 'Updated bio')
             ->assertJsonPath('data.is_available', false)
             ->assertJsonPath('data.is_featured', true)
+            ->assertJsonPath('data.email', 'face-admin@example.com')
+            ->assertJsonPath('data.photos_count', 1)
+            ->assertJsonPath('data.experiences_count', 1)
+            ->assertJsonCount(1, 'data.photos')
+            ->assertJsonCount(1, 'data.experiences')
             ->assertJsonPath('message', 'Profil Face mis à jour avec succès');
 
         $this->assertDatabaseHas('faces', [

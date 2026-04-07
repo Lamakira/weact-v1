@@ -12,6 +12,7 @@ import {
   Building,
   X,
   ClipboardList,
+  Mail,
 } from 'lucide-vue-next'
 import { useAdminProducers } from '@/features/admin/composables/useAdminProducers'
 import type { AdminProducerMission, UpdateAdminProducerForm } from '@/features/admin/services/adminProducersApi'
@@ -276,6 +277,18 @@ function getMissionStatusClass(status: string): string {
               <div class="flex justify-between">
                 <dt class="text-sm text-gray-500">Nom</dt>
                 <dd class="text-sm font-medium text-gray-900">{{ producer.last_name || '—' }}</dd>
+              </div>
+              <div class="flex justify-between">
+                <dt class="text-sm text-gray-500 flex items-center gap-1.5">
+                  <Mail class="w-4 h-4" />
+                  Email
+                </dt>
+                <dd class="text-sm font-medium text-gray-900">
+                  <a v-if="producer.email" :href="`mailto:${producer.email}`" class="text-weact hover:underline">
+                    {{ producer.email }}
+                  </a>
+                  <span v-else>—</span>
+                </dd>
               </div>
             </dl>
           </template>
