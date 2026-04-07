@@ -354,7 +354,7 @@ development_status:
 
   # Epic FIX-10: Wallet Producer, Retrait & Signalement absence Face (3 stories)
   epic-fix-10: in-progress
-  fix-10-1-producer-wallet-dashboard: backlog                         # Wallet Producer : solde, historique, page dashboard
+  fix-10-1-producer-wallet-dashboard: done                           # Wallet Producer : solde, historique, page dashboard
   fix-10-2-producer-wallet-withdrawal: backlog                        # Retrait Producer : demande retrait → admin traite manuellement
   fix-10-3-no-show-report-wallet-refund: backlog                      # Signalement absence Face + crédit wallet Producer + pénalité
 
@@ -362,4 +362,4 @@ development_status:
   epic-fix-11: backlog
   fix-11-1-admin-display-user-emails: backlog                 # Afficher emails dans pages admin Face/Producer
 
-last_updated: "2026-04-06"
+last_updated: "2026-04-07"
