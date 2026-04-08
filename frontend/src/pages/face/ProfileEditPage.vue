@@ -510,7 +510,7 @@ function handleCompletionItemClick(itemKey: string): void {
         <div class="lg:sticky lg:top-6 space-y-6">
           <!-- Profile photo card -->
           <div id="section-profile-photo" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h2 class="text-lg font-medium text-gray-900 mb-6">Photo de profil</h2>
+            <h2 class="text-lg font-medium text-gray-900 mb-6">Photo de mise en avant</h2>
             <ProfilePhotoUpload
               :profile="profile"
               :is-uploading="isUploading"
@@ -659,9 +659,6 @@ function handleCompletionItemClick(itemKey: string): void {
           <EmailChangeForm />
           <div class="border-t border-gray-100 pt-4">
             <PasswordChangeForm />
-          </div>
-          <div class="border-t border-gray-100 pt-4">
-            <DataPrivacySection />
           </div>
         </div>
 
@@ -847,6 +844,11 @@ function handleCompletionItemClick(itemKey: string): void {
           />
         </div>
 
+        </div>
+
+        <!-- Data privacy & account actions (bottom of page) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <DataPrivacySection />
         </div>
       </div>
     </div>

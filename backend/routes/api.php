@@ -32,10 +32,10 @@ use Symfony\Component\HttpFoundation\Response;
 
 Route::prefix('v1')->group(function (): void {
     // Health check endpoint
-    Route::get('/health', fn() => response()->json([
+    Route::get('/health', fn () => response()->json([
         'data' => ['status' => 'ok'],
         'meta' => ['timestamp' => now()->toIso8601String()],
-        'message' => 'API is running'
+        'message' => 'API is running',
     ]));
 
     // Authentication routes (public)
@@ -90,7 +90,9 @@ Route::prefix('v1')->group(function (): void {
                 ], Response::HTTP_UNAUTHORIZED);
             }
 
-            return (new UserResource($request->user()))->additional([
+            $user = $request->user()->loadMissing('userable');
+
+            return (new UserResource($user))->additional([
                 'meta' => [],
                 'message' => 'Authenticated user retrieved',
             ]);
@@ -144,9 +146,9 @@ Route::prefix('v1')->group(function (): void {
 });
 
 // Include modular route files
-require __DIR__ . '/api/admin.php';
-require __DIR__ . '/api/bookings.php';
-require __DIR__ . '/api/face.php';
-require __DIR__ . '/api/producer.php';
-require __DIR__ . '/api/public.php';
-require __DIR__ . '/api/webhooks.php';
+require __DIR__.'/api/admin.php';
+require __DIR__.'/api/bookings.php';
+require __DIR__.'/api/face.php';
+require __DIR__.'/api/producer.php';
+require __DIR__.'/api/public.php';
+require __DIR__.'/api/webhooks.php';

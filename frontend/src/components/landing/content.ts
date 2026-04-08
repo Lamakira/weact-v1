@@ -78,7 +78,7 @@ export const faceContent: LandingContent = {
     ],
     certifiedText: 'Plateforme certifiée',
     footerText:
-      "Weact est la première plateforme de casting digitale au Bénin, connectant talents et professionnels de l'audiovisuel depuis 2024",
+      "Weact est la première plateforme de casting digitale au Bénin, connectant talents et professionnels de l'audiovisuel depuis 2026",
   },
   finalCta: {
     title: 'Prêt à commencer ?',
@@ -150,7 +150,7 @@ export const producerContent: LandingContent = {
     ],
     certifiedText: 'Plateforme certifiée',
     footerText:
-      "Weact est la première plateforme de casting digitale au Bénin, connectant talents et professionnels de l'audiovisuel depuis 2024",
+      "Weact est la première plateforme de casting digitale au Bénin, connectant talents et professionnels de l'audiovisuel depuis 2026",
   },
   finalCta: {
     title: 'Prêt à trouver vos talents ?',

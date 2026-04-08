@@ -118,6 +118,32 @@ const producerInitials = computed(() => {
   return mission.value.producer.display_name.charAt(0).toUpperCase()
 })
 
+function formatMissionGenderLabel(rawGender: string | null, label: string | null): string {
+  if (label && label.trim() !== '') {
+    return label
+  }
+
+  switch (rawGender) {
+    case 'homme':
+      return 'Homme'
+    case 'femme':
+      return 'Femme'
+    case 'tous':
+      return 'Homme et Femme'
+    default:
+      return ''
+  }
+}
+
+const missionGenderLabel = computed(() => {
+  if (!mission.value) return ''
+
+  return formatMissionGenderLabel(
+    mission.value.genre_voulu,
+    mission.value.genre_voulu_label,
+  )
+})
+
 // Retry handler
 async function handleRetry(): Promise<void> {
   if (missionSlug.value) {
@@ -257,13 +283,6 @@ async function handleRetry(): Promise<void> {
               >
                 {{ mission.type_mission === 'autre' && mission.type_mission_autre ? `Autre : ${mission.type_mission_autre}` : mission.type_mission_label }}
               </span>
-              <span
-                v-if="mission.genre_voulu_label"
-                class="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600"
-                data-testid="mission-genre-badge"
-              >
-                {{ mission.genre_voulu_label }}
-              </span>
             </div>
             <h1
               class="text-2xl md:text-3xl font-bold text-gray-900"
@@ -281,6 +300,21 @@ async function handleRetry(): Promise<void> {
             class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6"
             data-testid="mission-meta-grid"
           >
+            <!-- Gender Requirement (Primary Filter) -->
+            <div
+              v-if="missionGenderLabel"
+              class="flex items-start gap-3 rounded-xl bg-[#198496]/5 border-l-2 border-[#198496] p-4"
+              data-testid="mission-genre-highlight"
+            >
+              <Users class="h-5 w-5 text-[#198496] mt-0.5 flex-shrink-0" aria-hidden="true" />
+              <div>
+                <p class="text-xs font-semibold text-[#198496]">Genre recherché</p>
+                <p class="text-sm font-semibold text-gray-900">
+                  {{ missionGenderLabel }}
+                </p>
+              </div>
+            </div>
+
             <!-- Budget -->
             <div class="flex items-start gap-3 rounded-xl bg-gray-50 p-4">
               <Wallet class="h-5 w-5 text-[#198496] mt-0.5 flex-shrink-0" aria-hidden="true" />

@@ -5,6 +5,7 @@ import { ref } from 'vue'
 import FaceMissionDetailPage from '../FaceMissionDetailPage.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import type { Mission, MissionProducer } from '@/features/mission/types'
+import { useAuthStore } from '@/stores/auth'
 
 // Mock useToast
 vi.mock('@/composables/useToast', () => ({
@@ -422,6 +423,154 @@ describe('FaceMissionDetailPage', () => {
       })
 
       expect(wrapper.text()).toContain('Une erreur réseau est survenue')
+    })
+  })
+
+  describe('gender mismatch', () => {
+    function mountWithAuthStore(mission: Mission, userOverrides: Record<string, unknown> = {}) {
+      return mount(FaceMissionDetailPage, {
+        global: {
+          plugins: [
+            createTestingPinia({
+              initialState: {
+                auth: {
+                  user: {
+                    id: 1,
+                    email: 'test@test.com',
+                    email_verified: true,
+                    email_verified_at: '2026-01-01',
+                    userable_type: 'App\\Models\\Face',
+                    userable: { sexe: 'homme', ...userOverrides },
+                  },
+                  token: 'fake-token',
+                },
+              },
+              stubActions: false,
+            }),
+          ],
+          stubs: {
+            ApplyToMissionModal: true,
+            RatingDisplay: true,
+            ConfirmModal: true,
+            RouterLink: {
+              template: '<a><slot /></a>',
+              props: ['to'],
+            },
+          },
+        },
+      })
+    }
+
+    it('disables apply button when Face gender does not match mission genre_voulu', async () => {
+      mockMission.value = createMission({
+        genre_voulu: 'femme',
+        genre_voulu_label: 'Femme',
+        is_accepting_candidatures: true,
+      })
+
+      const wrapper = mountWithAuthStore(mockMission.value, { sexe: 'homme' })
+      await flushPromises()
+
+      const block = wrapper.find('[data-testid="gender-mismatch-block"]')
+      expect(block.exists()).toBe(true)
+      expect(block.text()).toContain('Cette mission recherche un profil Femme')
+      const disabledButton = wrapper.find('[data-testid="apply-button-disabled"]')
+      expect(disabledButton.exists()).toBe(true)
+      expect(disabledButton.attributes('disabled')).toBeDefined()
+    })
+
+    it('shows profile completion message when Face sexe is null', async () => {
+      mockMission.value = createMission({
+        genre_voulu: 'homme',
+        genre_voulu_label: 'Homme',
+        is_accepting_candidatures: true,
+      })
+
+      const wrapper = mountWithAuthStore(mockMission.value, { sexe: null })
+      await flushPromises()
+
+      const block = wrapper.find('[data-testid="gender-mismatch-block"]')
+      expect(block.exists()).toBe(true)
+      expect(block.text()).toContain('Complétez votre profil')
+    })
+
+    it('shows apply button when genre_voulu is tous', async () => {
+      mockMission.value = createMission({
+        genre_voulu: 'tous',
+        genre_voulu_label: 'Homme et Femme',
+        is_accepting_candidatures: true,
+      })
+
+      const wrapper = mountWithAuthStore(mockMission.value, { sexe: 'homme' })
+      await flushPromises()
+
+      const block = wrapper.find('[data-testid="gender-mismatch-block"]')
+      expect(block.exists()).toBe(false)
+      expect(wrapper.text()).toContain('Postuler à cette mission')
+    })
+
+    it('shows apply button when genders match', async () => {
+      mockMission.value = createMission({
+        genre_voulu: 'homme',
+        genre_voulu_label: 'Homme',
+        is_accepting_candidatures: true,
+      })
+
+      const wrapper = mountWithAuthStore(mockMission.value, { sexe: 'homme' })
+      await flushPromises()
+
+      const block = wrapper.find('[data-testid="gender-mismatch-block"]')
+      expect(block.exists()).toBe(false)
+      expect(wrapper.text()).toContain('Postuler à cette mission')
+    })
+
+    it('refreshes auth state and keeps apply CTA disabled while gender context is unknown', async () => {
+      mockMission.value = createMission({
+        genre_voulu: 'femme',
+        genre_voulu_label: 'Femme',
+        is_accepting_candidatures: true,
+      })
+
+      const pinia = createTestingPinia({
+        initialState: {
+          auth: {
+            user: {
+              id: 1,
+              email: 'test@test.com',
+              email_verified: true,
+              email_verified_at: '2026-01-01',
+              userable_type: 'Face',
+              userable: {},
+            },
+            token: 'fake-token',
+          },
+        },
+        stubActions: true,
+      })
+      const authStore = useAuthStore(pinia)
+      vi.mocked(authStore.refreshUser).mockResolvedValue(true)
+
+      const wrapper = mount(FaceMissionDetailPage, {
+        global: {
+          plugins: [pinia],
+          stubs: {
+            ApplyToMissionModal: true,
+            RatingDisplay: true,
+            ConfirmModal: true,
+            RouterLink: {
+              template: '<a><slot /></a>',
+              props: ['to'],
+            },
+          },
+        },
+      })
+
+      await flushPromises()
+
+      expect(authStore.refreshUser).toHaveBeenCalledOnce()
+      expect(wrapper.find('[data-testid="gender-context-block"]').exists()).toBe(true)
+      expect(wrapper.text()).toContain('Validation du profil requise')
+      expect(wrapper.find('[data-testid="apply-button-disabled"]').exists()).toBe(true)
     })
   })
 

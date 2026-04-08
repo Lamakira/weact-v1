@@ -19,8 +19,8 @@ export interface PublicMission {
   type_mission: string
   type_mission_label: string
   type_mission_autre: string | null
-  genre_voulu: string
-  genre_voulu_label: string
+  genre_voulu: string | null
+  genre_voulu_label: string | null
   lieu: string
   duree: string | null
   status: string

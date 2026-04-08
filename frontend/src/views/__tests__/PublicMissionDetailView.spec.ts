@@ -196,11 +196,28 @@ describe('PublicMissionDetailView', () => {
     expect(wrapper.find('[data-testid="mission-description"]').text()).toBe('Recherche comédien(ne) pour spot TV')
     expect(wrapper.find('[data-testid="mission-profil-recherche"]').text()).toBe('Jeune femme 20-30 ans')
     expect(wrapper.find('[data-testid="mission-type-badge"]').text()).toBe('Publicité')
-    expect(wrapper.find('[data-testid="mission-genre-badge"]').text()).toBe('Femme')
+    expect(wrapper.find('[data-testid="mission-genre-highlight"]').text()).toContain('Genre recherché')
+    expect(wrapper.find('[data-testid="mission-genre-highlight"]').text()).toContain('Femme')
     expect(wrapper.find('[data-testid="mission-duree"]').text()).toBe('2 journées (max 16h)')
     expect(wrapper.find('[data-testid="producer-name"]').text()).toBe('Studio Cotonou')
     expect(wrapper.find('[data-testid="producer-photo"]').attributes('src')).toBe('https://example.com/thumb.jpg')
     expect(wrapper.find('[data-testid="producer-rating"]').text()).toContain('12 avis')
+  })
+
+  it('falls back to the raw mission genre when genre_voulu_label is missing', async () => {
+    vi.mocked(publicMissionsApi.fetchPublicMissionDetail).mockResolvedValue({
+      success: true,
+      mission: {
+        ...mockMission,
+        genre_voulu: 'femme',
+        genre_voulu_label: null,
+      },
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="mission-genre-highlight"]').text()).toContain('Femme')
   })
 
   it('shows the closed badge and hides the login CTA when the deadline has passed', async () => {
