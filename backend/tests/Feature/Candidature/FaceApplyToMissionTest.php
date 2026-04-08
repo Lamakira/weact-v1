@@ -28,13 +28,13 @@ class FaceApplyToMissionTest extends TestCase
     {
         parent::setUp();
 
-        $this->face = Face::factory()->create();
+        $this->face = Face::factory()->create(['sexe' => 'homme']);
         $this->faceUser = User::factory()->create([
             'userable_type' => Face::class,
             'userable_id' => $this->face->id,
         ]);
 
-        $this->publishedMission = Mission::factory()->published()->create([
+        $this->publishedMission = Mission::factory()->published()->forAll()->create([
             'date_limite_candidature' => now()->addDays(7),
         ]);
     }

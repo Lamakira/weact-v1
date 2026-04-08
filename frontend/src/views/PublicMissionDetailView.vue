@@ -118,6 +118,32 @@ const producerInitials = computed(() => {
   return mission.value.producer.display_name.charAt(0).toUpperCase()
 })
 
+function formatMissionGenderLabel(rawGender: string | null, label: string | null): string {
+  if (label && label.trim() !== '') {
+    return label
+  }
+
+  switch (rawGender) {
+    case 'homme':
+      return 'Homme'
+    case 'femme':
+      return 'Femme'
+    case 'tous':
+      return 'Homme et Femme'
+    default:
+      return ''
+  }
+}
+
+const missionGenderLabel = computed(() => {
+  if (!mission.value) return ''
+
+  return formatMissionGenderLabel(
+    mission.value.genre_voulu,
+    mission.value.genre_voulu_label,
+  )
+})
+
 // Retry handler
 async function handleRetry(): Promise<void> {
   if (missionSlug.value) {
@@ -258,11 +284,11 @@ async function handleRetry(): Promise<void> {
                 {{ mission.type_mission === 'autre' && mission.type_mission_autre ? `Autre : ${mission.type_mission_autre}` : mission.type_mission_label }}
               </span>
               <span
-                v-if="mission.genre_voulu_label"
+                v-if="missionGenderLabel"
                 class="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600"
                 data-testid="mission-genre-badge"
               >
-                {{ mission.genre_voulu_label }}
+                {{ missionGenderLabel }}
               </span>
             </div>
             <h1
@@ -274,6 +300,24 @@ async function handleRetry(): Promise<void> {
             <p class="mt-1 text-sm text-gray-400" data-testid="mission-posted-date">
               Publiée le {{ formatDate(mission.created_at) }}
             </p>
+
+            <div
+              v-if="missionGenderLabel"
+              class="mt-4 inline-flex max-w-full items-start gap-3 rounded-2xl border border-[#198496]/15 bg-[#198496]/6 px-4 py-3"
+              data-testid="mission-genre-highlight"
+            >
+              <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-white text-[#198496] shadow-sm">
+                <Users :size="18" aria-hidden="true" />
+              </div>
+              <div class="min-w-0">
+                <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#198496]">
+                  Profil recherché
+                </p>
+                <p class="text-sm font-semibold text-gray-900 md:text-base">
+                  {{ missionGenderLabel }}
+                </p>
+              </div>
+            </div>
           </div>
 
           <!-- Mission Meta Grid -->

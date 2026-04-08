@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Face;
 
 use App\Enums\CandidatureStatus;
+use App\Enums\MissionGender;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Http\Controllers\Controller;
@@ -84,6 +85,29 @@ class CandidatureController extends Controller
                     'message' => 'Vous avez déjà postulé à cette mission',
                 ],
             ], 422);
+        }
+
+        // Check gender compatibility
+        if ($mission->genre_voulu !== MissionGender::Tous) {
+            $faceSexe = $face->sexe;
+
+            if ($faceSexe === null) {
+                return response()->json([
+                    'error' => [
+                        'code' => 'gender_mismatch',
+                        'message' => 'Veuillez compléter votre profil (genre) avant de postuler.',
+                    ],
+                ], 422);
+            }
+
+            if ($faceSexe->value !== $mission->genre_voulu->value) {
+                return response()->json([
+                    'error' => [
+                        'code' => 'gender_mismatch',
+                        'message' => "Cette mission recherche un profil {$mission->genre_voulu->label()}. Votre profil ne correspond pas au genre requis.",
+                    ],
+                ], 422);
+            }
         }
 
         // Create the candidature (status defaults to 'pending')

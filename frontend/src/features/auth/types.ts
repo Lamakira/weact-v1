@@ -58,6 +58,8 @@ export interface Face {
   nom: string
   prenom: string
   username: string
+  sexe: string | null
+  sexe_label?: string | null
   created_at: string
   updated_at: string
 }

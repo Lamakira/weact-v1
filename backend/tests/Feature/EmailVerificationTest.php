@@ -141,7 +141,7 @@ class EmailVerificationTest extends TestCase
         $path = parse_url($verificationUrl, PHP_URL_PATH);
         $query = parse_url($verificationUrl, PHP_URL_QUERY);
 
-        $response = $this->getJson($path . '?' . $query);
+        $response = $this->getJson($path.'?'.$query);
 
         $response->assertOk()
             ->assertJson([
@@ -171,7 +171,7 @@ class EmailVerificationTest extends TestCase
         $path = parse_url($verificationUrl, PHP_URL_PATH);
         $query = parse_url($verificationUrl, PHP_URL_QUERY);
 
-        $response = $this->getJson($path . '?' . $query);
+        $response = $this->getJson($path.'?'.$query);
 
         // Controller returns 403 with our custom error code
         $response->assertForbidden()
@@ -202,7 +202,7 @@ class EmailVerificationTest extends TestCase
         $path = parse_url($verificationUrl, PHP_URL_PATH);
         $query = parse_url($verificationUrl, PHP_URL_QUERY);
 
-        $response = $this->getJson($path . '?' . $query);
+        $response = $this->getJson($path.'?'.$query);
 
         $response->assertForbidden()
             ->assertJson([
@@ -230,7 +230,7 @@ class EmailVerificationTest extends TestCase
         $path = parse_url($verificationUrl, PHP_URL_PATH);
         $query = parse_url($verificationUrl, PHP_URL_QUERY);
 
-        $response = $this->getJson($path . '?' . $query);
+        $response = $this->getJson($path.'?'.$query);
 
         $response->assertOk()
             ->assertJson([
@@ -348,7 +348,7 @@ class EmailVerificationTest extends TestCase
         $token = $user->createToken('test-token')->plainTextToken;
 
         $response = $this->withHeaders([
-            'Authorization' => 'Bearer ' . $token,
+            'Authorization' => 'Bearer '.$token,
         ])->getJson('/api/v1/user');
 
         $response->assertOk()
@@ -369,6 +369,28 @@ class EmailVerificationTest extends TestCase
             ]);
     }
 
+    public function test_user_response_includes_face_userable_payload(): void
+    {
+        $face = Face::factory()->create([
+            'sexe' => 'homme',
+        ]);
+        $user = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+            'email_verified_at' => now(),
+        ]);
+        $token = $user->createToken('test-token')->plainTextToken;
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer '.$token,
+        ])->getJson('/api/v1/user');
+
+        $response->assertOk()
+            ->assertJsonPath('data.userable.id', $face->id)
+            ->assertJsonPath('data.userable.sexe', 'homme')
+            ->assertJsonPath('data.userable.sexe_label', 'Homme');
+    }
+
     public function test_user_response_shows_email_verified_false_for_unverified_user(): void
     {
         $face = Face::factory()->create();
@@ -380,7 +402,7 @@ class EmailVerificationTest extends TestCase
         $token = $user->createToken('test-token')->plainTextToken;
 
         $response = $this->withHeaders([
-            'Authorization' => 'Bearer ' . $token,
+            'Authorization' => 'Bearer '.$token,
         ])->getJson('/api/v1/user');
 
         $response->assertOk()
@@ -404,7 +426,7 @@ class EmailVerificationTest extends TestCase
         $token = $user->createToken('test-token')->plainTextToken;
 
         $response = $this->withHeaders([
-            'Authorization' => 'Bearer ' . $token,
+            'Authorization' => 'Bearer '.$token,
         ])->getJson('/api/v1/user');
 
         $response->assertOk()
@@ -426,7 +448,7 @@ class EmailVerificationTest extends TestCase
         $token = $user->createToken('test-token')->plainTextToken;
 
         $response = $this->withHeaders([
-            'Authorization' => 'Bearer ' . $token,
+            'Authorization' => 'Bearer '.$token,
         ])->getJson('/api/v1/user');
 
         $response->assertOk()

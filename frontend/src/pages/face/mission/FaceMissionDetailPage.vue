@@ -52,6 +52,7 @@ const showCancelModal = ref(false)
 
 // Email verification resend state
 const isResendingVerification = ref(false)
+const isRefreshingGenderContext = ref(false)
 
 // Get mission ID from route params
 const missionId = computed(() => {
@@ -69,6 +70,41 @@ const canCancelCandidature = computed(() => candidature.value?.status === 'pendi
 
 // Computed: Can the user apply? (must have verified email)
 const canApply = computed(() => authStore.isEmailVerified)
+
+const isGenderContextUnknown = computed((): boolean => {
+  if (!mission.value) return false
+  if (mission.value.genre_voulu === 'tous') return false
+  return authStore.isFace && authStore.user?.userable !== undefined && authStore.user?.userable?.sexe === undefined
+})
+
+// Computed: Gender mismatch check
+const isGenderMismatch = computed((): boolean => {
+  if (!mission.value) return false
+  const genreVoulu = mission.value.genre_voulu
+  if (genreVoulu === 'tous') return false
+  const faceSexe = authStore.user?.userable?.sexe
+  if (faceSexe === undefined) return false
+  if (faceSexe === null) return true
+  return faceSexe !== genreVoulu
+})
+
+const genderContextMessage = computed((): string => {
+  if (isRefreshingGenderContext.value) {
+    return 'Vérification de votre profil en cours...'
+  }
+
+  return 'Impossible de vérifier votre genre pour le moment. Rechargez la page pour continuer.'
+})
+
+const genderMismatchMessage = computed((): string => {
+  if (!mission.value) return ''
+  const faceSexe = authStore.user?.userable?.sexe
+  if (faceSexe === undefined) return ''
+  if (faceSexe === null) {
+    return 'Complétez votre profil (genre) pour postuler à cette mission.'
+  }
+  return `Cette mission recherche un profil ${mission.value.genre_voulu_label}. Votre genre ne correspond pas.`
+})
 
 // Computed helpers
 const producerName = computed(() => {
@@ -208,6 +244,15 @@ async function handleCancelConfirm(): Promise<void> {
  * LIFECYCLE
  */
 onMounted(() => {
+  if (isGenderContextUnknown.value) {
+    isRefreshingGenderContext.value = true
+
+    authStore.refreshUser()
+      .finally(() => {
+        isRefreshingGenderContext.value = false
+      })
+  }
+
   if (missionId.value) {
     fetchMission(missionId.value)
   }
@@ -507,7 +552,84 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- State 3: Can Apply -->
+        <!-- State 3: Gender context unavailable -->
+        <div
+          v-else-if="mission.is_accepting_candidatures && isGenderContextUnknown"
+          class="rounded-lg border border-amber-200 bg-amber-50 p-3 min-[376px]:p-4"
+          data-testid="gender-context-block"
+        >
+          <div class="flex flex-col gap-3">
+            <div class="flex items-center gap-3">
+              <div class="flex-shrink-0 w-9 h-9 min-[376px]:w-10 min-[376px]:h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <Loader2
+                  v-if="isRefreshingGenderContext"
+                  class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-amber-600 animate-spin"
+                />
+                <ShieldAlert
+                  v-else
+                  class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-amber-600"
+                />
+              </div>
+              <div>
+                <p class="text-xs min-[376px]:text-sm font-medium text-amber-800">Validation du profil requise</p>
+                <p
+                  id="gender-context-message"
+                  class="text-[10px] min-[376px]:text-xs text-amber-700"
+                >
+                  {{ genderContextMessage }}
+                </p>
+              </div>
+            </div>
+            <div>
+              <button
+                type="button"
+                disabled
+                aria-describedby="gender-context-message"
+                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 min-[376px]:px-8 py-3 text-sm min-[376px]:text-base font-semibold text-white opacity-50 cursor-not-allowed"
+                data-testid="apply-button-disabled"
+              >
+                Postuler à cette mission
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- State 4: Gender mismatch -->
+        <div
+          v-else-if="mission.is_accepting_candidatures && isGenderMismatch"
+          class="rounded-lg border border-amber-200 bg-amber-50 p-3 min-[376px]:p-4"
+          data-testid="gender-mismatch-block"
+        >
+          <div class="flex flex-col gap-3">
+            <div class="flex items-center gap-3">
+              <div class="flex-shrink-0 w-9 h-9 min-[376px]:w-10 min-[376px]:h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <ShieldAlert class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-amber-600" />
+              </div>
+              <div>
+                <p class="text-xs min-[376px]:text-sm font-medium text-amber-800">Candidature non autorisée</p>
+                <p
+                  id="gender-mismatch-message"
+                  class="text-[10px] min-[376px]:text-xs text-amber-700"
+                >
+                  {{ genderMismatchMessage }}
+                </p>
+              </div>
+            </div>
+            <div>
+              <button
+                type="button"
+                disabled
+                aria-describedby="gender-mismatch-message"
+                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 min-[376px]:px-8 py-3 text-sm min-[376px]:text-base font-semibold text-white opacity-50 cursor-not-allowed"
+                data-testid="apply-button-disabled"
+              >
+                Postuler à cette mission
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- State 5: Can Apply -->
         <button
           v-else-if="mission.is_accepting_candidatures"
           type="button"
@@ -517,7 +639,7 @@ onMounted(() => {
           Postuler à cette mission
         </button>
 
-        <!-- State 4: Mission Closed -->
+        <!-- State 6: Mission Closed -->
         <div
           v-else
           class="flex items-center justify-center gap-2 rounded-lg border border-muted bg-muted/50 px-6 min-[376px]:px-8 py-3 text-xs min-[376px]:text-sm text-muted-foreground"

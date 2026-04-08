@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { isAxiosError } from 'axios'
 import { candidatureApi } from '../services/candidatureApi'
+import { useToast } from '@/composables/useToast'
 import type { Candidature, ApplyToMissionResult } from '../types'
 
 /**
@@ -8,6 +9,7 @@ import type { Candidature, ApplyToMissionResult } from '../types'
  * Handles loading state, error handling, and success feedback
  */
 export function useApplyToMission() {
+  const toast = useToast()
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const errorCode = ref<string | null>(null)
@@ -48,6 +50,15 @@ export function useApplyToMission() {
           const apiError = err.response.data.error
           error.value = apiError.message
           errorCode.value = apiError.code
+
+          // Gender mismatch: surface server message directly
+          if (apiError.code === 'gender_mismatch') {
+            toast.error(apiError.message)
+            return {
+              success: false,
+              error: apiError,
+            }
+          }
 
           return {
             success: false,
