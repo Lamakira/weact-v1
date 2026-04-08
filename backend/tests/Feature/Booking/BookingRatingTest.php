@@ -183,7 +183,7 @@ class BookingRatingTest extends TestCase
 
         $this->actingAs($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
-                'cancellation_reason' => 'other',
+                'cancellation_reason' => 'schedule_conflict',
             ])
             ->assertOk()
             ->assertJsonPath('data.status', BookingStatus::CancelledByProducer->value);

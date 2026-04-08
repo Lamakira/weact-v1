@@ -156,7 +156,10 @@ class BookingNotificationTest extends TestCase
     {
         // Face confirms first → Producer gets notified.
         // Booking must be Paid before confirmation is allowed.
-        $this->booking->update(['status' => BookingStatus::Paid]);
+        $this->booking->update([
+            'status' => BookingStatus::Paid,
+            'date_debut' => now()->subDay(),
+        ]);
 
         $this->actingAs($this->faceUser)
             ->postJson("/api/v1/bookings/{$this->booking->id}/confirm")
