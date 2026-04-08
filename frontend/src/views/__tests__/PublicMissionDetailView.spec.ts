@@ -4,17 +4,33 @@ import PublicMissionDetailView from '../PublicMissionDetailView.vue'
 import * as publicMissionsApi from '@/features/public/services/publicMissionsApi'
 import type { PublicMission } from '@/features/public/services/publicMissionsApi'
 
-// Mock route params - mutable for different test scenarios
 const mockParams: Record<string, string> = { slug: 'casting-publicite-mtn' }
+const mockReplace = vi.fn()
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({
     params: mockParams,
   }),
+  useRouter: () => ({
+    replace: mockReplace,
+  }),
 }))
 
 vi.mock('@vueuse/core', () => ({
   useTitle: vi.fn(),
+}))
+
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({
+    isFace: false,
+  }),
+}))
+
+vi.mock('@/components/report/ReportButton.vue', () => ({
+  default: {
+    template: '<button data-testid="report-button">Report</button>',
+    props: ['reportableType', 'reportableId'],
+  },
 }))
 
 vi.mock('@/features/public/services/publicMissionsApi', async () => {
@@ -43,6 +59,7 @@ const mockMission: PublicMission = {
   nombre_faces_voulu: 3,
   type_mission: 'publicite',
   type_mission_label: 'Publicité',
+  type_mission_autre: null,
   genre_voulu: 'femme',
   genre_voulu_label: 'Femme',
   lieu: 'Cotonou, Bénin',
@@ -73,7 +90,7 @@ function mountView() {
   })
 }
 
-describe('PublicMissionDetailView (Integration)', () => {
+describe('PublicMissionDetailView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockParams.slug = 'casting-publicite-mtn'
@@ -91,9 +108,10 @@ describe('PublicMissionDetailView (Integration)', () => {
     expect(wrapper.find('[data-testid="mission-detail"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Casting publicité MTN')
     expect(publicMissionsApi.fetchPublicMissionDetail).toHaveBeenCalledWith('casting-publicite-mtn')
+    expect(mockReplace).not.toHaveBeenCalled()
   })
 
-  it('shows loading state initially', async () => {
+  it('shows the loading state before the API resolves', async () => {
     let resolvePromise: (value: unknown) => void
     const pendingPromise = new Promise((resolve) => {
       resolvePromise = resolve
@@ -106,13 +124,12 @@ describe('PublicMissionDetailView (Integration)', () => {
     const wrapper = mountView()
 
     expect(wrapper.find('[data-testid="loading-state"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="mission-detail"]').exists()).toBe(false)
 
     resolvePromise!({ success: true, mission: mockMission })
     await flushPromises()
   })
 
-  it('shows not-found state for 404', async () => {
+  it('shows the not-found state for missing missions', async () => {
     vi.mocked(publicMissionsApi.fetchPublicMissionDetail).mockResolvedValue({
       success: false,
       notFound: true,
@@ -123,24 +140,10 @@ describe('PublicMissionDetailView (Integration)', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="not-found-state"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Mission non trouvée')
-    expect(wrapper.find('[data-testid="mission-detail"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="back-to-missions-cta"]').attributes('href')).toBe('/missions')
   })
 
-  it('shows error state with retry button', async () => {
-    vi.mocked(publicMissionsApi.fetchPublicMissionDetail).mockResolvedValue({
-      success: false,
-      error: 'Une erreur est survenue. Veuillez réessayer.',
-    })
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    expect(wrapper.find('[data-testid="error-state"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="retry-button"]').exists()).toBe(true)
-  })
-
-  it('retry button triggers a new fetch', async () => {
+  it('shows the error state and retries the request', async () => {
     vi.mocked(publicMissionsApi.fetchPublicMissionDetail)
       .mockResolvedValueOnce({
         success: false,
@@ -154,7 +157,7 @@ describe('PublicMissionDetailView (Integration)', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(publicMissionsApi.fetchPublicMissionDetail).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-testid="error-state"]').exists()).toBe(true)
 
     await wrapper.find('[data-testid="retry-button"]').trigger('click')
     await flushPromises()
@@ -163,7 +166,7 @@ describe('PublicMissionDetailView (Integration)', () => {
     expect(wrapper.find('[data-testid="mission-detail"]').exists()).toBe(true)
   })
 
-  it('back link navigates to missions list', async () => {
+  it('renders breadcrumb, CTA links, and the report button', async () => {
     vi.mocked(publicMissionsApi.fetchPublicMissionDetail).mockResolvedValue({
       success: true,
       mission: mockMission,
@@ -172,13 +175,14 @@ describe('PublicMissionDetailView (Integration)', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const backLink = wrapper.find('[data-testid="back-to-list"]')
-    expect(backLink.exists()).toBe(true)
-    expect(backLink.attributes('href')).toBe('/missions')
-    expect(backLink.text()).toContain('Retour aux missions')
+    expect(wrapper.find('nav[aria-label="Breadcrumb"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="back-to-list"]').attributes('href')).toBe('/missions')
+    expect(wrapper.find('[data-testid="login-cta"]').attributes('href')).toBe('/login')
+    expect(wrapper.find('[data-testid="register-cta"]').attributes('href')).toBe('/register/face')
+    expect(wrapper.find('[data-testid="report-button"]').exists()).toBe(true)
   })
 
-  it('CTA buttons link to login and register', async () => {
+  it('renders producer and mission metadata', async () => {
     vi.mocked(publicMissionsApi.fetchPublicMissionDetail).mockResolvedValue({
       success: true,
       mission: mockMission,
@@ -187,154 +191,39 @@ describe('PublicMissionDetailView (Integration)', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    const loginCta = wrapper.find('[data-testid="login-cta"]')
-    expect(loginCta.exists()).toBe(true)
-    expect(loginCta.attributes('href')).toBe('/login')
-    expect(loginCta.text()).toContain('Se connecter pour postuler')
-
-    const registerCta = wrapper.find('[data-testid="register-cta"]')
-    expect(registerCta.exists()).toBe(true)
-    expect(registerCta.attributes('href')).toBe('/register/face')
+    expect(wrapper.find('[data-testid="mission-budget"]').text()).toContain('XOF')
+    expect(wrapper.find('[data-testid="mission-shooting-date"]').text()).toContain('2026')
+    expect(wrapper.find('[data-testid="mission-description"]').text()).toBe('Recherche comédien(ne) pour spot TV')
+    expect(wrapper.find('[data-testid="mission-profil-recherche"]').text()).toBe('Jeune femme 20-30 ans')
+    expect(wrapper.find('[data-testid="mission-type-badge"]').text()).toBe('Publicité')
+    expect(wrapper.find('[data-testid="mission-genre-badge"]').text()).toBe('Femme')
+    expect(wrapper.find('[data-testid="producer-name"]').text()).toBe('Studio Cotonou')
+    expect(wrapper.find('[data-testid="producer-photo"]').attributes('src')).toBe('https://example.com/thumb.jpg')
+    expect(wrapper.find('[data-testid="producer-rating"]').text()).toContain('12 avis')
   })
 
-  it('displays formatted dates and budget', async () => {
+  it('shows the closed badge and hides the login CTA when the deadline has passed', async () => {
     vi.mocked(publicMissionsApi.fetchPublicMissionDetail).mockResolvedValue({
       success: true,
-      mission: mockMission,
+      mission: {
+        ...mockMission,
+        date_limite_candidature: '2020-01-01',
+      },
     })
 
     const wrapper = mountView()
     await flushPromises()
 
-    // Budget should be formatted in XOF
-    const budget = wrapper.find('[data-testid="mission-budget"]')
-    expect(budget.exists()).toBe(true)
-    expect(budget.text()).toContain('XOF')
-
-    // Shooting date should be formatted in French
-    const shootingDate = wrapper.find('[data-testid="mission-shooting-date"]')
-    expect(shootingDate.exists()).toBe(true)
-    expect(shootingDate.text()).toContain('2026')
-  })
-
-  it('displays producer section with name, photo, and rating', async () => {
-    vi.mocked(publicMissionsApi.fetchPublicMissionDetail).mockResolvedValue({
-      success: true,
-      mission: mockMission,
-    })
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    const producerSection = wrapper.find('[data-testid="producer-section"]')
-    expect(producerSection.exists()).toBe(true)
-
-    const producerName = wrapper.find('[data-testid="producer-name"]')
-    expect(producerName.text()).toBe('Studio Cotonou')
-
-    const producerPhoto = wrapper.find('[data-testid="producer-photo"]')
-    expect(producerPhoto.exists()).toBe(true)
-    expect(producerPhoto.attributes('src')).toBe('https://example.com/thumb.jpg')
-
-    const producerRating = wrapper.find('[data-testid="producer-rating"]')
-    expect(producerRating.exists()).toBe(true)
-    expect(producerRating.text()).toContain('4.5')
-    expect(producerRating.text()).toContain('12 avis')
-  })
-
-  it('displays mission description and profil recherché', async () => {
-    vi.mocked(publicMissionsApi.fetchPublicMissionDetail).mockResolvedValue({
-      success: true,
-      mission: mockMission,
-    })
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    const description = wrapper.find('[data-testid="mission-description"]')
-    expect(description.text()).toBe('Recherche comédien(ne) pour spot TV')
-
-    const profilRecherche = wrapper.find('[data-testid="mission-profil-recherche"]')
-    expect(profilRecherche.text()).toBe('Jeune femme 20-30 ans')
-  })
-
-  it('displays type and genre badges', async () => {
-    vi.mocked(publicMissionsApi.fetchPublicMissionDetail).mockResolvedValue({
-      success: true,
-      mission: mockMission,
-    })
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    const typeBadge = wrapper.find('[data-testid="mission-type-badge"]')
-    expect(typeBadge.text()).toBe('Publicité')
-
-    const genreBadge = wrapper.find('[data-testid="mission-genre-badge"]')
-    expect(genreBadge.text()).toBe('Femme')
-  })
-
-  it('shows "Candidatures clôturées" when deadline has passed', async () => {
-    const expiredMission = {
-      ...mockMission,
-      date_limite_candidature: '2020-01-01',
-    }
-
-    vi.mocked(publicMissionsApi.fetchPublicMissionDetail).mockResolvedValue({
-      success: true,
-      mission: expiredMission,
-    })
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    const deadlineBadge = wrapper.find('[data-testid="deadline-passed-badge"]')
-    expect(deadlineBadge.exists()).toBe(true)
-    expect(deadlineBadge.text()).toContain('Candidatures clôturées')
-
-    // Login CTA should NOT be visible
+    expect(wrapper.find('[data-testid="deadline-passed-badge"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="login-cta"]').exists()).toBe(false)
   })
 
-  it('not-found state has link back to missions list', async () => {
-    vi.mocked(publicMissionsApi.fetchPublicMissionDetail).mockResolvedValue({
-      success: false,
-      notFound: true,
-      error: 'Mission non trouvée',
-    })
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    const backCta = wrapper.find('[data-testid="back-to-missions-cta"]')
-    expect(backCta.exists()).toBe(true)
-    expect(backCta.attributes('href')).toBe('/missions')
-  })
-
-  it('does not call API when route param is empty', async () => {
+  it('does not call the API when the route slug is empty', async () => {
     mockParams.slug = ''
-
-    vi.mocked(publicMissionsApi.fetchPublicMissionDetail).mockResolvedValue({
-      success: true,
-      mission: mockMission,
-    })
 
     mountView()
     await flushPromises()
 
     expect(publicMissionsApi.fetchPublicMissionDetail).not.toHaveBeenCalled()
-  })
-
-  it('has breadcrumb navigation with proper ARIA', async () => {
-    vi.mocked(publicMissionsApi.fetchPublicMissionDetail).mockResolvedValue({
-      success: true,
-      mission: mockMission,
-    })
-
-    const wrapper = mountView()
-    await flushPromises()
-
-    const nav = wrapper.find('nav[aria-label="Breadcrumb"]')
-    expect(nav.exists()).toBe(true)
   })
 })

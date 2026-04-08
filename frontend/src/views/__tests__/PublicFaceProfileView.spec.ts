@@ -43,6 +43,13 @@ vi.mock('@/components/ui/skeleton', () => ({
   Skeleton: { template: '<div class="skeleton"></div>' },
 }))
 
+vi.mock('@/components/report/ReportButton.vue', () => ({
+  default: {
+    template: '<button data-testid="report-button"></button>',
+    props: ['reportableType', 'reportableId'],
+  },
+}))
+
 // Mock usePublicFaceAccess (uses Pinia's useAuthStore)
 vi.mock('@/features/public/composables/usePublicFaceAccess', async () => {
   const { ref } = await import('vue')
@@ -64,7 +71,10 @@ vi.mock('@/features/public/services/publicApi', () => ({
 
 // Mock sub-components to avoid deep rendering
 vi.mock('@/features/public/components/ProfilePhotoSection.vue', () => ({
-  default: { template: '<div data-testid="profile-photo-section"></div>', props: ['face', 'isLoading'] },
+  default: {
+    template: '<div data-testid="profile-photo-section"></div>',
+    props: ['photoUrl', 'prenom', 'isAvailable', 'hasAlbumPhotos', 'albumPhotosCount', 'showAlbumLock'],
+  },
 }))
 vi.mock('@/features/public/components/ProfileInfoSection.vue', () => ({
   default: {
@@ -105,7 +115,7 @@ vi.mock('@/components/ReviewsList.vue', () => ({
 vi.mock('@/features/booking/components', () => ({
   BookingFormSheet: {
     template: '<div data-testid="booking-form-sheet"></div>',
-    props: ['open', 'candidate', 'pricing'],
+    props: ['isOpen', 'faceId', 'faceName', 'tarifHoraire', 'tarifJournalier'],
   },
 }))
 

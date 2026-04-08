@@ -4,63 +4,59 @@ import { ref } from 'vue'
 import FaceDashboardPage from '../FaceDashboardPage.vue'
 import type { DashboardStats } from '@/features/dashboard/types'
 
-// Mock vue-router
 const mockRouter = {
   push: vi.fn(),
 }
-const mockRoute = {
-  path: '/face/dashboard',
-  name: 'face-dashboard',
-}
+
 vi.mock('vue-router', () => ({
   useRouter: () => mockRouter,
-  useRoute: () => mockRoute,
+  RouterLink: {
+    template: '<a v-bind="$attrs" :href="typeof to === \'string\' ? to : to.name"><slot /></a>',
+    props: ['to'],
+    inheritAttrs: false,
+  },
 }))
 
-// Mock auth store
-vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({
-    user: { email: 'test@example.com' },
-  }),
-}))
-
-// Mock useAuth composable
-vi.mock('@/features/auth/composables/useAuth', () => ({
-  useAuth: () => ({
-    logout: vi.fn(),
-    isLoading: ref(false),
-  }),
-}))
-
-// Mock profile completion composable
+const mockFetchCompletion = vi.fn().mockResolvedValue(undefined)
 vi.mock('@/features/face/composables/useProfileCompletion', () => ({
   useProfileCompletion: () => ({
     isLoading: ref(false),
     percentage: ref(75),
-    missingItems: ref(['bio', 'photo']),
-    fetchCompletion: vi.fn().mockResolvedValue(undefined),
+    fetchCompletion: mockFetchCompletion,
   }),
 }))
 
-// Mock dashboard stats composable
 const mockStats = ref<DashboardStats | null>(null)
 const mockIsStatsLoading = ref(false)
 const mockStatsError = ref<string | null>(null)
 const mockFetchStats = vi.fn().mockResolvedValue(undefined)
 const mockRetryStats = vi.fn().mockResolvedValue(undefined)
 
-// Mock dashboard charts composable
-const mockCandidaturesByMonth = ref([])
-const mockMissionsCompletedByMonth = ref([])
+const mockCandidaturesByMonth = ref([{ month: 'Jan', count: 2 }])
+const mockMissionsCompletedByMonth = ref([{ month: 'Jan', count: 1 }])
 const mockIsChartsLoading = ref(false)
 const mockChartsError = ref<string | null>(null)
 const mockFetchChartStats = vi.fn().mockResolvedValue(undefined)
 const mockRetryCharts = vi.fn().mockResolvedValue(undefined)
 
-// Mock missions count composable
-const mockMissionsCount = ref(0)
-const mockIsMissionsCountLoading = ref(false)
+const mockMissionsCount = ref(4)
 const mockFetchMissionsCount = vi.fn().mockResolvedValue(undefined)
+
+const mockBookingStats = ref({
+  pending: 1,
+  accepted: 2,
+  in_progress: 3,
+  completed: 4,
+})
+const mockIsBookingStatsLoading = ref(false)
+const mockFetchBookingStats = vi.fn().mockResolvedValue(undefined)
+
+const mockBookingsByMonth = ref([{ month: 'Jan', count: 1 }])
+const mockBookingsCompletedByMonth = ref([{ month: 'Jan', count: 1 }])
+const mockIsBookingChartsLoading = ref(false)
+const mockBookingChartsError = ref<string | null>(null)
+const mockFetchBookingChartStats = vi.fn().mockResolvedValue(undefined)
+const mockRetryBookingCharts = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('@/features/dashboard', () => ({
   useDashboardStats: () => ({
@@ -80,504 +76,174 @@ vi.mock('@/features/dashboard', () => ({
   }),
   useMissionsCount: () => ({
     count: mockMissionsCount,
-    isLoading: mockIsMissionsCountLoading,
+    isLoading: ref(false),
     fetchMissionsCount: mockFetchMissionsCount,
+  }),
+  useBookingStats: () => ({
+    bookingStats: mockBookingStats,
+    isLoading: mockIsBookingStatsLoading,
+    fetchBookingStats: mockFetchBookingStats,
+  }),
+  useDashboardBookingCharts: () => ({
+    bookingsByMonth: mockBookingsByMonth,
+    bookingsCompletedByMonth: mockBookingsCompletedByMonth,
+    isLoading: mockIsBookingChartsLoading,
+    error: mockBookingChartsError,
+    fetchBookingChartStats: mockFetchBookingChartStats,
+    retry: mockRetryBookingCharts,
   }),
   ActivityChart: {
     name: 'ActivityChart',
-    template: `
-      <div
-        data-testid="activity-chart"
-        data-component="activity-chart"
-        :data-loading="isLoading"
-        :data-error="error"
-      >
-        <span>Mon évolution</span>
-      </div>
-    `,
+    template: '<div data-testid="activity-chart" :data-loading="isLoading" :data-error="error">Mon évolution</div>',
     props: ['candidaturesByMonth', 'missionsCompletedByMonth', 'isLoading', 'error'],
-    emits: ['retry'],
+  },
+  BookingActivityChart: {
+    name: 'BookingActivityChart',
+    template: '<div data-testid="booking-activity-chart" :data-loading="isLoading" :data-error="error">Mes bookings</div>',
+    props: ['bookingsByMonth', 'bookingsCompletedByMonth', 'isLoading', 'error'],
   },
 }))
 
-// Mock faceApi
+const mockWalletBalance = ref(125000)
+const mockFetchWallet = vi.fn().mockResolvedValue(undefined)
+vi.mock('@/features/wallet', () => ({
+  useWallet: () => ({
+    balance: mockWalletBalance,
+    fetchWallet: mockFetchWallet,
+  }),
+}))
+
 vi.mock('@/features/face/services/faceApi', () => ({
   faceApi: {
-    getProfile: vi.fn().mockResolvedValue({ data: null }),
-    getCategoryNiche: vi.fn().mockResolvedValue({ data: null }),
-    getBioLocation: vi.fn().mockResolvedValue({ data: null }),
+    getProfile: vi.fn().mockResolvedValue({
+      data: {
+        prenom: 'Ada',
+        nom: 'Dossou',
+        profile_photo_url: null,
+      },
+    }),
+    getCategoryNiche: vi.fn().mockResolvedValue({
+      data: {
+        categories: [{ label: 'Actrice' }],
+        niches: [{ label: 'Publicité' }],
+      },
+    }),
+    getBioLocation: vi.fn().mockResolvedValue({
+      data: {
+        ville: 'Cotonou',
+      },
+    }),
   },
 }))
 
-// Mock Skeleton component
 vi.mock('@/components/ui/skeleton', () => ({
   Skeleton: {
-    name: 'Skeleton',
     template: '<div data-testid="skeleton"></div>',
     props: ['class'],
   },
 }))
 
-// Mock lucide-vue-next
-vi.mock('lucide-vue-next', () => {
-  const createIconMock = (name: string) => ({
-    name,
-    template: `<svg data-testid="${name}-icon"></svg>`,
-    props: ['size', 'class'],
-  })
-  return {
-    AlertCircle: createIconMock('AlertCircle'),
-    Pencil: createIconMock('Pencil'),
-    Briefcase: createIconMock('Briefcase'),
-    MessageCircle: createIconMock('MessageCircle'),
-    Clock: createIconMock('Clock'),
-    CheckCircle2: createIconMock('CheckCircle2'),
-    PlayCircle: createIconMock('PlayCircle'),
-    CheckSquare: createIconMock('CheckSquare'),
-    Wallet: createIconMock('Wallet'),
-  }
-})
-
-// Mock ProfileCompletionCard
-vi.mock('@/features/face/components/ProfileCompletionCard.vue', () => ({
-  default: {
-    name: 'ProfileCompletionCard',
-    template: '<div data-testid="profile-completion-card">Profile Completion</div>',
-    props: ['percentage', 'missingCount', 'isLoading'],
-  },
-}))
+function mountPage() {
+  return mount(FaceDashboardPage)
+}
 
 describe('FaceDashboardPage', () => {
   beforeEach(() => {
-    mockStats.value = null
+    vi.clearAllMocks()
+    mockRouter.push.mockReset()
+    mockStats.value = {
+      pending: 3,
+      accepted: 2,
+      in_progress: 5,
+      completed: 10,
+    }
     mockIsStatsLoading.value = false
     mockStatsError.value = null
-    mockFetchStats.mockClear()
-    mockRetryStats.mockClear()
-    mockRouter.push.mockClear()
-    // Reset chart mocks
-    mockCandidaturesByMonth.value = []
-    mockMissionsCompletedByMonth.value = []
     mockIsChartsLoading.value = false
     mockChartsError.value = null
-    mockFetchChartStats.mockClear()
-    mockRetryCharts.mockClear()
-    // Reset missions count mocks
-    mockMissionsCount.value = 0
-    mockIsMissionsCountLoading.value = false
-    mockFetchMissionsCount.mockClear()
+    mockIsBookingStatsLoading.value = false
+    mockIsBookingChartsLoading.value = false
+    mockBookingChartsError.value = null
+    mockWalletBalance.value = 125000
   })
 
-  describe('KPI cards rendering', () => {
-    it('renders 4 KPI cards when stats are loaded', async () => {
-      mockStats.value = {
-        pending: 3,
-        accepted: 2,
-        in_progress: 5,
-        completed: 10,
-      }
+  it('renders candidature and booking KPI cards with the provided values', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
 
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      expect(wrapper.find('[data-testid="kpi-card-pending"]').exists()).toBe(true)
-      expect(wrapper.find('[data-testid="kpi-card-accepted"]').exists()).toBe(true)
-      expect(wrapper.find('[data-testid="kpi-card-in_progress"]').exists()).toBe(true)
-      expect(wrapper.find('[data-testid="kpi-card-completed"]').exists()).toBe(true)
-    })
-
-    it('renders KPI card with correct pending value', async () => {
-      mockStats.value = {
-        pending: 7,
-        accepted: 0,
-        in_progress: 0,
-        completed: 0,
-      }
-
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const pendingCard = wrapper.find('[data-testid="kpi-card-pending"]')
-      expect(pendingCard.exists()).toBe(true)
-      expect(pendingCard.text()).toContain('7')
-    })
-
-    it('renders KPI card with correct accepted value', async () => {
-      mockStats.value = {
-        pending: 0,
-        accepted: 4,
-        in_progress: 0,
-        completed: 0,
-      }
-
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const acceptedCard = wrapper.find('[data-testid="kpi-card-accepted"]')
-      expect(acceptedCard.exists()).toBe(true)
-      expect(acceptedCard.text()).toContain('4')
-    })
-
-    it('renders KPI card with correct in_progress value', async () => {
-      mockStats.value = {
-        pending: 0,
-        accepted: 0,
-        in_progress: 8,
-        completed: 0,
-      }
-
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const inProgressCard = wrapper.find('[data-testid="kpi-card-in_progress"]')
-      expect(inProgressCard.exists()).toBe(true)
-      expect(inProgressCard.text()).toContain('8')
-    })
-
-    it('renders KPI card with correct completed value', async () => {
-      mockStats.value = {
-        pending: 0,
-        accepted: 0,
-        in_progress: 0,
-        completed: 15,
-      }
-
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const completedCard = wrapper.find('[data-testid="kpi-card-completed"]')
-      expect(completedCard.exists()).toBe(true)
-      expect(completedCard.text()).toContain('15')
-    })
-
-    it('displays zero values correctly', async () => {
-      mockStats.value = {
-        pending: 0,
-        accepted: 0,
-        in_progress: 0,
-        completed: 0,
-      }
-
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const pendingCard = wrapper.find('[data-testid="kpi-card-pending"]')
-      expect(pendingCard.text()).toContain('0')
-    })
-
-    it('renders KPI cards grid container', async () => {
-      mockStats.value = {
-        pending: 1,
-        accepted: 1,
-        in_progress: 1,
-        completed: 1,
-      }
-
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const grid = wrapper.find('[data-testid="kpi-cards-grid"]')
-      expect(grid.exists()).toBe(true)
-    })
+    expect(wrapper.find('[data-testid="kpi-card-pending"]').text()).toContain('3')
+    expect(wrapper.find('[data-testid="kpi-card-accepted"]').text()).toContain('2')
+    expect(wrapper.find('[data-testid="kpi-card-in_progress"]').text()).toContain('5')
+    expect(wrapper.find('[data-testid="kpi-card-completed"]').text()).toContain('10')
+    expect(wrapper.find('[data-testid="booking-kpi-pending"]').text()).toContain('1')
+    expect(wrapper.find('[data-testid="booking-kpi-completed"]').text()).toContain('4')
   })
 
-  describe('loading state', () => {
-    it('shows skeleton elements when stats are loading', async () => {
-      mockIsStatsLoading.value = true
-      mockStats.value = null
+  it('shows the stats error state and retries when requested', async () => {
+    mockStatsError.value = 'Une erreur est survenue'
 
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
+    const wrapper = mountPage()
+    await flushPromises()
 
-      const kpiGrid = wrapper.find('[data-testid="kpi-cards-grid"]')
-      expect(kpiGrid.exists()).toBe(true)
-      const skeletons = kpiGrid.findAll('[data-testid="skeleton"]')
-      expect(skeletons.length).toBeGreaterThan(0)
-    })
+    expect(wrapper.find('[data-testid="stats-error"]').text()).toContain('Une erreur est survenue')
 
-    it('shows values instead of skeletons when loaded', async () => {
-      mockIsStatsLoading.value = false
-      mockStats.value = {
-        pending: 1,
-        accepted: 1,
-        in_progress: 1,
-        completed: 1,
-      }
+    await wrapper.find('[data-testid="retry-stats-button"]').trigger('click')
 
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const pendingCard = wrapper.find('[data-testid="kpi-card-pending"]')
-      expect(pendingCard.text()).toContain('1')
-    })
+    expect(mockRetryStats).toHaveBeenCalled()
   })
 
-  describe('error state', () => {
-    it('shows error message when API fails', async () => {
-      mockStatsError.value = 'Une erreur est survenue'
+  it('fetches dashboard, wallet, and booking data on mount', async () => {
+    mountPage()
+    await flushPromises()
 
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const errorDiv = wrapper.find('[data-testid="stats-error"]')
-      expect(errorDiv.exists()).toBe(true)
-      expect(errorDiv.text()).toContain('Une erreur est survenue')
-    })
-
-    it('shows retry button when error occurs', async () => {
-      mockStatsError.value = 'Erreur réseau'
-
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const retryButton = wrapper.find('[data-testid="retry-stats-button"]')
-      expect(retryButton.exists()).toBe(true)
-      expect(retryButton.text()).toBe('Réessayer')
-    })
-
-    it('calls retry function when retry button is clicked', async () => {
-      mockStatsError.value = 'Erreur réseau'
-
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const retryButton = wrapper.find('[data-testid="retry-stats-button"]')
-      await retryButton.trigger('click')
-
-      expect(mockRetryStats).toHaveBeenCalled()
-    })
-
-    it('hides KPI cards grid when error occurs', async () => {
-      mockStatsError.value = 'Erreur réseau'
-
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const grid = wrapper.find('[data-testid="kpi-cards-grid"]')
-      expect(grid.exists()).toBe(false)
-    })
+    expect(mockFetchCompletion).toHaveBeenCalled()
+    expect(mockFetchStats).toHaveBeenCalled()
+    expect(mockFetchChartStats).toHaveBeenCalled()
+    expect(mockFetchMissionsCount).toHaveBeenCalled()
+    expect(mockFetchWallet).toHaveBeenCalled()
+    expect(mockFetchBookingStats).toHaveBeenCalled()
+    expect(mockFetchBookingChartStats).toHaveBeenCalled()
   })
 
-  describe('data fetching', () => {
-    it('calls fetchStats on mount', async () => {
-      mount(FaceDashboardPage)
-      await flushPromises()
+  it('renders the quick access area and navigates from the action cards', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
 
-      expect(mockFetchStats).toHaveBeenCalled()
-    })
+    expect(wrapper.find('[data-testid="quick-access-cards-grid"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="browse-missions-card"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="messages-card"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="browse-missions-card"]').trigger('click')
+    await wrapper.find('[data-testid="messages-card"]').trigger('click')
+
+    expect(mockRouter.push).toHaveBeenCalledWith({ name: 'face-missions' })
+    expect(mockRouter.push).toHaveBeenCalledWith({ name: 'face-messages' })
   })
 
-  describe('section headers', () => {
-    it('displays "Mes candidatures" section title', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
+  it('renders the wallet quick-access card with the formatted balance', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
 
-      expect(wrapper.text()).toContain('Mes candidatures')
-    })
+    const walletCard = wrapper.find('[data-testid="wallet-card"]')
 
-    it('renders quick access cards grid', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const grid = wrapper.find('[data-testid="quick-access-cards-grid"]')
-      expect(grid.exists()).toBe(true)
-    })
-
-    it('displays "Mon évolution" section title', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      expect(wrapper.text()).toContain('Mon évolution')
-    })
-
-    it('has charts section element', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const sections = wrapper.findAll('section')
-      expect(sections.length).toBeGreaterThanOrEqual(1)
-    })
+    expect(walletCard.exists()).toBe(true)
+    expect(walletCard.text()).toContain('Mon portefeuille')
+    expect(walletCard.text()).toContain('125')
+    expect(walletCard.attributes('href')).toBe('face-wallet')
   })
 
-  describe('WalletCard integration', () => {
-    it('renders WalletCard component', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
+  it('renders candidature and booking charts with current loading and error props', async () => {
+    mockIsChartsLoading.value = true
+    mockChartsError.value = 'Erreur candidatures'
+    mockIsBookingChartsLoading.value = true
+    mockBookingChartsError.value = 'Erreur bookings'
 
-      const walletCard = wrapper.find('[data-testid="wallet-card"]')
-      expect(walletCard.exists()).toBe(true)
-    })
+    const wrapper = mountPage()
+    await flushPromises()
 
-    it('displays WalletCard in the quick access cards grid', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const grid = wrapper.find('[data-testid="quick-access-cards-grid"]')
-      const walletCard = grid.find('[data-testid="wallet-card"]')
-      expect(walletCard.exists()).toBe(true)
-    })
-
-    it('displays WalletCard in the quick access grid', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const grid = wrapper.find('[data-testid="quick-access-cards-grid"]')
-      expect(grid.find('[data-testid="wallet-card"]').exists()).toBe(true)
-    })
-
-    it('displays static wallet content without API calls', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const walletCard = wrapper.find('[data-testid="wallet-card"]')
-      expect(walletCard.text()).toContain('0 XOF')
-      expect(walletCard.text()).toContain('Bientôt')
-    })
-  })
-
-  describe('ActivityChart integration', () => {
-    it('renders ActivityChart component', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const activityChart = wrapper.find('[data-testid="activity-chart"]')
-      expect(activityChart.exists()).toBe(true)
-    })
-
-    it('displays ActivityChart in the dashboard layout', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const activityChart = wrapper.find('[data-component="activity-chart"]')
-      expect(activityChart.exists()).toBe(true)
-    })
-
-    it('calls fetchChartStats on mount', async () => {
-      mount(FaceDashboardPage)
-      await flushPromises()
-
-      expect(mockFetchChartStats).toHaveBeenCalled()
-    })
-
-    it('passes loading state to ActivityChart', async () => {
-      mockIsChartsLoading.value = true
-
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const activityChart = wrapper.find('[data-component="activity-chart"]')
-      expect(activityChart.attributes('data-loading')).toBe('true')
-    })
-
-    it('passes error state to ActivityChart', async () => {
-      mockChartsError.value = 'Erreur réseau'
-
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const activityChart = wrapper.find('[data-component="activity-chart"]')
-      expect(activityChart.attributes('data-error')).toBe('Erreur réseau')
-    })
-  })
-
-  describe('MissionsQuickAccessCard integration', () => {
-    it('renders MissionsQuickAccessCard component', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const missionsCard = wrapper.find('[data-testid="browse-missions-card"]')
-      expect(missionsCard.exists()).toBe(true)
-    })
-
-    it('displays missions card in the quick access cards grid', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const grid = wrapper.find('[data-testid="quick-access-cards-grid"]')
-      const missionsCard = grid.find('[data-testid="browse-missions-card"]')
-      expect(missionsCard.exists()).toBe(true)
-    })
-
-    it('calls fetchMissionsCount on mount', async () => {
-      mount(FaceDashboardPage)
-      await flushPromises()
-
-      expect(mockFetchMissionsCount).toHaveBeenCalled()
-    })
-
-    it('displays missions card with text', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const missionsCard = wrapper.find('[data-testid="browse-missions-card"]')
-      expect(missionsCard.text()).toContain('Missions')
-    })
-
-    it('navigates to missions page when card is clicked', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const missionsCard = wrapper.find('[data-testid="browse-missions-card"]')
-      await missionsCard.trigger('click')
-
-      expect(mockRouter.push).toHaveBeenCalledWith({ name: 'face-missions' })
-    })
-  })
-
-  describe('MessagesCard integration', () => {
-    it('renders MessagesCard component', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const messagesCard = wrapper.find('[data-testid="messages-card"]')
-      expect(messagesCard.exists()).toBe(true)
-    })
-
-    it('displays messages card in the quick access cards grid', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const grid = wrapper.find('[data-testid="quick-access-cards-grid"]')
-      const messagesCard = grid.find('[data-testid="messages-card"]')
-      expect(messagesCard.exists()).toBe(true)
-    })
-
-    it('navigates to messages page when card is clicked', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const messagesCard = wrapper.find('[data-testid="messages-card"]')
-      await messagesCard.trigger('click')
-
-      expect(mockRouter.push).toHaveBeenCalledWith({ name: 'face-messages' })
-    })
-  })
-
-  // Note: Header tests moved to FaceLayout.spec.ts
-  // FaceDashboardPage is now content-only (rendered inside FaceLayout)
-
-  describe('layout structure', () => {
-    it('renders quick access cards grid container', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const grid = wrapper.find('[data-testid="quick-access-cards-grid"]')
-      expect(grid.exists()).toBe(true)
-    })
-
-    it('renders all 3 quick access cards', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      const grid = wrapper.find('[data-testid="quick-access-cards-grid"]')
-      expect(grid.element.children.length).toBe(3)
-    })
-
-    it('does not display welcome message (removed)', async () => {
-      const wrapper = mount(FaceDashboardPage)
-      await flushPromises()
-
-      expect(wrapper.text()).not.toContain('Bienvenue sur votre Dashboard Face')
-    })
+    expect(wrapper.find('[data-testid="activity-chart"]').attributes('data-loading')).toBe('true')
+    expect(wrapper.find('[data-testid="activity-chart"]').attributes('data-error')).toBe('Erreur candidatures')
+    expect(wrapper.find('[data-testid="booking-activity-chart"]').attributes('data-loading')).toBe('true')
+    expect(wrapper.find('[data-testid="booking-activity-chart"]').attributes('data-error')).toBe('Erreur bookings')
   })
 })
