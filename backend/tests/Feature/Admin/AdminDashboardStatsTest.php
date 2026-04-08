@@ -20,11 +20,13 @@ class AdminDashboardStatsTest extends TestCase
     use RefreshDatabase;
 
     private Admin $admin;
+    private string $adminToken;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->admin = Admin::factory()->create();
+        $this->adminToken = $this->admin->createToken('admin-token')->plainTextToken;
     }
 
     public function test_admin_can_get_dashboard_stats(): void
@@ -59,7 +61,7 @@ class AdminDashboardStatsTest extends TestCase
             $candidature->update(['status' => CandidatureStatus::Completed]);
         });
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/stats');
 
         $response->assertStatus(200)
@@ -96,7 +98,7 @@ class AdminDashboardStatsTest extends TestCase
 
     public function test_admin_dashboard_stats_with_empty_platform(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/stats');
 
         $response->assertStatus(200)
@@ -115,7 +117,7 @@ class AdminDashboardStatsTest extends TestCase
 
     public function test_admin_dashboard_stats_returns_correct_message(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/stats');
 
         $response->assertStatus(200)
@@ -133,7 +135,7 @@ class AdminDashboardStatsTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user, 'sanctum')
+        $response = $this->withToken($user->createToken('user-token')->plainTextToken)
             ->getJson('/api/v1/admin/dashboard/stats');
 
         $response->assertStatus(403);

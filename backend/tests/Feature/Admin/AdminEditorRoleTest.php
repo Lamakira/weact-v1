@@ -16,6 +16,8 @@ class AdminEditorRoleTest extends TestCase
     private Admin $editor;
 
     private Admin $admin;
+    private string $editorToken;
+    private string $adminToken;
 
     protected function setUp(): void
     {
@@ -23,13 +25,15 @@ class AdminEditorRoleTest extends TestCase
 
         $this->editor = Admin::factory()->editor()->create();
         $this->admin = Admin::factory()->create(); // default role = admin
+        $this->editorToken = $this->editor->createToken('editor-token')->plainTextToken;
+        $this->adminToken = $this->admin->createToken('admin-token')->plainTextToken;
     }
 
     // ─── EDITOR CAN ACCESS ARTICLES ──────────────────────────────
 
     public function test_editor_can_list_articles(): void
     {
-        $response = $this->actingAs($this->editor, 'sanctum')
+        $response = $this->withToken($this->editorToken)
             ->getJson('/api/v1/admin/articles');
 
         $response->assertOk();
@@ -37,7 +41,7 @@ class AdminEditorRoleTest extends TestCase
 
     public function test_editor_can_create_article(): void
     {
-        $response = $this->actingAs($this->editor, 'sanctum')
+        $response = $this->withToken($this->editorToken)
             ->postJson('/api/v1/admin/articles', [
                 'title' => 'Article de test éditeur',
                 'content' => 'Contenu de test pour vérifier les droits éditeur. Ce contenu doit faire au moins cinquante caractères.',
@@ -52,7 +56,7 @@ class AdminEditorRoleTest extends TestCase
     {
         $article = Article::factory()->create(['admin_id' => $this->editor->id]);
 
-        $response = $this->actingAs($this->editor, 'sanctum')
+        $response = $this->withToken($this->editorToken)
             ->getJson("/api/v1/admin/articles/{$article->id}");
 
         $response->assertOk();
@@ -62,7 +66,7 @@ class AdminEditorRoleTest extends TestCase
     {
         $article = Article::factory()->create(['admin_id' => $this->editor->id]);
 
-        $response = $this->actingAs($this->editor, 'sanctum')
+        $response = $this->withToken($this->editorToken)
             ->putJson("/api/v1/admin/articles/{$article->id}", [
                 'title' => 'Titre modifié par éditeur',
                 'content' => $article->content,
@@ -77,7 +81,7 @@ class AdminEditorRoleTest extends TestCase
     {
         $article = Article::factory()->create(['admin_id' => $this->editor->id]);
 
-        $response = $this->actingAs($this->editor, 'sanctum')
+        $response = $this->withToken($this->editorToken)
             ->deleteJson("/api/v1/admin/articles/{$article->id}");
 
         $response->assertOk();
@@ -87,7 +91,7 @@ class AdminEditorRoleTest extends TestCase
 
     public function test_editor_cannot_access_dashboard_stats(): void
     {
-        $response = $this->actingAs($this->editor, 'sanctum')
+        $response = $this->withToken($this->editorToken)
             ->getJson('/api/v1/admin/dashboard/stats');
 
         $response->assertForbidden();
@@ -95,7 +99,7 @@ class AdminEditorRoleTest extends TestCase
 
     public function test_editor_cannot_access_dashboard_trends(): void
     {
-        $response = $this->actingAs($this->editor, 'sanctum')
+        $response = $this->withToken($this->editorToken)
             ->getJson('/api/v1/admin/dashboard/trends');
 
         $response->assertForbidden();
@@ -103,7 +107,7 @@ class AdminEditorRoleTest extends TestCase
 
     public function test_editor_cannot_access_dashboard_recent_activity(): void
     {
-        $response = $this->actingAs($this->editor, 'sanctum')
+        $response = $this->withToken($this->editorToken)
             ->getJson('/api/v1/admin/dashboard/recent-activity');
 
         $response->assertForbidden();
@@ -113,7 +117,7 @@ class AdminEditorRoleTest extends TestCase
 
     public function test_editor_cannot_access_faces_list(): void
     {
-        $response = $this->actingAs($this->editor, 'sanctum')
+        $response = $this->withToken($this->editorToken)
             ->getJson('/api/v1/admin/faces');
 
         $response->assertForbidden();
@@ -123,7 +127,7 @@ class AdminEditorRoleTest extends TestCase
 
     public function test_editor_cannot_access_producers_list(): void
     {
-        $response = $this->actingAs($this->editor, 'sanctum')
+        $response = $this->withToken($this->editorToken)
             ->getJson('/api/v1/admin/producers');
 
         $response->assertForbidden();
@@ -133,7 +137,7 @@ class AdminEditorRoleTest extends TestCase
 
     public function test_editor_cannot_access_missions_list(): void
     {
-        $response = $this->actingAs($this->editor, 'sanctum')
+        $response = $this->withToken($this->editorToken)
             ->getJson('/api/v1/admin/missions');
 
         $response->assertForbidden();
@@ -141,7 +145,7 @@ class AdminEditorRoleTest extends TestCase
 
     public function test_editor_cannot_access_withdrawal_requests(): void
     {
-        $response = $this->actingAs($this->editor, 'sanctum')
+        $response = $this->withToken($this->editorToken)
             ->getJson('/api/v1/admin/finance/withdrawal-requests');
 
         $response->assertForbidden();
@@ -151,7 +155,7 @@ class AdminEditorRoleTest extends TestCase
 
     public function test_editor_cannot_access_admin_management(): void
     {
-        $response = $this->actingAs($this->editor, 'sanctum')
+        $response = $this->withToken($this->editorToken)
             ->getJson('/api/v1/admin/admins');
 
         $response->assertForbidden();
@@ -161,7 +165,7 @@ class AdminEditorRoleTest extends TestCase
 
     public function test_admin_can_access_dashboard_stats(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/stats');
 
         $response->assertOk();
@@ -169,7 +173,7 @@ class AdminEditorRoleTest extends TestCase
 
     public function test_admin_can_access_faces_list(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/faces');
 
         $response->assertOk();
@@ -177,7 +181,7 @@ class AdminEditorRoleTest extends TestCase
 
     public function test_admin_can_access_producers_list(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/producers');
 
         $response->assertOk();
@@ -185,7 +189,7 @@ class AdminEditorRoleTest extends TestCase
 
     public function test_admin_can_access_missions_list(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/missions');
 
         $response->assertOk();
@@ -193,7 +197,7 @@ class AdminEditorRoleTest extends TestCase
 
     public function test_admin_can_access_articles_list(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/articles');
 
         $response->assertOk();
@@ -203,7 +207,7 @@ class AdminEditorRoleTest extends TestCase
 
     public function test_editor_can_access_me_endpoint(): void
     {
-        $response = $this->actingAs($this->editor, 'sanctum')
+        $response = $this->withToken($this->editorToken)
             ->getJson('/api/v1/admin/me');
 
         $response->assertOk();

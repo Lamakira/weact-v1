@@ -392,8 +392,8 @@ class AlbumTest extends TestCase
 
     public function test_upload_is_rate_limited(): void
     {
-        // Make 11 requests (limit is 10/min)
-        for ($i = 0; $i < 11; $i++) {
+        // Make 21 requests (limit is 20/min)
+        for ($i = 0; $i < 21; $i++) {
             $file = UploadedFile::fake()->image("album{$i}.jpg", 500, 500);
             $response = $this->actingAs($this->faceUser)
                 ->postJson('/api/v1/face/album', ['photo' => $file]);
@@ -401,11 +401,11 @@ class AlbumTest extends TestCase
             if ($i < 4) {
                 // First 4 should succeed (we have 4 photo limit)
                 $response->assertCreated();
-            } elseif ($i < 10) {
+            } elseif ($i < 20) {
                 // Next ones will hit album full validation before rate limit
                 $response->assertUnprocessable();
             } else {
-                // 11th request should hit rate limit
+                // 21st request should hit rate limit
                 $response->assertTooManyRequests();
             }
         }

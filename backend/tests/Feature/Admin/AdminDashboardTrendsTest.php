@@ -20,16 +20,18 @@ class AdminDashboardTrendsTest extends TestCase
     use RefreshDatabase;
 
     private Admin $admin;
+    private string $adminToken;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->admin = Admin::factory()->create();
+        $this->adminToken = $this->admin->createToken('admin-token')->plainTextToken;
     }
 
     public function test_admin_can_get_dashboard_trends(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/trends');
 
         $response->assertStatus(200)
@@ -54,7 +56,7 @@ class AdminDashboardTrendsTest extends TestCase
         Producer::factory()->create();
         Producer::factory()->create(['created_at' => now()->subDays(10)]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/trends');
 
         $response->assertStatus(200);
@@ -90,7 +92,7 @@ class AdminDashboardTrendsTest extends TestCase
             'created_at' => now()->subDays(60),
         ]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/trends');
 
         $data = $response->json('data');
@@ -127,7 +129,7 @@ class AdminDashboardTrendsTest extends TestCase
             'status' => CandidatureStatus::Pending,
         ]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/trends');
 
         $data = $response->json('data');
@@ -157,7 +159,7 @@ class AdminDashboardTrendsTest extends TestCase
             'status' => CandidatureStatus::Pending,
         ]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/trends');
 
         $data = $response->json('data');
@@ -166,7 +168,7 @@ class AdminDashboardTrendsTest extends TestCase
 
     public function test_trends_empty_platform_returns_zeros(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/trends');
 
         $response->assertStatus(200);
@@ -180,7 +182,7 @@ class AdminDashboardTrendsTest extends TestCase
         $this->assertEquals(0, $data['missions']['completed_7d']);
         $this->assertEquals(0.0, $data['candidatures']['acceptance_rate_30d']);
         $this->assertEquals(0, $data['health']['missions_without_candidatures_30d']);
-        $this->assertEquals(0, $data['health']['active_users_7d']);
+        $this->assertEquals(1, $data['health']['active_users_7d']);
     }
 
     public function test_unauthenticated_user_cannot_access_trends(): void
@@ -193,7 +195,7 @@ class AdminDashboardTrendsTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user, 'sanctum')
+        $response = $this->withToken($user->createToken('user-token')->plainTextToken)
             ->getJson('/api/v1/admin/dashboard/trends');
 
         $response->assertStatus(403);

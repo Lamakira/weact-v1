@@ -415,17 +415,17 @@ class PresentationVideoTest extends TestCase
     {
         $this->mockVideoService(60.0);
 
-        // Make 11 requests (limit is 10/min)
-        for ($i = 0; $i < 11; $i++) {
+        // Make 21 requests (limit is 20/min)
+        for ($i = 0; $i < 21; $i++) {
             $file = UploadedFile::fake()->create("video{$i}.mp4", 10 * 1024, 'video/mp4');
             $response = $this->actingAs($this->faceUser)
                 ->postJson('/api/v1/face/presentation-video', ['video' => $file]);
 
-            if ($i < 10) {
-                // First 10 should succeed (video gets replaced each time)
+            if ($i < 20) {
+                // First 20 should succeed (video gets replaced each time)
                 $response->assertCreated();
             } else {
-                // 11th request should hit rate limit
+                // 21st request should hit rate limit
                 $response->assertTooManyRequests();
             }
         }
