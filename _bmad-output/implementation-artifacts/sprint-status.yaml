@@ -378,8 +378,8 @@ development_status:
   fix-13-1-block-candidature-gender-mismatch: done          # Bloquer candidature si genre Face ≠ genre requis par la mission
 
   # Epic FIX-14: Ajustements profil Face (2 stories)
-  epic-fix-14: backlog
-  fix-14-1-move-account-actions-to-bottom: backlog                 # Déplacer "Télécharger données" et "Supprimer compte" en bas du profil
-  fix-14-2-rename-profile-photo-label: backlog                     # Renommer "Photo de profil" → "Photo de mise en avant"
+  epic-fix-14: in-progress
+  fix-14-1-move-account-actions-to-bottom: done           # Déplacer "Télécharger données" et "Supprimer compte" en bas du profil
+  fix-14-2-rename-profile-photo-label: done               # Renommer "Photo de profil" → "Photo de mise en avant"
 
 last_updated: "2026-04-08"
