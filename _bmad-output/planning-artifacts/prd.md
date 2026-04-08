@@ -481,7 +481,7 @@ WEACT est une SPA (Single Page Application) Vue 3 + Vue Router, avec une API Lar
 ### 7. Cancellation & Refunds
 
 - FR36: Producer can cancel a booking before Face acceptance (full refund)
-- FR37: Producer can cancel a booking after Face acceptance (15% retained by WEACT, remainder refunded)
+- FR37: Producer can cancel after Face acceptance with transparent financial handling (accepted: no financial operation, paid: 10% retained by WEACT, 90% refunded)
 - FR38: System processes refunds to the Producer's Mobile Money account
 - FR39: System does not refund Producer in case of Producer no-show
 - FR40: Face is not penalized (no rating impact) when a Producer cancels
