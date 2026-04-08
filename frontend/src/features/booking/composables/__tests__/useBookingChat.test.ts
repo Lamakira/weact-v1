@@ -103,20 +103,18 @@ type WsPayload = {
   created_at: string
 }
 
-async function emitWsPayload(fromCall: number, payload: WsPayload): Promise<void> {
-  for (let i = 0; i < 15 && mockChannel.listen.mock.calls.length <= fromCall; i += 1) {
+async function emitWsPayload(_fromCall: number, payload: WsPayload): Promise<void> {
+  for (let i = 0; i < 15 && mockChannel.listen.mock.calls.length === 0; i += 1) {
     await flushPromises()
     await nextTick()
   }
 
-  const callbacks = mockChannel.listen.mock.calls
-    .slice(fromCall)
-    .map((call) => call[1])
-    .filter((cb): cb is (event: WsPayload) => void => typeof cb === 'function')
+  const callback = mockListenCallback.getMockImplementation() as ((event: WsPayload) => void) | undefined
 
-  expect(callbacks.length).toBeGreaterThan(0)
+  expect(mockChannel.listen).toHaveBeenCalled()
+  expect(typeof callback).toBe('function')
 
-  callbacks.forEach((cb) => cb(payload))
+  callback!(payload)
 }
 
 // ──────────────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ import {
   Star,
 } from 'lucide-vue-next'
 import { useMissionDetail } from '@/features/public/composables/useMissionDetail'
+import { formatMissionDurationForDisplay } from '@/features/mission/constants/missionDuration'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuthStore } from '@/stores/auth'
 import ReportButton from '@/components/report/ReportButton.vue'
@@ -335,7 +336,7 @@ async function handleRetry(): Promise<void> {
               <div>
                 <p class="text-xs text-gray-500">Durée</p>
                 <p class="text-sm font-medium text-gray-900" data-testid="mission-duree">
-                  {{ mission.duree }}
+                  {{ formatMissionDurationForDisplay(mission.duree) }}
                 </p>
               </div>
             </div>

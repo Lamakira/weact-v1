@@ -65,10 +65,15 @@ export const bookingApi = {
   /**
    * Cancel a booking (Producer or Face, depending on status/role)
    */
-  async cancelBooking(id: number, cancellationReason: CancellationReasonValue): Promise<BookingResponse> {
+  async cancelBooking(
+    id: number,
+    cancellationReason: CancellationReasonValue,
+    customReason?: string,
+  ): Promise<BookingResponse> {
     await getCsrfCookie()
     const response = await apiClient.post<BookingResponse>(`/bookings/${id}/cancel`, {
       cancellation_reason: cancellationReason,
+      custom_cancellation_reason: customReason || undefined,
     })
     return response.data
   },

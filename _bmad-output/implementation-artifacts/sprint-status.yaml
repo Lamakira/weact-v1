@@ -362,4 +362,24 @@ development_status:
   epic-fix-11: done
   fix-11-1-admin-display-user-emails: done                          # Afficher emails dans pages admin Face/Producer
 
+  # ============================================
+  # POST-LAUNCH FIXES Sprint 7 (Client issues - 2026-04-07)
+  # ============================================
+
+  # Epic FIX-12: Correctifs Booking — annulation, durée & expiration (4 stories)
+  epic-fix-12: in-progress
+  fix-12-1-producer-cancel-booking-bug: done                        # Fix annulation booking par le Producer (ne fonctionne pas)
+  fix-12-2-cancel-reasons-and-custom-input: done                   # Supprimer "désaccord prix", ajouter "Durée acceptation dépassée", champ libre pour "Autre"
+  fix-12-3-display-max-duration: done                       # Afficher "max 4h" au lieu de "4h" pour la durée (booking + mission)
+  fix-12-4-auto-expire-unaccepted-bookings: backlog                # Annulation auto des bookings non acceptés dont la date de tournage est passée
+
+  # Epic FIX-13: Filtrage candidatures par genre sur les missions (1 story)
+  epic-fix-13: backlog
+  fix-13-1-block-candidature-gender-mismatch: backlog              # Bloquer candidature si genre Face ≠ genre requis par la mission
+
+  # Epic FIX-14: Ajustements profil Face (2 stories)
+  epic-fix-14: backlog
+  fix-14-1-move-account-actions-to-bottom: backlog                 # Déplacer "Télécharger données" et "Supprimer compte" en bas du profil
+  fix-14-2-rename-profile-photo-label: backlog                     # Renommer "Photo de profil" → "Photo de mise en avant"
+
 last_updated: "2026-04-08"

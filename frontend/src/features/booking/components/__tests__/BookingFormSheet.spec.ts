@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import BookingFormSheet from '../BookingFormSheet.vue'
 import { calculatePricingPreview } from '@/features/booking/types'
@@ -37,41 +37,57 @@ const mountForm = (propsOverride: Record<string, unknown> = {}) =>
     },
   })
 
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'XOF',
+    maximumFractionDigits: 0,
+  }).format(amount)
+}
+
+describe('BookingFormSheet — duration presets', () => {
+  it('shows duration presets with "max" prefix in labels', () => {
+    const wrapper = mountForm()
+    const options = wrapper.findAll('select#duree_preset option')
+    const halfDay = options.find((o) => o.element.value === '4')
+    expect(halfDay).toBeDefined()
+    expect(halfDay!.text()).toContain('max 4h')
+  })
+
+  it('all standard presets contain "(max" in their label', () => {
+    const wrapper = mountForm()
+    const options = wrapper.findAll('select#duree_preset option')
+    const standardPresets = options.filter((o) => o.element.value !== '' && o.element.value !== 'custom')
+    for (const opt of standardPresets) {
+      expect(opt.text()).toMatch(/\(max \d+h\)/)
+    }
+  })
+})
+
 describe('BookingFormSheet — pricing preview', () => {
-  it('shows pricing preview when duration >= 4h and tariff is provided', () => {
+  it('shows pricing preview by default when a daily tariff is available', () => {
     const wrapper = mountForm()
 
-    // Default duree_heures = 4, tarifHoraire = 5000 → preview renders
     expect(wrapper.find('[data-testid="pricing-preview"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Total à payer')
   })
 
-  it('does not show pricing preview when duration < 4h', async () => {
-    const wrapper = mountForm()
-
-    // Change duration to 3 (below the 4h minimum)
-    const input = wrapper.find('input#duree_heures')
-    await input.setValue(3)
+  it('does not show pricing preview when no daily tariff is provided', () => {
+    const wrapper = mountForm({ tarifJournalier: null })
 
     expect(wrapper.find('[data-testid="pricing-preview"]').exists()).toBe(false)
   })
 
-  it('pricing amounts match calculatePricingPreview for given tariff and duration', () => {
-    const tarifHoraire = 5000
-    const dureeHeures = 4
-    const expectedTarifBase = dureeHeures * tarifHoraire // 20000
-    const pricing = calculatePricingPreview(expectedTarifBase)
+  it('updates the preview total when the duration preset changes', async () => {
+    const wrapper = mountForm({ tarifJournalier: 40000 })
 
-    const wrapper = mountForm({ tarifHoraire, tarifJournalier: null })
+    await wrapper.find('select#duree_preset').setValue('8')
+    await flushPromises()
 
-    const formattedTotal = new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      maximumFractionDigits: 0,
-    })
-      .format(pricing.totalProducerPays)
-      .replace(/\s/g, '')
+    const pricing = calculatePricingPreview(40000)
 
-    expect(wrapper.text().replace(/\s/g, '')).toContain(formattedTotal)
+    expect(wrapper.find('[data-testid="pricing-preview"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain(formatCurrency(pricing.totalProducerPays))
+    expect(wrapper.text()).toContain(formatCurrency(pricing.tarifBase))
   })
 })

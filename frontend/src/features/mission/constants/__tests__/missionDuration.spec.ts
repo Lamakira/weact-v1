@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   MISSION_DURATION_PRESETS,
   formatCustomDuration,
+  formatMissionDurationForDisplay,
   parseDurationToPreset,
 } from '../missionDuration'
 
@@ -10,8 +11,8 @@ describe('MISSION_DURATION_PRESETS', () => {
     expect(MISSION_DURATION_PRESETS).toHaveLength(11)
   })
 
-  it('starts with ½ journée (4h)', () => {
-    expect(MISSION_DURATION_PRESETS[0].label).toBe('½ journée (4h)')
+  it('starts with ½ journée (max 4h)', () => {
+    expect(MISSION_DURATION_PRESETS[0].label).toBe('½ journée (max 4h)')
   })
 
   it('ends with custom option', () => {
@@ -30,24 +31,51 @@ describe('MISSION_DURATION_PRESETS', () => {
 
 describe('formatCustomDuration', () => {
   it('formats 6 days correctly', () => {
-    expect(formatCustomDuration(6)).toBe('6 jours (48h)')
+    expect(formatCustomDuration(6)).toBe('6 jours (max 48h)')
   })
 
   it('formats 10 days correctly', () => {
-    expect(formatCustomDuration(10)).toBe('10 jours (80h)')
+    expect(formatCustomDuration(10)).toBe('10 jours (max 80h)')
+  })
+})
+
+describe('formatMissionDurationForDisplay', () => {
+  it('adds the max prefix to a legacy preset label', () => {
+    expect(formatMissionDurationForDisplay('2 journées (16h)')).toBe('2 journées (max 16h)')
+  })
+
+  it('adds the max prefix to a legacy custom duration label', () => {
+    expect(formatMissionDurationForDisplay('7 jours (56h)')).toBe('7 jours (max 56h)')
+  })
+
+  it('preserves the current format when max is already present', () => {
+    expect(formatMissionDurationForDisplay('2 journées (max 16h)')).toBe('2 journées (max 16h)')
+  })
+
+  it('leaves values without hours unchanged', () => {
+    expect(formatMissionDurationForDisplay('2 jours')).toBe('2 jours')
   })
 })
 
 describe('parseDurationToPreset', () => {
-  it('recognizes a standard preset', () => {
-    expect(parseDurationToPreset('2 journées (16h)')).toEqual({ preset: '2 journées (16h)' })
+  it('recognizes a standard preset with max prefix', () => {
+    expect(parseDurationToPreset('2 journées (max 16h)')).toEqual({ preset: '2 journées (max 16h)' })
   })
 
-  it('recognizes the first preset', () => {
-    expect(parseDurationToPreset('½ journée (4h)')).toEqual({ preset: '½ journée (4h)' })
+  it('recognizes the first preset with max prefix', () => {
+    expect(parseDurationToPreset('½ journée (max 4h)')).toEqual({ preset: '½ journée (max 4h)' })
   })
 
-  it('recognizes a custom duration pattern', () => {
+  it('maps legacy preset (without max) to current preset', () => {
+    expect(parseDurationToPreset('½ journée (4h)')).toEqual({ preset: '½ journée (max 4h)' })
+    expect(parseDurationToPreset('2 journées (16h)')).toEqual({ preset: '2 journées (max 16h)' })
+  })
+
+  it('recognizes a custom duration pattern with max', () => {
+    expect(parseDurationToPreset('7 jours (max 56h)')).toEqual({ preset: 'custom', customDays: 7 })
+  })
+
+  it('recognizes a legacy custom duration pattern without max', () => {
     expect(parseDurationToPreset('7 jours (56h)')).toEqual({ preset: 'custom', customDays: 7 })
   })
 

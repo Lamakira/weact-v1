@@ -48,7 +48,7 @@ const otherPartyInitials = computed((): string => {
 const bookingDateLabel = computed((): string => {
   const start = new Date(props.booking.date_debut)
   const dateStr = start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
-  return `${dateStr} · ${props.booking.duree_heures}h`
+  return `${dateStr} · max ${props.booking.duree_heures}h`
 })
 
 const isFaceRole = computed((): boolean => props.currentUserId === props.booking.face_id)

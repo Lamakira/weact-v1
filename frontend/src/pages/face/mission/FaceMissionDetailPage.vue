@@ -19,6 +19,7 @@ import {
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useMissionDetail } from '@/features/mission/composables'
+import { formatMissionDurationForDisplay } from '@/features/mission/constants/missionDuration'
 import { ApplyToMissionModal } from '@/features/candidature/components'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
@@ -360,7 +361,7 @@ onMounted(() => {
             </div>
             <div>
               <p class="text-[10px] min-[376px]:text-xs text-muted-foreground uppercase tracking-wider">Durée</p>
-              <p class="text-xs min-[376px]:text-sm font-medium text-foreground">{{ mission.duree }}</p>
+              <p class="text-xs min-[376px]:text-sm font-medium text-foreground">{{ formatMissionDurationForDisplay(mission.duree) }}</p>
             </div>
           </div>
 

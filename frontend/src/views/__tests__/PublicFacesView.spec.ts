@@ -5,9 +5,21 @@ import PublicFacesView from '../PublicFacesView.vue'
 import * as publicFacesApi from '@/features/public/services/publicFacesApi'
 import type { PublicFacesResponse, PublicFace } from '@/features/public/services/publicFacesApi'
 
-// Mock the API module
 vi.mock('@/features/public/services/publicFacesApi', () => ({
   fetchPublicFaces: vi.fn(),
+  fetchFilterOptions: vi.fn().mockResolvedValue({
+    data: {
+      categories: [],
+      niches: [],
+      cities: [],
+    },
+  }),
+}))
+
+vi.mock('@/composables/useScrollReveal', () => ({
+  useScrollReveal: () => ({
+    reinit: vi.fn(),
+  }),
 }))
 
 const mockFaces: PublicFace[] = [
@@ -40,7 +52,7 @@ const mockResponse: PublicFacesResponse = {
   meta: {
     current_page: 1,
     last_page: 3,
-    per_page: 15,
+    per_page: 16,
     total: 35,
   },
   message: 'Faces retrieved successfully',
@@ -55,12 +67,17 @@ describe('PublicFacesView', () => {
       routes: [
         { path: '/faces', name: 'public-faces-list', component: PublicFacesView },
         { path: '/faces/:username', name: 'public-face-profile', component: { template: '<div>Profile</div>' } },
-        { path: '/register/face', name: 'register-face', component: { template: '<div>Register Face</div>' } },
-        { path: '/register/producer', name: 'register-producer', component: { template: '<div>Register Producer</div>' } },
       ],
     })
 
     vi.clearAllMocks()
+    vi.mocked(publicFacesApi.fetchFilterOptions).mockResolvedValue({
+      data: {
+        categories: [],
+        niches: [],
+        cities: [],
+      },
+    })
   })
 
   afterEach(() => {
@@ -71,350 +88,146 @@ describe('PublicFacesView', () => {
     router.push(route)
     await router.isReady()
 
-    const wrapper = mount(PublicFacesView, {
+    return mount(PublicFacesView, {
       global: {
         plugins: [router],
         stubs: {
-          // Stub complex child components
-          FilterBar: { template: '<div data-testid="filter-bar">FilterBar</div>' },
+          FaceCard: {
+            props: ['face'],
+            template: '<div :data-testid="`face-card-${face.id}`">{{ face.prenom }}</div>',
+          },
+          FilterBar: {
+            template: '<div data-testid="filter-bar">FilterBar</div>',
+          },
+          RegistrationCta: {
+            template: `
+              <section data-testid="registration-cta">
+                <a href="/register/face" data-testid="register-face-cta">Face</a>
+                <a href="/register/producer" data-testid="register-producer-cta">Producer</a>
+              </section>
+            `,
+          },
+          Pagination: {
+            name: 'Pagination',
+            template: '<div data-testid="pagination-stub"></div>',
+          },
         },
       },
     })
-
-    return wrapper
   }
 
-  describe('Page structure', () => {
-    it('renders page header with title and description', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
+  it('renders the intro copy and filter bar', async () => {
+    vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
 
-      const wrapper = await mountView()
-      await flushPromises()
+    const wrapper = await mountView()
+    await flushPromises()
 
-      expect(wrapper.find('[data-testid="faces-page-title"]').text()).toBe('Nos Faces')
-      expect(wrapper.text()).toContain('Découvrez notre vivier de talents béninois')
+    expect(wrapper.find('[data-testid="public-faces-view"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="filter-bar"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Découvrez notre vivier de talents béninois')
+  })
+
+  it('shows loading skeletons while fetching', async () => {
+    vi.mocked(publicFacesApi.fetchPublicFaces).mockReturnValue(new Promise(() => {}))
+
+    const wrapper = await mountView()
+
+    expect(wrapper.find('[data-testid="faces-loading"]').exists()).toBe(true)
+  })
+
+  it('shows an error state and retries the request', async () => {
+    vi.mocked(publicFacesApi.fetchPublicFaces)
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValueOnce(mockResponse)
+
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="faces-error"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="faces-retry-button"]').trigger('click')
+    await flushPromises()
+
+    expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-testid="faces-error"]').exists()).toBe(false)
+  })
+
+  it('shows the empty state and keeps the registration CTA', async () => {
+    vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue({
+      ...mockResponse,
+      data: [],
+      meta: { ...mockResponse.meta, total: 0 },
     })
 
-    it('renders the filter bar', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
+    const wrapper = await mountView()
+    await flushPromises()
 
-      const wrapper = await mountView()
-      await flushPromises()
+    expect(wrapper.find('[data-testid="faces-empty"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Aucun talent disponible')
+    expect(wrapper.find('[data-testid="registration-cta"]').exists()).toBe(true)
+  })
 
-      expect(wrapper.find('[data-testid="filter-bar"]').exists()).toBe(true)
+  it('renders the faces grid, cards, count, and CTA', async () => {
+    vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
+
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="faces-grid"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="face-card-1"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="face-card-2"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('35')
+    expect(wrapper.text()).toContain('talents trouvés')
+    expect(wrapper.find('[data-testid="registration-cta"]').exists()).toBe(true)
+  })
+
+  it('renders pagination when multiple pages and updates the route on page change', async () => {
+    vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
+
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="faces-pagination"]').exists()).toBe(true)
+
+    wrapper.findComponent({ name: 'Pagination' }).vm.$emit('page-change', 2)
+    await flushPromises()
+
+    expect(router.currentRoute.value.query.page).toBe('2')
+  })
+
+  it('hides pagination when there is a single page', async () => {
+    vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue({
+      ...mockResponse,
+      meta: { ...mockResponse.meta, last_page: 1 },
     })
 
-    it('has the correct data-testid', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
+    const wrapper = await mountView()
+    await flushPromises()
 
-      const wrapper = await mountView()
-      await flushPromises()
+    expect(wrapper.find('[data-testid="faces-pagination"]').exists()).toBe(false)
+  })
 
-      expect(wrapper.find('[data-testid="public-faces-view"]').exists()).toBe(true)
+  it('calls the API with the current page and filters from the URL', async () => {
+    vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
+
+    await mountView('/faces?page=2&search=Adjoua&categorie=acteur')
+    await flushPromises()
+
+    expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(2, 16, {
+      categorie: 'acteur',
+      niche: undefined,
+      ville: undefined,
+      search: 'Adjoua',
     })
   })
 
-  describe('Loading state', () => {
-    it('shows loading skeletons while fetching', async () => {
-      // Don't resolve the promise immediately
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockReturnValue(
-        new Promise(() => {}) // Never resolves
-      )
+  it('renders registration links with the expected destinations', async () => {
+    vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
 
-      const wrapper = await mountView()
+    const wrapper = await mountView()
+    await flushPromises()
 
-      expect(wrapper.find('[data-testid="faces-loading"]').exists()).toBe(true)
-    })
-
-    it('hides loading skeletons after data loads', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      expect(wrapper.find('[data-testid="faces-loading"]').exists()).toBe(false)
-    })
-  })
-
-  describe('Error state', () => {
-    it('shows error message when API fails', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockRejectedValue(new Error('Network error'))
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      expect(wrapper.find('[data-testid="faces-error"]').exists()).toBe(true)
-      expect(wrapper.text()).toContain('Une erreur est survenue')
-    })
-
-    it('shows retry button on error', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockRejectedValue(new Error('Network error'))
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      expect(wrapper.find('[data-testid="faces-retry-button"]').exists()).toBe(true)
-    })
-
-    it('retries API call when retry button clicked', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces)
-        .mockRejectedValueOnce(new Error('Network error'))
-        .mockResolvedValueOnce(mockResponse)
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      await wrapper.find('[data-testid="faces-retry-button"]').trigger('click')
-      await flushPromises()
-
-      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledTimes(2)
-      expect(wrapper.find('[data-testid="faces-error"]').exists()).toBe(false)
-    })
-  })
-
-  describe('Empty state', () => {
-    it('shows empty state when no faces', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue({
-        ...mockResponse,
-        data: [],
-        meta: { ...mockResponse.meta, total: 0 },
-      })
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      expect(wrapper.find('[data-testid="faces-empty"]').exists()).toBe(true)
-      expect(wrapper.text()).toContain('Aucun talent disponible')
-    })
-  })
-
-  describe('Faces grid', () => {
-    it('renders faces grid with data', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      expect(wrapper.find('[data-testid="faces-grid"]').exists()).toBe(true)
-    })
-
-    it('renders face cards for each face', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      expect(wrapper.find('[data-testid="face-card-1"]').exists()).toBe(true)
-      expect(wrapper.find('[data-testid="face-card-2"]').exists()).toBe(true)
-    })
-
-    it('shows total count', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      expect(wrapper.text()).toContain('35')
-      expect(wrapper.text()).toContain('talents trouvés')
-    })
-
-    it('has responsive grid classes', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      const grid = wrapper.find('[data-testid="faces-grid"]')
-      expect(grid.classes()).toContain('grid-cols-2')
-      expect(grid.classes()).toContain('sm:grid-cols-3')
-      expect(grid.classes()).toContain('lg:grid-cols-4')
-    })
-  })
-
-  describe('Pagination', () => {
-    it('renders pagination when multiple pages', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      expect(wrapper.find('[data-testid="faces-pagination"]').exists()).toBe(true)
-    })
-
-    it('hides pagination when single page', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue({
-        ...mockResponse,
-        meta: { ...mockResponse.meta, last_page: 1 },
-      })
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      expect(wrapper.find('[data-testid="faces-pagination"]').exists()).toBe(false)
-    })
-
-    it('loads new page when pagination changes', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      // Find the pagination component and trigger page change
-      const paginationComponent = wrapper.findComponent({ name: 'Pagination' })
-      paginationComponent.vm.$emit('page-change', 2)
-      await flushPromises()
-
-      // Should update URL query param
-      expect(router.currentRoute.value.query.page).toBe('2')
-    })
-  })
-
-  describe('API integration', () => {
-    it('calls fetchPublicFaces on mount', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
-
-      await mountView()
-      await flushPromises()
-
-      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(1, 15, {
-        categorie: undefined,
-        niche: undefined,
-        ville: undefined,
-        search: undefined,
-      })
-    })
-
-    it('uses page from URL query param', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
-
-      await mountView('/faces?page=2')
-      await flushPromises()
-
-      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(2, 15, {
-        categorie: undefined,
-        niche: undefined,
-        ville: undefined,
-        search: undefined,
-      })
-    })
-
-    it('passes search query param to API call', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
-
-      await mountView('/faces?search=Adjoua')
-      await flushPromises()
-
-      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(1, 15, {
-        categorie: undefined,
-        niche: undefined,
-        ville: undefined,
-        search: 'Adjoua',
-      })
-    })
-
-    it('passes search combined with filters to API call', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
-
-      await mountView('/faces?search=Adjoua&categorie=acteur')
-      await flushPromises()
-
-      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(1, 15, {
-        categorie: 'acteur',
-        niche: undefined,
-        ville: undefined,
-        search: 'Adjoua',
-      })
-    })
-
-    it('shows empty state when search returns no results', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue({
-        ...mockResponse,
-        data: [],
-        meta: { ...mockResponse.meta, total: 0 },
-      })
-
-      const wrapper = await mountView('/faces?search=NONEXISTENT')
-      await flushPromises()
-
-      expect(wrapper.find('[data-testid="faces-empty"]').exists()).toBe(true)
-    })
-  })
-
-  describe('Registration CTA', () => {
-    it('renders registration CTA section after data loads', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      expect(wrapper.find('[data-testid="registration-cta"]').exists()).toBe(true)
-    })
-
-    it('renders face registration link to /register/face', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      const link = wrapper.find('[data-testid="register-face-cta"]')
-      expect(link.exists()).toBe(true)
-      expect(link.attributes('href')).toBe('/register/face')
-    })
-
-    it('renders producer registration link to /register/producer', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      const link = wrapper.find('[data-testid="register-producer-cta"]')
-      expect(link.exists()).toBe(true)
-      expect(link.attributes('href')).toBe('/register/producer')
-    })
-
-    it('does not render CTA in loading state', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockReturnValue(
-        new Promise(() => {})
-      )
-
-      const wrapper = await mountView()
-
-      expect(wrapper.find('[data-testid="registration-cta"]').exists()).toBe(false)
-    })
-
-    it('does not render CTA in error state', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockRejectedValue(new Error('Network error'))
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      expect(wrapper.find('[data-testid="registration-cta"]').exists()).toBe(false)
-    })
-
-    it('renders CTA in empty state', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue({
-        ...mockResponse,
-        data: [],
-        meta: { ...mockResponse.meta, total: 0 },
-      })
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      expect(wrapper.find('[data-testid="registration-cta"]').exists()).toBe(true)
-    })
-  })
-
-  describe('Accessibility', () => {
-    it('has proper heading hierarchy', async () => {
-      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
-
-      const wrapper = await mountView()
-      await flushPromises()
-
-      const h1 = wrapper.find('h1')
-      expect(h1.exists()).toBe(true)
-      expect(h1.text()).toBe('Nos Faces')
-    })
+    expect(wrapper.find('[data-testid="register-face-cta"]').attributes('href')).toBe('/register/face')
+    expect(wrapper.find('[data-testid="register-producer-cta"]').attributes('href')).toBe('/register/producer')
   })
 })

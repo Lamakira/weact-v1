@@ -16,18 +16,20 @@ class AdminArticlesListTest extends TestCase
     use RefreshDatabase;
 
     private Admin $admin;
+    private string $adminToken;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->admin = Admin::factory()->create();
+        $this->adminToken = $this->admin->createToken('admin-token')->plainTextToken;
     }
 
     public function test_admin_can_list_articles(): void
     {
         Article::factory()->count(3)->create(['admin_id' => $this->admin->id]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/articles');
 
         $response->assertOk()
@@ -53,7 +55,7 @@ class AdminArticlesListTest extends TestCase
             'status' => ArticleStatus::Published,
         ]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/articles');
 
         $response->assertOk()
@@ -64,7 +66,7 @@ class AdminArticlesListTest extends TestCase
     {
         Article::factory()->count(20)->create(['admin_id' => $this->admin->id]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/articles');
 
         $response->assertOk()
@@ -84,7 +86,7 @@ class AdminArticlesListTest extends TestCase
             'title' => 'Actualités du mois',
         ]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/articles?search=débutantes');
 
         $response->assertOk()
@@ -103,7 +105,7 @@ class AdminArticlesListTest extends TestCase
             'category' => ArticleCategory::Actualites,
         ]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/articles?category=conseils-face');
 
         $response->assertOk()
@@ -121,7 +123,7 @@ class AdminArticlesListTest extends TestCase
             'status' => ArticleStatus::Published,
         ]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/articles?status=draft');
 
         $response->assertOk()
@@ -142,7 +144,7 @@ class AdminArticlesListTest extends TestCase
             'created_at' => now(),
         ]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/articles');
 
         $response->assertOk();
@@ -162,7 +164,7 @@ class AdminArticlesListTest extends TestCase
     {
         Article::factory()->create(['admin_id' => $this->admin->id]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/articles');
 
         $response->assertOk()

@@ -8,6 +8,7 @@ use App\Enums\MissionStatus;
 use App\Enums\MissionType;
 use App\Models\Mission;
 use App\Models\Producer;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -22,6 +23,11 @@ class PublicBrowseMissionsTest extends TestCase
         parent::setUp();
 
         $this->producer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $this->producer->id,
+            'is_active' => true,
+        ]);
     }
 
     public function test_type_mission_filter_returns_only_matching_public_missions(): void

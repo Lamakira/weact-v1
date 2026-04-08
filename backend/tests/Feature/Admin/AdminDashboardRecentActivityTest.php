@@ -18,11 +18,13 @@ class AdminDashboardRecentActivityTest extends TestCase
     use RefreshDatabase;
 
     private Admin $admin;
+    private string $adminToken;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->admin = Admin::factory()->create();
+        $this->adminToken = $this->admin->createToken('admin-token')->plainTextToken;
     }
 
     public function test_admin_can_get_recent_activity(): void
@@ -30,7 +32,7 @@ class AdminDashboardRecentActivityTest extends TestCase
         $producer = Producer::factory()->create();
         Mission::factory()->published()->create(['producer_id' => $producer->id]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/recent-activity');
 
         $response->assertStatus(200)
@@ -51,7 +53,7 @@ class AdminDashboardRecentActivityTest extends TestCase
             'titre' => 'Test Mission Alpha',
         ]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/recent-activity');
 
         $response->assertStatus(200);
@@ -73,7 +75,7 @@ class AdminDashboardRecentActivityTest extends TestCase
             'title' => 'Test Article Beta',
         ]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/recent-activity');
 
         $response->assertStatus(200);
@@ -94,7 +96,7 @@ class AdminDashboardRecentActivityTest extends TestCase
             'userable_id' => $face->id,
         ]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/recent-activity');
 
         $response->assertStatus(200);
@@ -113,7 +115,7 @@ class AdminDashboardRecentActivityTest extends TestCase
             'producer_id' => $producer->id,
         ]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/recent-activity');
 
         $response->assertStatus(200);
@@ -138,7 +140,7 @@ class AdminDashboardRecentActivityTest extends TestCase
             'created_at' => now(),
         ]);
 
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/recent-activity');
 
         $response->assertStatus(200);
@@ -155,7 +157,7 @@ class AdminDashboardRecentActivityTest extends TestCase
 
     public function test_recent_activity_empty_platform(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->getJson('/api/v1/admin/dashboard/recent-activity');
 
         $response->assertStatus(200);
@@ -175,7 +177,7 @@ class AdminDashboardRecentActivityTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user, 'sanctum')
+        $response = $this->withToken($user->createToken('user-token')->plainTextToken)
             ->getJson('/api/v1/admin/dashboard/recent-activity');
 
         $response->assertStatus(403);

@@ -35,6 +35,7 @@ class BookingResource extends JsonResource
             'montant_total_producteur' => $this->montant_total_producteur,
             'montant_face_recoit' => $this->montant_face_recoit,
             'cancellation_reason' => $this->cancellation_reason,
+            'custom_cancellation_reason' => $this->custom_cancellation_reason,
             'fedapay_transaction_id' => $user && $user->id === $this->producer_id ? $this->fedapay_transaction_id : null,
             'payment_mode' => $this->payment_mode,
             'accepted_at' => $this->accepted_at?->toISOString(),

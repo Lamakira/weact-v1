@@ -32,9 +32,9 @@ import {
   CANCELLABLE_BY_FACE_STATUSES,
   CANCELLABLE_BY_PRODUCER_STATUSES,
   getCancellationReasonLabel,
+  type BookingCancellationPayload,
   type BookingStatusType,
   type BookingRating,
-  type CancellationReasonValue,
 } from '@/features/booking/types'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import { useToast } from '@/composables/useToast'
@@ -259,11 +259,11 @@ async function handleConfirm(): Promise<void> {
   }
 }
 
-async function handleCancel(reason: CancellationReasonValue): Promise<void> {
+async function handleCancel(payload: BookingCancellationPayload): Promise<void> {
   if (!booking.value) return
   clearError()
 
-  const result = await cancel(booking.value.id, reason)
+  const result = await cancel(booking.value.id, payload.reason, payload.customReason)
   if (result) {
     booking.value = result
     showCancellationDialog.value = false
@@ -417,7 +417,7 @@ onUnmounted(() => {
       <!-- Header: Status badge + title -->
       <div class="flex items-center gap-3 mb-6">
         <BookingStatusBadge :status="booking.status" />
-        <h1 class="text-xl font-bold text-gray-900">Demande de booking #{{ booking.id }}</h1>
+        <h1 class="text-xl font-bold text-gray-900">Demande de booking</h1>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -477,7 +477,7 @@ onUnmounted(() => {
                 <Clock class="w-4 h-4 text-gray-400 shrink-0" />
                 <div>
                   <p class="text-xs text-gray-500">Durée</p>
-                  <p class="text-sm font-medium text-gray-900">{{ booking.duree_heures }}h</p>
+                  <p class="text-sm font-medium text-gray-900">max {{ booking.duree_heures }}h</p>
                 </div>
               </div>
               <div class="flex items-center gap-2.5">
@@ -521,6 +521,12 @@ onUnmounted(() => {
               {{ booking.status === BookingStatus.REFUSED ? 'Raison du refus' : 'Raison de l\'annulation' }}
             </h2>
             <p class="text-sm text-red-600">{{ getCancellationReasonLabel(booking.cancellation_reason) }}</p>
+            <p
+              v-if="booking.custom_cancellation_reason"
+              class="mt-2 text-sm text-red-700"
+            >
+              {{ booking.custom_cancellation_reason }}
+            </p>
           </div>
 
           <div
@@ -671,6 +677,7 @@ onUnmounted(() => {
       :booking="booking"
       :is-open="showCancellationDialog"
       :is-cancelling="isCancelling"
+      :is-face="isFace"
       @confirm="handleCancel"
       @cancel="showCancellationDialog = false"
     />

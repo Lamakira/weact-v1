@@ -116,7 +116,7 @@ const formattedDateRange = computed(() => {
           {{ counterpartName }}
         </p>
         <p class="text-xs text-muted-foreground">
-          Booking #{{ booking.id }}
+          Demande de booking
         </p>
       </div>
     </div>
@@ -129,7 +129,7 @@ const formattedDateRange = computed(() => {
       </div>
       <div class="flex items-center gap-1.5">
         <Clock class="h-4 w-4" />
-        <span>{{ booking.duree_heures }}h</span>
+        <span>max {{ booking.duree_heures }}h</span>
       </div>
       <div class="flex items-center gap-1.5">
         <Wallet class="h-4 w-4" />

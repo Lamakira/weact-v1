@@ -15,17 +15,19 @@ class AdminCreateTest extends TestCase
     use RefreshDatabase;
 
     private Admin $admin;
+    private string $adminToken;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->admin = Admin::factory()->superAdmin()->create();
+        $this->adminToken = $this->admin->createToken('admin-token')->plainTextToken;
     }
 
     public function test_creates_a_new_admin_with_valid_data(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->postJson('/api/v1/admin/admins', [
                 'name' => 'Nouveau Admin',
                 'email' => 'nouveau@weact.bj',
@@ -51,7 +53,7 @@ class AdminCreateTest extends TestCase
 
     public function test_hashes_the_password_when_creating_admin(): void
     {
-        $this->actingAs($this->admin, 'sanctum')
+        $this->withToken($this->adminToken)
             ->postJson('/api/v1/admin/admins', [
                 'name' => 'Admin Test',
                 'email' => 'test@weact.bj',
@@ -67,7 +69,7 @@ class AdminCreateTest extends TestCase
 
     public function test_rejects_duplicate_email(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->postJson('/api/v1/admin/admins', [
                 'name' => 'Duplicate Admin',
                 'email' => $this->admin->email,
@@ -82,7 +84,7 @@ class AdminCreateTest extends TestCase
 
     public function test_rejects_missing_name(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->postJson('/api/v1/admin/admins', [
                 'email' => 'test@weact.bj',
                 'password' => 'Password1!',
@@ -95,7 +97,7 @@ class AdminCreateTest extends TestCase
 
     public function test_rejects_invalid_email_format(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->postJson('/api/v1/admin/admins', [
                 'name' => 'Test Admin',
                 'email' => 'not-an-email',
@@ -109,7 +111,7 @@ class AdminCreateTest extends TestCase
 
     public function test_rejects_password_shorter_than_8_characters(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->postJson('/api/v1/admin/admins', [
                 'name' => 'Test Admin',
                 'email' => 'test@weact.bj',
@@ -123,7 +125,7 @@ class AdminCreateTest extends TestCase
 
     public function test_rejects_password_confirmation_mismatch(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->postJson('/api/v1/admin/admins', [
                 'name' => 'Test Admin',
                 'email' => 'test@weact.bj',
@@ -151,7 +153,7 @@ class AdminCreateTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user, 'sanctum')
+        $response = $this->withToken($user->createToken('user-token')->plainTextToken)
             ->postJson('/api/v1/admin/admins', [
                 'name' => 'Test Admin',
                 'email' => 'test@weact.bj',
@@ -164,7 +166,7 @@ class AdminCreateTest extends TestCase
 
     public function test_creates_admin_with_explicit_role(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->postJson('/api/v1/admin/admins', [
                 'name' => 'Editor Admin',
                 'email' => 'editor@weact.bj',
@@ -184,7 +186,7 @@ class AdminCreateTest extends TestCase
 
     public function test_rejects_invalid_role_on_create(): void
     {
-        $response = $this->actingAs($this->admin, 'sanctum')
+        $response = $this->withToken($this->adminToken)
             ->postJson('/api/v1/admin/admins', [
                 'name' => 'Test Admin',
                 'email' => 'test@weact.bj',
@@ -199,7 +201,7 @@ class AdminCreateTest extends TestCase
 
     public function test_newly_created_admin_can_login(): void
     {
-        $this->actingAs($this->admin, 'sanctum')
+        $this->withToken($this->adminToken)
             ->postJson('/api/v1/admin/admins', [
                 'name' => 'Login Test Admin',
                 'email' => 'logintest@weact.bj',

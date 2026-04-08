@@ -198,7 +198,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Escrow model**: Virtual ledger in DB (`escrow_transactions` table). Fedapay holds real money in one account, our DB tracks state per booking
 - **Wallet balance**: Running `balance` column on User model + `wallet_transactions` log. Updated atomically in DB transaction
 - **Service ownership**: `BookingService` owns `bookings`, `EscrowService` owns `escrow_transactions`, `WalletService` owns `wallet_transactions` + `balance`
-- **Cancellation fees**: Pre-acceptance = full refund, post-acceptance = 15% retained by WEACT
+- **Cancellation fees**: Pending = full refund if payment exists, accepted-before-payment = no financial operation, paid = 10% retained by WEACT (90% refunded)
 - **Minimum booking**: 4 hours minimum duration enforced in `CreateBookingRequest`
 
 #### Anti-Patterns to Avoid
@@ -259,7 +259,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - Mission can have multiple accepted candidatures (up to `nombre_faces_voulu`)
 - Face availability toggle affects visibility in search results
 - Booking and Mission are parallel workflows — they share User/Face/Producer models but have completely separate controllers, services, and tables
-- Face cancellation after payment triggers refund; Producer cancellation after acceptance retains 15%
+- Face cancellation after payment triggers a 90% refund; Producer cancellation on accepted bookings has no financial operation, while paid bookings refund 90%
 - Face gets -1 star rating penalty when Face cancels a booking (not when Producer cancels)
 - Auto-complete fires after 72h if Producer hasn't confirmed — `AutoCompleteBookingsCommand` runs hourly
 - Expired unpaid bookings cancelled after 24h — `ExpireUnpaidBookingsCommand` runs hourly

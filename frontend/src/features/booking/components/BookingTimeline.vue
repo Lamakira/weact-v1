@@ -25,9 +25,9 @@ const baseSteps: TimelineStep[] = [
 const steps = computed<TimelineStep[]>(() => {
   if (props.status === BookingStatus.NO_SHOW) {
     return [
-      baseSteps[0],
-      baseSteps[1],
-      baseSteps[2],
+      baseSteps[0]!,
+      baseSteps[1]!,
+      baseSteps[2]!,
       { label: 'Absence signalée', key: 'no_show' },
     ]
   }

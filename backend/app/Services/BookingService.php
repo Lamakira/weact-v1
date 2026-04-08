@@ -157,9 +157,11 @@ class BookingService
      *
      * @throws ValidationException
      */
-    public function cancel(Booking $booking, string $reason): Booking
+    public function cancel(Booking $booking, string $reason, ?string $customReason = null): Booking
     {
-        return DB::transaction(function () use ($booking, $reason) {
+        $customReason = trim((string) $customReason) ?: null;
+
+        $cancelledBooking = DB::transaction(function () use ($booking, $reason, $customReason) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
             $cancellableStatuses = [
@@ -181,13 +183,24 @@ class BookingService
             $booking->update([
                 'status' => BookingStatus::CancelledByProducer,
                 'cancellation_reason' => BookingCancellationReason::from($reason)->value,
+                'custom_cancellation_reason' => $reason === BookingCancellationReason::Other->value
+                    ? $customReason
+                    : null,
             ]);
 
-            $freshBooking = $booking->fresh();
-            BookingCancelled::dispatch($freshBooking);
-
-            return $freshBooking;
+            return $booking->fresh();
         });
+
+        try {
+            BookingCancelled::dispatch($cancelledBooking);
+        } catch (\Throwable $e) {
+            Log::warning('BookingCancelled broadcast failed', [
+                'booking_id' => $cancelledBooking->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $cancelledBooking;
     }
 
     /**
@@ -198,9 +211,11 @@ class BookingService
      *
      * @throws ValidationException
      */
-    public function cancelByFace(Booking $booking, string $reason): Booking
+    public function cancelByFace(Booking $booking, string $reason, ?string $customReason = null): Booking
     {
-        $cancelledBooking = DB::transaction(function () use ($booking, $reason) {
+        $customReason = trim((string) $customReason) ?: null;
+
+        $cancelledBooking = DB::transaction(function () use ($booking, $reason, $customReason) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
             $cancellableStatuses = [
@@ -221,6 +236,9 @@ class BookingService
             $booking->update([
                 'status' => BookingStatus::CancelledByFace,
                 'cancellation_reason' => BookingCancellationReason::from($reason)->value,
+                'custom_cancellation_reason' => $reason === BookingCancellationReason::Other->value
+                    ? $customReason
+                    : null,
             ]);
 
             return $booking->fresh();
@@ -687,6 +705,48 @@ class BookingService
 
         // Dispatch after the transaction commits. A broadcast failure is
         // non-fatal: the booking status is already persisted in DB.
+        if ($expired) {
+            try {
+                BookingExpired::dispatch($booking->fresh());
+            } catch (\Throwable $e) {
+                Log::warning('BookingExpired broadcast failed', [
+                    'booking_id' => $booking->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Expire an unaccepted pending booking after the shooting date has passed.
+     */
+    public function expireUnaccepted(Booking $booking): void
+    {
+        $expired = false;
+        $cutoff = now();
+
+        DB::transaction(function () use ($booking, &$expired): void {
+            $booking = Booking::query()->lockForUpdate()->find($booking->id);
+
+            if ($booking === null) {
+                return;
+            }
+
+            if ($booking->status !== BookingStatus::Pending) {
+                return;
+            }
+
+            if ($booking->date_debut->isFuture()) {
+                return;
+            }
+
+            $booking->update([
+                'status' => BookingStatus::Expired,
+                'accepted_at' => null,
+            ]);
+            $expired = true;
+        });
+
         if ($expired) {
             try {
                 BookingExpired::dispatch($booking->fresh());

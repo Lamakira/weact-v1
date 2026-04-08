@@ -9,13 +9,15 @@ use App\Events\BookingAccepted;
 use App\Events\BookingCancelled;
 use App\Events\BookingCompleted;
 use App\Events\BookingCreated;
+use App\Events\BookingExpired;
 use App\Events\BookingPaid;
 use App\Events\BookingRefused;
 use App\Listeners\Booking\NotifyFaceOnBookingReceived;
 use App\Listeners\Booking\NotifyPartiesOnBookingCompleted;
+use App\Listeners\Booking\NotifyPartiesOnBookingExpired;
+use App\Listeners\Booking\NotifyPartiesOnBookingPaid;
 use App\Listeners\Booking\NotifyPartyOnBookingCancelled;
 use App\Listeners\Booking\NotifyProducerOnBookingAccepted;
-use App\Listeners\Booking\NotifyPartiesOnBookingPaid;
 use App\Listeners\Booking\NotifyProducerOnBookingRefused;
 use App\Models\Booking;
 use App\Models\Face;
@@ -156,7 +158,10 @@ class BookingNotificationTest extends TestCase
     {
         // Face confirms first → Producer gets notified.
         // Booking must be Paid before confirmation is allowed.
-        $this->booking->update(['status' => BookingStatus::Paid]);
+        $this->booking->update([
+            'status' => BookingStatus::Paid,
+            'date_debut' => now()->subDay(),
+        ]);
 
         $this->actingAs($this->faceUser)
             ->postJson("/api/v1/bookings/{$this->booking->id}/confirm")
@@ -203,6 +208,59 @@ class BookingNotificationTest extends TestCase
         $this->assertNotNull($notification);
         $this->assertStringContainsString('terminé', $notification->data['message']);
         $this->assertEquals("/producer/bookings/{$this->booking->id}", $notification->data['url']);
+    }
+
+    public function test_booking_expired_without_face_response_creates_specific_notifications_for_both_parties(): void
+    {
+        $this->booking->update([
+            'status' => BookingStatus::Expired,
+            'accepted_at' => null,
+            'date_debut' => now()->subDay(),
+        ]);
+
+        $listener = new NotifyPartiesOnBookingExpired;
+        $listener->handle(new BookingExpired($this->booking->fresh()));
+
+        $producerNotification = Notification::where('user_id', $this->producerUser->id)
+            ->where('type', 'booking_expired')
+            ->first();
+
+        $faceNotification = Notification::where('user_id', $this->faceUser->id)
+            ->where('type', 'booking_expired')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($producerNotification);
+        $this->assertNotNull($faceNotification);
+        $this->assertStringContainsString('date de tournage est passée sans réponse de la Face', $producerNotification->data['message']);
+        $this->assertStringContainsString('date de tournage est passée sans réponse de la Face', $faceNotification->data['message']);
+        $this->assertEquals("/producer/bookings/{$this->booking->id}", $producerNotification->data['url']);
+        $this->assertEquals("/face/bookings/{$this->booking->id}", $faceNotification->data['url']);
+    }
+
+    public function test_booking_expired_after_acceptance_keeps_payment_timeout_message(): void
+    {
+        $this->booking->update([
+            'status' => BookingStatus::Expired,
+            'accepted_at' => now()->subDay(),
+        ]);
+
+        $listener = new NotifyPartiesOnBookingExpired;
+        $listener->handle(new BookingExpired($this->booking->fresh()));
+
+        $producerNotification = Notification::where('user_id', $this->producerUser->id)
+            ->where('type', 'booking_expired')
+            ->first();
+
+        $faceNotification = Notification::where('user_id', $this->faceUser->id)
+            ->where('type', 'booking_expired')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($producerNotification);
+        $this->assertNotNull($faceNotification);
+        $this->assertStringContainsString("paiement n'a pas été effectué dans les 24h", $producerNotification->data['message']);
+        $this->assertStringContainsString("paiement n'a pas été effectué dans les 24h", $faceNotification->data['message']);
     }
 
     public function test_booking_cancelled_by_producer_notifies_face_with_no_penalty_message(): void

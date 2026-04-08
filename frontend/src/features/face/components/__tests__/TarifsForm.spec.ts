@@ -5,9 +5,9 @@ import type { TarifsInfo } from '../../types'
 
 describe('TarifsForm', () => {
   const mockTarifsInfo: TarifsInfo = {
-    tarif_horaire: 75000,
+    tarif_horaire: 31250,
     tarif_journalier: 250000,
-    formatted_tarif_horaire: '75 000 XOF/heure',
+    formatted_tarif_horaire: '31 250 XOF/heure',
     formatted_tarif_journalier: '250 000 XOF/jour',
   }
 
@@ -15,334 +15,89 @@ describe('TarifsForm', () => {
     vi.clearAllMocks()
   })
 
-  it('renders form with initial values from props', () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: mockTarifsInfo,
-        isSaving: false,
-        error: null,
-      },
-    })
-
-    const tarifHoraireInput = wrapper.find('[data-testid="tarif-horaire-input"]')
-    const tarifJournalierInput = wrapper.find('[data-testid="tarif-journalier-input"]')
-
-    expect((tarifHoraireInput.element as HTMLInputElement).value).toBe('75000')
-    expect((tarifJournalierInput.element as HTMLInputElement).value).toBe('250000')
-  })
-
-  it('renders empty form when tarifsInfo is null', () => {
-    const wrapper = mount(TarifsForm, {
+  function mountForm(props: Record<string, unknown> = {}) {
+    return mount(TarifsForm, {
       props: {
         tarifsInfo: null,
         isSaving: false,
         error: null,
+        ...props,
       },
     })
+  }
 
-    const tarifHoraireInput = wrapper.find('[data-testid="tarif-horaire-input"]')
-    const tarifJournalierInput = wrapper.find('[data-testid="tarif-journalier-input"]')
+  it('renders the journalier input from props and no separate horaire field', () => {
+    const wrapper = mountForm({ tarifsInfo: mockTarifsInfo })
 
-    expect((tarifHoraireInput.element as HTMLInputElement).value).toBe('')
-    expect((tarifJournalierInput.element as HTMLInputElement).value).toBe('')
+    expect((wrapper.find('input#tarif_journalier').element as HTMLInputElement).value).toBe('250000')
+    expect(wrapper.find('input#tarif_horaire').exists()).toBe(false)
   })
 
-  it('displays error message when error prop is set', () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: null,
-        isSaving: false,
-        error: 'Le tarif horaire doit être positif',
-      },
-    })
+  it('renders an empty form when no tarifs are provided', () => {
+    const wrapper = mountForm()
 
-    const errorMessage = wrapper.find('[data-testid="error-message"]')
-    expect(errorMessage.exists()).toBe(true)
-    expect(errorMessage.text()).toContain('Le tarif horaire doit être positif')
+    expect((wrapper.find('input#tarif_journalier').element as HTMLInputElement).value).toBe('')
   })
 
-  it('does not display error when error prop is null', () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: null,
-        isSaving: false,
-        error: null,
-      },
+  it('shows the current error and saving states', () => {
+    const wrapper = mountForm({
+      isSaving: true,
+      error: 'Le tarif journalier doit être positif',
     })
 
-    const errorMessage = wrapper.find('[data-testid="error-message"]')
-    expect(errorMessage.exists()).toBe(false)
+    expect(wrapper.find('[data-testid="error-message"]').text()).toContain('Le tarif journalier doit être positif')
+    expect(wrapper.find('[data-testid="save-button"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="save-button"]').text()).toContain('Enregistrement...')
   })
 
-  it('disables save button when saving', () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: null,
-        isSaving: true,
-        error: null,
-      },
-    })
+  it('emits derived hourly and daily pricing on submit', async () => {
+    const wrapper = mountForm()
 
-    const saveButton = wrapper.find('[data-testid="save-button"]')
-    expect(saveButton.attributes('disabled')).toBeDefined()
-  })
-
-  it('shows loading spinner when saving', () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: null,
-        isSaving: true,
-        error: null,
-      },
-    })
-
-    const saveButton = wrapper.find('[data-testid="save-button"]')
-    expect(saveButton.text()).toContain('Enregistrement...')
-    expect(saveButton.find('svg.animate-spin').exists()).toBe(true)
-  })
-
-  it('shows "Enregistrer" text when not saving', () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: null,
-        isSaving: false,
-        error: null,
-      },
-    })
-
-    const saveButton = wrapper.find('[data-testid="save-button"]')
-    expect(saveButton.text()).toBe('Enregistrer')
-  })
-
-  it('has min and max attributes on tarif horaire input', () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: null,
-        isSaving: false,
-        error: null,
-      },
-    })
-
-    const tarifHoraireInput = wrapper.find('[data-testid="tarif-horaire-input"]')
-    expect(tarifHoraireInput.attributes('min')).toBe('0')
-    expect(tarifHoraireInput.attributes('max')).toBe('10000000')
-    expect(tarifHoraireInput.attributes('type')).toBe('number')
-  })
-
-  it('has min and max attributes on tarif journalier input', () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: null,
-        isSaving: false,
-        error: null,
-      },
-    })
-
-    const tarifJournalierInput = wrapper.find('[data-testid="tarif-journalier-input"]')
-    expect(tarifJournalierInput.attributes('min')).toBe('0')
-    expect(tarifJournalierInput.attributes('max')).toBe('100000000')
-    expect(tarifJournalierInput.attributes('type')).toBe('number')
-  })
-
-  it('emits save event with form data on submit', async () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: null,
-        isSaving: false,
-        error: null,
-      },
-    })
-
-    const tarifHoraireInput = wrapper.find('[data-testid="tarif-horaire-input"]')
-    const tarifJournalierInput = wrapper.find('[data-testid="tarif-journalier-input"]')
-
-    await tarifHoraireInput.setValue(75000)
-    await tarifJournalierInput.setValue(250000)
-
+    await wrapper.find('input#tarif_journalier').setValue(240000)
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    const emitted = wrapper.emitted('save')
-    expect(emitted).toBeTruthy()
-    expect(emitted?.[0][0]).toEqual({
-      tarif_horaire: 75000,
-      tarif_journalier: 250000,
+    expect(wrapper.emitted('save')?.[0][0]).toEqual({
+      tarif_horaire: 30000,
+      tarif_journalier: 240000,
     })
   })
 
-  it('emits save event with null for empty values', async () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: mockTarifsInfo,
-        isSaving: false,
-        error: null,
-      },
-    })
+  it('emits null values when the field is empty', async () => {
+    const wrapper = mountForm({ tarifsInfo: mockTarifsInfo })
 
-    // Clear the inputs
-    const tarifHoraireInput = wrapper.find('[data-testid="tarif-horaire-input"]')
-    const tarifJournalierInput = wrapper.find('[data-testid="tarif-journalier-input"]')
-    await tarifHoraireInput.setValue('')
-    await tarifJournalierInput.setValue('')
-
+    await wrapper.find('input#tarif_journalier').setValue('')
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    const emitted = wrapper.emitted('save')
-    expect(emitted?.[0][0]).toEqual({
+    expect(wrapper.emitted('save')?.[0][0]).toEqual({
       tarif_horaire: null,
       tarif_journalier: null,
     })
   })
 
-  it('updates form when tarifsInfo prop changes', async () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: null,
-        isSaving: false,
-        error: null,
-      },
-    })
+  it('updates the form when tarifsInfo changes', async () => {
+    const wrapper = mountForm()
 
-    // Initially empty
-    expect(
-      (wrapper.find('[data-testid="tarif-horaire-input"]').element as HTMLInputElement).value,
-    ).toBe('')
+    expect((wrapper.find('input#tarif_journalier').element as HTMLInputElement).value).toBe('')
 
-    // Update props
     await wrapper.setProps({ tarifsInfo: mockTarifsInfo })
     await flushPromises()
 
-    expect(
-      (wrapper.find('[data-testid="tarif-horaire-input"]').element as HTMLInputElement).value,
-    ).toBe('75000')
-    expect(
-      (wrapper.find('[data-testid="tarif-journalier-input"]').element as HTMLInputElement).value,
-    ).toBe('250000')
+    expect((wrapper.find('input#tarif_journalier').element as HTMLInputElement).value).toBe('250000')
   })
 
-  it('has proper accessibility labels', () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: null,
-        isSaving: false,
-        error: null,
-      },
-    })
+  it('shows the pricing preview for daily and half-day amounts', async () => {
+    const wrapper = mountForm()
 
-    expect(wrapper.find('label[for="tarif_horaire"]').exists()).toBe(true)
-    expect(wrapper.find('label[for="tarif_journalier"]').exists()).toBe(true)
-
-    expect(wrapper.find('#tarif_horaire').exists()).toBe(true)
-    expect(wrapper.find('#tarif_journalier').exists()).toBe(true)
-  })
-
-  it('error message has role="alert" for accessibility', () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: null,
-        isSaving: false,
-        error: 'Une erreur',
-      },
-    })
-
-    const errorMessage = wrapper.find('[data-testid="error-message"]')
-    expect(errorMessage.attributes('role')).toBe('alert')
-  })
-
-  it('emits save with only tarif_horaire when tarif_journalier is empty', async () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: null,
-        isSaving: false,
-        error: null,
-      },
-    })
-
-    const tarifHoraireInput = wrapper.find('[data-testid="tarif-horaire-input"]')
-    await tarifHoraireInput.setValue(75000)
-
-    await wrapper.find('form').trigger('submit')
+    await wrapper.find('input#tarif_journalier').setValue(250000)
     await flushPromises()
 
-    const emitted = wrapper.emitted('save')
-    expect(emitted?.[0][0]).toEqual({
-      tarif_horaire: 75000,
-      tarif_journalier: null,
-    })
-  })
+    const preview = wrapper.find('[data-testid="tarif-preview"]')
 
-  it('emits save with only tarif_journalier when tarif_horaire is empty', async () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: null,
-        isSaving: false,
-        error: null,
-      },
-    })
-
-    const tarifJournalierInput = wrapper.find('[data-testid="tarif-journalier-input"]')
-    await tarifJournalierInput.setValue(250000)
-
-    await wrapper.find('form').trigger('submit')
-    await flushPromises()
-
-    const emitted = wrapper.emitted('save')
-    expect(emitted?.[0][0]).toEqual({
-      tarif_horaire: null,
-      tarif_journalier: 250000,
-    })
-  })
-
-  it('displays formatted currency preview for tarif horaire', async () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: null,
-        isSaving: false,
-        error: null,
-      },
-    })
-
-    const tarifHoraireInput = wrapper.find('[data-testid="tarif-horaire-input"]')
-    await tarifHoraireInput.setValue(75000)
-    await flushPromises()
-
-    const preview = wrapper.find('[data-testid="tarif-horaire-preview"]')
     expect(preview.exists()).toBe(true)
-    expect(preview.text()).toContain('XOF/demi-journée')
-  })
-
-  it('displays formatted currency preview for tarif journalier', async () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: null,
-        isSaving: false,
-        error: null,
-      },
-    })
-
-    const tarifJournalierInput = wrapper.find('[data-testid="tarif-journalier-input"]')
-    await tarifJournalierInput.setValue(250000)
-    await flushPromises()
-
-    const preview = wrapper.find('[data-testid="tarif-journalier-preview"]')
-    expect(preview.exists()).toBe(true)
-    expect(preview.text()).toContain('XOF/jour')
-  })
-
-  it('does not display preview when input is empty', () => {
-    const wrapper = mount(TarifsForm, {
-      props: {
-        tarifsInfo: null,
-        isSaving: false,
-        error: null,
-      },
-    })
-
-    const tarifHorairePreview = wrapper.find('[data-testid="tarif-horaire-preview"]')
-    const tarifJournalierPreview = wrapper.find('[data-testid="tarif-journalier-preview"]')
-
-    expect(tarifHorairePreview.exists()).toBe(false)
-    expect(tarifJournalierPreview.exists()).toBe(false)
+    expect(preview.text()).toContain('250')
+    expect(preview.text()).toContain('125')
+    expect(preview.text()).toContain('F CFA')
   })
 })

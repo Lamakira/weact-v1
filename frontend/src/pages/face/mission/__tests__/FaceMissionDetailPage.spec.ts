@@ -424,4 +424,28 @@ describe('FaceMissionDetailPage', () => {
       expect(wrapper.text()).toContain('Une erreur réseau est survenue')
     })
   })
+
+  describe('duration display', () => {
+    it('normalizes legacy duration labels with the max prefix', async () => {
+      mockMission.value = createMission({ duree: '2 journées (16h)' })
+
+      const wrapper = mount(FaceMissionDetailPage, {
+        global: {
+          plugins: [createTestingPinia()],
+          stubs: {
+            ApplyToMissionModal: true,
+            RatingDisplay: true,
+            RouterLink: {
+              template: '<a><slot /></a>',
+              props: ['to'],
+            },
+          },
+        },
+      })
+
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('2 journées (max 16h)')
+    })
+  })
 })

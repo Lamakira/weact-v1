@@ -37,7 +37,8 @@ class WalletController extends Controller
 
         $withdrawalRequests = WithdrawalRequest::query()
             ->where('user_id', $user->id)
-            ->latest()
+            ->latest('created_at')
+            ->orderByDesc('id')
             ->get();
 
         return new WalletResource([

@@ -1,4 +1,5 @@
 import { ref, onMounted, onUnmounted, type Ref } from 'vue'
+import { echo } from '@/plugins/echo'
 import { bookingChatApi } from '../services/bookingChatApi'
 import type { BookingMessage, BookingMessageBroadcast } from '../types'
 
@@ -62,7 +63,6 @@ export function useBookingChat(bookingId: number, currentUserId: number): UseBoo
 
   async function subscribeToChannel(): Promise<void> {
     try {
-      const { echo } = await import('@/plugins/echo')
       const channel = echo.private(`booking.${bookingId}`) as EchoChannel
 
       channel
@@ -97,7 +97,6 @@ export function useBookingChat(bookingId: number, currentUserId: number): UseBoo
   async function unsubscribeFromChannel(): Promise<void> {
     stopPolling()
     try {
-      const { echo } = await import('@/plugins/echo')
       echo.leave(`booking.${bookingId}`)
     } catch {
       // Ignore cleanup errors

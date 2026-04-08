@@ -155,15 +155,16 @@ class BookingController extends Controller
     {
         $user = $request->user();
         $reason = $request->validated('cancellation_reason');
+        $customReason = $request->validated('custom_cancellation_reason');
 
         if ($user->id === $booking->face_id) {
             Gate::authorize('cancelByFace', $booking);
 
-            $booking = $this->bookingService->cancelByFace($booking, $reason);
+            $booking = $this->bookingService->cancelByFace($booking, $reason, $customReason);
         } else {
             Gate::authorize('cancel', $booking);
 
-            $booking = $this->bookingService->cancel($booking, $reason);
+            $booking = $this->bookingService->cancel($booking, $reason, $customReason);
         }
 
         return response()->json([

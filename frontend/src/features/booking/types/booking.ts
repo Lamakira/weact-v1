@@ -39,13 +39,27 @@ export const BookingStatusLabel: Record<BookingStatusType, string> = {
 // Commission rate (mirrors backend BookingPricing VO)
 export const COMMISSION_RATE = 0.10
 
-export const CANCELLATION_REASONS = [
+export const PRODUCER_CANCELLATION_REASONS = [
   { value: 'schedule_conflict', label: "Conflit d'agenda" },
-  { value: 'price_disagreement', label: 'Désaccord sur le prix' },
+  { value: 'acceptance_expired', label: "Durée d'acceptation dépassée" },
   { value: 'other', label: 'Autre raison' },
 ] as const
 
-export type CancellationReasonValue = (typeof CANCELLATION_REASONS)[number]['value']
+export const FACE_CANCELLATION_REASONS = [
+  { value: 'schedule_conflict', label: "Conflit d'agenda" },
+  { value: 'other', label: 'Autre raison' },
+] as const
+
+export const LEGACY_CANCELLATION_REASON_LABELS: Record<string, string> = {
+  price_disagreement: 'Désaccord sur le prix',
+}
+
+export type CancellationReasonValue = (typeof PRODUCER_CANCELLATION_REASONS)[number]['value']
+
+export interface BookingCancellationPayload {
+  reason: CancellationReasonValue
+  customReason?: string
+}
 
 // Statuses where a Producer can cancel
 export const CANCELLABLE_BY_PRODUCER_STATUSES: BookingStatusType[] = [
@@ -62,8 +76,10 @@ export const CANCELLABLE_BY_FACE_STATUSES: BookingStatusType[] = [
 
 export function getCancellationReasonLabel(reason: string | null | undefined): string {
   if (!reason) return ''
-  const match = CANCELLATION_REASONS.find((item) => item.value === reason)
-  return match?.label ?? reason
+  const match = PRODUCER_CANCELLATION_REASONS.find((item) => item.value === reason)
+    ?? FACE_CANCELLATION_REASONS.find((item) => item.value === reason)
+
+  return match?.label ?? LEGACY_CANCELLATION_REASON_LABELS[reason] ?? reason
 }
 
 export interface BookingRating {
@@ -123,6 +139,7 @@ export interface Booking {
   montant_total_producteur: number
   montant_face_recoit: number
   cancellation_reason: string | null
+  custom_cancellation_reason: string | null
   fedapay_transaction_id: number | null
   payment_mode: string | null
   accepted_at: string | null

@@ -66,7 +66,7 @@ FR33: Both parties receive notification when other party confirms booking comple
 FR34: Face receives notification when payment is credited to wallet
 FR35: Face receives notification when booking is cancelled by Producer
 FR36: Producer can cancel a booking before Face acceptance (full refund)
-FR37: Producer can cancel a booking after Face acceptance (15% retained by WEACT, remainder refunded)
+FR37: Producer can cancel after Face acceptance with transparent financial handling (accepted: no financial operation, paid: 10% retained by WEACT, 90% refunded)
 FR38: System processes refunds to Producer's Mobile Money account
 FR39: System does not refund Producer in case of Producer no-show
 FR40: Face is not penalized (no rating impact) when a Producer cancels
@@ -165,7 +165,7 @@ NFR-SC4: Architecture supports future migration to dedicated server or cloud
 | FR24 | Epic 4 | Real-time messaging |
 | FR25 | Epic 4 | Dedicated chat per booking |
 | FR36 | Epic 5 | Cancel before acceptance (full refund) |
-| FR37 | Epic 5 | Cancel after acceptance (15% retained) |
+| FR37 | Epic 5 | Cancel after acceptance (accepted: no financial operation; paid: 10% retained, 90% refunded) |
 | FR38 | Epic 5 | Refund to Mobile Money |
 | FR39 | Epic 5 | No refund on no-show |
 | FR40 | Epic 5 | Face not penalized on Producer cancel |
@@ -646,9 +646,13 @@ So that I can exit a booking I no longer need while understanding the costs.
 **When** the Producer taps "Annuler"
 **Then** the booking is cancelled immediately with full refund (if payment was made), and the Face is notified
 
-**Given** a booking is in `accepted` or `paid` status (after Face acceptance)
+**Given** a booking is in `accepted` status (after Face acceptance, before payment)
 **When** the Producer taps "Annuler"
-**Then** a confirmation dialog shows the financial breakdown: amount paid, 15% WEACT fee retained, refund amount
+**Then** the booking is cancelled immediately with no financial operation and the Face is notified
+
+**Given** a booking is in `paid` status
+**When** the Producer taps "Annuler"
+**Then** a confirmation dialog shows the financial breakdown: amount paid, 10% WEACT fee retained, refund amount (90%)
 **And** upon confirmation, the system processes the partial refund via FedapayService, creates FinancialEvent records, and transitions to `cancelled_by_producer`
 
 **Given** a booking is cancelled after payment

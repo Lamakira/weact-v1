@@ -10,8 +10,8 @@ describe('ProfileInfoSection', () => {
     niches: [{ value: 'publicite', label: 'Publicité' }],
     averageRating: 4.5,
     ratingsCount: 12,
-    hasVideos: true,
-    videosCount: 2,
+    tarifHoraire: null,
+    tarifJournalier: null,
   }
 
   it('renders the component', () => {
@@ -173,9 +173,9 @@ describe('ProfileInfoSection', () => {
     expect(wrapper.text()).toContain('(0 avis)')
   })
 
-  it('shows video teaser when hasVideos is true', () => {
+  it('shows pricing section when tarif props are provided', () => {
     const wrapper = mount(ProfileInfoSection, {
-      props: { ...defaultProps, hasVideos: true, videosCount: 2 },
+      props: { ...defaultProps, tarifHoraire: '25 000 XOF', tarifJournalier: '50 000 XOF' },
       global: {
         stubs: {
           RouterLink: {
@@ -186,45 +186,32 @@ describe('ProfileInfoSection', () => {
       },
     })
 
-    const videoTeaser = wrapper.find('[data-testid="video-teaser"]')
-    expect(videoTeaser.exists()).toBe(true)
-    expect(videoTeaser.text()).toContain('Vidéos disponibles (2)')
-    expect(videoTeaser.text()).toContain('Inscrivez-vous pour voir')
+    const pricingSection = wrapper.find('[data-testid="tarifs-section"]')
+    expect(pricingSection.exists()).toBe(true)
+    expect(pricingSection.text()).toContain('25 000 XOF')
+    expect(pricingSection.text()).toContain('50 000 XOF')
   })
 
-  it('hides video teaser when hasVideos is false', () => {
-    const wrapper = mount(ProfileInfoSection, {
-      props: { ...defaultProps, hasVideos: false, videosCount: 0 },
-      global: {
-        stubs: {
-          RouterLink: {
-            template: '<a><slot /></a>',
-            props: ['to'],
-          },
-        },
-      },
-    })
-
-    expect(wrapper.find('[data-testid="video-teaser"]').exists()).toBe(false)
-  })
-
-  it('displays producer CTA linking to registration', () => {
+  it('hides pricing section when no tarif props are provided', () => {
     const wrapper = mount(ProfileInfoSection, {
       props: defaultProps,
       global: {
         stubs: {
           RouterLink: {
-            template: '<a :href="to" data-testid="producer-cta"><slot /></a>',
+            template: '<a><slot /></a>',
             props: ['to'],
           },
         },
       },
     })
 
-    const cta = wrapper.find('[data-testid="producer-cta"]')
-    expect(cta.exists()).toBe(true)
-    expect(cta.text()).toContain('Créer un compte producteur')
-    expect(cta.attributes('href')).toBe('/register/producer')
+    expect(wrapper.find('[data-testid="tarifs-section"]').exists()).toBe(false)
+  })
+
+  it('does not render legacy producer CTA inside the info section', () => {
+    const wrapper = mount(ProfileInfoSection, { props: defaultProps })
+
+    expect(wrapper.find('[data-testid="producer-cta"]').exists()).toBe(false)
   })
 
   it('does not display sensitive information', () => {

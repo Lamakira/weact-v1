@@ -214,7 +214,7 @@ describe('HomeView', () => {
     it('renders the deviens face CTA button', () => {
       const cta = wrapper.find('[data-testid="deviens-face-cta"]')
       expect(cta.exists()).toBe(true)
-      expect(cta.text()).toContain('Je crée mon profil')
+      expect(cta.text()).toContain('Explorer nos Faces')
     })
 
     it('shows loading skeleton when faces are loading', async () => {
@@ -251,7 +251,7 @@ describe('HomeView', () => {
       const link = wrapper.find('[data-testid="see-all-missions"]')
       expect(link.exists()).toBe(true)
       expect(link.text()).toContain('Voir toutes les missions')
-      expect(link.attributes('href')).toBe('#missions')
+      expect(link.attributes('href')).toBe('/missions')
     })
 
     it('missions section has id for anchor link', () => {

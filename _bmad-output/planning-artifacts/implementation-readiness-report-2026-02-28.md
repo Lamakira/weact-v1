@@ -71,7 +71,7 @@ assessedDocuments:
 | FR34 | Notifications | Face notified when payment credited to wallet |
 | FR35 | Notifications | Face notified when booking cancelled by Producer |
 | FR36 | Cancellation & Refunds | Producer can cancel before acceptance (full refund) |
-| FR37 | Cancellation & Refunds | Producer can cancel after acceptance (15% retained by WEACT) |
+| FR37 | Cancellation & Refunds | Producer can cancel after acceptance (accepted: no financial operation, paid: 10% retained by WEACT, 90% refunded) |
 | FR38 | Cancellation & Refunds | System processes refunds to Producer's Mobile Money |
 | FR39 | Cancellation & Refunds | System does not refund Producer in case of no-show |
 | FR40 | Cancellation & Refunds | Face is not penalized when Producer cancels |

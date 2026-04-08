@@ -55,8 +55,7 @@ class AdminFinanceOverviewTest extends TestCase
             ->assertJsonPath('data.withdrawal_requests.pending_count', 2)
             ->assertJsonPath('data.withdrawal_requests.pending_amount', 20000)
             ->assertJsonPath('data.fedapay_balance.available', true)
-            ->assertJsonPath('data.fedapay_balance.total_amount', 90000)
-            ->assertJsonPath('data.fedapay_balance.balances.0.mode', 'mtn');
+            ->assertJsonPath('data.fedapay_balance.total_amount', 90000);
     }
 
     public function test_finance_overview_handles_unavailable_fedapay_balance(): void

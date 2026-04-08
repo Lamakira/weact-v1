@@ -1,0 +1,717 @@
+diff --git a/backend/app/Enums/BookingCancellationReason.php b/backend/app/Enums/BookingCancellationReason.php
+index 5460c1e..a66d8ca 100644
+--- a/backend/app/Enums/BookingCancellationReason.php
++++ b/backend/app/Enums/BookingCancellationReason.php
+@@ -7,14 +7,14 @@
+ enum BookingCancellationReason: string
+ {
+     case ScheduleConflict = 'schedule_conflict';
+-    case PriceDisagreement = 'price_disagreement';
++    case AcceptanceExpired = 'acceptance_expired';
+     case Other = 'other';
+ 
+     public function label(): string
+     {
+         return match ($this) {
+             self::ScheduleConflict => 'Conflit d\'agenda',
+-            self::PriceDisagreement => 'Désaccord sur le prix',
++            self::AcceptanceExpired => 'Durée d\'acceptation dépassée',
+             self::Other => 'Autre raison',
+         };
+     }
+diff --git a/backend/app/Http/Controllers/Api/V1/BookingController.php b/backend/app/Http/Controllers/Api/V1/BookingController.php
+index 521bd4d..138be81 100644
+--- a/backend/app/Http/Controllers/Api/V1/BookingController.php
++++ b/backend/app/Http/Controllers/Api/V1/BookingController.php
+@@ -155,15 +155,16 @@ public function cancel(CancelBookingRequest $request, Booking $booking): JsonRes
+     {
+         $user = $request->user();
+         $reason = $request->validated('cancellation_reason');
++        $customReason = $request->validated('custom_cancellation_reason');
+ 
+         if ($user->id === $booking->face_id) {
+             Gate::authorize('cancelByFace', $booking);
+ 
+-            $booking = $this->bookingService->cancelByFace($booking, $reason);
++            $booking = $this->bookingService->cancelByFace($booking, $reason, $customReason);
+         } else {
+             Gate::authorize('cancel', $booking);
+ 
+-            $booking = $this->bookingService->cancel($booking, $reason);
++            $booking = $this->bookingService->cancel($booking, $reason, $customReason);
+         }
+ 
+         return response()->json([
+diff --git a/backend/app/Http/Requests/Booking/CancelBookingRequest.php b/backend/app/Http/Requests/Booking/CancelBookingRequest.php
+index f455e8d..62862af 100644
+--- a/backend/app/Http/Requests/Booking/CancelBookingRequest.php
++++ b/backend/app/Http/Requests/Booking/CancelBookingRequest.php
+@@ -26,6 +26,12 @@ public function rules(): array
+                 'string',
+                 Rule::enum(BookingCancellationReason::class),
+             ],
++            'custom_cancellation_reason' => [
++                'nullable',
++                'string',
++                'max:1000',
++                'required_if:cancellation_reason,other',
++            ],
+         ];
+     }
+ }
+diff --git a/backend/app/Http/Resources/BookingResource.php b/backend/app/Http/Resources/BookingResource.php
+index 6cf5f66..8c358ba 100644
+--- a/backend/app/Http/Resources/BookingResource.php
++++ b/backend/app/Http/Resources/BookingResource.php
+@@ -35,6 +35,7 @@ public function toArray(Request $request): array
+             'montant_total_producteur' => $this->montant_total_producteur,
+             'montant_face_recoit' => $this->montant_face_recoit,
+             'cancellation_reason' => $this->cancellation_reason,
++            'custom_cancellation_reason' => $this->custom_cancellation_reason,
+             'fedapay_transaction_id' => $user && $user->id === $this->producer_id ? $this->fedapay_transaction_id : null,
+             'payment_mode' => $this->payment_mode,
+             'accepted_at' => $this->accepted_at?->toISOString(),
+diff --git a/backend/app/Mail/BookingCancelledMail.php b/backend/app/Mail/BookingCancelledMail.php
+index 256e7ad..c5a53a4 100644
+--- a/backend/app/Mail/BookingCancelledMail.php
++++ b/backend/app/Mail/BookingCancelledMail.php
+@@ -24,7 +24,7 @@ public function __construct(
+     public function envelope(): Envelope
+     {
+         return new Envelope(
+-            subject: "Votre booking #{$this->booking->id} a été annulé",
++            subject: 'Votre demande de booking a été annulée',
+         );
+     }
+ 
+@@ -54,6 +54,7 @@ private function cancellerName(): string
+     private function reasonLabel(): string
+     {
+         $reason = $this->booking->cancellation_reason;
++        $customReason = trim((string) ($this->booking->custom_cancellation_reason ?? ''));
+ 
+         if (! $reason) {
+             return 'Non spécifiée';
+@@ -61,7 +62,13 @@ private function reasonLabel(): string
+ 
+         $enum = BookingCancellationReason::tryFrom($reason);
+ 
+-        return $enum?->label() ?? $reason;
++        $label = $enum?->label() ?? $reason;
++
++        if ($reason === BookingCancellationReason::Other->value && $customReason !== '') {
++            return "{$label} : {$customReason}";
++        }
++
++        return $label;
+     }
+ 
+     private function cancelledAt(): string
+diff --git a/backend/app/Services/BookingService.php b/backend/app/Services/BookingService.php
+index 137972c..f77f47d 100644
+--- a/backend/app/Services/BookingService.php
++++ b/backend/app/Services/BookingService.php
+@@ -157,9 +157,9 @@ public function refuse(Booking $booking, ?string $reason = null): Booking
+      *
+      * @throws ValidationException
+      */
+-    public function cancel(Booking $booking, string $reason): Booking
++    public function cancel(Booking $booking, string $reason, ?string $customReason = null): Booking
+     {
+-        $cancelledBooking = DB::transaction(function () use ($booking, $reason) {
++        $cancelledBooking = DB::transaction(function () use ($booking, $reason, $customReason) {
+             $booking = $booking->lockForUpdate()->find($booking->id);
+ 
+             $cancellableStatuses = [
+@@ -181,6 +181,9 @@ public function cancel(Booking $booking, string $reason): Booking
+             $booking->update([
+                 'status' => BookingStatus::CancelledByProducer,
+                 'cancellation_reason' => BookingCancellationReason::from($reason)->value,
++                'custom_cancellation_reason' => $reason === BookingCancellationReason::Other->value
++                    ? $customReason
++                    : null,
+             ]);
+ 
+             return $booking->fresh();
+@@ -206,9 +209,9 @@ public function cancel(Booking $booking, string $reason): Booking
+      *
+      * @throws ValidationException
+      */
+-    public function cancelByFace(Booking $booking, string $reason): Booking
++    public function cancelByFace(Booking $booking, string $reason, ?string $customReason = null): Booking
+     {
+-        $cancelledBooking = DB::transaction(function () use ($booking, $reason) {
++        $cancelledBooking = DB::transaction(function () use ($booking, $reason, $customReason) {
+             $booking = $booking->lockForUpdate()->find($booking->id);
+ 
+             $cancellableStatuses = [
+@@ -229,6 +232,9 @@ public function cancelByFace(Booking $booking, string $reason): Booking
+             $booking->update([
+                 'status' => BookingStatus::CancelledByFace,
+                 'cancellation_reason' => BookingCancellationReason::from($reason)->value,
++                'custom_cancellation_reason' => $reason === BookingCancellationReason::Other->value
++                    ? $customReason
++                    : null,
+             ]);
+ 
+             return $booking->fresh();
+diff --git a/backend/tests/Feature/Booking/BookingCancellationTest.php b/backend/tests/Feature/Booking/BookingCancellationTest.php
+index 72c409c..097d22b 100644
+--- a/backend/tests/Feature/Booking/BookingCancellationTest.php
++++ b/backend/tests/Feature/Booking/BookingCancellationTest.php
+@@ -101,12 +101,12 @@ public function test_producer_can_cancel_accepted_booking_without_financial_impa
+ 
+         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+-                'cancellation_reason' => 'price_disagreement',
++                'cancellation_reason' => 'acceptance_expired',
+             ]);
+ 
+         $response->assertOk()
+             ->assertJsonPath('data.status', BookingStatus::CancelledByProducer->value)
+-            ->assertJsonPath('data.cancellation_reason', 'price_disagreement');
++            ->assertJsonPath('data.cancellation_reason', 'acceptance_expired');
+ 
+         $this->assertDatabaseMissing('financial_events', [
+             'booking_id' => $booking->id,
+@@ -153,6 +153,7 @@ public function test_producer_can_cancel_paid_booking_and_trigger_refund(): void
+         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                 'cancellation_reason' => 'other',
++                'custom_cancellation_reason' => 'La production a été reportée.',
+             ]);
+ 
+         $response->assertOk()
+@@ -206,6 +207,7 @@ public function test_paid_booking_refund_stays_pending_until_provider_settlement
+         $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                 'cancellation_reason' => 'other',
++                'custom_cancellation_reason' => 'La production a été reportée.',
+             ])
+             ->assertOk();
+ 
+@@ -259,7 +261,7 @@ public function test_producer_cancellation_sends_email_to_face(): void
+ 
+         $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+-                'cancellation_reason' => 'price_disagreement',
++                'cancellation_reason' => 'acceptance_expired',
+             ])
+             ->assertOk();
+ 
+@@ -269,6 +271,8 @@ public function test_producer_cancellation_sends_email_to_face(): void
+             return $mail->hasTo($this->faceUser->email)
+                 && $mail->cancelledBy === 'producer'
+                 && $mail->booking->id === $booking->id
++                && $mail->envelope()->subject === 'Votre demande de booking a été annulée'
++                && ! str_contains($mail->render(), 'Le booking <strong>#')
+                 && ($expectedDate === null || str_contains($mail->render(), $expectedDate));
+         });
+     }
+@@ -294,10 +298,42 @@ public function test_face_cancellation_sends_email_to_producer(): void
+             return $mail->hasTo($this->producerUser->email)
+                 && $mail->cancelledBy === 'face'
+                 && $mail->booking->id === $booking->id
++                && $mail->envelope()->subject === 'Votre demande de booking a été annulée'
++                && ! str_contains($mail->render(), 'Le booking <strong>#')
+                 && ($expectedDate === null || str_contains($mail->render(), $expectedDate));
+         });
+     }
+ 
++    public function test_cancellation_with_other_reason_stores_custom_reason_and_exposes_it(): void
++    {
++        Mail::fake();
++
++        $booking = Booking::factory()->accepted()->create([
++            'face_id' => $this->faceUser->id,
++            'producer_id' => $this->producerUser->id,
++        ]);
++
++        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
++            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
++                'cancellation_reason' => 'other',
++                'custom_cancellation_reason' => 'Le client final a reporté la campagne.',
++            ]);
++
++        $response->assertOk()
++            ->assertJsonPath('data.cancellation_reason', 'other')
++            ->assertJsonPath('data.custom_cancellation_reason', 'Le client final a reporté la campagne.');
++
++        $this->assertDatabaseHas('bookings', [
++            'id' => $booking->id,
++            'cancellation_reason' => 'other',
++            'custom_cancellation_reason' => 'Le client final a reporté la campagne.',
++        ]);
++
++        Mail::assertQueued(BookingCancelledMail::class, function (BookingCancelledMail $mail): bool {
++            return str_contains($mail->render(), 'Le client final a reporté la campagne.');
++        });
++    }
++
+     public function test_face_cannot_cancel_pending_booking(): void
+     {
+         $booking = Booking::factory()->pending()->create([
+@@ -343,6 +379,22 @@ public function test_cancel_with_invalid_reason_returns_422(): void
+             ->assertJsonValidationErrors('cancellation_reason');
+     }
+ 
++    public function test_cancel_with_other_reason_requires_custom_reason(): void
++    {
++        $booking = Booking::factory()->accepted()->create([
++            'face_id' => $this->faceUser->id,
++            'producer_id' => $this->producerUser->id,
++        ]);
++
++        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
++            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
++                'cancellation_reason' => 'other',
++            ]);
++
++        $response->assertUnprocessable()
++            ->assertJsonValidationErrors('custom_cancellation_reason');
++    }
++
+     public function test_producer_cannot_cancel_completed_booking(): void
+     {
+         $booking = Booking::factory()->completed()->create([
+@@ -353,6 +405,7 @@ public function test_producer_cannot_cancel_completed_booking(): void
+         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                 'cancellation_reason' => 'other',
++                'custom_cancellation_reason' => 'Annulation déjà effectuée.',
+             ]);
+ 
+         $response->assertForbidden();
+@@ -368,6 +421,7 @@ public function test_second_cancel_on_already_cancelled_booking_is_forbidden():
+         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                 'cancellation_reason' => 'other',
++                'custom_cancellation_reason' => 'Annulation déjà effectuée.',
+             ]);
+ 
+         $response->assertForbidden();
+diff --git a/frontend/src/features/booking/components/CancellationDialog.vue b/frontend/src/features/booking/components/CancellationDialog.vue
+index a55f5cf..b8f5136 100644
+--- a/frontend/src/features/booking/components/CancellationDialog.vue
++++ b/frontend/src/features/booking/components/CancellationDialog.vue
+@@ -5,6 +5,7 @@ import {
+   BookingStatus,
+   CANCELLATION_REASONS,
+   type Booking,
++  type BookingCancellationPayload,
+   type CancellationReasonValue,
+ } from '../types'
+ 
+@@ -15,26 +16,44 @@ const props = defineProps<{
+ }>()
+ 
+ const emit = defineEmits<{
+-  confirm: [reason: CancellationReasonValue]
++  confirm: [payload: BookingCancellationPayload]
+   cancel: []
+ }>()
+ 
+ const selectedReason = ref<CancellationReasonValue | ''>('')
++const customReason = ref('')
+ 
+ const isPaid = computed(() => props.booking.status === BookingStatus.PAID)
+ const retainedAmount = computed(() => Math.round(props.booking.montant_total_producteur * 0.10))
+ const refundAmount = computed(() => Math.round(props.booking.montant_total_producteur * 0.90))
+-const canConfirm = computed(() => selectedReason.value !== '' && !props.isCancelling)
++const canConfirm = computed(() => {
++  if (selectedReason.value === '' || props.isCancelling) {
++    return false
++  }
++
++  if (selectedReason.value !== 'other') {
++    return true
++  }
++
++  return customReason.value.trim() !== ''
++})
+ 
+ watch(
+   () => props.isOpen,
+   (isOpen) => {
+     if (isOpen) {
+       selectedReason.value = ''
++      customReason.value = ''
+     }
+   },
+ )
+ 
++watch(selectedReason, (reason) => {
++  if (reason !== 'other') {
++    customReason.value = ''
++  }
++})
++
+ function formatCurrency(amount: number): string {
+   return new Intl.NumberFormat('fr-FR', {
+     style: 'currency',
+@@ -46,7 +65,11 @@ function formatCurrency(amount: number): string {
+ 
+ function handleConfirm(): void {
+   if (!selectedReason.value || props.isCancelling) return
+-  emit('confirm', selectedReason.value)
++
++  emit('confirm', {
++    reason: selectedReason.value,
++    customReason: selectedReason.value === 'other' ? customReason.value.trim() : undefined,
++  })
+ }
+ 
+ function handleClose(): void {
+@@ -119,6 +142,7 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
+             <select
+               id="cancellation-reason"
+               v-model="selectedReason"
++              data-testid="cancellation-reason-select"
+               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-weact focus:ring-2 focus:ring-weact/20"
+             >
+               <option disabled value="">Sélectionnez une raison</option>
+@@ -132,6 +156,21 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
+             </select>
+           </div>
+ 
++          <div v-if="selectedReason === 'other'" class="mb-5">
++            <label for="custom-cancellation-reason" class="mb-1.5 block text-sm font-medium text-gray-700">
++              Précisez la raison *
++            </label>
++            <textarea
++              id="custom-cancellation-reason"
++              v-model="customReason"
++              data-testid="custom-cancellation-reason-textarea"
++              rows="4"
++              maxlength="1000"
++              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-weact focus:ring-2 focus:ring-weact/20"
++              placeholder="Décrivez la raison de l'annulation"
++            />
++          </div>
++
+           <div class="flex items-center justify-end gap-3">
+             <button
+               class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+@@ -141,6 +180,7 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
+               Retour
+             </button>
+             <button
++              data-testid="confirm-cancellation-button"
+               class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+               :disabled="!canConfirm"
+               @click="handleConfirm"
+diff --git a/frontend/src/features/booking/composables/useBookingActions.ts b/frontend/src/features/booking/composables/useBookingActions.ts
+index a944cec..1aa2fcc 100644
+--- a/frontend/src/features/booking/composables/useBookingActions.ts
++++ b/frontend/src/features/booking/composables/useBookingActions.ts
+@@ -13,7 +13,7 @@ export interface UseBookingActionsReturn {
+   accept: (bookingId: number) => Promise<Booking | null>
+   refuse: (bookingId: number, reason?: string) => Promise<Booking | null>
+   confirm: (bookingId: number) => Promise<Booking | null>
+-  cancel: (bookingId: number, reason: CancellationReasonValue) => Promise<Booking | null>
++  cancel: (bookingId: number, reason: CancellationReasonValue, customReason?: string) => Promise<Booking | null>
+   reportNoShow: (bookingId: number) => Promise<Booking | null>
+   clearError: () => void
+ }
+@@ -75,12 +75,16 @@ export function useBookingActions(): UseBookingActionsReturn {
+     }
+   }
+ 
+-  async function cancel(bookingId: number, reason: CancellationReasonValue): Promise<Booking | null> {
++  async function cancel(
++    bookingId: number,
++    reason: CancellationReasonValue,
++    customReason?: string,
++  ): Promise<Booking | null> {
+     isCancelling.value = true
+     error.value = null
+ 
+     try {
+-      const response = await bookingApi.cancelBooking(bookingId, reason)
++      const response = await bookingApi.cancelBooking(bookingId, reason, customReason)
+       return response.data
+     } catch (err) {
+       error.value = getApiErrorMessage(err)
+diff --git a/frontend/src/features/booking/services/bookingApi.ts b/frontend/src/features/booking/services/bookingApi.ts
+index 9fbd274..6c1ae80 100644
+--- a/frontend/src/features/booking/services/bookingApi.ts
++++ b/frontend/src/features/booking/services/bookingApi.ts
+@@ -65,10 +65,15 @@ export const bookingApi = {
+   /**
+    * Cancel a booking (Producer or Face, depending on status/role)
+    */
+-  async cancelBooking(id: number, cancellationReason: CancellationReasonValue): Promise<BookingResponse> {
++  async cancelBooking(
++    id: number,
++    cancellationReason: CancellationReasonValue,
++    customReason?: string,
++  ): Promise<BookingResponse> {
+     await getCsrfCookie()
+     const response = await apiClient.post<BookingResponse>(`/bookings/${id}/cancel`, {
+       cancellation_reason: cancellationReason,
++      custom_cancellation_reason: customReason || undefined,
+     })
+     return response.data
+   },
+diff --git a/frontend/src/features/booking/types/booking.ts b/frontend/src/features/booking/types/booking.ts
+index e739c66..b8097f0 100644
+--- a/frontend/src/features/booking/types/booking.ts
++++ b/frontend/src/features/booking/types/booking.ts
+@@ -41,12 +41,17 @@ export const COMMISSION_RATE = 0.10
+ 
+ export const CANCELLATION_REASONS = [
+   { value: 'schedule_conflict', label: "Conflit d'agenda" },
+-  { value: 'price_disagreement', label: 'Désaccord sur le prix' },
++  { value: 'acceptance_expired', label: "Durée d'acceptation dépassée" },
+   { value: 'other', label: 'Autre raison' },
+ ] as const
+ 
+ export type CancellationReasonValue = (typeof CANCELLATION_REASONS)[number]['value']
+ 
++export interface BookingCancellationPayload {
++  reason: CancellationReasonValue
++  customReason?: string
++}
++
+ // Statuses where a Producer can cancel
+ export const CANCELLABLE_BY_PRODUCER_STATUSES: BookingStatusType[] = [
+   BookingStatus.PENDING,
+@@ -123,6 +128,7 @@ export interface Booking {
+   montant_total_producteur: number
+   montant_face_recoit: number
+   cancellation_reason: string | null
++  custom_cancellation_reason: string | null
+   fedapay_transaction_id: number | null
+   payment_mode: string | null
+   accepted_at: string | null
+diff --git a/frontend/src/pages/face/booking/FaceBookingDetailPage.vue b/frontend/src/pages/face/booking/FaceBookingDetailPage.vue
+index b39e863..396e955 100644
+--- a/frontend/src/pages/face/booking/FaceBookingDetailPage.vue
++++ b/frontend/src/pages/face/booking/FaceBookingDetailPage.vue
+@@ -32,9 +32,9 @@ import {
+   CANCELLABLE_BY_FACE_STATUSES,
+   CANCELLABLE_BY_PRODUCER_STATUSES,
+   getCancellationReasonLabel,
++  type BookingCancellationPayload,
+   type BookingStatusType,
+   type BookingRating,
+-  type CancellationReasonValue,
+ } from '@/features/booking/types'
+ import RatingDisplay from '@/components/RatingDisplay.vue'
+ import { useToast } from '@/composables/useToast'
+@@ -259,11 +259,11 @@ async function handleConfirm(): Promise<void> {
+   }
+ }
+ 
+-async function handleCancel(reason: CancellationReasonValue): Promise<void> {
++async function handleCancel(payload: BookingCancellationPayload): Promise<void> {
+   if (!booking.value) return
+   clearError()
+ 
+-  const result = await cancel(booking.value.id, reason)
++  const result = await cancel(booking.value.id, payload.reason, payload.customReason)
+   if (result) {
+     booking.value = result
+     showCancellationDialog.value = false
+@@ -417,7 +417,7 @@ onUnmounted(() => {
+       <!-- Header: Status badge + title -->
+       <div class="flex items-center gap-3 mb-6">
+         <BookingStatusBadge :status="booking.status" />
+-        <h1 class="text-xl font-bold text-gray-900">Demande de booking #{{ booking.id }}</h1>
++        <h1 class="text-xl font-bold text-gray-900">Demande de booking</h1>
+       </div>
+ 
+       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+@@ -521,6 +521,12 @@ onUnmounted(() => {
+               {{ booking.status === BookingStatus.REFUSED ? 'Raison du refus' : 'Raison de l\'annulation' }}
+             </h2>
+             <p class="text-sm text-red-600">{{ getCancellationReasonLabel(booking.cancellation_reason) }}</p>
++            <p
++              v-if="booking.custom_cancellation_reason"
++              class="mt-2 text-sm text-red-700"
++            >
++              {{ booking.custom_cancellation_reason }}
++            </p>
+           </div>
+ 
+           <div
+diff --git a/frontend/src/pages/face/booking/__tests__/FaceBookingDetailPage.spec.ts b/frontend/src/pages/face/booking/__tests__/FaceBookingDetailPage.spec.ts
+index c1d0c63..179f20b 100644
+--- a/frontend/src/pages/face/booking/__tests__/FaceBookingDetailPage.spec.ts
++++ b/frontend/src/pages/face/booking/__tests__/FaceBookingDetailPage.spec.ts
+@@ -70,6 +70,8 @@ function makeBooking(overrides: Record<string, unknown> = {}): Record<string, un
+     commission_producteur: 7500,
+     montant_face_recoit: 42500,
+     montant_total_producteur: 57500,
++    cancellation_reason: null,
++    custom_cancellation_reason: null,
+     accepted_at: new Date().toISOString(),
+     face: { id: 1, prenom: 'Jane', nom: 'Doe', username: 'jane', profile_photo_url: null, average_rating: 4.5 },
+     producer: { id: 2, prenom: 'John', nom: 'Smith', username: 'john', profile_photo_url: null, average_rating: 4.0, agency_name: null },
+@@ -151,6 +153,13 @@ describe('FaceBookingDetailPage — shooting date guard', () => {
+     expect(wrapper.text()).not.toContain("La confirmation n'est possible qu'à partir du jour du tournage")
+   })
+ 
++  it('shows a generic booking heading without exposing the booking id', async () => {
++    const wrapper = await mountPage(makeBooking({ id: 42 }))
++
++    expect(wrapper.text()).toContain('Demande de booking')
++    expect(wrapper.text()).not.toContain('Demande de booking #42')
++  })
++
+   it('re-enables confirm button when the shooting time passes while the page stays open', async () => {
+     vi.useFakeTimers()
+     vi.setSystemTime(new Date('2026-04-05T12:00:00Z'))
+@@ -229,4 +238,18 @@ describe('FaceBookingDetailPage — no-show report button', () => {
+     const btn = wrapper.find('[data-testid="report-no-show-btn"]')
+     expect(btn.exists()).toBe(false)
+   })
++
++  it('shows the custom cancellation reason when present on the booking', async () => {
++    mockUserableType.value = 'Producer'
++    mockUserId.value = 2
++    const wrapper = await mountPage(makeBooking({
++      status: 'cancelled_by_producer',
++      producer_id: 2,
++      cancellation_reason: 'other',
++      custom_cancellation_reason: 'Le client final a déplacé le tournage.',
++    }))
++
++    expect(wrapper.text()).toContain('Autre raison')
++    expect(wrapper.text()).toContain('Le client final a déplacé le tournage.')
++  })
+ })
+diff --git a/backend/database/migrations/2026_04_08_090000_add_custom_cancellation_reason_to_bookings_table.php b/backend/database/migrations/2026_04_08_090000_add_custom_cancellation_reason_to_bookings_table.php
+new file mode 100644
+index 0000000..5f6690b
+--- /dev/null
++++ b/backend/database/migrations/2026_04_08_090000_add_custom_cancellation_reason_to_bookings_table.php
+@@ -0,0 +1,24 @@
++<?php
++
++declare(strict_types=1);
++
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Support\Facades\Schema;
++
++return new class extends Migration
++{
++    public function up(): void
++    {
++        Schema::table('bookings', function (Blueprint $table) {
++            $table->text('custom_cancellation_reason')->nullable()->after('cancellation_reason');
++        });
++    }
++
++    public function down(): void
++    {
++        Schema::table('bookings', function (Blueprint $table) {
++            $table->dropColumn('custom_cancellation_reason');
++        });
++    }
++};
+diff --git a/frontend/src/features/booking/components/__tests__/CancellationDialog.spec.ts b/frontend/src/features/booking/components/__tests__/CancellationDialog.spec.ts
+new file mode 100644
+index 0000000..3202b9b
+--- /dev/null
++++ b/frontend/src/features/booking/components/__tests__/CancellationDialog.spec.ts
+@@ -0,0 +1,98 @@
++import { describe, expect, it } from 'vitest'
++import { mount } from '@vue/test-utils'
++import CancellationDialog from '../CancellationDialog.vue'
++import { BookingStatus, type Booking } from '../../types'
++
++function makeBooking(): Booking {
++  return {
++    id: 1,
++    face_id: 1,
++    producer_id: 2,
++    status: BookingStatus.ACCEPTED,
++    status_label: 'Acceptée',
++    date_debut: new Date().toISOString(),
++    date_fin: new Date().toISOString(),
++    duree_heures: 4,
++    type_contenu: 'Shooting photo',
++    message: null,
++    tarif_base: 50000,
++    montant_total_producteur: 55000,
++    montant_face_recoit: 45000,
++    cancellation_reason: null,
++    custom_cancellation_reason: null,
++    fedapay_transaction_id: null,
++    payment_mode: null,
++    accepted_at: new Date().toISOString(),
++    face: undefined,
++    producer: undefined,
++    can_accept: false,
++    can_refuse: false,
++    can_pay: false,
++    can_rate: false,
++    my_rating: null,
++    created_at: new Date().toISOString(),
++    updated_at: new Date().toISOString(),
++  }
++}
++
++function mountDialog() {
++  return mount(CancellationDialog, {
++    props: {
++      booking: makeBooking(),
++      isOpen: true,
++      isCancelling: false,
++    },
++    global: {
++      stubs: {
++        Teleport: true,
++      },
++    },
++  })
++}
++
++describe('CancellationDialog', () => {
++  it('does not show the removed price disagreement reason', () => {
++    const wrapper = mountDialog()
++
++    expect(wrapper.text()).not.toContain('Désaccord sur le prix')
++  })
++
++  it('shows the acceptance expired reason', () => {
++    const wrapper = mountDialog()
++
++    expect(wrapper.text()).toContain("Durée d'acceptation dépassée")
++  })
++
++  it('shows a textarea when other reason is selected', async () => {
++    const wrapper = mountDialog()
++
++    await wrapper.get('[data-testid="cancellation-reason-select"]').setValue('other')
++
++    expect(wrapper.find('[data-testid="custom-cancellation-reason-textarea"]').exists()).toBe(true)
++  })
++
++  it('disables confirm when other reason is selected but textarea is empty', async () => {
++    const wrapper = mountDialog()
++
++    await wrapper.get('[data-testid="cancellation-reason-select"]').setValue('other')
++
++    expect(wrapper.get('[data-testid="confirm-cancellation-button"]').attributes('disabled')).toBeDefined()
++  })
++
++  it('emits the trimmed custom reason when confirmation is valid', async () => {
++    const wrapper = mountDialog()
++
++    await wrapper.get('[data-testid="cancellation-reason-select"]').setValue('other')
++    await wrapper.get('[data-testid="custom-cancellation-reason-textarea"]').setValue('  Client indisponible  ')
++    await wrapper.get('[data-testid="confirm-cancellation-button"]').trigger('click')
++
++    expect(wrapper.emitted('confirm')).toEqual([
++      [
++        {
++          reason: 'other',
++          customReason: 'Client indisponible',
++        },
++      ],
++    ])
++  })
++})
