@@ -43,16 +43,16 @@ let previouslyFocused: HTMLElement | null = null
 
 // Duration presets (½ journée → 5 journées, puis custom)
 const durationPresets = [
-  { value: '4',      label: '½ journée (4h)' },
-  { value: '8',      label: '1 journée (8h)' },
-  { value: '12',     label: '1,5 jour (12h)' },
-  { value: '16',     label: '2 journées (16h)' },
-  { value: '20',     label: '2,5 jours (20h)' },
-  { value: '24',     label: '3 journées (24h)' },
-  { value: '28',     label: '3,5 jours (28h)' },
-  { value: '32',     label: '4 journées (32h)' },
-  { value: '36',     label: '4,5 jours (36h)' },
-  { value: '40',     label: '5 journées (40h)' },
+  { value: '4',      label: '½ journée (max 4h)' },
+  { value: '8',      label: '1 journée (max 8h)' },
+  { value: '12',     label: '1,5 jour (max 12h)' },
+  { value: '16',     label: '2 journées (max 16h)' },
+  { value: '20',     label: '2,5 jours (max 20h)' },
+  { value: '24',     label: '3 journées (max 24h)' },
+  { value: '28',     label: '3,5 jours (max 28h)' },
+  { value: '32',     label: '4 journées (max 32h)' },
+  { value: '36',     label: '4,5 jours (max 36h)' },
+  { value: '40',     label: '5 journées (max 40h)' },
   { value: 'custom', label: 'Plus de 5 jours...' },
 ]
 

@@ -477,7 +477,7 @@ onUnmounted(() => {
                 <Clock class="w-4 h-4 text-gray-400 shrink-0" />
                 <div>
                   <p class="text-xs text-gray-500">Durée</p>
-                  <p class="text-sm font-medium text-gray-900">{{ booking.duree_heures }}h</p>
+                  <p class="text-sm font-medium text-gray-900">max {{ booking.duree_heures }}h</p>
                 </div>
               </div>
               <div class="flex items-center gap-2.5">

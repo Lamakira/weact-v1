@@ -15,6 +15,7 @@ import {
   XCircle,
 } from 'lucide-vue-next'
 import { useAdminMissions } from '@/features/admin/composables/useAdminMissions'
+import { formatMissionDurationForDisplay } from '@/features/mission/constants/missionDuration'
 
 const route = useRoute()
 const router = useRouter()
@@ -150,7 +151,7 @@ function goToProducer(producerId: number): void {
                   <Clock class="h-4 w-4" />
                   Durée
                 </dt>
-                <dd class="mt-1 text-sm text-gray-900">{{ mission.duree ?? '—' }}</dd>
+                <dd class="mt-1 text-sm text-gray-900">{{ formatMissionDurationForDisplay(mission.duree) || '—' }}</dd>
               </div>
               <div>
                 <dt class="flex items-center gap-2 text-sm font-medium text-gray-500">
