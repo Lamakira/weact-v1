@@ -4,8 +4,9 @@
   "description": "WEACT - Platform connecting Faces with Producers for creative missions",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev": "concurrently -n backend,queue,frontend -c blue,yellow,green \"npm run dev:backend\" \"npm run dev:queue\" \"npm run dev:frontend\"",
     "dev:backend": "cd backend && php artisan serve",
+    "dev:queue": "cd backend && php artisan queue:work",
     "dev:frontend": "cd frontend && npm run dev",
     "build": "cd frontend && npm run build",
     "build:check": "cd frontend && npm run build",

@@ -7,6 +7,7 @@ namespace Tests\Feature\Booking;
 use App\Enums\BookingStatus;
 use App\Enums\FinancialEventType;
 use App\Events\BookingCancelled;
+use App\Mail\BookingCancelledMail;
 use App\Models\Booking;
 use App\Models\EscrowTransaction;
 use App\Models\Face;
@@ -15,6 +16,7 @@ use App\Models\User;
 use App\Services\FedapayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class BookingCancellationTest extends TestCase
@@ -28,6 +30,11 @@ class BookingCancellationTest extends TestCase
     private User $faceUser;
 
     private Face $face;
+
+    private function withApiToken(User $user): static
+    {
+        return $this->withToken($user->createToken('test-token')->plainTextToken);
+    }
 
     protected function setUp(): void
     {
@@ -55,7 +62,7 @@ class BookingCancellationTest extends TestCase
             'producer_id' => $this->producerUser->id,
         ]);
 
-        $response = $this->actingAs($this->producerUser)
+        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
                 'cancellation_reason' => 'schedule_conflict',
             ]);
@@ -92,7 +99,7 @@ class BookingCancellationTest extends TestCase
             'producer_id' => $this->producerUser->id,
         ]);
 
-        $response = $this->actingAs($this->producerUser)
+        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
                 'cancellation_reason' => 'price_disagreement',
             ]);
@@ -143,7 +150,7 @@ class BookingCancellationTest extends TestCase
                 ]);
         });
 
-        $response = $this->actingAs($this->producerUser)
+        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
                 'cancellation_reason' => 'other',
             ]);
@@ -196,7 +203,7 @@ class BookingCancellationTest extends TestCase
                 ]);
         });
 
-        $this->actingAs($this->producerUser)
+        $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
                 'cancellation_reason' => 'other',
             ])
@@ -218,7 +225,7 @@ class BookingCancellationTest extends TestCase
             'producer_id' => $this->producerUser->id,
         ]);
 
-        $response = $this->actingAs($this->faceUser)
+        $response = $this->actingAs($this->faceUser)->withApiToken($this->faceUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
                 'cancellation_reason' => 'schedule_conflict',
             ]);
@@ -241,6 +248,56 @@ class BookingCancellationTest extends TestCase
         Event::assertDispatched(BookingCancelled::class);
     }
 
+    public function test_producer_cancellation_sends_email_to_face(): void
+    {
+        Mail::fake();
+
+        $booking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                'cancellation_reason' => 'price_disagreement',
+            ])
+            ->assertOk();
+
+        $expectedDate = $booking->fresh()->updated_at?->format('d/m/Y H:i');
+
+        Mail::assertQueued(BookingCancelledMail::class, function (BookingCancelledMail $mail) use ($booking, $expectedDate): bool {
+            return $mail->hasTo($this->faceUser->email)
+                && $mail->cancelledBy === 'producer'
+                && $mail->booking->id === $booking->id
+                && ($expectedDate === null || str_contains($mail->render(), $expectedDate));
+        });
+    }
+
+    public function test_face_cancellation_sends_email_to_producer(): void
+    {
+        Mail::fake();
+
+        $booking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $this->actingAs($this->faceUser)->withApiToken($this->faceUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                'cancellation_reason' => 'schedule_conflict',
+            ])
+            ->assertOk();
+
+        $expectedDate = $booking->fresh()->updated_at?->format('d/m/Y H:i');
+
+        Mail::assertQueued(BookingCancelledMail::class, function (BookingCancelledMail $mail) use ($booking, $expectedDate): bool {
+            return $mail->hasTo($this->producerUser->email)
+                && $mail->cancelledBy === 'face'
+                && $mail->booking->id === $booking->id
+                && ($expectedDate === null || str_contains($mail->render(), $expectedDate));
+        });
+    }
+
     public function test_face_cannot_cancel_pending_booking(): void
     {
         $booking = Booking::factory()->pending()->create([
@@ -248,7 +305,7 @@ class BookingCancellationTest extends TestCase
             'producer_id' => $this->producerUser->id,
         ]);
 
-        $response = $this->actingAs($this->faceUser)
+        $response = $this->actingAs($this->faceUser)->withApiToken($this->faceUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
                 'cancellation_reason' => 'schedule_conflict',
             ]);
@@ -263,7 +320,7 @@ class BookingCancellationTest extends TestCase
             'producer_id' => $this->producerUser->id,
         ]);
 
-        $response = $this->actingAs($this->producerUser)
+        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", []);
 
         $response->assertUnprocessable()
@@ -277,7 +334,7 @@ class BookingCancellationTest extends TestCase
             'producer_id' => $this->producerUser->id,
         ]);
 
-        $response = $this->actingAs($this->producerUser)
+        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
                 'cancellation_reason' => 'invalid_reason',
             ]);
@@ -293,7 +350,7 @@ class BookingCancellationTest extends TestCase
             'producer_id' => $this->producerUser->id,
         ]);
 
-        $response = $this->actingAs($this->producerUser)
+        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
                 'cancellation_reason' => 'other',
             ]);
@@ -308,7 +365,7 @@ class BookingCancellationTest extends TestCase
             'producer_id' => $this->producerUser->id,
         ]);
 
-        $response = $this->actingAs($this->producerUser)
+        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
                 'cancellation_reason' => 'other',
             ]);

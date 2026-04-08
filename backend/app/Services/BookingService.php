@@ -159,7 +159,7 @@ class BookingService
      */
     public function cancel(Booking $booking, string $reason): Booking
     {
-        return DB::transaction(function () use ($booking, $reason) {
+        $cancelledBooking = DB::transaction(function () use ($booking, $reason) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
             $cancellableStatuses = [
@@ -183,11 +183,19 @@ class BookingService
                 'cancellation_reason' => BookingCancellationReason::from($reason)->value,
             ]);
 
-            $freshBooking = $booking->fresh();
-            BookingCancelled::dispatch($freshBooking);
-
-            return $freshBooking;
+            return $booking->fresh();
         });
+
+        try {
+            BookingCancelled::dispatch($cancelledBooking);
+        } catch (\Throwable $e) {
+            Log::warning('BookingCancelled broadcast failed', [
+                'booking_id' => $cancelledBooking->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $cancelledBooking;
     }
 
     /**
