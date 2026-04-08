@@ -27,17 +27,17 @@ class NotifyPartiesOnBookingExpired
 
             Notification::create([
                 'user_id' => $booking->producer_id,
-                'type'    => 'booking_expired',
-                'data'    => [
-                    'message'    => "Votre booking avec {$faceName} a expiré car le paiement n'a pas été effectué dans les 24h.",
+                'type' => 'booking_expired',
+                'data' => [
+                    'message' => "Votre booking avec {$faceName} a expiré car {$this->expiryReason($booking)}.",
                     'booking_id' => $booking->id,
-                    'url'        => "/producer/bookings/{$booking->id}",
+                    'url' => "/producer/bookings/{$booking->id}",
                 ],
             ]);
         } catch (\Throwable $e) {
             Log::warning('BookingExpired notification for Producer failed', [
                 'booking_id' => $booking->id,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
 
@@ -47,18 +47,27 @@ class NotifyPartiesOnBookingExpired
 
             Notification::create([
                 'user_id' => $booking->face_id,
-                'type'    => 'booking_expired',
-                'data'    => [
-                    'message'    => "Votre booking avec {$producerName} a expiré car le paiement n'a pas été effectué dans les 24h.",
+                'type' => 'booking_expired',
+                'data' => [
+                    'message' => "Votre booking avec {$producerName} a expiré car {$this->expiryReason($booking)}.",
                     'booking_id' => $booking->id,
-                    'url'        => "/face/bookings/{$booking->id}",
+                    'url' => "/face/bookings/{$booking->id}",
                 ],
             ]);
         } catch (\Throwable $e) {
             Log::warning('BookingExpired notification for Face failed', [
                 'booking_id' => $booking->id,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    private function expiryReason(\App\Models\Booking $booking): string
+    {
+        if ($booking->accepted_at === null) {
+            return 'la date de tournage est passée sans réponse de la Face';
+        }
+
+        return "le paiement n'a pas été effectué dans les 24h";
     }
 }

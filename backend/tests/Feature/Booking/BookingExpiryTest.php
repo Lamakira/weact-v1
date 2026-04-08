@@ -218,4 +218,58 @@ class BookingExpiryTest extends TestCase
 
         Event::assertDispatched(BookingExpired::class, fn (BookingExpired $event): bool => $event->booking->id === $booking->id);
     }
+
+    public function test_booking_service_expire_unaccepted_expires_pending_booking(): void
+    {
+        Event::fake([BookingExpired::class]);
+
+        $booking = Booking::factory()->pending()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'date_debut' => now()->subDay(),
+            'accepted_at' => now()->subDays(2),
+        ]);
+
+        app(BookingService::class)->expireUnaccepted($booking);
+
+        $booking->refresh();
+        $this->assertSame(BookingStatus::Expired, $booking->status);
+        $this->assertNull($booking->accepted_at);
+
+        Event::assertDispatched(BookingExpired::class, fn (BookingExpired $event): bool => $event->booking->id === $booking->id);
+    }
+
+    public function test_booking_service_expire_unaccepted_is_idempotent_for_non_pending_booking(): void
+    {
+        Event::fake([BookingExpired::class]);
+
+        $booking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'date_debut' => now()->subDay(),
+        ]);
+
+        app(BookingService::class)->expireUnaccepted($booking);
+
+        $booking->refresh();
+        $this->assertSame(BookingStatus::Accepted, $booking->status);
+        Event::assertNotDispatched(BookingExpired::class);
+    }
+
+    public function test_booking_service_expire_unaccepted_expires_pending_booking_when_shooting_started_earlier_today(): void
+    {
+        Event::fake([BookingExpired::class]);
+
+        $booking = Booking::factory()->pending()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'date_debut' => now()->subHour(),
+        ]);
+
+        app(BookingService::class)->expireUnaccepted($booking);
+
+        $booking->refresh();
+        $this->assertSame(BookingStatus::Expired, $booking->status);
+        Event::assertDispatched(BookingExpired::class);
+    }
 }

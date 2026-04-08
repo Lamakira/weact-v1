@@ -718,6 +718,48 @@ class BookingService
     }
 
     /**
+     * Expire an unaccepted pending booking after the shooting date has passed.
+     */
+    public function expireUnaccepted(Booking $booking): void
+    {
+        $expired = false;
+        $cutoff = now();
+
+        DB::transaction(function () use ($booking, &$expired): void {
+            $booking = Booking::query()->lockForUpdate()->find($booking->id);
+
+            if ($booking === null) {
+                return;
+            }
+
+            if ($booking->status !== BookingStatus::Pending) {
+                return;
+            }
+
+            if ($booking->date_debut->isFuture()) {
+                return;
+            }
+
+            $booking->update([
+                'status' => BookingStatus::Expired,
+                'accepted_at' => null,
+            ]);
+            $expired = true;
+        });
+
+        if ($expired) {
+            try {
+                BookingExpired::dispatch($booking->fresh());
+            } catch (\Throwable $e) {
+                Log::warning('BookingExpired broadcast failed', [
+                    'booking_id' => $booking->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    /**
      * Complete a booking: update status, release escrow, credit wallet, dispatch event.
      * MUST be called inside an existing DB::transaction().
      */
