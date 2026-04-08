@@ -157,9 +157,11 @@ class BookingService
      *
      * @throws ValidationException
      */
-    public function cancel(Booking $booking, string $reason): Booking
+    public function cancel(Booking $booking, string $reason, ?string $customReason = null): Booking
     {
-        $cancelledBooking = DB::transaction(function () use ($booking, $reason) {
+        $customReason = trim((string) $customReason) ?: null;
+
+        $cancelledBooking = DB::transaction(function () use ($booking, $reason, $customReason) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
             $cancellableStatuses = [
@@ -181,6 +183,9 @@ class BookingService
             $booking->update([
                 'status' => BookingStatus::CancelledByProducer,
                 'cancellation_reason' => BookingCancellationReason::from($reason)->value,
+                'custom_cancellation_reason' => $reason === BookingCancellationReason::Other->value
+                    ? $customReason
+                    : null,
             ]);
 
             return $booking->fresh();
@@ -206,9 +211,11 @@ class BookingService
      *
      * @throws ValidationException
      */
-    public function cancelByFace(Booking $booking, string $reason): Booking
+    public function cancelByFace(Booking $booking, string $reason, ?string $customReason = null): Booking
     {
-        $cancelledBooking = DB::transaction(function () use ($booking, $reason) {
+        $customReason = trim((string) $customReason) ?: null;
+
+        $cancelledBooking = DB::transaction(function () use ($booking, $reason, $customReason) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
             $cancellableStatuses = [
@@ -229,6 +236,9 @@ class BookingService
             $booking->update([
                 'status' => BookingStatus::CancelledByFace,
                 'cancellation_reason' => BookingCancellationReason::from($reason)->value,
+                'custom_cancellation_reason' => $reason === BookingCancellationReason::Other->value
+                    ? $customReason
+                    : null,
             ]);
 
             return $booking->fresh();

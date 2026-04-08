@@ -20,7 +20,7 @@
                     <tr>
                         <td style="padding: 32px;">
                             <p style="margin: 0 0 20px; color: #374151; font-size: 14px; line-height: 1.6;">
-                                Le booking <strong>#{{ $booking->id }}</strong> a été annulé par <strong>{{ $cancellerName }}</strong>.
+                                Cette demande de booking a été annulée par <strong>{{ $cancellerName }}</strong>.
                             </p>
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>

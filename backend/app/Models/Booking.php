@@ -45,6 +45,7 @@ class Booking extends Model
         'montant_total_producteur',
         'montant_face_recoit',
         'cancellation_reason',
+        'custom_cancellation_reason',
         'fedapay_transaction_id',
         'payment_mode',
         'payment_initiation_key',

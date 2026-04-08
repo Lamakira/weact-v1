@@ -3,8 +3,10 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { AlertTriangle, Loader2 } from 'lucide-vue-next'
 import {
   BookingStatus,
-  CANCELLATION_REASONS,
+  FACE_CANCELLATION_REASONS,
+  PRODUCER_CANCELLATION_REASONS,
   type Booking,
+  type BookingCancellationPayload,
   type CancellationReasonValue,
 } from '../types'
 
@@ -12,28 +14,50 @@ const props = defineProps<{
   booking: Booking
   isOpen: boolean
   isCancelling: boolean
+  isFace: boolean
 }>()
 
 const emit = defineEmits<{
-  confirm: [reason: CancellationReasonValue]
+  confirm: [payload: BookingCancellationPayload]
   cancel: []
 }>()
 
 const selectedReason = ref<CancellationReasonValue | ''>('')
+const customReason = ref('')
 
 const isPaid = computed(() => props.booking.status === BookingStatus.PAID)
+const availableReasons = computed(() => {
+  return props.isFace ? FACE_CANCELLATION_REASONS : PRODUCER_CANCELLATION_REASONS
+})
 const retainedAmount = computed(() => Math.round(props.booking.montant_total_producteur * 0.10))
 const refundAmount = computed(() => Math.round(props.booking.montant_total_producteur * 0.90))
-const canConfirm = computed(() => selectedReason.value !== '' && !props.isCancelling)
+const canConfirm = computed(() => {
+  if (selectedReason.value === '' || props.isCancelling) {
+    return false
+  }
+
+  if (selectedReason.value !== 'other') {
+    return true
+  }
+
+  return customReason.value.trim() !== ''
+})
 
 watch(
   () => props.isOpen,
   (isOpen) => {
     if (isOpen) {
       selectedReason.value = ''
+      customReason.value = ''
     }
   },
 )
+
+watch(selectedReason, (reason) => {
+  if (reason !== 'other') {
+    customReason.value = ''
+  }
+})
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('fr-FR', {
@@ -46,7 +70,11 @@ function formatCurrency(amount: number): string {
 
 function handleConfirm(): void {
   if (!selectedReason.value || props.isCancelling) return
-  emit('confirm', selectedReason.value)
+
+  emit('confirm', {
+    reason: selectedReason.value,
+    customReason: selectedReason.value === 'other' ? customReason.value.trim() : undefined,
+  })
 }
 
 function handleClose(): void {
@@ -119,17 +147,33 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
             <select
               id="cancellation-reason"
               v-model="selectedReason"
+              data-testid="cancellation-reason-select"
               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-weact focus:ring-2 focus:ring-weact/20"
             >
               <option disabled value="">Sélectionnez une raison</option>
               <option
-                v-for="reason in CANCELLATION_REASONS"
+                v-for="reason in availableReasons"
                 :key="reason.value"
                 :value="reason.value"
               >
                 {{ reason.label }}
               </option>
             </select>
+          </div>
+
+          <div v-if="selectedReason === 'other'" class="mb-5">
+            <label for="custom-cancellation-reason" class="mb-1.5 block text-sm font-medium text-gray-700">
+              Précisez la raison *
+            </label>
+            <textarea
+              id="custom-cancellation-reason"
+              v-model="customReason"
+              data-testid="custom-cancellation-reason-textarea"
+              rows="4"
+              maxlength="1000"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-weact focus:ring-2 focus:ring-weact/20"
+              placeholder="Décrivez la raison de l'annulation"
+            />
           </div>
 
           <div class="flex items-center justify-end gap-3">
@@ -141,6 +185,7 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
               Retour
             </button>
             <button
+              data-testid="confirm-cancellation-button"
               class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="!canConfirm"
               @click="handleConfirm"

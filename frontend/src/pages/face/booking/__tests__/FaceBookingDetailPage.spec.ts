@@ -70,6 +70,8 @@ function makeBooking(overrides: Record<string, unknown> = {}): Record<string, un
     commission_producteur: 7500,
     montant_face_recoit: 42500,
     montant_total_producteur: 57500,
+    cancellation_reason: null,
+    custom_cancellation_reason: null,
     accepted_at: new Date().toISOString(),
     face: { id: 1, prenom: 'Jane', nom: 'Doe', username: 'jane', profile_photo_url: null, average_rating: 4.5 },
     producer: { id: 2, prenom: 'John', nom: 'Smith', username: 'john', profile_photo_url: null, average_rating: 4.0, agency_name: null },
@@ -151,6 +153,13 @@ describe('FaceBookingDetailPage — shooting date guard', () => {
     expect(wrapper.text()).not.toContain("La confirmation n'est possible qu'à partir du jour du tournage")
   })
 
+  it('shows a generic booking heading without exposing the booking id', async () => {
+    const wrapper = await mountPage(makeBooking({ id: 42 }))
+
+    expect(wrapper.text()).toContain('Demande de booking')
+    expect(wrapper.text()).not.toContain('Demande de booking #42')
+  })
+
   it('re-enables confirm button when the shooting time passes while the page stays open', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-04-05T12:00:00Z'))
@@ -228,5 +237,29 @@ describe('FaceBookingDetailPage — no-show report button', () => {
 
     const btn = wrapper.find('[data-testid="report-no-show-btn"]')
     expect(btn.exists()).toBe(false)
+  })
+
+  it('shows the custom cancellation reason when present on the booking', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const wrapper = await mountPage(makeBooking({
+      status: 'cancelled_by_producer',
+      producer_id: 2,
+      cancellation_reason: 'other',
+      custom_cancellation_reason: 'Le client final a déplacé le tournage.',
+    }))
+
+    expect(wrapper.text()).toContain('Autre raison')
+    expect(wrapper.text()).toContain('Le client final a déplacé le tournage.')
+  })
+
+  it('shows a friendly label for legacy price disagreement cancellations', async () => {
+    const wrapper = await mountPage(makeBooking({
+      status: 'cancelled_by_producer',
+      cancellation_reason: 'price_disagreement',
+    }))
+
+    expect(wrapper.text()).toContain('Désaccord sur le prix')
+    expect(wrapper.text()).not.toContain('price_disagreement')
   })
 })

@@ -13,7 +13,7 @@ export interface UseBookingActionsReturn {
   accept: (bookingId: number) => Promise<Booking | null>
   refuse: (bookingId: number, reason?: string) => Promise<Booking | null>
   confirm: (bookingId: number) => Promise<Booking | null>
-  cancel: (bookingId: number, reason: CancellationReasonValue) => Promise<Booking | null>
+  cancel: (bookingId: number, reason: CancellationReasonValue, customReason?: string) => Promise<Booking | null>
   reportNoShow: (bookingId: number) => Promise<Booking | null>
   clearError: () => void
 }
@@ -75,12 +75,16 @@ export function useBookingActions(): UseBookingActionsReturn {
     }
   }
 
-  async function cancel(bookingId: number, reason: CancellationReasonValue): Promise<Booking | null> {
+  async function cancel(
+    bookingId: number,
+    reason: CancellationReasonValue,
+    customReason?: string,
+  ): Promise<Booking | null> {
     isCancelling.value = true
     error.value = null
 
     try {
-      const response = await bookingApi.cancelBooking(bookingId, reason)
+      const response = await bookingApi.cancelBooking(bookingId, reason, customReason)
       return response.data
     } catch (err) {
       error.value = getApiErrorMessage(err)

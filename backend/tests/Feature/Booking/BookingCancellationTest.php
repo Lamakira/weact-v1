@@ -101,12 +101,12 @@ class BookingCancellationTest extends TestCase
 
         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
-                'cancellation_reason' => 'price_disagreement',
+                'cancellation_reason' => 'acceptance_expired',
             ]);
 
         $response->assertOk()
             ->assertJsonPath('data.status', BookingStatus::CancelledByProducer->value)
-            ->assertJsonPath('data.cancellation_reason', 'price_disagreement');
+            ->assertJsonPath('data.cancellation_reason', 'acceptance_expired');
 
         $this->assertDatabaseMissing('financial_events', [
             'booking_id' => $booking->id,
@@ -153,6 +153,7 @@ class BookingCancellationTest extends TestCase
         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
                 'cancellation_reason' => 'other',
+                'custom_cancellation_reason' => 'La production a été reportée.',
             ]);
 
         $response->assertOk()
@@ -206,6 +207,7 @@ class BookingCancellationTest extends TestCase
         $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
                 'cancellation_reason' => 'other',
+                'custom_cancellation_reason' => 'La production a été reportée.',
             ])
             ->assertOk();
 
@@ -259,7 +261,7 @@ class BookingCancellationTest extends TestCase
 
         $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
-                'cancellation_reason' => 'price_disagreement',
+                'cancellation_reason' => 'acceptance_expired',
             ])
             ->assertOk();
 
@@ -269,6 +271,8 @@ class BookingCancellationTest extends TestCase
             return $mail->hasTo($this->faceUser->email)
                 && $mail->cancelledBy === 'producer'
                 && $mail->booking->id === $booking->id
+                && $mail->envelope()->subject === 'Votre demande de booking a été annulée'
+                && ! str_contains($mail->render(), 'Le booking <strong>#')
                 && ($expectedDate === null || str_contains($mail->render(), $expectedDate));
         });
     }
@@ -294,7 +298,60 @@ class BookingCancellationTest extends TestCase
             return $mail->hasTo($this->producerUser->email)
                 && $mail->cancelledBy === 'face'
                 && $mail->booking->id === $booking->id
+                && $mail->envelope()->subject === 'Votre demande de booking a été annulée'
+                && ! str_contains($mail->render(), 'Le booking <strong>#')
                 && ($expectedDate === null || str_contains($mail->render(), $expectedDate));
+        });
+    }
+
+    public function test_cancellation_with_other_reason_stores_custom_reason_and_exposes_it(): void
+    {
+        Mail::fake();
+
+        $booking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                'cancellation_reason' => 'other',
+                'custom_cancellation_reason' => 'Le client final a reporté la campagne.',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::CancelledByProducer->value)
+            ->assertJsonPath('data.cancellation_reason', 'other')
+            ->assertJsonPath('data.custom_cancellation_reason', 'Le client final a reporté la campagne.');
+
+        $this->assertDatabaseHas('bookings', [
+            'id' => $booking->id,
+            'cancellation_reason' => 'other',
+            'custom_cancellation_reason' => 'Le client final a reporté la campagne.',
+        ]);
+
+        Mail::assertQueued(BookingCancelledMail::class, function (BookingCancelledMail $mail): bool {
+            return str_contains($mail->render(), 'Le client final a reporté la campagne.');
+        });
+    }
+
+    public function test_legacy_price_disagreement_reason_keeps_human_readable_label_in_email(): void
+    {
+        Mail::fake();
+
+        $booking = Booking::factory()->cancelledByProducer()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'cancellation_reason' => 'price_disagreement',
+        ]);
+
+        Mail::to($this->faceUser->email)->queue(new BookingCancelledMail($booking, 'producer'));
+
+        Mail::assertQueued(BookingCancelledMail::class, function (BookingCancelledMail $mail): bool {
+            $rendered = $mail->render();
+
+            return str_contains($rendered, 'Désaccord sur le prix')
+                && ! str_contains($rendered, 'price_disagreement');
         });
     }
 
@@ -343,6 +400,63 @@ class BookingCancellationTest extends TestCase
             ->assertJsonValidationErrors('cancellation_reason');
     }
 
+    public function test_cancel_with_other_reason_requires_custom_reason(): void
+    {
+        $booking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                'cancellation_reason' => 'other',
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('custom_cancellation_reason');
+    }
+
+    public function test_cancel_with_non_other_reason_ignores_custom_reason(): void
+    {
+        $booking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                'cancellation_reason' => 'schedule_conflict',
+                'custom_cancellation_reason' => 'This should be ignored.',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.cancellation_reason', 'schedule_conflict')
+            ->assertJsonPath('data.custom_cancellation_reason', null);
+
+        $this->assertDatabaseHas('bookings', [
+            'id' => $booking->id,
+            'cancellation_reason' => 'schedule_conflict',
+            'custom_cancellation_reason' => null,
+        ]);
+    }
+
+    public function test_cancel_with_other_reason_rejects_whitespace_only_custom_reason(): void
+    {
+        $booking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                'cancellation_reason' => 'other',
+                'custom_cancellation_reason' => '   ',
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors('custom_cancellation_reason');
+    }
+
     public function test_producer_cannot_cancel_completed_booking(): void
     {
         $booking = Booking::factory()->completed()->create([
@@ -353,6 +467,7 @@ class BookingCancellationTest extends TestCase
         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
                 'cancellation_reason' => 'other',
+                'custom_cancellation_reason' => 'Annulation déjà effectuée.',
             ]);
 
         $response->assertForbidden();
@@ -368,6 +483,7 @@ class BookingCancellationTest extends TestCase
         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
                 'cancellation_reason' => 'other',
+                'custom_cancellation_reason' => 'Annulation déjà effectuée.',
             ]);
 
         $response->assertForbidden();

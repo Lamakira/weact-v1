@@ -116,7 +116,7 @@ const formattedDateRange = computed(() => {
           {{ counterpartName }}
         </p>
         <p class="text-xs text-muted-foreground">
-          Booking #{{ booking.id }}
+          Demande de booking
         </p>
       </div>
     </div>

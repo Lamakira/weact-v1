@@ -24,7 +24,7 @@ class BookingCancelledMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: "Votre booking #{$this->booking->id} a été annulé",
+            subject: 'Votre demande de booking a été annulée',
         );
     }
 
@@ -54,14 +54,25 @@ class BookingCancelledMail extends Mailable
     private function reasonLabel(): string
     {
         $reason = $this->booking->cancellation_reason;
+        $customReason = trim((string) ($this->booking->custom_cancellation_reason ?? ''));
 
         if (! $reason) {
             return 'Non spécifiée';
         }
 
+        if ($reason === 'price_disagreement') {
+            return 'Désaccord sur le prix';
+        }
+
         $enum = BookingCancellationReason::tryFrom($reason);
 
-        return $enum?->label() ?? $reason;
+        $label = $enum?->label() ?? $reason;
+
+        if ($reason === BookingCancellationReason::Other->value && $customReason !== '') {
+            return "{$label} : {$customReason}";
+        }
+
+        return $label;
     }
 
     private function cancelledAt(): string
