@@ -63,7 +63,7 @@ const mockMission: PublicMission = {
   genre_voulu: 'femme',
   genre_voulu_label: 'Femme',
   lieu: 'Cotonou, Bénin',
-  duree: '2 jours',
+  duree: '2 journées (16h)',
   status: 'published',
   status_label: 'Publiée',
   created_at: '2026-02-01T10:00:00+00:00',
@@ -197,6 +197,7 @@ describe('PublicMissionDetailView', () => {
     expect(wrapper.find('[data-testid="mission-profil-recherche"]').text()).toBe('Jeune femme 20-30 ans')
     expect(wrapper.find('[data-testid="mission-type-badge"]').text()).toBe('Publicité')
     expect(wrapper.find('[data-testid="mission-genre-badge"]').text()).toBe('Femme')
+    expect(wrapper.find('[data-testid="mission-duree"]').text()).toBe('2 journées (max 16h)')
     expect(wrapper.find('[data-testid="producer-name"]').text()).toBe('Studio Cotonou')
     expect(wrapper.find('[data-testid="producer-photo"]').attributes('src')).toBe('https://example.com/thumb.jpg')
     expect(wrapper.find('[data-testid="producer-rating"]').text()).toContain('12 avis')

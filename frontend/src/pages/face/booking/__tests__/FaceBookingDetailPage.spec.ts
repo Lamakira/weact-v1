@@ -187,6 +187,23 @@ describe('FaceBookingDetailPage — shooting date guard', () => {
   })
 })
 
+describe('FaceBookingDetailPage — duration display', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockIsLoading.value = false
+    mockError.value = null
+    mockIsConfirming.value = false
+    mockActionError.value = null
+    mockIsReportingNoShow.value = false
+    mockReportNoShow.mockReset()
+  })
+
+  it('displays duration with "max" prefix', async () => {
+    const wrapper = await mountPage(makeBooking({ duree_heures: 4 }))
+    expect(wrapper.text()).toContain('max 4h')
+  })
+})
+
 describe('FaceBookingDetailPage — no-show report button', () => {
   beforeEach(() => {
     mockBooking.value = null

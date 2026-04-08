@@ -45,6 +45,25 @@ function formatCurrency(amount: number): string {
   }).format(amount)
 }
 
+describe('BookingFormSheet — duration presets', () => {
+  it('shows duration presets with "max" prefix in labels', () => {
+    const wrapper = mountForm()
+    const options = wrapper.findAll('select#duree_preset option')
+    const halfDay = options.find((o) => o.element.value === '4')
+    expect(halfDay).toBeDefined()
+    expect(halfDay!.text()).toContain('max 4h')
+  })
+
+  it('all standard presets contain "(max" in their label', () => {
+    const wrapper = mountForm()
+    const options = wrapper.findAll('select#duree_preset option')
+    const standardPresets = options.filter((o) => o.element.value !== '' && o.element.value !== 'custom')
+    for (const opt of standardPresets) {
+      expect(opt.text()).toMatch(/\(max \d+h\)/)
+    }
+  })
+})
+
 describe('BookingFormSheet — pricing preview', () => {
   it('shows pricing preview by default when a daily tariff is available', () => {
     const wrapper = mountForm()

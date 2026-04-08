@@ -370,7 +370,7 @@ development_status:
   epic-fix-12: in-progress
   fix-12-1-producer-cancel-booking-bug: done                        # Fix annulation booking par le Producer (ne fonctionne pas)
   fix-12-2-cancel-reasons-and-custom-input: done                   # Supprimer "désaccord prix", ajouter "Durée acceptation dépassée", champ libre pour "Autre"
-  fix-12-3-display-max-duration: backlog                           # Afficher "max 4h" au lieu de "4h" pour la durée (booking + mission)
+  fix-12-3-display-max-duration: done                       # Afficher "max 4h" au lieu de "4h" pour la durée (booking + mission)
   fix-12-4-auto-expire-unaccepted-bookings: backlog                # Annulation auto des bookings non acceptés dont la date de tournage est passée
 
   # Epic FIX-13: Filtrage candidatures par genre sur les missions (1 story)

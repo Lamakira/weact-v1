@@ -68,8 +68,8 @@ describe('MissionForm — Duration Select', () => {
     const options = select.findAll('option')
     // 1 default "Sélectionnez" + 11 presets = 12
     expect(options.length).toBe(12)
-    expect(select.text()).toContain('½ journée (4h)')
-    expect(select.text()).toContain('5 journées (40h)')
+    expect(select.text()).toContain('½ journée (max 4h)')
+    expect(select.text()).toContain('5 journées (max 40h)')
     expect(select.text()).toContain('Plus de 5 jours...')
   })
 
@@ -89,10 +89,16 @@ describe('MissionForm — Duration Select', () => {
     expect(customInput.exists()).toBe(true)
   })
 
-  it('pre-populates select with matching preset in edit mode', () => {
+  it('pre-populates select with matching preset in edit mode (new format)', () => {
+    const wrapper = mountForm({ duree: '2 journées (max 16h)' })
+    const select = wrapper.find('[data-testid="duree-select"]')
+    expect((select.element as HTMLSelectElement).value).toBe('2 journées (max 16h)')
+  })
+
+  it('pre-populates select with matching preset in edit mode (legacy format)', () => {
     const wrapper = mountForm({ duree: '2 journées (16h)' })
     const select = wrapper.find('[data-testid="duree-select"]')
-    expect((select.element as HTMLSelectElement).value).toBe('2 journées (16h)')
+    expect((select.element as HTMLSelectElement).value).toBe('2 journées (max 16h)')
   })
 
   it('pre-populates custom days in edit mode for custom duration', () => {
