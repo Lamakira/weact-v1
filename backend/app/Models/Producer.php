@@ -13,10 +13,45 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
+use App\Concerns\HasRouteUuid;
 
 class Producer extends Model
 {
-    use HasFactory;
+    use HasFactory, HasRouteUuid;
+
+    /**
+     * Boot the model.
+     */
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        static::creating(function (Producer $producer): void {
+            if (empty($producer->slug)) {
+                $base = \Illuminate\Support\Str::slug($producer->display_name ?: 'producer');
+                $slug = $base;
+                $counter = 1;
+                while (static::where('slug', $slug)->exists()) {
+                    $slug = "{$base}-{$counter}";
+                    $counter++;
+                }
+                $producer->slug = $slug;
+            }
+        });
+
+        static::updating(function (Producer $producer): void {
+            if ($producer->isDirty('display_name')) {
+                $base = \Illuminate\Support\Str::slug($producer->display_name ?: 'producer');
+                $slug = $base;
+                $counter = 1;
+                while (static::where('slug', $slug)->where('id', '!=', $producer->id)->exists()) {
+                    $slug = "{$base}-{$counter}";
+                    $counter++;
+                }
+                $producer->slug = $slug;
+            }
+        });
+    }
 
     /**
      * The attributes that are mass assignable.

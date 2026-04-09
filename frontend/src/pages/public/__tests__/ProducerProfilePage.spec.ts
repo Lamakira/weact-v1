@@ -25,7 +25,7 @@ const emptyReviewsResponse: ReviewsListResponse = {
 }
 
 const mockParticulierProducer: PublicProducer = {
-  id: 1,
+  id: 'uuid-particulier-1',
   type: 'particulier',
   display_name: 'Jean Dupont',
   agency_name: null,
@@ -41,7 +41,7 @@ const mockParticulierProducer: PublicProducer = {
 }
 
 const mockAgencyProducer: PublicProducer = {
-  id: 2,
+  id: 'uuid-agency-2',
   type: 'agency',
   display_name: 'Test Agency',
   agency_name: 'Test Agency',
@@ -94,7 +94,7 @@ describe('ProducerProfilePage', () => {
       history: createMemoryHistory(),
       routes: [
         {
-          path: '/producers/:id',
+          path: '/producers/:slug',
           name: 'public-producer-profile',
           component: ProducerProfilePage,
         },
@@ -102,8 +102,8 @@ describe('ProducerProfilePage', () => {
     })
   })
 
-  async function mountComponent(producerId: number = 1) {
-    await router.push(`/producers/${producerId}`)
+  async function mountComponent(producerSlug: string = 'jean-dupont') {
+    await router.push(`/producers/${producerSlug}`)
     await router.isReady()
 
     return mount(ProducerProfilePage, {
@@ -117,17 +117,17 @@ describe('ProducerProfilePage', () => {
     it('displays loading state while fetching', async () => {
       isLoadingRef.value = true
 
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       expect(wrapper.find('[data-testid="loading-state"]').exists()).toBe(true)
     })
 
     it('calls fetchProducer on mount with the correct ID', async () => {
-      await mountComponent(123)
+      await mountComponent('some-producer')
       await flushPromises()
 
-      expect(mockFetchProducer).toHaveBeenCalledWith(123)
+      expect(mockFetchProducer).toHaveBeenCalledWith('some-producer')
     })
   })
 
@@ -135,7 +135,7 @@ describe('ProducerProfilePage', () => {
     it('displays not found state when producer does not exist', async () => {
       notFoundRef.value = true
 
-      const wrapper = await mountComponent(99999)
+      const wrapper = await mountComponent('nonexistent-producer')
       await flushPromises()
 
       expect(wrapper.find('[data-testid="not-found-state"]').exists()).toBe(true)
@@ -145,7 +145,7 @@ describe('ProducerProfilePage', () => {
     it('shows appropriate message for not found', async () => {
       notFoundRef.value = true
 
-      const wrapper = await mountComponent(99999)
+      const wrapper = await mountComponent('nonexistent-producer')
       await flushPromises()
 
       expect(wrapper.text()).toContain("n'existe pas ou a été supprimé")
@@ -156,7 +156,7 @@ describe('ProducerProfilePage', () => {
     it('displays error state when fetch fails', async () => {
       errorRef.value = 'Une erreur est survenue. Veuillez réessayer.'
 
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       expect(wrapper.find('[data-testid="error-state"]').exists()).toBe(true)
@@ -166,7 +166,7 @@ describe('ProducerProfilePage', () => {
     it('has a retry button', async () => {
       errorRef.value = 'Une erreur est survenue.'
 
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       const retryButton = wrapper.find('[data-testid="retry-button"]')
@@ -177,7 +177,7 @@ describe('ProducerProfilePage', () => {
     it('calls fetchProducer again when retry button is clicked', async () => {
       errorRef.value = 'Une erreur est survenue.'
 
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       mockFetchProducer.mockClear()
@@ -185,7 +185,7 @@ describe('ProducerProfilePage', () => {
       await wrapper.find('[data-testid="retry-button"]').trigger('click')
       await flushPromises()
 
-      expect(mockFetchProducer).toHaveBeenCalledWith(1)
+      expect(mockFetchProducer).toHaveBeenCalledWith('jean-dupont')
     })
   })
 
@@ -195,28 +195,28 @@ describe('ProducerProfilePage', () => {
     })
 
     it('displays the producer profile', async () => {
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       expect(wrapper.find('[data-testid="producer-profile"]').exists()).toBe(true)
     })
 
     it('displays the display name', async () => {
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       expect(wrapper.find('[data-testid="display-name"]').text()).toBe('Jean Dupont')
     })
 
     it('displays the bio content', async () => {
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       expect(wrapper.find('[data-testid="bio-content"]').text()).toBe('Test bio content')
     })
 
     it('shows Particulier badge', async () => {
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       const badge = wrapper.find('[data-testid="producer-type-badge"]')
@@ -224,35 +224,35 @@ describe('ProducerProfilePage', () => {
     })
 
     it('displays member since date', async () => {
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       expect(wrapper.find('[data-testid="member-since"]').text()).toContain('janvier 2026')
     })
 
     it('displays missions count', async () => {
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       expect(wrapper.find('[data-testid="missions-count"]').text()).toBe('0')
     })
 
     it('shows no rating message when average_rating is null', async () => {
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       expect(wrapper.find('[data-testid="no-rating"]').exists()).toBe(true)
     })
 
     it('does not display agency logo section for particulier', async () => {
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       expect(wrapper.find('[data-testid="agency-logo-section"]').exists()).toBe(false)
     })
 
     it('displays profile photo when available', async () => {
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       const photo = wrapper.find('[data-testid="profile-photo"]')
@@ -267,7 +267,7 @@ describe('ProducerProfilePage', () => {
     })
 
     it('shows Agence badge', async () => {
-      const wrapper = await mountComponent(2)
+      const wrapper = await mountComponent('test-agency')
       await flushPromises()
 
       const badge = wrapper.find('[data-testid="producer-type-badge"]')
@@ -275,7 +275,7 @@ describe('ProducerProfilePage', () => {
     })
 
     it('displays agency logo as main image when available', async () => {
-      const wrapper = await mountComponent(2)
+      const wrapper = await mountComponent('test-agency')
       await flushPromises()
 
       const logo = wrapper.find('[data-testid="agency-logo"]')
@@ -284,7 +284,7 @@ describe('ProducerProfilePage', () => {
     })
 
     it('displays rating when available', async () => {
-      const wrapper = await mountComponent(2)
+      const wrapper = await mountComponent('test-agency')
       await flushPromises()
 
       const rating = wrapper.find('[data-testid="rating-display"]')
@@ -300,7 +300,7 @@ describe('ProducerProfilePage', () => {
         bio: null,
       }
 
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       expect(wrapper.find('[data-testid="no-bio"]').exists()).toBe(true)
@@ -316,7 +316,7 @@ describe('ProducerProfilePage', () => {
         thumbnail_url: null,
       }
 
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       expect(wrapper.find('[data-testid="profile-placeholder"]').exists()).toBe(true)
@@ -327,7 +327,7 @@ describe('ProducerProfilePage', () => {
     it('has a back button', async () => {
       producerRef.value = mockParticulierProducer
 
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       const backButton = wrapper.find('[data-testid="back-button"]')
@@ -340,7 +340,7 @@ describe('ProducerProfilePage', () => {
     it('shows no ratings message when producer has no ratings', async () => {
       producerRef.value = mockParticulierProducer
 
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       // The ReviewsList component shows the empty state
@@ -353,21 +353,21 @@ describe('ProducerProfilePage', () => {
     it('fetches new producer when route param changes', async () => {
       producerRef.value = mockParticulierProducer
 
-      await mountComponent(1)
+      await mountComponent('jean-dupont')
       await flushPromises()
 
-      expect(mockFetchProducer).toHaveBeenCalledWith(1)
+      expect(mockFetchProducer).toHaveBeenCalledWith('jean-dupont')
 
       // Navigate to a different producer
       mockFetchProducer.mockClear()
-      await router.push('/producers/2')
+      await router.push('/producers/other-producer')
       await flushPromises()
 
-      expect(mockFetchProducer).toHaveBeenCalledWith(2)
+      expect(mockFetchProducer).toHaveBeenCalledWith('other-producer')
     })
 
-    it('handles invalid (NaN) producer ID gracefully', async () => {
-      await router.push('/producers/invalid')
+    it('calls fetchProducer with slug from route', async () => {
+      await router.push('/producers/some-slug')
       await router.isReady()
 
       mount(ProducerProfilePage, {
@@ -377,8 +377,7 @@ describe('ProducerProfilePage', () => {
       })
       await flushPromises()
 
-      // Should not call fetchProducer with NaN
-      expect(mockFetchProducer).not.toHaveBeenCalled()
+      expect(mockFetchProducer).toHaveBeenCalledWith('some-slug')
     })
   })
 
@@ -390,7 +389,7 @@ describe('ProducerProfilePage', () => {
         thumbnail_url: 'https://example.com/broken-thumb.jpg',
       }
 
-      const wrapper = await mountComponent(1)
+      const wrapper = await mountComponent('jean-dupont')
       await flushPromises()
 
       // Initially shows the image

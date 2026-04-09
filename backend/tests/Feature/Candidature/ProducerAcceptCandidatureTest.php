@@ -71,7 +71,7 @@ class ProducerAcceptCandidatureTest extends TestCase
     public function test_producer_can_accept_pending_candidature(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -104,7 +104,7 @@ class ProducerAcceptCandidatureTest extends TestCase
         $this->assertEquals(CandidatureStatus::Pending, $this->candidature->status);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertOk();
 
@@ -120,7 +120,7 @@ class ProducerAcceptCandidatureTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertStatus(400)
             ->assertJsonPath('error.code', 'INVALID_STATUS')
@@ -133,7 +133,7 @@ class ProducerAcceptCandidatureTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertStatus(400)
             ->assertJsonPath('error.code', 'INVALID_STATUS');
@@ -145,7 +145,7 @@ class ProducerAcceptCandidatureTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertStatus(400)
             ->assertJsonPath('error.code', 'INVALID_STATUS');
@@ -157,7 +157,7 @@ class ProducerAcceptCandidatureTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertStatus(400)
             ->assertJsonPath('error.code', 'INVALID_STATUS');
@@ -169,7 +169,7 @@ class ProducerAcceptCandidatureTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertStatus(400)
             ->assertJsonPath('error.code', 'INVALID_STATUS');
@@ -178,7 +178,7 @@ class ProducerAcceptCandidatureTest extends TestCase
     public function test_face_cannot_accept_candidature(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertForbidden()
             ->assertJson([
@@ -196,7 +196,7 @@ class ProducerAcceptCandidatureTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherProducerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertForbidden()
             ->assertJson([
@@ -207,14 +207,14 @@ class ProducerAcceptCandidatureTest extends TestCase
     public function test_returns_404_for_non_existent_candidature(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson('/api/v1/producer/candidatures/99999/accept');
+            ->postJson('/api/v1/producer/candidatures/00000000-0000-0000-0000-000000000000/accept');
 
         $response->assertNotFound();
     }
 
     public function test_returns_401_when_unauthenticated(): void
     {
-        $response = $this->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+        $response = $this->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertUnauthorized();
     }
@@ -222,10 +222,10 @@ class ProducerAcceptCandidatureTest extends TestCase
     public function test_response_includes_all_candidature_fields(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertOk()
-            ->assertJsonPath('data.id', $this->candidature->id)
+            ->assertJsonPath('data.id', $this->candidature->uuid)
             ->assertJsonPath('data.mission_id', $this->mission->id)
             ->assertJsonPath('data.face_id', $this->face->id)
             ->assertJsonPath('data.status', 'accepted')
@@ -241,7 +241,7 @@ class ProducerAcceptCandidatureTest extends TestCase
         sleep(1);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertOk();
 
@@ -265,7 +265,7 @@ class ProducerAcceptCandidatureTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertStatus(422)
             ->assertJsonPath('error.code', 'SELECTION_ALREADY_STARTED');
@@ -276,7 +276,7 @@ class ProducerAcceptCandidatureTest extends TestCase
         $this->mission->update(['status' => MissionStatus::Closed]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertStatus(422)
             ->assertJsonPath('error.code', 'MISSION_NOT_PUBLISHED');

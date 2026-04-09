@@ -13,14 +13,14 @@ export type AccessLevel = 'guest' | 'face_user' | 'producer_with_access'
  * - Face user → message "Profil complet réservé aux producteurs"
  * - Producer → full profile (any producer can view any Face)
  */
-export function usePublicFaceAccess(faceId: Ref<number | null>) {
+export function usePublicFaceAccess(faceId: Ref<string | null>) {
   const authStore = useAuthStore()
 
   const accessLevel = ref<AccessLevel>('guest')
   const fullProfile = ref<CandidateFullProfile | null>(null)
   const isLoadingFullProfile = ref(false)
 
-  async function resolveAccess(id: number): Promise<void> {
+  async function resolveAccess(id: string): Promise<void> {
     // Not authenticated → guest
     if (!authStore.isAuthenticated) {
       accessLevel.value = 'guest'
@@ -66,7 +66,7 @@ export function usePublicFaceAccess(faceId: Ref<number | null>) {
   watch(
     faceId,
     (newId) => {
-      if (newId && newId > 0) {
+      if (newId) {
         resolveAccess(newId)
       } else {
         accessLevel.value = 'guest'

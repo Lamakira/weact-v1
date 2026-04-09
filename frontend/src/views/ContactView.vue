@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
-import { Mail, MapPin, Share2, Send, CheckCircle2, AlertCircle, Loader2 } from 'lucide-vue-next'
+import { Mail, Phone, MapPin, Share2, Send, CheckCircle2, AlertCircle, Loader2 } from 'lucide-vue-next'
 import { submitContactForm } from '@/features/public/services/contactApi'
 
 interface ContactForm {
@@ -200,6 +200,29 @@ const handleSubmit = async () => {
                     class="text-sm font-medium text-[#198496] hover:underline mt-2 inline-block"
                   >
                     contact@weact.bj
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <!-- Phone Card -->
+            <div
+              class="group bg-white p-6 rounded-lg border border-gray-200 hover:border-[#198496]/30 transition-all duration-200 shadow-sm"
+            >
+              <div class="flex items-start gap-4">
+                <div
+                  class="p-2.5 bg-gray-50 rounded-md group-hover:bg-[#198496]/10 transition-colors"
+                >
+                  <Phone class="w-5 h-5 text-[#198496]" />
+                </div>
+                <div>
+                  <h3 class="text-sm font-medium text-gray-900 mb-1">Téléphone</h3>
+                  <p class="text-gray-500 text-sm">Appelez-nous directement</p>
+                  <a
+                    href="tel:+2290141229017"
+                    class="text-sm font-medium text-[#198496] hover:underline mt-2 inline-block"
+                  >
+                    +229 01 41 22 90 17
                   </a>
                 </div>
               </div>

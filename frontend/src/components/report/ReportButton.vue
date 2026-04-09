@@ -19,7 +19,7 @@ interface ApiErrorResponse {
 
 const props = defineProps<{
   reportableType: 'face' | 'mission'
-  reportableId: number
+  reportableId: string | number
 }>()
 
 const authStore = useAuthStore()

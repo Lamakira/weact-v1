@@ -58,15 +58,15 @@ function navigateToPublish(): void {
   router.push({ name: 'publish-mission' })
 }
 
-function handleEdit(id: number): void {
+function handleEdit(id: string): void {
   router.push({ name: 'edit-mission', params: { id } })
 }
 
-function handleViewCandidatures(id: number): void {
+function handleViewCandidatures(id: string): void {
   router.push({ name: 'producer-mission-candidatures', params: { id } })
 }
 
-function handleDeleteClick(id: number): void {
+function handleDeleteClick(id: string): void {
   const mission = missions.value.find((m) => m.id === id)
   if (mission) {
     selectedMission.value = mission
@@ -79,7 +79,7 @@ function closeDeleteDialog(): void {
   selectedMission.value = null
 }
 
-function handleCloseClick(id: number): void {
+function handleCloseClick(id: string): void {
   const mission = missions.value.find((m) => m.id === id)
   if (mission) {
     selectedMission.value = mission
@@ -92,7 +92,7 @@ function closeCloseDialog(): void {
   selectedMission.value = null
 }
 
-function handleReopenClick(id: number): void {
+function handleReopenClick(id: string): void {
   const mission = missions.value.find((m) => m.id === id)
   if (mission) {
     selectedMission.value = mission
@@ -105,7 +105,7 @@ function closeReopenDialog(): void {
   selectedMission.value = null
 }
 
-function handleCompleteClick(id: number): void {
+function handleCompleteClick(id: string): void {
   const mission = missions.value.find((m) => m.id === id)
   if (mission) {
     selectedMission.value = mission

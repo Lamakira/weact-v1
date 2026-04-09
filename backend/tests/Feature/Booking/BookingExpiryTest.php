@@ -171,7 +171,7 @@ class BookingExpiryTest extends TestCase
         ]);
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/accept")
+            ->postJson("/api/v1/bookings/{$booking->uuid}/accept")
             ->assertOk()
             ->assertJsonPath('data.status', BookingStatus::Accepted->value);
 

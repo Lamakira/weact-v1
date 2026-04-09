@@ -10,7 +10,7 @@ import { useToast } from '@/composables/useToast'
  */
 const props = defineProps<{
   isOpen: boolean
-  missionId: number
+  missionId: string
   missionTitle: string
 }>()
 
@@ -19,7 +19,7 @@ const props = defineProps<{
  */
 const emit = defineEmits<{
   (e: 'close'): void
-  (e: 'success', candidature: { id: number; status: string; status_label: string }): void
+  (e: 'success', candidature: { id: string; status: string; status_label: string }): void
 }>()
 
 /**

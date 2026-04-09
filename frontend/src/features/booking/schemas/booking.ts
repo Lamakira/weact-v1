@@ -6,7 +6,7 @@ import { z } from 'zod'
  */
 export const bookingSchema = z
   .object({
-    face_id: z.number({ message: 'La Face est obligatoire' }).int().positive(),
+    face_id: z.string({ message: 'La Face est obligatoire' }).uuid(),
 
     date_debut: z
       .string({ message: 'La date de début est obligatoire' })

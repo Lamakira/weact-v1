@@ -33,7 +33,7 @@ class NotifyPartyOnBookingCancelled
             $notificationData = [
                 'message'    => "{$faceName} a annulé le booking.",
                 'booking_id' => $booking->id,
-                'url'        => "/producer/bookings/{$booking->id}",
+                'url'        => "/producer/bookings/{$booking->uuid}",
             ];
         } else {
             $producerName = $booking->producer?->userable?->display_name ?? 'Le Producteur';
@@ -41,7 +41,7 @@ class NotifyPartyOnBookingCancelled
             $notificationData = [
                 'message'    => "Votre booking a été annulé par {$producerName}. Vous n'êtes pas pénalisé.",
                 'booking_id' => $booking->id,
-                'url'        => "/face/bookings/{$booking->id}",
+                'url'        => "/face/bookings/{$booking->uuid}",
             ];
         }
 

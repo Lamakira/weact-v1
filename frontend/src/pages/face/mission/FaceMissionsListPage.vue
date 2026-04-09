@@ -75,7 +75,7 @@ function handleResetFilters(): void {
   showFiltersPanel.value = false
 }
 
-function handleMissionClick(id: number): void {
+function handleMissionClick(id: string): void {
   router.push({ name: 'face-mission-detail', params: { id } })
 }
 

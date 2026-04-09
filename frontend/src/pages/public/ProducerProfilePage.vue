@@ -35,7 +35,7 @@ const reviewsTotal = ref(0)
 const reviewsError = ref(false)
 
 // Fetch reviews for the producer
-async function fetchReviews(producerId: number, page: number = 1): Promise<void> {
+async function fetchReviews(producerId: string, page: number = 1): Promise<void> {
   reviewsLoading.value = true
   reviewsError.value = false
   try {
@@ -59,12 +59,11 @@ function handleReviewsPageChange(page: number): void {
   }
 }
 
-// Get producer ID from route params with NaN validation
+// Get producer slug from route params
 const producerId = computed(() => {
-  const id = route.params.id
-  if (typeof id !== 'string') return null
-  const parsed = parseInt(id, 10)
-  return Number.isNaN(parsed) ? null : parsed
+  const slug = route.params.slug
+  if (typeof slug !== 'string' || !slug) return null
+  return slug
 })
 
 // Watch for route param changes and fetch producer (handles initial load + navigation)

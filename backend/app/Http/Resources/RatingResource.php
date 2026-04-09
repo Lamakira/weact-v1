@@ -30,7 +30,7 @@ class RatingResource extends JsonResource
                 'photo_url' => $this->rater->userable->profile_photo_url,
             ],
             'rated' => [
-                'id' => $this->rated->id,
+                'id' => $this->rated->uuid,
                 'name' => $this->rated->display_name,
                 'photo_url' => $this->rated->profile_photo_url,
             ],

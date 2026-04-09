@@ -12,8 +12,8 @@ export interface UseExperiencesReturn {
   validationErrors: Ref<Record<string, string[]>>
   fetchExperiences: () => Promise<void>
   addExperience: (data: ExperienceFormData) => Promise<ExperienceResult>
-  editExperience: (id: number, data: ExperienceFormData) => Promise<ExperienceResult>
-  removeExperience: (id: number) => Promise<boolean>
+  editExperience: (id: string, data: ExperienceFormData) => Promise<ExperienceResult>
+  removeExperience: (id: string) => Promise<boolean>
   clearError: () => void
 }
 
@@ -103,7 +103,7 @@ export function useExperiences(): UseExperiencesReturn {
    * Edit an existing experience
    */
   async function editExperience(
-    id: number,
+    id: string,
     data: ExperienceFormData,
   ): Promise<ExperienceResult> {
     isSaving.value = true
@@ -143,7 +143,7 @@ export function useExperiences(): UseExperiencesReturn {
   /**
    * Remove an experience
    */
-  async function removeExperience(id: number): Promise<boolean> {
+  async function removeExperience(id: string): Promise<boolean> {
     isDeleting.value = true
     error.value = null
 

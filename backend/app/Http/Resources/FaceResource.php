@@ -22,7 +22,7 @@ class FaceResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
             'nom' => $this->nom,
             'prenom' => $this->prenom,
             'username' => $this->username,

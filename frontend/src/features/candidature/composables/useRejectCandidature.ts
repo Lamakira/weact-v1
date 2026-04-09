@@ -16,7 +16,7 @@ export function useRejectCandidature() {
    * @param candidatureId The candidature ID to reject
    * @returns The updated candidature data or null if failed
    */
-  async function rejectCandidature(candidatureId: number): Promise<CandidatureResponse | null> {
+  async function rejectCandidature(candidatureId: string): Promise<CandidatureResponse | null> {
     isRejecting.value = true
     error.value = null
     successMessage.value = null

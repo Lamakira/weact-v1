@@ -78,7 +78,7 @@ class ProducerSendMessageTest extends TestCase
     public function test_producer_can_view_conversation_after_acceptance(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/producer/conversations/{$this->conversation->uuid}");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -101,7 +101,7 @@ class ProducerSendMessageTest extends TestCase
     public function test_conversation_response_includes_mission_title(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/producer/conversations/{$this->conversation->uuid}");
 
         $response->assertOk()
             ->assertJsonPath('data.mission_title', $this->mission->titre);
@@ -110,11 +110,11 @@ class ProducerSendMessageTest extends TestCase
     public function test_conversation_response_shows_face_as_other_participant_for_producer(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/producer/conversations/{$this->conversation->uuid}");
 
         $response->assertOk()
             ->assertJsonPath('data.other_participant.type', 'face')
-            ->assertJsonPath('data.other_participant.id', $this->face->id)
+            ->assertJsonPath('data.other_participant.id', $this->face->uuid)
             ->assertJsonPath('data.other_participant.name', $this->face->display_name);
     }
 
@@ -125,7 +125,7 @@ class ProducerSendMessageTest extends TestCase
     public function test_producer_can_send_message_to_conversation(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Bonjour, merci pour votre candidature.',
             ]);
 
@@ -158,7 +158,7 @@ class ProducerSendMessageTest extends TestCase
     public function test_message_includes_correct_sender_data(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Test message content',
             ]);
 
@@ -172,7 +172,7 @@ class ProducerSendMessageTest extends TestCase
     public function test_message_read_at_is_null_on_creation(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Test message',
             ]);
 
@@ -183,7 +183,7 @@ class ProducerSendMessageTest extends TestCase
     public function test_message_has_created_at_timestamp(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Test message',
             ]);
 
@@ -205,7 +205,7 @@ class ProducerSendMessageTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Should fail',
             ]);
 
@@ -219,7 +219,7 @@ class ProducerSendMessageTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Should fail',
             ]);
 
@@ -233,7 +233,7 @@ class ProducerSendMessageTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/producer/conversations/{$this->conversation->uuid}");
 
         // Note: Current ConversationPolicy::view() allows this (checks ownership only).
         // If AC #4 requires blocking VIEW as well, update policy to check canAccessChat().
@@ -248,7 +248,7 @@ class ProducerSendMessageTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/producer/conversations/{$this->conversation->uuid}");
 
         // Note: Current ConversationPolicy::view() allows this (checks ownership only).
         // If AC #4 requires blocking VIEW as well, update policy to check canAccessChat().
@@ -288,7 +288,7 @@ class ProducerSendMessageTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/producer/conversations/{$this->conversation->uuid}");
 
         $response->assertOk();
 
@@ -318,7 +318,7 @@ class ProducerSendMessageTest extends TestCase
 
         // Producer views the conversation
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/producer/conversations/{$this->conversation->uuid}");
 
         $response->assertOk();
 
@@ -340,7 +340,7 @@ class ProducerSendMessageTest extends TestCase
 
         // Producer views the conversation
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/producer/conversations/{$this->conversation->uuid}");
 
         $response->assertOk();
 
@@ -356,7 +356,7 @@ class ProducerSendMessageTest extends TestCase
     public function test_empty_message_returns_validation_error(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => '',
             ]);
 
@@ -367,7 +367,7 @@ class ProducerSendMessageTest extends TestCase
     public function test_whitespace_only_message_returns_validation_error(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => '   ',
             ]);
 
@@ -378,7 +378,7 @@ class ProducerSendMessageTest extends TestCase
     public function test_missing_content_returns_validation_error(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", []);
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", []);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['content']);
@@ -389,7 +389,7 @@ class ProducerSendMessageTest extends TestCase
         $longContent = str_repeat('a', 5001);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => $longContent,
             ]);
 
@@ -402,7 +402,7 @@ class ProducerSendMessageTest extends TestCase
         $content = str_repeat('a', 5000);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => $content,
             ]);
 
@@ -423,7 +423,7 @@ class ProducerSendMessageTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherProducerUser)
-            ->getJson("/api/v1/producer/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/producer/conversations/{$this->conversation->uuid}");
 
         $response->assertForbidden();
     }
@@ -438,7 +438,7 @@ class ProducerSendMessageTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherProducerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Trying to send to other conversation',
             ]);
 
@@ -460,7 +460,7 @@ class ProducerSendMessageTest extends TestCase
         // Face user accesses their own conversation via Producer endpoint
         // Policy allows because they're a valid participant
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/producer/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/producer/conversations/{$this->conversation->uuid}");
 
         $response->assertOk();
     }
@@ -470,7 +470,7 @@ class ProducerSendMessageTest extends TestCase
         // Face user sends via Producer endpoint
         // Policy allows because they're a valid participant with canAccessChat()
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Face using Producer endpoint',
             ]);
 
@@ -483,14 +483,14 @@ class ProducerSendMessageTest extends TestCase
 
     public function test_unauthenticated_user_cannot_view_conversation(): void
     {
-        $response = $this->getJson("/api/v1/producer/conversations/{$this->conversation->id}");
+        $response = $this->getJson("/api/v1/producer/conversations/{$this->conversation->uuid}");
 
         $response->assertUnauthorized();
     }
 
     public function test_unauthenticated_user_cannot_send_message(): void
     {
-        $response = $this->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+        $response = $this->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
             'content' => 'Test',
         ]);
 
@@ -504,7 +504,7 @@ class ProducerSendMessageTest extends TestCase
     public function test_returns_404_for_non_existent_conversation(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->getJson('/api/v1/producer/conversations/99999');
+            ->getJson('/api/v1/producer/conversations/00000000-0000-0000-0000-000000000000');
 
         $response->assertNotFound();
     }
@@ -519,7 +519,7 @@ class ProducerSendMessageTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Message after confirmation',
             ]);
 
@@ -532,7 +532,7 @@ class ProducerSendMessageTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Message during mission',
             ]);
 
@@ -545,7 +545,7 @@ class ProducerSendMessageTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Message after completion',
             ]);
 
@@ -559,7 +559,7 @@ class ProducerSendMessageTest extends TestCase
     public function test_empty_message_returns_french_error_message(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => '',
             ]);
 
@@ -570,7 +570,7 @@ class ProducerSendMessageTest extends TestCase
     public function test_long_message_returns_french_error_message(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/producer/conversations/{$this->conversation->uuid}/messages", [
                 'content' => str_repeat('a', 5001),
             ]);
 

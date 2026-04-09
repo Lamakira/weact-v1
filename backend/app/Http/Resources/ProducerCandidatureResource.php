@@ -24,16 +24,16 @@ class ProducerCandidatureResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
             'status' => $this->status?->value,
             'status_label' => $this->status?->label(),
             'message_motivation' => $this->message_motivation
                 ? Str::limit($this->message_motivation, 150)
                 : null,
             'created_at' => $this->created_at?->toIso8601String(),
-            'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->id),
+            'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->uuid),
             'face' => $this->whenLoaded('face', fn () => [
-                'id' => $this->face->id,
+                'id' => $this->face->uuid,
                 'display_name' => trim($this->face->prenom . ' ' . $this->face->nom),
                 'profile_photo_url' => $this->face->profile_photo_url,
                 'category' => $this->face->categorie?->value,

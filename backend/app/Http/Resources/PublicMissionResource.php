@@ -25,7 +25,7 @@ class PublicMissionResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
             'slug' => $this->slug,
             'titre' => $this->titre,
             'description' => $this->description,
@@ -45,7 +45,8 @@ class PublicMissionResource extends JsonResource
             'status_label' => $this->status?->label(),
             'created_at' => $this->created_at?->toIso8601String(),
             'producer' => $this->producer ? [
-                'id' => $this->producer->id,
+                'id' => $this->producer->uuid,
+                'slug' => $this->producer->slug,
                 'display_name' => $this->producer->display_name,
                 'profile_photo_thumbnail_url' => $this->producer->thumbnail_url,
                 'average_rating' => $this->producer->ratings_received_avg_score

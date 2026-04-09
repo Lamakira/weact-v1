@@ -12,10 +12,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
+use App\Concerns\HasRouteUuid;
 
 class Article extends Model
 {
-    use HasFactory;
+    use HasFactory, HasRouteUuid;
 
     /**
      * The attributes that are mass assignable.

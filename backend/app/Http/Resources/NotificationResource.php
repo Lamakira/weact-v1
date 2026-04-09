@@ -17,7 +17,7 @@ class NotificationResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
             'type' => $this->type,
             'data' => $this->data,
             'read_at' => $this->read_at?->toIso8601String(),

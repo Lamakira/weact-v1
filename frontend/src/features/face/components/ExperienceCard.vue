@@ -8,7 +8,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'edit', experience: Experience): void
-  (e: 'delete', id: number): void
+  (e: 'delete', id: string): void
 }>()
 
 const handleEdit = () => {

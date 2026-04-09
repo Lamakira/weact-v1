@@ -107,7 +107,7 @@ class ConversationHistoryTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertOk();
 
@@ -140,7 +140,7 @@ class ConversationHistoryTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/producer/conversations/{$this->conversation->uuid}");
 
         $response->assertOk();
 
@@ -174,7 +174,7 @@ class ConversationHistoryTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $messages = $response->json('data.messages');
 
@@ -199,11 +199,11 @@ class ConversationHistoryTest extends TestCase
 
         // First request
         $response1 = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         // Second request (simulating page refresh)
         $response2 = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         // Assert same messages returned
         $this->assertEquals(
@@ -216,14 +216,14 @@ class ConversationHistoryTest extends TestCase
     {
         // Send a message
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Test persistence',
             ])
             ->assertCreated();
 
         // Fetch conversation
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $messages = $response->json('data.messages');
         $this->assertCount(1, $messages);
@@ -244,7 +244,7 @@ class ConversationHistoryTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertJsonPath('data.messages.0.content', 'Test message content');
     }
@@ -261,7 +261,7 @@ class ConversationHistoryTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertJsonStructure([
             'data' => [
@@ -281,7 +281,7 @@ class ConversationHistoryTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/producer/conversations/{$this->conversation->uuid}");
 
         // MessageResource uses sender_name as a direct field
         $response->assertJsonStructure([
@@ -303,7 +303,7 @@ class ConversationHistoryTest extends TestCase
     public function test_face_sees_producer_as_other_participant(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertOk();
         $response->assertJsonPath('data.other_participant.type', 'producer');
@@ -315,7 +315,7 @@ class ConversationHistoryTest extends TestCase
         $this->producer->update(['photo_profil' => 'photos/producer.jpg']);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertJsonStructure([
             'data' => [
@@ -331,7 +331,7 @@ class ConversationHistoryTest extends TestCase
     public function test_producer_sees_face_as_other_participant(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/producer/conversations/{$this->conversation->uuid}");
 
         $response->assertOk();
         $response->assertJsonPath('data.other_participant.type', 'face');
@@ -343,7 +343,7 @@ class ConversationHistoryTest extends TestCase
         $this->face->update(['photo_profil' => 'photos/face.jpg']);
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/producer/conversations/{$this->conversation->uuid}");
 
         $response->assertJsonStructure([
             'data' => [
@@ -359,7 +359,7 @@ class ConversationHistoryTest extends TestCase
     public function test_empty_conversation_returns_empty_messages_array(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertOk();
         $response->assertJsonPath('data.messages', []);
@@ -372,7 +372,7 @@ class ConversationHistoryTest extends TestCase
     public function test_conversation_includes_mission_title(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertJsonPath('data.mission_title', $this->mission->titre);
     }
@@ -383,7 +383,7 @@ class ConversationHistoryTest extends TestCase
 
     public function test_unauthenticated_user_cannot_view_conversation_history(): void
     {
-        $response = $this->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+        $response = $this->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertUnauthorized();
     }
@@ -397,7 +397,7 @@ class ConversationHistoryTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherFaceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertForbidden();
     }
@@ -411,7 +411,7 @@ class ConversationHistoryTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherProducerUser)
-            ->getJson("/api/v1/producer/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/producer/conversations/{$this->conversation->uuid}");
 
         $response->assertForbidden();
     }

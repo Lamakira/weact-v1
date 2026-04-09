@@ -26,6 +26,7 @@ class FaceFactory extends Factory
     public function definition(): array
     {
         return [
+            'uuid' => fake()->uuid(),
             'nom' => fake()->lastName(),
             'prenom' => fake()->firstName(),
             'username' => fake()->unique()->userName(),

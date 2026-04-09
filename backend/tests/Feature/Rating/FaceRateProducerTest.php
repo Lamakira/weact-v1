@@ -68,7 +68,7 @@ class FaceRateProducerTest extends TestCase
     public function test_face_can_rate_producer_after_completed_candidature(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->uuid}/rate", [
                 'score' => 5,
             ]);
 
@@ -102,7 +102,7 @@ class FaceRateProducerTest extends TestCase
     public function test_rating_with_score_1_succeeds(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->uuid}/rate", [
                 'score' => 1,
             ]);
 
@@ -113,7 +113,7 @@ class FaceRateProducerTest extends TestCase
     public function test_rating_with_score_3_succeeds(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->uuid}/rate", [
                 'score' => 3,
             ]);
 
@@ -124,7 +124,7 @@ class FaceRateProducerTest extends TestCase
     public function test_rating_with_score_5_succeeds(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->uuid}/rate", [
                 'score' => 5,
             ]);
 
@@ -141,7 +141,7 @@ class FaceRateProducerTest extends TestCase
         $comment = 'Excellent producteur, très professionnel !';
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->uuid}/rate", [
                 'score' => 5,
                 'comment' => $comment,
             ]);
@@ -158,7 +158,7 @@ class FaceRateProducerTest extends TestCase
     public function test_rating_without_comment_saves_correctly(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->uuid}/rate", [
                 'score' => 4,
             ]);
 
@@ -183,7 +183,7 @@ class FaceRateProducerTest extends TestCase
 
         // Try to rate again
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->uuid}/rate", [
                 'score' => 5,
             ]);
 
@@ -211,7 +211,7 @@ class FaceRateProducerTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$pendingCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$pendingCandidature->uuid}/rate", [
                 'score' => 5,
             ]);
 
@@ -235,7 +235,7 @@ class FaceRateProducerTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$acceptedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$acceptedCandidature->uuid}/rate", [
                 'score' => 5,
             ]);
 
@@ -258,7 +258,7 @@ class FaceRateProducerTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$confirmedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$confirmedCandidature->uuid}/rate", [
                 'score' => 5,
             ]);
 
@@ -281,7 +281,7 @@ class FaceRateProducerTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$inProgressCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$inProgressCandidature->uuid}/rate", [
                 'score' => 5,
             ]);
 
@@ -304,7 +304,7 @@ class FaceRateProducerTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$rejectedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$rejectedCandidature->uuid}/rate", [
                 'score' => 5,
             ]);
 
@@ -338,7 +338,7 @@ class FaceRateProducerTest extends TestCase
 
         // Try to rate with original Face user
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$otherCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$otherCandidature->uuid}/rate", [
                 'score' => 5,
             ]);
 
@@ -358,7 +358,7 @@ class FaceRateProducerTest extends TestCase
     public function test_response_includes_french_success_message(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->uuid}/rate", [
                 'score' => 5,
             ]);
 
@@ -375,7 +375,7 @@ class FaceRateProducerTest extends TestCase
     public function test_invalid_score_0_returns_validation_error(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->uuid}/rate", [
                 'score' => 0,
             ]);
 
@@ -386,7 +386,7 @@ class FaceRateProducerTest extends TestCase
     public function test_invalid_score_6_returns_validation_error(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->uuid}/rate", [
                 'score' => 6,
             ]);
 
@@ -397,7 +397,7 @@ class FaceRateProducerTest extends TestCase
     public function test_missing_score_returns_validation_error(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->id}/rate", []);
+            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->uuid}/rate", []);
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['score']);
@@ -406,7 +406,7 @@ class FaceRateProducerTest extends TestCase
     public function test_comment_exceeding_1000_chars_returns_validation_error(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->uuid}/rate", [
                 'score' => 5,
                 'comment' => str_repeat('a', 1001),
             ]);
@@ -418,7 +418,7 @@ class FaceRateProducerTest extends TestCase
     public function test_comment_html_tags_are_stripped(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->uuid}/rate", [
                 'score' => 5,
                 'comment' => '<script>alert("xss")</script>Great producer!',
             ]);
@@ -438,7 +438,7 @@ class FaceRateProducerTest extends TestCase
 
     public function test_unauthenticated_request_returns_401(): void
     {
-        $response = $this->postJson("/api/v1/face/candidatures/{$this->completedCandidature->id}/rate", [
+        $response = $this->postJson("/api/v1/face/candidatures/{$this->completedCandidature->uuid}/rate", [
             'score' => 5,
         ]);
 
@@ -448,7 +448,7 @@ class FaceRateProducerTest extends TestCase
     public function test_producer_cannot_use_face_rating_endpoint(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->uuid}/rate", [
                 'score' => 5,
             ]);
 
@@ -458,7 +458,7 @@ class FaceRateProducerTest extends TestCase
     public function test_rating_nonexistent_candidature_returns_404(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson('/api/v1/face/candidatures/999999/rate', [
+            ->postJson('/api/v1/face/candidatures/00000000-0000-0000-0000-000000000000/rate', [
                 'score' => 5,
             ]);
 
@@ -472,7 +472,7 @@ class FaceRateProducerTest extends TestCase
     public function test_rating_response_includes_rater_and_rated_info(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->id}/rate", [
+            ->postJson("/api/v1/face/candidatures/{$this->completedCandidature->uuid}/rate", [
                 'score' => 4,
                 'comment' => 'Good experience',
             ]);
@@ -503,6 +503,6 @@ class FaceRateProducerTest extends TestCase
         $this->assertEquals($this->faceUser->id, $response->json('data.rater.id'));
 
         // Verify rated is the Producer
-        $this->assertEquals($this->producer->id, $response->json('data.rated.id'));
+        $this->assertEquals($this->producer->uuid, $response->json('data.rated.id'));
     }
 }

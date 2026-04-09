@@ -26,6 +26,7 @@ class ExperienceFactory extends Factory
         $endDate = fake()->optional(0.7)->dateTimeBetween($startDate, 'now');
 
         return [
+            'uuid' => fake()->uuid(),
             'face_id' => Face::factory(),
             'titre' => fake()->sentence(3),
             'description' => fake()->optional(0.7)->paragraph(),

@@ -13,10 +13,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use App\Concerns\HasRouteUuid;
 
 class Admin extends Authenticatable implements CanResetPasswordContract
 {
-    use CanResetPassword, HasApiTokens, HasFactory, Notifiable;
+    use CanResetPassword, HasApiTokens, HasFactory, HasRouteUuid, Notifiable;
 
     /**
      * The attributes that are mass assignable.

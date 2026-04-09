@@ -88,7 +88,7 @@ class FaceViewCandidaturesTest extends TestCase
                 'links',
                 'meta',
             ])
-            ->assertJsonPath('data.0.id', $candidature->id)
+            ->assertJsonPath('data.0.id', $candidature->uuid)
             ->assertJsonPath('data.0.status', 'pending')
             ->assertJsonPath('data.0.status_label', 'En attente');
     }
@@ -199,7 +199,7 @@ class FaceViewCandidaturesTest extends TestCase
             ->getJson('/api/v1/face/candidatures');
 
         $response->assertStatus(200)
-            ->assertJsonPath('data.0.mission.id', $mission->id)
+            ->assertJsonPath('data.0.mission.id', $mission->uuid)
             ->assertJsonPath('data.0.mission.titre', 'Test Mission Title')
             ->assertJsonPath('data.0.mission.lieu', 'Cotonou')
             ->assertJsonPath('data.0.mission.budget', 150000);
@@ -226,7 +226,7 @@ class FaceViewCandidaturesTest extends TestCase
             ->getJson('/api/v1/face/candidatures');
 
         $response->assertStatus(200)
-            ->assertJsonPath('data.0.producer.id', $producer->id)
+            ->assertJsonPath('data.0.producer.id', $producer->uuid)
             ->assertJsonPath('data.0.producer.display_name', 'Test Agency')
             ->assertJsonPath('data.0.producer.type', 'agency');
     }
@@ -301,7 +301,7 @@ class FaceViewCandidaturesTest extends TestCase
 
         $response->assertStatus(200);
         $ids = collect($response->json('data'))->pluck('id')->toArray();
-        $this->assertEquals([$newest->id, $middle->id, $oldest->id], $ids);
+        $this->assertEquals([$newest->uuid, $middle->uuid, $oldest->uuid], $ids);
     }
 
     public function test_face_only_sees_their_own_candidatures(): void
@@ -333,7 +333,7 @@ class FaceViewCandidaturesTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.id', $myCandidature->id);
+            ->assertJsonPath('data.0.id', $myCandidature->uuid);
     }
 
     public function test_can_filter_by_all_status_types(): void

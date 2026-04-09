@@ -69,7 +69,7 @@ class FaceCancelCandidatureTest extends TestCase
     public function test_face_can_cancel_pending_candidature(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/cancel");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/cancel");
 
         $response->assertOk()
             ->assertJsonPath('message', 'Candidature annulée avec succès.');
@@ -86,7 +86,7 @@ class FaceCancelCandidatureTest extends TestCase
         $this->assertEquals(CandidatureStatus::Pending, $this->candidature->status);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/cancel");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/cancel");
 
         $response->assertOk();
 
@@ -100,7 +100,7 @@ class FaceCancelCandidatureTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/cancel");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/cancel");
 
         $response->assertStatus(400)
             ->assertJsonPath('message', 'Seules les candidatures en attente peuvent être annulées.');
@@ -112,7 +112,7 @@ class FaceCancelCandidatureTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/cancel");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/cancel");
 
         $response->assertStatus(400)
             ->assertJsonPath('message', 'Seules les candidatures en attente peuvent être annulées.');
@@ -124,7 +124,7 @@ class FaceCancelCandidatureTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/cancel");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/cancel");
 
         $response->assertStatus(400)
             ->assertJsonPath('message', 'Seules les candidatures en attente peuvent être annulées.');
@@ -136,7 +136,7 @@ class FaceCancelCandidatureTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/cancel");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/cancel");
 
         $response->assertStatus(400)
             ->assertJsonPath('message', 'Seules les candidatures en attente peuvent être annulées.');
@@ -148,7 +148,7 @@ class FaceCancelCandidatureTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/cancel");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/cancel");
 
         $response->assertStatus(400)
             ->assertJsonPath('message', 'Seules les candidatures en attente peuvent être annulées.');
@@ -163,7 +163,7 @@ class FaceCancelCandidatureTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherFaceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/cancel");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/cancel");
 
         $response->assertForbidden()
             ->assertJson([
@@ -174,14 +174,14 @@ class FaceCancelCandidatureTest extends TestCase
     public function test_producer_cannot_cancel_candidature(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/cancel");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/cancel");
 
         $response->assertForbidden();
     }
 
     public function test_guest_cannot_cancel_candidature(): void
     {
-        $response = $this->postJson("/api/v1/face/candidatures/{$this->candidature->id}/cancel");
+        $response = $this->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/cancel");
 
         $response->assertUnauthorized();
     }
@@ -189,7 +189,7 @@ class FaceCancelCandidatureTest extends TestCase
     public function test_returns_404_for_non_existent_candidature(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson('/api/v1/face/candidatures/99999/cancel');
+            ->postJson('/api/v1/face/candidatures/00000000-0000-0000-0000-000000000000/cancel');
 
         $response->assertNotFound();
     }

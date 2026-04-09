@@ -483,9 +483,9 @@ class ConversationsListTest extends TestCase
         $data = $response->json('data');
 
         // Should be ordered: conv3, conv2, conv1 (most recent first)
-        $this->assertEquals($conv3->id, $data[0]['id']);
-        $this->assertEquals($conv2->id, $data[1]['id']);
-        $this->assertEquals($conv1->id, $data[2]['id']);
+        $this->assertEquals($conv3->uuid, $data[0]['id']);
+        $this->assertEquals($conv2->uuid, $data[1]['id']);
+        $this->assertEquals($conv1->uuid, $data[2]['id']);
     }
 
     // ==========================================================================

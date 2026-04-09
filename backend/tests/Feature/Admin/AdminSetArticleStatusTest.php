@@ -29,7 +29,7 @@ class AdminSetArticleStatusTest extends TestCase
 
     private function endpoint(Article $article): string
     {
-        return "/api/v1/admin/articles/{$article->id}/status";
+        return "/api/v1/admin/articles/{$article->uuid}/status";
     }
 
     // ──────────────────────────────────────────────
@@ -224,7 +224,7 @@ class AdminSetArticleStatusTest extends TestCase
     public function test_nonexistent_article_returns_404(): void
     {
         $response = $this->withToken($this->adminToken)
-            ->patchJson('/api/v1/admin/articles/99999/status', [
+            ->patchJson('/api/v1/admin/articles/00000000-0000-0000-0000-000000000000/status', [
                 'status' => ArticleStatus::Published->value,
             ]);
 

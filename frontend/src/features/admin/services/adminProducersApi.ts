@@ -4,7 +4,7 @@ import adminApiClient from './adminApiClient'
  * Producer data from admin API
  */
 export interface AdminProducerMission {
-  id: number
+  id: string
   title: string
   status: string
   status_label: string
@@ -12,7 +12,7 @@ export interface AdminProducerMission {
 }
 
 export interface AdminProducerData {
-  id: number
+  id: string
   type: string
   agency_name: string | null
   first_name: string | null
@@ -91,7 +91,7 @@ export const adminProducersApi = {
   /**
    * Get a single producer by ID
    */
-  async getProducer(id: number): Promise<AdminProducerDetailResponse> {
+  async getProducer(id: string): Promise<AdminProducerDetailResponse> {
     const response = await adminApiClient.get<AdminProducerDetailResponse>(
       `/admin/producers/${id}`,
     )
@@ -102,7 +102,7 @@ export const adminProducersApi = {
    * Update a producer's admin-editable fields
    */
   async updateProducer(
-    id: number,
+    id: string,
     data: UpdateAdminProducerForm,
   ): Promise<AdminProducerDetailResponse> {
     const response = await adminApiClient.put<AdminProducerDetailResponse>(
@@ -115,7 +115,7 @@ export const adminProducersApi = {
   /**
    * Toggle a producer's account activation status
    */
-  async toggleActive(id: number): Promise<AdminProducerDetailResponse> {
+  async toggleActive(id: string): Promise<AdminProducerDetailResponse> {
     const response = await adminApiClient.patch<AdminProducerDetailResponse>(
       `/admin/producers/${id}/toggle-active`,
     )
@@ -125,7 +125,7 @@ export const adminProducersApi = {
   /**
    * Delete a producer and its associated user
    */
-  async deleteProducer(id: number): Promise<{ message: string }> {
+  async deleteProducer(id: string): Promise<{ message: string }> {
     const response = await adminApiClient.delete<{ message: string }>(`/admin/producers/${id}`)
     return response.data
   },

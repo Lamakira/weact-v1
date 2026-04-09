@@ -52,7 +52,7 @@ function goToPage(page: number): void {
   loadFaces(page)
 }
 
-function goToDetail(id: number): void {
+function goToDetail(id: string): void {
   router.push({ name: 'admin-face-detail', params: { id } })
 }
 

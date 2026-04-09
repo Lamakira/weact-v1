@@ -11,6 +11,8 @@ const mockIsConfirming = ref(false)
 const mockActionError = ref<string | null>(null)
 const mockIsReportingNoShow = ref(false)
 const mockReportNoShow = vi.fn()
+const mockFetchBooking = vi.fn()
+const mockRefreshBooking = vi.fn()
 const mockUserableType = ref('Face')
 const mockUserId = ref(1)
 
@@ -19,9 +21,9 @@ vi.mock('@/features/booking/composables', () => ({
     booking: mockBooking,
     isLoading: mockIsLoading,
     error: mockError,
-    fetchBooking: vi.fn(),
+    fetchBooking: mockFetchBooking,
     notFound: ref(false),
-    refresh: vi.fn(),
+    refresh: mockRefreshBooking,
   }),
   useBookingActions: () => ({
     isConfirming: mockIsConfirming,
@@ -56,7 +58,8 @@ vi.mock('@/composables/useToast', () => ({
 
 function makeBooking(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    id: 1,
+    id: 'booking-uuid-1',
+    realtime_channel_key: 1,
     face_id: 1,
     producer_id: 2,
     status: 'paid',
@@ -94,7 +97,7 @@ async function mountPage(booking: Record<string, unknown> | null = null) {
     ],
   })
 
-  await router.push('/face/bookings/1')
+  await router.push('/face/bookings/booking-uuid-1')
   await router.isReady()
 
   const wrapper = mount(FaceBookingDetailPage, {
@@ -126,7 +129,15 @@ describe('FaceBookingDetailPage — shooting date guard', () => {
     mockIsReportingNoShow.value = false
     mockUserableType.value = 'Face'
     mockUserId.value = 1
+    mockFetchBooking.mockReset()
+    mockRefreshBooking.mockReset()
     mockReportNoShow.mockReset()
+  })
+
+  it('loads the booking with the UUID route param on mount', async () => {
+    await mountPage(makeBooking())
+
+    expect(mockFetchBooking).toHaveBeenCalledWith('booking-uuid-1')
   })
 
   it('disables confirm button when shooting date is in the future', async () => {
@@ -195,6 +206,8 @@ describe('FaceBookingDetailPage — duration display', () => {
     mockIsConfirming.value = false
     mockActionError.value = null
     mockIsReportingNoShow.value = false
+    mockFetchBooking.mockReset()
+    mockRefreshBooking.mockReset()
     mockReportNoShow.mockReset()
   })
 
@@ -212,6 +225,8 @@ describe('FaceBookingDetailPage — no-show report button', () => {
     mockIsConfirming.value = false
     mockActionError.value = null
     mockIsReportingNoShow.value = false
+    mockFetchBooking.mockReset()
+    mockRefreshBooking.mockReset()
     mockReportNoShow.mockReset()
   })
 

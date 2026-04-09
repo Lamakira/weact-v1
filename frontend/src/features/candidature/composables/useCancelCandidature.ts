@@ -15,7 +15,7 @@ export function useCancelCandidature() {
    * @param candidatureId The candidature ID to cancel
    * @returns true if successful, false otherwise
    */
-  async function cancelCandidature(candidatureId: number): Promise<boolean> {
+  async function cancelCandidature(candidatureId: string): Promise<boolean> {
     isCancelling.value = true
     error.value = null
     successMessage.value = null

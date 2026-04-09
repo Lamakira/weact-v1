@@ -16,11 +16,9 @@ class ProducerController extends Controller
      *
      * No authentication required - this is a PUBLIC endpoint.
      */
-    public function show(int $id): JsonResponse
+    public function show(Producer $producer): JsonResponse
     {
-        $producer = Producer::query()
-            ->whereHas('user', fn ($q) => $q->where('is_active', true))
-            ->findOrFail($id);
+        abort_unless($producer->user?->is_active, 404);
 
         return response()->json([
             'data' => new PublicProducerResource($producer),

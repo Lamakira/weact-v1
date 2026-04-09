@@ -18,9 +18,9 @@ const statusFilter = ref('')
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
 const showDeleteModal = ref(false)
-const articleToDelete = ref<{ id: number; title: string } | null>(null)
+const articleToDelete = ref<{ id: string; title: string } | null>(null)
 const isDeleting = ref(false)
-const isTogglingId = ref<number | null>(null)
+const isTogglingId = ref<string | null>(null)
 
 const hasArticles = computed(() => articles.value.length > 0)
 const totalPages = computed(() => pagination.value?.last_page ?? 1)
@@ -65,7 +65,7 @@ function goToCreate(): void {
   router.push({ name: 'admin-articles-create' })
 }
 
-function goToEdit(id: number): void {
+function goToEdit(id: string): void {
   router.push({ name: 'admin-articles-edit', params: { id } })
 }
 
@@ -102,7 +102,7 @@ function getCategoryColor(categoryValue: string): string {
   }
 }
 
-async function handleToggleStatus(id: number, currentStatus: string): Promise<void> {
+async function handleToggleStatus(id: string, currentStatus: string): Promise<void> {
   isTogglingId.value = id
   const result = await toggleStatus(id, currentStatus)
   isTogglingId.value = null
@@ -111,7 +111,7 @@ async function handleToggleStatus(id: number, currentStatus: string): Promise<vo
   }
 }
 
-function openDeleteModal(id: number, title: string): void {
+function openDeleteModal(id: string, title: string): void {
   articleToDelete.value = { id, title }
   showDeleteModal.value = true
 }

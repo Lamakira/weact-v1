@@ -7,7 +7,7 @@ import type { PaginationMeta } from './publicFacesApi'
  * Only contains public-safe fields for unauthenticated visitors
  */
 export interface PublicArticle {
-  id: number
+  id: string
   title: string
   slug: string
   excerpt: string | null
@@ -25,7 +25,7 @@ export interface PublicArticle {
  * Public article detail data (PublicArticleDetailResource shape)
  */
 export interface PublicArticleDetail {
-  id: number
+  id: string
   title: string
   slug: string
   content: string

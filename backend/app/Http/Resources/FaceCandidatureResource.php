@@ -24,7 +24,7 @@ class FaceCandidatureResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
             'status' => $this->status?->value,
             'status_label' => $this->status?->label(),
             'message_motivation' => $this->message_motivation
@@ -32,7 +32,7 @@ class FaceCandidatureResource extends JsonResource
                 : null,
             'created_at' => $this->created_at?->toIso8601String(),
             'mission' => $this->whenLoaded('mission', fn () => [
-                'id' => $this->mission->id,
+                'id' => $this->mission->uuid,
                 'titre' => $this->mission->titre,
                 'date_tournage' => $this->mission->date_tournage?->format('Y-m-d'),
                 'lieu' => $this->mission->lieu,
@@ -41,13 +41,13 @@ class FaceCandidatureResource extends JsonResource
             'producer' => $this->when(
                 $this->relationLoaded('mission') && $this->mission?->relationLoaded('producer') && $this->mission?->producer,
                 fn () => [
-                    'id' => $this->mission->producer->id,
+                    'id' => $this->mission->producer->uuid,
                     'display_name' => $this->mission->producer->display_name,
                     'type' => $this->mission->producer->type?->value,
                     'profile_photo_url' => $this->mission->producer->profile_photo_url,
                 ]
             ),
-            'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->id),
+            'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->uuid),
         ];
     }
 }

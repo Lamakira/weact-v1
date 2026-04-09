@@ -7,7 +7,7 @@ import type { PaginationMeta } from './publicFacesApi'
  * Only contains public-safe fields for unauthenticated visitors
  */
 export interface PublicMission {
-  id: number
+  id: string
   slug: string
   titre: string
   description: string
@@ -33,7 +33,8 @@ export interface PublicMission {
  * Nested producer info in mission response
  */
 export interface PublicMissionProducer {
-  id: number
+  id: string
+  slug: string | null
   display_name: string
   profile_photo_thumbnail_url: string | null
   average_rating: number | null

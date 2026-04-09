@@ -5,7 +5,8 @@ import type { Booking } from '@/features/booking/types'
 
 function makeBooking(overrides: Partial<Booking> = {}): Booking {
   return {
-    id: 1,
+    id: 'booking-uuid-1',
+    realtime_channel_key: 1,
     face_id: 2,
     producer_id: 3,
     status: 'pending',

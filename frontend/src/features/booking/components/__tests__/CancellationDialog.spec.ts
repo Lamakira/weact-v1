@@ -5,7 +5,8 @@ import { BookingStatus, type Booking } from '../../types'
 
 function makeBooking(): Booking {
   return {
-    id: 1,
+    id: 'booking-uuid-1',
+    realtime_channel_key: 1,
     face_id: 1,
     producer_id: 2,
     status: BookingStatus.ACCEPTED,

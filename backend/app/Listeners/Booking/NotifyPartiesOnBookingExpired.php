@@ -31,7 +31,7 @@ class NotifyPartiesOnBookingExpired
                 'data' => [
                     'message' => "Votre booking avec {$faceName} a expiré car {$this->expiryReason($booking)}.",
                     'booking_id' => $booking->id,
-                    'url' => "/producer/bookings/{$booking->id}",
+                    'url' => "/producer/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {
@@ -51,7 +51,7 @@ class NotifyPartiesOnBookingExpired
                 'data' => [
                     'message' => "Votre booking avec {$producerName} a expiré car {$this->expiryReason($booking)}.",
                     'booking_id' => $booking->id,
-                    'url' => "/face/bookings/{$booking->id}",
+                    'url' => "/face/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {

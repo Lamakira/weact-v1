@@ -51,7 +51,7 @@ class CreateBookingTest extends TestCase
     private function getValidBookingData(): array
     {
         return [
-            'face_id' => $this->faceUser->id,
+            'face_id' => $this->face->uuid,
             'date_debut' => now()->addWeek()->toDateString(),
             'date_fin' => now()->addWeeks(2)->toDateString(),
             'duree_heures' => 8,
@@ -173,7 +173,7 @@ class CreateBookingTest extends TestCase
         ]);
 
         $data = $this->getValidBookingData();
-        $data['face_id'] = $otherProducerUser->id;
+        $data['face_id'] = $otherProducer->uuid;
 
         $response = $this->actingAs($this->producerUser)
             ->postJson('/api/v1/bookings', $data);
@@ -301,7 +301,7 @@ class CreateBookingTest extends TestCase
         ]);
 
         $data = $this->getValidBookingData();
-        $data['face_id'] = $faceUserNoTarif->id;
+        $data['face_id'] = $faceNoTarif->uuid;
 
         $response = $this->actingAs($this->producerUser)
             ->postJson('/api/v1/bookings', $data);

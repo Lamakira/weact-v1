@@ -75,7 +75,7 @@ class FaceNotificationTest extends TestCase
     public function test_notification_created_when_producer_accepts_candidature(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertOk();
 
@@ -101,7 +101,7 @@ class FaceNotificationTest extends TestCase
     public function test_notification_created_when_producer_rejects_candidature(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/reject");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/reject");
 
         $response->assertOk();
 
@@ -198,6 +198,7 @@ class FaceNotificationTest extends TestCase
     {
         // Create older notification using query builder to set custom created_at
         $olderId = \Illuminate\Support\Facades\DB::table('notifications')->insertGetId([
+            'uuid' => \Illuminate\Support\Str::uuid()->toString(),
             'user_id' => $this->faceUser->id,
             'type' => 'candidature_rejected',
             'data' => json_encode([
@@ -211,6 +212,7 @@ class FaceNotificationTest extends TestCase
 
         // Create newer notification
         $newerId = \Illuminate\Support\Facades\DB::table('notifications')->insertGetId([
+            'uuid' => \Illuminate\Support\Str::uuid()->toString(),
             'user_id' => $this->faceUser->id,
             'type' => 'candidature_accepted',
             'data' => json_encode([
@@ -251,7 +253,7 @@ class FaceNotificationTest extends TestCase
         $this->assertNull($notification->read_at);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/notifications/{$notification->id}/read");
+            ->postJson("/api/v1/face/notifications/{$notification->uuid}/read");
 
         $response->assertOk()
             ->assertJsonPath('message', 'Notification marquée comme lue')
@@ -286,7 +288,7 @@ class FaceNotificationTest extends TestCase
         $originalReadAt = $notification->read_at;
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/notifications/{$notification->id}/read");
+            ->postJson("/api/v1/face/notifications/{$notification->uuid}/read");
 
         $response->assertOk();
 
@@ -437,7 +439,7 @@ class FaceNotificationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/face/notifications/{$notification->id}/read");
+            ->postJson("/api/v1/face/notifications/{$notification->uuid}/read");
 
         $response->assertForbidden();
     }
@@ -480,7 +482,7 @@ class FaceNotificationTest extends TestCase
             ],
         ]);
 
-        $response = $this->postJson("/api/v1/face/notifications/{$notification->id}/read");
+        $response = $this->postJson("/api/v1/face/notifications/{$notification->uuid}/read");
 
         $response->assertUnauthorized();
     }
@@ -517,7 +519,7 @@ class FaceNotificationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/notifications/{$notification->id}/read");
+            ->postJson("/api/v1/face/notifications/{$notification->uuid}/read");
 
         $response->assertForbidden()
             ->assertJson([
@@ -571,7 +573,7 @@ class FaceNotificationTest extends TestCase
     public function test_returns_404_for_non_existent_notification(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson('/api/v1/face/notifications/99999/read');
+            ->postJson('/api/v1/face/notifications/00000000-0000-0000-0000-000000000000/read');
 
         $response->assertNotFound();
     }

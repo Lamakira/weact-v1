@@ -19,9 +19,8 @@ class FaceReviewController extends Controller
      * Merges candidature ratings (ratings table) and booking ratings
      * (booking_ratings table), ordered by most recent first.
      */
-    public function index(Request $request, int $id): AnonymousResourceCollection
+    public function index(Request $request, Face $face): AnonymousResourceCollection
     {
-        $face = Face::findOrFail($id);
         $perPage = 10;
         $page = $request->integer('page', 1);
 

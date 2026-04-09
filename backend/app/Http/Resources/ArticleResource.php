@@ -15,7 +15,7 @@ class ArticleResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
             'title' => $this->title,
             'slug' => $this->slug,
             'content' => $this->content,

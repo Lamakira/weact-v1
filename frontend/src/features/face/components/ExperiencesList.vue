@@ -15,14 +15,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'add', data: ExperienceFormData): void
-  (e: 'edit', id: number, data: ExperienceFormData): void
-  (e: 'delete', id: number): void
+  (e: 'edit', id: string, data: ExperienceFormData): void
+  (e: 'delete', id: string): void
 }>()
 
 // Local state for UI modes
 const isAddMode = ref(false)
-const editingExperienceId = ref<number | null>(null)
-const deletingExperienceId = ref<number | null>(null)
+const editingExperienceId = ref<string | null>(null)
+const deletingExperienceId = ref<string | null>(null)
 const showDeleteConfirm = ref(false)
 
 const hasExperiences = computed(() => props.experiences.length > 0)
@@ -63,7 +63,7 @@ const handleEditCancel = () => {
 }
 
 // Delete handlers
-const handleDeleteClick = (id: number) => {
+const handleDeleteClick = (id: string) => {
   deletingExperienceId.value = id
   showDeleteConfirm.value = true
 }

@@ -254,7 +254,7 @@ class BookingIndexTest extends TestCase
 
         $response->assertOk();
         $ids = collect($response->json('data'))->pluck('id')->all();
-        $this->assertEquals([$newest->id, $middle->id, $oldest->id], $ids);
+        $this->assertEquals([$newest->uuid, $middle->uuid, $oldest->uuid], $ids);
     }
 
     // === PAGINATION TESTS ===

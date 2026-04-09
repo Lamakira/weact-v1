@@ -51,7 +51,7 @@ const {
 } = useSendMessage()
 
 // Local state
-const selectedConversationId = ref<number | null>(null)
+const selectedConversationId = ref<string | null>(null)
 const scrollContainer = ref<HTMLElement | null>(null)
 const newMessageText = ref('')
 

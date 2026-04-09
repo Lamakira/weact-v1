@@ -23,6 +23,7 @@ class AdminFactory extends Factory
     public function definition(): array
     {
         return [
+            'uuid' => fake()->uuid(),
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'password' => 'password',

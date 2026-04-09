@@ -45,12 +45,12 @@ class ReopenMissionTest extends TestCase
     public function test_producer_can_reopen_closed_mission(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$this->mission->id}/reopen");
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/reopen");
 
         $response->assertOk()
             ->assertJson([
                 'data' => [
-                    'id' => $this->mission->id,
+                    'id' => $this->mission->uuid,
                     'status' => 'published',
                 ],
                 'message' => 'Mission réouverte avec succès',
@@ -69,7 +69,7 @@ class ReopenMissionTest extends TestCase
     public function test_reopened_mission_has_correct_status_label(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$this->mission->id}/reopen");
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/reopen");
 
         $response->assertOk()
             ->assertJsonPath('data.status_label', 'Publiée');
@@ -85,7 +85,7 @@ class ReopenMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$draftMission->id}/reopen");
+            ->postJson("/api/v1/producer/missions/{$draftMission->uuid}/reopen");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status'])
@@ -108,7 +108,7 @@ class ReopenMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$publishedMission->id}/reopen");
+            ->postJson("/api/v1/producer/missions/{$publishedMission->uuid}/reopen");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status'])
@@ -125,7 +125,7 @@ class ReopenMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$completedMission->id}/reopen");
+            ->postJson("/api/v1/producer/missions/{$completedMission->uuid}/reopen");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status'])
@@ -153,7 +153,7 @@ class ReopenMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$pendingPaymentMission->id}/reopen");
+            ->postJson("/api/v1/producer/missions/{$pendingPaymentMission->uuid}/reopen");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status'])
@@ -172,7 +172,7 @@ class ReopenMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherUser)
-            ->postJson("/api/v1/producer/missions/{$this->mission->id}/reopen");
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/reopen");
 
         $response->assertForbidden();
 
@@ -188,7 +188,7 @@ class ReopenMissionTest extends TestCase
      */
     public function test_unauthenticated_user_cannot_reopen_mission(): void
     {
-        $response = $this->postJson("/api/v1/producer/missions/{$this->mission->id}/reopen");
+        $response = $this->postJson("/api/v1/producer/missions/{$this->mission->uuid}/reopen");
 
         $response->assertUnauthorized();
     }
@@ -205,7 +205,7 @@ class ReopenMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($faceUser)
-            ->postJson("/api/v1/producer/missions/{$this->mission->id}/reopen");
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/reopen");
 
         $response->assertForbidden();
     }
@@ -216,7 +216,7 @@ class ReopenMissionTest extends TestCase
     public function test_reopen_response_includes_complete_mission_data(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$this->mission->id}/reopen");
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/reopen");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -245,7 +245,7 @@ class ReopenMissionTest extends TestCase
     public function test_reopened_mission_is_accepting_candidatures(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$this->mission->id}/reopen");
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/reopen");
 
         $response->assertOk()
             ->assertJsonPath('data.is_accepting_candidatures', true);
@@ -257,7 +257,7 @@ class ReopenMissionTest extends TestCase
     public function test_reopen_nonexistent_mission_returns_404(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson('/api/v1/producer/missions/999999/reopen');
+            ->postJson('/api/v1/producer/missions/00000000-0000-0000-0000-000000000000/reopen');
 
         $response->assertNotFound();
     }

@@ -18,7 +18,7 @@ export function useCloseMission() {
    * @returns Promise resolving to success status, message, and updated mission data
    */
   async function closeMission(
-    missionId: number
+    missionId: string
   ): Promise<{ success: boolean; message: string; data?: Mission }> {
     isClosing.value = true
     error.value = null

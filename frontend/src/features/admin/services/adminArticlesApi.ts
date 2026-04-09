@@ -20,7 +20,7 @@ export interface ArticleStatusField {
  * Article data from admin API (ArticleResource shape)
  */
 export interface AdminArticleData {
-  id: number
+  id: string
   title: string
   slug: string
   content: string
@@ -32,7 +32,7 @@ export interface AdminArticleData {
   created_at: string
   updated_at: string
   admin: {
-    id: number
+    id: string
     name: string
   } | null
 }
@@ -110,7 +110,7 @@ export const adminArticlesApi = {
   /**
    * Get a single article by ID
    */
-  async getArticle(id: number): Promise<AdminArticleDetailResponse> {
+  async getArticle(id: string): Promise<AdminArticleDetailResponse> {
     const response = await adminApiClient.get<AdminArticleDetailResponse>(`/admin/articles/${id}`)
     return response.data
   },
@@ -138,7 +138,7 @@ export const adminArticlesApi = {
   /**
    * Update an existing article (supports file upload for featured_image)
    */
-  async updateArticle(id: number, data: UpdateArticleForm): Promise<AdminArticleDetailResponse> {
+  async updateArticle(id: string, data: UpdateArticleForm): Promise<AdminArticleDetailResponse> {
     const formData = new FormData()
     if (data.title) formData.append('title', data.title)
     if (data.content) formData.append('content', data.content)
@@ -160,7 +160,7 @@ export const adminArticlesApi = {
   /**
    * Delete an article
    */
-  async deleteArticle(id: number): Promise<{ message: string }> {
+  async deleteArticle(id: string): Promise<{ message: string }> {
     const response = await adminApiClient.delete<{ message: string }>(`/admin/articles/${id}`)
     return response.data
   },
@@ -169,7 +169,7 @@ export const adminArticlesApi = {
    * Update an article's status (draft ↔ published)
    */
   async updateArticleStatus(
-    id: number,
+    id: string,
     status: string,
   ): Promise<AdminArticleDetailResponse> {
     const response = await adminApiClient.patch<AdminArticleDetailResponse>(
@@ -183,7 +183,7 @@ export const adminArticlesApi = {
    * Update an article's category
    */
   async updateArticleCategory(
-    id: number,
+    id: string,
     category: string,
   ): Promise<AdminArticleDetailResponse> {
     const response = await adminApiClient.patch<AdminArticleDetailResponse>(

@@ -51,7 +51,7 @@ function goToPage(page: number): void {
   loadMissions(page)
 }
 
-function goToDetail(id: number): void {
+function goToDetail(id: string): void {
   router.push({ name: 'admin-mission-detail', params: { id } })
 }
 

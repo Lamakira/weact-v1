@@ -61,7 +61,7 @@ class FaceReviewsListTest extends TestCase
             'comment' => 'Excellent travail!',
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$this->face->id}/reviews");
+        $response = $this->getJson("/api/v1/public/faces/{$this->face->username}/reviews");
 
         $response->assertStatus(200)
             ->assertJsonStructure([
@@ -105,7 +105,7 @@ class FaceReviewsListTest extends TestCase
             'comment' => 'Très bon travail',
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$this->face->id}/reviews");
+        $response = $this->getJson("/api/v1/public/faces/{$this->face->username}/reviews");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.0.score', 4)
@@ -115,7 +115,7 @@ class FaceReviewsListTest extends TestCase
 
     public function test_face_with_no_reviews_returns_empty_array(): void
     {
-        $response = $this->getJson("/api/v1/public/faces/{$this->face->id}/reviews");
+        $response = $this->getJson("/api/v1/public/faces/{$this->face->username}/reviews");
 
         $response->assertStatus(200)
             ->assertJsonPath('data', [])
@@ -124,7 +124,7 @@ class FaceReviewsListTest extends TestCase
 
     public function test_nonexistent_face_returns_404(): void
     {
-        $response = $this->getJson('/api/v1/public/faces/99999/reviews');
+        $response = $this->getJson('/api/v1/public/faces/nonexistentuser/reviews');
 
         $response->assertStatus(404);
     }
@@ -158,7 +158,7 @@ class FaceReviewsListTest extends TestCase
             ]);
         }
 
-        $response = $this->getJson("/api/v1/public/faces/{$this->face->id}/reviews");
+        $response = $this->getJson("/api/v1/public/faces/{$this->face->username}/reviews");
 
         $response->assertStatus(200)
             ->assertJsonPath('meta.per_page', 10)
@@ -192,7 +192,7 @@ class FaceReviewsListTest extends TestCase
             ]);
         }
 
-        $response = $this->getJson("/api/v1/public/faces/{$this->face->id}/reviews?page=2");
+        $response = $this->getJson("/api/v1/public/faces/{$this->face->username}/reviews?page=2");
 
         $response->assertStatus(200)
             ->assertJsonPath('meta.current_page', 2)
@@ -245,7 +245,7 @@ class FaceReviewsListTest extends TestCase
             'comment' => 'Newer review',
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$this->face->id}/reviews");
+        $response = $this->getJson("/api/v1/public/faces/{$this->face->username}/reviews");
 
         $response->assertStatus(200);
 
@@ -275,7 +275,7 @@ class FaceReviewsListTest extends TestCase
             'comment' => 'Super professionnel!',
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$this->face->id}/reviews");
+        $response = $this->getJson("/api/v1/public/faces/{$this->face->username}/reviews");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.0.comment', 'Super professionnel!');
@@ -298,7 +298,7 @@ class FaceReviewsListTest extends TestCase
             'comment' => null,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$this->face->id}/reviews");
+        $response = $this->getJson("/api/v1/public/faces/{$this->face->username}/reviews");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.0.comment', null);
@@ -326,7 +326,7 @@ class FaceReviewsListTest extends TestCase
             'score' => 5,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$this->face->id}/reviews");
+        $response = $this->getJson("/api/v1/public/faces/{$this->face->username}/reviews");
 
         $response->assertStatus(200);
         $this->assertNotNull($response->json('data.0.rater.display_name'));
@@ -348,7 +348,7 @@ class FaceReviewsListTest extends TestCase
             'score' => 5,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$this->face->id}/reviews");
+        $response = $this->getJson("/api/v1/public/faces/{$this->face->username}/reviews");
 
         $response->assertStatus(200);
 
@@ -386,7 +386,7 @@ class FaceReviewsListTest extends TestCase
             'score' => 5,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$this->face->id}/reviews?page=0");
+        $response = $this->getJson("/api/v1/public/faces/{$this->face->username}/reviews?page=0");
 
         $response->assertStatus(200)
             ->assertJsonPath('meta.current_page', 1);
@@ -408,7 +408,7 @@ class FaceReviewsListTest extends TestCase
             'score' => 5,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$this->face->id}/reviews?page=-1");
+        $response = $this->getJson("/api/v1/public/faces/{$this->face->username}/reviews?page=-1");
 
         $response->assertStatus(200)
             ->assertJsonPath('meta.current_page', 1);
@@ -430,7 +430,7 @@ class FaceReviewsListTest extends TestCase
             'score' => 5,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$this->face->id}/reviews?page=999");
+        $response = $this->getJson("/api/v1/public/faces/{$this->face->username}/reviews?page=999");
 
         $response->assertStatus(200)
             ->assertJsonPath('data', []);
@@ -452,7 +452,7 @@ class FaceReviewsListTest extends TestCase
             'score' => 5,
         ]);
 
-        $response = $this->getJson("/api/v1/public/faces/{$this->face->id}/reviews?page=abc");
+        $response = $this->getJson("/api/v1/public/faces/{$this->face->username}/reviews?page=abc");
 
         $response->assertStatus(200)
             ->assertJsonPath('meta.current_page', 1);

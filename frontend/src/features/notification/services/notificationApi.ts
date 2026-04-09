@@ -37,7 +37,7 @@ export const notificationApi = {
    * @param notificationId The notification ID to mark as read
    * @returns Updated notification with success message
    */
-  async markAsRead(notificationId: number): Promise<NotificationResponse> {
+  async markAsRead(notificationId: string): Promise<NotificationResponse> {
     const response = await apiClient.post<NotificationResponse>(
       `/me/notifications/${notificationId}/read`,
     )

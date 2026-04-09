@@ -121,6 +121,7 @@ class CandidatureSchemaTest extends TestCase
 
         // Insert directly without specifying status
         $candidatureId = \DB::table('candidatures')->insertGetId([
+            'uuid' => \Illuminate\Support\Str::uuid()->toString(),
             'face_id' => $face->id,
             'mission_id' => $mission->id,
             'created_at' => now(),

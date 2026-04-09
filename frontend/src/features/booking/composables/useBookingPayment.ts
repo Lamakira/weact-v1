@@ -12,7 +12,7 @@ export interface UseBookingPaymentReturn {
   isPolling: Ref<boolean>
   paymentStatus: Ref<PaymentStatus>
   error: Ref<string | null>
-  initiatePayment: (bookingId: number) => Promise<Booking | null>
+  initiatePayment: (bookingId: string) => Promise<Booking | null>
   stopPolling: () => void
   reset: () => void
 }
@@ -38,7 +38,7 @@ export function useBookingPayment(): UseBookingPaymentReturn {
     isPolling.value = false
   }
 
-  function startPolling(bookingId: number, onPaid: (booking: Booking) => void): void {
+  function startPolling(bookingId: string, onPaid: (booking: Booking) => void): void {
     isPolling.value = true
 
     pollTimer = setInterval(async () => {
@@ -66,7 +66,7 @@ export function useBookingPayment(): UseBookingPaymentReturn {
     }, POLL_TIMEOUT_MS)
   }
 
-  async function initiatePayment(bookingId: number): Promise<Booking | null> {
+  async function initiatePayment(bookingId: string): Promise<Booking | null> {
     isInitiating.value = true
     error.value = null
     paymentStatus.value = 'idle'

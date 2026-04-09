@@ -75,7 +75,7 @@ class ConditionalChatUnlockTest extends TestCase
 
         // Accept the candidature
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertOk();
 
@@ -95,7 +95,7 @@ class ConditionalChatUnlockTest extends TestCase
     {
         // First acceptance
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertOk();
 
@@ -120,7 +120,7 @@ class ConditionalChatUnlockTest extends TestCase
     {
         // Accept the candidature
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
 
@@ -132,7 +132,7 @@ class ConditionalChatUnlockTest extends TestCase
     {
         // Accept the candidature
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
 
@@ -144,7 +144,7 @@ class ConditionalChatUnlockTest extends TestCase
     {
         // Accept the candidature
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
 
@@ -163,7 +163,7 @@ class ConditionalChatUnlockTest extends TestCase
     {
         // Accept the candidature
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
 
@@ -196,7 +196,7 @@ class ConditionalChatUnlockTest extends TestCase
     {
         // Accept first, then reject (to have a conversation)
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         // Manually change to rejected for test (normally not possible via API)
         $this->candidature->refresh();
@@ -218,13 +218,13 @@ class ConditionalChatUnlockTest extends TestCase
     {
         // Accept the candidature
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $conversationId = Conversation::where('candidature_id', $this->candidature->id)->first()->id;
 
         // Confirm the candidature (Face action)
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/confirm");
 
         // Verify conversation still exists
         $this->assertDatabaseHas('conversations', ['id' => $conversationId]);
@@ -234,7 +234,7 @@ class ConditionalChatUnlockTest extends TestCase
     {
         // Accept the candidature
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $conversationId = Conversation::where('candidature_id', $this->candidature->id)->first()->id;
 
@@ -251,7 +251,7 @@ class ConditionalChatUnlockTest extends TestCase
     {
         // Accept the candidature
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $conversationId = Conversation::where('candidature_id', $this->candidature->id)->first()->id;
 
@@ -272,11 +272,11 @@ class ConditionalChatUnlockTest extends TestCase
     {
         // Accept the candidature
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         // Confirm the candidature (Face action)
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/confirm");
 
         $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
         $this->candidature->refresh();
@@ -297,7 +297,7 @@ class ConditionalChatUnlockTest extends TestCase
     {
         // Accept the candidature
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
 
@@ -367,7 +367,7 @@ class ConditionalChatUnlockTest extends TestCase
     {
         // Accept the candidature (creates conversation)
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $this->candidature->refresh();
         $conversation = $this->candidature->getConversationOrFail();
@@ -390,7 +390,7 @@ class ConditionalChatUnlockTest extends TestCase
     public function test_notification_is_still_created_when_candidature_is_accepted(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $response->assertOk();
 
@@ -409,7 +409,7 @@ class ConditionalChatUnlockTest extends TestCase
     {
         // Accept the candidature
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
 
@@ -424,7 +424,7 @@ class ConditionalChatUnlockTest extends TestCase
     {
         // Accept the candidature
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/accept");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
 
         $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
 

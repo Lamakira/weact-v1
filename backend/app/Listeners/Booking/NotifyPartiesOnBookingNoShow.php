@@ -27,7 +27,7 @@ class NotifyPartiesOnBookingNoShow
                 'data' => [
                     'message' => "Votre signalement d'absence a été pris en compte. {$montant} XOF ont été crédités dans votre portefeuille.",
                     'booking_id' => $booking->id,
-                    'url' => "/producer/bookings/{$booking->id}",
+                    'url' => "/producer/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {
@@ -45,7 +45,7 @@ class NotifyPartiesOnBookingNoShow
                 'data' => [
                     'message' => "Le producteur a signalé votre absence sur le booking #{$booking->id}. Une pénalité a été appliquée à votre profil.",
                     'booking_id' => $booking->id,
-                    'url' => "/face/bookings/{$booking->id}",
+                    'url' => "/face/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {

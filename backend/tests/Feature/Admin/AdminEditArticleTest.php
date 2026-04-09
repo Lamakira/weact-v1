@@ -33,7 +33,7 @@ class AdminEditArticleTest extends TestCase
 
     private function endpoint(Article $article): string
     {
-        return "/api/v1/admin/articles/{$article->id}";
+        return "/api/v1/admin/articles/{$article->uuid}";
     }
 
     // ──────────────────────────────────────────────
@@ -424,7 +424,7 @@ class AdminEditArticleTest extends TestCase
     public function test_nonexistent_article_returns_404(): void
     {
         $response = $this->withToken($this->adminToken)
-            ->putJson('/api/v1/admin/articles/99999', [
+            ->putJson('/api/v1/admin/articles/00000000-0000-0000-0000-000000000000', [
                 'title' => 'Does Not Matter',
             ]);
 

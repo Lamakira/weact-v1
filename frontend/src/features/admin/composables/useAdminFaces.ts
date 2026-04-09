@@ -53,7 +53,7 @@ export function useAdminFaces() {
   /**
    * Fetch a single face by ID
    */
-  async function fetchFace(id: number): Promise<void> {
+  async function fetchFace(id: string): Promise<void> {
     isLoading.value = true
     error.value = null
 
@@ -72,7 +72,7 @@ export function useAdminFaces() {
    * Update a face's admin-editable fields
    */
   async function updateFace(
-    id: number,
+    id: string,
     data: UpdateAdminFaceForm,
   ): Promise<AdminFaceActionResult> {
     isLoading.value = true
@@ -93,7 +93,7 @@ export function useAdminFaces() {
   /**
    * Toggle a face's account activation status
    */
-  async function toggleActive(id: number): Promise<AdminFaceActionResult> {
+  async function toggleActive(id: string): Promise<AdminFaceActionResult> {
     isLoading.value = true
 
     try {
@@ -116,7 +116,7 @@ export function useAdminFaces() {
   /**
    * Delete a face and its associated user
    */
-  async function deleteFace(id: number): Promise<AdminFaceActionResult> {
+  async function deleteFace(id: string): Promise<AdminFaceActionResult> {
     isLoading.value = true
 
     try {

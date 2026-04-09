@@ -39,7 +39,7 @@ class AdminAccountActivationTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->patchJson("/api/v1/admin/faces/{$face->id}/toggle-active");
+            ->patchJson("/api/v1/admin/faces/{$face->uuid}/toggle-active");
 
         $response->assertOk()
             ->assertJsonPath('message', 'Compte désactivé avec succès')
@@ -58,7 +58,7 @@ class AdminAccountActivationTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->patchJson("/api/v1/admin/faces/{$face->id}/toggle-active");
+            ->patchJson("/api/v1/admin/faces/{$face->uuid}/toggle-active");
 
         $response->assertOk()
             ->assertJsonPath('message', 'Compte activé avec succès')
@@ -82,7 +82,7 @@ class AdminAccountActivationTest extends TestCase
         $this->assertEquals(2, $user->tokens()->count());
 
         $this->withToken($this->adminToken)
-            ->patchJson("/api/v1/admin/faces/{$face->id}/toggle-active");
+            ->patchJson("/api/v1/admin/faces/{$face->uuid}/toggle-active");
 
         $this->assertEquals(0, $user->tokens()->count());
     }
@@ -100,7 +100,7 @@ class AdminAccountActivationTest extends TestCase
 
         // Deactivate
         $response = $this->withToken($this->adminToken)
-            ->patchJson("/api/v1/admin/producers/{$producer->id}/toggle-active");
+            ->patchJson("/api/v1/admin/producers/{$producer->uuid}/toggle-active");
 
         $response->assertOk()
             ->assertJsonPath('message', 'Compte désactivé avec succès');
@@ -108,7 +108,7 @@ class AdminAccountActivationTest extends TestCase
 
         // Reactivate
         $response = $this->withToken($this->adminToken)
-            ->patchJson("/api/v1/admin/producers/{$producer->id}/toggle-active");
+            ->patchJson("/api/v1/admin/producers/{$producer->uuid}/toggle-active");
 
         $response->assertOk()
             ->assertJsonPath('message', 'Compte activé avec succès');
@@ -168,7 +168,7 @@ class AdminAccountActivationTest extends TestCase
             'userable_id' => $face->id,
         ]);
 
-        $response = $this->patchJson("/api/v1/admin/faces/{$face->id}/toggle-active");
+        $response = $this->patchJson("/api/v1/admin/faces/{$face->uuid}/toggle-active");
         $response->assertUnauthorized();
     }
 
@@ -188,7 +188,7 @@ class AdminAccountActivationTest extends TestCase
         $userToken = $regularUser->createToken('user-token')->plainTextToken;
 
         $response = $this->withToken($userToken)
-            ->patchJson("/api/v1/admin/faces/{$face->id}/toggle-active");
+            ->patchJson("/api/v1/admin/faces/{$face->uuid}/toggle-active");
         $response->assertForbidden();
     }
 

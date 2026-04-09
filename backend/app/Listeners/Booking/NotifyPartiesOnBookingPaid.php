@@ -28,7 +28,7 @@ class NotifyPartiesOnBookingPaid
                 'data'    => [
                     'message'    => 'Paiement confirmé ! Le chat est maintenant débloqué.',
                     'booking_id' => $booking->id,
-                    'url'        => "/producer/bookings/{$booking->id}",
+                    'url'        => "/producer/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {
@@ -46,7 +46,7 @@ class NotifyPartiesOnBookingPaid
                 'data'    => [
                     'message'    => 'Le producteur a effectué le paiement. Le chat est maintenant débloqué !',
                     'booking_id' => $booking->id,
-                    'url'        => "/face/bookings/{$booking->id}",
+                    'url'        => "/face/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {

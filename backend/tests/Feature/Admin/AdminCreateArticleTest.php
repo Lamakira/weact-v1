@@ -74,7 +74,7 @@ class AdminCreateArticleTest extends TestCase
             ->assertJsonPath('data.category.label', 'Conseils Face')
             ->assertJsonPath('data.status.value', 'draft')
             ->assertJsonPath('data.status.label', 'Brouillon')
-            ->assertJsonPath('data.admin.id', $this->admin->id)
+            ->assertJsonPath('data.admin.id', $this->admin->uuid)
             ->assertJsonPath('message', 'Article créé avec succès');
 
         $this->assertNotEmpty($response->json('data.slug'));

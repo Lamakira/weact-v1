@@ -4,7 +4,7 @@ import adminApiClient from './adminApiClient'
  * Producer data nested in mission response
  */
 export interface AdminMissionProducer {
-  id: number
+  id: string
   type: string
   agency_name: string | null
   first_name: string
@@ -18,7 +18,7 @@ export interface AdminMissionProducer {
  * Mission data from admin API
  */
 export interface AdminMissionData {
-  id: number
+  id: string
   titre: string
   description: string | null
   date_tournage: string | null
@@ -90,7 +90,7 @@ export const adminMissionsApi = {
   /**
    * Get a single mission by ID
    */
-  async getMission(id: number): Promise<AdminMissionDetailResponse> {
+  async getMission(id: string): Promise<AdminMissionDetailResponse> {
     const response = await adminApiClient.get<AdminMissionDetailResponse>(`/admin/missions/${id}`)
     return response.data
   },

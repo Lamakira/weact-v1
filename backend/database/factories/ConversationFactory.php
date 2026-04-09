@@ -26,6 +26,7 @@ class ConversationFactory extends Factory
     public function definition(): array
     {
         return [
+            'uuid' => fake()->uuid(),
             // Create an accepted candidature by default (chat access rule)
             'candidature_id' => Candidature::factory()->accepted(),
         ];

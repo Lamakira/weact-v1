@@ -20,7 +20,7 @@ class BookingRatingResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
             'booking_id' => $this->booking_id,
             'score' => $this->score,
             'comment' => $this->comment,

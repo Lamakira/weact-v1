@@ -197,7 +197,7 @@ class PublicFacesListTest extends TestCase
 
         $faceData = $response->json('data.0');
 
-        $this->assertIsInt($faceData['id']);
+        $this->assertIsString($faceData['id']);
         $this->assertIsString($faceData['prenom']);
         $this->assertIsString($faceData['ville']);
         $this->assertIsArray($faceData['categories']);
@@ -305,11 +305,11 @@ class PublicFacesListTest extends TestCase
         $response->assertOk();
         $this->assertSame(
             [
-                $newFeatured->id,
-                $oldFeatured->id,
-                $photoAndTarif->id,
-                $photoOnly->id,
-                $rest->id,
+                $newFeatured->uuid,
+                $oldFeatured->uuid,
+                $photoAndTarif->uuid,
+                $photoOnly->uuid,
+                $rest->uuid,
             ],
             array_column($response->json('data'), 'id')
         );
@@ -329,7 +329,7 @@ class PublicFacesListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(1, $response->json('meta.total'));
-        $this->assertEquals($acteur->id, $response->json('data.0.id'));
+        $this->assertEquals($acteur->uuid, $response->json('data.0.id'));
     }
 
     public function test_filters_faces_by_niche(): void
@@ -344,7 +344,7 @@ class PublicFacesListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(1, $response->json('meta.total'));
-        $this->assertEquals($beaute->id, $response->json('data.0.id'));
+        $this->assertEquals($beaute->uuid, $response->json('data.0.id'));
     }
 
     public function test_filters_faces_by_ville_exact_match(): void
@@ -359,7 +359,7 @@ class PublicFacesListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(1, $response->json('meta.total'));
-        $this->assertEquals($cotonou->id, $response->json('data.0.id'));
+        $this->assertEquals($cotonou->uuid, $response->json('data.0.id'));
     }
 
     public function test_returns_422_for_invalid_ville_filter(): void
@@ -389,7 +389,7 @@ class PublicFacesListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(1, $response->json('meta.total'));
-        $this->assertEquals($match->id, $response->json('data.0.id'));
+        $this->assertEquals($match->uuid, $response->json('data.0.id'));
     }
 
     public function test_returns_empty_results_with_non_matching_filters(): void
@@ -464,7 +464,7 @@ class PublicFacesListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(1, $response->json('meta.total'));
-        $this->assertEquals($adjoua->id, $response->json('data.0.id'));
+        $this->assertEquals($adjoua->uuid, $response->json('data.0.id'));
     }
 
     public function test_search_by_nom_returns_matching_faces(): void
@@ -479,7 +479,7 @@ class PublicFacesListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(1, $response->json('meta.total'));
-        $this->assertEquals($face->id, $response->json('data.0.id'));
+        $this->assertEquals($face->uuid, $response->json('data.0.id'));
     }
 
     public function test_search_by_username_returns_matching_faces(): void
@@ -494,7 +494,7 @@ class PublicFacesListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(1, $response->json('meta.total'));
-        $this->assertEquals($face->id, $response->json('data.0.id'));
+        $this->assertEquals($face->uuid, $response->json('data.0.id'));
     }
 
     public function test_search_by_bio_keyword_returns_matching_faces(): void
@@ -509,7 +509,7 @@ class PublicFacesListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(1, $response->json('meta.total'));
-        $this->assertEquals($face->id, $response->json('data.0.id'));
+        $this->assertEquals($face->uuid, $response->json('data.0.id'));
     }
 
     public function test_search_is_case_insensitive(): void
@@ -521,7 +521,7 @@ class PublicFacesListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(1, $response->json('meta.total'));
-        $this->assertEquals($face->id, $response->json('data.0.id'));
+        $this->assertEquals($face->uuid, $response->json('data.0.id'));
     }
 
     public function test_search_with_partial_match_works(): void
@@ -533,7 +533,7 @@ class PublicFacesListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(1, $response->json('meta.total'));
-        $this->assertEquals($face->id, $response->json('data.0.id'));
+        $this->assertEquals($face->uuid, $response->json('data.0.id'));
     }
 
     public function test_search_combined_with_category_filter_uses_and_logic(): void
@@ -554,7 +554,7 @@ class PublicFacesListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(1, $response->json('meta.total'));
-        $this->assertEquals($match->id, $response->json('data.0.id'));
+        $this->assertEquals($match->uuid, $response->json('data.0.id'));
     }
 
     public function test_search_with_no_results_returns_empty_array(): void
@@ -579,7 +579,7 @@ class PublicFacesListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(1, $response->json('meta.total'));
-        $this->assertEquals($face->id, $response->json('data.0.id'));
+        $this->assertEquals($face->uuid, $response->json('data.0.id'));
     }
 
     public function test_search_with_less_than_2_chars_returns_422(): void

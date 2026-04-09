@@ -22,8 +22,8 @@ export interface UsePhotoAlbumReturn {
   isFull: ComputedRef<boolean>
   fetchPhotos: () => Promise<void>
   addPhoto: (file: File) => Promise<AlbumPhotoResult>
-  deletePhoto: (photoId: number) => Promise<AlbumPhotoResult>
-  reorderPhotos: (newOrder: number[]) => Promise<void>
+  deletePhoto: (photoId: string) => Promise<AlbumPhotoResult>
+  reorderPhotos: (newOrder: string[]) => Promise<void>
   validateFile: (file: File) => { valid: boolean; error?: string }
 }
 
@@ -135,7 +135,7 @@ export function usePhotoAlbum(): UsePhotoAlbumReturn {
   /**
    * Delete a photo from the album
    */
-  async function deletePhoto(photoId: number): Promise<AlbumPhotoResult> {
+  async function deletePhoto(photoId: string): Promise<AlbumPhotoResult> {
     isDeleting.value = true
     error.value = null
 
@@ -176,7 +176,7 @@ export function usePhotoAlbum(): UsePhotoAlbumReturn {
   /**
    * Reorder photos in the album
    */
-  async function reorderPhotos(newOrder: number[]): Promise<void> {
+  async function reorderPhotos(newOrder: string[]): Promise<void> {
     isReordering.value = true
     error.value = null
 

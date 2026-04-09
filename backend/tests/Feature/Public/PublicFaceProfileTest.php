@@ -55,7 +55,7 @@ class PublicFaceProfileTest extends TestCase
                 'message',
             ]);
 
-        $this->assertEquals($face->id, $response->json('data.id'));
+        $this->assertEquals($face->uuid, $response->json('data.id'));
         $this->assertEquals('Adjoua', $response->json('data.prenom'));
         $this->assertEquals('Cotonou', $response->json('data.ville'));
     }
@@ -278,7 +278,7 @@ class PublicFaceProfileTest extends TestCase
 
         $data = $response->json('data');
 
-        $this->assertIsInt($data['id']);
+        $this->assertIsString($data['id']);
         $this->assertIsString($data['prenom']);
         $this->assertIsString($data['ville']);
         $this->assertIsArray($data['categories']);
@@ -402,7 +402,7 @@ class PublicFaceProfileTest extends TestCase
         ]);
 
         $response = $this->actingAs($producerUser)
-            ->getJson("/api/v1/producer/candidates/{$face->id}");
+            ->getJson("/api/v1/producer/candidates/{$face->uuid}");
 
         $response->assertOk();
         $this->assertNull($response->json('data.age'));

@@ -57,7 +57,7 @@ class AdminEditorRoleTest extends TestCase
         $article = Article::factory()->create(['admin_id' => $this->editor->id]);
 
         $response = $this->withToken($this->editorToken)
-            ->getJson("/api/v1/admin/articles/{$article->id}");
+            ->getJson("/api/v1/admin/articles/{$article->uuid}");
 
         $response->assertOk();
     }
@@ -67,7 +67,7 @@ class AdminEditorRoleTest extends TestCase
         $article = Article::factory()->create(['admin_id' => $this->editor->id]);
 
         $response = $this->withToken($this->editorToken)
-            ->putJson("/api/v1/admin/articles/{$article->id}", [
+            ->putJson("/api/v1/admin/articles/{$article->uuid}", [
                 'title' => 'Titre modifié par éditeur',
                 'content' => $article->content,
                 'category' => $article->category->value,
@@ -82,7 +82,7 @@ class AdminEditorRoleTest extends TestCase
         $article = Article::factory()->create(['admin_id' => $this->editor->id]);
 
         $response = $this->withToken($this->editorToken)
-            ->deleteJson("/api/v1/admin/articles/{$article->id}");
+            ->deleteJson("/api/v1/admin/articles/{$article->uuid}");
 
         $response->assertOk();
     }

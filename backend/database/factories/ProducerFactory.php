@@ -28,6 +28,8 @@ class ProducerFactory extends Factory
         $isAgency = fake()->boolean(30);
 
         return [
+            'uuid' => fake()->uuid(),
+            'slug' => fake()->unique()->slug(3),
             'type' => $isAgency ? ProducerType::Agency : ProducerType::Particulier,
             'first_name' => fake()->firstName(),
             'last_name' => fake()->lastName(),

@@ -25,7 +25,7 @@ class PublicFaceResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
             'username' => $this->username,
             'prenom' => $this->prenom,
             'nom' => $this->nom,

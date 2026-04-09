@@ -37,7 +37,7 @@ class AdminMeTest extends TestCase
                 'data' => ['id', 'name', 'email'],
                 'message',
             ])
-            ->assertJsonPath('data.id', $this->admin->id)
+            ->assertJsonPath('data.id', $this->admin->uuid)
             ->assertJsonPath('data.name', 'Jean Admin')
             ->assertJsonPath('data.email', 'jean@weact.bj')
             ->assertJsonPath('message', 'Profil admin récupéré avec succès');
@@ -89,7 +89,7 @@ class AdminMeTest extends TestCase
 
         $data = $response->json('data');
 
-        $this->assertIsInt($data['id']);
+        $this->assertIsString($data['id']);
         $this->assertIsString($data['name']);
         $this->assertIsString($data['email']);
     }

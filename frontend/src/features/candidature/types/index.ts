@@ -28,9 +28,9 @@ export const CandidatureStatusLabel: Record<CandidatureStatusType, string> = {
 
 // Candidature data from API
 export interface Candidature {
-  id: number
-  mission_id: number
-  face_id: number
+  id: string
+  mission_id: string
+  face_id: string
   status: CandidatureStatusType
   status_label: string
   message_motivation: string | null
@@ -61,7 +61,7 @@ export interface ApplyToMissionResult {
 
 // Mission summary for candidature list (nested in FaceCandidature)
 export interface MissionSummary {
-  id: number
+  id: string
   titre: string
   date_tournage: string
   lieu: string
@@ -70,7 +70,7 @@ export interface MissionSummary {
 
 // Producer summary for candidature list (nested in FaceCandidature)
 export interface ProducerSummary {
-  id: number
+  id: string
   display_name: string
   type: 'agency' | 'particulier'
   profile_photo_url: string | null
@@ -78,14 +78,14 @@ export interface ProducerSummary {
 
 // Face candidature for list view (includes mission and producer summary)
 export interface FaceCandidature {
-  id: number
+  id: string
   status: CandidatureStatusType
   status_label: string
   message_motivation: string | null
   created_at: string
   mission: MissionSummary
   producer: ProducerSummary
-  conversation_id: number | null
+  conversation_id: string | null
 }
 
 // Paginated candidatures response for Face list view
@@ -124,7 +124,7 @@ export interface StatusFilterOption {
 
 // Face summary for Producer candidature list (nested in ProducerCandidature)
 export interface FaceSummary {
-  id: number
+  id: string
   display_name: string
   profile_photo_url: string | null
   category: string | null
@@ -135,12 +135,12 @@ export interface FaceSummary {
 
 // Producer candidature for list view (includes face summary)
 export interface ProducerCandidature {
-  id: number
+  id: string
   status: CandidatureStatusType
   status_label: string
   message_motivation: string | null
   created_at: string
-  conversation_id: number | null
+  conversation_id: string | null
   face: FaceSummary
 }
 
@@ -163,7 +163,7 @@ export interface ProducerCandidatureListResponse {
 
 // Face photo for photo gallery
 export interface FacePhoto {
-  id: number
+  id: string
   photo_url: string
   thumbnail_url: string
   position: number
@@ -171,7 +171,7 @@ export interface FacePhoto {
 
 // Face experience for experience list
 export interface FaceExperience {
-  id: number
+  id: string
   titre: string
   description: string | null
   date_debut: string | null
@@ -182,7 +182,7 @@ export interface FaceExperience {
 
 // Candidate full profile for Producer view (complete Face data)
 export interface CandidateFullProfile {
-  id: number
+  id: string
   nom: string
   prenom: string
   username: string | null

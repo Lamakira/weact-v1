@@ -76,7 +76,7 @@ export function useAdminFinance() {
     }
   }
 
-  async function approveWithdrawalRequest(id: number): Promise<boolean> {
+  async function approveWithdrawalRequest(id: string): Promise<boolean> {
     isSubmittingWithdrawalRequest.value = true
     withdrawalRequestError.value = null
     withdrawalRequestSuccess.value = null
@@ -98,7 +98,7 @@ export function useAdminFinance() {
     }
   }
 
-  async function rejectWithdrawalRequest(id: number, notes: string): Promise<boolean> {
+  async function rejectWithdrawalRequest(id: string, notes: string): Promise<boolean> {
     isSubmittingWithdrawalRequest.value = true
     withdrawalRequestError.value = null
     withdrawalRequestSuccess.value = null

@@ -16,7 +16,7 @@ export function useAcceptCandidature() {
    * @param candidatureId The candidature ID to accept
    * @returns The updated candidature data or null if failed
    */
-  async function acceptCandidature(candidatureId: number): Promise<CandidatureResponse | null> {
+  async function acceptCandidature(candidatureId: string): Promise<CandidatureResponse | null> {
     isAccepting.value = true
     error.value = null
     successMessage.value = null

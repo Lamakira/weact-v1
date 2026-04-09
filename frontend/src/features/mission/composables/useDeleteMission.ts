@@ -16,7 +16,7 @@ export function useDeleteMission() {
    * @param missionId The ID of the mission to delete
    * @returns Promise resolving to success status and message
    */
-  async function deleteMission(missionId: number): Promise<{ success: boolean; message: string }> {
+  async function deleteMission(missionId: string): Promise<{ success: boolean; message: string }> {
     isDeleting.value = true
     error.value = null
     fieldErrors.value = {}

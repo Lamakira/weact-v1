@@ -48,8 +48,10 @@ class BookingService
      */
     public function create(array $data, User $producer): Booking
     {
-        $faceUser = User::findOrFail($data['face_id']);
-        $face = Face::where('id', $faceUser->userable_id)->firstOrFail();
+        $face = Face::where('uuid', $data['face_id'])->firstOrFail();
+        $faceUser = User::where('userable_type', Face::class)
+            ->where('userable_id', $face->id)
+            ->firstOrFail();
 
         // FR11: Validate Face availability
         if (! $face->is_available) {
@@ -77,7 +79,7 @@ class BookingService
         $pricing = new BookingPricing($tarifBase);
 
         $booking = Booking::create([
-            'face_id' => $data['face_id'],
+            'face_id' => $faceUser->id,
             'producer_id' => $producer->id,
             'status' => BookingStatus::Pending,
             'date_debut' => $data['date_debut'],

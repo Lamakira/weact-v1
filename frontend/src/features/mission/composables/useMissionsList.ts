@@ -73,7 +73,7 @@ export function useMissionsList() {
    * Used for optimistic updates after successful deletion
    * @param missionId The ID of the mission to remove
    */
-  function removeMissionFromList(missionId: number): void {
+  function removeMissionFromList(missionId: string): void {
     missions.value = missions.value.filter((m) => m.id !== missionId)
   }
 

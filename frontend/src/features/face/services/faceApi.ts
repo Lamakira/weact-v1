@@ -95,7 +95,7 @@ export const faceApi = {
    * Delete an album photo
    * @param photoId The ID of the photo to delete
    */
-  async deleteAlbumPhoto(photoId: number): Promise<void> {
+  async deleteAlbumPhoto(photoId: string): Promise<void> {
     await getCsrfCookie()
     await apiClient.delete(`/face/album/${photoId}`)
   },
@@ -104,7 +104,7 @@ export const faceApi = {
    * Reorder album photos
    * @param order Array of photo IDs in the new order
    */
-  async reorderAlbumPhotos(order: number[]): Promise<FacePhotosResponse> {
+  async reorderAlbumPhotos(order: string[]): Promise<FacePhotosResponse> {
     await getCsrfCookie()
     const response = await apiClient.put<FacePhotosResponse>('/face/album/reorder', { order })
     return response.data
@@ -317,7 +317,7 @@ export const faceApi = {
    * Get a single experience
    * @param id The experience ID
    */
-  async getExperience(id: number): Promise<ExperienceResponse> {
+  async getExperience(id: string): Promise<ExperienceResponse> {
     const response = await apiClient.get<ExperienceResponse>(`/face/experiences/${id}`)
     return response.data
   },
@@ -327,7 +327,7 @@ export const faceApi = {
    * @param id The experience ID
    * @param data The experience data to update
    */
-  async updateExperience(id: number, data: ExperienceFormData): Promise<ExperienceResponse> {
+  async updateExperience(id: string, data: ExperienceFormData): Promise<ExperienceResponse> {
     await getCsrfCookie()
     const response = await apiClient.put<ExperienceResponse>(`/face/experiences/${id}`, data)
     return response.data
@@ -337,7 +337,7 @@ export const faceApi = {
    * Delete an experience
    * @param id The experience ID
    */
-  async deleteExperience(id: number): Promise<{ message: string }> {
+  async deleteExperience(id: string): Promise<{ message: string }> {
     await getCsrfCookie()
     const response = await apiClient.delete<{ message: string }>(`/face/experiences/${id}`)
     return response.data
