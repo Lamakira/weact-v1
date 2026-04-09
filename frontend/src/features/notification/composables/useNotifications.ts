@@ -84,7 +84,7 @@ export function useNotifications() {
   /**
    * Mark a notification as read
    */
-  async function markAsRead(notificationId: number): Promise<boolean> {
+  async function markAsRead(notificationId: string): Promise<boolean> {
     try {
       await notificationApi.markAsRead(notificationId)
 

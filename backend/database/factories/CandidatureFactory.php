@@ -28,6 +28,7 @@ class CandidatureFactory extends Factory
     public function definition(): array
     {
         return [
+            'uuid' => fake()->uuid(),
             'face_id' => Face::factory(),
             'mission_id' => Mission::factory()->published(),
             'message_motivation' => fake()->optional(0.7)->paragraph(),

@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 const MAX_COMMENT_LENGTH = 1000
 
 const props = defineProps<{
-  bookingId: number
+  bookingId: string
   ratedName: string
 }>()
 

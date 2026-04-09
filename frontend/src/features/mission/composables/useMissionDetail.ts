@@ -18,7 +18,7 @@ export function useMissionDetail() {
    * Fetch mission detail by ID
    * @param id The mission ID
    */
-  async function fetchMission(id: number): Promise<void> {
+  async function fetchMission(id: string): Promise<void> {
     isLoading.value = true
     error.value = null
     notFound.value = false

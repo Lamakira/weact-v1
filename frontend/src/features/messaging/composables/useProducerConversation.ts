@@ -23,7 +23,7 @@ export function useProducerConversation() {
    * Load conversation data from API (Producer endpoint)
    * @param conversationId The conversation ID to load
    */
-  async function loadConversation(conversationId: number): Promise<boolean> {
+  async function loadConversation(conversationId: string): Promise<boolean> {
     isLoading.value = true
     error.value = null
 
@@ -69,7 +69,7 @@ export function useProducerConversation() {
    * Keeps existing messages visible during refresh
    * @param conversationId The conversation ID to refresh
    */
-  async function refreshConversation(conversationId: number): Promise<boolean> {
+  async function refreshConversation(conversationId: string): Promise<boolean> {
     // Prevent double refresh
     if (isRefreshing.value) return false
 

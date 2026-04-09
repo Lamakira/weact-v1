@@ -196,7 +196,7 @@ class ProducerMissionsListTest extends TestCase
 
         $data = $response->json('data.0');
         $this->assertArrayHasKey('producer', $data);
-        $this->assertEquals($this->producer->id, $data['producer']['id']);
+        $this->assertEquals($this->producer->uuid, $data['producer']['id']);
     }
 
     // ===== STATUS FILTERING TESTS =====

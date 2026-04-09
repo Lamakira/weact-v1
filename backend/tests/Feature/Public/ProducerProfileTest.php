@@ -41,7 +41,7 @@ class ProducerProfileTest extends TestCase
             'bio' => 'Test bio content',
         ]);
 
-        $response = $this->getJson("/api/v1/public/producers/{$producer->id}");
+        $response = $this->getJson("/api/v1/public/producers/{$producer->slug}");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -61,7 +61,7 @@ class ProducerProfileTest extends TestCase
                     'member_since',
                 ],
             ])
-            ->assertJsonPath('data.id', $producer->id)
+            ->assertJsonPath('data.id', $producer->uuid)
             ->assertJsonPath('data.type', 'particulier')
             ->assertJsonPath('data.display_name', 'Jean Dupont')
             ->assertJsonPath('data.bio', 'Test bio content');
@@ -82,10 +82,10 @@ class ProducerProfileTest extends TestCase
         ]);
 
         $response = $this->actingAs($faceUser)
-            ->getJson("/api/v1/public/producers/{$producer->id}");
+            ->getJson("/api/v1/public/producers/{$producer->slug}");
 
         $response->assertOk()
-            ->assertJsonPath('data.id', $producer->id)
+            ->assertJsonPath('data.id', $producer->uuid)
             ->assertJsonPath('data.type', 'agency')
             ->assertJsonPath('data.display_name', 'Test Agency');
     }
@@ -102,7 +102,7 @@ class ProducerProfileTest extends TestCase
             'agency_logo' => 'agency-logo.png',
         ]);
 
-        $response = $this->getJson("/api/v1/public/producers/{$producer->id}");
+        $response = $this->getJson("/api/v1/public/producers/{$producer->slug}");
 
         $response->assertOk()
             ->assertJsonPath('data.type', 'agency')
@@ -129,7 +129,7 @@ class ProducerProfileTest extends TestCase
             'agency_logo' => null,
         ]);
 
-        $response = $this->getJson("/api/v1/public/producers/{$producer->id}");
+        $response = $this->getJson("/api/v1/public/producers/{$producer->slug}");
 
         $response->assertOk()
             ->assertJsonPath('data.type', 'particulier')
@@ -161,13 +161,13 @@ class ProducerProfileTest extends TestCase
         ]);
 
         // Agency has logo
-        $agencyResponse = $this->getJson("/api/v1/public/producers/{$agency->id}");
+        $agencyResponse = $this->getJson("/api/v1/public/producers/{$agency->slug}");
         $agencyResponse->assertOk();
         $this->assertNotNull($agencyResponse->json('data.agency_logo_url'));
         $this->assertNotNull($agencyResponse->json('data.agency_logo_thumbnail_url'));
 
         // Particulier has no logo
-        $particulierResponse = $this->getJson("/api/v1/public/producers/{$particulier->id}");
+        $particulierResponse = $this->getJson("/api/v1/public/producers/{$particulier->slug}");
         $particulierResponse->assertOk();
         $this->assertNull($particulierResponse->json('data.agency_logo_url'));
         $this->assertNull($particulierResponse->json('data.agency_logo_thumbnail_url'));
@@ -175,9 +175,9 @@ class ProducerProfileTest extends TestCase
 
     public function test_non_existent_producer_returns_404(): void
     {
-        $nonExistentId = 99999;
+        $nonExistentSlug = 'non-existent-slug';
 
-        $response = $this->getJson("/api/v1/public/producers/{$nonExistentId}");
+        $response = $this->getJson("/api/v1/public/producers/{$nonExistentSlug}");
 
         $response->assertNotFound();
     }
@@ -186,7 +186,7 @@ class ProducerProfileTest extends TestCase
     {
         $producer = $this->createProducerWithUser();
 
-        $response = $this->getJson("/api/v1/public/producers/{$producer->id}");
+        $response = $this->getJson("/api/v1/public/producers/{$producer->slug}");
 
         $response->assertOk()
             ->assertJsonPath('data.missions_count', 0);
@@ -202,7 +202,7 @@ class ProducerProfileTest extends TestCase
             'status' => MissionStatus::Published,
         ]);
 
-        $response = $this->getJson("/api/v1/public/producers/{$producer->id}");
+        $response = $this->getJson("/api/v1/public/producers/{$producer->slug}");
 
         $response->assertOk()
             ->assertJsonPath('data.missions_count', 3);
@@ -236,7 +236,7 @@ class ProducerProfileTest extends TestCase
             'status' => MissionStatus::Completed,
         ]);
 
-        $response = $this->getJson("/api/v1/public/producers/{$producer->id}");
+        $response = $this->getJson("/api/v1/public/producers/{$producer->slug}");
 
         $response->assertOk()
             ->assertJsonPath('data.missions_count', 2);
@@ -262,7 +262,7 @@ class ProducerProfileTest extends TestCase
             'status' => MissionStatus::Completed,
         ]);
 
-        $response = $this->getJson("/api/v1/public/producers/{$producer->id}");
+        $response = $this->getJson("/api/v1/public/producers/{$producer->slug}");
 
         $response->assertOk()
             ->assertJsonPath('data.missions_count', 0);
@@ -272,7 +272,7 @@ class ProducerProfileTest extends TestCase
     {
         $producer = $this->createProducerWithUser();
 
-        $response = $this->getJson("/api/v1/public/producers/{$producer->id}");
+        $response = $this->getJson("/api/v1/public/producers/{$producer->slug}");
 
         $response->assertOk()
             ->assertJsonPath('data.average_rating', null)
@@ -283,7 +283,7 @@ class ProducerProfileTest extends TestCase
     {
         $producer = $this->createProducerWithUser();
 
-        $response = $this->getJson("/api/v1/public/producers/{$producer->id}");
+        $response = $this->getJson("/api/v1/public/producers/{$producer->slug}");
 
         $response->assertOk();
 

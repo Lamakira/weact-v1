@@ -239,7 +239,7 @@ class AlbumTest extends TestCase
         Storage::disk('public')->put('avatars/faces/albums/thumbnails/' . $photo->thumbnail, 'thumbnail content');
 
         $response = $this->actingAs($this->faceUser)
-            ->deleteJson("/api/v1/face/album/{$photo->id}");
+            ->deleteJson("/api/v1/face/album/{$photo->uuid}");
 
         $response->assertOk()
             ->assertJson([
@@ -267,7 +267,7 @@ class AlbumTest extends TestCase
 
         // Delete the photo at position 2
         $this->actingAs($this->faceUser)
-            ->deleteJson("/api/v1/face/album/{$photos[1]->id}");
+            ->deleteJson("/api/v1/face/album/{$photos[1]->uuid}");
 
         // Verify remaining photos reordered
         $remaining = FacePhoto::where('face_id', $this->face->id)->orderBy('position')->get();
@@ -286,7 +286,7 @@ class AlbumTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->deleteJson("/api/v1/face/album/{$otherPhoto->id}");
+            ->deleteJson("/api/v1/face/album/{$otherPhoto->uuid}");
 
         $response->assertForbidden();
     }

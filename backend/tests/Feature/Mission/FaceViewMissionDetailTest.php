@@ -62,7 +62,7 @@ class FaceViewMissionDetailTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/missions/{$mission->id}");
+            ->getJson("/api/v1/face/missions/{$mission->uuid}");
 
         $response->assertStatus(200)
             ->assertJsonStructure([
@@ -93,7 +93,7 @@ class FaceViewMissionDetailTest extends TestCase
                     'updated_at',
                 ],
             ])
-            ->assertJsonPath('data.id', $mission->id)
+            ->assertJsonPath('data.id', $mission->uuid)
             ->assertJsonPath('data.titre', 'Test Mission')
             ->assertJsonPath('data.description', 'Full description of the mission')
             ->assertJsonPath('data.budget', 150000)
@@ -115,7 +115,7 @@ class FaceViewMissionDetailTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/missions/{$mission->id}");
+            ->getJson("/api/v1/face/missions/{$mission->uuid}");
 
         $response->assertStatus(404);
     }
@@ -128,7 +128,7 @@ class FaceViewMissionDetailTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/missions/{$mission->id}");
+            ->getJson("/api/v1/face/missions/{$mission->uuid}");
 
         $response->assertStatus(404);
     }
@@ -141,7 +141,7 @@ class FaceViewMissionDetailTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/missions/{$mission->id}");
+            ->getJson("/api/v1/face/missions/{$mission->uuid}");
 
         $response->assertStatus(404);
     }
@@ -149,7 +149,7 @@ class FaceViewMissionDetailTest extends TestCase
     public function test_nonexistent_mission_returns_404(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/missions/99999');
+            ->getJson('/api/v1/face/missions/00000000-0000-0000-0000-000000000000');
 
         $response->assertStatus(404);
     }
@@ -162,7 +162,7 @@ class FaceViewMissionDetailTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/face/missions/{$mission->id}");
+            ->getJson("/api/v1/face/missions/{$mission->uuid}");
 
         $response->assertStatus(403)
             ->assertJson([
@@ -177,7 +177,7 @@ class FaceViewMissionDetailTest extends TestCase
             'status' => MissionStatus::Published,
         ]);
 
-        $response = $this->getJson("/api/v1/face/missions/{$mission->id}");
+        $response = $this->getJson("/api/v1/face/missions/{$mission->uuid}");
 
         $response->assertStatus(401);
     }
@@ -195,7 +195,7 @@ class FaceViewMissionDetailTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/missions/{$mission->id}");
+            ->getJson("/api/v1/face/missions/{$mission->uuid}");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.producer.agency_name', 'Studio XYZ')
@@ -212,7 +212,7 @@ class FaceViewMissionDetailTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/missions/{$mission->id}");
+            ->getJson("/api/v1/face/missions/{$mission->uuid}");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.is_accepting_candidatures', true);
@@ -227,7 +227,7 @@ class FaceViewMissionDetailTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/missions/{$mission->id}");
+            ->getJson("/api/v1/face/missions/{$mission->uuid}");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.is_accepting_candidatures', false);
@@ -252,7 +252,7 @@ class FaceViewMissionDetailTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/missions/{$mission->id}");
+            ->getJson("/api/v1/face/missions/{$mission->uuid}");
 
         $response->assertStatus(200);
 
@@ -314,7 +314,7 @@ class FaceViewMissionDetailTest extends TestCase
             ->create();
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/missions/{$mission->id}");
+            ->getJson("/api/v1/face/missions/{$mission->uuid}");
 
         $response->assertStatus(200)
             ->assertJsonStructure([
@@ -344,7 +344,7 @@ class FaceViewMissionDetailTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/missions/{$mission->id}");
+            ->getJson("/api/v1/face/missions/{$mission->uuid}");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.producer.average_rating', null)

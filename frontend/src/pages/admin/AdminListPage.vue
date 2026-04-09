@@ -34,11 +34,11 @@ function formatDate(dateString: string): string {
   })
 }
 
-function goToEdit(adminId: number): void {
+function goToEdit(adminId: string): void {
   router.push({ name: 'admin-admins-edit', params: { id: adminId } })
 }
 
-async function handleDelete(adminId: number, adminName: string): Promise<void> {
+async function handleDelete(adminId: string, adminName: string): Promise<void> {
   const confirmed = window.confirm(
     `Êtes-vous sûr de vouloir supprimer le compte de ${adminName} ? Cette action est irréversible.`,
   )

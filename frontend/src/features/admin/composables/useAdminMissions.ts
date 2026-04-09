@@ -46,7 +46,7 @@ export function useAdminMissions() {
   /**
    * Fetch a single mission by ID
    */
-  async function fetchMission(id: number): Promise<void> {
+  async function fetchMission(id: string): Promise<void> {
     isLoading.value = true
     error.value = null
 

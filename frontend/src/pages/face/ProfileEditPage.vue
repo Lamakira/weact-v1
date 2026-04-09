@@ -263,7 +263,7 @@ async function handleAlbumUpload(file: File): Promise<void> {
 /**
  * Handle album photo delete
  */
-async function handleAlbumDelete(photoId: number): Promise<void> {
+async function handleAlbumDelete(photoId: string): Promise<void> {
   successMessage.value = null
   const result = await deleteAlbumPhoto(photoId)
 
@@ -418,7 +418,7 @@ async function handleExperienceAdd(data: ExperienceFormData): Promise<void> {
 /**
  * Handle experience edit
  */
-async function handleExperienceEdit(id: number, data: ExperienceFormData): Promise<void> {
+async function handleExperienceEdit(id: string, data: ExperienceFormData): Promise<void> {
   clearExperiencesError()
   const result = await editExperience(id, data)
 
@@ -431,7 +431,7 @@ async function handleExperienceEdit(id: number, data: ExperienceFormData): Promi
 /**
  * Handle experience delete
  */
-async function handleExperienceDelete(id: number): Promise<void> {
+async function handleExperienceDelete(id: string): Promise<void> {
   clearExperiencesError()
   const success = await removeExperience(id)
 

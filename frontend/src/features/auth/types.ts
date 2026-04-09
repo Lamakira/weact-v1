@@ -54,7 +54,7 @@ export type ProducerRegistrationForm = AgencyRegistrationForm | ParticulierRegis
 
 // Face data from API
 export interface Face {
-  id: number
+  id: string
   nom: string
   prenom: string
   username: string
@@ -66,7 +66,7 @@ export interface Face {
 
 // Producer data from API
 export interface Producer {
-  id: number
+  id: string
   type: ProducerType
   agency_name: string | null
   first_name: string | null

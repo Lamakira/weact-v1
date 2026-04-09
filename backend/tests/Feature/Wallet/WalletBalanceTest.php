@@ -219,8 +219,8 @@ class WalletBalanceTest extends TestCase
         $requests = $response->json('data.withdrawal_requests');
 
         $this->assertCount(2, $requests);
-        $this->assertSame($latest->id, $requests[0]['id']);
-        $this->assertSame($older->id, $requests[1]['id']);
+        $this->assertSame($latest->uuid, $requests[0]['id']);
+        $this->assertSame($older->uuid, $requests[1]['id']);
     }
 
     public function test_wallet_withdrawal_request_resource_fields_are_correct(): void
@@ -242,7 +242,7 @@ class WalletBalanceTest extends TestCase
 
         $request = $response->json('data.withdrawal_requests.0');
 
-        $this->assertSame($withdrawalRequest->id, $request['id']);
+        $this->assertSame($withdrawalRequest->uuid, $request['id']);
         $this->assertSame(42500, $request['amount']);
         $this->assertSame('mtn', $request['payment_mode']);
         $this->assertSame('64000001', $request['phone_number']);

@@ -259,7 +259,7 @@ class EmailVerificationTest extends TestCase
         ]);
 
         $response = $this->actingAs($user)
-            ->postJson("/api/v1/face/missions/{$mission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$mission->uuid}/apply");
 
         $response->assertForbidden()
             ->assertJson([
@@ -286,7 +286,7 @@ class EmailVerificationTest extends TestCase
         ]);
 
         $response = $this->actingAs($user)
-            ->postJson("/api/v1/face/missions/{$mission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$mission->uuid}/apply");
 
         // Should not be blocked by email verification (status !== 403)
         $this->assertNotEquals(403, $response->status());
@@ -386,7 +386,7 @@ class EmailVerificationTest extends TestCase
         ])->getJson('/api/v1/user');
 
         $response->assertOk()
-            ->assertJsonPath('data.userable.id', $face->id)
+            ->assertJsonPath('data.userable.id', $face->uuid)
             ->assertJsonPath('data.userable.sexe', 'homme')
             ->assertJsonPath('data.userable.sexe_label', 'Homme');
     }

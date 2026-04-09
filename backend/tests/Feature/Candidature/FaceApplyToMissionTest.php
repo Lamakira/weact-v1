@@ -42,7 +42,7 @@ class FaceApplyToMissionTest extends TestCase
     public function test_face_can_apply_to_published_mission_with_motivation(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/missions/{$this->publishedMission->id}/apply", [
+            ->postJson("/api/v1/face/missions/{$this->publishedMission->uuid}/apply", [
                 'message_motivation' => 'Je suis très motivé pour cette mission!',
             ]);
 
@@ -82,7 +82,7 @@ class FaceApplyToMissionTest extends TestCase
     public function test_face_can_apply_to_published_mission_without_motivation(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/missions/{$this->publishedMission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$this->publishedMission->uuid}/apply");
 
         $response->assertStatus(201)
             ->assertJson([
@@ -106,7 +106,7 @@ class FaceApplyToMissionTest extends TestCase
     public function test_candidature_is_created_with_pending_status(): void
     {
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/missions/{$this->publishedMission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$this->publishedMission->uuid}/apply");
 
         $candidature = Candidature::where('face_id', $this->face->id)
             ->where('mission_id', $this->publishedMission->id)
@@ -121,7 +121,7 @@ class FaceApplyToMissionTest extends TestCase
         $draftMission = Mission::factory()->draft()->create();
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/missions/{$draftMission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$draftMission->uuid}/apply");
 
         $response->assertStatus(404);
 
@@ -138,7 +138,7 @@ class FaceApplyToMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/missions/{$closedMission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$closedMission->uuid}/apply");
 
         $response->assertStatus(404);
 
@@ -155,7 +155,7 @@ class FaceApplyToMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/missions/{$completedMission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$completedMission->uuid}/apply");
 
         $response->assertStatus(404);
 
@@ -172,7 +172,7 @@ class FaceApplyToMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/missions/{$expiredMission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$expiredMission->uuid}/apply");
 
         $response->assertStatus(422)
             ->assertJson([
@@ -198,7 +198,7 @@ class FaceApplyToMissionTest extends TestCase
 
         // Second application attempt
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/missions/{$this->publishedMission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$this->publishedMission->uuid}/apply");
 
         $response->assertStatus(422)
             ->assertJson([
@@ -223,7 +223,7 @@ class FaceApplyToMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($producerUser)
-            ->postJson("/api/v1/face/missions/{$this->publishedMission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$this->publishedMission->uuid}/apply");
 
         $response->assertStatus(403);
 
@@ -234,7 +234,7 @@ class FaceApplyToMissionTest extends TestCase
 
     public function test_unauthenticated_user_cannot_apply_to_mission(): void
     {
-        $response = $this->postJson("/api/v1/face/missions/{$this->publishedMission->id}/apply");
+        $response = $this->postJson("/api/v1/face/missions/{$this->publishedMission->uuid}/apply");
 
         $response->assertStatus(401);
 
@@ -248,7 +248,7 @@ class FaceApplyToMissionTest extends TestCase
         $longMessage = str_repeat('a', 2001);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/missions/{$this->publishedMission->id}/apply", [
+            ->postJson("/api/v1/face/missions/{$this->publishedMission->uuid}/apply", [
                 'message_motivation' => $longMessage,
             ]);
 
@@ -266,7 +266,7 @@ class FaceApplyToMissionTest extends TestCase
         $maxMessage = str_repeat('a', 2000);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/missions/{$this->publishedMission->id}/apply", [
+            ->postJson("/api/v1/face/missions/{$this->publishedMission->uuid}/apply", [
                 'message_motivation' => $maxMessage,
             ]);
 
@@ -281,7 +281,7 @@ class FaceApplyToMissionTest extends TestCase
     public function test_empty_string_motivation_is_stored_as_null(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/missions/{$this->publishedMission->id}/apply", [
+            ->postJson("/api/v1/face/missions/{$this->publishedMission->uuid}/apply", [
                 'message_motivation' => '',
             ]);
 
@@ -310,7 +310,7 @@ class FaceApplyToMissionTest extends TestCase
 
         // View mission detail
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/missions/{$this->publishedMission->id}");
+            ->getJson("/api/v1/face/missions/{$this->publishedMission->uuid}");
 
         $response->assertStatus(200)
             ->assertJsonStructure([
@@ -335,7 +335,7 @@ class FaceApplyToMissionTest extends TestCase
     public function test_mission_detail_returns_null_candidature_when_not_applied(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/missions/{$this->publishedMission->id}");
+            ->getJson("/api/v1/face/missions/{$this->publishedMission->uuid}");
 
         $response->assertStatus(200)
             ->assertJson([
@@ -346,7 +346,7 @@ class FaceApplyToMissionTest extends TestCase
     public function test_apply_to_non_existent_mission_returns_404(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson('/api/v1/face/missions/99999/apply');
+            ->postJson('/api/v1/face/missions/00000000-0000-0000-0000-000000000000/apply');
 
         $response->assertStatus(404);
     }

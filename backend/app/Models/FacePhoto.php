@@ -8,10 +8,12 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Concerns\HasRouteUuid;
 
 class FacePhoto extends Model
 {
     use HasFactory;
+    use HasRouteUuid;
 
     protected $fillable = [
         'face_id',

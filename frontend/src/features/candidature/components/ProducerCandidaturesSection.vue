@@ -21,7 +21,7 @@ import type { CandidatureStatusType } from '../types'
  * Props
  */
 const props = defineProps<{
-  missionId: number
+  missionId: string
   missionBudget?: number
   missionStatus?: string
   nombreFacesVoulu?: number
@@ -107,7 +107,7 @@ const toastType = ref<'success' | 'error'>('success')
 /**
  * Card refs for resetting loading state
  */
-const cardRefs = ref<Record<number, InstanceType<typeof ProducerCandidatureCard>>>({})
+const cardRefs = ref<Record<string, InstanceType<typeof ProducerCandidatureCard>>>({})
 
 /**
  * Show toast notification
@@ -124,7 +124,7 @@ function displayToast(message: string, type: 'success' | 'error'): void {
 /**
  * Handle accept candidature
  */
-async function handleAccept(candidatureId: number): Promise<void> {
+async function handleAccept(candidatureId: string): Promise<void> {
   const result = await acceptCandidature(candidatureId)
 
   // Reset the card's loading state
@@ -144,7 +144,7 @@ async function handleAccept(candidatureId: number): Promise<void> {
 /**
  * Handle reject candidature
  */
-async function handleReject(candidatureId: number): Promise<void> {
+async function handleReject(candidatureId: string): Promise<void> {
   const result = await rejectCandidature(candidatureId)
 
   // Reset the card's loading state
@@ -341,7 +341,7 @@ onMounted(() => {
           :is-selected="isSelected(candidature.id)"
           @accept="handleAccept"
           @reject="handleReject"
-          @toggle-selection="(id: number) => toggleSelection(id, candidature.face.display_name)"
+          @toggle-selection="(id: string) => toggleSelection(id, candidature.face.display_name)"
         />
       </div>
 

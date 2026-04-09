@@ -22,8 +22,8 @@ const emit = defineEmits<{
   'refresh': []
   'page-change': [page: number]
   'status-change': [status: WithdrawalRequestStatusFilter]
-  'approve': [id: number]
-  'reject': [id: number, notes: string]
+  'approve': [id: string]
+  'reject': [id: string, notes: string]
 }>()
 
 const approveTarget = ref<WithdrawalRequestEntry | null>(null)

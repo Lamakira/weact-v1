@@ -31,7 +31,7 @@ class AdminManagementTest extends TestCase
         $admin = Admin::factory()->create(['name' => 'Jean Admin', 'email' => 'jean@weact.bj']);
 
         $response = $this->actingAs($this->superAdmin, 'sanctum')
-            ->getJson("/api/v1/admin/admins/{$admin->id}");
+            ->getJson("/api/v1/admin/admins/{$admin->uuid}");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -46,7 +46,7 @@ class AdminManagementTest extends TestCase
     public function test_show_returns_404_for_nonexistent_admin(): void
     {
         $response = $this->actingAs($this->superAdmin, 'sanctum')
-            ->getJson('/api/v1/admin/admins/99999');
+            ->getJson('/api/v1/admin/admins/00000000-0000-0000-0000-000000000000');
 
         $response->assertNotFound();
     }
@@ -58,7 +58,7 @@ class AdminManagementTest extends TestCase
         $admin = Admin::factory()->create(['name' => 'Old Name']);
 
         $response = $this->actingAs($this->superAdmin, 'sanctum')
-            ->putJson("/api/v1/admin/admins/{$admin->id}", [
+            ->putJson("/api/v1/admin/admins/{$admin->uuid}", [
                 'name' => 'New Name',
             ]);
 
@@ -77,7 +77,7 @@ class AdminManagementTest extends TestCase
         $admin = Admin::factory()->create(['email' => 'old@weact.bj']);
 
         $response = $this->actingAs($this->superAdmin, 'sanctum')
-            ->putJson("/api/v1/admin/admins/{$admin->id}", [
+            ->putJson("/api/v1/admin/admins/{$admin->uuid}", [
                 'email' => 'new@weact.bj',
             ]);
 
@@ -95,7 +95,7 @@ class AdminManagementTest extends TestCase
         $admin = Admin::factory()->create(['role' => AdminRole::Admin]);
 
         $response = $this->actingAs($this->superAdmin, 'sanctum')
-            ->putJson("/api/v1/admin/admins/{$admin->id}", [
+            ->putJson("/api/v1/admin/admins/{$admin->uuid}", [
                 'role' => 'editor',
             ]);
 
@@ -114,7 +114,7 @@ class AdminManagementTest extends TestCase
         $admin2 = Admin::factory()->create();
 
         $response = $this->actingAs($this->superAdmin, 'sanctum')
-            ->putJson("/api/v1/admin/admins/{$admin2->id}", [
+            ->putJson("/api/v1/admin/admins/{$admin2->uuid}", [
                 'email' => 'taken@weact.bj',
             ]);
 
@@ -128,7 +128,7 @@ class AdminManagementTest extends TestCase
         $admin = Admin::factory()->create();
 
         $response = $this->actingAs($this->superAdmin, 'sanctum')
-            ->putJson("/api/v1/admin/admins/{$admin->id}", [
+            ->putJson("/api/v1/admin/admins/{$admin->uuid}", [
                 'role' => 'invalid_role',
             ]);
 
@@ -141,7 +141,7 @@ class AdminManagementTest extends TestCase
     public function test_self_demotion_prevention(): void
     {
         $response = $this->actingAs($this->superAdmin, 'sanctum')
-            ->putJson("/api/v1/admin/admins/{$this->superAdmin->id}", [
+            ->putJson("/api/v1/admin/admins/{$this->superAdmin->uuid}", [
                 'role' => 'admin',
             ]);
 
@@ -161,7 +161,7 @@ class AdminManagementTest extends TestCase
         $originalHash = $admin->password;
 
         $response = $this->actingAs($this->superAdmin, 'sanctum')
-            ->putJson("/api/v1/admin/admins/{$admin->id}", [
+            ->putJson("/api/v1/admin/admins/{$admin->uuid}", [
                 'name' => 'Updated Name',
                 'password' => 'HackedPassword1!',
             ]);
@@ -176,7 +176,7 @@ class AdminManagementTest extends TestCase
     public function test_superadmin_can_update_own_name_without_role_change(): void
     {
         $response = $this->actingAs($this->superAdmin, 'sanctum')
-            ->putJson("/api/v1/admin/admins/{$this->superAdmin->id}", [
+            ->putJson("/api/v1/admin/admins/{$this->superAdmin->uuid}", [
                 'name' => 'Updated SuperAdmin Name',
             ]);
 
@@ -191,7 +191,7 @@ class AdminManagementTest extends TestCase
         $admin = Admin::factory()->create();
 
         $response = $this->actingAs($this->superAdmin, 'sanctum')
-            ->deleteJson("/api/v1/admin/admins/{$admin->id}");
+            ->deleteJson("/api/v1/admin/admins/{$admin->uuid}");
 
         $response->assertOk()
             ->assertJsonPath('message', 'Administrateur supprimé avec succès');
@@ -202,7 +202,7 @@ class AdminManagementTest extends TestCase
     public function test_delete_self_prevention(): void
     {
         $response = $this->actingAs($this->superAdmin, 'sanctum')
-            ->deleteJson("/api/v1/admin/admins/{$this->superAdmin->id}");
+            ->deleteJson("/api/v1/admin/admins/{$this->superAdmin->uuid}");
 
         $response->assertStatus(422)
             ->assertJsonPath('error.code', 'self_deletion')
@@ -222,7 +222,7 @@ class AdminManagementTest extends TestCase
         ]);
 
         $this->actingAs($this->superAdmin, 'sanctum')
-            ->deleteJson("/api/v1/admin/admins/{$admin->id}")
+            ->deleteJson("/api/v1/admin/admins/{$admin->uuid}")
             ->assertOk();
 
         $this->assertDatabaseMissing('personal_access_tokens', [
@@ -264,7 +264,7 @@ class AdminManagementTest extends TestCase
         $target = Admin::factory()->create();
 
         $response = $this->actingAs($regularAdmin, 'sanctum')
-            ->getJson("/api/v1/admin/admins/{$target->id}");
+            ->getJson("/api/v1/admin/admins/{$target->uuid}");
 
         $response->assertForbidden();
     }
@@ -275,7 +275,7 @@ class AdminManagementTest extends TestCase
         $target = Admin::factory()->create();
 
         $response = $this->actingAs($regularAdmin, 'sanctum')
-            ->putJson("/api/v1/admin/admins/{$target->id}", [
+            ->putJson("/api/v1/admin/admins/{$target->uuid}", [
                 'name' => 'Hacked',
             ]);
 
@@ -288,7 +288,7 @@ class AdminManagementTest extends TestCase
         $target = Admin::factory()->create();
 
         $response = $this->actingAs($regularAdmin, 'sanctum')
-            ->deleteJson("/api/v1/admin/admins/{$target->id}");
+            ->deleteJson("/api/v1/admin/admins/{$target->uuid}");
 
         $response->assertForbidden();
     }
@@ -307,7 +307,7 @@ class AdminManagementTest extends TestCase
 
     public function test_returns_401_for_unauthenticated_request(): void
     {
-        $response = $this->getJson('/api/v1/admin/admins/1');
+        $response = $this->getJson('/api/v1/admin/admins/00000000-0000-0000-0000-000000000000');
 
         $response->assertUnauthorized();
     }

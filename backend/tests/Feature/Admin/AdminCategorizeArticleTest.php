@@ -28,7 +28,7 @@ class AdminCategorizeArticleTest extends TestCase
 
     private function endpoint(Article $article): string
     {
-        return "/api/v1/admin/articles/{$article->id}/category";
+        return "/api/v1/admin/articles/{$article->uuid}/category";
     }
 
     // ──────────────────────────────────────────────
@@ -172,7 +172,7 @@ class AdminCategorizeArticleTest extends TestCase
     public function test_nonexistent_article_returns_404(): void
     {
         $response = $this->withToken($this->adminToken)
-            ->patchJson('/api/v1/admin/articles/99999/category', [
+            ->patchJson('/api/v1/admin/articles/00000000-0000-0000-0000-000000000000/category', [
                 'category' => ArticleCategory::ConseilsFace->value,
             ]);
 

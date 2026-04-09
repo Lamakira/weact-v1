@@ -16,7 +16,7 @@ export interface Message {
 
 // Other participant in conversation (Face or Producer)
 export interface OtherParticipant {
-  id: number
+  id: string
   name: string
   photo_url: string | null
   type: 'face' | 'producer'
@@ -24,8 +24,8 @@ export interface OtherParticipant {
 
 // Conversation data from API
 export interface Conversation {
-  id: number
-  candidature_id: number
+  id: string
+  candidature_id: string
   mission_title: string
   other_participant: OtherParticipant
   messages: Message[]
@@ -68,8 +68,8 @@ export interface LatestMessagePreview {
 
 // Conversation list item (lightweight, for list view)
 export interface ConversationListItem {
-  id: number
-  candidature_id: number
+  id: string
+  candidature_id: string
   mission_title: string
   other_participant: OtherParticipant
   latest_message: LatestMessagePreview | null

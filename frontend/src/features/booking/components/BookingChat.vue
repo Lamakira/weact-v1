@@ -13,7 +13,7 @@ interface Props {
 const props = defineProps<Props>()
 
 const { messages, isLoading, isSending, reverbError, sendMessage, refreshMessages } =
-  useBookingChat(props.booking.id, props.currentUserId)
+  useBookingChat(props.booking.id, props.booking.realtime_channel_key, props.currentUserId)
 
 const draft = ref('')
 const messagesContainer = ref<HTMLDivElement | null>(null)

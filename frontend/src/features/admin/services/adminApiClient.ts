@@ -154,7 +154,7 @@ export function getAdminAuthToken(): string | null {
  * Helper to store admin user data
  */
 export function setStoredAdmin(admin: {
-  id: number
+  id: string
   name: string
   email: string
   role: 'superadmin' | 'admin' | 'editor'
@@ -166,7 +166,7 @@ export function setStoredAdmin(admin: {
  * Helper to get stored admin user data
  */
 export function getStoredAdmin(): {
-  id: number
+  id: string
   name: string
   email: string
   role: 'superadmin' | 'admin' | 'editor'

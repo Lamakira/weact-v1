@@ -32,6 +32,7 @@ class MissionFactory extends Factory
         $dateLimiteCandidature = fake()->dateTimeBetween('now', $dateTournage);
 
         return [
+            'uuid' => fake()->uuid(),
             'producer_id' => Producer::factory(),
             'titre' => fake()->sentence(4),
             'description' => fake()->paragraphs(3, true),

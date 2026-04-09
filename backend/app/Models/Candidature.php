@@ -11,10 +11,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use App\Concerns\HasRouteUuid;
 
 class Candidature extends Model
 {
     use HasFactory;
+    use HasRouteUuid;
 
     /**
      * The model's default values for attributes.

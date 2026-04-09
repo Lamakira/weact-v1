@@ -29,7 +29,7 @@ export const messagingApi = {
    * @param conversationId The conversation ID to fetch
    * @returns Conversation data with messages
    */
-  async getConversation(conversationId: number): Promise<ConversationResponse> {
+  async getConversation(conversationId: string): Promise<ConversationResponse> {
     const response = await apiClient.get<ConversationResponse>(
       `/face/conversations/${conversationId}`,
     )
@@ -42,7 +42,7 @@ export const messagingApi = {
    * @param data Message content
    * @returns Created message data
    */
-  async sendMessage(conversationId: number, data: SendMessageData): Promise<MessageResponse> {
+  async sendMessage(conversationId: string, data: SendMessageData): Promise<MessageResponse> {
     const response = await apiClient.post<MessageResponse>(
       `/face/conversations/${conversationId}/messages`,
       data,
@@ -72,7 +72,7 @@ export const messagingApi = {
    * @param conversationId The conversation ID to fetch
    * @returns Conversation data with messages
    */
-  async getProducerConversation(conversationId: number): Promise<ConversationResponse> {
+  async getProducerConversation(conversationId: string): Promise<ConversationResponse> {
     const response = await apiClient.get<ConversationResponse>(
       `/producer/conversations/${conversationId}`,
     )
@@ -86,7 +86,7 @@ export const messagingApi = {
    * @returns Created message data
    */
   async sendProducerMessage(
-    conversationId: number,
+    conversationId: string,
     data: SendMessageData,
   ): Promise<MessageResponse> {
     const response = await apiClient.post<MessageResponse>(

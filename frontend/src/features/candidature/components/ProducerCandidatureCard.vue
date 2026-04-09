@@ -18,9 +18,9 @@ const props = defineProps<{
  * Emits
  */
 const emit = defineEmits<{
-  accept: [candidatureId: number]
-  reject: [candidatureId: number]
-  'toggle-selection': [candidatureId: number]
+  accept: [candidatureId: string]
+  reject: [candidatureId: string]
+  'toggle-selection': [candidatureId: string]
 }>()
 
 /**

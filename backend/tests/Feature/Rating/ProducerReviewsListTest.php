@@ -61,7 +61,7 @@ class ProducerReviewsListTest extends TestCase
             'comment' => 'Super producteur!',
         ]);
 
-        $response = $this->getJson("/api/v1/public/producers/{$this->producer->id}/reviews");
+        $response = $this->getJson("/api/v1/public/producers/{$this->producer->slug}/reviews");
 
         $response->assertStatus(200)
             ->assertJsonStructure([
@@ -107,7 +107,7 @@ class ProducerReviewsListTest extends TestCase
             'comment' => 'Très bonne collaboration',
         ]);
 
-        $response = $this->getJson("/api/v1/public/producers/{$this->producer->id}/reviews");
+        $response = $this->getJson("/api/v1/public/producers/{$this->producer->slug}/reviews");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.0.score', 4)
@@ -119,7 +119,7 @@ class ProducerReviewsListTest extends TestCase
 
     public function test_producer_with_no_reviews_returns_empty_array(): void
     {
-        $response = $this->getJson("/api/v1/public/producers/{$this->producer->id}/reviews");
+        $response = $this->getJson("/api/v1/public/producers/{$this->producer->slug}/reviews");
 
         $response->assertStatus(200)
             ->assertJsonPath('data', [])
@@ -128,7 +128,7 @@ class ProducerReviewsListTest extends TestCase
 
     public function test_nonexistent_producer_returns_404(): void
     {
-        $response = $this->getJson('/api/v1/public/producers/99999/reviews');
+        $response = $this->getJson('/api/v1/public/producers/non-existent-slug/reviews');
 
         $response->assertStatus(404);
     }
@@ -162,7 +162,7 @@ class ProducerReviewsListTest extends TestCase
             ]);
         }
 
-        $response = $this->getJson("/api/v1/public/producers/{$this->producer->id}/reviews");
+        $response = $this->getJson("/api/v1/public/producers/{$this->producer->slug}/reviews");
 
         $response->assertStatus(200)
             ->assertJsonPath('meta.per_page', 10)
@@ -196,7 +196,7 @@ class ProducerReviewsListTest extends TestCase
             ]);
         }
 
-        $response = $this->getJson("/api/v1/public/producers/{$this->producer->id}/reviews?page=2");
+        $response = $this->getJson("/api/v1/public/producers/{$this->producer->slug}/reviews?page=2");
 
         $response->assertStatus(200)
             ->assertJsonPath('meta.current_page', 2)
@@ -249,7 +249,7 @@ class ProducerReviewsListTest extends TestCase
             'comment' => 'Newer review',
         ]);
 
-        $response = $this->getJson("/api/v1/public/producers/{$this->producer->id}/reviews");
+        $response = $this->getJson("/api/v1/public/producers/{$this->producer->slug}/reviews");
 
         $response->assertStatus(200);
 
@@ -279,7 +279,7 @@ class ProducerReviewsListTest extends TestCase
             'comment' => 'Producteur très professionnel!',
         ]);
 
-        $response = $this->getJson("/api/v1/public/producers/{$this->producer->id}/reviews");
+        $response = $this->getJson("/api/v1/public/producers/{$this->producer->slug}/reviews");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.0.comment', 'Producteur très professionnel!');
@@ -302,7 +302,7 @@ class ProducerReviewsListTest extends TestCase
             'comment' => null,
         ]);
 
-        $response = $this->getJson("/api/v1/public/producers/{$this->producer->id}/reviews");
+        $response = $this->getJson("/api/v1/public/producers/{$this->producer->slug}/reviews");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.0.comment', null);

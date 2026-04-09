@@ -16,7 +16,7 @@ export {
 export interface AdminAuthResponse {
   data: {
     admin: {
-      id: number
+      id: string
       name: string
       email: string
       role: 'superadmin' | 'admin' | 'editor'
@@ -32,7 +32,7 @@ export interface AdminAuthResponse {
  */
 export interface AdminMeResponse {
   data: {
-    id: number
+    id: string
     name: string
     email: string
     role: 'superadmin' | 'admin' | 'editor'

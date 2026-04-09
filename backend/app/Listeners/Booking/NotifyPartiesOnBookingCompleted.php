@@ -30,7 +30,7 @@ class NotifyPartiesOnBookingCompleted
                 'data'    => [
                     'message'    => "{$formattedAmount} XOF ont été ajoutés à votre wallet !",
                     'booking_id' => $booking->id,
-                    'url'        => "/face/bookings/{$booking->id}",
+                    'url'        => "/face/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {
@@ -48,7 +48,7 @@ class NotifyPartiesOnBookingCompleted
                 'data'    => [
                     'message'    => 'Votre booking est terminé. Merci pour votre confiance !',
                     'booking_id' => $booking->id,
-                    'url'        => "/producer/bookings/{$booking->id}",
+                    'url'        => "/producer/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {

@@ -35,9 +35,10 @@ const {
 const scrollContainer = ref<HTMLElement | null>(null)
 const newMessageText = ref('')
 
-const getConversationId = (): number => {
+const getConversationId = (): string | null => {
   const param = route.params.conversationId
-  return Number(Array.isArray(param) ? param[0] : param)
+  const value = Array.isArray(param) ? param[0] : param
+  return typeof value === 'string' && value.length > 0 ? value : null
 }
 
 const scrollToBottom = async (behavior: ScrollBehavior = 'smooth') => {
@@ -64,6 +65,7 @@ const handleSendMessage = async () => {
   if (!newMessageText.value.trim() || isSending.value) return
 
   const conversationId = getConversationId()
+  if (!conversationId) return
   const content = newMessageText.value.trim()
   resetSendError()
 
@@ -76,12 +78,17 @@ const handleSendMessage = async () => {
 }
 
 const retryLoading = () => {
-  loadConversation(getConversationId())
+  const conversationId = getConversationId()
+  if (conversationId) {
+    void loadConversation(conversationId)
+  }
 }
 
 const handleRefresh = async () => {
   clearRefreshError()
-  const success = await refreshConversation(getConversationId())
+  const conversationId = getConversationId()
+  if (!conversationId) return
+  const success = await refreshConversation(conversationId)
   if (success) {
     scrollToBottom('smooth')
   }
@@ -90,7 +97,7 @@ const handleRefresh = async () => {
 // Initial load
 onMounted(async () => {
   const conversationId = getConversationId()
-  if (isNaN(conversationId)) {
+  if (!conversationId) {
     router.push({ name: 'producer-missions' })
     return
   }

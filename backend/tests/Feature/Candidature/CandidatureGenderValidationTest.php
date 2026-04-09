@@ -40,7 +40,7 @@ class CandidatureGenderValidationTest extends TestCase
         $mission = $this->createMission('forMen');
 
         $response = $this->actingAs($user)
-            ->postJson("/api/v1/face/missions/{$mission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$mission->uuid}/apply");
 
         $response->assertStatus(201);
     }
@@ -51,7 +51,7 @@ class CandidatureGenderValidationTest extends TestCase
         $mission = $this->createMission('forWomen');
 
         $response = $this->actingAs($user)
-            ->postJson("/api/v1/face/missions/{$mission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$mission->uuid}/apply");
 
         $response->assertStatus(422)
             ->assertJson([
@@ -67,7 +67,7 @@ class CandidatureGenderValidationTest extends TestCase
         $mission = $this->createMission('forWomen');
 
         $response = $this->actingAs($user)
-            ->postJson("/api/v1/face/missions/{$mission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$mission->uuid}/apply");
 
         $response->assertStatus(201);
     }
@@ -78,7 +78,7 @@ class CandidatureGenderValidationTest extends TestCase
         $mission = $this->createMission('forMen');
 
         $response = $this->actingAs($user)
-            ->postJson("/api/v1/face/missions/{$mission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$mission->uuid}/apply");
 
         $response->assertStatus(422)
             ->assertJson([
@@ -96,7 +96,7 @@ class CandidatureGenderValidationTest extends TestCase
             [$user] = $this->createFaceUser($gender);
 
             $response = $this->actingAs($user)
-                ->postJson("/api/v1/face/missions/{$mission->id}/apply");
+                ->postJson("/api/v1/face/missions/{$mission->uuid}/apply");
 
             $response->assertStatus(201);
         }
@@ -108,7 +108,7 @@ class CandidatureGenderValidationTest extends TestCase
         $mission = $this->createMission('forMen');
 
         $response = $this->actingAs($user)
-            ->postJson("/api/v1/face/missions/{$mission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$mission->uuid}/apply");
 
         $response->assertStatus(422)
             ->assertJson([
@@ -124,7 +124,7 @@ class CandidatureGenderValidationTest extends TestCase
         $mission = $this->createMission('forWomen');
 
         $response = $this->actingAs($user)
-            ->postJson("/api/v1/face/missions/{$mission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$mission->uuid}/apply");
 
         $response->assertStatus(422)
             ->assertJson([
@@ -140,7 +140,7 @@ class CandidatureGenderValidationTest extends TestCase
         $mission = $this->createMission('forAll');
 
         $response = $this->actingAs($user)
-            ->postJson("/api/v1/face/missions/{$mission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$mission->uuid}/apply");
 
         $response->assertStatus(201);
     }
@@ -151,7 +151,7 @@ class CandidatureGenderValidationTest extends TestCase
         $mission = $this->createMission('forMen');
 
         $response = $this->actingAs($user)
-            ->postJson("/api/v1/face/missions/{$mission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$mission->uuid}/apply");
 
         $response->assertStatus(422)
             ->assertJson([
@@ -168,7 +168,7 @@ class CandidatureGenderValidationTest extends TestCase
         $mission = $this->createMission('forAll');
 
         $response = $this->actingAs($user)
-            ->postJson("/api/v1/face/missions/{$mission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$mission->uuid}/apply");
 
         $response->assertStatus(201);
     }
@@ -179,7 +179,7 @@ class CandidatureGenderValidationTest extends TestCase
         $mission = $this->createMission('forMen');
 
         $response = $this->actingAs($user)
-            ->postJson("/api/v1/face/missions/{$mission->id}/apply");
+            ->postJson("/api/v1/face/missions/{$mission->uuid}/apply");
 
         $response->assertStatus(422)
             ->assertJson([

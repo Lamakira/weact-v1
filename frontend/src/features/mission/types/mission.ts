@@ -62,7 +62,8 @@ export const MissionGenderLabel: Record<MissionGenderType, string> = {
 
 // Producer data embedded in Mission response
 export interface MissionProducer {
-  id: number
+  id: string
+  slug: string | null
   type: 'agency' | 'particulier'
   agency_name: string | null
   first_name: string | null
@@ -81,7 +82,7 @@ export interface MissionProducer {
 
 // Mission data from API
 export interface Mission {
-  id: number
+  id: string
   titre: string
   description: string
   date_tournage: string
@@ -124,9 +125,9 @@ export interface CreateMissionData {
 
 // Candidature data (minimal version for mission detail response)
 export interface MissionCandidature {
-  id: number
-  mission_id: number
-  face_id: number
+  id: string
+  mission_id: string
+  face_id: string
   status: string
   status_label: string
   message_motivation: string | null

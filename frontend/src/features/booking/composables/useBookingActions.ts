@@ -10,11 +10,11 @@ export interface UseBookingActionsReturn {
   isCancelling: Ref<boolean>
   isReportingNoShow: Ref<boolean>
   error: Ref<string | null>
-  accept: (bookingId: number) => Promise<Booking | null>
-  refuse: (bookingId: number, reason?: string) => Promise<Booking | null>
-  confirm: (bookingId: number) => Promise<Booking | null>
-  cancel: (bookingId: number, reason: CancellationReasonValue, customReason?: string) => Promise<Booking | null>
-  reportNoShow: (bookingId: number) => Promise<Booking | null>
+  accept: (bookingId: string) => Promise<Booking | null>
+  refuse: (bookingId: string, reason?: string) => Promise<Booking | null>
+  confirm: (bookingId: string) => Promise<Booking | null>
+  cancel: (bookingId: string, reason: CancellationReasonValue, customReason?: string) => Promise<Booking | null>
+  reportNoShow: (bookingId: string) => Promise<Booking | null>
   clearError: () => void
 }
 
@@ -30,7 +30,7 @@ export function useBookingActions(): UseBookingActionsReturn {
     error.value = null
   }
 
-  async function accept(bookingId: number): Promise<Booking | null> {
+  async function accept(bookingId: string): Promise<Booking | null> {
     isAccepting.value = true
     error.value = null
 
@@ -45,7 +45,7 @@ export function useBookingActions(): UseBookingActionsReturn {
     }
   }
 
-  async function refuse(bookingId: number, reason?: string): Promise<Booking | null> {
+  async function refuse(bookingId: string, reason?: string): Promise<Booking | null> {
     isRefusing.value = true
     error.value = null
 
@@ -60,7 +60,7 @@ export function useBookingActions(): UseBookingActionsReturn {
     }
   }
 
-  async function confirm(bookingId: number): Promise<Booking | null> {
+  async function confirm(bookingId: string): Promise<Booking | null> {
     isConfirming.value = true
     error.value = null
 
@@ -76,7 +76,7 @@ export function useBookingActions(): UseBookingActionsReturn {
   }
 
   async function cancel(
-    bookingId: number,
+    bookingId: string,
     reason: CancellationReasonValue,
     customReason?: string,
   ): Promise<Booking | null> {
@@ -94,7 +94,7 @@ export function useBookingActions(): UseBookingActionsReturn {
     }
   }
 
-  async function reportNoShow(bookingId: number): Promise<Booking | null> {
+  async function reportNoShow(bookingId: string): Promise<Booking | null> {
     isReportingNoShow.value = true
     error.value = null
 

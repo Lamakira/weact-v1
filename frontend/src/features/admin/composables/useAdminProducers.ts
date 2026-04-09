@@ -53,7 +53,7 @@ export function useAdminProducers() {
   /**
    * Fetch a single producer by ID
    */
-  async function fetchProducer(id: number): Promise<void> {
+  async function fetchProducer(id: string): Promise<void> {
     isLoading.value = true
     error.value = null
 
@@ -72,7 +72,7 @@ export function useAdminProducers() {
    * Update a producer's admin-editable fields
    */
   async function updateProducer(
-    id: number,
+    id: string,
     data: UpdateAdminProducerForm,
   ): Promise<AdminProducerActionResult> {
     isLoading.value = true
@@ -93,7 +93,7 @@ export function useAdminProducers() {
   /**
    * Toggle a producer's account activation status
    */
-  async function toggleActive(id: number): Promise<AdminProducerActionResult> {
+  async function toggleActive(id: string): Promise<AdminProducerActionResult> {
     isLoading.value = true
 
     try {
@@ -116,7 +116,7 @@ export function useAdminProducers() {
   /**
    * Delete a producer and its associated user
    */
-  async function deleteProducer(id: number): Promise<AdminProducerActionResult> {
+  async function deleteProducer(id: string): Promise<AdminProducerActionResult> {
     isLoading.value = true
 
     try {

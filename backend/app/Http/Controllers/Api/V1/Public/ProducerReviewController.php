@@ -17,10 +17,8 @@ class ProducerReviewController extends Controller
      * Returns paginated list of reviews received by the Producer,
      * ordered by most recent first.
      */
-    public function index(int $id): AnonymousResourceCollection
+    public function index(Producer $producer): AnonymousResourceCollection
     {
-        $producer = Producer::findOrFail($id);
-
         $reviews = $producer->ratingsReceived()
             ->with('rater.userable')
             ->orderByDesc('created_at')

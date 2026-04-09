@@ -84,7 +84,7 @@ class BookingNotificationTest extends TestCase
         $this->assertNotNull($notification);
         $this->assertEquals($this->booking->id, $notification->data['booking_id']);
         $this->assertStringContainsString('publicité', $notification->data['message']);
-        $this->assertEquals("/face/bookings/{$this->booking->id}", $notification->data['url']);
+        $this->assertEquals("/face/bookings/{$this->booking->uuid}", $notification->data['url']);
     }
 
     public function test_booking_accepted_creates_notification_for_producer(): void
@@ -101,7 +101,7 @@ class BookingNotificationTest extends TestCase
         $this->assertNotNull($notification);
         $this->assertEquals($this->booking->id, $notification->data['booking_id']);
         $this->assertStringContainsString('accepté', $notification->data['message']);
-        $this->assertEquals("/producer/bookings/{$this->booking->id}", $notification->data['url']);
+        $this->assertEquals("/producer/bookings/{$this->booking->uuid}", $notification->data['url']);
     }
 
     public function test_booking_refused_creates_notification_for_producer(): void
@@ -134,7 +134,7 @@ class BookingNotificationTest extends TestCase
         $this->assertNotNull($notification);
         $this->assertStringContainsString('Paiement confirmé', $notification->data['message']);
         $this->assertStringContainsString('chat', $notification->data['message']);
-        $this->assertEquals("/producer/bookings/{$this->booking->id}", $notification->data['url']);
+        $this->assertEquals("/producer/bookings/{$this->booking->uuid}", $notification->data['url']);
     }
 
     public function test_booking_paid_creates_notification_for_face(): void
@@ -151,7 +151,7 @@ class BookingNotificationTest extends TestCase
         $this->assertNotNull($notification);
         $this->assertStringContainsString('paiement', $notification->data['message']);
         $this->assertStringContainsString('chat', $notification->data['message']);
-        $this->assertEquals("/face/bookings/{$this->booking->id}", $notification->data['url']);
+        $this->assertEquals("/face/bookings/{$this->booking->uuid}", $notification->data['url']);
     }
 
     public function test_partial_confirmation_creates_notification_for_other_party(): void
@@ -164,7 +164,7 @@ class BookingNotificationTest extends TestCase
         ]);
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$this->booking->id}/confirm")
+            ->postJson("/api/v1/bookings/{$this->booking->uuid}/confirm")
             ->assertSuccessful();
 
         $notification = Notification::where('user_id', $this->producerUser->id)
@@ -174,7 +174,7 @@ class BookingNotificationTest extends TestCase
         $this->assertNotNull($notification);
         $this->assertStringContainsString('Face a confirmé', $notification->data['message']);
         $this->assertStringContainsString('votre tour', $notification->data['message']);
-        $this->assertEquals("/producer/bookings/{$this->booking->id}", $notification->data['url']);
+        $this->assertEquals("/producer/bookings/{$this->booking->uuid}", $notification->data['url']);
     }
 
     public function test_booking_completed_creates_wallet_notification_for_face(): void
@@ -207,7 +207,7 @@ class BookingNotificationTest extends TestCase
 
         $this->assertNotNull($notification);
         $this->assertStringContainsString('terminé', $notification->data['message']);
-        $this->assertEquals("/producer/bookings/{$this->booking->id}", $notification->data['url']);
+        $this->assertEquals("/producer/bookings/{$this->booking->uuid}", $notification->data['url']);
     }
 
     public function test_booking_expired_without_face_response_creates_specific_notifications_for_both_parties(): void
@@ -234,8 +234,8 @@ class BookingNotificationTest extends TestCase
         $this->assertNotNull($faceNotification);
         $this->assertStringContainsString('date de tournage est passée sans réponse de la Face', $producerNotification->data['message']);
         $this->assertStringContainsString('date de tournage est passée sans réponse de la Face', $faceNotification->data['message']);
-        $this->assertEquals("/producer/bookings/{$this->booking->id}", $producerNotification->data['url']);
-        $this->assertEquals("/face/bookings/{$this->booking->id}", $faceNotification->data['url']);
+        $this->assertEquals("/producer/bookings/{$this->booking->uuid}", $producerNotification->data['url']);
+        $this->assertEquals("/face/bookings/{$this->booking->uuid}", $faceNotification->data['url']);
     }
 
     public function test_booking_expired_after_acceptance_keeps_payment_timeout_message(): void
@@ -277,7 +277,7 @@ class BookingNotificationTest extends TestCase
         $this->assertNotNull($notification);
         $this->assertStringContainsString('annulé', $notification->data['message']);
         $this->assertStringContainsString("n'êtes pas pénalisé", $notification->data['message']);
-        $this->assertEquals("/face/bookings/{$this->booking->id}", $notification->data['url']);
+        $this->assertEquals("/face/bookings/{$this->booking->uuid}", $notification->data['url']);
     }
 
     public function test_booking_cancelled_by_face_notifies_producer(): void
@@ -293,7 +293,7 @@ class BookingNotificationTest extends TestCase
 
         $this->assertNotNull($notification);
         $this->assertStringContainsString('annulé', $notification->data['message']);
-        $this->assertEquals("/producer/bookings/{$this->booking->id}", $notification->data['url']);
+        $this->assertEquals("/producer/bookings/{$this->booking->uuid}", $notification->data['url']);
     }
 
     public function test_shared_notification_endpoint_accessible_by_face(): void
@@ -341,7 +341,7 @@ class BookingNotificationTest extends TestCase
 
         // Face tries to mark Producer's notification as read → should be 403
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/me/notifications/{$notification->id}/read")
+            ->postJson("/api/v1/me/notifications/{$notification->uuid}/read")
             ->assertForbidden();
 
         // Verify notification is still unread

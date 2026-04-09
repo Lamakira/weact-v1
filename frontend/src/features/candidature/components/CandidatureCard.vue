@@ -16,8 +16,8 @@ const props = defineProps<{
  * Emits
  */
 const emit = defineEmits<{
-  confirm: [candidatureId: number]
-  cancel: [candidatureId: number]
+  confirm: [candidatureId: string]
+  cancel: [candidatureId: string]
 }>()
 
 /**

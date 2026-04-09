@@ -59,27 +59,38 @@ class BookingShowAcceptRefuseTest extends TestCase
 
     public function test_unauthenticated_user_cannot_view_booking(): void
     {
-        $this->getJson("/api/v1/bookings/{$this->booking->id}")
+        $this->getJson("/api/v1/bookings/{$this->booking->uuid}")
             ->assertUnauthorized();
     }
 
     public function test_face_can_view_their_own_booking_detail(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/bookings/{$this->booking->id}");
+            ->getJson("/api/v1/bookings/{$this->booking->uuid}");
 
         $response->assertOk()
-            ->assertJsonPath('data.id', $this->booking->id)
+            ->assertJsonPath('data.id', $this->booking->uuid)
+            ->assertJsonPath('data.realtime_channel_key', $this->booking->id)
             ->assertJsonPath('data.status', BookingStatus::Pending->value);
     }
 
     public function test_producer_can_view_their_own_booking_detail(): void
     {
         $response = $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/bookings/{$this->booking->uuid}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.id', $this->booking->uuid);
+    }
+
+    public function test_legacy_numeric_booking_route_still_resolves(): void
+    {
+        $response = $this->actingAs($this->producerUser)
             ->getJson("/api/v1/bookings/{$this->booking->id}");
 
         $response->assertOk()
-            ->assertJsonPath('data.id', $this->booking->id);
+            ->assertJsonPath('data.id', $this->booking->uuid)
+            ->assertJsonPath('data.realtime_channel_key', $this->booking->id);
     }
 
     public function test_unauthorized_user_cannot_view_booking(): void
@@ -90,7 +101,7 @@ class BookingShowAcceptRefuseTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherUser)
-            ->getJson("/api/v1/bookings/{$this->booking->id}");
+            ->getJson("/api/v1/bookings/{$this->booking->uuid}");
 
         $response->assertForbidden();
     }
@@ -98,12 +109,13 @@ class BookingShowAcceptRefuseTest extends TestCase
     public function test_booking_show_returns_correct_resource_structure(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/bookings/{$this->booking->id}");
+            ->getJson("/api/v1/bookings/{$this->booking->uuid}");
 
         $response->assertOk()
             ->assertJsonStructure([
                 'data' => [
                     'id',
+                    'realtime_channel_key',
                     'face_id',
                     'producer_id',
                     'status',
@@ -135,7 +147,7 @@ class BookingShowAcceptRefuseTest extends TestCase
         Event::fake([BookingAccepted::class]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$this->booking->id}/accept");
+            ->postJson("/api/v1/bookings/{$this->booking->uuid}/accept");
 
         $response->assertOk()
             ->assertJsonPath('data.status', BookingStatus::Accepted->value)
@@ -154,7 +166,7 @@ class BookingShowAcceptRefuseTest extends TestCase
         $this->booking->update(['status' => BookingStatus::Accepted]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$this->booking->id}/accept");
+            ->postJson("/api/v1/bookings/{$this->booking->uuid}/accept");
 
         // Policy rejects because status is not pending
         $response->assertForbidden();
@@ -163,7 +175,7 @@ class BookingShowAcceptRefuseTest extends TestCase
     public function test_producer_cannot_accept_a_booking(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$this->booking->id}/accept");
+            ->postJson("/api/v1/bookings/{$this->booking->uuid}/accept");
 
         $response->assertForbidden();
     }
@@ -173,7 +185,7 @@ class BookingShowAcceptRefuseTest extends TestCase
         Event::fake([BookingAccepted::class]);
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$this->booking->id}/accept");
+            ->postJson("/api/v1/bookings/{$this->booking->uuid}/accept");
 
         Event::assertDispatched(BookingAccepted::class, function (BookingAccepted $event) {
             return $event->booking->id === $this->booking->id;
@@ -187,7 +199,7 @@ class BookingShowAcceptRefuseTest extends TestCase
         Event::fake([BookingRefused::class]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$this->booking->id}/refuse");
+            ->postJson("/api/v1/bookings/{$this->booking->uuid}/refuse");
 
         $response->assertOk()
             ->assertJsonPath('data.status', BookingStatus::Refused->value)
@@ -206,7 +218,7 @@ class BookingShowAcceptRefuseTest extends TestCase
         $this->booking->update(['status' => BookingStatus::Paid]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$this->booking->id}/refuse", [
+            ->postJson("/api/v1/bookings/{$this->booking->uuid}/refuse", [
                 'cancellation_reason' => 'Empêchement personnel',
             ]);
 
@@ -218,7 +230,7 @@ class BookingShowAcceptRefuseTest extends TestCase
         $this->booking->update(['status' => BookingStatus::Paid]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$this->booking->id}/refuse");
+            ->postJson("/api/v1/bookings/{$this->booking->uuid}/refuse");
 
         $response->assertForbidden();
     }
@@ -228,7 +240,7 @@ class BookingShowAcceptRefuseTest extends TestCase
         Event::fake([BookingRefused::class]);
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$this->booking->id}/refuse");
+            ->postJson("/api/v1/bookings/{$this->booking->uuid}/refuse");
 
         Event::assertDispatched(BookingRefused::class, function (BookingRefused $event) {
             return $event->booking->id === $this->booking->id;

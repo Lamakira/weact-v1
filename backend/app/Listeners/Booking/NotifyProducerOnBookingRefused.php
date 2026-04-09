@@ -30,7 +30,7 @@ class NotifyProducerOnBookingRefused
                 'data'    => [
                     'message'    => "{$faceName} a refusé votre booking",
                     'booking_id' => $booking->id,
-                    'url'        => "/producer/bookings/{$booking->id}",
+                    'url'        => "/producer/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {

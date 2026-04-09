@@ -146,7 +146,7 @@ class AdminMissionListTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->getJson("/api/v1/admin/missions/{$mission->id}");
+            ->getJson("/api/v1/admin/missions/{$mission->uuid}");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -158,7 +158,7 @@ class AdminMissionListTest extends TestCase
                 'message',
             ])
             ->assertJsonPath('data.titre', 'Tournage Cotonou')
-            ->assertJsonPath('data.producer.id', $producer->id);
+            ->assertJsonPath('data.producer.id', $producer->uuid);
     }
 
     public function test_show_mission_includes_candidatures_count(): void
@@ -181,7 +181,7 @@ class AdminMissionListTest extends TestCase
         }
 
         $response = $this->withToken($this->adminToken)
-            ->getJson("/api/v1/admin/missions/{$mission->id}");
+            ->getJson("/api/v1/admin/missions/{$mission->uuid}");
 
         $response->assertOk()
             ->assertJsonPath('data.candidatures_count', 3);
@@ -201,7 +201,7 @@ class AdminMissionListTest extends TestCase
         ]);
         $mission = Mission::factory()->create(['producer_id' => $producer->id]);
 
-        $response = $this->getJson("/api/v1/admin/missions/{$mission->id}");
+        $response = $this->getJson("/api/v1/admin/missions/{$mission->uuid}");
         $response->assertUnauthorized();
     }
 

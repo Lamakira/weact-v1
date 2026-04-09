@@ -9,10 +9,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use App\Concerns\HasRouteUuid;
 
 class Conversation extends Model
 {
     use HasFactory;
+    use HasRouteUuid;
 
     /**
      * The attributes that are mass assignable.

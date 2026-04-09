@@ -76,6 +76,7 @@ class PublicMissionsListTest extends TestCase
                         'created_at',
                         'producer' => [
                             'id',
+                            'slug',
                             'display_name',
                             'profile_photo_thumbnail_url',
                             'average_rating',
@@ -111,7 +112,7 @@ class PublicMissionsListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(1, $response->json('meta.total'));
-        $this->assertEquals($published->id, $response->json('data.0.id'));
+        $this->assertEquals($published->uuid, $response->json('data.0.id'));
         $this->assertEquals('Published Mission', $response->json('data.0.titre'));
     }
 
@@ -137,7 +138,7 @@ class PublicMissionsListTest extends TestCase
 
         $data = $response->json('data.0');
 
-        $this->assertEquals($mission->id, $data['id']);
+        $this->assertEquals($mission->uuid, $data['id']);
         $this->assertEquals('Casting publicité MTN', $data['titre']);
         $this->assertEquals('Recherche comédien(ne) pour spot TV', $data['description']);
         $this->assertEquals(75000, $data['budget']);
@@ -163,7 +164,8 @@ class PublicMissionsListTest extends TestCase
 
         $producerData = $response->json('data.0.producer');
 
-        $this->assertEquals($producer->id, $producerData['id']);
+        $this->assertEquals($producer->uuid, $producerData['id']);
+        $this->assertEquals($producer->slug, $producerData['slug']);
         $this->assertArrayHasKey('display_name', $producerData);
         $this->assertArrayHasKey('profile_photo_thumbnail_url', $producerData);
         $this->assertArrayHasKey('average_rating', $producerData);
@@ -312,9 +314,9 @@ class PublicMissionsListTest extends TestCase
         $response = $this->getJson('/api/v1/public/missions');
 
         $response->assertOk();
-        $this->assertEquals($newest->id, $response->json('data.0.id'));
-        $this->assertEquals($newer->id, $response->json('data.1.id'));
-        $this->assertEquals($older->id, $response->json('data.2.id'));
+        $this->assertEquals($newest->uuid, $response->json('data.0.id'));
+        $this->assertEquals($newer->uuid, $response->json('data.1.id'));
+        $this->assertEquals($older->uuid, $response->json('data.2.id'));
     }
 
     // ─── Eager Loading / N+1 Prevention Tests ────────────────────────

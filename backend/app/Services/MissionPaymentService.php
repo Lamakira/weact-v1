@@ -33,13 +33,13 @@ class MissionPaymentService
      * Sets non-selected pending candidatures to rejected.
      * Sets mission to pending_payment status.
      *
-     * @param  int[]  $candidatureIds
+     * @param  string[]  $candidatureUuids
      *
      * @throws ValidationException
      */
-    public function confirmSelection(Mission $mission, array $candidatureIds): MissionPayment
+    public function confirmSelection(Mission $mission, array $candidatureUuids): MissionPayment
     {
-        return DB::transaction(function () use ($mission, $candidatureIds): MissionPayment {
+        return DB::transaction(function () use ($mission, $candidatureUuids): MissionPayment {
             // Lock mission row
             $mission = Mission::lockForUpdate()->find($mission->id);
 
@@ -49,34 +49,34 @@ class MissionPaymentService
                 ]);
             }
 
-            $requestedIds = array_values(array_unique(array_map('intval', $candidatureIds)));
+            $requestedUuids = array_values(array_unique($candidatureUuids));
 
-            $candidatures = Candidature::whereIn('id', $requestedIds)
+            $candidatures = Candidature::whereIn('uuid', $requestedUuids)
                 ->where('mission_id', $mission->id)
                 ->lockForUpdate()
                 ->get()
-                ->keyBy('id');
+                ->keyBy('uuid');
 
-            $invalidIds = [];
+            $invalidUuids = [];
 
-            foreach ($requestedIds as $candidatureId) {
-                $candidature = $candidatures->get($candidatureId);
+            foreach ($requestedUuids as $candidatureUuid) {
+                $candidature = $candidatures->get($candidatureUuid);
 
                 if (! $candidature || $candidature->status !== CandidatureStatus::Pending) {
-                    $invalidIds[] = $candidatureId;
+                    $invalidUuids[] = $candidatureUuid;
                 }
             }
 
-            if ($invalidIds !== []) {
+            if ($invalidUuids !== []) {
                 throw ValidationException::withMessages([
                     'candidature_ids' => [
-                        'Certaines candidatures sont invalides ou ne sont plus en attente pour cette mission : '.implode(', ', $invalidIds).'.',
+                        'Certaines candidatures sont invalides ou ne sont plus en attente pour cette mission.',
                     ],
                 ]);
             }
 
-            $candidatures = collect($requestedIds)
-                ->map(fn (int $candidatureId) => $candidatures->get($candidatureId));
+            $candidatures = collect($requestedUuids)
+                ->map(fn (string $candidatureUuid) => $candidatures->get($candidatureUuid));
 
             $pricing = new MissionPricing($mission->budget, $candidatures->count());
 

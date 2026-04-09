@@ -20,7 +20,7 @@ class MissionSummaryResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
             'title' => $this->titre,
             'status' => $this->status?->value ?? $this->status,
             'status_label' => $this->status?->label() ?? $this->status,

@@ -74,7 +74,7 @@ class EditMissionTest extends TestCase
         $data = $this->getValidUpdateData();
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$this->mission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
 
         $response->assertOk()
             ->assertJsonPath('data.titre', 'Updated Mission Title')
@@ -107,7 +107,7 @@ class EditMissionTest extends TestCase
         $data = $this->getValidUpdateData();
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$draftMission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$draftMission->uuid}", $data);
 
         $response->assertOk()
             ->assertJsonPath('data.titre', 'Updated Mission Title')
@@ -119,7 +119,7 @@ class EditMissionTest extends TestCase
         $data = $this->getValidUpdateData();
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$this->mission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -151,7 +151,7 @@ class EditMissionTest extends TestCase
     public function test_validation_error_for_missing_required_fields(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$this->mission->id}", []);
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", []);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors([
@@ -174,7 +174,7 @@ class EditMissionTest extends TestCase
         $data['titre'] = str_repeat('a', 151);
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$this->mission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['titre'])
@@ -187,7 +187,7 @@ class EditMissionTest extends TestCase
         $data['description'] = str_repeat('a', 10001);
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$this->mission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['description'])
@@ -200,7 +200,7 @@ class EditMissionTest extends TestCase
         $data['profil_recherche'] = str_repeat('a', 5001);
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$this->mission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['profil_recherche'])
@@ -214,7 +214,7 @@ class EditMissionTest extends TestCase
         $data['date_tournage'] = now()->subDay()->format('Y-m-d');
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$this->mission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['date_limite_candidature'])
@@ -228,7 +228,7 @@ class EditMissionTest extends TestCase
         $data['date_tournage'] = now()->addWeek()->format('Y-m-d');
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$this->mission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['date_tournage'])
@@ -241,7 +241,7 @@ class EditMissionTest extends TestCase
         $data['budget'] = 0;
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$this->mission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['budget'])
@@ -254,7 +254,7 @@ class EditMissionTest extends TestCase
         $data['type_mission'] = 'invalid_type';
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$this->mission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['type_mission'])
@@ -267,7 +267,7 @@ class EditMissionTest extends TestCase
         $data['genre_voulu'] = 'invalid_gender';
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$this->mission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['genre_voulu'])
@@ -283,7 +283,7 @@ class EditMissionTest extends TestCase
         $data = $this->getValidUpdateData();
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$closedMission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$closedMission->uuid}", $data);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['mission'])
@@ -299,7 +299,7 @@ class EditMissionTest extends TestCase
         $data = $this->getValidUpdateData();
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$completedMission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$completedMission->uuid}", $data);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['mission'])
@@ -327,7 +327,7 @@ class EditMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$pendingPaymentMission->id}", $this->getValidUpdateData());
+            ->putJson("/api/v1/producer/missions/{$pendingPaymentMission->uuid}", $this->getValidUpdateData());
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['mission'])
@@ -348,7 +348,7 @@ class EditMissionTest extends TestCase
         $data['date_tournage'] = now()->addDays(15)->format('Y-m-d');
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$mission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$mission->uuid}", $data);
 
         $response->assertOk();
 
@@ -369,7 +369,7 @@ class EditMissionTest extends TestCase
         $data = $this->getValidUpdateData();
 
         $response = $this->actingAs($otherUser)
-            ->putJson("/api/v1/producer/missions/{$this->mission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
 
         $response->assertForbidden();
     }
@@ -385,7 +385,7 @@ class EditMissionTest extends TestCase
         $data = $this->getValidUpdateData();
 
         $response = $this->actingAs($faceUser)
-            ->putJson("/api/v1/producer/missions/{$this->mission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
 
         $response->assertForbidden();
     }
@@ -394,7 +394,7 @@ class EditMissionTest extends TestCase
     {
         $data = $this->getValidUpdateData();
 
-        $response = $this->putJson("/api/v1/producer/missions/{$this->mission->id}", $data);
+        $response = $this->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
 
         $response->assertUnauthorized();
     }
@@ -404,7 +404,7 @@ class EditMissionTest extends TestCase
         $data = $this->getValidUpdateData();
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson('/api/v1/producer/missions/99999', $data);
+            ->putJson('/api/v1/producer/missions/00000000-0000-0000-0000-000000000000', $data);
 
         $response->assertNotFound();
     }
@@ -412,7 +412,7 @@ class EditMissionTest extends TestCase
     public function test_can_get_mission_details(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/missions/{$this->mission->id}");
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -438,7 +438,7 @@ class EditMissionTest extends TestCase
                     'updated_at',
                 ],
             ])
-            ->assertJsonPath('data.id', $this->mission->id)
+            ->assertJsonPath('data.id', $this->mission->uuid)
             ->assertJsonPath('data.titre', 'Original Mission Title');
     }
 
@@ -451,7 +451,7 @@ class EditMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherUser)
-            ->getJson("/api/v1/producer/missions/{$this->mission->id}");
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}");
 
         // Producer routes only allow the owner to view their missions
         $response->assertForbidden();
@@ -466,7 +466,7 @@ class EditMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($faceUser)
-            ->getJson("/api/v1/producer/missions/{$this->mission->id}");
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}");
 
         // Producer routes are restricted to producers only
         $response->assertForbidden();
@@ -474,7 +474,7 @@ class EditMissionTest extends TestCase
 
     public function test_unauthenticated_cannot_view_mission_via_producer_endpoint(): void
     {
-        $response = $this->getJson("/api/v1/producer/missions/{$this->mission->id}");
+        $response = $this->getJson("/api/v1/producer/missions/{$this->mission->uuid}");
 
         // Route is protected by auth:sanctum middleware
         $response->assertUnauthorized();
@@ -486,7 +486,7 @@ class EditMissionTest extends TestCase
         unset($data['nombre_faces_voulu']);
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$this->mission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
 
         $response->assertOk()
             ->assertJsonPath('data.nombre_faces_voulu', 1);
@@ -497,7 +497,7 @@ class EditMissionTest extends TestCase
         $data = $this->getValidUpdateData();
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$this->mission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
 
         $response->assertOk()
             ->assertJsonPath('data.status', 'published')
@@ -514,7 +514,7 @@ class EditMissionTest extends TestCase
         $data = $this->getValidUpdateData();
 
         $response = $this->actingAs($this->producerUser)
-            ->putJson("/api/v1/producer/missions/{$this->mission->id}", $data);
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
 
         $response->assertOk();
 

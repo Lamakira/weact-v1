@@ -17,7 +17,7 @@ class FacePhotoResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
             'photo_url' => $this->photo_url,
             'medium_url' => $this->medium_url,
             'thumbnail_url' => $this->thumbnail_url,

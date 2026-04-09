@@ -71,7 +71,7 @@ export function useAdmins() {
   /**
    * Fetch a single admin by ID
    */
-  async function fetchAdmin(id: number): Promise<void> {
+  async function fetchAdmin(id: string): Promise<void> {
     isLoading.value = true
     error.value = null
 
@@ -89,7 +89,7 @@ export function useAdmins() {
   /**
    * Update an admin's fields
    */
-  async function updateAdmin(id: number, data: UpdateAdminForm): Promise<AdminActionResult> {
+  async function updateAdmin(id: string, data: UpdateAdminForm): Promise<AdminActionResult> {
     isLoading.value = true
 
     try {
@@ -108,7 +108,7 @@ export function useAdmins() {
   /**
    * Delete an admin account
    */
-  async function deleteAdmin(id: number): Promise<AdminActionResult> {
+  async function deleteAdmin(id: string): Promise<AdminActionResult> {
     isLoading.value = true
 
     try {

@@ -22,7 +22,7 @@ export function usePublicProducer() {
   /**
    * Fetch a Producer's public profile by ID
    */
-  async function fetchProducer(id: number): Promise<PublicProducerResult> {
+  async function fetchProducer(id: string): Promise<PublicProducerResult> {
     isLoading.value = true
     error.value = null
     notFound.value = false

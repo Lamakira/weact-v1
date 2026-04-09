@@ -94,7 +94,7 @@ export interface BookingRating {
 
 // Face userable data nested in BookingUser
 export interface BookingFaceUserable {
-  id: number
+  id: string
   nom: string
   prenom: string
   username: string
@@ -106,7 +106,7 @@ export interface BookingFaceUserable {
 
 // Producer userable data nested in BookingUser
 export interface BookingProducerUserable {
-  id: number
+  id: string
   display_name: string
   profile_photo_url: string | null
   thumbnail_url: string | null
@@ -125,7 +125,8 @@ export interface BookingUser {
 
 // Booking data from API
 export interface Booking {
-  id: number
+  id: string
+  realtime_channel_key: number
   face_id: number
   producer_id: number
   status: BookingStatusType
@@ -156,7 +157,7 @@ export interface Booking {
 
 // Data for creating a new booking
 export interface CreateBookingData {
-  face_id: number
+  face_id: string
   date_debut: string
   date_fin: string
   duree_heures: number

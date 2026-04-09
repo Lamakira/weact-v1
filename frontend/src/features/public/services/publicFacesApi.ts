@@ -15,7 +15,7 @@ export interface ValueLabel {
 }
 
 export interface PublicFace {
-  id: number
+  id: string
   user_id: number
   username: string
   prenom: string

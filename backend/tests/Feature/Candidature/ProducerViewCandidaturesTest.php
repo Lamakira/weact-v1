@@ -72,7 +72,7 @@ class ProducerViewCandidaturesTest extends TestCase
         }
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/missions/{$this->mission->id}/candidatures");
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -103,7 +103,7 @@ class ProducerViewCandidaturesTest extends TestCase
     public function test_returns_empty_array_when_mission_has_no_candidatures(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/missions/{$this->mission->id}/candidatures");
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures");
 
         $response->assertOk()
             ->assertJsonCount(0, 'data')
@@ -123,7 +123,7 @@ class ProducerViewCandidaturesTest extends TestCase
         }
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/missions/{$this->mission->id}/candidatures");
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures");
 
         $response->assertOk()
             ->assertJsonCount(15, 'data')
@@ -133,7 +133,7 @@ class ProducerViewCandidaturesTest extends TestCase
 
         // Check second page
         $response2 = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/missions/{$this->mission->id}/candidatures?page=2");
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures?page=2");
 
         $response2->assertOk()
             ->assertJsonCount(5, 'data')
@@ -165,7 +165,7 @@ class ProducerViewCandidaturesTest extends TestCase
 
         // Filter by pending
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/missions/{$this->mission->id}/candidatures?status=pending");
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures?status=pending");
 
         $response->assertOk()
             ->assertJsonCount(1, 'data')
@@ -173,7 +173,7 @@ class ProducerViewCandidaturesTest extends TestCase
 
         // Filter by accepted
         $response2 = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/missions/{$this->mission->id}/candidatures?status=accepted");
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures?status=accepted");
 
         $response2->assertOk()
             ->assertJsonCount(1, 'data')
@@ -192,7 +192,7 @@ class ProducerViewCandidaturesTest extends TestCase
         }
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/missions/{$this->mission->id}/candidatures?status=invalid_status");
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures?status=invalid_status");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status']);
@@ -208,10 +208,10 @@ class ProducerViewCandidaturesTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/missions/{$this->mission->id}/candidatures");
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures");
 
         $response->assertOk()
-            ->assertJsonPath('data.0.face.id', $this->face->id)
+            ->assertJsonPath('data.0.face.id', $this->face->uuid)
             ->assertJsonPath('data.0.face.display_name', 'Marie Dupont')
             ->assertJsonPath('data.0.face.city', 'Cotonou')
             ->assertJsonPath('data.0.face.tarif_horaire', 25000)
@@ -229,7 +229,7 @@ class ProducerViewCandidaturesTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/missions/{$this->mission->id}/candidatures");
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures");
 
         $response->assertOk();
 
@@ -260,18 +260,18 @@ class ProducerViewCandidaturesTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/missions/{$this->mission->id}/candidatures");
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures");
 
         $response->assertOk();
 
         $ids = collect($response->json('data'))->pluck('id')->toArray();
-        $this->assertEquals([$candidature3->id, $candidature2->id, $candidature1->id], $ids);
+        $this->assertEquals([$candidature3->uuid, $candidature2->uuid, $candidature1->uuid], $ids);
     }
 
     public function test_returns_403_when_face_tries_to_access_producer_candidatures(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/producer/missions/{$this->mission->id}/candidatures");
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures");
 
         $response->assertForbidden();
     }
@@ -286,7 +286,7 @@ class ProducerViewCandidaturesTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherProducerUser)
-            ->getJson("/api/v1/producer/missions/{$this->mission->id}/candidatures");
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures");
 
         $response->assertForbidden()
             ->assertJson([
@@ -296,7 +296,7 @@ class ProducerViewCandidaturesTest extends TestCase
 
     public function test_returns_401_when_unauthenticated(): void
     {
-        $response = $this->getJson("/api/v1/producer/missions/{$this->mission->id}/candidatures");
+        $response = $this->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures");
 
         $response->assertUnauthorized();
     }
@@ -304,7 +304,7 @@ class ProducerViewCandidaturesTest extends TestCase
     public function test_returns_404_when_mission_does_not_exist(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->getJson('/api/v1/producer/missions/99999/candidatures');
+            ->getJson('/api/v1/producer/missions/00000000-0000-0000-0000-000000000000/candidatures');
 
         $response->assertNotFound();
     }
@@ -331,7 +331,7 @@ class ProducerViewCandidaturesTest extends TestCase
 
         foreach ($statuses as $status) {
             $response = $this->actingAs($this->producerUser)
-                ->getJson("/api/v1/producer/missions/{$this->mission->id}/candidatures?status={$status->value}");
+                ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures?status={$status->value}");
 
             $response->assertOk()
                 ->assertJsonCount(1, 'data')
@@ -358,10 +358,10 @@ class ProducerViewCandidaturesTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/missions/{$this->mission->id}/candidatures");
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures");
 
         $response->assertOk()
             ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.face.id', $this->face->id);
+            ->assertJsonPath('data.0.face.id', $this->face->uuid);
     }
 }

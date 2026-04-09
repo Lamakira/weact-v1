@@ -62,7 +62,7 @@ class PublicArticleDetailTest extends TestCase
             ]);
 
         $data = $response->json('data');
-        $this->assertEquals($article->id, $data['id']);
+        $this->assertEquals($article->uuid, $data['id']);
         $this->assertEquals('Conseils pour votre premier casting', $data['title']);
         $this->assertEquals($article->slug, $data['slug']);
         $this->assertEquals('Découvrez les meilleures pratiques...', $data['excerpt']);

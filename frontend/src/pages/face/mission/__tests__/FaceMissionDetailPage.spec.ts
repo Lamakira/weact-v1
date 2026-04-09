@@ -61,7 +61,7 @@ vi.mock('@/features/mission/composables', () => ({
 // Factory for creating test mission data
 function createMission(overrides: Partial<Mission> = {}): Mission {
   return {
-    id: 1,
+    id: 'mission-uuid-1',
     titre: 'Test Mission',
     description: 'Test mission description',
     date_tournage: '2026-02-15',
@@ -87,7 +87,8 @@ function createMission(overrides: Partial<Mission> = {}): Mission {
 
 function createProducer(overrides: Partial<MissionProducer> = {}): MissionProducer {
   return {
-    id: 1,
+    id: 'producer-uuid-1',
+    slug: 'test-agency',
     type: 'agency',
     agency_name: 'Test Agency',
     first_name: null,
@@ -236,7 +237,7 @@ describe('FaceMissionDetailPage', () => {
   describe('producer link navigation', () => {
     it('renders producer section as router-link', async () => {
       mockMission.value = createMission({
-        producer: createProducer({ id: 42 }),
+        producer: createProducer({ id: 'producer-uuid-42', slug: 'producer-42' }),
       })
 
       const wrapper = mount(FaceMissionDetailPage, {
@@ -256,14 +257,15 @@ describe('FaceMissionDetailPage', () => {
       await flushPromises()
 
       // Find the producer link
-      const producerLink = wrapper.find('a[href="/producers/42"]')
+      const producerLink = wrapper.find('a[href="/producers/producer-42"]')
       expect(producerLink.exists()).toBe(true)
     })
 
     it('has correct aria-label for accessibility', async () => {
       mockMission.value = createMission({
         producer: createProducer({
-          id: 42,
+          id: 'producer-uuid-42',
+          slug: 'studio-xyz',
           display_name: 'Studio XYZ',
           agency_name: 'Studio XYZ',
         }),
@@ -285,7 +287,7 @@ describe('FaceMissionDetailPage', () => {
 
       await flushPromises()
 
-      const link = wrapper.find('a[href="/producers/42"]')
+      const link = wrapper.find('a[href="/producers/studio-xyz"]')
       expect(link.attributes('aria-label')).toBe('Voir le profil de Studio XYZ')
     })
   })

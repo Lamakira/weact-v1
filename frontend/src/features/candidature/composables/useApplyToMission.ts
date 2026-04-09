@@ -23,7 +23,7 @@ export function useApplyToMission() {
    * @returns Result object with success status and data or error
    */
   async function apply(
-    missionId: number,
+    missionId: string,
     motivation?: string,
   ): Promise<ApplyToMissionResult> {
     isLoading.value = true

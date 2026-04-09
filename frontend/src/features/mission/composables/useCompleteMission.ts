@@ -18,7 +18,7 @@ export function useCompleteMission() {
    * @returns Promise resolving to success status, message, and updated mission data
    */
   async function completeMission(
-    missionId: number
+    missionId: string
   ): Promise<{ success: boolean; message: string; data?: Mission }> {
     isCompleting.value = true
     error.value = null

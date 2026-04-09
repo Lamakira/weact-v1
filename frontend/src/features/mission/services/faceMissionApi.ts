@@ -38,7 +38,7 @@ export const faceMissionApi = {
    * @param id The mission ID
    * @returns Mission detail with producer info
    */
-  async getMissionDetail(id: number): Promise<MissionResponse> {
+  async getMissionDetail(id: string): Promise<MissionResponse> {
     const response = await apiClient.get<MissionResponse>(`/face/missions/${id}`)
     return response.data
   },

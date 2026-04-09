@@ -47,7 +47,7 @@ class DeleteMissionTest extends TestCase
     public function test_producer_can_delete_own_published_mission(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->deleteJson("/api/v1/producer/missions/{$this->mission->id}");
+            ->deleteJson("/api/v1/producer/missions/{$this->mission->uuid}");
 
         $response->assertOk()
             ->assertJson([
@@ -68,7 +68,7 @@ class DeleteMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->deleteJson("/api/v1/producer/missions/{$draftMission->id}");
+            ->deleteJson("/api/v1/producer/missions/{$draftMission->uuid}");
 
         $response->assertOk()
             ->assertJson([
@@ -84,7 +84,7 @@ class DeleteMissionTest extends TestCase
 
     public function test_unauthenticated_user_cannot_delete_mission(): void
     {
-        $response = $this->deleteJson("/api/v1/producer/missions/{$this->mission->id}");
+        $response = $this->deleteJson("/api/v1/producer/missions/{$this->mission->uuid}");
 
         $response->assertUnauthorized();
 
@@ -103,7 +103,7 @@ class DeleteMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherUser)
-            ->deleteJson("/api/v1/producer/missions/{$this->mission->id}");
+            ->deleteJson("/api/v1/producer/missions/{$this->mission->uuid}");
 
         $response->assertForbidden();
 
@@ -122,7 +122,7 @@ class DeleteMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($faceUser)
-            ->deleteJson("/api/v1/producer/missions/{$this->mission->id}");
+            ->deleteJson("/api/v1/producer/missions/{$this->mission->uuid}");
 
         $response->assertForbidden();
 
@@ -142,7 +142,7 @@ class DeleteMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->deleteJson("/api/v1/producer/missions/{$closedMission->id}");
+            ->deleteJson("/api/v1/producer/missions/{$closedMission->uuid}");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['mission'])
@@ -165,7 +165,7 @@ class DeleteMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->deleteJson("/api/v1/producer/missions/{$completedMission->id}");
+            ->deleteJson("/api/v1/producer/missions/{$completedMission->uuid}");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['mission'])
@@ -188,7 +188,7 @@ class DeleteMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->deleteJson("/api/v1/producer/missions/{$pendingMission->id}");
+            ->deleteJson("/api/v1/producer/missions/{$pendingMission->uuid}");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['mission'])
@@ -218,7 +218,7 @@ class DeleteMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->deleteJson("/api/v1/producer/missions/{$this->mission->id}");
+            ->deleteJson("/api/v1/producer/missions/{$this->mission->uuid}");
 
         $response->assertOk();
 
@@ -240,7 +240,7 @@ class DeleteMissionTest extends TestCase
     public function test_delete_response_has_correct_format(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->deleteJson("/api/v1/producer/missions/{$this->mission->id}");
+            ->deleteJson("/api/v1/producer/missions/{$this->mission->uuid}");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -256,7 +256,7 @@ class DeleteMissionTest extends TestCase
     public function test_cannot_delete_non_existent_mission(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->deleteJson('/api/v1/producer/missions/99999');
+            ->deleteJson('/api/v1/producer/missions/00000000-0000-0000-0000-000000000000');
 
         $response->assertNotFound();
     }

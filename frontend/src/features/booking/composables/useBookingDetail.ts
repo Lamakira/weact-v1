@@ -7,7 +7,7 @@ export interface UseBookingDetailReturn {
   isLoading: Ref<boolean>
   error: Ref<string | null>
   notFound: Ref<boolean>
-  fetchBooking: (id: number) => Promise<void>
+  fetchBooking: (id: string) => Promise<void>
   refresh: () => Promise<void>
 }
 
@@ -16,9 +16,9 @@ export function useBookingDetail(): UseBookingDetailReturn {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const notFound = ref(false)
-  let currentId: number | null = null
+  let currentId: string | null = null
 
-  async function fetchBooking(id: number): Promise<void> {
+  async function fetchBooking(id: string): Promise<void> {
     currentId = id
     isLoading.value = true
     error.value = null

@@ -6,7 +6,7 @@ import type { CandidateFullProfile } from '../types'
  * Composable for fetching a candidate's full profile (Producer only)
  * Handles loading states, error handling, and data management
  */
-export function useCandidateProfile(faceId: Ref<number>) {
+export function useCandidateProfile(faceId: Ref<string>) {
   const candidate = ref<CandidateFullProfile | null>(null)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
@@ -58,7 +58,7 @@ export function useCandidateProfile(faceId: Ref<number>) {
    */
   async function fetchProfile(): Promise<void> {
     // Validate faceId
-    if (!faceId.value || isNaN(faceId.value) || faceId.value <= 0) {
+    if (!faceId.value) {
       error.value = 'ID de candidat invalide'
       return
     }
@@ -111,7 +111,7 @@ export function useCandidateProfile(faceId: Ref<number>) {
   watch(
     faceId,
     (newId, oldId) => {
-      if (newId !== oldId && newId > 0) {
+      if (newId !== oldId && newId) {
         fetchProfile()
       }
     },
