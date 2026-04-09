@@ -11,10 +11,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Auth;
+use App\Concerns\HasRouteUuid;
 
 class Booking extends Model
 {
     use HasFactory;
+    use HasRouteUuid;
 
     /**
      * The model's default values for attributes.

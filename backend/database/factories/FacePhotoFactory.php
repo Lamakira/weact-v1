@@ -26,6 +26,7 @@ class FacePhotoFactory extends Factory
         $filename = Str::uuid()->toString() . '.jpg';
 
         return [
+            'uuid' => fake()->uuid(),
             'face_id' => Face::factory(),
             'filename' => $filename,
             'thumbnail' => $filename,

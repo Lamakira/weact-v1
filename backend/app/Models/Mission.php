@@ -14,10 +14,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
+use App\Concerns\HasRouteUuid;
 
 class Mission extends Model
 {
     use HasFactory;
+    use HasRouteUuid;
 
     protected static function boot(): void
     {

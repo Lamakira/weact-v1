@@ -25,6 +25,7 @@ class ArticleFactory extends Factory
     public function definition(): array
     {
         return [
+            'uuid' => fake()->uuid(),
             'admin_id' => Admin::factory(),
             'title' => fake()->sentence(6),
             'content' => fake()->paragraphs(5, true),

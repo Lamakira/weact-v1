@@ -21,6 +21,7 @@ class WithdrawalRequestFactory extends Factory
     public function definition(): array
     {
         return [
+            'uuid' => fake()->uuid(),
             'user_id' => User::factory(),
             'amount' => fake()->numberBetween(5000, 80000),
             'payment_mode' => fake()->randomElement(['mtn', 'moov', 'momo_test']),

@@ -36,6 +36,7 @@ class BookingFactory extends Factory
         $pricing = new BookingPricing($tarifBase);
 
         return [
+            'uuid' => fake()->uuid(),
             'face_id' => User::factory()->state([
                 'userable_type' => Face::class,
                 'userable_id' => Face::factory(),
