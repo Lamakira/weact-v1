@@ -30,12 +30,20 @@ class CreateBookingRequest extends FormRequest
         return [
             'face_id' => [
                 'required',
-                'integer',
-                'exists:users,id',
+                'string',
+                'uuid',
                 function (string $attribute, mixed $value, \Closure $fail): void {
-                    $user = User::find($value);
-                    if (! $user || $user->userable_type !== Face::class) {
-                        $fail('L\'utilisateur selectionne n\'est pas une Face.');
+                    $face = Face::where('uuid', $value)->first();
+                    if (! $face) {
+                        $fail('La Face sélectionnée n\'existe pas.');
+
+                        return;
+                    }
+                    $user = User::where('userable_type', Face::class)
+                        ->where('userable_id', $face->id)
+                        ->first();
+                    if (! $user) {
+                        $fail('L\'utilisateur associé à cette Face est introuvable.');
                     }
                 },
             ],
@@ -71,14 +79,21 @@ class CreateBookingRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
-            $faceId = $this->integer('face_id');
+            $faceUuid = $this->input('face_id');
             $dateDebut = $this->input('date_debut');
             $dateFin = $this->input('date_fin');
             $dureeHeures = $this->integer('duree_heures');
 
-            if ($faceId <= 0 || ! is_string($dateDebut) || ! is_string($dateFin) || $dureeHeures <= 0) {
+            if (! is_string($faceUuid) || ! is_string($dateDebut) || ! is_string($dateFin) || $dureeHeures <= 0) {
                 return;
             }
+
+            $face = Face::where('uuid', $faceUuid)->first();
+            $faceUser = $face ? User::where('userable_type', Face::class)->where('userable_id', $face->id)->first() : null;
+            if (! $faceUser) {
+                return;
+            }
+            $faceId = $faceUser->id;
 
             try {
                 $start = CarbonImmutable::parse($dateDebut)->startOfDay();

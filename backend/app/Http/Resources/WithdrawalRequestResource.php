@@ -21,7 +21,7 @@ class WithdrawalRequestResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
             'amount' => (int) $this->amount,
             'payment_mode' => $this->payment_mode,
             'phone_number' => $this->phone_number,

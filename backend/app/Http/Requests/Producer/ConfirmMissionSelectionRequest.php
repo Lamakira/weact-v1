@@ -31,7 +31,7 @@ class ConfirmMissionSelectionRequest extends FormRequest
     {
         return [
             'candidature_ids' => ['required', 'array', 'min:1'],
-            'candidature_ids.*' => ['required', 'integer', 'exists:candidatures,id'],
+            'candidature_ids.*' => ['required', 'string', 'uuid', 'exists:candidatures,uuid'],
         ];
     }
 

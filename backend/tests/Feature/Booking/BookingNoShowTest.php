@@ -69,7 +69,7 @@ class BookingNoShowTest extends TestCase
         ]);
 
         $response = $this->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/report-no-show");
+            ->postJson("/api/v1/bookings/{$booking->uuid}/report-no-show");
 
         $response->assertOk()
             ->assertJsonPath('data.status', BookingStatus::NoShow->value);
@@ -121,7 +121,7 @@ class BookingNoShowTest extends TestCase
         ]);
 
         $response = $this->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/report-no-show");
+            ->postJson("/api/v1/bookings/{$booking->uuid}/report-no-show");
 
         $response->assertUnprocessable();
     }
@@ -135,7 +135,7 @@ class BookingNoShowTest extends TestCase
         ]);
 
         $response = $this->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/report-no-show");
+            ->postJson("/api/v1/bookings/{$booking->uuid}/report-no-show");
 
         $response->assertUnprocessable();
     }
@@ -149,7 +149,7 @@ class BookingNoShowTest extends TestCase
         ]);
 
         $response = $this->withApiToken($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/report-no-show");
+            ->postJson("/api/v1/bookings/{$booking->uuid}/report-no-show");
 
         $response->assertForbidden();
     }
@@ -173,12 +173,12 @@ class BookingNoShowTest extends TestCase
 
         // First report succeeds
         $this->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/report-no-show")
+            ->postJson("/api/v1/bookings/{$booking->uuid}/report-no-show")
             ->assertOk();
 
         // Second report fails (status is now no_show, not paid)
         $response = $this->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/report-no-show");
+            ->postJson("/api/v1/bookings/{$booking->uuid}/report-no-show");
 
         $response->assertUnprocessable();
     }
@@ -193,7 +193,7 @@ class BookingNoShowTest extends TestCase
         ]);
 
         $response = $this->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/report-no-show");
+            ->postJson("/api/v1/bookings/{$booking->uuid}/report-no-show");
 
         $response->assertStatus(500);
 
@@ -235,7 +235,7 @@ class BookingNoShowTest extends TestCase
         ]);
 
         $this->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/report-no-show")
+            ->postJson("/api/v1/bookings/{$booking->uuid}/report-no-show")
             ->assertOk();
 
         $this->assertTrue(

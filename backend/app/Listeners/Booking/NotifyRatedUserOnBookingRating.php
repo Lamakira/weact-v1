@@ -27,8 +27,8 @@ class NotifyRatedUserOnBookingRating
             // Determine the URL based on which role was rated
             $isRatedFace = $rating->rated_id === $booking->face_id;
             $url = $isRatedFace
-                ? "/face/bookings/{$booking->id}"
-                : "/producer/bookings/{$booking->id}";
+                ? "/face/bookings/{$booking->uuid}"
+                : "/producer/bookings/{$booking->uuid}";
 
             Notification::create([
                 'user_id' => $rating->rated_id,

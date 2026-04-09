@@ -86,6 +86,7 @@ class PublicMissionDetailTest extends TestCase
                     'created_at',
                     'producer' => [
                         'id',
+                        'slug',
                         'display_name',
                         'profile_photo_thumbnail_url',
                         'average_rating',
@@ -96,7 +97,7 @@ class PublicMissionDetailTest extends TestCase
             ]);
 
         $data = $response->json('data');
-        $this->assertEquals($mission->id, $data['id']);
+        $this->assertEquals($mission->uuid, $data['id']);
         $this->assertEquals('Casting publicité MTN', $data['titre']);
         $this->assertEquals('Recherche comédien(ne) pour spot TV', $data['description']);
         $this->assertEquals(150000, $data['budget']);
@@ -159,7 +160,8 @@ class PublicMissionDetailTest extends TestCase
         $response->assertOk();
 
         $producerData = $response->json('data.producer');
-        $this->assertEquals($producer->id, $producerData['id']);
+        $this->assertEquals($producer->uuid, $producerData['id']);
+        $this->assertEquals($producer->slug, $producerData['slug']);
         $this->assertEquals($producer->display_name, $producerData['display_name']);
         $this->assertArrayHasKey('profile_photo_thumbnail_url', $producerData);
         $this->assertEquals(4.5, $producerData['average_rating']);
@@ -261,7 +263,7 @@ class PublicMissionDetailTest extends TestCase
 
         $data = $response->json('data');
 
-        $this->assertIsInt($data['id']);
+        $this->assertIsString($data['id']);
         $this->assertIsString($data['titre']);
         $this->assertIsString($data['description']);
         $this->assertIsInt($data['budget']);
@@ -276,7 +278,8 @@ class PublicMissionDetailTest extends TestCase
         $this->assertIsString($data['created_at']);
 
         // Producer nested object
-        $this->assertIsInt($data['producer']['id']);
+        $this->assertIsString($data['producer']['id']);
+        $this->assertIsString($data['producer']['slug']);
         $this->assertIsString($data['producer']['display_name']);
         $this->assertIsInt($data['producer']['ratings_count']);
     }

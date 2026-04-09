@@ -105,6 +105,7 @@ class MissionSchemaTest extends TestCase
         // Insert directly without specifying status
         $missionId = \DB::table('missions')->insertGetId([
             'producer_id' => $producer->id,
+            'uuid' => \Illuminate\Support\Str::uuid()->toString(),
             'titre' => 'Direct Insert Test',
             'slug' => 'direct-insert-test',
             'description' => 'Test description',

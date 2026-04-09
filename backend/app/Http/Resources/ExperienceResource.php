@@ -17,7 +17,7 @@ class ExperienceResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
             'titre' => $this->titre,
             'description' => $this->description,
             'date_debut' => $this->date_debut?->format('Y-m-d'),

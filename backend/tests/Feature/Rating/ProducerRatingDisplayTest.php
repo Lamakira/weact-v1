@@ -205,7 +205,7 @@ class ProducerRatingDisplayTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/public/producers/{$this->producer->id}");
+            ->getJson("/api/v1/public/producers/{$this->producer->slug}");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.ratings_count', 1);
@@ -217,7 +217,7 @@ class ProducerRatingDisplayTest extends TestCase
     public function test_public_producer_without_ratings_shows_null_average(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/public/producers/{$this->producer->id}");
+            ->getJson("/api/v1/public/producers/{$this->producer->slug}");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.average_rating', null)
@@ -243,7 +243,7 @@ class ProducerRatingDisplayTest extends TestCase
 
         // Producer viewing their own public profile
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/public/producers/{$this->producer->id}");
+            ->getJson("/api/v1/public/producers/{$this->producer->slug}");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.ratings_count', 1);

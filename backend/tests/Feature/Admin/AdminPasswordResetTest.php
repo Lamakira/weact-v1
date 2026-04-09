@@ -192,7 +192,7 @@ class AdminPasswordResetTest extends TestCase
         ]);
 
         $response = $this->actingAs($superadmin, 'sanctum')
-            ->postJson("/api/v1/admin/admins/{$targetAdmin->id}/send-reset-link");
+            ->postJson("/api/v1/admin/admins/{$targetAdmin->uuid}/send-reset-link");
 
         $response->assertOk()
             ->assertJson([
@@ -208,7 +208,7 @@ class AdminPasswordResetTest extends TestCase
         $targetAdmin = Admin::factory()->create(['role' => AdminRole::Admin]);
 
         $response = $this->actingAs($admin, 'sanctum')
-            ->postJson("/api/v1/admin/admins/{$targetAdmin->id}/send-reset-link");
+            ->postJson("/api/v1/admin/admins/{$targetAdmin->uuid}/send-reset-link");
 
         $response->assertForbidden();
     }
@@ -219,7 +219,7 @@ class AdminPasswordResetTest extends TestCase
         $targetAdmin = Admin::factory()->create(['role' => AdminRole::Admin]);
 
         $response = $this->actingAs($editor, 'sanctum')
-            ->postJson("/api/v1/admin/admins/{$targetAdmin->id}/send-reset-link");
+            ->postJson("/api/v1/admin/admins/{$targetAdmin->uuid}/send-reset-link");
 
         $response->assertForbidden();
     }

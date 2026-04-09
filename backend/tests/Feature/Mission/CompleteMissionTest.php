@@ -97,7 +97,7 @@ class CompleteMissionTest extends TestCase
         $candidature = $this->createPaidSelection($this->closedMission, CandidatureStatus::Confirmed);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$this->closedMission->id}/complete");
+            ->postJson("/api/v1/producer/missions/{$this->closedMission->uuid}/complete");
 
         $response->assertOk()
             ->assertJsonPath('data.status', 'completed')
@@ -130,7 +130,7 @@ class CompleteMissionTest extends TestCase
     public function test_cannot_complete_published_mission(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$this->publishedMission->id}/complete");
+            ->postJson("/api/v1/producer/missions/{$this->publishedMission->uuid}/complete");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status'])
@@ -140,7 +140,7 @@ class CompleteMissionTest extends TestCase
     public function test_cannot_complete_closed_mission_without_paid_payment(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$this->closedMission->id}/complete");
+            ->postJson("/api/v1/producer/missions/{$this->closedMission->uuid}/complete");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status'])
@@ -152,7 +152,7 @@ class CompleteMissionTest extends TestCase
         $this->createPaidSelection($this->closedMission, CandidatureStatus::Accepted);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$this->closedMission->id}/complete");
+            ->postJson("/api/v1/producer/missions/{$this->closedMission->uuid}/complete");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['candidatures'])
@@ -166,7 +166,7 @@ class CompleteMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$draftMission->id}/complete");
+            ->postJson("/api/v1/producer/missions/{$draftMission->uuid}/complete");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status'])
@@ -180,7 +180,7 @@ class CompleteMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$completedMission->id}/complete");
+            ->postJson("/api/v1/producer/missions/{$completedMission->uuid}/complete");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status'])
@@ -196,14 +196,14 @@ class CompleteMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherUser)
-            ->postJson("/api/v1/producer/missions/{$this->closedMission->id}/complete");
+            ->postJson("/api/v1/producer/missions/{$this->closedMission->uuid}/complete");
 
         $response->assertForbidden();
     }
 
     public function test_unauthenticated_user_cannot_complete_mission(): void
     {
-        $response = $this->postJson("/api/v1/producer/missions/{$this->closedMission->id}/complete");
+        $response = $this->postJson("/api/v1/producer/missions/{$this->closedMission->uuid}/complete");
 
         $response->assertUnauthorized();
     }
@@ -211,7 +211,7 @@ class CompleteMissionTest extends TestCase
     public function test_complete_nonexistent_mission_returns_404(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson('/api/v1/producer/missions/999999/complete');
+            ->postJson('/api/v1/producer/missions/00000000-0000-0000-0000-000000000000/complete');
 
         $response->assertNotFound();
     }

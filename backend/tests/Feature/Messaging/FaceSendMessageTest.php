@@ -78,7 +78,7 @@ class FaceSendMessageTest extends TestCase
     public function test_face_can_view_conversation_after_acceptance(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -101,7 +101,7 @@ class FaceSendMessageTest extends TestCase
     public function test_conversation_response_includes_mission_title(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertOk()
             ->assertJsonPath('data.mission_title', $this->mission->titre);
@@ -110,11 +110,11 @@ class FaceSendMessageTest extends TestCase
     public function test_conversation_response_shows_producer_as_other_participant_for_face(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertOk()
             ->assertJsonPath('data.other_participant.type', 'producer')
-            ->assertJsonPath('data.other_participant.id', $this->producer->id)
+            ->assertJsonPath('data.other_participant.id', $this->producer->uuid)
             ->assertJsonPath('data.other_participant.name', $this->producer->display_name);
     }
 
@@ -125,7 +125,7 @@ class FaceSendMessageTest extends TestCase
     public function test_face_can_send_message_to_conversation(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Bonjour, je suis intéressé par cette mission.',
             ]);
 
@@ -158,7 +158,7 @@ class FaceSendMessageTest extends TestCase
     public function test_message_includes_correct_sender_data(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Test message content',
             ]);
 
@@ -172,7 +172,7 @@ class FaceSendMessageTest extends TestCase
     public function test_message_read_at_is_null_on_creation(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Test message',
             ]);
 
@@ -183,7 +183,7 @@ class FaceSendMessageTest extends TestCase
     public function test_message_has_created_at_timestamp(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Test message',
             ]);
 
@@ -205,7 +205,7 @@ class FaceSendMessageTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         // View is allowed (user is participant), but sendMessage would be denied
         // The view() policy only checks if user is participant, not status
@@ -219,7 +219,7 @@ class FaceSendMessageTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Should fail',
             ]);
 
@@ -233,7 +233,7 @@ class FaceSendMessageTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Should fail',
             ]);
 
@@ -272,7 +272,7 @@ class FaceSendMessageTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertOk();
 
@@ -302,7 +302,7 @@ class FaceSendMessageTest extends TestCase
 
         // Face views the conversation
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertOk();
 
@@ -324,7 +324,7 @@ class FaceSendMessageTest extends TestCase
 
         // Face views the conversation
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertOk();
 
@@ -370,7 +370,7 @@ class FaceSendMessageTest extends TestCase
     public function test_empty_message_returns_validation_error(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => '',
             ]);
 
@@ -381,7 +381,7 @@ class FaceSendMessageTest extends TestCase
     public function test_whitespace_only_message_returns_validation_error(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => '   ',
             ]);
 
@@ -392,7 +392,7 @@ class FaceSendMessageTest extends TestCase
     public function test_missing_content_returns_validation_error(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", []);
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", []);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['content']);
@@ -403,7 +403,7 @@ class FaceSendMessageTest extends TestCase
         $longContent = str_repeat('a', 5001);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => $longContent,
             ]);
 
@@ -416,7 +416,7 @@ class FaceSendMessageTest extends TestCase
         $content = str_repeat('a', 5000);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => $content,
             ]);
 
@@ -437,7 +437,7 @@ class FaceSendMessageTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherFaceUser)
-            ->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertForbidden();
     }
@@ -452,7 +452,7 @@ class FaceSendMessageTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherFaceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Trying to send to other conversation',
             ]);
 
@@ -465,14 +465,14 @@ class FaceSendMessageTest extends TestCase
 
     public function test_unauthenticated_user_cannot_view_conversation(): void
     {
-        $response = $this->getJson("/api/v1/face/conversations/{$this->conversation->id}");
+        $response = $this->getJson("/api/v1/face/conversations/{$this->conversation->uuid}");
 
         $response->assertUnauthorized();
     }
 
     public function test_unauthenticated_user_cannot_send_message(): void
     {
-        $response = $this->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+        $response = $this->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
             'content' => 'Test',
         ]);
 
@@ -486,7 +486,7 @@ class FaceSendMessageTest extends TestCase
     public function test_returns_404_for_non_existent_conversation(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/conversations/99999');
+            ->getJson('/api/v1/face/conversations/00000000-0000-0000-0000-000000000000');
 
         $response->assertNotFound();
     }
@@ -501,7 +501,7 @@ class FaceSendMessageTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Message after confirmation',
             ]);
 
@@ -514,7 +514,7 @@ class FaceSendMessageTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Message during mission',
             ]);
 
@@ -527,7 +527,7 @@ class FaceSendMessageTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => 'Message after completion',
             ]);
 
@@ -544,7 +544,7 @@ class FaceSendMessageTest extends TestCase
             ->getJson('/api/v1/face/candidatures');
 
         $response->assertOk()
-            ->assertJsonPath('data.0.conversation_id', $this->conversation->id);
+            ->assertJsonPath('data.0.conversation_id', $this->conversation->uuid);
     }
 
     public function test_face_candidatures_list_has_null_conversation_id_when_no_conversation(): void
@@ -570,12 +570,12 @@ class FaceSendMessageTest extends TestCase
         $candidatures = $response->json('data');
 
         // Find the pending candidature in the response
-        $pendingItem = collect($candidatures)->firstWhere('id', $pendingCandidature->id);
+        $pendingItem = collect($candidatures)->firstWhere('id', $pendingCandidature->uuid);
         $this->assertNull($pendingItem['conversation_id']);
 
         // The accepted candidature should have conversation_id
-        $acceptedItem = collect($candidatures)->firstWhere('id', $this->candidature->id);
-        $this->assertEquals($this->conversation->id, $acceptedItem['conversation_id']);
+        $acceptedItem = collect($candidatures)->firstWhere('id', $this->candidature->uuid);
+        $this->assertEquals($this->conversation->uuid, $acceptedItem['conversation_id']);
     }
 
     // ==========================================================================
@@ -585,7 +585,7 @@ class FaceSendMessageTest extends TestCase
     public function test_empty_message_returns_french_error_message(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => '',
             ]);
 
@@ -596,7 +596,7 @@ class FaceSendMessageTest extends TestCase
     public function test_long_message_returns_french_error_message(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/conversations/{$this->conversation->id}/messages", [
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", [
                 'content' => str_repeat('a', 5001),
             ]);
 

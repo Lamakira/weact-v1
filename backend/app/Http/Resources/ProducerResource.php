@@ -21,7 +21,8 @@ class ProducerResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
+            'slug' => $this->slug,
             'type' => $this->type?->value ?? $this->type,
             'agency_name' => $this->agency_name,
             'first_name' => $this->first_name,

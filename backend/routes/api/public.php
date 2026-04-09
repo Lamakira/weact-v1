@@ -32,16 +32,13 @@ Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
     Route::get('/faces/{username}', [FaceController::class, 'show']);
 
     // Producer public profile
-    Route::get('/producers/{id}', [ProducerController::class, 'show'])
-        ->whereNumber('id');
+    Route::get('/producers/{producer:slug}', [ProducerController::class, 'show']);
 
     // Producer reviews list
-    Route::get('/producers/{id}/reviews', [ProducerReviewController::class, 'index'])
-        ->whereNumber('id');
+    Route::get('/producers/{producer:slug}/reviews', [ProducerReviewController::class, 'index']);
 
     // Face reviews list
-    Route::get('/faces/{id}/reviews', [FaceReviewController::class, 'index'])
-        ->whereNumber('id');
+    Route::get('/faces/{face:username}/reviews', [FaceReviewController::class, 'index']);
 
     // Public Articles list (paginated)
     Route::get('/articles', [ArticleController::class, 'index']);

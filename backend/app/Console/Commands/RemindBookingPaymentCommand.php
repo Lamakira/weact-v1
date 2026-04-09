@@ -55,7 +55,7 @@ class RemindBookingPaymentCommand extends Command
                     'data'    => [
                         'message'    => "Rappel : votre booking avec {$faceName} expire dans environ {$hoursLeft}h. Payez maintenant pour ne pas le perdre.",
                         'booking_id' => $booking->id,
-                        'url'        => "/producer/bookings/{$booking->id}",
+                        'url'        => "/producer/bookings/{$booking->uuid}",
                     ],
                 ]);
 

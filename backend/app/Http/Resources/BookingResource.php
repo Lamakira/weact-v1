@@ -21,7 +21,8 @@ class BookingResource extends JsonResource
         $user = Auth::user();
 
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
+            'realtime_channel_key' => $this->id,
             'face_id' => $this->face_id,
             'producer_id' => $this->producer_id,
             'status' => $this->status?->value,

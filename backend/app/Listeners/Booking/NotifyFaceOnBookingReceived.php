@@ -31,7 +31,7 @@ class NotifyFaceOnBookingReceived
                 'data'    => [
                     'message'    => "{$producerName} souhaite vous booker pour {$booking->type_contenu} le {$formattedDate}",
                     'booking_id' => $booking->id,
-                    'url'        => "/face/bookings/{$booking->id}",
+                    'url'        => "/face/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {

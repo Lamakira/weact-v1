@@ -76,7 +76,7 @@ class AdminWithdrawalRequestTest extends TestCase
         ]);
 
         $this->withAdminApiToken($this->admin)
-            ->postJson("/api/v1/admin/finance/withdrawal-requests/{$withdrawalRequest->id}/approve", [
+            ->postJson("/api/v1/admin/finance/withdrawal-requests/{$withdrawalRequest->uuid}/approve", [
                 'notes' => 'Traite via depot manuel.',
             ])
             ->assertOk()
@@ -119,7 +119,7 @@ class AdminWithdrawalRequestTest extends TestCase
             ->update(['balance' => 5000]);
 
         $this->withAdminApiToken($this->admin)
-            ->postJson("/api/v1/admin/finance/withdrawal-requests/{$withdrawalRequest->id}/approve")
+            ->postJson("/api/v1/admin/finance/withdrawal-requests/{$withdrawalRequest->uuid}/approve")
             ->assertStatus(422)
             ->assertJsonPath('message', 'Solde insuffisant au moment de l’approbation. L’utilisateur a probablement dépensé une partie de ses fonds.');
 
@@ -169,7 +169,7 @@ class AdminWithdrawalRequestTest extends TestCase
         ]);
 
         $this->withAdminApiToken($this->admin)
-            ->postJson("/api/v1/admin/finance/withdrawal-requests/{$withdrawalRequest->id}/reject", [
+            ->postJson("/api/v1/admin/finance/withdrawal-requests/{$withdrawalRequest->uuid}/reject", [
                 'notes' => 'Numero invalide',
             ])
             ->assertOk()
@@ -232,7 +232,7 @@ class AdminWithdrawalRequestTest extends TestCase
         ]);
 
         $this->withAdminApiToken($this->admin)
-            ->postJson("/api/v1/admin/finance/withdrawal-requests/{$withdrawalRequest->id}/approve", [
+            ->postJson("/api/v1/admin/finance/withdrawal-requests/{$withdrawalRequest->uuid}/approve", [
                 'notes' => 'Traite via depot manuel.',
             ])
             ->assertOk();
@@ -264,7 +264,7 @@ class AdminWithdrawalRequestTest extends TestCase
         ]);
 
         $this->withAdminApiToken($this->admin)
-            ->postJson("/api/v1/admin/finance/withdrawal-requests/{$withdrawalRequest->id}/reject", [
+            ->postJson("/api/v1/admin/finance/withdrawal-requests/{$withdrawalRequest->uuid}/reject", [
                 'notes' => 'Numero invalide',
             ])
             ->assertOk();

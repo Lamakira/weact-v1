@@ -50,7 +50,7 @@ class AdminListTest extends TestCase
 
         $data = $response->json('data');
 
-        $this->assertEquals($newerAdmin->id, $data[0]['id']);
+        $this->assertEquals($newerAdmin->uuid, $data[0]['id']);
     }
 
     public function test_paginates_results_correctly(): void

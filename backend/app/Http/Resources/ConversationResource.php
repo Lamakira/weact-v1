@@ -25,7 +25,7 @@ class ConversationResource extends JsonResource
         $currentUser = $request->user();
 
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
             'candidature_id' => $this->candidature_id,
             'mission_title' => $this->candidature?->mission?->titre ?? '',
             'other_participant' => $this->getOtherParticipant($currentUser),
@@ -63,7 +63,7 @@ class ConversationResource extends JsonResource
             }
 
             return [
-                'id' => $producer->id,
+                'id' => $producer->uuid,
                 'name' => $producer->display_name,
                 'photo_url' => $producer->profile_photo_url,
                 'type' => 'producer',
@@ -78,7 +78,7 @@ class ConversationResource extends JsonResource
         }
 
         return [
-            'id' => $face->id,
+            'id' => $face->uuid,
             'name' => $face->display_name,
             'photo_url' => $face->profile_photo_url,
             'type' => 'face',

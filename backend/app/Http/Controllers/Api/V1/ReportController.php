@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Report;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -19,7 +20,7 @@ class ReportController extends Controller
     {
         $validated = $request->validate([
             'reportable_type' => ['required', 'string', 'in:face,mission'],
-            'reportable_id' => ['required', 'integer', 'min:1'],
+            'reportable_id' => ['required'],
             'reason' => ['required', 'string', 'in:contenu_inapproprie,usurpation_identite,harcelement,fraude,autre'],
             'description' => ['nullable', 'string', 'max:1000'],
         ], [
@@ -38,7 +39,9 @@ class ReportController extends Controller
         ];
 
         $modelClass = $typeMap[$validated['reportable_type']];
-        if (!$modelClass::where('id', $validated['reportable_id'])->exists()) {
+        $reportable = $this->resolveReportable($modelClass, (string) $validated['reportable_id']);
+
+        if (!$reportable) {
             return response()->json([
                 'error' => [
                     'code' => 'not_found',
@@ -51,7 +54,7 @@ class ReportController extends Controller
             $report = Report::create([
                 'reporter_id' => $request->user()->id,
                 'reportable_type' => $modelClass,
-                'reportable_id' => $validated['reportable_id'],
+                'reportable_id' => $reportable->getKey(),
                 'reason' => $validated['reason'],
                 'description' => $validated['description'] ?? null,
             ]);
@@ -74,5 +77,26 @@ class ReportController extends Controller
     private function isDuplicateReportConstraintViolation(QueryException $exception): bool
     {
         return ($exception->errorInfo[0] ?? null) === '23000';
+    }
+
+    /**
+     * Resolve a reportable model from either its legacy numeric ID or its public UUID.
+     *
+     * @param class-string<Model> $modelClass
+     */
+    private function resolveReportable(string $modelClass, string $identifier): ?Model
+    {
+        $query = $modelClass::query();
+
+        if (ctype_digit($identifier)) {
+            $reportable = $query->find((int) $identifier);
+            if ($reportable) {
+                return $reportable;
+            }
+        }
+
+        return $modelClass::query()
+            ->where('uuid', $identifier)
+            ->first();
     }
 }

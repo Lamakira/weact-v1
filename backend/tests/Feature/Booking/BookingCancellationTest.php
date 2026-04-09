@@ -63,7 +63,7 @@ class BookingCancellationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'schedule_conflict',
             ]);
 
@@ -100,7 +100,7 @@ class BookingCancellationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'acceptance_expired',
             ]);
 
@@ -151,7 +151,7 @@ class BookingCancellationTest extends TestCase
         });
 
         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'other',
                 'custom_cancellation_reason' => 'La production a été reportée.',
             ]);
@@ -205,7 +205,7 @@ class BookingCancellationTest extends TestCase
         });
 
         $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'other',
                 'custom_cancellation_reason' => 'La production a été reportée.',
             ])
@@ -228,7 +228,7 @@ class BookingCancellationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)->withApiToken($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'schedule_conflict',
             ]);
 
@@ -260,7 +260,7 @@ class BookingCancellationTest extends TestCase
         ]);
 
         $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'acceptance_expired',
             ])
             ->assertOk();
@@ -287,7 +287,7 @@ class BookingCancellationTest extends TestCase
         ]);
 
         $this->actingAs($this->faceUser)->withApiToken($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'schedule_conflict',
             ])
             ->assertOk();
@@ -314,7 +314,7 @@ class BookingCancellationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'other',
                 'custom_cancellation_reason' => 'Le client final a reporté la campagne.',
             ]);
@@ -363,7 +363,7 @@ class BookingCancellationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)->withApiToken($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'schedule_conflict',
             ]);
 
@@ -378,7 +378,7 @@ class BookingCancellationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", []);
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", []);
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors('cancellation_reason');
@@ -392,7 +392,7 @@ class BookingCancellationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'invalid_reason',
             ]);
 
@@ -408,7 +408,7 @@ class BookingCancellationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'other',
             ]);
 
@@ -424,7 +424,7 @@ class BookingCancellationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'schedule_conflict',
                 'custom_cancellation_reason' => 'This should be ignored.',
             ]);
@@ -448,7 +448,7 @@ class BookingCancellationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'other',
                 'custom_cancellation_reason' => '   ',
             ]);
@@ -465,7 +465,7 @@ class BookingCancellationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'other',
                 'custom_cancellation_reason' => 'Annulation déjà effectuée.',
             ]);
@@ -481,7 +481,7 @@ class BookingCancellationTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'other',
                 'custom_cancellation_reason' => 'Annulation déjà effectuée.',
             ]);

@@ -77,7 +77,7 @@ class BookingPaymentTest extends TestCase
         });
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay");
+            ->postJson("/api/v1/bookings/{$this->acceptedBooking->uuid}/pay");
 
         $response->assertOk()
             ->assertJsonPath('data.fedapay_transaction_id', 12345678)
@@ -98,7 +98,7 @@ class BookingPaymentTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$pendingBooking->id}/pay");
+            ->postJson("/api/v1/bookings/{$pendingBooking->uuid}/pay");
 
         $response->assertForbidden();
     }
@@ -106,14 +106,14 @@ class BookingPaymentTest extends TestCase
     public function test_face_cannot_initiate_payment(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay");
+            ->postJson("/api/v1/bookings/{$this->acceptedBooking->uuid}/pay");
 
         $response->assertForbidden();
     }
 
     public function test_unauthenticated_user_gets_401_on_pay(): void
     {
-        $this->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay")
+        $this->postJson("/api/v1/bookings/{$this->acceptedBooking->uuid}/pay")
             ->assertUnauthorized();
     }
 
@@ -129,7 +129,7 @@ class BookingPaymentTest extends TestCase
         });
 
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay")
+            ->postJson("/api/v1/bookings/{$this->acceptedBooking->uuid}/pay")
             ->assertOk();
 
         $this->assertDatabaseHas('financial_events', [
@@ -315,7 +315,7 @@ class BookingPaymentTest extends TestCase
         });
 
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay")
+            ->postJson("/api/v1/bookings/{$this->acceptedBooking->uuid}/pay")
             ->assertOk();
 
         $event = FinancialEvent::where('booking_id', $this->acceptedBooking->id)->first();
@@ -342,7 +342,7 @@ class BookingPaymentTest extends TestCase
         });
 
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$this->acceptedBooking->id}/pay")
+            ->postJson("/api/v1/bookings/{$this->acceptedBooking->uuid}/pay")
             ->assertOk();
 
         $event = FinancialEvent::where('booking_id', $this->acceptedBooking->id)->first();

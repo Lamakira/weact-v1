@@ -27,7 +27,8 @@ class PublicProducerResource extends JsonResource
         // Note: Carbon locale is set globally in AppServiceProvider
 
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
+            'slug' => $this->slug,
             'type' => $this->type?->value ?? $this->type,
             'display_name' => $this->display_name,
             'agency_name' => $this->agency_name,

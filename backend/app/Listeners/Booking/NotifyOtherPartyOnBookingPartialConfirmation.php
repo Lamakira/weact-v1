@@ -27,8 +27,8 @@ class NotifyOtherPartyOnBookingPartialConfirmation
                         : 'Le producteur a confirmé. À votre tour !',
                     'booking_id' => $booking->id,
                     'url' => $isFace
-                        ? "/producer/bookings/{$booking->id}"
-                        : "/face/bookings/{$booking->id}",
+                        ? "/producer/bookings/{$booking->uuid}"
+                        : "/face/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {

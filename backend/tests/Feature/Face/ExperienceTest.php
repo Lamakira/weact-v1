@@ -273,13 +273,13 @@ class ExperienceTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/experiences/{$experience->id}");
+            ->getJson("/api/v1/face/experiences/{$experience->uuid}");
 
         $response->assertOk()
             ->assertJsonStructure([
                 'data' => ['id', 'titre', 'description', 'date_debut', 'date_fin', 'is_ongoing', 'formatted_period', 'created_at', 'updated_at'],
             ])
-            ->assertJsonPath('data.id', $experience->id)
+            ->assertJsonPath('data.id', $experience->uuid)
             ->assertJsonPath('data.titre', 'Mon expérience')
             ->assertJsonPath('data.date_debut', '2023-01-15')
             ->assertJsonPath('data.date_fin', '2023-06-30')
@@ -295,7 +295,7 @@ class ExperienceTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/experiences/{$experience->id}");
+            ->getJson("/api/v1/face/experiences/{$experience->uuid}");
 
         $response->assertOk()
             ->assertJsonPath('data.date_fin', null)
@@ -309,7 +309,7 @@ class ExperienceTest extends TestCase
         $experience = Experience::factory()->create(['face_id' => $otherFace->id]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/face/experiences/{$experience->id}");
+            ->getJson("/api/v1/face/experiences/{$experience->uuid}");
 
         $response->assertForbidden()
             ->assertJsonPath('error.code', 'FORBIDDEN')
@@ -324,7 +324,7 @@ class ExperienceTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->putJson("/api/v1/face/experiences/{$experience->id}", [
+            ->putJson("/api/v1/face/experiences/{$experience->uuid}", [
                 'titre' => 'Nouveau titre',
                 'description' => 'Nouvelle description',
                 'date_debut' => '2024-01-15',
@@ -356,7 +356,7 @@ class ExperienceTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->putJson("/api/v1/face/experiences/{$experience->id}", [
+            ->putJson("/api/v1/face/experiences/{$experience->uuid}", [
                 'titre' => 'Expérience maintenant en cours',
                 'date_debut' => '2024-01-01',
                 'date_fin' => null,
@@ -374,7 +374,7 @@ class ExperienceTest extends TestCase
         $experience = Experience::factory()->create(['face_id' => $otherFace->id]);
 
         $response = $this->actingAs($this->faceUser)
-            ->putJson("/api/v1/face/experiences/{$experience->id}", [
+            ->putJson("/api/v1/face/experiences/{$experience->uuid}", [
                 'titre' => 'Tentative de modification',
                 'date_debut' => '2024-01-01',
             ]);
@@ -387,7 +387,7 @@ class ExperienceTest extends TestCase
         $experience = Experience::factory()->create(['face_id' => $this->face->id]);
 
         $response = $this->actingAs($this->faceUser)
-            ->deleteJson("/api/v1/face/experiences/{$experience->id}");
+            ->deleteJson("/api/v1/face/experiences/{$experience->uuid}");
 
         $response->assertOk()
             ->assertJsonPath('message', 'Expérience supprimée avec succès');
@@ -401,7 +401,7 @@ class ExperienceTest extends TestCase
         $experience = Experience::factory()->create(['face_id' => $otherFace->id]);
 
         $response = $this->actingAs($this->faceUser)
-            ->deleteJson("/api/v1/face/experiences/{$experience->id}");
+            ->deleteJson("/api/v1/face/experiences/{$experience->uuid}");
 
         $response->assertForbidden()
             ->assertJsonPath('error.code', 'FORBIDDEN');

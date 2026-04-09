@@ -27,7 +27,7 @@ class PublicFaceProfileResource extends JsonResource
         $albumPhotosCount = $this->photos->count();
 
         return [
-            'id' => $this->id,
+            'id' => $this->uuid,
             'user_id' => $this->user?->id,
             'username' => $this->username,
             'prenom' => $this->prenom,

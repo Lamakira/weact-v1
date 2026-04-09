@@ -44,12 +44,12 @@ class CloseMissionTest extends TestCase
     public function test_producer_can_close_published_mission(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$this->mission->id}/close");
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/close");
 
         $response->assertOk()
             ->assertJson([
                 'data' => [
-                    'id' => $this->mission->id,
+                    'id' => $this->mission->uuid,
                     'status' => 'closed',
                 ],
                 'message' => 'Mission clôturée avec succès',
@@ -68,7 +68,7 @@ class CloseMissionTest extends TestCase
     public function test_closed_mission_has_correct_status_label(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$this->mission->id}/close");
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/close");
 
         $response->assertOk()
             ->assertJsonPath('data.status_label', 'Clôturée');
@@ -84,7 +84,7 @@ class CloseMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$draftMission->id}/close");
+            ->postJson("/api/v1/producer/missions/{$draftMission->uuid}/close");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status'])
@@ -107,7 +107,7 @@ class CloseMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$closedMission->id}/close");
+            ->postJson("/api/v1/producer/missions/{$closedMission->uuid}/close");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status'])
@@ -124,7 +124,7 @@ class CloseMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$completedMission->id}/close");
+            ->postJson("/api/v1/producer/missions/{$completedMission->uuid}/close");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status'])
@@ -152,7 +152,7 @@ class CloseMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$pendingPaymentMission->id}/close");
+            ->postJson("/api/v1/producer/missions/{$pendingPaymentMission->uuid}/close");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status'])
@@ -167,7 +167,7 @@ class CloseMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$pastMission->id}/close");
+            ->postJson("/api/v1/producer/missions/{$pastMission->uuid}/close");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status'])
@@ -186,7 +186,7 @@ class CloseMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherUser)
-            ->postJson("/api/v1/producer/missions/{$this->mission->id}/close");
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/close");
 
         $response->assertForbidden();
 
@@ -202,7 +202,7 @@ class CloseMissionTest extends TestCase
      */
     public function test_unauthenticated_user_cannot_close_mission(): void
     {
-        $response = $this->postJson("/api/v1/producer/missions/{$this->mission->id}/close");
+        $response = $this->postJson("/api/v1/producer/missions/{$this->mission->uuid}/close");
 
         $response->assertUnauthorized();
     }
@@ -219,7 +219,7 @@ class CloseMissionTest extends TestCase
         ]);
 
         $response = $this->actingAs($faceUser)
-            ->postJson("/api/v1/producer/missions/{$this->mission->id}/close");
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/close");
 
         $response->assertForbidden();
     }
@@ -230,7 +230,7 @@ class CloseMissionTest extends TestCase
     public function test_close_response_includes_complete_mission_data(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$this->mission->id}/close");
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/close");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -259,7 +259,7 @@ class CloseMissionTest extends TestCase
     public function test_closed_mission_is_not_accepting_candidatures(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/missions/{$this->mission->id}/close");
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/close");
 
         $response->assertOk()
             ->assertJsonPath('data.is_accepting_candidatures', false);
@@ -271,7 +271,7 @@ class CloseMissionTest extends TestCase
     public function test_close_nonexistent_mission_returns_404(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson('/api/v1/producer/missions/999999/close');
+            ->postJson('/api/v1/producer/missions/00000000-0000-0000-0000-000000000000/close');
 
         $response->assertNotFound();
     }

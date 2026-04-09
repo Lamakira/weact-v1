@@ -76,4 +76,29 @@ class StoreReportTest extends TestCase
 
         $this->assertSame(1, Report::query()->count());
     }
+
+    public function test_user_can_create_report_with_uuid_identifier(): void
+    {
+        $user = User::factory()->create();
+        $mission = Mission::factory()->create();
+
+        $payload = [
+            'reportable_type' => 'mission',
+            'reportable_id' => $mission->uuid,
+            'reason' => 'autre',
+        ];
+
+        $response = $this->actingAs($user)
+            ->postJson('/api/v1/reports', $payload);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.id', fn (int $id): bool => $id > 0);
+
+        $this->assertDatabaseHas('reports', [
+            'reporter_id' => $user->id,
+            'reportable_type' => Mission::class,
+            'reportable_id' => $mission->id,
+            'reason' => 'autre',
+        ]);
+    }
 }

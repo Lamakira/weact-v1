@@ -66,7 +66,7 @@ class AccountDeletionReRegistrationTest extends TestCase
 
         $secondToken = $secondRegistration->json('data.token');
         $newUserId = (int) $secondRegistration->json('data.user.id');
-        $newUserableId = (int) $secondRegistration->json('data.user.userable.id');
+        $newUserableUuid = $secondRegistration->json('data.user.userable.id');
 
         // Simulate a stale stateful session still pointing to the deleted account.
         $userResponse = $this->actingAs($deletedUser)
@@ -76,8 +76,10 @@ class AccountDeletionReRegistrationTest extends TestCase
         $userResponse->assertOk()
             ->assertJsonPath('data.id', $newUserId)
             ->assertJsonPath('data.email', 'john@example.com')
-            ->assertJsonPath('data.userable_id', $newUserableId)
             ->assertJsonPath('data.userable_type', 'Face');
+
+        // Verify userable.id matches the UUID from registration
+        $this->assertEquals($newUserableUuid, $userResponse->json('data.userable.id'));
 
         $basicInfoResponse = $this->actingAs($deletedUser)
             ->withHeader('Authorization', 'Bearer '.$secondToken)

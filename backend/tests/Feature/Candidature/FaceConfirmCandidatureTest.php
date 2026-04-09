@@ -94,7 +94,7 @@ class FaceConfirmCandidatureTest extends TestCase
     public function test_face_can_confirm_accepted_candidature_after_payment_confirmation(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/confirm");
 
         $response->assertOk()
             ->assertJsonPath('data.status', 'confirmed')
@@ -115,7 +115,7 @@ class FaceConfirmCandidatureTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/confirm");
 
         $response->assertStatus(422)
             ->assertJsonPath('error.code', 'PAYMENT_NOT_CONFIRMED');
@@ -136,7 +136,7 @@ class FaceConfirmCandidatureTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherFaceUser)
-            ->postJson("/api/v1/face/candidatures/{$otherCandidature->id}/confirm");
+            ->postJson("/api/v1/face/candidatures/{$otherCandidature->uuid}/confirm");
 
         $response->assertStatus(422)
             ->assertJsonPath('error.code', 'NOT_IN_FINAL_SELECTION');
@@ -147,7 +147,7 @@ class FaceConfirmCandidatureTest extends TestCase
         $this->candidature->update(['status' => CandidatureStatus::Pending]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/confirm");
 
         $response->assertStatus(400)
             ->assertJsonPath('error.code', 'INVALID_STATUS');
@@ -158,7 +158,7 @@ class FaceConfirmCandidatureTest extends TestCase
         $this->candidature->update(['status' => CandidatureStatus::Confirmed]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/confirm");
 
         $response->assertStatus(400)
             ->assertJsonPath('error.code', 'INVALID_STATUS');
@@ -167,7 +167,7 @@ class FaceConfirmCandidatureTest extends TestCase
     public function test_producer_cannot_confirm_candidature(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/confirm");
 
         $response->assertForbidden();
     }
@@ -181,7 +181,7 @@ class FaceConfirmCandidatureTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherFaceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->id}/confirm");
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/confirm");
 
         $response->assertForbidden()
             ->assertJson([

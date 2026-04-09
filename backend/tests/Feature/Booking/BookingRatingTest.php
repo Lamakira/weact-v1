@@ -50,7 +50,7 @@ class BookingRatingTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/rate", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/rate", [
                 'score' => 5,
                 'comment' => 'Excellent producteur',
             ]);
@@ -77,7 +77,7 @@ class BookingRatingTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/rate", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/rate", [
                 'score' => 4,
                 'comment' => 'Talent fiable',
             ]);
@@ -104,7 +104,7 @@ class BookingRatingTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/rate", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/rate", [
                 'score' => 5,
             ]);
 
@@ -127,7 +127,7 @@ class BookingRatingTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/rate", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/rate", [
                 'score' => 5,
             ]);
 
@@ -143,7 +143,7 @@ class BookingRatingTest extends TestCase
         ]);
 
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/rate", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/rate", [
                 'score' => 5,
             ])
             ->assertCreated();
@@ -162,7 +162,7 @@ class BookingRatingTest extends TestCase
         ]);
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'schedule_conflict',
             ])
             ->assertOk()
@@ -182,7 +182,7 @@ class BookingRatingTest extends TestCase
         ]);
 
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'schedule_conflict',
             ])
             ->assertOk()
@@ -202,21 +202,21 @@ class BookingRatingTest extends TestCase
         ]);
 
         $firstResponse = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/bookings/{$booking->id}");
+            ->getJson("/api/v1/bookings/{$booking->uuid}");
 
         $firstResponse->assertOk()
             ->assertJsonPath('data.can_rate', true)
             ->assertJsonPath('data.my_rating', null);
 
         $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/rate", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/rate", [
                 'score' => 4,
                 'comment' => 'Très bien',
             ])
             ->assertCreated();
 
         $secondResponse = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/bookings/{$booking->id}");
+            ->getJson("/api/v1/bookings/{$booking->uuid}");
 
         $secondResponse->assertOk()
             ->assertJsonPath('data.can_rate', false)

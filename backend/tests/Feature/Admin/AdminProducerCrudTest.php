@@ -139,7 +139,7 @@ class AdminProducerCrudTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->getJson("/api/v1/admin/producers/{$producer->id}");
+            ->getJson("/api/v1/admin/producers/{$producer->uuid}");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -156,7 +156,7 @@ class AdminProducerCrudTest extends TestCase
     public function test_show_returns_404_for_nonexistent_producer(): void
     {
         $response = $this->withToken($this->adminToken)
-            ->getJson('/api/v1/admin/producers/99999');
+            ->getJson('/api/v1/admin/producers/00000000-0000-0000-0000-000000000000');
 
         $response->assertNotFound();
     }
@@ -182,7 +182,7 @@ class AdminProducerCrudTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->putJson("/api/v1/admin/producers/{$producer->id}", [
+            ->putJson("/api/v1/admin/producers/{$producer->uuid}", [
                 'first_name' => 'NewFirst',
                 'last_name' => 'NewLast',
                 'bio' => 'Updated bio',
@@ -211,7 +211,7 @@ class AdminProducerCrudTest extends TestCase
         $producer = Producer::factory()->create();
 
         $response = $this->withToken($this->adminToken)
-            ->putJson("/api/v1/admin/producers/{$producer->id}", [
+            ->putJson("/api/v1/admin/producers/{$producer->uuid}", [
                 'type' => 'invalid_type',
             ]);
 
@@ -232,7 +232,7 @@ class AdminProducerCrudTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->deleteJson("/api/v1/admin/producers/{$producer->id}");
+            ->deleteJson("/api/v1/admin/producers/{$producer->uuid}");
 
         $response->assertOk()
             ->assertJsonPath('message', 'Profil Producteur supprimé avec succès');
@@ -254,7 +254,7 @@ class AdminProducerCrudTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->deleteJson("/api/v1/admin/producers/{$producer->id}");
+            ->deleteJson("/api/v1/admin/producers/{$producer->uuid}");
 
         $response->assertStatus(422)
             ->assertJsonPath('error.code', 'active_missions')
@@ -282,7 +282,7 @@ class AdminProducerCrudTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->deleteJson("/api/v1/admin/producers/{$producer->id}");
+            ->deleteJson("/api/v1/admin/producers/{$producer->uuid}");
 
         $response->assertStatus(422)
             ->assertJsonPath('error.code', 'active_candidatures')
@@ -304,7 +304,7 @@ class AdminProducerCrudTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->deleteJson("/api/v1/admin/producers/{$producer->id}");
+            ->deleteJson("/api/v1/admin/producers/{$producer->uuid}");
 
         $response->assertOk();
         $this->assertDatabaseMissing('producers', ['id' => $producer->id]);
@@ -329,7 +329,7 @@ class AdminProducerCrudTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->getJson("/api/v1/admin/producers/{$producer->id}");
+            ->getJson("/api/v1/admin/producers/{$producer->uuid}");
 
         $response->assertOk()
             ->assertJsonStructure([

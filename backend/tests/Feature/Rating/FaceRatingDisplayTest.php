@@ -190,7 +190,7 @@ class FaceRatingDisplayTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/candidates/{$this->face->id}");
+            ->getJson("/api/v1/producer/candidates/{$this->face->uuid}");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.ratings_count', 1);
@@ -209,7 +209,7 @@ class FaceRatingDisplayTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/producer/candidates/{$this->face->id}");
+            ->getJson("/api/v1/producer/candidates/{$this->face->uuid}");
 
         $response->assertStatus(200)
             ->assertJsonPath('data.average_rating', null)

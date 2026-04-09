@@ -139,7 +139,7 @@ class AdminFaceCrudTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->getJson("/api/v1/admin/faces/{$face->id}");
+            ->getJson("/api/v1/admin/faces/{$face->uuid}");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -157,7 +157,7 @@ class AdminFaceCrudTest extends TestCase
     public function test_show_returns_404_for_nonexistent_face(): void
     {
         $response = $this->withToken($this->adminToken)
-            ->getJson('/api/v1/admin/faces/99999');
+            ->getJson('/api/v1/admin/faces/00000000-0000-0000-0000-000000000000');
 
         $response->assertNotFound();
     }
@@ -175,7 +175,7 @@ class AdminFaceCrudTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->getJson("/api/v1/admin/faces/{$face->id}");
+            ->getJson("/api/v1/admin/faces/{$face->uuid}");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -201,7 +201,7 @@ class AdminFaceCrudTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->getJson("/api/v1/admin/faces/{$face->id}");
+            ->getJson("/api/v1/admin/faces/{$face->uuid}");
 
         $response->assertOk()
             ->assertJsonPath('data.presentation_video_url', fn ($url) => str_contains($url, 'test-presentation.mp4'))
@@ -219,7 +219,7 @@ class AdminFaceCrudTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->getJson("/api/v1/admin/faces/{$face->id}");
+            ->getJson("/api/v1/admin/faces/{$face->uuid}");
 
         $response->assertOk()
             ->assertJsonPath('data.taille', 175)
@@ -235,7 +235,7 @@ class AdminFaceCrudTest extends TestCase
         $face = Face::factory()->create();
 
         $response = $this->withToken($this->adminToken)
-            ->getJson("/api/v1/admin/faces/{$face->id}");
+            ->getJson("/api/v1/admin/faces/{$face->uuid}");
 
         $response->assertOk()
             ->assertJsonPath('data.photos', [])
@@ -265,7 +265,7 @@ class AdminFaceCrudTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->putJson("/api/v1/admin/faces/{$face->id}", [
+            ->putJson("/api/v1/admin/faces/{$face->uuid}", [
                 'nom' => 'NewName',
                 'bio' => 'Updated bio',
                 'is_available' => false,
@@ -297,7 +297,7 @@ class AdminFaceCrudTest extends TestCase
         $face = Face::factory()->create();
 
         $response = $this->withToken($this->adminToken)
-            ->putJson("/api/v1/admin/faces/{$face->id}", [
+            ->putJson("/api/v1/admin/faces/{$face->uuid}", [
                 'categories' => ['invalid_category'],
             ]);
 
@@ -315,7 +315,7 @@ class AdminFaceCrudTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->putJson("/api/v1/admin/faces/{$face->id}", [
+            ->putJson("/api/v1/admin/faces/{$face->uuid}", [
                 'pays' => 'Togo',
             ]);
 
@@ -336,7 +336,7 @@ class AdminFaceCrudTest extends TestCase
         $face2 = Face::factory()->create(['username' => 'my_username']);
 
         $response = $this->withToken($this->adminToken)
-            ->putJson("/api/v1/admin/faces/{$face2->id}", [
+            ->putJson("/api/v1/admin/faces/{$face2->uuid}", [
                 'username' => 'taken_username',
             ]);
 
@@ -349,7 +349,7 @@ class AdminFaceCrudTest extends TestCase
         $face = Face::factory()->create(['username' => 'my_username']);
 
         $response = $this->withToken($this->adminToken)
-            ->putJson("/api/v1/admin/faces/{$face->id}", [
+            ->putJson("/api/v1/admin/faces/{$face->uuid}", [
                 'username' => 'my_username',
             ]);
 
@@ -368,7 +368,7 @@ class AdminFaceCrudTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->deleteJson("/api/v1/admin/faces/{$face->id}");
+            ->deleteJson("/api/v1/admin/faces/{$face->uuid}");
 
         $response->assertOk()
             ->assertJsonPath('message', 'Profil Face supprimé avec succès');
@@ -394,7 +394,7 @@ class AdminFaceCrudTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->deleteJson("/api/v1/admin/faces/{$face->id}");
+            ->deleteJson("/api/v1/admin/faces/{$face->uuid}");
 
         $response->assertStatus(422)
             ->assertJsonPath('error.code', 'active_candidatures')
@@ -424,7 +424,7 @@ class AdminFaceCrudTest extends TestCase
         ]);
 
         $response = $this->withToken($this->adminToken)
-            ->deleteJson("/api/v1/admin/faces/{$face->id}");
+            ->deleteJson("/api/v1/admin/faces/{$face->uuid}");
 
         $response->assertOk();
         $this->assertDatabaseMissing('faces', ['id' => $face->id]);

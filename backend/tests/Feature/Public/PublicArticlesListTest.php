@@ -81,7 +81,7 @@ class PublicArticlesListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(1, $response->json('meta.total'));
-        $this->assertEquals($published->id, $response->json('data.0.id'));
+        $this->assertEquals($published->uuid, $response->json('data.0.id'));
         $this->assertEquals('Published Article', $response->json('data.0.title'));
     }
 
@@ -136,9 +136,9 @@ class PublicArticlesListTest extends TestCase
         $response = $this->getJson('/api/v1/public/articles');
 
         $response->assertOk();
-        $this->assertEquals($newest->id, $response->json('data.0.id'));
-        $this->assertEquals($newer->id, $response->json('data.1.id'));
-        $this->assertEquals($older->id, $response->json('data.2.id'));
+        $this->assertEquals($newest->uuid, $response->json('data.0.id'));
+        $this->assertEquals($newer->uuid, $response->json('data.1.id'));
+        $this->assertEquals($older->uuid, $response->json('data.2.id'));
     }
 
     // ─── 5.6 Public-safe fields only ─────────────────────────────────
@@ -310,7 +310,7 @@ class PublicArticlesListTest extends TestCase
         $response->assertOk();
         $this->assertEquals(1, $response->json('meta.total'));
         $this->assertCount(1, $response->json('data'));
-        $this->assertEquals($conseilsArticle->id, $response->json('data.0.id'));
+        $this->assertEquals($conseilsArticle->uuid, $response->json('data.0.id'));
         $this->assertEquals('conseils-face', $response->json('data.0.category.value'));
     }
 

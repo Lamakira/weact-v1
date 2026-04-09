@@ -58,7 +58,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/messages", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/messages", [
                 'content' => 'Bonjour, hâte de travailler avec vous !',
             ]);
 
@@ -85,7 +85,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/messages", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/messages", [
                 'content' => 'Voici les détails du tournage.',
             ]);
 
@@ -105,7 +105,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/messages", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/messages", [
                 'content' => 'Message en cours de mission.',
             ]);
 
@@ -122,7 +122,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/messages", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/messages", [
                 'content' => 'Chat pas encore ouvert.',
             ]);
 
@@ -139,7 +139,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/bookings/{$booking->id}/messages");
+            ->getJson("/api/v1/bookings/{$booking->uuid}/messages");
 
         $response->assertForbidden()
             ->assertJsonStructure(['error' => ['code', 'message']])
@@ -155,7 +155,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/messages", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/messages", [
                 'content' => 'Pas encore payé.',
             ]);
 
@@ -171,7 +171,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/bookings/{$booking->id}/messages");
+            ->getJson("/api/v1/bookings/{$booking->uuid}/messages");
 
         $response->assertForbidden();
     }
@@ -185,7 +185,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/messages", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/messages", [
                 'content' => 'Mission terminée.',
             ]);
 
@@ -202,7 +202,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/messages", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/messages", [
                 'content' => 'Je suis un intrus.',
             ]);
 
@@ -217,7 +217,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/messages", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/messages", [
                 'content' => '',
             ]);
 
@@ -232,7 +232,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/messages", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/messages", [
                 'content' => str_repeat('a', 2001),
             ]);
 
@@ -246,7 +246,7 @@ class BookingChatTest extends TestCase
             'producer_id' => $this->producerUser->id,
         ]);
 
-        $response = $this->postJson("/api/v1/bookings/{$booking->id}/messages", [
+        $response = $this->postJson("/api/v1/bookings/{$booking->uuid}/messages", [
             'content' => 'Non authentifié.',
         ]);
 
@@ -270,7 +270,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/bookings/{$booking->id}/messages");
+            ->getJson("/api/v1/bookings/{$booking->uuid}/messages");
 
         $response->assertOk()
             ->assertJsonCount(3, 'data');
@@ -289,7 +289,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/bookings/{$booking->id}/messages");
+            ->getJson("/api/v1/bookings/{$booking->uuid}/messages");
 
         $response->assertOk()
             ->assertJsonCount(2, 'data');
@@ -309,11 +309,11 @@ class BookingChatTest extends TestCase
         ]);
 
         $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/bookings/{$booking->id}/messages")
+            ->getJson("/api/v1/bookings/{$booking->uuid}/messages")
             ->assertOk();
 
         $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/bookings/{$booking->id}/messages")
+            ->getJson("/api/v1/bookings/{$booking->uuid}/messages")
             ->assertOk();
     }
 
@@ -326,7 +326,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/bookings/{$booking->id}/messages");
+            ->getJson("/api/v1/bookings/{$booking->uuid}/messages");
 
         $response->assertForbidden();
     }
@@ -341,7 +341,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherUser)
-            ->getJson("/api/v1/bookings/{$booking->id}/messages");
+            ->getJson("/api/v1/bookings/{$booking->uuid}/messages");
 
         $response->assertForbidden();
     }
@@ -368,7 +368,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson("/api/v1/bookings/{$booking->id}/messages");
+            ->getJson("/api/v1/bookings/{$booking->uuid}/messages");
 
         $response->assertOk();
 
@@ -387,7 +387,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/messages", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/messages", [
                 'content' => 'Test de structure.',
             ]);
 
@@ -416,7 +416,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/messages", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/messages", [
                 'content' => 'Mon message.',
             ]);
 
@@ -438,7 +438,7 @@ class BookingChatTest extends TestCase
         ]);
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/bookings/{$booking->id}/messages", [
+            ->postJson("/api/v1/bookings/{$booking->uuid}/messages", [
                 'content' => 'Événement déclenché ?',
             ])
             ->assertCreated();

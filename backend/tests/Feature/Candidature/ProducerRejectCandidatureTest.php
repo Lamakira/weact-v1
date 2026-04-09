@@ -69,7 +69,7 @@ class ProducerRejectCandidatureTest extends TestCase
     public function test_producer_can_reject_pending_candidature(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/reject");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/reject");
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -102,7 +102,7 @@ class ProducerRejectCandidatureTest extends TestCase
         $this->assertEquals(CandidatureStatus::Pending, $this->candidature->status);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/reject");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/reject");
 
         $response->assertOk();
 
@@ -118,7 +118,7 @@ class ProducerRejectCandidatureTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/reject");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/reject");
 
         $response->assertStatus(400)
             ->assertJsonPath('error.code', 'INVALID_STATUS')
@@ -131,7 +131,7 @@ class ProducerRejectCandidatureTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/reject");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/reject");
 
         $response->assertStatus(400)
             ->assertJsonPath('error.code', 'INVALID_STATUS');
@@ -143,7 +143,7 @@ class ProducerRejectCandidatureTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/reject");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/reject");
 
         $response->assertStatus(400)
             ->assertJsonPath('error.code', 'INVALID_STATUS');
@@ -155,7 +155,7 @@ class ProducerRejectCandidatureTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/reject");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/reject");
 
         $response->assertStatus(400)
             ->assertJsonPath('error.code', 'INVALID_STATUS');
@@ -167,7 +167,7 @@ class ProducerRejectCandidatureTest extends TestCase
         $this->candidature->save();
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/reject");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/reject");
 
         $response->assertStatus(400)
             ->assertJsonPath('error.code', 'INVALID_STATUS');
@@ -176,7 +176,7 @@ class ProducerRejectCandidatureTest extends TestCase
     public function test_face_cannot_reject_candidature(): void
     {
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/reject");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/reject");
 
         $response->assertForbidden()
             ->assertJson([
@@ -194,7 +194,7 @@ class ProducerRejectCandidatureTest extends TestCase
         ]);
 
         $response = $this->actingAs($otherProducerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/reject");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/reject");
 
         $response->assertForbidden()
             ->assertJson([
@@ -205,14 +205,14 @@ class ProducerRejectCandidatureTest extends TestCase
     public function test_returns_404_for_non_existent_candidature(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson('/api/v1/producer/candidatures/99999/reject');
+            ->postJson('/api/v1/producer/candidatures/00000000-0000-0000-0000-000000000000/reject');
 
         $response->assertNotFound();
     }
 
     public function test_returns_401_when_unauthenticated(): void
     {
-        $response = $this->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/reject");
+        $response = $this->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/reject");
 
         $response->assertUnauthorized();
     }
@@ -220,10 +220,10 @@ class ProducerRejectCandidatureTest extends TestCase
     public function test_response_includes_all_candidature_fields(): void
     {
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/reject");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/reject");
 
         $response->assertOk()
-            ->assertJsonPath('data.id', $this->candidature->id)
+            ->assertJsonPath('data.id', $this->candidature->uuid)
             ->assertJsonPath('data.mission_id', $this->mission->id)
             ->assertJsonPath('data.face_id', $this->face->id)
             ->assertJsonPath('data.status', 'rejected')
@@ -239,7 +239,7 @@ class ProducerRejectCandidatureTest extends TestCase
         sleep(1);
 
         $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->id}/reject");
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/reject");
 
         $response->assertOk();
 
