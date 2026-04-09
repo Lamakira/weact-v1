@@ -25,6 +25,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import { useCancelCandidature } from '@/features/candidature/composables'
 import { authApi } from '@/features/auth/services/authApi'
+import type { Face } from '@/features/auth/types'
 import { useToast } from '@/composables/useToast'
 
 /**
@@ -54,6 +55,10 @@ const showCancelModal = ref(false)
 const isResendingVerification = ref(false)
 const isRefreshingGenderContext = ref(false)
 
+function hasFaceSexeField(userable: unknown): userable is Pick<Face, 'sexe'> {
+  return typeof userable === 'object' && userable !== null && 'sexe' in userable
+}
+
 // Get mission ID from route params
 const missionId = computed(() => {
   const id = route.params.id
@@ -71,10 +76,19 @@ const canCancelCandidature = computed(() => candidature.value?.status === 'pendi
 // Computed: Can the user apply? (must have verified email)
 const canApply = computed(() => authStore.isEmailVerified)
 
+const currentFaceSexe = computed<Face['sexe'] | undefined>(() => {
+  if (!authStore.isFace) return undefined
+
+  const userable = authStore.user?.userable
+  if (userable === undefined || !hasFaceSexeField(userable)) return undefined
+
+  return userable.sexe
+})
+
 const isGenderContextUnknown = computed((): boolean => {
   if (!mission.value) return false
   if (mission.value.genre_voulu === 'tous') return false
-  return authStore.isFace && authStore.user?.userable !== undefined && authStore.user?.userable?.sexe === undefined
+  return authStore.isFace && authStore.user?.userable !== undefined && currentFaceSexe.value === undefined
 })
 
 // Computed: Gender mismatch check
@@ -82,7 +96,7 @@ const isGenderMismatch = computed((): boolean => {
   if (!mission.value) return false
   const genreVoulu = mission.value.genre_voulu
   if (genreVoulu === 'tous') return false
-  const faceSexe = authStore.user?.userable?.sexe
+  const faceSexe = currentFaceSexe.value
   if (faceSexe === undefined) return false
   if (faceSexe === null) return true
   return faceSexe !== genreVoulu
@@ -98,7 +112,7 @@ const genderContextMessage = computed((): string => {
 
 const genderMismatchMessage = computed((): string => {
   if (!mission.value) return ''
-  const faceSexe = authStore.user?.userable?.sexe
+  const faceSexe = currentFaceSexe.value
   if (faceSexe === undefined) return ''
   if (faceSexe === null) {
     return 'Complétez votre profil (genre) pour postuler à cette mission.'
