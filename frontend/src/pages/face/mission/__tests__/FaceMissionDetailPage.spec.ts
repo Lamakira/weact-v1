@@ -439,7 +439,7 @@ describe('FaceMissionDetailPage', () => {
                     email: 'test@test.com',
                     email_verified: true,
                     email_verified_at: '2026-01-01',
-                    userable_type: 'App\\Models\\Face',
+                    userable_type: 'Face',
                     userable: { sexe: 'homme', ...userOverrides },
                   },
                   token: 'fake-token',
@@ -571,6 +571,60 @@ describe('FaceMissionDetailPage', () => {
       expect(wrapper.find('[data-testid="gender-context-block"]').exists()).toBe(true)
       expect(wrapper.text()).toContain('Validation du profil requise')
       expect(wrapper.find('[data-testid="apply-button-disabled"]').exists()).toBe(true)
+    })
+
+    it('does not access Face-only gender fields when auth userable is a producer', async () => {
+      mockMission.value = createMission({
+        genre_voulu: 'femme',
+        genre_voulu_label: 'Femme',
+        is_accepting_candidatures: true,
+      })
+
+      const wrapper = mount(FaceMissionDetailPage, {
+        global: {
+          plugins: [
+            createTestingPinia({
+              initialState: {
+                auth: {
+                  user: {
+                    id: 1,
+                    email: 'producer@test.com',
+                    email_verified: true,
+                    email_verified_at: '2026-01-01',
+                    userable_type: 'Producer',
+                    userable: {
+                      id: 12,
+                      type: 'agency',
+                      agency_name: 'Prod Agency',
+                      first_name: null,
+                      last_name: null,
+                      display_name: 'Prod Agency',
+                      created_at: '2026-01-01T00:00:00Z',
+                      updated_at: '2026-01-01T00:00:00Z',
+                    },
+                  },
+                  token: 'fake-token',
+                },
+              },
+            }),
+          ],
+          stubs: {
+            ApplyToMissionModal: true,
+            RatingDisplay: true,
+            ConfirmModal: true,
+            RouterLink: {
+              template: '<a><slot /></a>',
+              props: ['to'],
+            },
+          },
+        },
+      })
+
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="gender-context-block"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="gender-mismatch-block"]').exists()).toBe(false)
+      expect(wrapper.text()).toContain('Postuler à cette mission')
     })
   })
 
