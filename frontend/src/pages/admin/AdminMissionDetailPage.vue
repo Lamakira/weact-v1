@@ -21,10 +21,10 @@ const route = useRoute()
 const router = useRouter()
 const { mission, isLoading, error, fetchMission } = useAdminMissions()
 
-const missionId = computed(() => Number(route.params.id))
+const missionId = computed(() => route.params.id as string)
 
 onMounted(() => {
-  if (isNaN(missionId.value) || missionId.value <= 0) {
+  if (!missionId.value) {
     router.replace({ name: 'admin-missions-list' })
     return
   }
@@ -55,7 +55,7 @@ function formatBudget(budget: number | null): string {
   return new Intl.NumberFormat('fr-FR').format(budget) + ' XOF'
 }
 
-function goToProducer(producerId: number): void {
+function goToProducer(producerId: string): void {
   router.push({ name: 'admin-producer-detail', params: { id: producerId } })
 }
 </script>

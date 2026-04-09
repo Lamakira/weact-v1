@@ -11,12 +11,12 @@ const props = withDefaults(defineProps<{
 })
 
 const emit = defineEmits<{
-  edit: [id: number]
-  delete: [id: number]
-  close: [id: number]
-  reopen: [id: number]
-  complete: [id: number]
-  viewCandidatures: [id: number]
+  edit: [id: string]
+  delete: [id: string]
+  close: [id: string]
+  reopen: [id: string]
+  complete: [id: string]
+  viewCandidatures: [id: string]
 }>()
 
 // Computed: Only show actions for editable statuses

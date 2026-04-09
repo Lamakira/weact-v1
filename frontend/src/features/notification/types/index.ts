@@ -31,17 +31,17 @@ export interface NotificationData {
   message: string
   // Candidature domain fields (optional)
   mission_title?: string
-  mission_id?: number
-  candidature_id?: number
+  mission_id?: string
+  candidature_id?: string
   // Booking domain fields (optional)
-  booking_id?: number
+  booking_id?: string
   score?: number
   url?: string
 }
 
 // Notification from API
 export interface Notification {
-  id: number
+  id: string
   type: string
   data: NotificationData
   read_at: string | null

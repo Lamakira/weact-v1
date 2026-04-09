@@ -23,7 +23,7 @@ import {
 
 const props = defineProps<{
   isOpen: boolean
-  faceId: number
+  faceId: string
   faceName: string
   tarifHoraire: number | null
   tarifJournalier: number | null

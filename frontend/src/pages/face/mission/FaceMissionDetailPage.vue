@@ -55,6 +55,8 @@ const showCancelModal = ref(false)
 const isResendingVerification = ref(false)
 const isRefreshingGenderContext = ref(false)
 
+const currentFaceId = computed(() => authStore.user?.userable?.id ?? '')
+
 function hasFaceSexeField(userable: unknown): userable is Pick<Face, 'sexe'> {
   return typeof userable === 'object' && userable !== null && 'sexe' in userable
 }
@@ -62,9 +64,7 @@ function hasFaceSexeField(userable: unknown): userable is Pick<Face, 'sexe'> {
 // Get mission ID from route params
 const missionId = computed(() => {
   const id = route.params.id
-  if (typeof id !== 'string') return null
-  const parsed = parseInt(id, 10)
-  return Number.isNaN(parsed) ? null : parsed
+  return typeof id === 'string' && id.trim().length > 0 ? id : null
 })
 
 // Computed: Has the user already applied?
@@ -188,11 +188,11 @@ function closeApplyModal(): void {
   isApplyModalOpen.value = false
 }
 
-function handleApplySuccess(newCandidature: { id: number; status: string; status_label: string }): void {
+function handleApplySuccess(newCandidature: { id: string; status: string; status_label: string }): void {
   setCandidature({
     id: newCandidature.id,
     mission_id: missionId.value!,
-    face_id: 0,
+    face_id: currentFaceId.value,
     status: newCandidature.status,
     status_label: newCandidature.status_label,
     message_motivation: null,
@@ -460,8 +460,8 @@ onMounted(() => {
       <div class="mb-8 rounded-lg border border-border bg-card p-4 min-[376px]:p-6">
         <h2 class="text-base min-[376px]:text-lg font-semibold text-foreground mb-4">Producteur</h2>
         <router-link
-          v-if="mission.producer?.id"
-          :to="`/producers/${mission.producer.id}`"
+          v-if="mission.producer?.slug"
+          :to="`/producers/${mission.producer.slug}`"
           class="flex items-center gap-3 min-[376px]:gap-4 rounded-lg p-2 -m-2 transition-colors hover:bg-muted/50"
           :aria-label="`Voir le profil de ${producerName}`"
         >

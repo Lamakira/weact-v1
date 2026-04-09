@@ -9,8 +9,8 @@ export interface UseMissionEditReturn {
   error: Ref<string | null>
   validationErrors: Ref<Record<string, string[]>>
   mission: Ref<Mission | null>
-  loadMission: (id: number) => Promise<boolean>
-  updateMission: (id: number, data: UpdateMissionData) => Promise<MissionUpdateResult>
+  loadMission: (id: string) => Promise<boolean>
+  updateMission: (id: string, data: UpdateMissionData) => Promise<MissionUpdateResult>
   clearError: () => void
   reset: () => void
 }
@@ -47,7 +47,7 @@ export function useMissionEdit(): UseMissionEditReturn {
   /**
    * Load a mission by ID
    */
-  async function loadMission(id: number): Promise<boolean> {
+  async function loadMission(id: string): Promise<boolean> {
     isLoading.value = true
     error.value = null
 
@@ -67,7 +67,7 @@ export function useMissionEdit(): UseMissionEditReturn {
   /**
    * Update an existing mission
    */
-  async function updateMission(id: number, data: UpdateMissionData): Promise<MissionUpdateResult> {
+  async function updateMission(id: string, data: UpdateMissionData): Promise<MissionUpdateResult> {
     isSubmitting.value = true
     error.value = null
     validationErrors.value = {}

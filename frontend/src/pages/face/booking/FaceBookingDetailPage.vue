@@ -79,13 +79,13 @@ const nowTimestamp = ref(Date.now())
 const hasExpiryRealtimeListener = ref(false)
 let countdownTicker: ReturnType<typeof setInterval> | null = null
 
-// Get booking ID from route params
+// Booking route param uses the public UUID (legacy numeric IDs remain supported by the API).
 const bookingId = computed(() => {
   const id = route.params.id
-  if (typeof id !== 'string') return null
-  const parsed = parseInt(id, 10)
-  return Number.isNaN(parsed) ? null : parsed
+  return typeof id === 'string' && id.length > 0 ? id : null
 })
+
+const bookingRealtimeChannelKey = computed(() => booking.value?.realtime_channel_key ?? null)
 
 // Producer data from booking
 const producerName = computed(() => {
@@ -203,7 +203,7 @@ function goBack(): void {
   if (window.history.length > 1) {
     router.back()
   } else {
-    router.push({ name: 'face-dashboard' })
+    router.push({ name: isFace.value ? 'face-bookings' : 'producer-bookings' })
   }
 }
 
@@ -309,11 +309,11 @@ interface EchoChannel {
 }
 
 async function attachExpiryRealtimeListener(): Promise<void> {
-  if (hasExpiryRealtimeListener.value || bookingId.value === null) return
+  if (hasExpiryRealtimeListener.value || bookingRealtimeChannelKey.value === null) return
 
   try {
     const { echo } = await import('@/plugins/echo')
-    ;(echo.private(`booking.${bookingId.value}`) as EchoChannel)
+    ;(echo.private(`booking.${bookingRealtimeChannelKey.value}`) as EchoChannel)
       .listen('.booking.expired', async () => {
         if (bookingId.value !== null) {
           await fetchBooking(bookingId.value)
@@ -327,13 +327,13 @@ async function attachExpiryRealtimeListener(): Promise<void> {
 }
 
 async function detachExpiryRealtimeListener(): Promise<void> {
-  if (!hasExpiryRealtimeListener.value || bookingId.value === null) return
+  if (!hasExpiryRealtimeListener.value || bookingRealtimeChannelKey.value === null) return
 
   try {
     const { echo } = await import('@/plugins/echo')
     // Stop only the expiry listener — do not leave the channel, as other
     // components (BookingChat) may subscribe to the same private channel.
-    ;(echo.private(`booking.${bookingId.value}`) as EchoChannel)
+    ;(echo.private(`booking.${bookingRealtimeChannelKey.value}`) as EchoChannel)
       .stopListening('.booking.expired')
   } catch {
     // Ignore realtime cleanup errors.

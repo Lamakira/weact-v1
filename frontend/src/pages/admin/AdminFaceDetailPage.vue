@@ -34,7 +34,7 @@ const router = useRouter()
 const { face, isLoading, error, fetchFace, updateFace, toggleActive, deleteFace } = useAdminFaces()
 const toast = useToast()
 
-const faceId = computed(() => Number(route.params.id))
+const faceId = computed(() => route.params.id as string)
 const isEditing = ref(false)
 const editForm = ref<UpdateAdminFaceForm>({})
 const editErrors = ref<Record<string, string[]>>({})

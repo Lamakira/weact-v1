@@ -98,11 +98,13 @@ const tarifDemiJourneeFormatted = computed((): string | null => {
   return journalier ? formatXOF(journalier / 2) : null
 })
 
-async function fetchReviews(id: number, page: number = 1): Promise<void> {
+const reviewUsername = computed(() => displayProfile.value?.username?.trim() ?? '')
+
+async function fetchReviews(username: string, page: number = 1): Promise<void> {
   reviewsLoading.value = true
   reviewsError.value = false
   try {
-    const response = await publicApi.getFaceReviews(id, page)
+    const response = await publicApi.getFaceReviews(username, page)
     reviews.value = response.data
     reviewsCurrentPage.value = response.meta.current_page
     reviewsLastPage.value = response.meta.last_page
@@ -116,8 +118,8 @@ async function fetchReviews(id: number, page: number = 1): Promise<void> {
 }
 
 function handleReviewsPageChange(page: number): void {
-  if (faceId.value) {
-    fetchReviews(faceId.value, page)
+  if (reviewUsername.value) {
+    void fetchReviews(reviewUsername.value, page)
   }
 }
 
@@ -173,10 +175,10 @@ const displayProfile = computed((): CandidateFullProfile | null => {
 
 // Fetch reviews for all visitors (guests + producers)
 watch(
-  faceId,
-  (id) => {
-    if (id && id > 0) {
-      fetchReviews(id)
+  reviewUsername,
+  (username) => {
+    if (username) {
+      void fetchReviews(username)
     } else {
       reviews.value = []
       reviewsCurrentPage.value = 1
@@ -487,7 +489,7 @@ async function handleRetry(): Promise<void> {
                 type="button"
                 class="mt-2 text-sm text-[#198496] hover:text-[#146c7a] underline"
                 data-testid="reviews-retry"
-                @click="fetchReviews(faceId!)"
+                @click="fetchReviews(reviewUsername)"
               >
                 Réessayer
               </button>
@@ -569,7 +571,7 @@ async function handleRetry(): Promise<void> {
         <BookingFormSheet
           v-if="canBook && fullProfile"
           :is-open="isBookingSheetOpen"
-          :face-id="face!.user_id"
+          :face-id="face!.id"
           :face-name="fullProfile.prenom"
           :tarif-horaire="fullProfile.tarif_horaire"
           :tarif-journalier="fullProfile.tarif_journalier"

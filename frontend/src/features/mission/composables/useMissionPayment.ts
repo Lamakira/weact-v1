@@ -24,17 +24,17 @@ function computePricing(budgetParFace: number, nombreFaces: number): MissionPric
 }
 
 export interface SelectedFace {
-  candidatureId: number
+  candidatureId: string
   label: string
 }
 
-export function useMissionPayment(budgetParFace: number, missionId: number, maxSelection?: number) {
+export function useMissionPayment(budgetParFace: number, missionId: string, maxSelection?: number) {
   const storageKey = `weact_selection_${missionId}`
   const labelsKey = `weact_selection_labels_${missionId}`
 
   // Restore from sessionStorage (survives pagination + navigation)
-  let restoredIds: number[] = []
-  let restoredLabels: Record<number, string> = {}
+  let restoredIds: string[] = []
+  let restoredLabels: Record<string, string> = {}
   try {
     const storedIds = sessionStorage.getItem(storageKey)
     if (storedIds) {
@@ -50,8 +50,8 @@ export function useMissionPayment(budgetParFace: number, missionId: number, maxS
     sessionStorage.removeItem(storageKey)
     sessionStorage.removeItem(labelsKey)
   }
-  const selectedCandidatureIds = ref<number[]>(restoredIds)
-  const selectedLabels = ref<Record<number, string>>(restoredLabels)
+  const selectedCandidatureIds = ref<string[]>(restoredIds)
+  const selectedLabels = ref<Record<string, string>>(restoredLabels)
 
   const isSelectionMode = ref(true)
   const isConfirming = ref(false)
@@ -84,7 +84,7 @@ export function useMissionPayment(budgetParFace: number, missionId: number, maxS
     return computePricing(budgetParFace, selectedCandidatureIds.value.length)
   })
 
-  function toggleSelection(id: number, label?: string): void {
+  function toggleSelection(id: string, label?: string): void {
     const idx = selectedCandidatureIds.value.indexOf(id)
     if (idx === -1) {
       if (maxSelection && selectedCandidatureIds.value.length >= maxSelection) {
@@ -99,7 +99,7 @@ export function useMissionPayment(budgetParFace: number, missionId: number, maxS
     }
   }
 
-  function removeSelection(id: number): void {
+  function removeSelection(id: string): void {
     const idx = selectedCandidatureIds.value.indexOf(id)
     if (idx !== -1) {
       selectedCandidatureIds.value.splice(idx, 1)
@@ -107,7 +107,7 @@ export function useMissionPayment(budgetParFace: number, missionId: number, maxS
     }
   }
 
-  function isSelected(id: number): boolean {
+  function isSelected(id: string): boolean {
     return selectedCandidatureIds.value.includes(id)
   }
 
@@ -118,7 +118,7 @@ export function useMissionPayment(budgetParFace: number, missionId: number, maxS
     sessionStorage.removeItem(labelsKey)
   }
 
-  async function confirmAndPay(missionId: number): Promise<{ checkout_url: string } | null> {
+  async function confirmAndPay(missionId: string): Promise<{ checkout_url: string } | null> {
     if (selectedCandidatureIds.value.length === 0) return null
 
     isConfirming.value = true
@@ -138,7 +138,7 @@ export function useMissionPayment(budgetParFace: number, missionId: number, maxS
   }
 
   function startPolling(
-    missionId: number,
+    missionId: string,
     onPaid: () => void,
     intervalMs = 3000
   ): void {

@@ -16,7 +16,7 @@ export function useConfirmCandidature() {
    * @param candidatureId The candidature ID to confirm
    * @returns The updated candidature data or null if failed
    */
-  async function confirmCandidature(candidatureId: number): Promise<CandidatureResponse | null> {
+  async function confirmCandidature(candidatureId: string): Promise<CandidatureResponse | null> {
     isConfirming.value = true
     error.value = null
     successMessage.value = null

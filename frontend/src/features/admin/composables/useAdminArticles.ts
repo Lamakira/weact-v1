@@ -54,7 +54,7 @@ export function useAdminArticles() {
   /**
    * Fetch a single article by ID
    */
-  async function fetchArticle(id: number): Promise<void> {
+  async function fetchArticle(id: string): Promise<void> {
     isLoading.value = true
     error.value = null
 
@@ -92,7 +92,7 @@ export function useAdminArticles() {
    * Update an existing article
    */
   async function updateArticle(
-    id: number,
+    id: string,
     data: UpdateArticleForm,
   ): Promise<AdminArticleActionResult> {
     isLoading.value = true
@@ -113,7 +113,7 @@ export function useAdminArticles() {
   /**
    * Delete an article
    */
-  async function deleteArticle(id: number): Promise<AdminArticleActionResult> {
+  async function deleteArticle(id: string): Promise<AdminArticleActionResult> {
     isLoading.value = true
 
     try {
@@ -130,7 +130,7 @@ export function useAdminArticles() {
   /**
    * Toggle article status (draft ↔ published)
    */
-  async function toggleStatus(id: number, currentStatus: string): Promise<AdminArticleActionResult> {
+  async function toggleStatus(id: string, currentStatus: string): Promise<AdminArticleActionResult> {
     isLoading.value = true
 
     try {

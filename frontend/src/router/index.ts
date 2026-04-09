@@ -441,7 +441,7 @@ const router = createRouter({
       },
     },
     {
-      path: '/producers/:id',
+      path: '/producers/:slug',
       name: 'public-producer-profile',
       component: () => import('../pages/public/ProducerProfilePage.vue'),
     },

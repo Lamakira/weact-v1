@@ -9,7 +9,7 @@ const route = useRoute()
 const { article, isLoading, error, fetchArticle, updateArticle } = useAdminArticles()
 const isFetching = ref(true)
 
-const articleId = computed(() => Number(route.params.id))
+const articleId = computed(() => route.params.id as string)
 
 const title = ref('')
 const content = ref('')

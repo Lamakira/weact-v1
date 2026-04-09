@@ -50,7 +50,7 @@ function goToPage(page: number): void {
   loadProducers(page)
 }
 
-function goToDetail(id: number): void {
+function goToDetail(id: string): void {
   router.push({ name: 'admin-producer-detail', params: { id } })
 }
 

@@ -65,7 +65,8 @@ function makeListResponse(messages: BookingMessage[]): BookingMessageListRespons
 }
 
 async function mountComposable(
-  bookingId: number,
+  bookingId: string,
+  realtimeChannelKey: number,
   currentUserId: number,
 ): Promise<{ wrapper: ReturnType<typeof mount>; result: UseBookingChatReturn; listenCallStart: number }> {
   let result!: UseBookingChatReturn
@@ -74,7 +75,7 @@ async function mountComposable(
   const wrapper = mount(
     defineComponent({
       setup() {
-        result = useBookingChat(bookingId, currentUserId)
+        result = useBookingChat(bookingId, realtimeChannelKey, currentUserId)
         return result
       },
       template: '<div />',
@@ -122,7 +123,8 @@ async function emitWsPayload(_fromCall: number, payload: WsPayload): Promise<voi
 // ──────────────────────────────────────────────────────────────
 
 describe('useBookingChat', () => {
-  const BOOKING_ID = 10
+  const BOOKING_ID = 'booking-uuid-10'
+  const REALTIME_CHANNEL_KEY = 10
   const CURRENT_USER_ID = 42
 
   beforeEach(() => {
@@ -149,15 +151,16 @@ describe('useBookingChat', () => {
     const messages = [makeMessage({ id: 1 }), makeMessage({ id: 2, sender_id: 99 })]
     vi.mocked(bookingChatApi.fetchMessages).mockResolvedValue(makeListResponse(messages))
 
-    const { result } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
+    const { result } = await mountComposable(BOOKING_ID, REALTIME_CHANNEL_KEY, CURRENT_USER_ID)
 
     expect(bookingChatApi.fetchMessages).toHaveBeenCalledWith(BOOKING_ID)
+    expect(mockEcho.private).toHaveBeenCalledWith(`booking.${REALTIME_CHANNEL_KEY}`)
     expect(result.messages.value).toHaveLength(2)
     expect(result.messages.value[0].id).toBe(1)
   })
 
   it('isLoading is false after messages are loaded', async () => {
-    const { result } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
+    const { result } = await mountComposable(BOOKING_ID, REALTIME_CHANNEL_KEY, CURRENT_USER_ID)
     expect(result.isLoading.value).toBe(false)
   })
 
@@ -165,7 +168,7 @@ describe('useBookingChat', () => {
     const newMessage = makeMessage({ id: 5, content: 'Hi there', is_own_message: true })
     vi.mocked(bookingChatApi.sendMessage).mockResolvedValue({ data: newMessage, message: 'Sent' })
 
-    const { result } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
+    const { result } = await mountComposable(BOOKING_ID, REALTIME_CHANNEL_KEY, CURRENT_USER_ID)
     await result.sendMessage('Hi there')
 
     expect(bookingChatApi.sendMessage).toHaveBeenCalledWith(BOOKING_ID, 'Hi there')
@@ -173,7 +176,7 @@ describe('useBookingChat', () => {
   })
 
   it('sendMessage does nothing if content is empty', async () => {
-    const { result } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
+    const { result } = await mountComposable(BOOKING_ID, REALTIME_CHANNEL_KEY, CURRENT_USER_ID)
     await result.sendMessage('   ')
     expect(bookingChatApi.sendMessage).not.toHaveBeenCalled()
   })
@@ -184,7 +187,7 @@ describe('useBookingChat', () => {
       new Promise((res) => { resolveP = res }),
     )
 
-    const { result } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
+    const { result } = await mountComposable(BOOKING_ID, REALTIME_CHANNEL_KEY, CURRENT_USER_ID)
 
     const p1 = result.sendMessage('first')
     await result.sendMessage('second')
@@ -195,7 +198,7 @@ describe('useBookingChat', () => {
   })
 
   it('incoming WS event adds message to list', async () => {
-    const { result, listenCallStart } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
+    const { result, listenCallStart } = await mountComposable(BOOKING_ID, REALTIME_CHANNEL_KEY, CURRENT_USER_ID)
 
     await emitWsPayload(listenCallStart, {
       id: 99,
@@ -213,7 +216,7 @@ describe('useBookingChat', () => {
   })
 
   it('WS event sets is_own_message=true when sender_id matches currentUserId', async () => {
-    const { result, listenCallStart } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
+    const { result, listenCallStart } = await mountComposable(BOOKING_ID, REALTIME_CHANNEL_KEY, CURRENT_USER_ID)
 
     await emitWsPayload(listenCallStart, {
       id: 50,
@@ -230,7 +233,7 @@ describe('useBookingChat', () => {
   })
 
   it('WS event sets is_own_message=false when sender_id differs from currentUserId', async () => {
-    const { result, listenCallStart } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
+    const { result, listenCallStart } = await mountComposable(BOOKING_ID, REALTIME_CHANNEL_KEY, CURRENT_USER_ID)
 
     await emitWsPayload(listenCallStart, {
       id: 51,
@@ -250,7 +253,7 @@ describe('useBookingChat', () => {
     const existingMsg = makeMessage({ id: 10, content: 'Original' })
     vi.mocked(bookingChatApi.fetchMessages).mockResolvedValue(makeListResponse([existingMsg]))
 
-    const { result, listenCallStart } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
+    const { result, listenCallStart } = await mountComposable(BOOKING_ID, REALTIME_CHANNEL_KEY, CURRENT_USER_ID)
     expect(result.messages.value).toHaveLength(1)
 
     await emitWsPayload(listenCallStart, {
@@ -268,7 +271,7 @@ describe('useBookingChat', () => {
   })
 
   it('refreshMessages resets reverbError and reloads messages', async () => {
-    const { result } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
+    const { result } = await mountComposable(BOOKING_ID, REALTIME_CHANNEL_KEY, CURRENT_USER_ID)
 
     result.reverbError.value = true
 
@@ -284,12 +287,12 @@ describe('useBookingChat', () => {
   })
 
   it('channel is left on unmount', async () => {
-    const { wrapper } = await mountComposable(BOOKING_ID, CURRENT_USER_ID)
+    const { wrapper } = await mountComposable(BOOKING_ID, REALTIME_CHANNEL_KEY, CURRENT_USER_ID)
 
     wrapper.unmount()
     await flushPromises()
     await nextTick()
 
-    expect(mockEcho.leave).toHaveBeenCalledWith(`booking.${BOOKING_ID}`)
+    expect(mockEcho.leave).toHaveBeenCalledWith(`booking.${REALTIME_CHANNEL_KEY}`)
   })
 })

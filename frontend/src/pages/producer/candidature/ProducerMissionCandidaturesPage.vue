@@ -24,9 +24,9 @@ const paymentSuccessBanner = ref(false)
 /**
  * Computed: Mission ID from route params
  */
-const missionId = computed(() => Number(route.params.id))
+const missionId = computed(() => route.params.id as string)
 
-const { startPolling, stopPolling } = useMissionPayment(0, missionId.value)
+const { startPolling, stopPolling } = useMissionPayment(0, missionId.value || '')
 
 /**
  * Fetch mission details for the header.
@@ -36,8 +36,7 @@ async function fetchMission(): Promise<void> {
   isLoading.value = true
   error.value = null
 
-  // Validate missionId is a valid number
-  if (isNaN(missionId.value) || missionId.value <= 0) {
+  if (!missionId.value) {
     error.value = 'ID de mission invalide'
     isLoading.value = false
     return

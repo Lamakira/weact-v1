@@ -17,7 +17,7 @@ export function useSendProducerMessage() {
    * @param content The message content
    * @returns The created message or null if failed
    */
-  async function sendMessage(conversationId: number, content: string): Promise<Message | null> {
+  async function sendMessage(conversationId: string, content: string): Promise<Message | null> {
     isSending.value = true
     error.value = null
     validationErrors.value = []

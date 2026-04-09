@@ -1,5 +1,5 @@
 export interface LandingMissionProducer {
-  id: number
+  id: string
   display_name: string
   profile_photo_thumbnail_url: string | null
   average_rating: number | null
@@ -7,7 +7,7 @@ export interface LandingMissionProducer {
 }
 
 export interface LandingMission {
-  id: number
+  id: string
   slug: string
   titre: string
   description: string
@@ -29,7 +29,7 @@ export interface LandingMission {
 }
 
 export interface LandingFace {
-  id: number
+  id: string
   username: string
   prenom: string
   nom: string

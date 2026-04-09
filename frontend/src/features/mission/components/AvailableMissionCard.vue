@@ -12,7 +12,7 @@ const props = defineProps<{
 const router = useRouter()
 
 const emit = defineEmits<{
-  click: [id: number]
+  click: [id: string]
 }>()
 
 // Truncate description at 120 chars
@@ -74,8 +74,8 @@ const producerRatingsCount = computed(() => props.mission.producer?.ratings_coun
 // Navigate to producer profile
 function handleProducerClick(event: MouseEvent | KeyboardEvent): void {
   event.stopPropagation()
-  if (props.mission.producer?.id) {
-    router.push(`/producers/${props.mission.producer.id}`)
+  if (props.mission.producer?.slug) {
+    router.push(`/producers/${props.mission.producer.slug}`)
   }
 }
 </script>

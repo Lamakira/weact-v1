@@ -25,7 +25,7 @@ const toast = useToast()
 const adminAuthStore = useAdminAuthStore()
 const { admin, isLoading, error, fetchAdmin, updateAdmin } = useAdmins()
 
-const adminId = computed(() => Number(route.params.id))
+const adminId = computed(() => route.params.id as string)
 const isSelf = computed(() => admin.value?.id === adminAuthStore.admin?.id)
 
 const editForm = ref({ name: '', email: '', role: '' })

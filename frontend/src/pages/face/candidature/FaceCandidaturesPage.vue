@@ -69,13 +69,13 @@ const toastType = ref<'success' | 'error'>('success')
 /**
  * Card refs for resetting loading state
  */
-const cardRefs = ref<Record<number, InstanceType<typeof CandidatureCard>>>({})
+const cardRefs = ref<Record<string, InstanceType<typeof CandidatureCard>>>({})
 
 /**
  * Cancel modal state
  */
 const showCancelModal = ref(false)
-const candidatureToCancel = ref<number | null>(null)
+const candidatureToCancel = ref<string | null>(null)
 
 /**
  * Show toast notification
@@ -92,7 +92,7 @@ function displayToast(message: string, type: 'success' | 'error'): void {
 /**
  * Handle confirm candidature
  */
-async function handleConfirm(candidatureId: number): Promise<void> {
+async function handleConfirm(candidatureId: string): Promise<void> {
   const result = await confirmCandidature(candidatureId)
 
   // Reset the card's loading state
@@ -112,7 +112,7 @@ async function handleConfirm(candidatureId: number): Promise<void> {
 /**
  * Handle cancel candidature request — opens confirmation modal
  */
-function handleCancelRequest(candidatureId: number): void {
+function handleCancelRequest(candidatureId: string): void {
   candidatureToCancel.value = candidatureId
   showCancelModal.value = true
 }

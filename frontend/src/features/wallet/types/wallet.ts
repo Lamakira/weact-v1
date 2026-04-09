@@ -4,13 +4,13 @@ export interface WalletTransaction {
   amount: number
   reference: string
   description: string
-  booking_id: number | null
+  booking_id: string | null
   status: 'pending' | 'completed' | 'failed' | null
   created_at: string
 }
 
 export interface WalletWithdrawalRequest {
-  id: number
+  id: string
   amount: number
   payment_mode: 'mtn' | 'moov' | 'momo_test'
   phone_number: string

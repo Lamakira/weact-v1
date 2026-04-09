@@ -4,7 +4,7 @@ import adminApiClient, { getCsrfCookie } from './adminApiClient'
  * Admin data from API
  */
 export interface AdminData {
-  id: number
+  id: string
   name: string
   email: string
   role: 'superadmin' | 'admin' | 'editor'
@@ -85,7 +85,7 @@ export const adminsApi = {
   /**
    * Get a single admin by ID
    */
-  async getAdmin(id: number): Promise<AdminDetailResponse> {
+  async getAdmin(id: string): Promise<AdminDetailResponse> {
     const response = await adminApiClient.get<AdminDetailResponse>(`/admin/admins/${id}`)
     return response.data
   },
@@ -93,7 +93,7 @@ export const adminsApi = {
   /**
    * Update an admin's fields
    */
-  async updateAdmin(id: number, data: UpdateAdminForm): Promise<AdminDetailResponse> {
+  async updateAdmin(id: string, data: UpdateAdminForm): Promise<AdminDetailResponse> {
     await getCsrfCookie()
     const response = await adminApiClient.put<AdminDetailResponse>(`/admin/admins/${id}`, data)
     return response.data
@@ -102,7 +102,7 @@ export const adminsApi = {
   /**
    * Delete an admin account
    */
-  async deleteAdmin(id: number): Promise<{ message: string }> {
+  async deleteAdmin(id: string): Promise<{ message: string }> {
     await getCsrfCookie()
     const response = await adminApiClient.delete<{ message: string }>(`/admin/admins/${id}`)
     return response.data
@@ -111,7 +111,7 @@ export const adminsApi = {
   /**
    * Send a password reset link to the given admin (superadmin only)
    */
-  async sendPasswordResetLink(adminId: number): Promise<{ message: string }> {
+  async sendPasswordResetLink(adminId: string): Promise<{ message: string }> {
     await getCsrfCookie()
     const response = await adminApiClient.post<{ data: null; message: string }>(
       `/admin/admins/${adminId}/send-reset-link`,

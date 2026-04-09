@@ -9,7 +9,7 @@ export const bookingChatApi = {
   /**
    * Fetch paginated messages for a booking (oldest first, 30 per page).
    */
-  async fetchMessages(bookingId: number, page = 1): Promise<BookingMessageListResponse> {
+  async fetchMessages(bookingId: string, page = 1): Promise<BookingMessageListResponse> {
     const response = await apiClient.get<BookingMessageListResponse>(
       `/bookings/${bookingId}/messages?page=${page}`,
     )
@@ -19,7 +19,7 @@ export const bookingChatApi = {
   /**
    * Send a new message in a booking chat.
    */
-  async sendMessage(bookingId: number, content: string): Promise<BookingMessageResponse> {
+  async sendMessage(bookingId: string, content: string): Promise<BookingMessageResponse> {
     await getCsrfCookie()
 
     let socketId: string | undefined

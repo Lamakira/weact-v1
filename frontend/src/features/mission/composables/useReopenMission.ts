@@ -18,7 +18,7 @@ export function useReopenMission() {
    * @returns Promise resolving to success status, message, and updated mission data
    */
   async function reopenMission(
-    missionId: number
+    missionId: string
   ): Promise<{ success: boolean; message: string; data?: Mission }> {
     isReopening.value = true
     error.value = null

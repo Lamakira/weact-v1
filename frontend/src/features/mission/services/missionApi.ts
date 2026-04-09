@@ -49,7 +49,7 @@ export const missionApi = {
    * Get a mission by ID
    * @param id The mission ID
    */
-  async getMission(id: number): Promise<MissionResponse> {
+  async getMission(id: string): Promise<MissionResponse> {
     const response = await apiClient.get<MissionResponse>(`/producer/missions/${id}`)
     return response.data
   },
@@ -70,7 +70,7 @@ export const missionApi = {
    * @param id The mission ID
    * @param data The mission data to update
    */
-  async updateMission(id: number, data: UpdateMissionData): Promise<MissionResponse> {
+  async updateMission(id: string, data: UpdateMissionData): Promise<MissionResponse> {
     await getCsrfCookie()
 
     const response = await apiClient.put<MissionResponse>(`/producer/missions/${id}`, data)
@@ -81,7 +81,7 @@ export const missionApi = {
    * Delete a mission
    * @param id The mission ID to delete
    */
-  async deleteMission(id: number): Promise<{ message: string }> {
+  async deleteMission(id: string): Promise<{ message: string }> {
     await getCsrfCookie()
 
     const response = await apiClient.delete<{ message: string }>(`/producer/missions/${id}`)
@@ -92,7 +92,7 @@ export const missionApi = {
    * Close a mission to stop accepting new candidatures
    * @param id The mission ID to close
    */
-  async closeMission(id: number): Promise<MissionResponse> {
+  async closeMission(id: string): Promise<MissionResponse> {
     await getCsrfCookie()
 
     const response = await apiClient.post<MissionResponse>(`/producer/missions/${id}/close`)
@@ -103,7 +103,7 @@ export const missionApi = {
    * Reopen a closed mission to accept candidatures again
    * @param id The mission ID to reopen
    */
-  async reopenMission(id: number): Promise<MissionResponse> {
+  async reopenMission(id: string): Promise<MissionResponse> {
     await getCsrfCookie()
 
     const response = await apiClient.post<MissionResponse>(`/producer/missions/${id}/reopen`)
@@ -114,7 +114,7 @@ export const missionApi = {
    * Mark a mission as completed
    * @param id The mission ID to complete
    */
-  async completeMission(id: number): Promise<MissionResponse> {
+  async completeMission(id: string): Promise<MissionResponse> {
     await getCsrfCookie()
 
     const response = await apiClient.post<MissionResponse>(`/producer/missions/${id}/complete`)
@@ -124,7 +124,7 @@ export const missionApi = {
   /**
    * Confirm face selection and initiate payment
    */
-  async confirmSelection(missionId: number, candidatureIds: number[]): Promise<ConfirmSelectionResponse> {
+  async confirmSelection(missionId: string, candidatureIds: string[]): Promise<ConfirmSelectionResponse> {
     await getCsrfCookie()
 
     const response = await apiClient.post<ConfirmSelectionResponse>(
@@ -137,7 +137,7 @@ export const missionApi = {
   /**
    * Poll payment status for a mission
    */
-  async getPaymentStatus(missionId: number): Promise<PaymentStatusResponse> {
+  async getPaymentStatus(missionId: string): Promise<PaymentStatusResponse> {
     const response = await apiClient.get<PaymentStatusResponse>(
       `/producer/missions/${missionId}/payment-status`
     )

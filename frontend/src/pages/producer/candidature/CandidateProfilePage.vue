@@ -22,10 +22,7 @@ const router = useRouter()
 /**
  * Computed: Face ID from route params
  */
-const faceId = computed(() => {
-  const id = Number(route.params.id)
-  return isNaN(id) ? 0 : id
-})
+const faceId = computed(() => route.params.id as string)
 
 /**
  * Use the composable with reactive faceId
@@ -45,15 +42,16 @@ const reviewsCurrentPage = ref(1)
 const reviewsLastPage = ref(1)
 const reviewsTotal = ref(0)
 const reviewsError = ref(false)
+const reviewUsername = computed(() => candidate.value?.username?.trim() ?? '')
 
 /**
  * Fetch reviews for the Face
  */
-async function fetchReviews(id: number, page: number = 1): Promise<void> {
+async function fetchReviews(username: string, page: number = 1): Promise<void> {
   reviewsLoading.value = true
   reviewsError.value = false
   try {
-    const response = await publicApi.getFaceReviews(id, page)
+    const response = await publicApi.getFaceReviews(username, page)
     reviews.value = response.data
     reviewsCurrentPage.value = response.meta.current_page
     reviewsLastPage.value = response.meta.last_page
@@ -67,29 +65,51 @@ async function fetchReviews(id: number, page: number = 1): Promise<void> {
   }
 }
 
+function resetReviews(): void {
+  reviews.value = []
+  reviewsCurrentPage.value = 1
+  reviewsLastPage.value = 1
+  reviewsTotal.value = 0
+  reviewsError.value = false
+}
+
 /**
  * Handle page change for reviews
  */
 function handleReviewsPageChange(page: number): void {
-  if (faceId.value) {
-    fetchReviews(faceId.value, page)
+  if (reviewUsername.value) {
+    void fetchReviews(reviewUsername.value, page)
+  }
+}
+
+function retryReviews(): void {
+  if (reviewUsername.value) {
+    void fetchReviews(reviewUsername.value, reviewsCurrentPage.value)
   }
 }
 
 /**
- * Watch for faceId changes to fetch reviews
+ * Clear review state immediately when the route changes.
  */
 watch(
   faceId,
-  async (newId) => {
-    reviews.value = []
-    reviewsCurrentPage.value = 1
-    reviewsError.value = false
-    if (newId > 0) {
-      await fetchReviews(newId)
+  () => {
+    resetReviews()
+  },
+)
+
+/**
+ * Fetch reviews once the candidate profile exposes a public username.
+ */
+watch(
+  reviewUsername,
+  async (username) => {
+    resetReviews()
+    if (username) {
+      await fetchReviews(username)
     }
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 /**
@@ -193,7 +213,7 @@ function goBack(): void {
               type="button"
               class="mt-2 text-sm text-primary hover:text-primary/80 underline"
               data-testid="reviews-retry"
-              @click="fetchReviews(faceId)"
+              @click="retryReviews"
             >
               Réessayer
             </button>

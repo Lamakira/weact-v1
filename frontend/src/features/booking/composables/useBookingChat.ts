@@ -12,7 +12,11 @@ export interface UseBookingChatReturn {
   refreshMessages: () => Promise<void>
 }
 
-export function useBookingChat(bookingId: number, currentUserId: number): UseBookingChatReturn {
+export function useBookingChat(
+  bookingId: string,
+  realtimeChannelKey: number,
+  currentUserId: number,
+): UseBookingChatReturn {
   const POLL_INTERVAL_MS = 5000
 
   const messages = ref<BookingMessage[]>([])
@@ -63,7 +67,7 @@ export function useBookingChat(bookingId: number, currentUserId: number): UseBoo
 
   async function subscribeToChannel(): Promise<void> {
     try {
-      const channel = echo.private(`booking.${bookingId}`) as EchoChannel
+      const channel = echo.private(`booking.${realtimeChannelKey}`) as EchoChannel
 
       channel
         .listen('.booking.message.sent', (event: BookingMessageBroadcast) => {
@@ -97,7 +101,7 @@ export function useBookingChat(bookingId: number, currentUserId: number): UseBoo
   async function unsubscribeFromChannel(): Promise<void> {
     stopPolling()
     try {
-      echo.leave(`booking.${bookingId}`)
+      echo.leave(`booking.${realtimeChannelKey}`)
     } catch {
       // Ignore cleanup errors
     }

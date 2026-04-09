@@ -21,7 +21,7 @@ const { isDeleting, deleteMission } = useDeleteMission()
 
 const isDeleteDialogOpen = ref(false)
 
-const missionId = computed(() => Number(route.params.id))
+const missionId = computed(() => route.params.id as string)
 
 /**
  * Parse ISO date string to YYYY-MM-DD format for date inputs

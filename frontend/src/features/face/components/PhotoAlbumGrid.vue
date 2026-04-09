@@ -16,8 +16,8 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  delete: [photoId: number]
-  reorder: [order: number[]]
+  delete: [photoId: string]
+  reorder: [order: string[]]
   'add-click': []
 }>()
 
@@ -48,7 +48,7 @@ function closeLightbox(): void {
 /**
  * Handle delete button click
  */
-function handleDelete(photoId: number): void {
+function handleDelete(photoId: string): void {
   emit('delete', photoId)
 }
 

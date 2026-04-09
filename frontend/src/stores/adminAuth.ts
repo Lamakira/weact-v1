@@ -14,7 +14,7 @@ import { adminAuthApi } from '@/features/admin/services/adminAuthApi'
  * Admin data shape
  */
 export interface AdminUser {
-  id: number
+  id: string
   name: string
   email: string
   role: 'superadmin' | 'admin' | 'editor'

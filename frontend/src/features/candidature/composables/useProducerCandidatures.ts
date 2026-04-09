@@ -8,7 +8,7 @@ import { getApiErrorMessage } from '@/features/auth/services/authApi'
  * Composable for fetching and managing Producer's mission candidatures list
  * @param missionId The mission ID to fetch candidatures for
  */
-export function useProducerCandidatures(missionId: number) {
+export function useProducerCandidatures(missionId: string) {
   const candidatures = ref<ProducerCandidature[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)

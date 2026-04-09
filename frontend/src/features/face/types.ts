@@ -4,7 +4,7 @@
 
 // Face profile data from API
 export interface FaceProfile {
-  id: number
+  id: string
   nom: string
   prenom: string
   username: string
@@ -32,7 +32,7 @@ export interface ProfilePhotoResult {
 
 // Album photo from API
 export interface FacePhoto {
-  id: number
+  id: string
   photo_url: string
   thumbnail_url: string
   position: number
@@ -193,7 +193,7 @@ export interface NicheOption {
 
 // Experience from API
 export interface Experience {
-  id: number
+  id: string
   titre: string
   description: string | null
   date_debut: string // ISO date string (YYYY-MM-DD)

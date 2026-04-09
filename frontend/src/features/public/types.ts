@@ -8,7 +8,8 @@ export type ProducerType = 'agency' | 'particulier'
 
 // Public Producer profile data from API
 export interface PublicProducer {
-  id: number
+  id: string
+  slug: string | null
   type: ProducerType
   display_name: string
   agency_name: string | null

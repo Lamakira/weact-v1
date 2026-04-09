@@ -15,7 +15,7 @@ vi.mock('vue-router', () => ({
 // Factory for creating test mission data
 function createMission(overrides: Partial<Mission> = {}): Mission {
   return {
-    id: 1,
+    id: 'mission-uuid-1',
     titre: 'Test Mission',
     description: 'Test mission description',
     date_tournage: '2026-02-15',
@@ -41,7 +41,8 @@ function createMission(overrides: Partial<Mission> = {}): Mission {
 
 function createProducer(overrides: Partial<MissionProducer> = {}): MissionProducer {
   return {
-    id: 1,
+    id: 'producer-uuid-1',
+    slug: 'test-agency',
     type: 'agency',
     agency_name: 'Test Agency',
     first_name: null,
@@ -173,7 +174,7 @@ describe('AvailableMissionCard', () => {
   describe('producer click navigation', () => {
     it('navigates to producer profile on click', async () => {
       const mission = createMission({
-        producer: createProducer({ id: 42 }),
+        producer: createProducer({ id: 'producer-uuid-42', slug: 'producer-42' }),
       })
 
       const wrapper = mount(AvailableMissionCard, {
@@ -190,12 +191,12 @@ describe('AvailableMissionCard', () => {
       expect(producerSection.exists()).toBe(true)
 
       await producerSection.trigger('click')
-      expect(mockPush).toHaveBeenCalledWith('/producers/42')
+      expect(mockPush).toHaveBeenCalledWith('/producers/producer-42')
     })
 
     it('stops propagation when clicking producer section', async () => {
       const mission = createMission({
-        producer: createProducer({ id: 42 }),
+        producer: createProducer({ id: 'producer-uuid-42', slug: 'producer-42' }),
       })
 
       const wrapper = mount(AvailableMissionCard, {
@@ -209,7 +210,7 @@ describe('AvailableMissionCard', () => {
       await producerSection.trigger('click')
 
       // Should navigate to producer, not emit card click
-      expect(mockPush).toHaveBeenCalledWith('/producers/42')
+      expect(mockPush).toHaveBeenCalledWith('/producers/producer-42')
     })
 
     it('does not navigate when producer is missing', async () => {
@@ -234,7 +235,7 @@ describe('AvailableMissionCard', () => {
 
     it('navigates on Enter key press', async () => {
       const mission = createMission({
-        producer: createProducer({ id: 99 }),
+        producer: createProducer({ id: 'producer-uuid-99', slug: 'producer-99' }),
       })
 
       const wrapper = mount(AvailableMissionCard, {
@@ -249,7 +250,7 @@ describe('AvailableMissionCard', () => {
       const producerSection = wrapper.find('[role="button"]')
       await producerSection.trigger('keydown.enter')
 
-      expect(mockPush).toHaveBeenCalledWith('/producers/99')
+      expect(mockPush).toHaveBeenCalledWith('/producers/producer-99')
     })
   })
 

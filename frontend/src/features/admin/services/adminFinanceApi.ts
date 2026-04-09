@@ -58,7 +58,7 @@ export interface PaginationMeta {
 }
 
 export interface WithdrawalRequestEntry {
-  id: number
+  id: string
   amount: number
   payment_mode: string
   phone_number: string
@@ -92,7 +92,7 @@ export const adminFinanceApi = {
     return response.data
   },
 
-  async approveWithdrawalRequest(id: number, notes?: string): Promise<{ message: string }> {
+  async approveWithdrawalRequest(id: string, notes?: string): Promise<{ message: string }> {
     await getCsrfCookie()
     const response = await adminApiClient.post(`/admin/finance/withdrawal-requests/${id}/approve`, {
       notes,
@@ -100,7 +100,7 @@ export const adminFinanceApi = {
     return response.data
   },
 
-  async rejectWithdrawalRequest(id: number, notes: string): Promise<{ message: string }> {
+  async rejectWithdrawalRequest(id: string, notes: string): Promise<{ message: string }> {
     await getCsrfCookie()
     const response = await adminApiClient.post(`/admin/finance/withdrawal-requests/${id}/reject`, {
       notes,

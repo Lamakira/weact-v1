@@ -151,7 +151,7 @@ describe('AdminFaceDetailPage', () => {
     await wrapper.get('[data-testid="save-button"]').trigger('click')
     await flushPromises()
 
-    expect(mockUpdateFace).toHaveBeenCalledWith(1, { is_featured: true })
+    expect(mockUpdateFace).toHaveBeenCalledWith('1', { is_featured: true })
     expect(mockToastSuccess).toHaveBeenCalled()
   })
 
@@ -249,6 +249,6 @@ describe('AdminFaceDetailPage', () => {
     await wrapper.get('[data-testid="save-button"]').trigger('click')
     await flushPromises()
 
-    expect(mockUpdateFace).toHaveBeenCalledWith(1, { is_featured: true })
+    expect(mockUpdateFace).toHaveBeenCalledWith('1', { is_featured: true })
   })
 })

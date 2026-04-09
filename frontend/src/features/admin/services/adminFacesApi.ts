@@ -4,14 +4,14 @@ import adminApiClient from './adminApiClient'
  * Face data from admin API
  */
 export interface AdminFacePhoto {
-  id: number
+  id: string
   photo_url: string
   thumbnail_url: string
   position: number
 }
 
 export interface AdminFaceExperience {
-  id: number
+  id: string
   titre: string
   description: string | null
   date_debut: string | null
@@ -21,7 +21,7 @@ export interface AdminFaceExperience {
 }
 
 export interface AdminFaceData {
-  id: number
+  id: string
   nom: string
   prenom: string
   username: string
@@ -125,7 +125,7 @@ export const adminFacesApi = {
   /**
    * Get a single face by ID
    */
-  async getFace(id: number): Promise<AdminFaceDetailResponse> {
+  async getFace(id: string): Promise<AdminFaceDetailResponse> {
     const response = await adminApiClient.get<AdminFaceDetailResponse>(`/admin/faces/${id}`)
     return response.data
   },
@@ -133,7 +133,7 @@ export const adminFacesApi = {
   /**
    * Update a face's admin-editable fields
    */
-  async updateFace(id: number, data: UpdateAdminFaceForm): Promise<AdminFaceDetailResponse> {
+  async updateFace(id: string, data: UpdateAdminFaceForm): Promise<AdminFaceDetailResponse> {
     const response = await adminApiClient.put<AdminFaceDetailResponse>(
       `/admin/faces/${id}`,
       data,
@@ -144,7 +144,7 @@ export const adminFacesApi = {
   /**
    * Toggle a face's account activation status
    */
-  async toggleActive(id: number): Promise<AdminFaceDetailResponse> {
+  async toggleActive(id: string): Promise<AdminFaceDetailResponse> {
     const response = await adminApiClient.patch<AdminFaceDetailResponse>(
       `/admin/faces/${id}/toggle-active`,
     )
@@ -154,7 +154,7 @@ export const adminFacesApi = {
   /**
    * Delete a face and its associated user
    */
-  async deleteFace(id: number): Promise<{ message: string }> {
+  async deleteFace(id: string): Promise<{ message: string }> {
     const response = await adminApiClient.delete<{ message: string }>(`/admin/faces/${id}`)
     return response.data
   },

@@ -27,7 +27,7 @@ const { producer, isLoading, error, fetchProducer, updateProducer, toggleActive,
 
 const toast = useToast()
 
-const producerId = computed(() => Number(route.params.id))
+const producerId = computed(() => route.params.id as string)
 const isEditing = ref(false)
 const editForm = ref<UpdateAdminProducerForm>({})
 const editErrors = ref<Record<string, string[]>>({})

@@ -20,7 +20,7 @@ export const candidatureApi = {
    * @returns Candidature data with success message
    */
   async applyToMission(
-    missionId: number,
+    missionId: string,
     data?: ApplyToMissionData,
   ): Promise<CandidatureResponse> {
     const response = await apiClient.post<CandidatureResponse>(
@@ -60,7 +60,7 @@ export const candidatureApi = {
    * @returns Paginated candidatures with face data
    */
   async getMissionCandidatures(
-    missionId: number,
+    missionId: string,
     page: number = 1,
     status?: CandidatureStatusType | '',
   ): Promise<ProducerCandidatureListResponse> {
@@ -82,7 +82,7 @@ export const candidatureApi = {
    * @param faceId The Face ID to get profile for
    * @returns Full candidate profile data
    */
-  async getCandidateProfile(faceId: number): Promise<CandidateFullProfileResponse> {
+  async getCandidateProfile(faceId: string): Promise<CandidateFullProfileResponse> {
     const response = await apiClient.get<CandidateFullProfileResponse>(
       `/producer/candidates/${faceId}`,
     )
@@ -95,7 +95,7 @@ export const candidatureApi = {
    * @param candidatureId The candidature ID to accept
    * @returns Updated candidature data with success message
    */
-  async acceptCandidature(candidatureId: number): Promise<CandidatureResponse> {
+  async acceptCandidature(candidatureId: string): Promise<CandidatureResponse> {
     const response = await apiClient.post<CandidatureResponse>(
       `/producer/candidatures/${candidatureId}/accept`,
     )
@@ -108,7 +108,7 @@ export const candidatureApi = {
    * @param candidatureId The candidature ID to reject
    * @returns Updated candidature data with success message
    */
-  async rejectCandidature(candidatureId: number): Promise<CandidatureResponse> {
+  async rejectCandidature(candidatureId: string): Promise<CandidatureResponse> {
     const response = await apiClient.post<CandidatureResponse>(
       `/producer/candidatures/${candidatureId}/reject`,
     )
@@ -121,7 +121,7 @@ export const candidatureApi = {
    * @param candidatureId The candidature ID to confirm
    * @returns Updated candidature data with success message
    */
-  async confirmCandidature(candidatureId: number): Promise<CandidatureResponse> {
+  async confirmCandidature(candidatureId: string): Promise<CandidatureResponse> {
     const response = await apiClient.post<CandidatureResponse>(
       `/face/candidatures/${candidatureId}/confirm`,
     )
@@ -134,7 +134,7 @@ export const candidatureApi = {
    * @param candidatureId The candidature ID to cancel
    * @returns Success message
    */
-  async cancelCandidature(candidatureId: number): Promise<{ message: string }> {
+  async cancelCandidature(candidatureId: string): Promise<{ message: string }> {
     const response = await apiClient.post<{ message: string }>(
       `/face/candidatures/${candidatureId}/cancel`,
     )
