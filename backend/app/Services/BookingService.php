@@ -318,7 +318,7 @@ class BookingService
                 $lockedBooking->producer_id,
                 $lockedBooking->montant_total_producteur,
                 $lockedBooking,
-                "Booking #{$lockedBooking->id} — remboursement absence Face (100%)",
+                "Booking : remboursement absence Face (100%)",
             );
 
             // Record financial event for audit trail

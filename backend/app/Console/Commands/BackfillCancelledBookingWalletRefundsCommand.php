@@ -114,7 +114,7 @@ class BackfillCancelledBookingWalletRefundsCommand extends Command
                         userId: $lockedBooking->producer_id,
                         amount: $missingAmount,
                         booking: $lockedBooking,
-                        description: "Booking #{$lockedBooking->id} — rattrapage remboursement annulation",
+                        description: "Booking : rattrapage remboursement annulation",
                     );
 
                     $hasCompletedRefundEvent = FinancialEvent::query()

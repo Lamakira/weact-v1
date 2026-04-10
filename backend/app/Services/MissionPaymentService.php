@@ -323,7 +323,7 @@ class MissionPaymentService
             $this->walletService->creditDirect(
                 $userId,
                 $entry->montant_face_recoit,
-                "Mission #{$mission->id} — {$mission->titre}"
+                "Mission : {$mission->titre}"
             );
 
             $entry->update([

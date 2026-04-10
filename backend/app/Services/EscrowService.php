@@ -74,7 +74,7 @@ class EscrowService
             userId: $booking->face_id,
             amount: $booking->montant_face_recoit,
             booking: $booking,
-            description: "Booking #{$booking->id} — escrow libéré",
+            description: "Booking : escrow libéré",
         );
 
         $this->recordFinancialEvent(
@@ -150,7 +150,7 @@ class EscrowService
             userId: $booking->producer_id,
             amount: $refundAmount,
             booking: $booking,
-            description: "Booking #{$booking->id} — remboursement annulation (90%)",
+            description: "Booking : remboursement annulation (90%)",
         );
 
         $this->recordFinancialEvent(

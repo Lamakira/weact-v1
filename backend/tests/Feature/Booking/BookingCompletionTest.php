@@ -175,6 +175,7 @@ class BookingCompletionTest extends TestCase
             'booking_id' => $booking->id,
             'type' => 'credit',
             'amount' => 45000,
+            'description' => 'Booking : escrow libéré',
         ]);
 
         // Face wallet balance is updated

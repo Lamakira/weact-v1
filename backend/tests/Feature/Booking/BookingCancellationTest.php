@@ -158,6 +158,7 @@ class BookingCancellationTest extends TestCase
             'booking_id' => $booking->id,
             'type' => 'credit',
             'amount' => $expectedRefund,
+            'description' => 'Booking : remboursement annulation (90%)',
         ]);
 
         $this->assertDatabaseHas('financial_events', [
@@ -215,6 +216,7 @@ class BookingCancellationTest extends TestCase
             'booking_id' => $booking->id,
             'type' => 'credit',
             'amount' => $expectedRefund,
+            'description' => 'Booking : remboursement annulation (90%)',
         ]);
 
         $this->assertDatabaseHas('financial_events', [
