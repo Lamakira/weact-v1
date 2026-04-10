@@ -118,7 +118,8 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
             </div>
           </div>
 
-          <div v-if="isPaid" class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <!-- Producer: paid booking — show refund breakdown -->
+          <div v-if="isPaid && !isFace" class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
             <p class="mb-2 text-sm font-medium text-amber-900">Conséquences financières</p>
             <div class="space-y-1.5 text-sm text-amber-800">
               <div class="flex items-center justify-between">
@@ -136,6 +137,21 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
             </div>
           </div>
 
+          <!-- Face: cancellation consequences -->
+          <div v-else-if="isFace" class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <p class="mb-2 text-sm font-medium text-amber-900">Conséquences de l'annulation</p>
+            <div class="space-y-1.5 text-sm text-amber-800">
+              <div v-if="isPaid" class="flex items-center justify-between">
+                <span>Montant que vous auriez perçu</span>
+                <span class="font-medium">{{ formatCurrency(booking.montant_face_recoit) }}</span>
+              </div>
+              <div class="flex items-center gap-2 pt-1 text-red-700">
+                <span>Votre note moyenne sera pénalisée de -1 étoile</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Producer: unpaid booking -->
           <p v-else class="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
             Le booking sera annulé immédiatement, sans transaction financière.
           </p>
