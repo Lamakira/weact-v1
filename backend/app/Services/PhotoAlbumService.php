@@ -16,19 +16,22 @@ use Intervention\Image\Laravel\Facades\Image;
 class PhotoAlbumService
 {
     public const MAX_PHOTOS = 4;
+
     private const STORAGE_PATH = 'avatars/faces/albums';
+
     private const THUMBNAIL_PATH = 'avatars/faces/albums/thumbnails';
+
     private const MEDIUM_PATH = 'avatars/faces/albums/medium';
+
     private const THUMBNAIL_SIZE = 150;
+
     private const MEDIUM_WIDTH = 800;
+
     private const QUALITY = 85;
 
     /**
      * Add a photo to a Face's album.
      *
-     * @param Face $face
-     * @param UploadedFile $photo
-     * @return FacePhoto
      * @throws \Exception If album is full
      */
     public function addPhoto(Face $face, UploadedFile $photo): FacePhoto
@@ -36,13 +39,13 @@ class PhotoAlbumService
         // Check if face already has maximum photos
         $currentCount = $face->photos()->count();
         if ($currentCount >= self::MAX_PHOTOS) {
-            throw new \Exception('Maximum ' . self::MAX_PHOTOS . ' photos atteint');
+            throw new \Exception('Maximum '.self::MAX_PHOTOS.' photos atteint');
         }
 
         // Generate unique filename with UUID
         $extension = $photo->getClientOriginalExtension() ?: 'jpg';
-        $filename = Str::uuid()->toString() . '.' . $extension;
-        $mediumFilename = pathinfo($filename, PATHINFO_FILENAME) . '.webp';
+        $filename = Str::uuid()->toString().'.'.$extension;
+        $mediumFilename = pathinfo($filename, PATHINFO_FILENAME).'.webp';
 
         // Calculate next position
         $nextPosition = $currentCount + 1;
@@ -58,18 +61,21 @@ class PhotoAlbumService
                 $this->generateMedium($photo, $mediumFilename);
 
                 // Create FacePhoto record
-                return FacePhoto::create([
+                /** @var FacePhoto $facePhoto */
+                $facePhoto = FacePhoto::create([
                     'face_id' => $face->id,
                     'filename' => $filename,
                     'thumbnail' => $thumbnailFilename,
                     'medium' => $mediumFilename,
                     'position' => $nextPosition,
                 ]);
+
+                return $facePhoto;
             } catch (\Throwable $e) {
                 // Clean up files on failure
-                Storage::disk('public')->delete(self::STORAGE_PATH . '/' . $filename);
-                Storage::disk('public')->delete(self::THUMBNAIL_PATH . '/' . $filename);
-                Storage::disk('public')->delete(self::MEDIUM_PATH . '/' . $mediumFilename);
+                Storage::disk('public')->delete(self::STORAGE_PATH.'/'.$filename);
+                Storage::disk('public')->delete(self::THUMBNAIL_PATH.'/'.$filename);
+                Storage::disk('public')->delete(self::MEDIUM_PATH.'/'.$mediumFilename);
                 throw $e;
             }
         });
@@ -77,32 +83,34 @@ class PhotoAlbumService
 
     /**
      * Delete a photo from a Face's album.
-     *
-     * @param FacePhoto $photo
-     * @return bool
      */
     public function deletePhoto(FacePhoto $photo): bool
     {
         $face = $photo->face;
+
+        if (! $face instanceof Face) {
+            return false;
+        }
+
         $disk = Storage::disk('public');
 
         // Delete files from storage
         if ($photo->filename) {
-            $photoPath = self::STORAGE_PATH . '/' . $photo->filename;
+            $photoPath = self::STORAGE_PATH.'/'.$photo->filename;
             if ($disk->exists($photoPath)) {
                 $disk->delete($photoPath);
             }
         }
 
         if ($photo->thumbnail) {
-            $thumbnailPath = self::THUMBNAIL_PATH . '/' . $photo->thumbnail;
+            $thumbnailPath = self::THUMBNAIL_PATH.'/'.$photo->thumbnail;
             if ($disk->exists($thumbnailPath)) {
                 $disk->delete($thumbnailPath);
             }
         }
 
         if ($photo->medium) {
-            $mediumPath = self::MEDIUM_PATH . '/' . $photo->medium;
+            $mediumPath = self::MEDIUM_PATH.'/'.$photo->medium;
             if ($disk->exists($mediumPath)) {
                 $disk->delete($mediumPath);
             }
@@ -120,9 +128,8 @@ class PhotoAlbumService
     /**
      * Reorder photos for a Face.
      *
-     * @param Face $face
-     * @param array<int> $order Array of photo IDs in desired order
-     * @return void
+     * @param  array<int>  $order  Array of photo IDs in desired order
+     *
      * @throws \Exception If IDs don't match Face's photos
      */
     public function reorderPhotos(Face $face, array $order): void
@@ -132,8 +139,8 @@ class PhotoAlbumService
 
         // Validate all IDs belong to this face
         foreach ($order as $id) {
-            if (!in_array($id, $photoIds)) {
-                throw new \Exception('Photo ID ' . $id . ' does not belong to this Face');
+            if (! in_array($id, $photoIds)) {
+                throw new \Exception('Photo ID '.$id.' does not belong to this Face');
             }
         }
 
@@ -160,19 +167,18 @@ class PhotoAlbumService
     /**
      * Get all photos for a Face, ordered by position.
      *
-     * @param Face $face
      * @return Collection<int, FacePhoto>
      */
     public function getPhotos(Face $face): Collection
     {
-        return $face->photos()->orderBy('position')->get();
+        /** @var Collection<int, FacePhoto> $photos */
+        $photos = $face->photos()->orderBy('position')->get();
+
+        return $photos;
     }
 
     /**
      * Reorder photos after a deletion to fill the gap.
-     *
-     * @param Face $face
-     * @return void
      */
     private function reorderAfterDelete(Face $face): void
     {
@@ -198,8 +204,6 @@ class PhotoAlbumService
     /**
      * Generate a thumbnail from the uploaded photo.
      *
-     * @param UploadedFile $photo
-     * @param string $filename
      * @return string The thumbnail filename
      */
     private function generateThumbnail(UploadedFile $photo, string $filename): string
@@ -207,7 +211,7 @@ class PhotoAlbumService
         $image = Image::read($photo->getRealPath());
         $image->cover(self::THUMBNAIL_SIZE, self::THUMBNAIL_SIZE);
         $encoded = $image->toJpeg(self::QUALITY);
-        Storage::disk('public')->put(self::THUMBNAIL_PATH . '/' . $filename, $encoded->toString());
+        Storage::disk('public')->put(self::THUMBNAIL_PATH.'/'.$filename, $encoded->toString());
 
         return $filename;
     }
@@ -217,6 +221,6 @@ class PhotoAlbumService
         $image = Image::read($photo->getRealPath());
         $image->scaleDown(width: self::MEDIUM_WIDTH);
         $encoded = $image->toWebp(self::QUALITY);
-        Storage::disk('public')->put(self::MEDIUM_PATH . '/' . $mediumFilename, $encoded->toString());
+        Storage::disk('public')->put(self::MEDIUM_PATH.'/'.$mediumFilename, $encoded->toString());
     }
 }

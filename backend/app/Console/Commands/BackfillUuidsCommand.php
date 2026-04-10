@@ -32,7 +32,7 @@ class BackfillUuidsCommand extends Command
 
         $modelClass::whereNull('uuid')->chunkById($chunkSize, function ($records) use (&$updated): void {
             foreach ($records as $record) {
-                $record->uuid = (string) Str::uuid();
+                $record->setAttribute('uuid', (string) Str::uuid());
                 $record->timestamps = false;
                 $record->save();
                 $updated++;

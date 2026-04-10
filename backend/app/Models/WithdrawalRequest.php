@@ -4,11 +4,27 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\HasRouteUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Concerns\HasRouteUuid;
 
+/**
+ * @property int $id
+ * @property int $user_id
+ * @property string $uuid
+ * @property int $amount
+ * @property string $payment_mode
+ * @property string $phone_number
+ * @property string|null $phone_country
+ * @property string $status
+ * @property string|null $notes
+ * @property int|null $wallet_transaction_id
+ * @property int|null $processed_by_admin_id
+ * @property \Illuminate\Support\Carbon|null $processed_at
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property User $user
+ */
 class WithdrawalRequest extends Model
 {
     use HasFactory, HasRouteUuid;

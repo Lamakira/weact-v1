@@ -49,7 +49,9 @@ class ExpireUnacceptedBookingsCommand extends Command
                 $this->bookingService->expireUnaccepted($booking);
                 $booking->refresh();
 
-                if ($booking->status === BookingStatus::Expired) {
+                $status = BookingStatus::from((string) $booking->getRawOriginal('status'));
+
+                if ($status === BookingStatus::Expired) {
                     $this->info("Expired booking #{$booking->id}");
                     $expired++;
 

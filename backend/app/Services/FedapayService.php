@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Booking;
+use App\Models\Mission;
 use App\Models\MissionPayment;
 use App\Models\Producer;
 use App\Models\User;
@@ -32,7 +33,11 @@ class FedapayService
     public function initiatePayment(Booking $booking, string $idempotencyKey): array
     {
         $producer = $booking->producer;
+        if (! $producer instanceof User) {
+            throw new \RuntimeException('Le producteur du booking est introuvable.');
+        }
 
+        /** @var Transaction $transaction */
         $transaction = Transaction::create([
             'description' => "Booking #{$booking->id}",
             'amount' => $booking->montant_total_producteur,
@@ -43,11 +48,12 @@ class FedapayService
                 'idempotency_key' => $idempotencyKey,
             ],
             'customer' => [
-                'firstname' => $producer->name,
+                'firstname' => $this->resolveCustomerName($producer),
                 'email' => $producer->email,
             ],
         ]);
 
+        /** @var object{url:string} $tokenObj */
         $tokenObj = $transaction->generateToken();
 
         return [
@@ -63,12 +69,17 @@ class FedapayService
      */
     public function initiatePaymentForMission(MissionPayment $payment, string $idempotencyKey): array
     {
-        $producerUser = \App\Models\User::where('userable_type', Producer::class)
+        /** @var User $producerUser */
+        $producerUser = User::query()->where('userable_type', Producer::class)
             ->where('userable_id', $payment->producer_id)
             ->firstOrFail();
 
         $mission = $payment->mission;
+        if (! $mission instanceof Mission) {
+            throw new \RuntimeException('La mission liée au paiement est introuvable.');
+        }
 
+        /** @var Transaction $transaction */
         $transaction = Transaction::create([
             'description' => "Mission #{$mission->id} — {$mission->titre}",
             'amount' => $payment->montant_total_producteur,
@@ -80,11 +91,12 @@ class FedapayService
                 'type' => 'mission',
             ],
             'customer' => [
-                'firstname' => $producerUser->name,
+                'firstname' => $this->resolveCustomerName($producerUser),
                 'email' => $producerUser->email,
             ],
         ]);
 
+        /** @var object{url:string} $tokenObj */
         $tokenObj = $transaction->generateToken();
 
         return [
@@ -104,7 +116,9 @@ class FedapayService
             throw new \RuntimeException('Aucune transaction Fedapay liée au booking pour effectuer un remboursement.');
         }
 
+        /** @var Transaction $transaction */
         $transaction = Transaction::retrieve($booking->fedapay_transaction_id);
+        /** @phpstan-ignore-next-line Fedapay exposes refund dynamically on its resource object. */
         $refund = $transaction->refund([
             'amount' => $refundAmount,
             'custom_metadata' => [
@@ -138,7 +152,10 @@ class FedapayService
      */
     public function retrieveTransaction(int $id): Transaction
     {
-        return Transaction::retrieve($id);
+        /** @var Transaction $transaction */
+        $transaction = Transaction::retrieve($id);
+
+        return $transaction;
     }
 
     /**
@@ -163,9 +180,10 @@ class FedapayService
         }
 
         try {
+            /** @var object{balances: iterable<object{amount:int|null}>} $response */
             $response = Balance::all();
             $totalAmount = (int) collect($response->balances ?? [])
-                ->sum(fn (Balance $balance): int => (int) ($balance->amount ?? 0));
+                ->sum(fn (object $balance): int => (int) data_get($balance, 'amount', 0));
 
             return [
                 'available' => true,
@@ -194,9 +212,9 @@ class FedapayService
      * @var array<string, string>
      */
     private const PAYOUT_MODE_MAP = [
-        'mtn'       => 'mtn_open',  // MTN Bénin
-        'moov'      => 'moov',      // Moov Bénin
-        'celtiis'   => 'sbin',      // Celtiis Bénin (anciennement BBCI)
+        'mtn' => 'mtn_open',  // MTN Bénin
+        'moov' => 'moov',      // Moov Bénin
+        'celtiis' => 'sbin',      // Celtiis Bénin (anciennement BBCI)
         'momo_test' => 'mtn_open',  // Sandbox local — utilise mtn_open
     ];
 
@@ -206,40 +224,53 @@ class FedapayService
      *
      * @param  array{number: string, country: string}  $phoneData
      * @return array{fedapay_payout_id: int, status: string}
-     * @throws \FedaPay\Error\ApiError on Fedapay failure
      */
     public function initiateWithdrawal(int $amount, string $mode, string $idempotencyKey, array $phoneData, User $user): array
     {
         $fedapayMode = self::PAYOUT_MODE_MAP[$mode] ?? $mode;
 
+        /** @var Payout $payout */
         $payout = Payout::create([
-            'amount'   => $amount,
+            'amount' => $amount,
             'currency' => ['iso' => 'XOF'],
-            'mode'     => $fedapayMode,
+            'mode' => $fedapayMode,
             'customer' => [
-                'firstname' => $user->name,
-                'email'     => $user->email,
+                'firstname' => $this->resolveCustomerName($user),
+                'email' => $user->email,
                 'phone_number' => [
-                    'number'  => $phoneData['number'],
+                    'number' => $phoneData['number'],
                     'country' => $phoneData['country'],
                 ],
             ],
             'metadata' => [
-                'user_id'         => $user->id,
+                'user_id' => $user->id,
                 'idempotency_key' => $idempotencyKey,
             ],
         ]);
 
         $payout->sendNow([
             'phone_number' => [
-                'number'  => $phoneData['number'],
+                'number' => $phoneData['number'],
                 'country' => $phoneData['country'],
             ],
         ]);
 
         return [
             'fedapay_payout_id' => (int) $payout->id,
-            'status'            => $payout->status,
+            'status' => $payout->status,
         ];
+    }
+
+    private function resolveCustomerName(User $user): string
+    {
+        $user->loadMissing('userable');
+
+        $displayName = data_get($user, 'userable.display_name');
+
+        if (is_string($displayName) && $displayName !== '') {
+            return $displayName;
+        }
+
+        return (string) $user->email;
     }
 }

@@ -15,6 +15,7 @@ class BioTest extends TestCase
     use RefreshDatabase;
 
     private User $producerUser;
+
     private Producer $producer;
 
     protected function setUp(): void

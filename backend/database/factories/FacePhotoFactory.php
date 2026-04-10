@@ -23,7 +23,7 @@ class FacePhotoFactory extends Factory
      */
     public function definition(): array
     {
-        $filename = Str::uuid()->toString() . '.jpg';
+        $filename = Str::uuid()->toString().'.jpg';
 
         return [
             'uuid' => fake()->uuid(),
@@ -63,8 +63,6 @@ class FacePhotoFactory extends Factory
     /**
      * Create multiple photos with sequential positions for a face.
      *
-     * @param Face $face
-     * @param int $count
      * @return \Illuminate\Database\Eloquent\Collection<int, FacePhoto>
      */
     public static function createSequentialForFace(Face $face, int $count): \Illuminate\Database\Eloquent\Collection
@@ -78,6 +76,7 @@ class FacePhotoFactory extends Factory
                 ])
             );
         }
+
         return new \Illuminate\Database\Eloquent\Collection($photos->all());
     }
 }

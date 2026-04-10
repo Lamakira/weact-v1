@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Mission;
 
-use App\Enums\MissionGender;
-use App\Enums\MissionStatus;
-use App\Enums\MissionType;
 use App\Models\Face;
 use App\Models\Mission;
 use App\Models\Producer;

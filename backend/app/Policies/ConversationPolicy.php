@@ -40,7 +40,7 @@ class ConversationPolicy
      */
     public function sendMessage(User $user, Conversation $conversation): bool
     {
-        if (!$this->view($user, $conversation)) {
+        if (! $this->view($user, $conversation)) {
             return false;
         }
 

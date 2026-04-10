@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Admin;
 
+use App\Enums\ArticleCategory;
 use App\Enums\ArticleStatus;
 use App\Models\Admin;
 use App\Models\Article;
@@ -19,22 +20,22 @@ class ArticleService
     /**
      * List articles with pagination, search, and filters.
      *
-     * @param array<string, mixed> $filters
+     * @param  array<string, mixed>  $filters
      */
     public function listArticles(array $filters = []): LengthAwarePaginator
     {
         $query = Article::with('admin')->orderBy('created_at', 'desc');
 
-        if (!empty($filters['search']) && is_string($filters['search'])) {
+        if (! empty($filters['search']) && is_string($filters['search'])) {
             $search = str_replace(['%', '_'], ['\%', '\_'], $filters['search']);
             $query->where('title', 'like', "%{$search}%");
         }
 
-        if (!empty($filters['category']) && is_string($filters['category'])) {
+        if (! empty($filters['category']) && is_string($filters['category'])) {
             $query->where('category', $filters['category']);
         }
 
-        if (!empty($filters['status']) && is_string($filters['status'])) {
+        if (! empty($filters['status']) && is_string($filters['status'])) {
             $query->where('status', $filters['status']);
         }
 
@@ -67,7 +68,7 @@ class ArticleService
 
     public function updateCategory(Article $article, string $category): Article
     {
-        if ($article->category->value === $category) {
+        if ($article->category === ArticleCategory::tryFrom($category)) {
             return $article;
         }
 
@@ -78,7 +79,7 @@ class ArticleService
 
     public function updateStatus(Article $article, string $status): Article
     {
-        if ($article->status->value === $status) {
+        if ($article->status === ArticleStatus::tryFrom($status)) {
             return $article;
         }
 
@@ -109,7 +110,7 @@ class ArticleService
             $newStatus = $data['status'];
             $updateData['status'] = $newStatus;
 
-            if ($article->status->value !== $newStatus) {
+            if ($article->status !== ArticleStatus::tryFrom($newStatus)) {
                 if ($newStatus === ArticleStatus::Published->value) {
                     $updateData['published_at'] = now();
                 } else {
@@ -123,7 +124,7 @@ class ArticleService
             $updateData['featured_image'] = $this->uploadFeaturedImage($featuredImage);
         }
 
-        if (!empty($updateData)) {
+        if (! empty($updateData)) {
             $article->update($updateData);
         }
 
@@ -139,14 +140,14 @@ class ArticleService
     private function deleteOldImage(Article $article): void
     {
         if ($article->featured_image) {
-            Storage::disk('public')->delete(self::STORAGE_PATH . '/' . $article->featured_image);
+            Storage::disk('public')->delete(self::STORAGE_PATH.'/'.$article->featured_image);
         }
     }
 
     private function uploadFeaturedImage(UploadedFile $image): string
     {
         $extension = $image->getClientOriginalExtension() ?: 'jpg';
-        $filename = Str::uuid()->toString() . '.' . $extension;
+        $filename = Str::uuid()->toString().'.'.$extension;
 
         Storage::disk('public')->putFileAs(self::STORAGE_PATH, $image, $filename);
 

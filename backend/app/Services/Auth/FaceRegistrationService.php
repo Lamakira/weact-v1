@@ -14,7 +14,7 @@ class FaceRegistrationService
     /**
      * Register a new Face user.
      *
-     * @param array{nom: string, prenom: string, username: string, email: string, password: string, sexe: string, date_naissance: string, nationalite: string, pays: string, whatsapp_number?: string|null, accept_cgu?: bool} $validated
+     * @param  array{nom: string, prenom: string, username: string, email: string, password: string, sexe: string, date_naissance: string, nationalite: string, pays: string, whatsapp_number?: string|null, accept_cgu?: bool}  $validated
      * @return array{user: User, face: Face, token: string}
      */
     public function register(array $validated, ?string $ip = null): array

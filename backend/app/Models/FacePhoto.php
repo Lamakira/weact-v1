@@ -4,12 +4,25 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\HasRouteUuid;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Concerns\HasRouteUuid;
 
+/**
+ * @property int $id
+ * @property int $face_id
+ * @property string $uuid
+ * @property string|null $filename
+ * @property string|null $thumbnail
+ * @property string|null $medium
+ * @property int $position
+ * @property-read string|null $photo_url
+ * @property-read string|null $thumbnail_url
+ * @property-read string|null $medium_url
+ * @property-read \App\Models\Face|null $face
+ */
 class FacePhoto extends Model
 {
     use HasFactory;
@@ -38,7 +51,7 @@ class FacePhoto extends Model
     {
         return Attribute::make(
             get: fn () => $this->filename
-                ? asset('storage/avatars/faces/albums/' . $this->filename)
+                ? asset('storage/avatars/faces/albums/'.$this->filename)
                 : null,
         );
     }
@@ -47,7 +60,7 @@ class FacePhoto extends Model
     {
         return Attribute::make(
             get: fn () => $this->thumbnail
-                ? asset('storage/avatars/faces/albums/thumbnails/' . $this->thumbnail)
+                ? asset('storage/avatars/faces/albums/thumbnails/'.$this->thumbnail)
                 : null,
         );
     }
@@ -56,7 +69,7 @@ class FacePhoto extends Model
     {
         return Attribute::make(
             get: fn () => $this->medium
-                ? asset('storage/avatars/faces/albums/medium/' . $this->medium)
+                ? asset('storage/avatars/faces/albums/medium/'.$this->medium)
                 : $this->photo_url, // fallback to original
         );
     }

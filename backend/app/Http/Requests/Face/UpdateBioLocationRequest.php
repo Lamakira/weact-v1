@@ -66,9 +66,11 @@ class UpdateBioLocationRequest extends FormRequest
     {
         $validator->after(function (Validator $validator): void {
             $ville = $this->input('ville');
+            /** @var Face|null $face */
+            $face = $this->user()?->userable;
             $effectivePays = $this->has('pays')
                 ? $this->input('pays')
-                : $this->user()?->userable?->pays;
+                : $face?->pays;
 
             if (! empty($ville) && $effectivePays !== 'Bénin') {
                 $validator->errors()->add(

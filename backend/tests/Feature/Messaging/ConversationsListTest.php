@@ -62,7 +62,7 @@ class ConversationsListTest extends TestCase
             ->where('userable_id', $producer->id)
             ->first();
 
-        if (!$producerUser) {
+        if (! $producerUser) {
             $producerUser = User::factory()->create([
                 'userable_type' => Producer::class,
                 'userable_id' => $producer->id,
@@ -94,7 +94,7 @@ class ConversationsListTest extends TestCase
             ->where('userable_id', $face->id)
             ->first();
 
-        if (!$faceUser) {
+        if (! $faceUser) {
             User::factory()->create([
                 'userable_type' => Face::class,
                 'userable_id' => $face->id,

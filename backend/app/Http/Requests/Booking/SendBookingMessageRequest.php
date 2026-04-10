@@ -30,7 +30,7 @@ class SendBookingMessageRequest extends FormRequest
     {
         return [
             'content.required' => 'Le message ne peut pas être vide.',
-            'content.max'      => 'Le message ne peut pas dépasser 2000 caractères.',
+            'content.max' => 'Le message ne peut pas dépasser 2000 caractères.',
         ];
     }
 }

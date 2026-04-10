@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
-use App\Http\Resources\MissionSummaryResource;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -20,10 +20,14 @@ class ProducerResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        /** @var User|null $user */
+        $user = $this->user;
+        $type = $this->currentType();
+
         return [
             'id' => $this->uuid,
             'slug' => $this->slug,
-            'type' => $this->type?->value ?? $this->type,
+            'type' => $type !== null ? $type->value : (is_string($this->type) ? $this->type : null),
             'agency_name' => $this->agency_name,
             'first_name' => $this->first_name,
             'last_name' => $this->last_name,
@@ -35,10 +39,10 @@ class ProducerResource extends JsonResource
             'agency_logo_thumbnail_url' => $this->agency_logo_thumbnail_url,
             'average_rating' => $this->average_rating,
             'ratings_count' => $this->ratings_count,
-            'missions_count' => $this->when($this->missions_count !== null, $this->missions_count),
+            'missions_count' => $this->missions_count,
             'missions' => MissionSummaryResource::collection($this->whenLoaded('missions')),
-            'email' => $this->whenLoaded('user', fn () => $this->user?->email),
-            'is_active' => $this->whenLoaded('user', fn () => $this->user?->is_active),
+            'email' => $this->whenLoaded('user', fn () => $user?->email),
+            'is_active' => $this->whenLoaded('user', fn () => $user?->is_active),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

@@ -8,7 +8,6 @@ use App\Enums\FaceCategory;
 use App\Enums\FaceNiche;
 use App\Models\Face;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
 
 class UpdateCategoryNicheRequest extends FormRequest

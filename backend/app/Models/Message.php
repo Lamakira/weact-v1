@@ -10,6 +10,16 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
+/**
+ * @property int $id
+ * @property int $conversation_id
+ * @property int $sender_id
+ * @property string $sender_type
+ * @property string $content
+ * @property \Illuminate\Support\Carbon|null $read_at
+ * @property \Illuminate\Support\Carbon $created_at
+ * @property User|null $sender
+ */
 class Message extends Model
 {
     use HasFactory;

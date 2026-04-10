@@ -11,7 +11,6 @@ use App\Services\PresentationVideoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Mockery;
 use Mockery\MockInterface;
 use Tests\TestCase;
 
@@ -20,6 +19,7 @@ class PresentationVideoTest extends TestCase
     use RefreshDatabase;
 
     private User $faceUser;
+
     private Face $face;
 
     protected function setUp(): void
@@ -49,18 +49,18 @@ class PresentationVideoTest extends TestCase
                 ->andReturnUsing(function (Face $face, UploadedFile $video) {
                     // Delete old files first (simulating real service behavior)
                     if ($face->presentation_video) {
-                        Storage::disk('public')->delete('videos/faces/presentation/' . $face->presentation_video);
+                        Storage::disk('public')->delete('videos/faces/presentation/'.$face->presentation_video);
                     }
                     if ($face->presentation_video_thumbnail) {
-                        Storage::disk('public')->delete('videos/faces/presentation/thumbnails/' . $face->presentation_video_thumbnail);
+                        Storage::disk('public')->delete('videos/faces/presentation/thumbnails/'.$face->presentation_video_thumbnail);
                     }
 
                     $filename = 'test-video.mp4';
                     $thumbnail = 'test-thumbnail.jpg';
 
                     // Create fake files
-                    Storage::disk('public')->put('videos/faces/presentation/' . $filename, 'video content');
-                    Storage::disk('public')->put('videos/faces/presentation/thumbnails/' . $thumbnail, 'thumbnail content');
+                    Storage::disk('public')->put('videos/faces/presentation/'.$filename, 'video content');
+                    Storage::disk('public')->put('videos/faces/presentation/thumbnails/'.$thumbnail, 'thumbnail content');
 
                     $face->update([
                         'presentation_video' => $filename,
@@ -73,10 +73,10 @@ class PresentationVideoTest extends TestCase
             $mock->shouldReceive('deletePresentationVideo')
                 ->andReturnUsing(function (Face $face) {
                     if ($face->presentation_video) {
-                        Storage::disk('public')->delete('videos/faces/presentation/' . $face->presentation_video);
+                        Storage::disk('public')->delete('videos/faces/presentation/'.$face->presentation_video);
                     }
                     if ($face->presentation_video_thumbnail) {
-                        Storage::disk('public')->delete('videos/faces/presentation/thumbnails/' . $face->presentation_video_thumbnail);
+                        Storage::disk('public')->delete('videos/faces/presentation/thumbnails/'.$face->presentation_video_thumbnail);
                     }
                     $face->update([
                         'presentation_video' => null,
@@ -210,7 +210,7 @@ class PresentationVideoTest extends TestCase
         $this->assertNotNull($this->face->presentation_video_thumbnail);
 
         // Verify thumbnail exists in storage
-        Storage::disk('public')->assertExists('videos/faces/presentation/thumbnails/' . $this->face->presentation_video_thumbnail);
+        Storage::disk('public')->assertExists('videos/faces/presentation/thumbnails/'.$this->face->presentation_video_thumbnail);
     }
 
     public function test_uploading_new_video_replaces_old_video(): void
@@ -222,8 +222,8 @@ class PresentationVideoTest extends TestCase
             'presentation_video' => $oldVideo,
             'presentation_video_thumbnail' => $oldThumbnail,
         ]);
-        Storage::disk('public')->put('videos/faces/presentation/' . $oldVideo, 'old video content');
-        Storage::disk('public')->put('videos/faces/presentation/thumbnails/' . $oldThumbnail, 'old thumbnail content');
+        Storage::disk('public')->put('videos/faces/presentation/'.$oldVideo, 'old video content');
+        Storage::disk('public')->put('videos/faces/presentation/thumbnails/'.$oldThumbnail, 'old thumbnail content');
 
         $this->mockVideoService(60.0);
 
@@ -237,8 +237,8 @@ class PresentationVideoTest extends TestCase
         $response->assertCreated();
 
         // Verify old files are deleted
-        Storage::disk('public')->assertMissing('videos/faces/presentation/' . $oldVideo);
-        Storage::disk('public')->assertMissing('videos/faces/presentation/thumbnails/' . $oldThumbnail);
+        Storage::disk('public')->assertMissing('videos/faces/presentation/'.$oldVideo);
+        Storage::disk('public')->assertMissing('videos/faces/presentation/thumbnails/'.$oldThumbnail);
     }
 
     // =========================================================================

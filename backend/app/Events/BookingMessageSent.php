@@ -53,14 +53,18 @@ class BookingMessageSent implements ShouldBroadcast
     public function broadcastWith(): array
     {
         $sender = $this->message->sender;
+        $senderName = data_get($sender, 'userable.display_name');
+        $senderEmail = data_get($sender, 'email');
 
         return [
-            'id'          => $this->message->id,
-            'booking_id'  => $this->message->booking_id,
-            'sender_id'   => $this->message->sender_id,
-            'sender_name' => $sender?->userable?->display_name ?? $sender?->name ?? 'Utilisateur',
-            'content'     => $this->message->content,
-            'created_at'  => $this->message->created_at->toIso8601String(),
+            'id' => $this->message->id,
+            'booking_id' => $this->message->booking_id,
+            'sender_id' => $this->message->sender_id,
+            'sender_name' => is_string($senderName) && $senderName !== ''
+                ? $senderName
+                : (is_string($senderEmail) && $senderEmail !== '' ? $senderEmail : 'Utilisateur'),
+            'content' => $this->message->content,
+            'created_at' => $this->message->created_at->toIso8601String(),
         ];
     }
 }

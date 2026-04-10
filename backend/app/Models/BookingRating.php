@@ -9,6 +9,18 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use InvalidArgumentException;
 
+/**
+ * @property int $id
+ * @property string $uuid
+ * @property int $booking_id
+ * @property int $rater_id
+ * @property int $rated_id
+ * @property int $score
+ * @property string|null $comment
+ * @property Booking $booking
+ * @property User|null $rater
+ * @property User|null $rated
+ */
 class BookingRating extends Model
 {
     use HasFactory;

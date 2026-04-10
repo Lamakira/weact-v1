@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Tests\Feature\Admin;
 
 use App\Enums\CandidatureStatus;
-use App\Enums\MissionStatus;
 use App\Models\Admin;
 use App\Models\Candidature;
 use App\Models\Face;
@@ -20,6 +19,7 @@ class AdminDashboardTrendsTest extends TestCase
     use RefreshDatabase;
 
     private Admin $admin;
+
     private string $adminToken;
 
     protected function setUp(): void

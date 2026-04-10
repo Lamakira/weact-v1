@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Models\Admin;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -27,6 +28,9 @@ class PublicArticleDetailResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        /** @var Admin|null $admin */
+        $admin = $this->admin;
+
         return [
             'id' => $this->uuid,
             'title' => $this->title,
@@ -34,13 +38,13 @@ class PublicArticleDetailResource extends JsonResource
             'content' => $this->content,
             'excerpt' => $this->excerpt,
             'category' => [
-                'value' => $this->category?->value,
-                'label' => $this->category?->label(),
+                'value' => $this->category->value,
+                'label' => $this->category->label(),
             ],
             'featured_image' => $this->featured_image_url,
             'published_at' => $this->published_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),
-            'author_name' => $this->admin?->name,
+            'author_name' => $admin?->name,
         ];
     }
 }

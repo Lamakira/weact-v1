@@ -10,6 +10,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use InvalidArgumentException;
 
+/**
+ * @property int $id
+ * @property int $candidature_id
+ * @property int $rater_id
+ * @property int $rated_id
+ * @property string $rated_type
+ * @property int $score
+ * @property string|null $comment
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property User $rater
+ * @property Face|Producer $rated
+ */
 class Rating extends Model
 {
     use HasFactory;

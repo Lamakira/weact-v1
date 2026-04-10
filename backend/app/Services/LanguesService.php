@@ -16,7 +16,7 @@ class LanguesService
     public function updateLangues(Face $face, array $data): Face
     {
         $face->update([
-            'langues' => !empty($data['langues']) ? $data['langues'] : null,
+            'langues' => ! empty($data['langues']) ? $data['langues'] : null,
         ]);
 
         return $face->refresh();

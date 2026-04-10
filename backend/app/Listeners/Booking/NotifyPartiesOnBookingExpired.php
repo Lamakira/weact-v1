@@ -6,8 +6,8 @@ namespace App\Listeners\Booking;
 
 use App\Events\BookingExpired;
 use App\Models\Notification;
-use Illuminate\Events\Attributes\AsEventListener;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener(event: BookingExpired::class)]
 class NotifyPartiesOnBookingExpired
@@ -23,7 +23,7 @@ class NotifyPartiesOnBookingExpired
 
         // Notify Producer
         try {
-            $faceName = $booking->face?->userable?->display_name ?? 'La Face';
+            $faceName = (string) data_get($booking, 'face.userable.display_name', 'La Face');
 
             Notification::create([
                 'user_id' => $booking->producer_id,
@@ -43,7 +43,7 @@ class NotifyPartiesOnBookingExpired
 
         // Notify Face
         try {
-            $producerName = $booking->producer?->userable?->display_name ?? 'Le Producteur';
+            $producerName = (string) data_get($booking, 'producer.userable.display_name', 'Le Producteur');
 
             Notification::create([
                 'user_id' => $booking->face_id,

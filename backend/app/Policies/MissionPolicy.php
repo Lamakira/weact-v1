@@ -54,7 +54,7 @@ class MissionPolicy
         }
 
         // Check mission is editable (not closed or completed)
-        return !in_array($mission->status, [MissionStatus::Closed, MissionStatus::Completed], true);
+        return ! in_array($mission->status, [MissionStatus::Closed, MissionStatus::Completed], true);
     }
 
     /**

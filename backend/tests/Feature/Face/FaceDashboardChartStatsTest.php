@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Face;
 
-use App\Enums\CandidatureStatus;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Producer;

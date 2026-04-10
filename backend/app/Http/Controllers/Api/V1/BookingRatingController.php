@@ -11,7 +11,6 @@ use App\Http\Requests\Booking\RateBookingRequest;
 use App\Http\Resources\BookingRatingResource;
 use App\Models\Booking;
 use App\Models\BookingRating;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 
@@ -28,19 +27,12 @@ class BookingRatingController extends Controller
             return $this->alreadyRatedResponse();
         }
 
-        try {
-            Gate::authorize('rate', $booking);
-        } catch (AuthorizationException) {
-            if ($booking->status !== BookingStatus::Completed) {
-                return $this->ratingNotAllowedResponse();
+        if (Gate::denies('rate', $booking)) {
+            if ($booking->status === BookingStatus::Completed) {
+                return $this->unauthorizedResponse();
             }
 
-            return response()->json([
-                'error' => [
-                    'code' => 'UNAUTHORIZED',
-                    'message' => 'Vous n\'êtes pas autorisé à noter ce booking',
-                ],
-            ], 403);
+            return $this->ratingNotAllowedResponse();
         }
 
         if ($this->alreadyRated($booking->id, $user->id)) {
@@ -69,6 +61,7 @@ class BookingRatingController extends Controller
         ], 201);
     }
 
+    /** @phpstan-impure */
     private function alreadyRated(int $bookingId, int $raterId): bool
     {
         return BookingRating::query()
@@ -93,6 +86,16 @@ class BookingRatingController extends Controller
             'error' => [
                 'code' => 'BOOKING_RATING_NOT_ALLOWED',
                 'message' => "Les évaluations ne sont possibles qu'après la fin du booking",
+            ],
+        ], 403);
+    }
+
+    private function unauthorizedResponse(): JsonResponse
+    {
+        return response()->json([
+            'error' => [
+                'code' => 'UNAUTHORIZED',
+                'message' => 'Vous n\'êtes pas autorisé à noter ce booking',
             ],
         ], 403);
     }

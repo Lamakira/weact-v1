@@ -42,7 +42,7 @@ class ChangeEmailRequest extends FormRequest
                 $validator->errors()->add('email', 'La nouvelle adresse email doit être différente de l\'actuelle.');
             }
 
-            if ($user && $this->filled('password') && !Hash::check($this->input('password'), $user->password)) {
+            if ($user && $this->filled('password') && ! Hash::check($this->input('password'), $user->password)) {
                 $validator->errors()->add('password', 'Le mot de passe est incorrect.');
             }
         });

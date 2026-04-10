@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\HasRouteUuid;
 use App\Enums\CandidatureStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,8 +12,19 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use App\Concerns\HasRouteUuid;
 
+/**
+ * @property string $uuid
+ * @property int $id
+ * @property int $face_id
+ * @property int $mission_id
+ * @property string|null $message_motivation
+ * @property \App\Enums\CandidatureStatus $status
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property-read \App\Models\Face|null $face
+ * @property-read \App\Models\Mission|null $mission
+ * @property-read \App\Models\Conversation|null $conversation
+ */
 class Candidature extends Model
 {
     use HasFactory;
@@ -100,9 +112,10 @@ class Candidature extends Model
      */
     public function getConversationOrFail(): Conversation
     {
+        /** @var Conversation|null $conversation */
         $conversation = $this->conversation;
 
-        if (!$conversation) {
+        if (! $conversation) {
             abort(404, 'Aucune conversation pour cette candidature');
         }
 

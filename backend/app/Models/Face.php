@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\HasRouteUuid;
 use App\Enums\FaceCategory;
 use App\Enums\FaceGender;
 use App\Enums\FaceNiche;
@@ -15,8 +16,54 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
-use App\Concerns\HasRouteUuid;
 
+/**
+ * @property string $uuid
+ * @property string|null $username
+ * @property string|null $nom
+ * @property string|null $prenom
+ * @property string|null $nationalite
+ * @property array<int, string>|null $langues
+ * @property string|null $bio
+ * @property string|null $ville
+ * @property string|null $pays
+ * @property string|null $whatsapp_number
+ * @property int|null $taille
+ * @property int|null $poids
+ * @property int|null $tarif_horaire
+ * @property int|null $tarif_journalier
+ * @property bool $show_age
+ * @property bool $is_featured
+ * @property string|null $presentation_video
+ * @property string|null $acting_video
+ * @property \App\Enums\FaceGender|null $sexe
+ * @property \Carbon\CarbonInterface|null $date_naissance
+ * @property bool $is_available
+ * @property-read int|null $age
+ * @property-read string $display_name
+ * @property-read string|null $profile_photo_url
+ * @property-read string|null $thumbnail_url
+ * @property-read string|null $medium_url
+ * @property-read string|null $presentation_video_url
+ * @property-read string|null $presentation_video_thumbnail_url
+ * @property-read string|null $acting_video_url
+ * @property-read string|null $acting_video_thumbnail_url
+ * @property-read string|null $formatted_location
+ * @property-read string|null $formatted_tarif_horaire
+ * @property-read string|null $formatted_tarif_journalier
+ * @property-read string $availability_badge
+ * @property-read string $availability_badge_color
+ * @property-read array<int, array{key: string, label: string}> $profile_completion_missing
+ * @property-read bool $profile_completion_is_complete
+ * @property-read float|null $average_rating
+ * @property-read int $ratings_count
+ * @property-read int $profile_completion_percentage
+ * @property-read User|null $user
+ * @property int|null $experiences_count
+ * @property int|null $photos_count
+ * @property-read \Illuminate\Support\Carbon|null $created_at
+ * @property-read \Illuminate\Support\Carbon|null $updated_at
+ */
 class Face extends Model
 {
     use HasFactory, HasRouteUuid;
@@ -142,7 +189,7 @@ class Face extends Model
     {
         return Attribute::make(
             get: fn (): ?string => $this->profile_photo
-                ? asset('storage/avatars/faces/' . $this->profile_photo)
+                ? asset('storage/avatars/faces/'.$this->profile_photo)
                 : null,
         );
     }
@@ -154,7 +201,7 @@ class Face extends Model
     {
         return Attribute::make(
             get: fn (): ?string => $this->profile_photo_thumbnail
-                ? asset('storage/avatars/faces/thumbnails/' . $this->profile_photo_thumbnail)
+                ? asset('storage/avatars/faces/thumbnails/'.$this->profile_photo_thumbnail)
                 : null,
         );
     }
@@ -166,7 +213,7 @@ class Face extends Model
     {
         return Attribute::make(
             get: fn (): ?string => $this->profile_photo_medium
-                ? asset('storage/avatars/faces/medium/' . $this->profile_photo_medium)
+                ? asset('storage/avatars/faces/medium/'.$this->profile_photo_medium)
                 : $this->profile_photo_url, // fallback to original if not generated yet
         );
     }
@@ -202,7 +249,7 @@ class Face extends Model
     {
         return Attribute::make(
             get: fn (): ?string => $this->presentation_video
-                ? asset('storage/videos/faces/presentation/' . $this->presentation_video)
+                ? asset('storage/videos/faces/presentation/'.$this->presentation_video)
                 : null,
         );
     }
@@ -214,7 +261,7 @@ class Face extends Model
     {
         return Attribute::make(
             get: fn (): ?string => $this->presentation_video_thumbnail
-                ? asset('storage/videos/faces/presentation/thumbnails/' . $this->presentation_video_thumbnail)
+                ? asset('storage/videos/faces/presentation/thumbnails/'.$this->presentation_video_thumbnail)
                 : null,
         );
     }
@@ -226,7 +273,7 @@ class Face extends Model
     {
         return Attribute::make(
             get: fn (): ?string => $this->acting_video
-                ? asset('storage/videos/faces/acting/' . $this->acting_video)
+                ? asset('storage/videos/faces/acting/'.$this->acting_video)
                 : null,
         );
     }
@@ -238,7 +285,7 @@ class Face extends Model
     {
         return Attribute::make(
             get: fn (): ?string => $this->acting_video_thumbnail
-                ? asset('storage/videos/faces/acting/thumbnails/' . $this->acting_video_thumbnail)
+                ? asset('storage/videos/faces/acting/thumbnails/'.$this->acting_video_thumbnail)
                 : null,
         );
     }
@@ -267,7 +314,7 @@ class Face extends Model
     {
         return Attribute::make(
             get: fn (): ?string => $this->tarif_horaire !== null
-                ? number_format($this->tarif_horaire, 0, ',', ' ') . ' XOF/demi-journée'
+                ? number_format($this->tarif_horaire, 0, ',', ' ').' XOF/demi-journée'
                 : null,
         );
     }
@@ -279,7 +326,7 @@ class Face extends Model
     {
         return Attribute::make(
             get: fn (): ?string => $this->tarif_journalier !== null
-                ? number_format($this->tarif_journalier, 0, ',', ' ') . ' XOF/jour'
+                ? number_format($this->tarif_journalier, 0, ',', ' ').' XOF/jour'
                 : null,
         );
     }
@@ -358,11 +405,6 @@ class Face extends Model
         );
     }
 
-    /**
-     * Get the list of missing profile items.
-     *
-     * @return array<int, array{key: string, label: string}>
-     */
     protected function profileCompletionMissing(): Attribute
     {
         return Attribute::make(
@@ -477,16 +519,16 @@ class Face extends Model
                 $candidatureRatings = $this->ratingsReceived()->selectRaw('COALESCE(SUM(score), 0) as score_sum, COUNT(*) as score_count')->first();
                 $bookingRatings = $this->bookingRatingsReceived()->selectRaw('COALESCE(SUM(score), 0) as score_sum, COUNT(*) as score_count')->groupBy('users.userable_id')->first();
 
-                $candidatureCount = (int) ($candidatureRatings?->score_count ?? 0);
-                $bookingCount = (int) ($bookingRatings?->score_count ?? 0);
+                $candidatureCount = (int) data_get($candidatureRatings, 'score_count', 0);
+                $bookingCount = (int) data_get($bookingRatings, 'score_count', 0);
                 $totalCount = $candidatureCount + $bookingCount;
 
                 if ($totalCount === 0) {
                     return null;
                 }
 
-                $totalScore = (float) ($candidatureRatings?->score_sum ?? 0.0)
-                    + (float) ($bookingRatings?->score_sum ?? 0.0);
+                $totalScore = (float) data_get($candidatureRatings, 'score_sum', 0.0)
+                    + (float) data_get($bookingRatings, 'score_sum', 0.0);
 
                 $avg = $totalScore / $totalCount;
                 $penalized = $avg - (float) ($this->rating_penalty ?? 0.0);

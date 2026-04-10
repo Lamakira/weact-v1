@@ -12,6 +12,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * API Resource for Conversation model.
  *
  * Includes messages, other participant info, and mission context.
+ *
+ * @mixin \App\Models\Conversation
  */
 class ConversationResource extends JsonResource
 {
@@ -27,10 +29,10 @@ class ConversationResource extends JsonResource
         return [
             'id' => $this->uuid,
             'candidature_id' => $this->candidature_id,
-            'mission_title' => $this->candidature?->mission?->titre ?? '',
+            'mission_title' => data_get($this->candidature, 'mission.titre', ''),
             'other_participant' => $this->getOtherParticipant($currentUser),
             'messages' => MessageResource::collection($this->whenLoaded('messages')),
-            'unread_count' => $currentUser ? $this->unreadCountFor($currentUser) : 0,
+            'unread_count' => $currentUser ? $this->resource->unreadCountFor($currentUser) : 0,
         ];
     }
 
@@ -44,13 +46,13 @@ class ConversationResource extends JsonResource
      */
     private function getOtherParticipant($currentUser): ?array
     {
-        if (!$currentUser) {
+        if (! $currentUser) {
             return null;
         }
 
         $candidature = $this->candidature;
 
-        if (!$candidature) {
+        if (! $candidature) {
             return null;
         }
 
@@ -58,7 +60,7 @@ class ConversationResource extends JsonResource
         if ($currentUser->userable_type === Face::class) {
             $producer = $candidature->mission?->producer;
 
-            if (!$producer) {
+            if (! $producer) {
                 return null;
             }
 
@@ -73,7 +75,7 @@ class ConversationResource extends JsonResource
         // If current user is a Producer, return the Face
         $face = $candidature->face;
 
-        if (!$face) {
+        if (! $face) {
             return null;
         }
 

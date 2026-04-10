@@ -3,26 +3,26 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Face\ActingVideoController;
+use App\Http\Controllers\Api\V1\Face\AlbumController;
+use App\Http\Controllers\Api\V1\Face\AvailabilityController;
 use App\Http\Controllers\Api\V1\Face\BasicInfoController;
+use App\Http\Controllers\Api\V1\Face\BioLocationController;
 use App\Http\Controllers\Api\V1\Face\CandidatureController;
-use App\Http\Controllers\Api\V1\Face\FaceDashboardController;
+use App\Http\Controllers\Api\V1\Face\CategoryNicheController;
+use App\Http\Controllers\Api\V1\Face\CategoryNicheOptionsController;
 use App\Http\Controllers\Api\V1\Face\ConversationController;
+use App\Http\Controllers\Api\V1\Face\ExperienceController;
+use App\Http\Controllers\Api\V1\Face\FaceDashboardController;
+use App\Http\Controllers\Api\V1\Face\LanguesController;
 use App\Http\Controllers\Api\V1\Face\MessageController;
 use App\Http\Controllers\Api\V1\Face\MissionController;
 use App\Http\Controllers\Api\V1\Face\NotificationController;
-use App\Http\Controllers\Api\V1\Face\RatingController;
-use App\Http\Controllers\Api\V1\Face\AlbumController;
-use App\Http\Controllers\Api\V1\Face\AvailabilityController;
-use App\Http\Controllers\Api\V1\Face\BioLocationController;
-use App\Http\Controllers\Api\V1\Face\CategoryNicheController;
-use App\Http\Controllers\Api\V1\Face\CategoryNicheOptionsController;
-use App\Http\Controllers\Api\V1\Face\ExperienceController;
-use App\Http\Controllers\Api\V1\Face\LanguesController;
 use App\Http\Controllers\Api\V1\Face\PersonalInfoController;
 use App\Http\Controllers\Api\V1\Face\PhysicalCharacteristicsController;
 use App\Http\Controllers\Api\V1\Face\PresentationVideoController;
 use App\Http\Controllers\Api\V1\Face\ProfileCompletionController;
 use App\Http\Controllers\Api\V1\Face\ProfileController;
+use App\Http\Controllers\Api\V1\Face\RatingController;
 use App\Http\Controllers\Api\V1\Face\TarifsController;
 use Illuminate\Support\Facades\Route;
 

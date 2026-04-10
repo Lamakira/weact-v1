@@ -13,17 +13,20 @@ use Intervention\Image\Laravel\Facades\Image;
 class ProfilePhotoService
 {
     private const STORAGE_PATH = 'avatars/faces';
+
     private const THUMBNAIL_PATH = 'avatars/faces/thumbnails';
+
     private const MEDIUM_PATH = 'avatars/faces/medium';
+
     private const THUMBNAIL_SIZE = 150;
+
     private const MEDIUM_WIDTH = 800;
+
     private const QUALITY = 85;
 
     /**
      * Upload a profile photo for a Face and generate thumbnail + medium.
      *
-     * @param Face $face
-     * @param UploadedFile $photo
      * @return array{photo: string, thumbnail: string, medium: string}
      */
     public function uploadProfilePhoto(Face $face, UploadedFile $photo): array
@@ -33,8 +36,8 @@ class ProfilePhotoService
 
         // Generate unique filename with UUID
         $extension = $photo->getClientOriginalExtension() ?: 'jpg';
-        $filename = Str::uuid()->toString() . '.' . $extension;
-        $mediumFilename = pathinfo($filename, PATHINFO_FILENAME) . '.webp';
+        $filename = Str::uuid()->toString().'.'.$extension;
+        $mediumFilename = pathinfo($filename, PATHINFO_FILENAME).'.webp';
 
         // Store original photo using the public disk
         Storage::disk('public')->putFileAs(self::STORAGE_PATH, $photo, $filename);
@@ -59,9 +62,6 @@ class ProfilePhotoService
 
     /**
      * Delete profile photo, thumbnail and medium for a Face.
-     *
-     * @param Face $face
-     * @return bool
      */
     public function deleteProfilePhoto(Face $face): bool
     {
@@ -69,7 +69,7 @@ class ProfilePhotoService
         $disk = Storage::disk('public');
 
         if ($face->profile_photo) {
-            $photoPath = self::STORAGE_PATH . '/' . $face->profile_photo;
+            $photoPath = self::STORAGE_PATH.'/'.$face->profile_photo;
             if ($disk->exists($photoPath)) {
                 $disk->delete($photoPath);
                 $deleted = true;
@@ -77,7 +77,7 @@ class ProfilePhotoService
         }
 
         if ($face->profile_photo_thumbnail) {
-            $thumbnailPath = self::THUMBNAIL_PATH . '/' . $face->profile_photo_thumbnail;
+            $thumbnailPath = self::THUMBNAIL_PATH.'/'.$face->profile_photo_thumbnail;
             if ($disk->exists($thumbnailPath)) {
                 $disk->delete($thumbnailPath);
                 $deleted = true;
@@ -85,7 +85,7 @@ class ProfilePhotoService
         }
 
         if ($face->profile_photo_medium) {
-            $mediumPath = self::MEDIUM_PATH . '/' . $face->profile_photo_medium;
+            $mediumPath = self::MEDIUM_PATH.'/'.$face->profile_photo_medium;
             if ($disk->exists($mediumPath)) {
                 $disk->delete($mediumPath);
                 $deleted = true;
@@ -113,7 +113,7 @@ class ProfilePhotoService
         $image->cover(self::THUMBNAIL_SIZE, self::THUMBNAIL_SIZE);
 
         $encoded = $image->toJpeg(self::QUALITY);
-        Storage::disk('public')->put(self::THUMBNAIL_PATH . '/' . $filename, $encoded->toString());
+        Storage::disk('public')->put(self::THUMBNAIL_PATH.'/'.$filename, $encoded->toString());
 
         return $filename;
     }
@@ -127,6 +127,6 @@ class ProfilePhotoService
         $image->scaleDown(width: self::MEDIUM_WIDTH);
 
         $encoded = $image->toWebp(self::QUALITY);
-        Storage::disk('public')->put(self::MEDIUM_PATH . '/' . $mediumFilename, $encoded->toString());
+        Storage::disk('public')->put(self::MEDIUM_PATH.'/'.$mediumFilename, $encoded->toString());
     }
 }

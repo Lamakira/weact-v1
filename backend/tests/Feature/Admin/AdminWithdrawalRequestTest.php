@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Admin;
 
+use App\Mail\WithdrawalApprovedMail;
+use App\Mail\WithdrawalRejectedMail;
 use App\Models\Admin;
 use App\Models\Face;
 use App\Models\Producer;
@@ -11,8 +13,6 @@ use App\Models\User;
 use App\Models\WithdrawalRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
-use App\Mail\WithdrawalApprovedMail;
-use App\Mail\WithdrawalRejectedMail;
 use Tests\TestCase;
 
 class AdminWithdrawalRequestTest extends TestCase

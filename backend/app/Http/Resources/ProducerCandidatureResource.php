@@ -13,6 +13,8 @@ use Illuminate\Support\Str;
  *
  * Returns candidature with nested face summary data.
  * Motivation message is truncated for list display (150 chars).
+ *
+ * @mixin \App\Models\Candidature
  */
 class ProducerCandidatureResource extends JsonResource
 {
@@ -23,10 +25,12 @@ class ProducerCandidatureResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $firstCategory = data_get($this->face?->categoriesWithLabels(), '0.value');
+
         return [
             'id' => $this->uuid,
-            'status' => $this->status?->value,
-            'status_label' => $this->status?->label(),
+            'status' => $this->status->value,
+            'status_label' => $this->status->label(),
             'message_motivation' => $this->message_motivation
                 ? Str::limit($this->message_motivation, 150)
                 : null,
@@ -34,9 +38,9 @@ class ProducerCandidatureResource extends JsonResource
             'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->uuid),
             'face' => $this->whenLoaded('face', fn () => [
                 'id' => $this->face->uuid,
-                'display_name' => trim($this->face->prenom . ' ' . $this->face->nom),
+                'display_name' => trim($this->face->prenom.' '.$this->face->nom),
                 'profile_photo_url' => $this->face->profile_photo_url,
-                'category' => $this->face->categorie?->value,
+                'category' => $firstCategory,
                 'city' => $this->face->ville,
                 'tarif_horaire' => $this->face->tarif_horaire,
                 'tarif_journalier' => $this->face->tarif_journalier,

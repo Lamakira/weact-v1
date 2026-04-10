@@ -8,6 +8,7 @@ use App\Models\Face;
 use FFMpeg\Coordinate\TimeCode;
 use FFMpeg\FFMpeg;
 use FFMpeg\FFProbe;
+use FFMpeg\Media\Video;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -16,11 +17,15 @@ use Illuminate\Support\Str;
 class ActingVideoService
 {
     private const STORAGE_PATH = 'videos/faces/acting';
+
     private const THUMBNAIL_PATH = 'videos/faces/acting/thumbnails';
+
     private const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
+
     private const MAX_DURATION_SECONDS = 120; // 2 minutes
 
     private FFMpeg $ffmpeg;
+
     private FFProbe $ffprobe;
 
     public function __construct()
@@ -38,8 +43,6 @@ class ActingVideoService
     /**
      * Upload an acting video for a Face and generate thumbnail.
      *
-     * @param Face $face
-     * @param UploadedFile $video
      * @return array{video: string, thumbnail: string}
      */
     public function uploadActingVideo(Face $face, UploadedFile $video): array
@@ -50,8 +53,8 @@ class ActingVideoService
 
             // Generate unique filename with UUID
             $extension = $video->getClientOriginalExtension() ?: 'mp4';
-            $filename = Str::uuid()->toString() . '.' . $extension;
-            $thumbnailFilename = Str::uuid()->toString() . '.jpg';
+            $filename = Str::uuid()->toString().'.'.$extension;
+            $thumbnailFilename = Str::uuid()->toString().'.jpg';
 
             // Ensure storage directories exist
             $disk = Storage::disk('public');
@@ -64,12 +67,12 @@ class ActingVideoService
             // Generate and save thumbnail from the first frame
             try {
                 $this->generateThumbnail(
-                    $disk->path(self::STORAGE_PATH . '/' . $filename),
+                    $disk->path(self::STORAGE_PATH.'/'.$filename),
                     $thumbnailFilename
                 );
             } catch (\Exception $e) {
                 // Clean up uploaded video file on thumbnail generation failure
-                $disk->delete(self::STORAGE_PATH . '/' . $filename);
+                $disk->delete(self::STORAGE_PATH.'/'.$filename);
                 throw $e;
             }
 
@@ -88,9 +91,6 @@ class ActingVideoService
 
     /**
      * Delete acting video and thumbnail for a Face.
-     *
-     * @param Face $face
-     * @return bool
      */
     public function deleteActingVideo(Face $face): bool
     {
@@ -103,10 +103,10 @@ class ActingVideoService
             $disk = Storage::disk('public');
 
             $videoPath = $face->acting_video
-                ? self::STORAGE_PATH . '/' . $face->acting_video
+                ? self::STORAGE_PATH.'/'.$face->acting_video
                 : null;
             $thumbnailPath = $face->acting_video_thumbnail
-                ? self::THUMBNAIL_PATH . '/' . $face->acting_video_thumbnail
+                ? self::THUMBNAIL_PATH.'/'.$face->acting_video_thumbnail
                 : null;
 
             // Clear database fields first (within transaction)
@@ -133,13 +133,13 @@ class ActingVideoService
     /**
      * Generate a thumbnail from the video's first frame.
      *
-     * @param string $videoPath Full path to the video file
-     * @param string $thumbnailFilename Filename for the thumbnail
+     * @param  string  $videoPath  Full path to the video file
+     * @param  string  $thumbnailFilename  Filename for the thumbnail
      * @return string The thumbnail filename
      */
     private function generateThumbnail(string $videoPath, string $thumbnailFilename): string
     {
-        $thumbnailFullPath = Storage::disk('public')->path(self::THUMBNAIL_PATH . '/' . $thumbnailFilename);
+        $thumbnailFullPath = Storage::disk('public')->path(self::THUMBNAIL_PATH.'/'.$thumbnailFilename);
 
         // Ensure the thumbnails directory exists
         $thumbnailDir = dirname($thumbnailFullPath);
@@ -148,6 +148,7 @@ class ActingVideoService
         }
 
         // Open the video and extract the first frame
+        /** @var Video $video */
         $video = $this->ffmpeg->open($videoPath);
         $video
             ->frame(TimeCode::fromSeconds(0))
@@ -159,7 +160,6 @@ class ActingVideoService
     /**
      * Get the duration of a video file in seconds.
      *
-     * @param UploadedFile $video
      * @return float Duration in seconds
      */
     public function getVideoDuration(UploadedFile $video): float
@@ -173,8 +173,6 @@ class ActingVideoService
 
     /**
      * Get the maximum allowed video duration in seconds.
-     *
-     * @return int
      */
     public static function getMaxDurationSeconds(): int
     {
@@ -183,8 +181,6 @@ class ActingVideoService
 
     /**
      * Get the maximum allowed video size in bytes.
-     *
-     * @return int
      */
     public static function getMaxSizeBytes(): int
     {

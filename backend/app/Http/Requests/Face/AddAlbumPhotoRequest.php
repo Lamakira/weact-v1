@@ -57,21 +57,21 @@ class AddAlbumPhotoRequest extends FormRequest
     /**
      * Configure the validator instance.
      *
-     * @param \Illuminate\Validation\Validator $validator
-     * @return void
+     * @param  \Illuminate\Validation\Validator  $validator
      */
     public function withValidator($validator): void
     {
         $validator->after(function ($validator) {
             $user = $this->user();
             if ($user && $user->userable_type === Face::class) {
+                /** @var Face $face */
                 $face = $user->userable;
                 $photoCount = $face->photos()->count();
 
                 if ($photoCount >= PhotoAlbumService::MAX_PHOTOS) {
                     $validator->errors()->add(
                         'photo',
-                        'Maximum ' . PhotoAlbumService::MAX_PHOTOS . ' photos atteint'
+                        'Maximum '.PhotoAlbumService::MAX_PHOTOS.' photos atteint'
                     );
                 }
             }

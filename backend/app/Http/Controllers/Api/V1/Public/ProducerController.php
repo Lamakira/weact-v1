@@ -18,7 +18,7 @@ class ProducerController extends Controller
      */
     public function show(Producer $producer): JsonResponse
     {
-        abort_unless($producer->user?->is_active, 404);
+        abort_unless((bool) data_get($producer->loadMissing('user'), 'user.is_active'), 404);
 
         return response()->json([
             'data' => new PublicProducerResource($producer),

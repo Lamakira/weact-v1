@@ -23,7 +23,7 @@ class ContactController extends Controller
             Mail::to($to)->send(new ContactFormMail(
                 senderName: $validated['name'],
                 senderEmail: $validated['email'],
-                subject: $validated['subject'],
+                messageSubject: $validated['subject'],
                 senderMessage: $validated['message'],
             ));
         } catch (\Throwable $e) {

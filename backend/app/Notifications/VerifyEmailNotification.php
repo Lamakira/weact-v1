@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Carbon;
@@ -72,7 +71,7 @@ class VerifyEmailNotification extends Notification
         $hash = $matches[2] ?? sha1($notifiable->getEmailForVerification());
 
         // Build the frontend URL with all necessary parameters
-        return $frontendUrl . '/verify-email/' . $id . '/' . $hash . '?' . $query;
+        return $frontendUrl.'/verify-email/'.$id.'/'.$hash.'?'.$query;
     }
 
     /**

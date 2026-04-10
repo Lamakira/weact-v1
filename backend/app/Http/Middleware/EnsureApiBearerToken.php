@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Models\Admin;
+use App\Models\User;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,7 +32,18 @@ class EnsureApiBearerToken
             ], Response::HTTP_UNAUTHORIZED);
         }
 
-        $authenticatedUser = $accessToken->tokenable->withAccessToken($accessToken);
+        $tokenable = $accessToken->tokenable;
+
+        if (! $tokenable instanceof User && ! $tokenable instanceof Admin) {
+            return new JsonResponse([
+                'error' => [
+                    'message' => 'Unauthenticated',
+                    'code' => 'UNAUTHENTICATED',
+                ],
+            ], Response::HTTP_UNAUTHORIZED);
+        }
+
+        $authenticatedUser = $tokenable->withAccessToken($accessToken);
 
         Auth::setUser($authenticatedUser);
         $request->setUserResolver(static fn () => $authenticatedUser);

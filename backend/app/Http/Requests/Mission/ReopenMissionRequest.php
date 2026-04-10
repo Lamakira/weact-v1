@@ -49,8 +49,11 @@ class ReopenMissionRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($validator) {
-            /** @var Mission $mission */
             $mission = $this->route('mission');
+
+            if (! $mission instanceof Mission) {
+                return;
+            }
 
             if (
                 $mission->status === MissionStatus::PendingPayment

@@ -27,15 +27,12 @@ class ProfileController extends Controller
 
     /**
      * Get the authenticated Producer from the request.
-     *
-     * @param Request $request
-     * @return Producer|null
      */
     private function getAuthenticatedProducer(Request $request): ?Producer
     {
         $user = $request->user();
 
-        if (!$user || !$user->userable instanceof Producer) {
+        if (! $user || ! $user->userable instanceof Producer) {
             return null;
         }
 
@@ -49,7 +46,7 @@ class ProfileController extends Controller
     {
         $producer = $this->getAuthenticatedProducer($request);
 
-        if (!$producer) {
+        if (! $producer) {
             return response()->json([
                 'message' => 'Utilisateur non autorisé',
             ], 403);
@@ -67,7 +64,7 @@ class ProfileController extends Controller
     {
         $producer = $this->getAuthenticatedProducer($request);
 
-        if (!$producer) {
+        if (! $producer) {
             return response()->json([
                 'message' => 'Utilisateur non autorisé',
             ], 403);
@@ -94,7 +91,7 @@ class ProfileController extends Controller
     {
         $producer = $this->getAuthenticatedProducer($request);
 
-        if (!$producer) {
+        if (! $producer) {
             return response()->json([
                 'message' => 'Utilisateur non autorisé',
             ], 403);

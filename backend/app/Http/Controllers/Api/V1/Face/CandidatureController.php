@@ -16,6 +16,7 @@ use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
 use App\Models\Notification;
+use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -177,8 +178,9 @@ class CandidatureController extends Controller
             ], 400);
         }
 
-        $mission = $candidature->mission()->with('payment.entries')->first();
-        $missionPayment = $mission?->payment;
+        /** @var Mission $mission */
+        $mission = $candidature->mission()->with('payment.entries')->firstOrFail();
+        $missionPayment = $mission->payment;
 
         if (! $missionPayment || $missionPayment->status !== MissionPaymentStatus::Paid) {
             return response()->json([
@@ -203,7 +205,7 @@ class CandidatureController extends Controller
         $candidature->save();
 
         // Notify the producer that this face confirmed
-        $producerUser = User::where('userable_type', \App\Models\Producer::class)
+        $producerUser = User::where('userable_type', Producer::class)
             ->where('userable_id', $mission->producer_id)
             ->first();
 
@@ -225,18 +227,16 @@ class CandidatureController extends Controller
 
         // Check if all selected faces have now confirmed → move candidatures to in_progress
         $missionPayment = $mission->payment;
-        if ($missionPayment) {
-            $selectedCandidatureIds = $missionPayment->entries->pluck('candidature_id');
-            $pendingConfirmation = Candidature::whereIn('id', $selectedCandidatureIds)
-                ->where('status', CandidatureStatus::Accepted)
-                ->exists();
+        $selectedCandidatureIds = $missionPayment->entries->pluck('candidature_id');
+        $pendingConfirmation = Candidature::whereIn('id', $selectedCandidatureIds)
+            ->where('status', CandidatureStatus::Accepted)
+            ->exists();
 
-            if (! $pendingConfirmation) {
-                // All selected faces confirmed — mark candidatures as in_progress
-                Candidature::whereIn('id', $selectedCandidatureIds)
-                    ->where('status', CandidatureStatus::Confirmed)
-                    ->update(['status' => CandidatureStatus::InProgress->value]);
-            }
+        if (! $pendingConfirmation) {
+            // All selected faces confirmed — mark candidatures as in_progress
+            Candidature::whereIn('id', $selectedCandidatureIds)
+                ->where('status', CandidatureStatus::Confirmed)
+                ->update(['status' => CandidatureStatus::InProgress->value]);
         }
 
         return response()->json([

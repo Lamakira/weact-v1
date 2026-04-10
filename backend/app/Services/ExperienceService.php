@@ -17,7 +17,12 @@ class ExperienceService
      */
     public function getExperiences(Face $face): Collection
     {
-        return $face->experiences()->orderedByDate()->get();
+        /** @var Collection<int, Experience> $experiences */
+        $experiences = $face->experiences()
+            ->orderByDesc('date_debut')
+            ->get();
+
+        return $experiences;
     }
 
     /**
@@ -27,12 +32,15 @@ class ExperienceService
      */
     public function createExperience(Face $face, array $data): Experience
     {
-        return $face->experiences()->create([
+        /** @var Experience $experience */
+        $experience = $face->experiences()->create([
             'titre' => $data['titre'],
             'description' => $data['description'] ?? null,
             'date_debut' => $data['date_debut'],
             'date_fin' => $data['date_fin'] ?? null,
         ]);
+
+        return $experience;
     }
 
     /**

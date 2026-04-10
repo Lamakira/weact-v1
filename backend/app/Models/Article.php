@@ -4,16 +4,32 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\HasRouteUuid;
 use App\Enums\ArticleCategory;
 use App\Enums\ArticleStatus;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
-use App\Concerns\HasRouteUuid;
 
+/**
+ * @property int $id
+ * @property int $admin_id
+ * @property string $uuid
+ * @property string $title
+ * @property string $slug
+ * @property string $content
+ * @property string|null $excerpt
+ * @property ArticleCategory $category
+ * @property ArticleStatus $status
+ * @property string|null $featured_image
+ * @property-read string|null $featured_image_url
+ * @property \Illuminate\Support\Carbon|null $published_at
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property Admin|null $admin
+ */
 class Article extends Model
 {
     use HasFactory, HasRouteUuid;
@@ -76,7 +92,7 @@ class Article extends Model
     {
         return Attribute::make(
             get: fn (): ?string => $this->featured_image
-                ? asset('storage/' . self::FEATURED_IMAGE_PATH . '/' . $this->featured_image)
+                ? asset('storage/'.self::FEATURED_IMAGE_PATH.'/'.$this->featured_image)
                 : null,
         );
     }

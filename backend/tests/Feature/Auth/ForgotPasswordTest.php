@@ -35,8 +35,8 @@ class ForgotPasswordTest extends TestCase
 
             // Verify URL format: {FRONTEND_URL}/reset-password/{token}?email={email}
             $frontendUrl = config('app.frontend_url', 'http://localhost:5173');
-            $this->assertStringStartsWith($frontendUrl . '/reset-password/', $actionUrl);
-            $this->assertStringContainsString('?email=' . urlencode($user->email), $actionUrl);
+            $this->assertStringStartsWith($frontendUrl.'/reset-password/', $actionUrl);
+            $this->assertStringContainsString('?email='.urlencode($user->email), $actionUrl);
 
             return true;
         });

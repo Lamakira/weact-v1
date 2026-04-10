@@ -6,10 +6,12 @@ namespace App\Services;
 
 use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
+use App\Models\Candidature;
 use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class MissionService
@@ -26,7 +28,8 @@ class MissionService
      */
     public function createMission(Producer $producer, array $data): Mission
     {
-        return $producer->missions()->create([
+        /** @var Mission $mission */
+        $mission = $producer->missions()->create([
             'titre' => $data['titre'],
             'description' => $data['description'],
             'date_tournage' => $data['date_tournage'],
@@ -41,6 +44,8 @@ class MissionService
             'duree' => $data['duree'],
             'status' => MissionStatus::Published,
         ]);
+
+        return $mission;
     }
 
     /**
@@ -75,7 +80,10 @@ class MissionService
 
         $mission->update($payload);
 
-        return $mission->fresh();
+        /** @var Mission $freshMission */
+        $freshMission = $mission->fresh();
+
+        return $freshMission;
     }
 
     /**
@@ -103,9 +111,10 @@ class MissionService
             ->get();
 
         foreach ($activeCandidatures as $candidature) {
+            /** @var Candidature $candidature */
             $candidature->update(['status' => CandidatureStatus::Cancelled]);
 
-            $faceId = $candidature->face_id ?? $candidature->face?->id;
+            $faceId = $candidature->face_id;
             $userId = $faceId
                 ? User::where('userable_type', \App\Models\Face::class)
                     ->where('userable_id', $faceId)
@@ -149,9 +158,11 @@ class MissionService
             'status' => MissionStatus::Closed,
         ]);
 
-        $this->notifyPendingCandidatesOnClose($mission->fresh());
+        /** @var Mission $freshMission */
+        $freshMission = $mission->fresh();
+        $this->notifyPendingCandidatesOnClose($freshMission);
 
-        return $mission->fresh();
+        return $freshMission;
     }
 
     /**
@@ -165,7 +176,8 @@ class MissionService
             ->get();
 
         foreach ($pendingCandidatures as $candidature) {
-            $userId = $candidature->face?->userable?->id;
+            /** @var Candidature $candidature */
+            $userId = data_get($candidature, 'face.userable.id');
 
             if (! $userId) {
                 continue;
@@ -179,7 +191,7 @@ class MissionService
                         'message' => "La mission \"{$mission->titre}\" a été clôturée. Votre candidature n'a pas été retenue.",
                         'mission_id' => $mission->id,
                         'candidature_id' => $candidature->id,
-                        'url' => "/face/candidatures/{$candidature->id}",
+                        'url' => "/face/candidatures/{$candidature->uuid}",
                     ],
                 ]);
             } catch (\Throwable $e) {
@@ -204,7 +216,10 @@ class MissionService
             'status' => MissionStatus::Published,
         ]);
 
-        return $mission->fresh();
+        /** @var Mission $freshMission */
+        $freshMission = $mission->fresh();
+
+        return $freshMission;
     }
 
     /**
@@ -217,7 +232,7 @@ class MissionService
      */
     public function completeMission(Mission $mission): Mission
     {
-        return \Illuminate\Support\Facades\DB::transaction(function () use ($mission): Mission {
+        return DB::transaction(function () use ($mission): Mission {
             if (! $this->missionPaymentService->hasPaidPayment($mission)) {
                 throw new \RuntimeException('Mission completion requires a confirmed payment.');
             }
@@ -233,14 +248,17 @@ class MissionService
                 'status' => MissionStatus::Completed,
             ]);
 
-            $this->notifyProducerOnCompletion($mission->fresh());
+            /** @var Mission $freshMission */
+            $freshMission = $mission->fresh();
+            $this->notifyProducerOnCompletion($freshMission);
 
-            return $mission->fresh();
+            return $freshMission;
         });
     }
 
     private function notifyProducerOnCompletion(Mission $mission): void
     {
+        /** @var User|null $producerUser */
         $producerUser = User::where('userable_type', Producer::class)
             ->where('userable_id', $mission->producer_id)
             ->first();
@@ -256,7 +274,7 @@ class MissionService
                 'data' => [
                     'message' => "La mission \"{$mission->titre}\" est terminée.",
                     'mission_id' => $mission->id,
-                    'url' => "/producer/missions/{$mission->id}",
+                    'url' => "/producer/missions/{$mission->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {

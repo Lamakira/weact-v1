@@ -141,8 +141,8 @@ class EscrowService
         $retainedAmount = $booking->montant_total_producteur - $refundAmount;
         $idempotencyKey = "refund-booking-{$booking->id}";
         $refund = $fedapayService->initiateRefund($booking, $refundAmount, $idempotencyKey);
-        $refundId = isset($refund['fedapay_refund_id']) ? (string) $refund['fedapay_refund_id'] : null;
-        $refundStatus = $refund['status'] ?? 'pending';
+        $refundId = (string) $refund['fedapay_refund_id'];
+        $refundStatus = $refund['status'];
 
         $normalizedRefundStatus = strtolower((string) $refundStatus);
         $isSettledRefund = in_array($normalizedRefundStatus, [

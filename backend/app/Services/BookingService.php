@@ -412,6 +412,7 @@ class BookingService
                 $terminalFailedStatuses = ['declined', 'canceled', 'refunded'];
 
                 if (! in_array($existing->status, $terminalFailedStatuses, true)) {
+                    /** @var object{url:string} $tokenObj */
                     $tokenObj = $existing->generateToken();
 
                     return [

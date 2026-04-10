@@ -6,7 +6,6 @@ namespace Tests\Feature\Auth;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class LogoutTest extends TestCase
@@ -14,6 +13,7 @@ class LogoutTest extends TestCase
     use RefreshDatabase;
 
     private User $user;
+
     private string $token;
 
     protected function setUp(): void
@@ -29,7 +29,7 @@ class LogoutTest extends TestCase
 
     public function test_successful_logout_returns_200_and_revokes_token(): void
     {
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->postJson('/api/v1/auth/logout');
 
         $response->assertStatus(200)
@@ -49,12 +49,12 @@ class LogoutTest extends TestCase
     public function test_revoked_token_cannot_access_protected_routes(): void
     {
         // First, logout
-        $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->postJson('/api/v1/auth/logout')
             ->assertStatus(200);
 
         // Try to access protected route with the same token
-        $response = $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $response = $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->getJson('/api/v1/user');
 
         $response->assertStatus(401);
@@ -73,12 +73,12 @@ class LogoutTest extends TestCase
         $secondToken = $this->user->createToken('second-token')->plainTextToken;
 
         // Logout using the first token
-        $this->withHeader('Authorization', 'Bearer ' . $this->token)
+        $this->withHeader('Authorization', 'Bearer '.$this->token)
             ->postJson('/api/v1/auth/logout')
             ->assertStatus(200);
 
         // The second token should still work
-        $response = $this->withHeader('Authorization', 'Bearer ' . $secondToken)
+        $response = $this->withHeader('Authorization', 'Bearer '.$secondToken)
             ->getJson('/api/v1/user');
 
         $response->assertStatus(200);
@@ -92,4 +92,3 @@ class LogoutTest extends TestCase
         $response->assertStatus(401);
     }
 }
-

@@ -16,7 +16,9 @@ class AdminEditorRoleTest extends TestCase
     private Admin $editor;
 
     private Admin $admin;
+
     private string $editorToken;
+
     private string $adminToken;
 
     protected function setUp(): void

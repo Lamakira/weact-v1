@@ -30,7 +30,7 @@ class UpdatePersonalInfoRequest extends FormRequest
     {
         return [
             'sexe' => ['nullable', Rule::enum(FaceGender::class)],
-            'date_naissance' => ['nullable', 'date', 'before_or_equal:' . now()->subYears(16)->format('Y-m-d')],
+            'date_naissance' => ['nullable', 'date', 'before_or_equal:'.now()->subYears(16)->format('Y-m-d')],
             'nationalite' => ['nullable', 'string', 'max:100'],
             'pays' => ['nullable', 'string', 'max:100'],
             'show_age' => ['sometimes', 'boolean'],

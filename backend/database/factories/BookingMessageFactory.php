@@ -23,8 +23,8 @@ class BookingMessageFactory extends Factory
     {
         return [
             'booking_id' => Booking::factory(),
-            'sender_id'  => User::factory(),
-            'content'    => fake()->sentence(),
+            'sender_id' => User::factory(),
+            'content' => fake()->sentence(),
         ];
     }
 }
