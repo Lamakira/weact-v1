@@ -2,6 +2,7 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import { faceApi } from '../services/faceApi'
 import type { FacePhoto, AlbumPhotoResult } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
+import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
 
 // Maximum number of photos in the album
 const MAX_PHOTOS = 4
@@ -9,6 +10,18 @@ const MAX_PHOTOS = 4
 // Allowed file types
 const ALLOWED_TYPES = ['image/jpeg', 'image/png']
 const MAX_FILE_SIZE = 8 * 1024 * 1024 // 8MB
+const PHOTO_ALBUM_CACHE_TTL_MS = 5 * 60 * 1000
+
+const photoAlbumResource = createSharedCachedResource<FacePhoto[]>({
+  key: 'face-photo-album',
+  initialValue: [],
+  ttlMs: PHOTO_ALBUM_CACHE_TTL_MS,
+  load: async () => {
+    const response = await faceApi.getAlbumPhotos()
+    return response.data
+  },
+  getErrorMessage: getApiErrorMessage,
+})
 
 interface UsePhotoAlbumReturn {
   photos: Ref<FacePhoto[]>
@@ -31,12 +44,12 @@ interface UsePhotoAlbumReturn {
  * Composable for Face album photo operations
  */
 export function usePhotoAlbum(): UsePhotoAlbumReturn {
-  const photos = ref<FacePhoto[]>([])
-  const isLoading = ref(false)
+  const photos = photoAlbumResource.data
+  const isLoading = photoAlbumResource.isLoading
   const isUploading = ref(false)
   const isDeleting = ref(false)
   const isReordering = ref(false)
-  const error = ref<string | null>(null)
+  const error = photoAlbumResource.error
 
   // Computed properties
   const photoCount = computed(() => photos.value.length)
@@ -68,17 +81,7 @@ export function usePhotoAlbum(): UsePhotoAlbumReturn {
    * Fetch all album photos
    */
   async function fetchPhotos(): Promise<void> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const response = await faceApi.getAlbumPhotos()
-      photos.value = response.data
-    } catch (err) {
-      error.value = getApiErrorMessage(err)
-    } finally {
-      isLoading.value = false
-    }
+    await photoAlbumResource.fetch()
   }
 
   /**
@@ -110,7 +113,7 @@ export function usePhotoAlbum(): UsePhotoAlbumReturn {
 
     try {
       const response = await faceApi.addAlbumPhoto(file)
-      photos.value.push(response.data)
+      photoAlbumResource.mutate((current) => [...current, response.data])
 
       return {
         success: true,
@@ -145,14 +148,16 @@ export function usePhotoAlbum(): UsePhotoAlbumReturn {
       // Remove from local state
       const index = photos.value.findIndex((p) => p.id === photoId)
       if (index !== -1) {
-        photos.value.splice(index, 1)
+        const nextPhotos = [...photos.value]
+        nextPhotos.splice(index, 1)
+        photoAlbumResource.setData(nextPhotos)
       }
 
       // Update positions locally
-      photos.value = photos.value.map((photo, idx) => ({
+      photoAlbumResource.setData(photos.value.map((photo, idx) => ({
         ...photo,
         position: idx + 1,
-      }))
+      })))
 
       return {
         success: true,
@@ -194,14 +199,14 @@ export function usePhotoAlbum(): UsePhotoAlbumReturn {
       })
       .filter((p): p is FacePhoto => p !== null)
 
-    photos.value = reorderedPhotos
+    photoAlbumResource.setData(reorderedPhotos)
 
     try {
       const response = await faceApi.reorderAlbumPhotos(newOrder)
-      photos.value = response.data
+      photoAlbumResource.setData(response.data)
     } catch (err) {
       // Rollback on failure
-      photos.value = originalPhotos
+      photoAlbumResource.setData(originalPhotos)
       error.value = getApiErrorMessage(err)
     } finally {
       isReordering.value = false

@@ -1,7 +1,21 @@
-import { ref, computed, type Ref, type ComputedRef } from 'vue'
+import { computed, type Ref, type ComputedRef } from 'vue'
 import { faceApi } from '../services/faceApi'
 import type { ProfileCompletionInfo, ProfileCompletionMissingItem } from '../types'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
+import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
+
+const PROFILE_COMPLETION_CACHE_TTL_MS = 2 * 60 * 1000
+
+const profileCompletionResource = createSharedCachedResource<ProfileCompletionInfo | null>({
+  key: 'face-profile-completion',
+  initialValue: null,
+  ttlMs: PROFILE_COMPLETION_CACHE_TTL_MS,
+  load: async () => {
+    const response = await faceApi.getProfileCompletion()
+    return response.data
+  },
+  getErrorMessage: getApiErrorMessage,
+})
 
 interface UseProfileCompletionReturn {
   completionInfo: Ref<ProfileCompletionInfo | null>
@@ -18,32 +32,22 @@ interface UseProfileCompletionReturn {
  * Composable for Face profile completion operations
  */
 export function useProfileCompletion(): UseProfileCompletionReturn {
-  const completionInfo = ref<ProfileCompletionInfo | null>(null)
-  const isLoading = ref(false)
-  const error = ref<string | null>(null)
+  const completionInfo = profileCompletionResource.data
+  const isLoading = profileCompletionResource.isLoading
+  const error = profileCompletionResource.error
 
   /**
    * Clear the current error
    */
   function clearError(): void {
-    error.value = null
+    profileCompletionResource.clearError()
   }
 
   /**
    * Fetch the current profile completion status
    */
   async function fetchCompletion(): Promise<void> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const response = await faceApi.getProfileCompletion()
-      completionInfo.value = response.data
-    } catch (err) {
-      error.value = getApiErrorMessage(err)
-    } finally {
-      isLoading.value = false
-    }
+    await profileCompletionResource.fetch()
   }
 
   /**

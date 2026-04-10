@@ -2,9 +2,22 @@ import { ref, type Ref } from 'vue'
 import { faceApi } from '../services/faceApi'
 import type { LanguesInfo, LanguesResult } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
+import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
 
 const MAX_LANGUES = 10
 const MAX_LANGUE_LENGTH = 50
+const LANGUES_CACHE_TTL_MS = 5 * 60 * 1000
+
+const languesResource = createSharedCachedResource<LanguesInfo | null>({
+  key: 'face-langues',
+  initialValue: null,
+  ttlMs: LANGUES_CACHE_TTL_MS,
+  load: async () => {
+    const response = await faceApi.getLangues()
+    return response.data
+  },
+  getErrorMessage: getApiErrorMessage,
+})
 
 interface UseLanguesReturn {
   languesInfo: Ref<LanguesInfo | null>
@@ -23,10 +36,10 @@ interface UseLanguesReturn {
  * Composable for Face langues operations
  */
 export function useLangues(): UseLanguesReturn {
-  const languesInfo = ref<LanguesInfo | null>(null)
-  const isLoading = ref(false)
+  const languesInfo = languesResource.data
+  const isLoading = languesResource.isLoading
   const isSaving = ref(false)
-  const error = ref<string | null>(null)
+  const error = languesResource.error
 
   /**
    * Validate langues array
@@ -53,24 +66,14 @@ export function useLangues(): UseLanguesReturn {
    * Clear the current error
    */
   function clearError(): void {
-    error.value = null
+    languesResource.clearError()
   }
 
   /**
    * Fetch the current langues
    */
   async function fetchLangues(): Promise<void> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const response = await faceApi.getLangues()
-      languesInfo.value = response.data
-    } catch (err) {
-      error.value = getApiErrorMessage(err)
-    } finally {
-      isLoading.value = false
-    }
+    await languesResource.fetch()
   }
 
   /**
@@ -93,7 +96,7 @@ export function useLangues(): UseLanguesReturn {
 
     try {
       const response = await faceApi.updateLangues(langues)
-      languesInfo.value = response.data
+      languesResource.setData(response.data)
 
       return {
         success: true,

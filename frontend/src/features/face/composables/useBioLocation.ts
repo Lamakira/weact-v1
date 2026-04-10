@@ -3,8 +3,21 @@ import { faceApi } from '../services/faceApi'
 import type { BioLocationInfo, BioLocationResult } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
 import { BENIN_CITY_VALUES } from '@/shared/constants/beninCities'
+import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
 
 const MAX_BIO_LENGTH = 500
+const BIO_LOCATION_CACHE_TTL_MS = 5 * 60 * 1000
+
+const bioLocationResource = createSharedCachedResource<BioLocationInfo | null>({
+  key: 'face-bio-location',
+  initialValue: null,
+  ttlMs: BIO_LOCATION_CACHE_TTL_MS,
+  load: async () => {
+    const response = await faceApi.getBioLocation()
+    return response.data
+  },
+  getErrorMessage: getApiErrorMessage,
+})
 
 interface UseBioLocationReturn {
   bioLocationInfo: Ref<BioLocationInfo | null>
@@ -30,10 +43,10 @@ interface UseBioLocationReturn {
  * Composable for Face bio and location operations
  */
 export function useBioLocation(): UseBioLocationReturn {
-  const bioLocationInfo = ref<BioLocationInfo | null>(null)
-  const isLoading = ref(false)
+  const bioLocationInfo = bioLocationResource.data
+  const isLoading = bioLocationResource.isLoading
   const isSaving = ref(false)
-  const error = ref<string | null>(null)
+  const error = bioLocationResource.error
 
   // Computed properties for character counter
   const bioCharactersRemaining = computed(() => {
@@ -82,24 +95,14 @@ export function useBioLocation(): UseBioLocationReturn {
    * Clear the current error
    */
   function clearError(): void {
-    error.value = null
+    bioLocationResource.clearError()
   }
 
   /**
    * Fetch the current bio and location info
    */
   async function fetchBioLocation(): Promise<void> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const response = await faceApi.getBioLocation()
-      bioLocationInfo.value = response.data
-    } catch (err) {
-      error.value = getApiErrorMessage(err)
-    } finally {
-      isLoading.value = false
-    }
+    await bioLocationResource.fetch()
   }
 
   /**
@@ -140,7 +143,7 @@ export function useBioLocation(): UseBioLocationReturn {
 
     try {
       const response = await faceApi.updateBioLocation(data)
-      bioLocationInfo.value = response.data
+      bioLocationResource.setData(response.data)
 
       return {
         success: true,

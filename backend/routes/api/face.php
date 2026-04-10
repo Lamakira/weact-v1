@@ -41,25 +41,25 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
     // proper JSON error format { error: { code, message } } on 403.
     // Same pattern as ProfileCompletionController.
     Route::get('/dashboard/stats', [FaceDashboardController::class, 'stats'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:ui-read');
     Route::get('/dashboard/chart-stats', [FaceDashboardController::class, 'chartStats'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:ui-read');
     Route::get('/dashboard/available-missions-count', [FaceDashboardController::class, 'availableMissionsCount'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:ui-read');
     Route::get('/dashboard/booking-stats', [FaceDashboardController::class, 'bookingStats'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:ui-read');
     Route::get('/dashboard/booking-chart-stats', [FaceDashboardController::class, 'bookingChartStats'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:ui-read');
 
     // Basic info routes (nom, prenom, username)
     Route::get('/basic-info', [BasicInfoController::class, 'show'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:ui-read');
     Route::put('/basic-info', [BasicInfoController::class, 'update'])
         ->middleware('throttle:60,1');
 
     // Personal info routes (sexe, date_naissance, nationalite, pays)
     Route::get('/personal-info', [PersonalInfoController::class, 'show'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:ui-read');
     Route::put('/personal-info', [PersonalInfoController::class, 'update'])
         ->middleware('throttle:60,1');
 
@@ -90,35 +90,35 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
 
     // Bio and location routes
     Route::get('/bio-location', [BioLocationController::class, 'show'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:ui-read');
     Route::put('/bio-location', [BioLocationController::class, 'update'])
         ->middleware('throttle:60,1');
 
     // Langues routes
     Route::get('/langues', [LanguesController::class, 'show'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:ui-read');
     Route::put('/langues', [LanguesController::class, 'update'])
         ->middleware('throttle:60,1');
 
     // Physical characteristics routes
     Route::get('/physical-characteristics', [PhysicalCharacteristicsController::class, 'show'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:ui-read');
     Route::put('/physical-characteristics', [PhysicalCharacteristicsController::class, 'update'])
         ->middleware('throttle:60,1');
 
     // Category and niche routes
     Route::get('/category-niche', [CategoryNicheController::class, 'show'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:ui-read');
     Route::put('/category-niche', [CategoryNicheController::class, 'update'])
         ->middleware('throttle:60,1');
 
     // Experience routes
     Route::get('/experiences', [ExperienceController::class, 'index'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:ui-read');
     Route::post('/experiences', [ExperienceController::class, 'store'])
         ->middleware('throttle:60,1');
     Route::get('/experiences/{experience}', [ExperienceController::class, 'show'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:ui-read');
     Route::put('/experiences/{experience}', [ExperienceController::class, 'update'])
         ->middleware('throttle:60,1');
     Route::delete('/experiences/{experience}', [ExperienceController::class, 'destroy'])
@@ -126,19 +126,19 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
 
     // Tarifs routes
     Route::get('/tarifs', [TarifsController::class, 'show'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:ui-read');
     Route::put('/tarifs', [TarifsController::class, 'update'])
         ->middleware('throttle:60,1');
 
     // Availability routes
     Route::get('/availability', [AvailabilityController::class, 'show'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:ui-read');
     Route::put('/availability', [AvailabilityController::class, 'update'])
         ->middleware('throttle:60,1');
 
     // Profile completion route
     Route::get('/profile-completion', [ProfileCompletionController::class, 'show'])
-        ->middleware('throttle:60,1');
+        ->middleware('throttle:ui-read');
 
     // Mission routes - browse available missions (Face only)
     Route::get('/missions', [MissionController::class, 'index'])

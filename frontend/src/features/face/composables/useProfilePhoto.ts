@@ -2,10 +2,23 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import { faceApi } from '../services/faceApi'
 import type { FaceProfile, ProfilePhotoResult } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
+import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
 
 // Allowed file types
 const ALLOWED_TYPES = ['image/jpeg', 'image/png']
 const MAX_FILE_SIZE = 8 * 1024 * 1024 // 8MB
+const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000
+
+const profileResource = createSharedCachedResource<FaceProfile | null>({
+  key: 'face-profile',
+  initialValue: null,
+  ttlMs: PROFILE_CACHE_TTL_MS,
+  load: async () => {
+    const response = await faceApi.getProfile()
+    return response.data
+  },
+  getErrorMessage: getApiErrorMessage,
+})
 
 interface UseProfilePhotoReturn {
   profile: Ref<FaceProfile | null>
@@ -26,11 +39,11 @@ interface UseProfilePhotoReturn {
  * Composable for Face profile photo operations
  */
 export function useProfilePhoto(): UseProfilePhotoReturn {
-  const profile = ref<FaceProfile | null>(null)
-  const isLoading = ref(false)
+  const profile = profileResource.data
+  const isLoading = profileResource.isLoading
   const isUploading = ref(false)
   const isDeleting = ref(false)
-  const error = ref<string | null>(null)
+  const error = profileResource.error
 
   // Computed properties
   const hasPhoto = computed(() => !!profile.value?.profile_photo_url)
@@ -62,17 +75,7 @@ export function useProfilePhoto(): UseProfilePhotoReturn {
    * Fetch the current face profile
    */
   async function fetchProfile(): Promise<void> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const response = await faceApi.getProfile()
-      profile.value = response.data
-    } catch (err) {
-      error.value = getApiErrorMessage(err)
-    } finally {
-      isLoading.value = false
-    }
+    await profileResource.fetch()
   }
 
   /**
@@ -94,7 +97,7 @@ export function useProfilePhoto(): UseProfilePhotoReturn {
 
     try {
       const response = await faceApi.uploadProfilePhoto(file)
-      profile.value = response.data
+      profileResource.setData(response.data)
 
       return {
         success: true,
@@ -125,7 +128,7 @@ export function useProfilePhoto(): UseProfilePhotoReturn {
 
     try {
       const response = await faceApi.deleteProfilePhoto()
-      profile.value = response.data
+      profileResource.setData(response.data)
 
       return {
         success: true,

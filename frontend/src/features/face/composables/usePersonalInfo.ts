@@ -4,6 +4,20 @@ import type { PersonalInfoInfo, PersonalInfoResult } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
 import { useAuthStore } from '@/stores/auth'
 import type { Face as AuthFace } from '@/features/auth/types'
+import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
+
+const PERSONAL_INFO_CACHE_TTL_MS = 5 * 60 * 1000
+
+const personalInfoResource = createSharedCachedResource<PersonalInfoInfo | null>({
+  key: 'face-personal-info',
+  initialValue: null,
+  ttlMs: PERSONAL_INFO_CACHE_TTL_MS,
+  load: async () => {
+    const response = await faceApi.getPersonalInfo()
+    return response.data
+  },
+  getErrorMessage: getApiErrorMessage,
+})
 
 interface UsePersonalInfoReturn {
   personalInfo: Ref<PersonalInfoInfo | null>
@@ -27,10 +41,10 @@ interface UsePersonalInfoReturn {
  */
 export function usePersonalInfo(): UsePersonalInfoReturn {
   const authStore = useAuthStore()
-  const personalInfo = ref<PersonalInfoInfo | null>(null)
-  const isLoading = ref(false)
+  const personalInfo = personalInfoResource.data
+  const isLoading = personalInfoResource.isLoading
   const isSaving = ref(false)
-  const error = ref<string | null>(null)
+  const error = personalInfoResource.error
 
   function getGenderLabel(sexe: string | null): string | null {
     switch (sexe) {
@@ -49,24 +63,14 @@ export function usePersonalInfo(): UsePersonalInfoReturn {
    * Clear the current error
    */
   function clearError(): void {
-    error.value = null
+    personalInfoResource.clearError()
   }
 
   /**
    * Fetch the current personal info
    */
   async function fetchPersonalInfo(): Promise<void> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const response = await faceApi.getPersonalInfo()
-      personalInfo.value = response.data
-    } catch (err) {
-      error.value = getApiErrorMessage(err)
-    } finally {
-      isLoading.value = false
-    }
+    await personalInfoResource.fetch()
   }
 
   /**
@@ -85,7 +89,7 @@ export function usePersonalInfo(): UsePersonalInfoReturn {
 
     try {
       const response = await faceApi.updatePersonalInfo(data)
-      personalInfo.value = response.data
+      personalInfoResource.setData(response.data)
 
       const refreshed = await authStore.refreshUser()
 

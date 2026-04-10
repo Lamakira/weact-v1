@@ -2,9 +2,22 @@ import { ref, type Ref } from 'vue'
 import { faceApi } from '../services/faceApi'
 import type { TarifsInfo, TarifsResult, TarifsFormData } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
+import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
 
 const MAX_TARIF_HORAIRE = 10000000
 const MAX_TARIF_JOURNALIER = 100000000
+const TARIFS_CACHE_TTL_MS = 5 * 60 * 1000
+
+const tarifsResource = createSharedCachedResource<TarifsInfo | null>({
+  key: 'face-tarifs',
+  initialValue: null,
+  ttlMs: TARIFS_CACHE_TTL_MS,
+  load: async () => {
+    const response = await faceApi.getTarifs()
+    return response.data
+  },
+  getErrorMessage: getApiErrorMessage,
+})
 
 interface UseTarifsReturn {
   tarifsInfo: Ref<TarifsInfo | null>
@@ -26,10 +39,10 @@ interface UseTarifsReturn {
  * Composable for Face tarifs operations
  */
 export function useTarifs(): UseTarifsReturn {
-  const tarifsInfo = ref<TarifsInfo | null>(null)
-  const isLoading = ref(false)
+  const tarifsInfo = tarifsResource.data
+  const isLoading = tarifsResource.isLoading
   const isSaving = ref(false)
-  const error = ref<string | null>(null)
+  const error = tarifsResource.error
 
   /**
    * Validate tarif demi-journée (half-day rate in XOF)
@@ -111,24 +124,14 @@ export function useTarifs(): UseTarifsReturn {
    * Clear the current error
    */
   function clearError(): void {
-    error.value = null
+    tarifsResource.clearError()
   }
 
   /**
    * Fetch the current tarifs
    */
   async function fetchTarifs(): Promise<void> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const response = await faceApi.getTarifs()
-      tarifsInfo.value = response.data
-    } catch (err) {
-      error.value = getApiErrorMessage(err)
-    } finally {
-      isLoading.value = false
-    }
+    await tarifsResource.fetch()
   }
 
   /**
@@ -177,7 +180,7 @@ export function useTarifs(): UseTarifsReturn {
 
     try {
       const response = await faceApi.updateTarifs(data)
-      tarifsInfo.value = response.data
+      tarifsResource.setData(response.data)
 
       return {
         success: true,

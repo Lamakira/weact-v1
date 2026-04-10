@@ -2,6 +2,20 @@ import { ref, type Ref } from 'vue'
 import { faceApi } from '../services/faceApi'
 import type { BasicInfo, BasicInfoFormData, BasicInfoResult } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
+import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
+
+const BASIC_INFO_CACHE_TTL_MS = 5 * 60 * 1000
+
+const basicInfoResource = createSharedCachedResource<BasicInfo | null>({
+  key: 'face-basic-info',
+  initialValue: null,
+  ttlMs: BASIC_INFO_CACHE_TTL_MS,
+  load: async () => {
+    const response = await faceApi.getBasicInfo()
+    return response.data
+  },
+  getErrorMessage: getApiErrorMessage,
+})
 
 interface UseBasicInfoReturn {
   basicInfo: Ref<BasicInfo | null>
@@ -17,33 +31,23 @@ interface UseBasicInfoReturn {
  * Composable for Face basic info operations (nom, prenom, username)
  */
 export function useBasicInfo(): UseBasicInfoReturn {
-  const basicInfo = ref<BasicInfo | null>(null)
-  const isLoading = ref(false)
+  const basicInfo = basicInfoResource.data
+  const isLoading = basicInfoResource.isLoading
   const isSaving = ref(false)
-  const error = ref<string | null>(null)
+  const error = basicInfoResource.error
 
   /**
    * Clear the current error
    */
   function clearError(): void {
-    error.value = null
+    basicInfoResource.clearError()
   }
 
   /**
    * Fetch the current basic info
    */
   async function fetchBasicInfo(): Promise<void> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const response = await faceApi.getBasicInfo()
-      basicInfo.value = response.data
-    } catch (err) {
-      error.value = getApiErrorMessage(err)
-    } finally {
-      isLoading.value = false
-    }
+    await basicInfoResource.fetch()
   }
 
   /**
@@ -55,7 +59,7 @@ export function useBasicInfo(): UseBasicInfoReturn {
 
     try {
       const response = await faceApi.updateBasicInfo(data)
-      basicInfo.value = response.data
+      basicInfoResource.setData(response.data)
 
       return {
         success: true,
