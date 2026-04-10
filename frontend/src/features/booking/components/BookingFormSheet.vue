@@ -340,9 +340,6 @@ const onSubmit = handleSubmit(async (values) => {
                   Estimation tarifaire
                 </div>
                 <BookingPricingBreakdown :tarif-base="pricingPreview.tarifBase" role="producer" />
-                <p class="text-xs text-gray-400 mt-1">
-                  Le montant final sera confirmé après acceptation de la Face.
-                </p>
               </div>
 
               <!-- Submit -->
