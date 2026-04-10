@@ -7,6 +7,7 @@ namespace App\Http\Resources;
 use App\Models\WithdrawalRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Carbon;
 
 /**
  * @mixin WithdrawalRequest
@@ -20,6 +21,11 @@ class WithdrawalRequestResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        /** @var Carbon|null $processedAt */
+        $processedAt = $this->processed_at;
+        /** @var Carbon|null $createdAt */
+        $createdAt = $this->created_at;
+
         return [
             'id' => $this->uuid,
             'amount' => (int) $this->amount,
@@ -28,8 +34,8 @@ class WithdrawalRequestResource extends JsonResource
             'phone_country' => $this->phone_country,
             'status' => $this->status,
             'notes' => $this->notes,
-            'processed_at' => $this->processed_at?->toIso8601String(),
-            'created_at' => $this->created_at?->toIso8601String(),
+            'processed_at' => $processedAt?->toIso8601String(),
+            'created_at' => $createdAt?->toIso8601String(),
         ];
     }
 }

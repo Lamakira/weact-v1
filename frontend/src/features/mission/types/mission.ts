@@ -54,7 +54,7 @@ export const MissionGender = {
 export type MissionGenderType = (typeof MissionGender)[keyof typeof MissionGender]
 
 // Mission gender labels (French)
-export const MissionGenderLabel: Record<MissionGenderType, string> = {
+const MissionGenderLabel: Record<MissionGenderType, string> = {
   [MissionGender.HOMME]: 'Homme',
   [MissionGender.FEMME]: 'Femme',
   [MissionGender.TOUS]: 'Homme et Femme',
@@ -196,13 +196,13 @@ export interface PaginatedMissionsResponse {
 }
 
 // Mission type option for select inputs
-export interface MissionTypeOption {
+interface MissionTypeOption {
   value: MissionTypeType
   label: string
 }
 
 // Mission gender option for select inputs
-export interface MissionGenderOption {
+interface MissionGenderOption {
   value: MissionGenderType
   label: string
 }

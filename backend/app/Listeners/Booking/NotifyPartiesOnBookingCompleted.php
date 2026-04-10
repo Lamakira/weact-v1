@@ -6,8 +6,8 @@ namespace App\Listeners\Booking;
 
 use App\Events\BookingCompleted;
 use App\Models\Notification;
-use Illuminate\Events\Attributes\AsEventListener;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener(event: BookingCompleted::class)]
 class NotifyPartiesOnBookingCompleted
@@ -26,17 +26,17 @@ class NotifyPartiesOnBookingCompleted
 
             Notification::create([
                 'user_id' => $booking->face_id,
-                'type'    => 'booking_wallet_credited',
-                'data'    => [
-                    'message'    => "{$formattedAmount} XOF ont été ajoutés à votre wallet !",
+                'type' => 'booking_wallet_credited',
+                'data' => [
+                    'message' => "{$formattedAmount} XOF ont été ajoutés à votre wallet !",
                     'booking_id' => $booking->id,
-                    'url'        => "/face/bookings/{$booking->uuid}",
+                    'url' => "/face/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {
             Log::warning('BookingCompleted wallet notification for Face failed', [
                 'booking_id' => $booking->id,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
 
@@ -44,17 +44,17 @@ class NotifyPartiesOnBookingCompleted
         try {
             Notification::create([
                 'user_id' => $booking->producer_id,
-                'type'    => 'booking_completed',
-                'data'    => [
-                    'message'    => 'Votre booking est terminé. Merci pour votre confiance !',
+                'type' => 'booking_completed',
+                'data' => [
+                    'message' => 'Votre booking est terminé. Merci pour votre confiance !',
                     'booking_id' => $booking->id,
-                    'url'        => "/producer/bookings/{$booking->uuid}",
+                    'url' => "/producer/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {
             Log::warning('BookingCompleted notification for Producer failed', [
                 'booking_id' => $booking->id,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }

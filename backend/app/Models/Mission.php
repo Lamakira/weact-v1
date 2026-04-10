@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\HasRouteUuid;
 use App\Enums\MissionGender;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
@@ -14,8 +15,31 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
-use App\Concerns\HasRouteUuid;
 
+/**
+ * @property string $uuid
+ * @property string $slug
+ * @property string $titre
+ * @property string $description
+ * @property \Carbon\CarbonInterface|null $date_tournage
+ * @property \Carbon\CarbonInterface|null $shooting_reminder_sent_at
+ * @property \Carbon\CarbonInterface|null $date_limite_candidature
+ * @property string|null $profil_recherche
+ * @property int $budget
+ * @property int $nombre_faces_voulu
+ * @property string|null $type_mission_autre
+ * @property string|null $lieu
+ * @property string|null $duree
+ * @property \App\Enums\MissionStatus $status
+ * @property \App\Enums\MissionType|null $type_mission
+ * @property \App\Enums\MissionGender|null $genre_voulu
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property int|null $candidatures_count
+ * @property-read \App\Models\Producer|null $producer
+ * @property-read \App\Models\MissionPayment|null $payment
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Candidature> $candidatures
+ */
 class Mission extends Model
 {
     use HasFactory;

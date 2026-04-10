@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\HasRouteUuid;
 use App\Enums\MissionStatus;
 use App\Enums\ProducerType;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -13,8 +14,31 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
-use App\Concerns\HasRouteUuid;
+use Illuminate\Support\Str;
 
+/**
+ * @property int $id
+ * @property string $uuid
+ * @property ProducerType|string|null $type
+ * @property string|null $agency_name
+ * @property string|null $first_name
+ * @property string|null $last_name
+ * @property string|null $bio
+ * @property string|null $slug
+ * @property-read string $display_name
+ * @property-read string|null $profile_photo_url
+ * @property-read string|null $thumbnail_url
+ * @property-read string|null $medium_url
+ * @property-read string|null $agency_logo_url
+ * @property-read string|null $agency_logo_thumbnail_url
+ * @property-read float|null $average_rating
+ * @property-read int $ratings_count
+ * @property float|int|string|null $ratings_received_avg_score
+ * @property int|string|null $ratings_received_count
+ * @property-read int $published_missions_count
+ * @property-read \Illuminate\Support\Carbon|null $created_at
+ * @property-read \Illuminate\Support\Carbon|null $updated_at
+ */
 class Producer extends Model
 {
     use HasFactory, HasRouteUuid;
@@ -28,29 +52,52 @@ class Producer extends Model
 
         static::creating(function (Producer $producer): void {
             if (empty($producer->slug)) {
-                $base = \Illuminate\Support\Str::slug($producer->display_name ?: 'producer');
-                $slug = $base;
-                $counter = 1;
-                while (static::where('slug', $slug)->exists()) {
-                    $slug = "{$base}-{$counter}";
-                    $counter++;
-                }
-                $producer->slug = $slug;
+                $producer->slug = static::generateUniqueSlug($producer->slugSourceName());
             }
         });
 
         static::updating(function (Producer $producer): void {
-            if ($producer->isDirty('display_name')) {
-                $base = \Illuminate\Support\Str::slug($producer->display_name ?: 'producer');
-                $slug = $base;
-                $counter = 1;
-                while (static::where('slug', $slug)->where('id', '!=', $producer->id)->exists()) {
-                    $slug = "{$base}-{$counter}";
-                    $counter++;
-                }
-                $producer->slug = $slug;
+            if ($producer->isDirty(['type', 'agency_name', 'first_name', 'last_name'])) {
+                $producer->slug = static::generateUniqueSlug($producer->slugSourceName(), $producer->id);
             }
         });
+    }
+
+    public function slugSourceName(): string
+    {
+        if ($this->currentType() === ProducerType::Agency) {
+            return (string) ($this->agency_name ?? '');
+        }
+
+        return trim((string) ($this->first_name ?? '').' '.(string) ($this->last_name ?? ''));
+    }
+
+    public function currentType(): ?ProducerType
+    {
+        $type = $this->getAttribute('type');
+
+        if ($type instanceof ProducerType) {
+            return $type;
+        }
+
+        return is_string($type) ? ProducerType::tryFrom($type) : null;
+    }
+
+    public static function generateUniqueSlug(string $sourceName, ?int $ignoreId = null): string
+    {
+        $base = Str::slug($sourceName);
+        $slug = $base !== '' ? $base : 'producer';
+        $counter = 1;
+
+        while (static::query()
+            ->where('slug', $slug)
+            ->when($ignoreId !== null, fn ($query) => $query->where('id', '!=', $ignoreId))
+            ->exists()) {
+            $slug = ($base !== '' ? $base : 'producer')."-{$counter}";
+            $counter++;
+        }
+
+        return $slug;
     }
 
     /**
@@ -120,7 +167,7 @@ class Producer extends Model
      */
     public function isAgency(): bool
     {
-        return $this->type === ProducerType::Agency;
+        return $this->currentType() === ProducerType::Agency;
     }
 
     /**
@@ -128,7 +175,7 @@ class Producer extends Model
      */
     public function isParticulier(): bool
     {
-        return $this->type === ProducerType::Particulier;
+        return $this->currentType() === ProducerType::Particulier;
     }
 
     /**
@@ -138,9 +185,7 @@ class Producer extends Model
     protected function displayName(): Attribute
     {
         return Attribute::make(
-            get: fn (): string => $this->type === ProducerType::Agency
-                ? ($this->agency_name ?? '')
-                : trim("{$this->first_name} {$this->last_name}"),
+            get: fn (): string => $this->slugSourceName(),
         );
     }
 
@@ -151,7 +196,7 @@ class Producer extends Model
     {
         return Attribute::make(
             get: fn (): ?string => $this->profile_photo
-                ? asset('storage/avatars/producers/' . $this->profile_photo)
+                ? asset('storage/avatars/producers/'.$this->profile_photo)
                 : null,
         );
     }
@@ -163,7 +208,7 @@ class Producer extends Model
     {
         return Attribute::make(
             get: fn (): ?string => $this->profile_photo_thumbnail
-                ? asset('storage/avatars/producers/thumbnails/' . $this->profile_photo_thumbnail)
+                ? asset('storage/avatars/producers/thumbnails/'.$this->profile_photo_thumbnail)
                 : null,
         );
     }
@@ -175,8 +220,10 @@ class Producer extends Model
     {
         return Attribute::make(
             get: fn (): ?string => $this->profile_photo_medium
-                ? asset('storage/avatars/producers/medium/' . $this->profile_photo_medium)
-                : $this->profile_photo_url,
+                ? asset('storage/avatars/producers/medium/'.$this->profile_photo_medium)
+                : ($this->profile_photo
+                    ? asset('storage/avatars/producers/'.$this->profile_photo)
+                    : null),
         );
     }
 
@@ -187,7 +234,7 @@ class Producer extends Model
     {
         return Attribute::make(
             get: fn (): ?string => $this->agency_logo
-                ? asset('storage/logos/agencies/' . $this->agency_logo)
+                ? asset('storage/logos/agencies/'.$this->agency_logo)
                 : null,
         );
     }
@@ -199,7 +246,7 @@ class Producer extends Model
     {
         return Attribute::make(
             get: fn (): ?string => $this->agency_logo_thumbnail
-                ? asset('storage/logos/agencies/thumbnails/' . $this->agency_logo_thumbnail)
+                ? asset('storage/logos/agencies/thumbnails/'.$this->agency_logo_thumbnail)
                 : null,
         );
     }
@@ -250,16 +297,16 @@ class Producer extends Model
                 $candidatureRatings = $this->ratingsReceived()->selectRaw('COALESCE(SUM(score), 0) as score_sum, COUNT(*) as score_count')->first();
                 $bookingRatings = $this->bookingRatingsReceived()->selectRaw('COALESCE(SUM(score), 0) as score_sum, COUNT(*) as score_count')->groupBy('users.userable_id')->first();
 
-                $candidatureCount = (int) ($candidatureRatings?->score_count ?? 0);
-                $bookingCount = (int) ($bookingRatings?->score_count ?? 0);
+                $candidatureCount = (int) data_get($candidatureRatings, 'score_count', 0);
+                $bookingCount = (int) data_get($bookingRatings, 'score_count', 0);
                 $totalCount = $candidatureCount + $bookingCount;
 
                 if ($totalCount === 0) {
                     return null;
                 }
 
-                $totalScore = (float) ($candidatureRatings?->score_sum ?? 0.0)
-                    + (float) ($bookingRatings?->score_sum ?? 0.0);
+                $totalScore = (float) data_get($candidatureRatings, 'score_sum', 0.0)
+                    + (float) data_get($bookingRatings, 'score_sum', 0.0);
 
                 return $totalScore / $totalCount;
             },

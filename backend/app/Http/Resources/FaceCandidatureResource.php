@@ -13,6 +13,8 @@ use Illuminate\Support\Str;
  *
  * Returns candidature with nested mission and producer summary data.
  * Motivation message is truncated for list display.
+ *
+ * @mixin \App\Models\Candidature
  */
 class FaceCandidatureResource extends JsonResource
 {
@@ -23,28 +25,31 @@ class FaceCandidatureResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $mission = $this->mission;
+        $producer = $mission?->producer;
+
         return [
             'id' => $this->uuid,
-            'status' => $this->status?->value,
-            'status_label' => $this->status?->label(),
+            'status' => $this->status->value,
+            'status_label' => $this->status->label(),
             'message_motivation' => $this->message_motivation
                 ? Str::limit($this->message_motivation, 100)
                 : null,
             'created_at' => $this->created_at?->toIso8601String(),
             'mission' => $this->whenLoaded('mission', fn () => [
-                'id' => $this->mission->uuid,
-                'titre' => $this->mission->titre,
-                'date_tournage' => $this->mission->date_tournage?->format('Y-m-d'),
-                'lieu' => $this->mission->lieu,
-                'budget' => $this->mission->budget,
+                'id' => $mission?->uuid,
+                'titre' => $mission?->titre,
+                'date_tournage' => $mission?->date_tournage?->format('Y-m-d'),
+                'lieu' => $mission?->lieu,
+                'budget' => $mission?->budget,
             ]),
             'producer' => $this->when(
-                $this->relationLoaded('mission') && $this->mission?->relationLoaded('producer') && $this->mission?->producer,
+                $mission !== null && $mission->relationLoaded('producer') && $producer !== null,
                 fn () => [
-                    'id' => $this->mission->producer->uuid,
-                    'display_name' => $this->mission->producer->display_name,
-                    'type' => $this->mission->producer->type?->value,
-                    'profile_photo_url' => $this->mission->producer->profile_photo_url,
+                    'id' => $producer?->uuid,
+                    'display_name' => $producer?->display_name,
+                    'type' => $producer?->currentType()?->value,
+                    'profile_photo_url' => $producer?->profile_photo_url,
                 ]
             ),
             'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->uuid),

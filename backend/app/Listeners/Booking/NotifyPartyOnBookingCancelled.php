@@ -8,9 +8,9 @@ use App\Enums\BookingStatus;
 use App\Events\BookingCancelled;
 use App\Mail\BookingCancelledMail;
 use App\Models\Notification;
-use Illuminate\Events\Attributes\AsEventListener;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener(event: BookingCancelled::class)]
 class NotifyPartyOnBookingCancelled
@@ -28,33 +28,33 @@ class NotifyPartyOnBookingCancelled
         $cancelledByFace = $booking->status === BookingStatus::CancelledByFace;
 
         if ($cancelledByFace) {
-            $faceName = $booking->face?->userable?->display_name ?? 'La Face';
+            $faceName = (string) data_get($booking, 'face.userable.display_name', 'La Face');
             $recipientUserId = $booking->producer_id;
             $notificationData = [
-                'message'    => "{$faceName} a annulé le booking.",
+                'message' => "{$faceName} a annulé le booking.",
                 'booking_id' => $booking->id,
-                'url'        => "/producer/bookings/{$booking->uuid}",
+                'url' => "/producer/bookings/{$booking->uuid}",
             ];
         } else {
-            $producerName = $booking->producer?->userable?->display_name ?? 'Le Producteur';
+            $producerName = (string) data_get($booking, 'producer.userable.display_name', 'Le Producteur');
             $recipientUserId = $booking->face_id;
             $notificationData = [
-                'message'    => "Votre booking a été annulé par {$producerName}. Vous n'êtes pas pénalisé.",
+                'message' => "Votre booking a été annulé par {$producerName}. Vous n'êtes pas pénalisé.",
                 'booking_id' => $booking->id,
-                'url'        => "/face/bookings/{$booking->uuid}",
+                'url' => "/face/bookings/{$booking->uuid}",
             ];
         }
 
         try {
             Notification::create([
                 'user_id' => $recipientUserId,
-                'type'    => 'booking_cancelled',
-                'data'    => $notificationData,
+                'type' => 'booking_cancelled',
+                'data' => $notificationData,
             ]);
         } catch (\Throwable $e) {
             Log::warning('BookingCancelled notification record failed', [
                 'booking_id' => $booking->id,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
 
@@ -68,7 +68,7 @@ class NotifyPartyOnBookingCancelled
         } catch (\Throwable $e) {
             Log::warning('BookingCancelled email queue failed', [
                 'booking_id' => $booking->id,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }

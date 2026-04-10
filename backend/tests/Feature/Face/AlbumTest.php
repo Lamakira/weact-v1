@@ -18,6 +18,7 @@ class AlbumTest extends TestCase
     use RefreshDatabase;
 
     private User $faceUser;
+
     private Face $face;
 
     protected function setUp(): void
@@ -110,8 +111,8 @@ class AlbumTest extends TestCase
         $this->assertEquals(1, $photo->position);
 
         // Verify files exist in storage
-        Storage::disk('public')->assertExists('avatars/faces/albums/' . $photo->filename);
-        Storage::disk('public')->assertExists('avatars/faces/albums/thumbnails/' . $photo->thumbnail);
+        Storage::disk('public')->assertExists('avatars/faces/albums/'.$photo->filename);
+        Storage::disk('public')->assertExists('avatars/faces/albums/thumbnails/'.$photo->thumbnail);
     }
 
     public function test_can_upload_png_album_photo(): void
@@ -144,7 +145,7 @@ class AlbumTest extends TestCase
         $this->assertNotNull($photo->thumbnail);
 
         // Verify thumbnail exists
-        Storage::disk('public')->assertExists('avatars/faces/albums/thumbnails/' . $photo->thumbnail);
+        Storage::disk('public')->assertExists('avatars/faces/albums/thumbnails/'.$photo->thumbnail);
     }
 
     public function test_rejects_upload_when_album_is_full(): void
@@ -235,8 +236,8 @@ class AlbumTest extends TestCase
         ]);
 
         // Create actual files in storage
-        Storage::disk('public')->put('avatars/faces/albums/' . $photo->filename, 'photo content');
-        Storage::disk('public')->put('avatars/faces/albums/thumbnails/' . $photo->thumbnail, 'thumbnail content');
+        Storage::disk('public')->put('avatars/faces/albums/'.$photo->filename, 'photo content');
+        Storage::disk('public')->put('avatars/faces/albums/thumbnails/'.$photo->thumbnail, 'thumbnail content');
 
         $response = $this->actingAs($this->faceUser)
             ->deleteJson("/api/v1/face/album/{$photo->uuid}");
@@ -250,8 +251,8 @@ class AlbumTest extends TestCase
         $this->assertDatabaseMissing('face_photos', ['id' => $photo->id]);
 
         // Verify files deleted
-        Storage::disk('public')->assertMissing('avatars/faces/albums/' . $photo->filename);
-        Storage::disk('public')->assertMissing('avatars/faces/albums/thumbnails/' . $photo->thumbnail);
+        Storage::disk('public')->assertMissing('avatars/faces/albums/'.$photo->filename);
+        Storage::disk('public')->assertMissing('avatars/faces/albums/thumbnails/'.$photo->thumbnail);
     }
 
     public function test_positions_reorder_after_delete(): void

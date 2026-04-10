@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Tests\Feature\Wallet;
 
 use App\Exceptions\WithdrawalLockException;
+use App\Mail\WithdrawalRequestSubmittedMail;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
-use App\Mail\WithdrawalRequestSubmittedMail;
 use App\Services\FedapayService;
 use App\Services\WithdrawalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -21,6 +21,7 @@ class WalletWithdrawalTest extends TestCase
     use RefreshDatabase;
 
     private User $faceUser;
+
     private User $producerUser;
 
     private function withApiToken(User $user): static
@@ -35,7 +36,7 @@ class WalletWithdrawalTest extends TestCase
         $face = Face::factory()->create();
         $this->faceUser = User::factory()->create([
             'userable_type' => Face::class,
-            'userable_id'   => $face->id,
+            'userable_id' => $face->id,
         ]);
         // Use increment — balance not in $fillable
         $this->faceUser->increment('balance', 50000);
@@ -43,7 +44,7 @@ class WalletWithdrawalTest extends TestCase
         $producer = Producer::factory()->create();
         $this->producerUser = User::factory()->create([
             'userable_type' => Producer::class,
-            'userable_id'   => $producer->id,
+            'userable_id' => $producer->id,
         ]);
     }
 
@@ -52,7 +53,7 @@ class WalletWithdrawalTest extends TestCase
         $mock = Mockery::mock(FedapayService::class);
         $mock->shouldReceive('initiateWithdrawal')->andReturn([
             'fedapay_payout_id' => 999,
-            'status'            => 'approved',
+            'status' => 'approved',
         ]);
         $this->app->instance(FedapayService::class, $mock);
     }
@@ -60,9 +61,9 @@ class WalletWithdrawalTest extends TestCase
     private function validPayload(array $overrides = []): array
     {
         return array_merge([
-            'amount'        => 20000,
-            'payment_mode'  => 'mtn',
-            'phone_number'  => '0197000000', // valid MTN BJ EZAB prefix (10 digits)
+            'amount' => 20000,
+            'payment_mode' => 'mtn',
+            'phone_number' => '0197000000', // valid MTN BJ EZAB prefix (10 digits)
             'phone_country' => 'bj',
         ], $overrides);
     }
@@ -105,10 +106,10 @@ class WalletWithdrawalTest extends TestCase
             ->assertOk();
 
         $this->assertDatabaseHas('wallet_transactions', [
-            'user_id'    => $this->faceUser->id,
-            'type'       => 'debit',
-            'amount'     => 20000,
-            'status'     => 'pending',
+            'user_id' => $this->faceUser->id,
+            'type' => 'debit',
+            'amount' => 20000,
+            'status' => 'pending',
             'booking_id' => null,
         ]);
     }
@@ -124,10 +125,10 @@ class WalletWithdrawalTest extends TestCase
             ->assertOk();
 
         $this->assertDatabaseHas('financial_events', [
-            'type'        => 'withdrawal',
-            'booking_id'  => null,
-            'amount'      => 20000,
-            'status'      => 'pending',
+            'type' => 'withdrawal',
+            'booking_id' => null,
+            'amount' => 20000,
+            'status' => 'pending',
             'fedapay_ref' => '999',
         ]);
     }
@@ -275,7 +276,7 @@ class WalletWithdrawalTest extends TestCase
     {
         config([
             'app.withdrawal_mode' => 'manual',
-            'app.admin_email'     => 'admin@example.com',
+            'app.admin_email' => 'admin@example.com',
         ]);
         Mail::fake();
 
@@ -296,8 +297,8 @@ class WalletWithdrawalTest extends TestCase
         // 0197 is an MTN prefix — submitting it under Moov must fail
         $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload([
-                'payment_mode'  => 'moov',
-                'phone_number'  => '0197000000',
+                'payment_mode' => 'moov',
+                'phone_number' => '0197000000',
                 'phone_country' => 'bj',
             ]))
             ->assertUnprocessable()
@@ -308,7 +309,7 @@ class WalletWithdrawalTest extends TestCase
     {
         $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload([
-                'phone_number'  => '019700000', // 9 digits
+                'phone_number' => '019700000', // 9 digits
                 'phone_country' => 'bj',
             ]))
             ->assertUnprocessable()

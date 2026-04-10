@@ -2,14 +2,27 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import { faceApi } from '../services/faceApi'
 import type { PresentationVideoInfo, PresentationVideoResult, VideoUploadProgress } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
+import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
 
 // Allowed video file types
 const ALLOWED_TYPES = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/avi']
 const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi']
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 const MAX_DURATION_SECONDS = 120 // 2 minutes
+const PRESENTATION_VIDEO_CACHE_TTL_MS = 5 * 60 * 1000
 
-export interface UsePresentationVideoReturn {
+const presentationVideoResource = createSharedCachedResource<PresentationVideoInfo | null>({
+  key: 'face-presentation-video',
+  initialValue: null,
+  ttlMs: PRESENTATION_VIDEO_CACHE_TTL_MS,
+  load: async () => {
+    const response = await faceApi.getPresentationVideo()
+    return response.data
+  },
+  getErrorMessage: getApiErrorMessage,
+})
+
+interface UsePresentationVideoReturn {
   videoInfo: Ref<PresentationVideoInfo | null>
   isLoading: Ref<boolean>
   isUploading: Ref<boolean>
@@ -30,11 +43,11 @@ export interface UsePresentationVideoReturn {
  * Composable for Face presentation video operations
  */
 export function usePresentationVideo(): UsePresentationVideoReturn {
-  const videoInfo = ref<PresentationVideoInfo | null>(null)
-  const isLoading = ref(false)
+  const videoInfo = presentationVideoResource.data
+  const isLoading = presentationVideoResource.isLoading
   const isUploading = ref(false)
   const isDeleting = ref(false)
-  const error = ref<string | null>(null)
+  const error = presentationVideoResource.error
   const uploadProgress = ref<VideoUploadProgress | null>(null)
 
   // Computed properties
@@ -109,17 +122,7 @@ export function usePresentationVideo(): UsePresentationVideoReturn {
    * Fetch the current presentation video info
    */
   async function fetchVideoInfo(): Promise<void> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const response = await faceApi.getPresentationVideo()
-      videoInfo.value = response.data
-    } catch (err) {
-      error.value = getApiErrorMessage(err)
-    } finally {
-      isLoading.value = false
-    }
+    await presentationVideoResource.fetch()
   }
 
   /**
@@ -154,7 +157,7 @@ export function usePresentationVideo(): UsePresentationVideoReturn {
       const response = await faceApi.uploadPresentationVideo(file, (progress) => {
         uploadProgress.value = progress
       })
-      videoInfo.value = response.data
+      presentationVideoResource.setData(response.data)
 
       return {
         success: true,
@@ -186,14 +189,15 @@ export function usePresentationVideo(): UsePresentationVideoReturn {
 
     try {
       const response = await faceApi.deletePresentationVideo()
-      videoInfo.value = {
+      const emptyVideoInfo = {
         presentation_video_url: null,
         presentation_video_thumbnail_url: null,
       }
+      presentationVideoResource.setData(emptyVideoInfo)
 
       return {
         success: true,
-        data: videoInfo.value,
+        data: emptyVideoInfo,
         message: response.message,
       }
     } catch (err) {

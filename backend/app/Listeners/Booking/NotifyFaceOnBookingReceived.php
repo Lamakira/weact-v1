@@ -6,8 +6,8 @@ namespace App\Listeners\Booking;
 
 use App\Events\BookingCreated;
 use App\Models\Notification;
-use Illuminate\Events\Attributes\AsEventListener;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener(event: BookingCreated::class)]
 class NotifyFaceOnBookingReceived
@@ -22,22 +22,22 @@ class NotifyFaceOnBookingReceived
             $booking = $event->booking;
 
             $booking->loadMissing('producer.userable');
-            $producerName = $booking->producer?->userable?->display_name ?? 'Le Producteur';
-            $formattedDate = $booking->date_debut?->format('d/m/Y') ?? '';
+            $producerName = (string) data_get($booking, 'producer.userable.display_name', 'Le Producteur');
+            $formattedDate = $booking->date_debut->format('d/m/Y');
 
             Notification::create([
                 'user_id' => $booking->face_id,
-                'type'    => 'booking_received',
-                'data'    => [
-                    'message'    => "{$producerName} souhaite vous booker pour {$booking->type_contenu} le {$formattedDate}",
+                'type' => 'booking_received',
+                'data' => [
+                    'message' => "{$producerName} souhaite vous booker pour {$booking->type_contenu} le {$formattedDate}",
                     'booking_id' => $booking->id,
-                    'url'        => "/face/bookings/{$booking->uuid}",
+                    'url' => "/face/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {
             Log::warning('BookingReceived notification failed', [
                 'booking_id' => $event->booking->id,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }

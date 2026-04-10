@@ -4,12 +4,21 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\HasRouteUuid;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Concerns\HasRouteUuid;
 
+/**
+ * @property int $id
+ * @property string $uuid
+ * @property int $user_id
+ * @property string $type
+ * @property array<string, mixed> $data
+ * @property \Illuminate\Support\Carbon|null $read_at
+ * @property \Illuminate\Support\Carbon|null $created_at
+ */
 class Notification extends Model
 {
     use HasFactory, HasRouteUuid;

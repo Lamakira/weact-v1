@@ -19,20 +19,24 @@ class RatingResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $rater = $this->rater;
+        $raterUserable = $rater->userable;
+        $rated = $this->rated;
+
         return [
             'id' => $this->id,
             'score' => $this->score,
             'comment' => $this->comment,
             'created_at' => $this->created_at?->toISOString(),
             'rater' => [
-                'id' => $this->rater->id,
-                'name' => $this->rater->userable->display_name,
-                'photo_url' => $this->rater->userable->profile_photo_url,
+                'id' => $rater->id,
+                'name' => data_get($raterUserable, 'display_name', $rater->email),
+                'photo_url' => data_get($raterUserable, 'profile_photo_url'),
             ],
             'rated' => [
-                'id' => $this->rated->uuid,
-                'name' => $this->rated->display_name,
-                'photo_url' => $this->rated->profile_photo_url,
+                'id' => data_get($rated, 'uuid'),
+                'name' => data_get($rated, 'display_name'),
+                'photo_url' => data_get($rated, 'profile_photo_url'),
             ],
             'candidature_id' => $this->candidature_id,
         ];

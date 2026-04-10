@@ -22,8 +22,8 @@ class MissionSummaryResource extends JsonResource
         return [
             'id' => $this->uuid,
             'title' => $this->titre,
-            'status' => $this->status?->value ?? $this->status,
-            'status_label' => $this->status?->label() ?? $this->status,
+            'status' => $this->status->value,
+            'status_label' => $this->status->label(),
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }

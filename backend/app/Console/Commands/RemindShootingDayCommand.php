@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
+use App\Models\Candidature;
 use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
@@ -87,14 +88,15 @@ class RemindShootingDayCommand extends Command
                 'data' => [
                     'message' => "Rappel : le tournage de votre mission \"{$mission->titre}\" a lieu demain.",
                     'mission_id' => $mission->id,
-                    'url' => "/producer/missions/{$mission->id}",
+                    'url' => "/producer/missions/{$mission->uuid}",
                 ],
             ]);
         }
 
         // Notify selected Faces
         foreach ($mission->candidatures as $candidature) {
-            $faceId = $candidature->face_id ?? $candidature->face?->id;
+            /** @var Candidature $candidature */
+            $faceId = $candidature->face_id;
             $faceUserId = $faceId
                 ? User::where('userable_type', \App\Models\Face::class)
                     ->where('userable_id', $faceId)
@@ -113,7 +115,7 @@ class RemindShootingDayCommand extends Command
                         'message' => "Rappel : votre tournage pour la mission \"{$mission->titre}\" a lieu demain.",
                         'mission_id' => $mission->id,
                         'candidature_id' => $candidature->id,
-                        'url' => "/face/candidatures/{$candidature->id}",
+                        'url' => "/face/candidatures/{$candidature->uuid}",
                     ],
                 ]);
             } catch (\Throwable $e) {

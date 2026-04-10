@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Listeners\Booking;
 
 use App\Events\BookingRated;
+use App\Models\Booking;
+use App\Models\BookingRating;
 use App\Models\Notification;
-use Illuminate\Events\Attributes\AsEventListener;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener(event: BookingRated::class)]
 class NotifyRatedUserOnBookingRating
@@ -18,11 +20,13 @@ class NotifyRatedUserOnBookingRating
     public function handle(BookingRated $event): void
     {
         try {
+            /** @var BookingRating $rating */
             $rating = $event->rating;
             $rating->loadMissing('rater.userable', 'booking');
 
+            /** @var Booking $booking */
             $booking = $rating->booking;
-            $raterName = $rating->rater?->userable?->display_name ?? 'Un utilisateur';
+            $raterName = (string) data_get($rating, 'rater.userable.display_name', 'Un utilisateur');
 
             // Determine the URL based on which role was rated
             $isRatedFace = $rating->rated_id === $booking->face_id;
@@ -32,18 +36,18 @@ class NotifyRatedUserOnBookingRating
 
             Notification::create([
                 'user_id' => $rating->rated_id,
-                'type'    => 'booking_rating_received',
-                'data'    => [
-                    'message'    => "{$raterName} vous a laissé une évaluation de {$rating->score}/5.",
+                'type' => 'booking_rating_received',
+                'data' => [
+                    'message' => "{$raterName} vous a laissé une évaluation de {$rating->score}/5.",
                     'booking_id' => $booking->id,
-                    'score'      => $rating->score,
-                    'url'        => $url,
+                    'score' => $rating->score,
+                    'url' => $url,
                 ],
             ]);
         } catch (\Throwable $e) {
             Log::warning('BookingRated notification failed', [
                 'rating_id' => $event->rating->id,
-                'error'     => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }

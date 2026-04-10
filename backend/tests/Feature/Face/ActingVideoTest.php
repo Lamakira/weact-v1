@@ -11,7 +11,6 @@ use App\Services\ActingVideoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Mockery;
 use Mockery\MockInterface;
 use Tests\TestCase;
 
@@ -20,6 +19,7 @@ class ActingVideoTest extends TestCase
     use RefreshDatabase;
 
     private User $faceUser;
+
     private Face $face;
 
     protected function setUp(): void
@@ -49,18 +49,18 @@ class ActingVideoTest extends TestCase
                 ->andReturnUsing(function (Face $face, UploadedFile $video) {
                     // Delete old files first (simulating real service behavior)
                     if ($face->acting_video) {
-                        Storage::disk('public')->delete('videos/faces/acting/' . $face->acting_video);
+                        Storage::disk('public')->delete('videos/faces/acting/'.$face->acting_video);
                     }
                     if ($face->acting_video_thumbnail) {
-                        Storage::disk('public')->delete('videos/faces/acting/thumbnails/' . $face->acting_video_thumbnail);
+                        Storage::disk('public')->delete('videos/faces/acting/thumbnails/'.$face->acting_video_thumbnail);
                     }
 
                     $filename = 'test-video.mp4';
                     $thumbnail = 'test-thumbnail.jpg';
 
                     // Create fake files
-                    Storage::disk('public')->put('videos/faces/acting/' . $filename, 'video content');
-                    Storage::disk('public')->put('videos/faces/acting/thumbnails/' . $thumbnail, 'thumbnail content');
+                    Storage::disk('public')->put('videos/faces/acting/'.$filename, 'video content');
+                    Storage::disk('public')->put('videos/faces/acting/thumbnails/'.$thumbnail, 'thumbnail content');
 
                     $face->update([
                         'acting_video' => $filename,
@@ -73,10 +73,10 @@ class ActingVideoTest extends TestCase
             $mock->shouldReceive('deleteActingVideo')
                 ->andReturnUsing(function (Face $face) {
                     if ($face->acting_video) {
-                        Storage::disk('public')->delete('videos/faces/acting/' . $face->acting_video);
+                        Storage::disk('public')->delete('videos/faces/acting/'.$face->acting_video);
                     }
                     if ($face->acting_video_thumbnail) {
-                        Storage::disk('public')->delete('videos/faces/acting/thumbnails/' . $face->acting_video_thumbnail);
+                        Storage::disk('public')->delete('videos/faces/acting/thumbnails/'.$face->acting_video_thumbnail);
                     }
                     $face->update([
                         'acting_video' => null,
@@ -210,7 +210,7 @@ class ActingVideoTest extends TestCase
         $this->assertNotNull($this->face->acting_video_thumbnail);
 
         // Verify thumbnail exists in storage
-        Storage::disk('public')->assertExists('videos/faces/acting/thumbnails/' . $this->face->acting_video_thumbnail);
+        Storage::disk('public')->assertExists('videos/faces/acting/thumbnails/'.$this->face->acting_video_thumbnail);
     }
 
     public function test_uploading_new_video_replaces_old_video(): void
@@ -222,8 +222,8 @@ class ActingVideoTest extends TestCase
             'acting_video' => $oldVideo,
             'acting_video_thumbnail' => $oldThumbnail,
         ]);
-        Storage::disk('public')->put('videos/faces/acting/' . $oldVideo, 'old video content');
-        Storage::disk('public')->put('videos/faces/acting/thumbnails/' . $oldThumbnail, 'old thumbnail content');
+        Storage::disk('public')->put('videos/faces/acting/'.$oldVideo, 'old video content');
+        Storage::disk('public')->put('videos/faces/acting/thumbnails/'.$oldThumbnail, 'old thumbnail content');
 
         $this->mockVideoService(60.0);
 
@@ -237,8 +237,8 @@ class ActingVideoTest extends TestCase
         $response->assertCreated();
 
         // Verify old files are deleted
-        Storage::disk('public')->assertMissing('videos/faces/acting/' . $oldVideo);
-        Storage::disk('public')->assertMissing('videos/faces/acting/thumbnails/' . $oldThumbnail);
+        Storage::disk('public')->assertMissing('videos/faces/acting/'.$oldVideo);
+        Storage::disk('public')->assertMissing('videos/faces/acting/thumbnails/'.$oldThumbnail);
     }
 
     // =========================================================================

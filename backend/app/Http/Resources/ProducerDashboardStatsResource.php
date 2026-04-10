@@ -95,7 +95,7 @@ class ProducerDashboardStatsResource extends JsonResource
      *
      * Note: 'draft' missions are intentionally excluded from stats.
      *
-     * @return array<string, int>
+     * @return array<string, int|float|null>
      */
     public function toArray(Request $request): array
     {

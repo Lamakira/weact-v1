@@ -54,7 +54,7 @@ class MissionFactory extends Factory
                 'Lokossa',
                 'Ouidah',
                 'Natitingou',
-            ]) . ', Bénin',
+            ]).', Bénin',
             'duree' => fake()->randomElement(['2 heures', '4 heures', '1 jour', '2 jours', '1 semaine']),
             'status' => MissionStatus::Draft,
         ];

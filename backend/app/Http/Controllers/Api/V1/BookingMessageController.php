@@ -9,7 +9,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\SendBookingMessageRequest;
 use App\Http\Resources\BookingMessageResource;
 use App\Models\Booking;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
@@ -24,9 +23,7 @@ class BookingMessageController extends Controller
      */
     public function index(Booking $booking): AnonymousResourceCollection|JsonResponse
     {
-        try {
-            Gate::authorize('viewMessages', $booking);
-        } catch (AuthorizationException) {
+        if (Gate::denies('viewMessages', $booking)) {
             return $this->chatLockedResponse();
         }
 
@@ -45,12 +42,11 @@ class BookingMessageController extends Controller
      */
     public function store(SendBookingMessageRequest $request, Booking $booking): JsonResponse
     {
-        try {
-            Gate::authorize('sendMessage', $booking);
-        } catch (AuthorizationException) {
+        if (Gate::denies('sendMessage', $booking)) {
             return $this->chatLockedResponse();
         }
 
+        /** @var \App\Models\BookingMessage $message */
         $message = $booking->messages()->create([
             'sender_id' => $request->user()->id,
             'content' => $request->validated('content'),

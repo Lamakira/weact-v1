@@ -72,5 +72,3 @@ export const bookingSchema = z
       path: ['duree_heures'],
     },
   )
-
-export type BookingFormData = z.infer<typeof bookingSchema>

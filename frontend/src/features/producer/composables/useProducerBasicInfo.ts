@@ -2,8 +2,22 @@ import { ref, type Ref } from 'vue'
 import { producerApi } from '../services/producerApi'
 import type { ProducerBasicInfo, ProducerBasicInfoFormData, ProducerBasicInfoResult } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
+import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
 
-export interface UseProducerBasicInfoReturn {
+const BASIC_INFO_CACHE_TTL_MS = 5 * 60 * 1000
+
+const basicInfoResource = createSharedCachedResource<ProducerBasicInfo | null>({
+  key: 'producer-basic-info',
+  initialValue: null,
+  ttlMs: BASIC_INFO_CACHE_TTL_MS,
+  load: async () => {
+    const response = await producerApi.getBasicInfo()
+    return response.data
+  },
+  getErrorMessage: getApiErrorMessage,
+})
+
+interface UseProducerBasicInfoReturn {
   basicInfo: Ref<ProducerBasicInfo | null>
   isLoading: Ref<boolean>
   isSaving: Ref<boolean>
@@ -19,33 +33,23 @@ export interface UseProducerBasicInfoReturn {
  * - For particuliers: first_name, last_name
  */
 export function useProducerBasicInfo(): UseProducerBasicInfoReturn {
-  const basicInfo = ref<ProducerBasicInfo | null>(null)
-  const isLoading = ref(false)
+  const basicInfo = basicInfoResource.data
+  const isLoading = basicInfoResource.isLoading
   const isSaving = ref(false)
-  const error = ref<string | null>(null)
+  const error = basicInfoResource.error
 
   /**
    * Clear the current error
    */
   function clearError(): void {
-    error.value = null
+    basicInfoResource.clearError()
   }
 
   /**
    * Fetch the current basic info
    */
   async function fetchBasicInfo(): Promise<void> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const response = await producerApi.getBasicInfo()
-      basicInfo.value = response.data
-    } catch (err) {
-      error.value = getApiErrorMessage(err)
-    } finally {
-      isLoading.value = false
-    }
+    await basicInfoResource.fetch()
   }
 
   /**
@@ -57,7 +61,7 @@ export function useProducerBasicInfo(): UseProducerBasicInfoReturn {
 
     try {
       const response = await producerApi.updateBasicInfo(data)
-      basicInfo.value = response.data
+      basicInfoResource.setData(response.data)
 
       return {
         success: true,

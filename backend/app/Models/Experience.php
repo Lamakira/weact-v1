@@ -4,14 +4,27 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\HasRouteUuid;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Concerns\HasRouteUuid;
 
+/**
+ * @property int $id
+ * @property int $face_id
+ * @property string $uuid
+ * @property string $titre
+ * @property string|null $description
+ * @property \Illuminate\Support\Carbon|null $date_debut
+ * @property \Illuminate\Support\Carbon|null $date_fin
+ * @property bool $is_ongoing
+ * @property string $formatted_period
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ */
 class Experience extends Model
 {
     use HasFactory;

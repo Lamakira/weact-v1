@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { emailChangeApi } from '../services/emailChangeApi'
 import { getApiErrorDetails, getApiErrorMessage } from '../services/authApi'
 
-export interface UseEmailChangeReturn {
+interface UseEmailChangeReturn {
   pendingEmail: ReturnType<typeof ref<string | null>>
   isLoading: ReturnType<typeof ref<boolean>>
   isSuccess: ReturnType<typeof ref<boolean>>

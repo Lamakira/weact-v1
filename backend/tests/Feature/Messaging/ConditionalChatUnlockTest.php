@@ -124,7 +124,7 @@ class ConditionalChatUnlockTest extends TestCase
 
         $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
 
-        $policy = new ConversationPolicy();
+        $policy = new ConversationPolicy;
         $this->assertTrue($policy->view($this->faceUser, $conversation));
     }
 
@@ -136,7 +136,7 @@ class ConditionalChatUnlockTest extends TestCase
 
         $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
 
-        $policy = new ConversationPolicy();
+        $policy = new ConversationPolicy;
         $this->assertTrue($policy->view($this->producerUser, $conversation));
     }
 
@@ -155,7 +155,7 @@ class ConditionalChatUnlockTest extends TestCase
             'userable_id' => $otherFace->id,
         ]);
 
-        $policy = new ConversationPolicy();
+        $policy = new ConversationPolicy;
         $this->assertFalse($policy->view($otherFaceUser, $conversation));
     }
 
@@ -174,7 +174,7 @@ class ConditionalChatUnlockTest extends TestCase
             'userable_id' => $otherProducer->id,
         ]);
 
-        $policy = new ConversationPolicy();
+        $policy = new ConversationPolicy;
         $this->assertFalse($policy->view($otherProducerUser, $conversation));
     }
 
@@ -187,7 +187,7 @@ class ConditionalChatUnlockTest extends TestCase
         // Create conversation manually for a pending candidature (shouldn't happen but test the guard)
         $conversation = Conversation::create(['candidature_id' => $this->candidature->id]);
 
-        $policy = new ConversationPolicy();
+        $policy = new ConversationPolicy;
         $this->assertFalse($policy->sendMessage($this->faceUser, $conversation));
         $this->assertFalse($policy->sendMessage($this->producerUser, $conversation));
     }
@@ -205,7 +205,7 @@ class ConditionalChatUnlockTest extends TestCase
 
         $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
 
-        $policy = new ConversationPolicy();
+        $policy = new ConversationPolicy;
         $this->assertFalse($policy->sendMessage($this->faceUser, $conversation));
         $this->assertFalse($policy->sendMessage($this->producerUser, $conversation));
     }
@@ -282,7 +282,7 @@ class ConditionalChatUnlockTest extends TestCase
         $this->candidature->refresh();
 
         // Verify both can still access after confirm
-        $policy = new ConversationPolicy();
+        $policy = new ConversationPolicy;
         $this->assertTrue($policy->view($this->faceUser, $conversation));
         $this->assertTrue($policy->view($this->producerUser, $conversation));
         $this->assertTrue($policy->sendMessage($this->faceUser, $conversation));

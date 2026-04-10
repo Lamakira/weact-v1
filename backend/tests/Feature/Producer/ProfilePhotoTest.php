@@ -17,6 +17,7 @@ class ProfilePhotoTest extends TestCase
     use RefreshDatabase;
 
     private User $producerUser;
+
     private Producer $producer;
 
     protected function setUp(): void
@@ -62,8 +63,8 @@ class ProfilePhotoTest extends TestCase
         $this->assertNotNull($this->producer->profile_photo_thumbnail);
 
         // Verify files exist in storage
-        Storage::disk('public')->assertExists('avatars/producers/' . $this->producer->profile_photo);
-        Storage::disk('public')->assertExists('avatars/producers/thumbnails/' . $this->producer->profile_photo_thumbnail);
+        Storage::disk('public')->assertExists('avatars/producers/'.$this->producer->profile_photo);
+        Storage::disk('public')->assertExists('avatars/producers/thumbnails/'.$this->producer->profile_photo_thumbnail);
     }
 
     public function test_producer_can_upload_png_profile_photo(): void
@@ -97,7 +98,7 @@ class ProfilePhotoTest extends TestCase
         $this->assertNotNull($this->producer->profile_photo_thumbnail);
 
         // Verify thumbnail exists
-        Storage::disk('public')->assertExists('avatars/producers/thumbnails/' . $this->producer->profile_photo_thumbnail);
+        Storage::disk('public')->assertExists('avatars/producers/thumbnails/'.$this->producer->profile_photo_thumbnail);
     }
 
     public function test_rejects_invalid_file_type_gif(): void
@@ -148,8 +149,8 @@ class ProfilePhotoTest extends TestCase
             ->postJson('/api/v1/producer/profile/photo', ['photo' => $firstFile]);
 
         $this->producer->refresh();
-        $oldPhotoPath = 'avatars/producers/' . $this->producer->profile_photo;
-        $oldThumbnailPath = 'avatars/producers/thumbnails/' . $this->producer->profile_photo_thumbnail;
+        $oldPhotoPath = 'avatars/producers/'.$this->producer->profile_photo;
+        $oldThumbnailPath = 'avatars/producers/thumbnails/'.$this->producer->profile_photo_thumbnail;
 
         // Verify first photo exists
         Storage::disk('public')->assertExists($oldPhotoPath);
@@ -168,7 +169,7 @@ class ProfilePhotoTest extends TestCase
 
         // New photo should exist
         $this->producer->refresh();
-        Storage::disk('public')->assertExists('avatars/producers/' . $this->producer->profile_photo);
+        Storage::disk('public')->assertExists('avatars/producers/'.$this->producer->profile_photo);
     }
 
     public function test_face_cannot_upload_producer_profile_photo(): void
@@ -208,8 +209,8 @@ class ProfilePhotoTest extends TestCase
             ->postJson('/api/v1/producer/profile/photo', ['photo' => $file]);
 
         $this->producer->refresh();
-        $photoPath = 'avatars/producers/' . $this->producer->profile_photo;
-        $thumbnailPath = 'avatars/producers/thumbnails/' . $this->producer->profile_photo_thumbnail;
+        $photoPath = 'avatars/producers/'.$this->producer->profile_photo;
+        $thumbnailPath = 'avatars/producers/thumbnails/'.$this->producer->profile_photo_thumbnail;
 
         // Verify photo exists
         Storage::disk('public')->assertExists($photoPath);

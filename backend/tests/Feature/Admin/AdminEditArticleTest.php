@@ -19,6 +19,7 @@ class AdminEditArticleTest extends TestCase
     use RefreshDatabase;
 
     private Admin $admin;
+
     private string $adminToken;
 
     protected function setUp(): void
@@ -278,7 +279,7 @@ class AdminEditArticleTest extends TestCase
 
         // New image exists
         $article->refresh();
-        Storage::disk('public')->assertExists('articles/featured/' . $article->featured_image);
+        Storage::disk('public')->assertExists('articles/featured/'.$article->featured_image);
     }
 
     // ──────────────────────────────────────────────

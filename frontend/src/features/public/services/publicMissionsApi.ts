@@ -60,7 +60,7 @@ export interface PublicMissionFilters {
 /**
  * API response format for a single mission detail
  */
-export interface PublicMissionDetailResponse {
+interface PublicMissionDetailResponse {
   data: PublicMission
   message: string
 }

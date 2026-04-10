@@ -14,7 +14,7 @@ export interface AdminData {
 /**
  * Paginated admin list response
  */
-export interface AdminListResponse {
+interface AdminListResponse {
   data: AdminData[]
   meta: {
     current_page: number
@@ -37,7 +37,7 @@ export interface CreateAdminForm {
 /**
  * Create admin success response
  */
-export interface CreateAdminResponse {
+interface CreateAdminResponse {
   data: AdminData
   message: string
 }
@@ -45,7 +45,7 @@ export interface CreateAdminResponse {
 /**
  * Single admin detail response
  */
-export interface AdminDetailResponse {
+interface AdminDetailResponse {
   data: AdminData
   message: string
 }

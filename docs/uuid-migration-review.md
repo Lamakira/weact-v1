@@ -29,7 +29,7 @@ User, Message, BookingMessage, BookingRating, Rating, WalletTransaction, EscrowT
 |---------|-------------|
 | `backend/app/Concerns/HasRouteUuid.php` | Trait qui auto-génère un UUID sur `creating`, override `getRouteKeyName()` pour retourner `'uuid'` et garde un fallback de résolution par ID numérique legacy |
 | `backend/app/Console/Commands/BackfillUuidsCommand.php` | Commande artisan pour backfill les UUIDs sur les records existants (par chunks de 500) |
-| `backend/app/Console/Commands/BackfillProducerSlugsCommand.php` | Commande pour backfill les slugs producers depuis `display_name` |
+| `backend/app/Console/Commands/BackfillProducerSlugsCommand.php` | Commande pour backfill les slugs producers depuis l'identité publique du producer (`agency_name` ou `first_name`/`last_name`) |
 | `backend/database/migrations/2026_04_09_100000_add_uuid_to_route_bound_tables.php` | Ajoute colonne `uuid` nullable + unique à 12 tables |
 | `backend/database/migrations/2026_04_09_100001_add_slug_to_producers_table.php` | Ajoute colonne `slug` nullable + unique à `producers` et backfill les slugs existants |
 | `backend/database/migrations/2026_04_09_100002_make_uuid_columns_not_nullable.php` | Backfill les `uuid` manquants puis rend les colonnes `uuid` NOT NULL pendant le `migrate` normal |
@@ -52,7 +52,7 @@ Ajout de `use HasRouteUuid;` dans chaque modèle :
 | `backend/app/Models/FacePhoto.php` | +trait |
 | `backend/app/Models/Notification.php` | +trait |
 | `backend/app/Models/Face.php` | +trait |
-| `backend/app/Models/Producer.php` | +trait + `boot()` method pour auto-génération slug sur `creating`/`updating` |
+| `backend/app/Models/Producer.php` | +trait + auto-génération du slug public sur `creating`/`updating` |
 | `backend/app/Models/Article.php` | +trait |
 | `backend/app/Models/Admin.php` | +trait |
 | `backend/app/Models/WithdrawalRequest.php` | +trait |
@@ -261,44 +261,72 @@ Les routes `/email/verify/{id}/{hash}` utilisent toujours User.id (integer) — 
 ### 6. Liens dans les emails/notifications
 Les nouveaux liens booking émis par les listeners/notifications ont été migrés vers les UUIDs. Les anciens liens numériques restent acceptés par le route binding backend.
 
-### 8. Signalement de contenu public
-Le bouton de signalement public (`face`, `mission`) envoie désormais des UUIDs. L'API `/reports` les résout vers l'ID interne morphique avant insertion, tout en gardant la compatibilité avec un ancien `reportable_id` numérique.
-
 ### 7. MissionResource query interne
 `MissionResource` ligne 38 contient `where('mission_id', $this->id)` — c'est une query DB interne qui utilise l'ID integer, c'est correct car les FKs restent en integer.
+
+### 8. Signalement de contenu public
+Le bouton de signalement public (`face`, `mission`) envoie désormais des UUIDs. L'API `/reports` les résout vers l'ID interne morphique avant insertion, tout en gardant la compatibilité avec un ancien `reportable_id` numérique.
 
 ---
 
 ## Procédure de déploiement
 
+Préconditions recommandées avant push prod :
+
 ```bash
-# 1. Déployer le backend, puis exécuter les migrations une seule fois
-php artisan migrate --force
-
-# 2. Optionnel: vérifier qu'aucun slug producer n'est resté null
-php artisan app:backfill-producer-slugs
-
-# 3. Déployer / builder le frontend dans la même fenêtre de déploiement
+# 0. Vérifier que la migration critique n'a pas déjà tourné sur une ancienne version
+cd backend
+php artisan migrate:status | grep 2026_04_09_100002
 ```
 
-Notes:
+Runbook conseillé :
+
+```bash
+# 1. Passer en maintenance
+php artisan down
+
+# 2. Déployer backend + frontend dans la même fenêtre
+
+# 3. Exécuter les migrations une seule fois
+php artisan migrate --force
+
+# 4. Rebuilder / republier le frontend
+
+# 5. Redémarrer Reverb et les workers
+php artisan queue:restart
+
+# 6. Faire un smoke test, puis rouvrir le site
+php artisan up
+```
+
+Notes :
 - `2026_04_09_100001` backfill maintenant les slugs producers existants pendant la migration.
 - `2026_04_09_100002` backfill maintenant les UUIDs manquants avant de passer les colonnes en `NOT NULL`.
-- Le point sensible n'est plus un “double migrate”, mais le déploiement non atomique backend/frontend.
+- Le risque principal n'est plus un “double migrate”, mais un déploiement non atomique backend/frontend ou un environnement prod ayant déjà exécuté une ancienne version de `2026_04_09_100002`.
+- Si le déploiement échoue après `php artisan down`, il vaut mieux laisser l'app fermée jusqu'au retour à un état sain plutôt que remettre en ligne un état hybride.
 
 ---
 
 ## Vérifications exécutées
 
+Frontend :
 - `cd frontend && npm run type-check` : passe
 - `cd frontend && npm run lint` : passe
-- `cd frontend && npm run build` : passe
-- `cd backend && php artisan test tests/Feature/Report/StoreReportTest.php` : passe
-- `cd backend && php artisan test tests/Feature/Booking/BookingShowAcceptRefuseTest.php tests/Feature/Booking/BookingNotificationTest.php tests/Feature/Booking/BookingChatTest.php` : passe
+- `cd frontend && npm run dead-code` : passe
+- `npm run build` : passe
+- `npm run test:frontend` : passe (`133` fichiers, `1878` tests)
+
+Backend :
+- `cd backend && ./vendor/bin/phpstan analyse` : passe
+- `cd backend && ./vendor/bin/pint --dirty` : passe
+- `cd backend && php artisan test` : passe (`1817` tests, `7800` assertions)
 
 ## Statut réel
 
-- TypeScript est actuellement propre sur le frontend.
+- TypeScript est propre sur le frontend.
+- Le code mort frontend détectable par `knip` a été nettoyé et le check est vert.
 - Le build frontend passe.
-- Les flows UUID corrigés et revérifiés incluent bookings, candidatures/mission producer, profils candidats, messaging, admin CRUD UUID et signalement public.
-- La suite complète backend/frontend n'a pas été rejouée intégralement dans cette passe; seules les vérifications ci-dessus sont garanties par cette doc.
+- Larastan est globalement vert sur le backend.
+- Les flows UUID corrigés et revérifiés incluent bookings, candidatures/mission producer, profils candidats, messaging, admin CRUD UUID, profils publics producer/face, reviews et signalement public.
+- Les suites complètes frontend et backend ont été rejouées intégralement après les correctifs.
+- Il subsiste quelques warnings non bloquants dans certains tests frontend (stubs `router-link`, props de tests legacy, warnings Vue Router sur routes non montées), mais aucun échec.

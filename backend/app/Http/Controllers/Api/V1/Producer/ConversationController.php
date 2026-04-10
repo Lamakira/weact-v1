@@ -23,9 +23,6 @@ class ConversationController extends Controller
      * List all conversations for the authenticated Producer.
      *
      * Returns conversations ordered by most recent message, with pagination.
-     *
-     * @param  Request  $request
-     * @return JsonResponse
      */
     public function index(Request $request): JsonResponse
     {
@@ -60,10 +57,6 @@ class ConversationController extends Controller
      * Show a conversation with its messages.
      *
      * Also marks unread messages from other participant as read.
-     *
-     * @param  Request  $request
-     * @param  Conversation  $conversation
-     * @return JsonResponse
      */
     public function show(Request $request, Conversation $conversation): JsonResponse
     {

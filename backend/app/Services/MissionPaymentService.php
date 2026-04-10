@@ -41,7 +41,8 @@ class MissionPaymentService
     {
         return DB::transaction(function () use ($mission, $candidatureUuids): MissionPayment {
             // Lock mission row
-            $mission = Mission::lockForUpdate()->find($mission->id);
+            /** @var Mission $mission */
+            $mission = Mission::lockForUpdate()->findOrFail($mission->id);
 
             if ($mission->status !== MissionStatus::Published) {
                 throw ValidationException::withMessages([
@@ -60,6 +61,7 @@ class MissionPaymentService
             $invalidUuids = [];
 
             foreach ($requestedUuids as $candidatureUuid) {
+                /** @var Candidature|null $candidature */
                 $candidature = $candidatures->get($candidatureUuid);
 
                 if (! $candidature || $candidature->status !== CandidatureStatus::Pending) {
@@ -75,16 +77,18 @@ class MissionPaymentService
                 ]);
             }
 
-            $candidatures = collect($requestedUuids)
-                ->map(fn (string $candidatureUuid) => $candidatures->get($candidatureUuid));
+            /** @var \Illuminate\Support\Collection<int, Candidature> $selectedCandidatures */
+            $selectedCandidatures = collect($requestedUuids)
+                ->map(fn (string $candidatureUuid): Candidature => $candidatures->get($candidatureUuid));
 
-            $pricing = new MissionPricing($mission->budget, $candidatures->count());
+            $pricing = new MissionPricing($mission->budget, $selectedCandidatures->count());
 
             // Create MissionPayment
+            /** @var MissionPayment $payment */
             $payment = MissionPayment::create([
                 'mission_id' => $mission->id,
                 'producer_id' => $mission->producer_id,
-                'nombre_faces_retenues' => $candidatures->count(),
+                'nombre_faces_retenues' => $selectedCandidatures->count(),
                 'budget_par_face' => $pricing->budgetParFace,
                 'montant_sous_total' => $pricing->sousTotal,
                 'commission_producteur' => $pricing->commissionProducteur,
@@ -95,7 +99,7 @@ class MissionPaymentService
             ]);
 
             // Create MissionPaymentCandidature entries and accept selected candidatures
-            foreach ($candidatures as $candidature) {
+            foreach ($selectedCandidatures as $candidature) {
                 MissionPaymentCandidature::create([
                     'mission_payment_id' => $payment->id,
                     'candidature_id' => $candidature->id,
@@ -121,10 +125,11 @@ class MissionPaymentService
 
             // Reject all remaining pending candidatures for this mission
             $rejectedCandidatures = Candidature::where('mission_id', $mission->id)
-                ->where('status', CandidatureStatus::Pending)
+                ->where('status', CandidatureStatus::Pending->value)
                 ->get();
 
             foreach ($rejectedCandidatures as $rejected) {
+                /** @var Candidature $rejected */
                 $rejected->update(['status' => CandidatureStatus::Rejected]);
 
                 $this->notifySafely(
@@ -142,7 +147,10 @@ class MissionPaymentService
             // Update mission status
             $mission->update(['status' => MissionStatus::PendingPayment]);
 
-            return $payment->fresh();
+            /** @var MissionPayment $freshPayment */
+            $freshPayment = $payment->fresh();
+
+            return $freshPayment;
         });
     }
 
@@ -157,7 +165,8 @@ class MissionPaymentService
     public function initiatePayment(MissionPayment $payment): array
     {
         return DB::transaction(function () use ($payment): array {
-            $payment = MissionPayment::lockForUpdate()->find($payment->id);
+            /** @var MissionPayment $payment */
+            $payment = MissionPayment::lockForUpdate()->findOrFail($payment->id);
 
             // Idempotent: if transaction exists and not in failed state, regenerate URL
             if ($payment->fedapay_transaction_id !== null) {
@@ -165,6 +174,7 @@ class MissionPaymentService
                 $terminalFailedStatuses = ['declined', 'canceled', 'refunded'];
 
                 if (! in_array($existing->status, $terminalFailedStatuses, true)) {
+                    /** @var object{url:string} $tokenObj */
                     $tokenObj = $existing->generateToken();
 
                     return ['payment' => $payment, 'checkout_url' => $tokenObj->url];
@@ -182,9 +192,12 @@ class MissionPaymentService
             $idempotencyKey = Str::uuid()->toString();
             $result = $this->fedapayService->initiatePaymentForMission($payment, $idempotencyKey);
 
-            $payment->update(['fedapay_transaction_id' => (string) $result['fedapay_transaction_id']]);
+            $payment->update(['fedapay_transaction_id' => $result['fedapay_transaction_id']]);
 
-            return ['payment' => $payment->fresh(), 'checkout_url' => $result['checkout_url']];
+            /** @var MissionPayment $freshPayment */
+            $freshPayment = $payment->fresh();
+
+            return ['payment' => $freshPayment, 'checkout_url' => $result['checkout_url']];
         });
     }
 
@@ -195,7 +208,8 @@ class MissionPaymentService
     public function markAsPaid(MissionPayment $payment, string $fedapayRef): MissionPayment
     {
         return DB::transaction(function () use ($payment, $fedapayRef): MissionPayment {
-            $payment = MissionPayment::lockForUpdate()->find($payment->id);
+            /** @var MissionPayment $payment */
+            $payment = MissionPayment::lockForUpdate()->findOrFail($payment->id);
 
             if ($payment->status === MissionPaymentStatus::Paid) {
                 return $payment;
@@ -215,12 +229,17 @@ class MissionPaymentService
 
             // Update mission to closed
             $mission = $payment->mission;
+            if (! $mission instanceof Mission) {
+                throw new \RuntimeException('Mission introuvable pour ce paiement.');
+            }
+
             $mission->update(['status' => MissionStatus::Closed]);
 
             // Leave accepted candidatures as-is — each Face must confirm their participation
             // before the candidature moves to in_progress (via Face\CandidatureController::confirm)
 
             // Notify producer
+            /** @var User|null $producerUser */
             $producerUser = User::where('userable_type', \App\Models\Producer::class)
                 ->where('userable_id', $payment->producer_id)
                 ->first();
@@ -232,13 +251,14 @@ class MissionPaymentService
                     data: [
                         'message' => 'Paiement confirmé pour la mission '.$mission->titre,
                         'mission_id' => $mission->id,
-                        'url' => "/producer/missions/{$mission->id}/candidatures",
+                        'url' => "/producer/missions/{$mission->uuid}/candidatures",
                     ]
                 );
             }
 
             // Notify each selected face — ask them to confirm their participation
             foreach ($payment->entries as $entry) {
+                /** @var MissionPaymentCandidature $entry */
                 $this->notifySafely(
                     userId: $this->getUserIdForFace($entry->face_id),
                     type: 'mission_participation_confirmation_required',
@@ -250,7 +270,10 @@ class MissionPaymentService
                 );
             }
 
-            return $payment->fresh();
+            /** @var MissionPayment $freshPayment */
+            $freshPayment = $payment->fresh();
+
+            return $freshPayment;
         });
     }
 
@@ -260,6 +283,7 @@ class MissionPaymentService
      */
     public function releaseFunds(Mission $mission): void
     {
+        /** @var MissionPayment|null $payment */
         $payment = $mission->payment;
 
         if (! $payment || $payment->status !== MissionPaymentStatus::Paid) {
@@ -272,6 +296,7 @@ class MissionPaymentService
             ->get();
 
         foreach ($entries as $entry) {
+            /** @var MissionPaymentCandidature $entry */
             if (
                 ! $entry->candidature
                 || ! in_array($entry->candidature->status, [
@@ -337,6 +362,7 @@ class MissionPaymentService
 
     public function hasUnconfirmedSelectedFaces(Mission $mission): bool
     {
+        /** @var MissionPayment|null $payment */
         $payment = $mission->payment;
 
         if (! $payment) {
@@ -350,7 +376,7 @@ class MissionPaymentService
         }
 
         return Candidature::whereIn('id', $selectedCandidatureIds)
-            ->where('status', CandidatureStatus::Accepted)
+            ->where('status', CandidatureStatus::Accepted->value)
             ->exists();
     }
 
@@ -359,6 +385,7 @@ class MissionPaymentService
      */
     private function getUserIdForFace(int $faceId): ?int
     {
+        /** @var User|null $user */
         $user = User::where('userable_type', Face::class)
             ->where('userable_id', $faceId)
             ->first();

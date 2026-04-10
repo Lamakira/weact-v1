@@ -21,6 +21,8 @@ class FaceResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $user = $this->user;
+
         return [
             'id' => $this->uuid,
             'nom' => $this->nom,
@@ -59,12 +61,12 @@ class FaceResource extends JsonResource
             'profile_completion_is_complete' => $this->profile_completion_is_complete,
             'average_rating' => $this->average_rating,
             'ratings_count' => $this->ratings_count,
-            'email' => $this->whenLoaded('user', fn () => $this->user?->email),
-            'is_active' => $this->whenLoaded('user', fn () => $this->user?->is_active),
+            'email' => $this->whenLoaded('user', fn () => $user?->email),
+            'is_active' => $this->whenLoaded('user', fn () => $user?->is_active),
             'experiences' => ExperienceResource::collection($this->whenLoaded('experiences')),
-            'experiences_count' => $this->when($this->experiences_count !== null, $this->experiences_count),
+            'experiences_count' => $this->experiences_count,
             'photos' => FacePhotoResource::collection($this->whenLoaded('photos')),
-            'photos_count' => $this->when($this->photos_count !== null, $this->photos_count),
+            'photos_count' => $this->photos_count,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

@@ -17,8 +17,8 @@ trait HasRouteUuid
     protected static function bootHasRouteUuid(): void
     {
         static::creating(function (Model $model): void {
-            if (empty($model->uuid)) {
-                $model->uuid = (string) Str::uuid();
+            if (blank($model->getAttribute('uuid'))) {
+                $model->setAttribute('uuid', (string) Str::uuid());
             }
         });
     }

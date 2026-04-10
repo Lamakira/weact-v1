@@ -16,7 +16,9 @@ class LoginTest extends TestCase
     use RefreshDatabase;
 
     private User $faceUser;
+
     private User $producerUser;
+
     private string $password = 'Password123';
 
     protected function setUp(): void
@@ -262,4 +264,3 @@ class LoginTest extends TestCase
         $userResponse->assertStatus(200);
     }
 }
-

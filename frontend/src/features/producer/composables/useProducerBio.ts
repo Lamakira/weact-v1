@@ -2,14 +2,27 @@ import { ref, computed } from 'vue'
 import { producerApi } from '../services/producerApi'
 import type { ProducerBioResult } from '../types'
 import { isAxiosError } from 'axios'
+import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
 
 const MAX_BIO_LENGTH = 500
+const BIO_CACHE_TTL_MS = 5 * 60 * 1000
+
+const bioResource = createSharedCachedResource<string | null>({
+  key: 'producer-bio',
+  initialValue: null,
+  ttlMs: BIO_CACHE_TTL_MS,
+  load: async () => {
+    const response = await producerApi.getBio()
+    return response.data.bio
+  },
+  getErrorMessage: () => 'Erreur lors du chargement de la bio',
+})
 
 export function useProducerBio() {
-  const bio = ref<string | null>(null)
-  const isLoading = ref(false)
+  const bio = bioResource.data
+  const isLoading = bioResource.isLoading
   const isSaving = ref(false)
-  const error = ref<string | null>(null)
+  const error = bioResource.error
 
   const charCount = computed(() => bio.value?.length ?? 0)
   const isOverLimit = computed(() => charCount.value > MAX_BIO_LENGTH)
@@ -17,19 +30,11 @@ export function useProducerBio() {
   const isNearLimit = computed(() => remainingChars.value <= 50 && remainingChars.value > 0)
 
   async function fetchBio(): Promise<ProducerBioResult> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const response = await producerApi.getBio()
-      bio.value = response.data.bio
-      return { success: true, data: response.data }
-    } catch {
-      const errorMessage = 'Erreur lors du chargement de la bio'
-      error.value = errorMessage
-      return { success: false, message: errorMessage }
-    } finally {
-      isLoading.value = false
+    const value = await bioResource.fetch()
+    return {
+      success: error.value === null,
+      data: { bio: value },
+      message: error.value ?? undefined,
     }
   }
 
@@ -46,7 +51,7 @@ export function useProducerBio() {
 
     try {
       const response = await producerApi.updateBio(newBio)
-      bio.value = response.data.bio
+      bioResource.setData(response.data.bio)
       return {
         success: true,
         data: response.data,
@@ -67,7 +72,7 @@ export function useProducerBio() {
   }
 
   function clearError(): void {
-    error.value = null
+    bioResource.clearError()
   }
 
   return {

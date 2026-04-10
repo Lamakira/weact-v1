@@ -164,7 +164,7 @@ class PasswordChangeTest extends TestCase
         $otherToken = $this->user->createToken('other-device');
         $currentToken = $this->user->createToken('current-device');
 
-        $response = $this->withHeader('Authorization', 'Bearer ' . $currentToken->plainTextToken)
+        $response = $this->withHeader('Authorization', 'Bearer '.$currentToken->plainTextToken)
             ->putJson('/api/v1/password', [
                 'current_password' => 'OldPassword1',
                 'new_password' => 'NewPassword2',
@@ -187,7 +187,7 @@ class PasswordChangeTest extends TestCase
         for ($i = 0; $i < 5; $i++) {
             $this->actingAs($this->user)
                 ->putJson('/api/v1/password', [
-                    'current_password' => 'WrongPassword' . $i,
+                    'current_password' => 'WrongPassword'.$i,
                     'new_password' => 'NewPassword2',
                     'new_password_confirmation' => 'NewPassword2',
                 ]);

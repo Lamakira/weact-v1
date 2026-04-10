@@ -23,6 +23,7 @@ class AdminDashboardController extends Controller
     public function __construct(
         private readonly AdminDashboardService $dashboardService
     ) {}
+
     /**
      * Get global platform KPIs for the admin dashboard.
      *

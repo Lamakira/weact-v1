@@ -9,6 +9,16 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property int $id
+ * @property int $producer_id
+ * @property int $montant_total_producteur
+ * @property int|null $fedapay_transaction_id
+ * @property \App\Enums\MissionPaymentStatus $status
+ * @property \Carbon\CarbonInterface|null $paid_at
+ * @property-read \App\Models\Mission|null $mission
+ * @property-read \App\Models\Producer|null $producer
+ */
 class MissionPayment extends Model
 {
     protected $fillable = [

@@ -65,7 +65,7 @@ class VerifyEmailChangeNotification extends Notification
         $id = $matches[1] ?? $this->user->getKey();
         $hash = $matches[2] ?? sha1($this->newEmail);
 
-        return $frontendUrl . '/email-change/confirm/' . $id . '/' . $hash . '?' . $query;
+        return $frontendUrl.'/email-change/confirm/'.$id.'/'.$hash.'?'.$query;
     }
 
     /**

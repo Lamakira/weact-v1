@@ -18,6 +18,11 @@ use Laravel\Sanctum\PersonalAccessToken;
 class AdminDashboardService
 {
     /**
+     * @var list<array{type: string, title: string, description: string, timestamp: string, link: string|null}>
+     */
+    private array $activities = [];
+
+    /**
      * Get time-windowed trend KPIs for the admin dashboard.
      *
      * @return array<string, array<string, int|float>>
@@ -68,7 +73,7 @@ class AdminDashboardService
      */
     public function getRecentActivity(): array
     {
-        $activities = [];
+        $this->activities = [];
 
         // Latest missions created
         $recentMissions = Mission::orderBy('created_at', 'desc')
@@ -76,12 +81,12 @@ class AdminDashboardService
             ->get(['id', 'titre', 'status', 'created_at']);
 
         foreach ($recentMissions as $mission) {
-            $activities[] = [
+            $this->activities[] = [
                 'type' => 'mission',
                 'title' => $mission->titre,
-                'description' => 'Mission ' . $mission->status->label(),
+                'description' => 'Mission '.$mission->status->label(),
                 'timestamp' => $mission->created_at->toISOString(),
-                'link' => '/admin/missions/' . $mission->id,
+                'link' => '/admin/missions/'.$mission->id,
             ];
         }
 
@@ -91,12 +96,12 @@ class AdminDashboardService
             ->get(['id', 'title', 'status', 'created_at']);
 
         foreach ($recentArticles as $article) {
-            $activities[] = [
+            $this->activities[] = [
                 'type' => 'article',
                 'title' => $article->title,
-                'description' => 'Article ' . $article->status->label(),
+                'description' => 'Article '.$article->status->label(),
                 'timestamp' => $article->created_at->toISOString(),
-                'link' => '/admin/articles/' . $article->id . '/edit',
+                'link' => '/admin/articles/'.$article->id.'/edit',
             ];
         }
 
@@ -109,22 +114,25 @@ class AdminDashboardService
 
         foreach ($recentUsers as $user) {
             $type = str_contains($user->userable_type, 'Face') ? 'Face' : 'Producteur';
-            $name = $user->userable?->prenom ?? $user->email;
-            $activities[] = [
+            $name = (string) data_get($user, 'userable.display_name', $user->email);
+            $this->activities[] = [
                 'type' => 'user',
                 'title' => $name,
                 'description' => "Inscription $type",
                 'timestamp' => $user->created_at->toISOString(),
                 'link' => str_contains($user->userable_type, 'Face')
-                    ? '/admin/faces/' . $user->userable_id
-                    : '/admin/producers/' . $user->userable_id,
+                    ? '/admin/faces/'.$user->userable_id
+                    : '/admin/producers/'.$user->userable_id,
             ];
         }
 
         // Sort all by timestamp desc, take top 5
-        usort($activities, fn ($a, $b) => strcmp($b['timestamp'], $a['timestamp']));
+        usort(
+            $this->activities,
+            fn (array $left, array $right): int => strcmp($right['timestamp'], $left['timestamp'])
+        );
 
-        return array_slice($activities, 0, 5);
+        return array_slice($this->activities, 0, 5);
     }
 
     /**

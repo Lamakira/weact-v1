@@ -62,7 +62,7 @@ export interface PublicFaceProfile extends PublicFace {
 /**
  * API response format for a single face profile
  */
-export interface PublicFaceProfileResponse {
+interface PublicFaceProfileResponse {
   data: PublicFaceProfile
   message: string
 }
@@ -108,7 +108,7 @@ export interface FilterOption {
 /**
  * API response for filter options endpoint
  */
-export interface FilterOptionsResponse {
+interface FilterOptionsResponse {
   data: {
     categories: FilterOption[]
     niches: FilterOption[]

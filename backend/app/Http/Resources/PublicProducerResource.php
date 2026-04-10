@@ -25,11 +25,12 @@ class PublicProducerResource extends JsonResource
     public function toArray(Request $request): array
     {
         // Note: Carbon locale is set globally in AppServiceProvider
+        $type = $this->currentType();
 
         return [
             'id' => $this->uuid,
             'slug' => $this->slug,
-            'type' => $this->type?->value ?? $this->type,
+            'type' => $type !== null ? $type->value : (is_string($this->type) ? $this->type : null),
             'display_name' => $this->display_name,
             'agency_name' => $this->agency_name,
             'bio' => $this->bio,

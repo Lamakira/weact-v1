@@ -3,7 +3,7 @@ import { missionApi } from '../services/missionApi'
 import type { Mission, MissionUpdateResult, UpdateMissionData } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
 
-export interface UseMissionEditReturn {
+interface UseMissionEditReturn {
   isLoading: Ref<boolean>
   isSubmitting: Ref<boolean>
   error: Ref<string | null>

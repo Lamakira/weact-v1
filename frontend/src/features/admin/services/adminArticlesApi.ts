@@ -40,7 +40,7 @@ export interface AdminArticleData {
 /**
  * Paginated article list response
  */
-export interface AdminArticleListResponse {
+interface AdminArticleListResponse {
   data: AdminArticleData[]
   meta: {
     current_page: number
@@ -54,7 +54,7 @@ export interface AdminArticleListResponse {
 /**
  * Single article response
  */
-export interface AdminArticleDetailResponse {
+interface AdminArticleDetailResponse {
   data: AdminArticleData
   message: string
 }

@@ -116,10 +116,10 @@ class EscrowService
     }
 
     /**
-     * Process a refund for a cancelled paid booking.
+     * Process a refund for a cancelled paid booking by crediting the Producer wallet.
      * MUST be called inside an existing DB::transaction().
      */
-    public function refund(Booking $booking, FedapayService $fedapayService): void
+    public function refund(Booking $booking, WalletService $walletService): void
     {
         /** @var EscrowTransaction|null $escrow */
         $escrow = $booking->escrowTransaction()->lockForUpdate()->first();
@@ -139,38 +139,30 @@ class EscrowService
 
         $refundAmount = (int) round($booking->montant_total_producteur * 0.90);
         $retainedAmount = $booking->montant_total_producteur - $refundAmount;
-        $idempotencyKey = "refund-booking-{$booking->id}";
-        $refund = $fedapayService->initiateRefund($booking, $refundAmount, $idempotencyKey);
-        $refundId = isset($refund['fedapay_refund_id']) ? (string) $refund['fedapay_refund_id'] : null;
-        $refundStatus = $refund['status'] ?? 'pending';
-
-        $normalizedRefundStatus = strtolower((string) $refundStatus);
-        $isSettledRefund = in_array($normalizedRefundStatus, [
-            'approved',
-            'completed',
-            'processed',
-            'refunded',
-            'successful',
-            'succeeded',
-        ], true);
 
         $escrow->update([
-            // Refunds can be asynchronous: keep a non-terminal local state until the provider confirms settlement.
-            'status' => $isSettledRefund ? EscrowStatus::Refunded->value : EscrowStatus::Pending->value,
-            'fedapay_ref' => $refundId,
-            'refunded_at' => $isSettledRefund ? now() : null,
+            'status' => EscrowStatus::Refunded->value,
+            'fedapay_ref' => null,
+            'refunded_at' => now(),
         ]);
+
+        $walletService->credit(
+            userId: $booking->producer_id,
+            amount: $refundAmount,
+            booking: $booking,
+            description: "Booking #{$booking->id} — remboursement annulation (90%)",
+        );
 
         $this->recordFinancialEvent(
             FinancialEventType::Refund,
             $booking,
             $refundAmount,
             [
-                'fedapay_ref' => $refundId,
-                'status' => $refundStatus,
+                'status' => 'completed',
                 'metadata' => [
+                    'refund_channel' => 'wallet',
+                    'refund_percentage' => 90,
                     'retained_amount' => $retainedAmount,
-                    'idempotency_key' => $idempotencyKey,
                 ],
             ],
         );

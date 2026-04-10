@@ -71,7 +71,7 @@ class WithdrawalService
         } else {
             Log::warning('Withdrawal request created but admin_email is not configured — no notification sent to admin', [
                 'withdrawal_request_id' => $withdrawalRequest->id,
-                'user_id'               => $user->id,
+                'user_id' => $user->id,
             ]);
         }
 
@@ -90,7 +90,7 @@ class WithdrawalService
         }
 
         try {
-            $idempotencyKey = 'withdrawal_' . Str::uuid()->toString();
+            $idempotencyKey = 'withdrawal_'.Str::uuid()->toString();
 
             DB::transaction(function () use ($user, $validated, $idempotencyKey): void {
                 $tx = $this->walletService->debit(

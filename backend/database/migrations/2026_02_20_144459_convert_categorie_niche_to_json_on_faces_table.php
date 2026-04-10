@@ -26,9 +26,9 @@ return new class extends Migration
         // Step 2: Migrate existing data
         // "acteur" → ["acteur"], NULL → []
         DB::statement('UPDATE faces SET categories = JSON_ARRAY(categorie) WHERE categorie IS NOT NULL');
-        DB::statement("UPDATE faces SET categories = JSON_ARRAY() WHERE categorie IS NULL");
+        DB::statement('UPDATE faces SET categories = JSON_ARRAY() WHERE categorie IS NULL');
         DB::statement('UPDATE faces SET niches = JSON_ARRAY(niche) WHERE niche IS NOT NULL');
-        DB::statement("UPDATE faces SET niches = JSON_ARRAY() WHERE niche IS NULL");
+        DB::statement('UPDATE faces SET niches = JSON_ARRAY() WHERE niche IS NULL');
 
         // Step 3: Drop old ENUM columns
         Schema::table('faces', function (Blueprint $table) {

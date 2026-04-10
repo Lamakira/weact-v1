@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Tests\Feature\Public;
 
 use App\Enums\MissionGender;
-use App\Enums\MissionStatus;
 use App\Enums\MissionType;
 use App\Models\Candidature;
 use App\Models\Face;

@@ -2,18 +2,14 @@ import adminApiClient, { getCsrfCookie } from './adminApiClient'
 
 // Re-export error utilities from existing auth service
 export {
-  isApiError,
-  isAxiosError,
-  getErrorStatus,
   getApiErrorDetails,
-  getApiErrorCode,
   getApiErrorMessage,
 } from '@/features/auth/services/authApi'
 
 /**
  * Admin auth response from API
  */
-export interface AdminAuthResponse {
+interface AdminAuthResponse {
   data: {
     admin: {
       id: string
@@ -30,7 +26,7 @@ export interface AdminAuthResponse {
 /**
  * Admin me response from API
  */
-export interface AdminMeResponse {
+interface AdminMeResponse {
   data: {
     id: string
     name: string

@@ -13,6 +13,7 @@ class AdminLoginTest extends TestCase
     use RefreshDatabase;
 
     private Admin $admin;
+
     private string $password = 'SecurePass123';
 
     protected function setUp(): void

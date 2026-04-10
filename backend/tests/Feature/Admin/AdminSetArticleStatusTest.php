@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Admin;
 
-use App\Enums\ArticleCategory;
 use App\Enums\ArticleStatus;
 use App\Models\Admin;
 use App\Models\Article;
@@ -17,6 +16,7 @@ class AdminSetArticleStatusTest extends TestCase
     use RefreshDatabase;
 
     private Admin $admin;
+
     private string $adminToken;
 
     protected function setUp(): void

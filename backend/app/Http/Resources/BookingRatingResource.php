@@ -19,6 +19,9 @@ class BookingRatingResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $rater = $this->rater;
+        $rated = $this->rated;
+
         return [
             'id' => $this->uuid,
             'booking_id' => $this->booking_id,
@@ -26,14 +29,14 @@ class BookingRatingResource extends JsonResource
             'comment' => $this->comment,
             'created_at' => $this->created_at?->toIso8601String(),
             'rater' => [
-                'id' => $this->rater->id,
-                'name' => $this->rater->userable->display_name,
-                'photo_url' => $this->rater->userable->profile_photo_url,
+                'id' => $rater?->id,
+                'name' => data_get($rater, 'userable.display_name'),
+                'photo_url' => data_get($rater, 'userable.profile_photo_url'),
             ],
             'rated' => [
-                'id' => $this->rated->id,
-                'name' => $this->rated->userable->display_name,
-                'photo_url' => $this->rated->userable->profile_photo_url,
+                'id' => $rated?->id,
+                'name' => data_get($rated, 'userable.display_name'),
+                'photo_url' => data_get($rated, 'userable.profile_photo_url'),
             ],
         ];
     }

@@ -24,23 +24,23 @@ class ReconcileWalletCommandTest extends TestCase
         $user = User::factory()->create(['balance' => 45000]);
 
         WalletTransaction::create([
-            'user_id'     => $user->id,
-            'booking_id'  => null,
-            'type'        => 'credit',
-            'amount'      => 50000,
-            'reference'   => 'ref-1',
+            'user_id' => $user->id,
+            'booking_id' => null,
+            'type' => 'credit',
+            'amount' => 50000,
+            'reference' => 'ref-1',
             'description' => 'Escrow release',
-            'status'      => 'completed',
+            'status' => 'completed',
         ]);
 
         WalletTransaction::create([
-            'user_id'     => $user->id,
-            'booking_id'  => null,
-            'type'        => 'debit',
-            'amount'      => 5000,
-            'reference'   => 'ref-2',
+            'user_id' => $user->id,
+            'booking_id' => null,
+            'type' => 'debit',
+            'amount' => 5000,
+            'reference' => 'ref-2',
             'description' => 'Withdrawal',
-            'status'      => 'completed',
+            'status' => 'completed',
         ]);
 
         // balance = 50000 - 5000 = 45000 → matches users.balance
@@ -53,13 +53,13 @@ class ReconcileWalletCommandTest extends TestCase
         $user = User::factory()->create(['balance' => 0]);
 
         WalletTransaction::create([
-            'user_id'     => $user->id,
-            'booking_id'  => null,
-            'type'        => 'credit',
-            'amount'      => 80000,
-            'reference'   => 'ref-diverge',
+            'user_id' => $user->id,
+            'booking_id' => null,
+            'type' => 'credit',
+            'amount' => 80000,
+            'reference' => 'ref-diverge',
             'description' => 'Escrow release',
-            'status'      => 'completed',
+            'status' => 'completed',
         ]);
 
         // expected = 80000, actual users.balance = 0 → discrepancy
@@ -72,25 +72,25 @@ class ReconcileWalletCommandTest extends TestCase
         // User A: balanced
         $userA = User::factory()->create(['balance' => 30000]);
         WalletTransaction::create([
-            'user_id'     => $userA->id,
-            'booking_id'  => null,
-            'type'        => 'credit',
-            'amount'      => 30000,
-            'reference'   => 'ref-a',
+            'user_id' => $userA->id,
+            'booking_id' => null,
+            'type' => 'credit',
+            'amount' => 30000,
+            'reference' => 'ref-a',
             'description' => 'Escrow release',
-            'status'      => 'completed',
+            'status' => 'completed',
         ]);
 
         // User B: divergent
         $userB = User::factory()->create(['balance' => 0]);
         WalletTransaction::create([
-            'user_id'     => $userB->id,
-            'booking_id'  => null,
-            'type'        => 'credit',
-            'amount'      => 20000,
-            'reference'   => 'ref-b',
+            'user_id' => $userB->id,
+            'booking_id' => null,
+            'type' => 'credit',
+            'amount' => 20000,
+            'reference' => 'ref-b',
             'description' => 'Escrow release',
-            'status'      => 'completed',
+            'status' => 'completed',
         ]);
 
         // Only userB diverges → command must exit 1
@@ -107,25 +107,25 @@ class ReconcileWalletCommandTest extends TestCase
 
         foreach ([30000, 40000, 20000] as $i => $amount) {
             WalletTransaction::create([
-                'user_id'     => $user->id,
-                'booking_id'  => null,
-                'type'        => 'credit',
-                'amount'      => $amount,
-                'reference'   => "credit-{$i}",
+                'user_id' => $user->id,
+                'booking_id' => null,
+                'type' => 'credit',
+                'amount' => $amount,
+                'reference' => "credit-{$i}",
                 'description' => 'Credit',
-                'status'      => 'completed',
+                'status' => 'completed',
             ]);
         }
 
         foreach ([20000, 10000] as $i => $amount) {
             WalletTransaction::create([
-                'user_id'     => $user->id,
-                'booking_id'  => null,
-                'type'        => 'debit',
-                'amount'      => $amount,
-                'reference'   => "debit-{$i}",
+                'user_id' => $user->id,
+                'booking_id' => null,
+                'type' => 'debit',
+                'amount' => $amount,
+                'reference' => "debit-{$i}",
                 'description' => 'Debit',
-                'status'      => 'completed',
+                'status' => 'completed',
             ]);
         }
 

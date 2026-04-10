@@ -124,7 +124,7 @@ export const authApi = {
 /**
  * Type guard to check if error is an API error response
  */
-export function isApiError(error: unknown): error is AxiosError<ApiError> {
+function isApiError(error: unknown): error is AxiosError<ApiError> {
   return (
     typeof error === 'object' &&
     error !== null &&
@@ -137,7 +137,7 @@ export function isApiError(error: unknown): error is AxiosError<ApiError> {
 /**
  * Type guard to check if error is an Axios error
  */
-export function isAxiosError(error: unknown): error is AxiosError {
+function isAxiosError(error: unknown): error is AxiosError {
   return (
     typeof error === 'object' &&
     error !== null &&
@@ -149,7 +149,7 @@ export function isAxiosError(error: unknown): error is AxiosError {
 /**
  * Get HTTP status code from error
  */
-export function getErrorStatus(error: unknown): number | undefined {
+function getErrorStatus(error: unknown): number | undefined {
   if (isAxiosError(error)) {
     return error.response?.status
   }
@@ -212,4 +212,3 @@ export function getApiErrorMessage(error: unknown): string {
       return 'Une erreur est survenue. Veuillez réessayer.'
   }
 }
-

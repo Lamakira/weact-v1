@@ -4,7 +4,7 @@ import { candidatureApi } from '@/features/candidature/services/candidatureApi'
 import type { CandidateFullProfile } from '@/features/candidature/types'
 import axios from 'axios'
 
-export type AccessLevel = 'guest' | 'face_user' | 'producer_with_access'
+type AccessLevel = 'guest' | 'face_user' | 'producer_with_access'
 
 /**
  * Composable that determines the access level for a public Face profile page.

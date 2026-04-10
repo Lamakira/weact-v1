@@ -8,6 +8,17 @@ use App\Enums\EscrowStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property int $id
+ * @property int $mission_payment_id
+ * @property int $candidature_id
+ * @property int $face_id
+ * @property int $montant_face_recoit
+ * @property \App\Enums\EscrowStatus $escrow_status
+ * @property-read \App\Models\MissionPayment|null $missionPayment
+ * @property-read \App\Models\Candidature|null $candidature
+ * @property-read \App\Models\Face|null $face
+ */
 class MissionPaymentCandidature extends Model
 {
     protected $fillable = [

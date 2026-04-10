@@ -15,7 +15,7 @@ class ProducerRegistrationService
     /**
      * Register a new Producer user.
      *
-     * @param array{type: string, email: string, password: string, agency_name?: string, first_name?: string, last_name?: string, accept_cgu?: bool} $validated
+     * @param  array{type: string, email: string, password: string, agency_name?: string, first_name?: string, last_name?: string, accept_cgu?: bool}  $validated
      * @return array{user: User, producer: Producer, token: string}
      */
     public function register(array $validated, ?string $ip = null): array

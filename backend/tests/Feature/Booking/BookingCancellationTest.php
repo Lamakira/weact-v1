@@ -13,7 +13,6 @@ use App\Models\EscrowTransaction;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
-use App\Services\FedapayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
@@ -121,7 +120,7 @@ class BookingCancellationTest extends TestCase
         Event::assertDispatched(BookingCancelled::class);
     }
 
-    public function test_producer_can_cancel_paid_booking_and_trigger_refund(): void
+    public function test_producer_can_cancel_paid_booking_and_credit_wallet_refund(): void
     {
         Event::fake([BookingCancelled::class]);
 
@@ -138,18 +137,6 @@ class BookingCancellationTest extends TestCase
 
         $expectedRefund = (int) round($booking->montant_total_producteur * 0.90);
 
-        $this->mock(FedapayService::class, function ($mock) use ($booking, $expectedRefund): void {
-            $mock->shouldReceive('initiateRefund')
-                ->once()
-                ->withArgs(function (Booking $passedBooking, int $amount) use ($booking, $expectedRefund): bool {
-                    return $passedBooking->id === $booking->id && $amount === $expectedRefund;
-                })
-                ->andReturn([
-                    'fedapay_refund_id' => 654321,
-                    'status' => 'approved',
-                ]);
-        });
-
         $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'other',
@@ -163,16 +150,26 @@ class BookingCancellationTest extends TestCase
         $this->assertDatabaseHas('escrow_transactions', [
             'booking_id' => $booking->id,
             'status' => 'refunded',
-            'fedapay_ref' => '654321',
+            'fedapay_ref' => null,
+        ]);
+
+        $this->assertDatabaseHas('wallet_transactions', [
+            'user_id' => $this->producerUser->id,
+            'booking_id' => $booking->id,
+            'type' => 'credit',
+            'amount' => $expectedRefund,
         ]);
 
         $this->assertDatabaseHas('financial_events', [
             'booking_id' => $booking->id,
             'type' => FinancialEventType::Refund->value,
             'amount' => $expectedRefund,
-            'status' => 'approved',
-            'fedapay_ref' => '654321',
+            'status' => 'completed',
+            'fedapay_ref' => null,
         ]);
+
+        $this->producerUser->refresh();
+        $this->assertSame($expectedRefund, $this->producerUser->balance);
 
         $this->assertDatabaseHas('faces', [
             'id' => $this->face->id,
@@ -182,8 +179,10 @@ class BookingCancellationTest extends TestCase
         Event::assertDispatched(BookingCancelled::class);
     }
 
-    public function test_paid_booking_refund_stays_pending_until_provider_settlement(): void
+    public function test_face_can_cancel_paid_booking_and_credit_producer_wallet_with_penalty(): void
     {
+        Event::fake([BookingCancelled::class]);
+
         $booking = Booking::factory()->paid()->withFedapayTransaction()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
@@ -195,27 +194,45 @@ class BookingCancellationTest extends TestCase
             'status' => 'locked',
         ]);
 
-        $this->mock(FedapayService::class, function ($mock): void {
-            $mock->shouldReceive('initiateRefund')
-                ->once()
-                ->andReturn([
-                    'fedapay_refund_id' => 777888,
-                    'status' => 'pending',
-                ]);
-        });
+        $expectedRefund = (int) round($booking->montant_total_producteur * 0.90);
 
-        $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+        $response = $this->actingAs($this->faceUser)->withApiToken($this->faceUser)
             ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
                 'cancellation_reason' => 'other',
-                'custom_cancellation_reason' => 'La production a été reportée.',
+                'custom_cancellation_reason' => 'Je ne suis plus disponible.',
             ])
-            ->assertOk();
+            ->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::CancelledByFace->value);
 
         $this->assertDatabaseHas('escrow_transactions', [
             'booking_id' => $booking->id,
-            'status' => 'pending',
-            'fedapay_ref' => '777888',
+            'status' => 'refunded',
+            'fedapay_ref' => null,
         ]);
+
+        $this->assertDatabaseHas('wallet_transactions', [
+            'user_id' => $this->producerUser->id,
+            'booking_id' => $booking->id,
+            'type' => 'credit',
+            'amount' => $expectedRefund,
+        ]);
+
+        $this->assertDatabaseHas('financial_events', [
+            'booking_id' => $booking->id,
+            'type' => FinancialEventType::Refund->value,
+            'amount' => $expectedRefund,
+            'status' => 'completed',
+        ]);
+
+        $this->producerUser->refresh();
+        $this->assertSame($expectedRefund, $this->producerUser->balance);
+
+        $this->assertDatabaseHas('faces', [
+            'id' => $this->face->id,
+            'rating_penalty' => 1.0,
+        ]);
+
+        Event::assertDispatched(BookingCancelled::class);
     }
 
     public function test_face_can_cancel_accepted_booking_and_get_penalty(): void

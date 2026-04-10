@@ -19,7 +19,9 @@ class AdminCreateArticleTest extends TestCase
     use RefreshDatabase;
 
     private Admin $admin;
+
     private string $adminToken;
+
     private string $endpoint = '/api/v1/admin/articles';
 
     protected function setUp(): void
@@ -129,7 +131,7 @@ class AdminCreateArticleTest extends TestCase
         $this->assertNotNull($featuredImageUrl);
 
         $article = Article::first();
-        Storage::disk('public')->assertExists('articles/featured/' . $article->featured_image);
+        Storage::disk('public')->assertExists('articles/featured/'.$article->featured_image);
     }
 
     // ──────────────────────────────────────────────

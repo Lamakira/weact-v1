@@ -17,6 +17,7 @@ use App\Models\Mission;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class FaceDashboardController extends Controller
 {
@@ -114,7 +115,8 @@ class FaceDashboardController extends Controller
         $months = $this->generateMonthsRange($sixMonthsAgo);
 
         // Bookings grouped by month and status bucket
-        $rawData = Booking::where('face_id', $userId)
+        $rawData = DB::table('bookings')
+            ->where('face_id', $userId)
             ->where('created_at', '>=', $sixMonthsAgo)
             ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as month, status, COUNT(*) as count")
             ->groupBy('month', 'status')
@@ -128,7 +130,7 @@ class FaceDashboardController extends Controller
 
         foreach ($rawData as $row) {
             $month = $row->month;
-            $status = $row->status instanceof BookingStatus ? $row->status : BookingStatus::from($row->status);
+            $status = BookingStatus::from((string) $row->status);
 
             if (! isset($bookingsByMonth[$month])) {
                 continue;
@@ -148,7 +150,8 @@ class FaceDashboardController extends Controller
         }
 
         // Completed bookings grouped by month
-        $completedRaw = Booking::where('face_id', $userId)
+        $completedRaw = DB::table('bookings')
+            ->where('face_id', $userId)
             ->where('status', BookingStatus::Completed)
             ->where('updated_at', '>=', $sixMonthsAgo)
             ->selectRaw("DATE_FORMAT(updated_at, '%Y-%m') as month, COUNT(*) as count")
@@ -217,7 +220,8 @@ class FaceDashboardController extends Controller
     private function getCandidaturesByMonth(int $faceId, Carbon $since): array
     {
         // Query candidatures grouped by month and status
-        $rawData = Candidature::where('face_id', $faceId)
+        $rawData = DB::table('candidatures')
+            ->where('face_id', $faceId)
             ->where('created_at', '>=', $since)
             ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as month, status, COUNT(*) as count")
             ->groupBy('month', 'status')
@@ -244,7 +248,7 @@ class FaceDashboardController extends Controller
         // Fill in actual counts from query
         foreach ($rawData as $row) {
             $month = $row->month;
-            $status = $row->status->value ?? $row->status;
+            $status = (string) $row->status;
 
             if (isset($result[$month])) {
                 $result[$month][$status] = (int) $row->count;
@@ -264,7 +268,8 @@ class FaceDashboardController extends Controller
     private function getMissionsCompletedByMonth(int $faceId, Carbon $since): array
     {
         // Query completed candidatures grouped by month
-        $rawData = Candidature::where('face_id', $faceId)
+        $rawData = DB::table('candidatures')
+            ->where('face_id', $faceId)
             ->where('status', CandidatureStatus::Completed)
             ->where('updated_at', '>=', $since)
             ->selectRaw("DATE_FORMAT(updated_at, '%Y-%m') as month, COUNT(*) as count")

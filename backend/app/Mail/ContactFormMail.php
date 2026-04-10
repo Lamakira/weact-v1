@@ -17,14 +17,14 @@ class ContactFormMail extends Mailable
     public function __construct(
         public readonly string $senderName,
         public readonly string $senderEmail,
-        public readonly string $subject,
+        public readonly string $messageSubject,
         public readonly string $senderMessage,
     ) {}
 
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: "[WEACT Contact] {$this->subject}",
+            subject: "[WEACT Contact] {$this->messageSubject}",
             replyTo: [$this->senderEmail],
         );
     }

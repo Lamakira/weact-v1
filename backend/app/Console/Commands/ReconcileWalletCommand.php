@@ -51,20 +51,20 @@ class ReconcileWalletCommand extends Command
 
         foreach ($expectedBalances as $userId => $expected) {
             $expected = (int) $expected;
-            $actual   = (int) ($actualBalances->get($userId) ?? 0);
+            $actual = (int) ($actualBalances->get($userId) ?? 0);
 
             if ($expected !== $actual) {
                 $discrepancy = [
-                    'user_id'          => $userId,
+                    'user_id' => $userId,
                     'expected_balance' => $expected,
-                    'actual_balance'   => $actual,
-                    'difference'       => $expected - $actual,
+                    'actual_balance' => $actual,
+                    'difference' => $expected - $actual,
                 ];
 
                 $discrepancies[] = $discrepancy;
 
                 Log::warning('Wallet reconciliation discrepancy detected', $discrepancy);
-                $this->error("Discrepancy for user #{$userId}: expected={$expected}, actual={$actual}, diff=" . ($expected - $actual));
+                $this->error("Discrepancy for user #{$userId}: expected={$expected}, actual={$actual}, diff=".($expected - $actual));
             }
         }
 
@@ -76,7 +76,7 @@ class ReconcileWalletCommand extends Command
         }
 
         $count = count($discrepancies);
-        $this->error("{$count} discrepanc" . ($count === 1 ? 'y' : 'ies') . " found out of {$checked} user(s). Check application logs.");
+        $this->error("{$count} discrepanc".($count === 1 ? 'y' : 'ies')." found out of {$checked} user(s). Check application logs.");
 
         return self::FAILURE;
     }

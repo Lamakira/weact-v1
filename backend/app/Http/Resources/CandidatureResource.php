@@ -7,6 +7,9 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin \App\Models\Candidature
+ */
 class CandidatureResource extends JsonResource
 {
     /**
@@ -20,8 +23,8 @@ class CandidatureResource extends JsonResource
             'id' => $this->uuid,
             'mission_id' => $this->mission_id,
             'face_id' => $this->face_id,
-            'status' => $this->status?->value,
-            'status_label' => $this->status?->label(),
+            'status' => $this->status->value,
+            'status_label' => $this->status->label(),
             'message_motivation' => $this->message_motivation,
             'mission' => new MissionResource($this->whenLoaded('mission')),
             'face' => new FaceResource($this->whenLoaded('face')),

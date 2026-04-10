@@ -48,7 +48,7 @@ class EmailChangeController extends Controller
     {
         $user = User::find($id);
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'error' => [
                     'code' => 'USER_NOT_FOUND',
@@ -57,7 +57,7 @@ class EmailChangeController extends Controller
             ], Response::HTTP_NOT_FOUND);
         }
 
-        if (!$user->pending_email) {
+        if (! $user->pending_email) {
             return response()->json([
                 'error' => [
                     'code' => 'NO_PENDING_EMAIL_CHANGE',
@@ -67,7 +67,7 @@ class EmailChangeController extends Controller
         }
 
         // Verify the hash matches the pending email
-        if (!hash_equals(sha1($user->pending_email), $hash)) {
+        if (! hash_equals(sha1($user->pending_email), $hash)) {
             return response()->json([
                 'error' => [
                     'code' => 'INVALID_CONFIRMATION_LINK',
@@ -77,7 +77,7 @@ class EmailChangeController extends Controller
         }
 
         // Check if the link has expired (signature validation)
-        if (!$request->hasValidSignature()) {
+        if (! $request->hasValidSignature()) {
             return response()->json([
                 'error' => [
                     'code' => 'CONFIRMATION_LINK_EXPIRED',

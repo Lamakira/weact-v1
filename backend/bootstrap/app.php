@@ -7,13 +7,12 @@ use App\Http\Middleware\EnsureApiBearerToken;
 use App\Http\Middleware\EnsureEmailIsVerified;
 use App\Http\Middleware\EnsureSuperAdmin;
 use App\Http\Middleware\EnsureUserIsAdmin;
-use App\Http\Middleware\EnsureUserIsFaceOrProducer;
 use App\Http\Middleware\EnsureUserIsFace;
+use App\Http\Middleware\EnsureUserIsFaceOrProducer;
 use App\Http\Middleware\EnsureUserIsProducer;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Http\Middleware\TrustProxies;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(

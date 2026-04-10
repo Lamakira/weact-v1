@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
-use App\Models\Booking;
 use App\Models\User;
 use App\Models\WalletTransaction;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -27,7 +26,7 @@ class WalletTransactionFactory extends Factory
             'booking_id' => null,
             'type' => 'credit',
             'amount' => fake()->numberBetween(10000, 100000),
-            'reference' => 'wlt_' . Str::uuid()->toString(),
+            'reference' => 'wlt_'.Str::uuid()->toString(),
             'description' => fake()->sentence(),
         ];
     }

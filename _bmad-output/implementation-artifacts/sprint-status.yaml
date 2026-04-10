@@ -382,4 +382,33 @@ development_status:
   fix-14-1-move-account-actions-to-bottom: done           # Déplacer "Télécharger données" et "Supprimer compte" en bas du profil
   fix-14-2-rename-profile-photo-label: done               # Renommer "Photo de profil" → "Photo de mise en avant"
 
-last_updated: "2026-04-08"
+  # ============================================
+  # POST-LAUNCH FIXES Sprint 8 (Client issues - 2026-04-10)
+  # Source: epics-postlaunch-fixes-6.md (4 epics, 7 stories)
+  # ============================================
+
+  # Epic FIX-15: Booking — Formulaire & Annulation (3 stories)
+  epic-fix-15: in-progress
+  fix-15-1-remove-misleading-amount-mention: done              # Retirer mention "montant final sera confirmé" du formulaire booking
+  fix-15-2-add-booking-location-field: backlog                    # Ajouter champ lieu de tournage au formulaire booking
+  fix-15-3-fix-face-cancellation-costs-display: backlog           # Afficher coûts d'annulation du point de vue Face
+  epic-fix-15-retrospective: optional
+
+  # Epic FIX-16: Affichage transactions — Libellés (1 story)
+  epic-fix-16: backlog
+  fix-16-1-format-transaction-labels-without-id: backlog          # "Mission : {titre}" au lieu de "Mission #{id} : {titre}"
+  epic-fix-16-retrospective: optional
+
+  # Epic FIX-17: Navigation & Routing (2 stories)
+  epic-fix-17: backlog
+  fix-17-1-whatsapp-hint-scroll-to-field: backlog                 # Hint WhatsApp → scroll + focus vers le champ exact
+  fix-17-2-fix-producer-mission-white-screen: backlog             # Écran blanc /producer/missions/:uuid
+  epic-fix-17-retrospective: optional
+
+  # Epic FIX-18: Profil public Producer — Compteur missions (1 story)
+  epic-fix-18: backlog
+  fix-18-1-update-producer-published-missions-count: backlog      # Compteur missions publiées ne se met pas à jour
+  epic-fix-18-retrospective: optional
+
+last_updated: "2026-04-10"
+# Story fix-15-1 created: 2026-04-10

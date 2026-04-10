@@ -133,52 +133,6 @@ export type KpiColor = 'amber-500' | 'green-500' | 'blue-500' | 'primary' | 'pur
 export type KpiIcon = 'clock' | 'check' | 'play' | 'checkCircle' | 'users' | 'userCheck' | 'star' | 'shield' | 'edit' | 'file'
 
 /**
- * KPI card configuration
- */
-export interface KpiConfig {
-  key: keyof DashboardStats
-  title: string
-  color: KpiColor
-  bgColor: string
-  icon: KpiIcon
-}
-
-/**
- * KPI configurations for Face dashboard
- * Matches the French labels from FR51
- */
-export const FACE_KPI_CONFIGS: KpiConfig[] = [
-  {
-    key: 'pending',
-    title: 'En attente',
-    color: 'amber-500',
-    bgColor: 'amber-50',
-    icon: 'clock',
-  },
-  {
-    key: 'accepted',
-    title: 'Acceptées',
-    color: 'green-500',
-    bgColor: 'green-50',
-    icon: 'check',
-  },
-  {
-    key: 'in_progress',
-    title: 'En cours',
-    color: 'blue-500',
-    bgColor: 'blue-50',
-    icon: 'play',
-  },
-  {
-    key: 'completed',
-    title: 'Terminées',
-    color: 'primary',
-    bgColor: 'primary/10',
-    icon: 'checkCircle',
-  },
-]
-
-/**
  * Producer Dashboard statistics
  * Mission counts grouped by status + total candidatures received (FR56) + unique collaborators (FR57) + rating (FR58) + advanced stats (FR59)
  */
@@ -208,7 +162,7 @@ export interface ProducerDashboardStatsResponse {
 /**
  * KPI card configuration for Producer dashboard
  */
-export interface ProducerKpiConfig {
+interface ProducerKpiConfig {
   key: keyof ProducerDashboardStats
   title: string
   color: KpiColor
@@ -250,62 +204,3 @@ export const PRODUCER_KPI_CONFIGS: ProducerKpiConfig[] = [
     icon: 'checkCircle',
   },
 ]
-
-/**
- * KPI configuration for Producer candidatures (FR56)
- */
-export const PRODUCER_CANDIDATURES_KPI: ProducerKpiConfig = {
-  key: 'total_candidatures',
-  title: 'Candidatures reçues',
-  color: 'purple-500',
-  bgColor: 'violet-50',
-  icon: 'users',
-}
-
-/**
- * KPI configuration for Producer unique collaborators (FR57)
- */
-export const PRODUCER_COLLABORATORS_KPI: ProducerKpiConfig = {
-  key: 'unique_collaborators',
-  title: 'Collaborateurs',
-  color: 'green-500',
-  bgColor: 'green-50',
-  icon: 'userCheck',
-}
-
-/**
- * KPI configuration for Producer rating (FR58)
- * Note: Rating card uses custom display (not KpiCard) for decimal formatting.
- * This config is exported for reference and potential future use.
- */
-export const PRODUCER_RATING_KPI: ProducerKpiConfig = {
-  key: 'ratings_count',
-  title: 'Ma note',
-  color: 'amber-500',
-  bgColor: 'amber-50',
-  icon: 'star',
-}
-
-/**
- * KPI configuration for Producer acceptance rate (FR59)
- * Note: Uses custom display for percentage formatting.
- */
-export const PRODUCER_ACCEPTANCE_RATE_KPI: ProducerKpiConfig = {
-  key: 'acceptance_rate',
-  title: "Taux d'acceptation",
-  color: 'green-500',
-  bgColor: 'green-50',
-  icon: 'check',
-}
-
-/**
- * KPI configuration for Producer average response time (FR59)
- * Note: Uses custom display for hour formatting.
- */
-export const PRODUCER_RESPONSE_TIME_KPI: ProducerKpiConfig = {
-  key: 'average_response_time_hours',
-  title: 'Temps de réponse',
-  color: 'blue-500',
-  bgColor: 'blue-50',
-  icon: 'clock',
-}

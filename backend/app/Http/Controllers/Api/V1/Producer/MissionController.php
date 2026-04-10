@@ -119,7 +119,7 @@ class MissionController extends Controller
      * Authorization is handled by DeleteMissionRequest::authorize()
      * Status validation is handled by DeleteMissionRequest::withValidator()
      *
-     * @param DeleteMissionRequest $request Type-hint triggers FormRequest validation (not used directly)
+     * @param  DeleteMissionRequest  $request  Type-hint triggers FormRequest validation (not used directly)
      */
     public function destroy(DeleteMissionRequest $request, Mission $mission): JsonResponse
     {
@@ -135,7 +135,7 @@ class MissionController extends Controller
      * Authorization is handled by CloseMissionRequest::authorize()
      * Status validation is handled by CloseMissionRequest::withValidator()
      *
-     * @param CloseMissionRequest $request Type-hint triggers FormRequest validation (not used directly)
+     * @param  CloseMissionRequest  $request  Type-hint triggers FormRequest validation (not used directly)
      */
     public function close(CloseMissionRequest $request, Mission $mission): JsonResponse
     {
@@ -152,7 +152,7 @@ class MissionController extends Controller
      * Authorization is handled by ReopenMissionRequest::authorize()
      * Status validation is handled by ReopenMissionRequest::withValidator()
      *
-     * @param ReopenMissionRequest $request Type-hint triggers FormRequest validation (not used directly)
+     * @param  ReopenMissionRequest  $request  Type-hint triggers FormRequest validation (not used directly)
      */
     public function reopen(ReopenMissionRequest $request, Mission $mission): JsonResponse
     {
@@ -169,7 +169,7 @@ class MissionController extends Controller
      * Authorization is handled by CompleteMissionRequest::authorize()
      * Status validation is handled by CompleteMissionRequest::withValidator()
      *
-     * @param CompleteMissionRequest $request Type-hint triggers FormRequest validation (not used directly)
+     * @param  CompleteMissionRequest  $request  Type-hint triggers FormRequest validation (not used directly)
      */
     public function complete(CompleteMissionRequest $request, Mission $mission): JsonResponse
     {

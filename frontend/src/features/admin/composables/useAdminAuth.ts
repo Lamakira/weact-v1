@@ -8,7 +8,7 @@ import {
   type AdminLoginForm,
 } from '../services/adminAuthApi'
 
-export interface AuthResult {
+interface AuthResult {
   success: boolean
   errors?: Record<string, string[]>
   message?: string

@@ -41,6 +41,13 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());
         });
 
+        // Rate limiter for authenticated SPA read endpoints.
+        // The UI mounts multiple independent sections in parallel, so 60/min is too tight
+        // for profile and dashboard pages despite being harmless read traffic.
+        RateLimiter::for('ui-read', function (Request $request) {
+            return Limit::perMinute(240)->by($request->user()?->id ?: $request->ip());
+        });
+
         // Rate limiter for withdrawal — 5 attempts per 10 minutes per user
         RateLimiter::for('withdrawals', function (Request $request) {
             return Limit::perMinutes(10, 5)

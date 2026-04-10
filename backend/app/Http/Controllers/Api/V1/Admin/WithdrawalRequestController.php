@@ -45,7 +45,7 @@ class WithdrawalRequestController extends Controller
                 'notes' => $withdrawalRequest->notes,
                 'processed_at' => $withdrawalRequest->processed_at?->toIso8601String(),
                 'created_at' => $withdrawalRequest->created_at?->toIso8601String(),
-                'user_email' => $withdrawalRequest->user?->email,
+                'user_email' => $withdrawalRequest->user->email,
                 'user_name' => data_get($withdrawalRequest->user, 'userable.display_name'),
             ],
         );
@@ -140,7 +140,7 @@ class WithdrawalRequestController extends Controller
             ], 422);
         }
 
-        Mail::to($processedRequest->user?->email)->send(new WithdrawalApprovedMail($processedRequest));
+        Mail::to($processedRequest->user->email)->send(new WithdrawalApprovedMail($processedRequest));
 
         return response()->json([
             'data' => [
@@ -182,7 +182,7 @@ class WithdrawalRequestController extends Controller
             return $lockedRequest->fresh(['user.userable']);
         });
 
-        Mail::to($processedRequest->user?->email)->send(new WithdrawalRejectedMail($processedRequest));
+        Mail::to($processedRequest->user->email)->send(new WithdrawalRejectedMail($processedRequest));
 
         return response()->json([
             'data' => [

@@ -16,7 +16,7 @@ class DeleteAgencyLogoRequest extends FormRequest
     {
         $user = $this->user();
 
-        if (!$user || !$user->userable instanceof Producer) {
+        if (! $user || ! $user->userable instanceof Producer) {
             return false;
         }
 

@@ -3,7 +3,7 @@ import { missionApi } from '../services/missionApi'
 import type { Mission, MissionCreateResult, CreateMissionData } from '../types'
 import { getApiErrorDetails, getApiErrorMessage, getApiErrorCode } from '@/features/auth/services/authApi'
 
-export interface UseMissionCreateReturn {
+interface UseMissionCreateReturn {
   isSubmitting: Ref<boolean>
   error: Ref<string | null>
   errorCode: Ref<string | null>

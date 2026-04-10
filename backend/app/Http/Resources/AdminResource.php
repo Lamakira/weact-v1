@@ -23,7 +23,7 @@ class AdminResource extends JsonResource
             'id' => $this->uuid,
             'name' => $this->name,
             'email' => $this->email,
-            'role' => $this->role?->value ?? $this->role,
+            'role' => $this->role->value,
             'created_at' => $this->created_at?->toISOString(),
         ];
     }

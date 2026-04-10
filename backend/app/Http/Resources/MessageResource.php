@@ -11,6 +11,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * API Resource for Message model.
  *
  * Includes sender information and computed is_own_message field.
+ *
+ * @mixin \App\Models\Message
  */
 class MessageResource extends JsonResource
 {
@@ -43,13 +45,13 @@ class MessageResource extends JsonResource
         // The sender is a User, and User has userable (Face or Producer)
         $sender = $this->sender;
 
-        if (!$sender) {
+        if (! $sender) {
             return 'Utilisateur';
         }
 
         // Get the userable (Face or Producer) and retrieve its display name
         // If userable is not loaded, load it
-        if (!$sender->relationLoaded('userable')) {
+        if (! $sender->relationLoaded('userable')) {
             $sender->load('userable');
         }
 
