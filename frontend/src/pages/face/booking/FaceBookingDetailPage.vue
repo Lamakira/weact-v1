@@ -6,6 +6,7 @@ import {
   Calendar,
   Clock,
   Film,
+  MapPin,
   MessageSquare,
   Wallet,
   Loader2,
@@ -485,6 +486,13 @@ onUnmounted(() => {
                 <div>
                   <p class="text-xs text-gray-500">Type de contenu</p>
                   <p class="text-sm font-medium text-gray-900">{{ booking.type_contenu }}</p>
+                </div>
+              </div>
+              <div v-if="booking.lieu" class="flex items-center gap-2.5">
+                <MapPin class="w-4 h-4 text-gray-400 shrink-0" />
+                <div>
+                  <p class="text-xs text-gray-500">Lieu de tournage</p>
+                  <p class="text-sm font-medium text-gray-900">{{ booking.lieu }}</p>
                 </div>
               </div>
             </div>

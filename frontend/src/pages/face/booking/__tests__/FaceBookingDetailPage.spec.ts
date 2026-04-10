@@ -67,6 +67,7 @@ function makeBooking(overrides: Record<string, unknown> = {}): Record<string, un
     date_fin: new Date(Date.now() + 86400000).toISOString(),
     duree_heures: 8,
     type_contenu: 'Shooting photo',
+    lieu: null,
     description: 'Test booking',
     montant_base: 50000,
     commission_face: 7500,
@@ -214,6 +215,19 @@ describe('FaceBookingDetailPage — duration display', () => {
   it('displays duration with "max" prefix', async () => {
     const wrapper = await mountPage(makeBooking({ duree_heures: 4 }))
     expect(wrapper.text()).toContain('max 4h')
+  })
+
+  it('displays the shooting location when present', async () => {
+    const wrapper = await mountPage(makeBooking({ lieu: 'Cotonou' }))
+
+    expect(wrapper.text()).toContain('Lieu de tournage')
+    expect(wrapper.text()).toContain('Cotonou')
+  })
+
+  it('hides the shooting location block when absent', async () => {
+    const wrapper = await mountPage(makeBooking({ lieu: null }))
+
+    expect(wrapper.text()).not.toContain('Lieu de tournage')
   })
 })
 

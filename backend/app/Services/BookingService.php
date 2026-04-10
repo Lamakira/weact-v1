@@ -86,6 +86,7 @@ class BookingService
             'date_fin' => $data['date_fin'],
             'duree_heures' => $data['duree_heures'],
             'type_contenu' => $data['type_contenu'],
+            'lieu' => !empty($data['lieu']) ? $data['lieu'] : null,
             'message' => $data['message'] ?? null,
             'tarif_base' => $pricing->baseTarif,
             'montant_total_producteur' => $pricing->totalProducerPays,

@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Auth;
  * @property int $producer_id
  * @property int $duree_heures
  * @property string $type_contenu
+ * @property string|null $lieu
  * @property string|null $message
  * @property int $tarif_base
  * @property int $montant_total_producteur
@@ -69,6 +70,7 @@ class Booking extends Model
         'date_fin',
         'duree_heures',
         'type_contenu',
+        'lieu',
         'message',
         'tarif_base',
         'montant_total_producteur',

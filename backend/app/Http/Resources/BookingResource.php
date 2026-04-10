@@ -34,6 +34,7 @@ class BookingResource extends JsonResource
             'date_fin' => $this->date_fin->toIso8601String(),
             'duree_heures' => $this->duree_heures,
             'type_contenu' => $this->type_contenu,
+            'lieu' => $this->lieu,
             'message' => $this->message,
             'tarif_base' => $this->tarif_base,
             'montant_total_producteur' => $this->montant_total_producteur,

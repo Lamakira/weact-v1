@@ -24,12 +24,13 @@ class NotifyFaceOnBookingReceived
             $booking->loadMissing('producer.userable');
             $producerName = (string) data_get($booking, 'producer.userable.display_name', 'Le Producteur');
             $formattedDate = $booking->date_debut->format('d/m/Y');
+            $locationSuffix = $booking->lieu ? " à {$booking->lieu}" : '';
 
             Notification::create([
                 'user_id' => $booking->face_id,
                 'type' => 'booking_received',
                 'data' => [
-                    'message' => "{$producerName} souhaite vous booker pour {$booking->type_contenu} le {$formattedDate}",
+                    'message' => "{$producerName} souhaite vous booker pour {$booking->type_contenu} le {$formattedDate}{$locationSuffix}",
                     'booking_id' => $booking->id,
                     'url' => "/face/bookings/{$booking->uuid}",
                 ],

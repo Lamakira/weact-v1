@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
-import { Calendar, Clock, Wallet } from 'lucide-vue-next'
+import { Calendar, Clock, MapPin, Wallet } from 'lucide-vue-next'
 import type { Booking, BookingFaceUserable, BookingProducerUserable } from '../types'
 import BookingStatusBadge from './BookingStatusBadge.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -130,6 +130,10 @@ const formattedDateRange = computed(() => {
       <div class="flex items-center gap-1.5">
         <Clock class="h-4 w-4" />
         <span>max {{ booking.duree_heures }}h</span>
+      </div>
+      <div v-if="booking.lieu" class="flex items-center gap-1.5">
+        <MapPin class="h-4 w-4" />
+        <span>{{ booking.lieu }}</span>
       </div>
       <div class="flex items-center gap-1.5">
         <Wallet class="h-4 w-4" />

@@ -24,7 +24,7 @@ const mountForm = (propsOverride: Record<string, unknown> = {}) =>
   mount(BookingFormSheet, {
     props: {
       isOpen: true,
-      faceId: 1,
+      faceId: '1',
       faceName: 'Jane Doe',
       tarifHoraire: 5000,
       tarifJournalier: 30000,
@@ -89,5 +89,18 @@ describe('BookingFormSheet — pricing preview', () => {
     expect(wrapper.find('[data-testid="pricing-preview"]').exists()).toBe(true)
     expect(wrapper.text()).toContain(formatCurrency(pricing.totalProducerPays))
     expect(wrapper.text()).toContain(formatCurrency(pricing.tarifBase))
+  })
+})
+
+describe('BookingFormSheet — shooting location', () => {
+  it('renders a required shooting location select with Benin city options', () => {
+    const wrapper = mountForm()
+
+    const select = wrapper.get('[data-testid="lieu-select"]')
+    const options = wrapper.findAll('[data-testid="lieu-select"] option')
+
+    expect(select.attributes('required')).toBeDefined()
+    expect(options.some((option) => option.text().includes('Cotonou'))).toBe(true)
+    expect(options.some((option) => option.text().includes('Porto-Novo'))).toBe(true)
   })
 })

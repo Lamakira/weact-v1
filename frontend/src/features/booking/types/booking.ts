@@ -135,6 +135,7 @@ export interface Booking {
   date_fin: string
   duree_heures: number
   type_contenu: string
+  lieu: string | null
   message: string | null
   tarif_base: number
   montant_total_producteur: number
@@ -162,6 +163,7 @@ export interface CreateBookingData {
   date_fin: string
   duree_heures: number
   type_contenu: string
+  lieu: string
   message?: string
 }
 

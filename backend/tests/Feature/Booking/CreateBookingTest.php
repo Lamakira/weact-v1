@@ -56,6 +56,7 @@ class CreateBookingTest extends TestCase
             'date_fin' => now()->addWeeks(2)->toDateString(),
             'duree_heures' => 8,
             'type_contenu' => 'Publicité',
+            'lieu' => 'Cotonou',
             'message' => 'Bonjour, je souhaite vous réserver pour une publicité.',
         ];
     }
@@ -75,12 +76,14 @@ class CreateBookingTest extends TestCase
             ->assertJsonPath('data.status', BookingStatus::Pending->value)
             ->assertJsonPath('data.duree_heures', 8)
             ->assertJsonPath('data.type_contenu', 'Publicité')
+            ->assertJsonPath('data.lieu', 'Cotonou')
             ->assertJsonPath('message', 'Demande de booking envoyee');
 
         $this->assertDatabaseHas('bookings', [
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
             'status' => BookingStatus::Pending->value,
+            'lieu' => 'Cotonou',
         ]);
 
         Event::assertDispatched(BookingCreated::class);
@@ -194,6 +197,7 @@ class CreateBookingTest extends TestCase
                 'date_fin',
                 'duree_heures',
                 'type_contenu',
+                'lieu',
             ]);
     }
 
@@ -393,6 +397,7 @@ class CreateBookingTest extends TestCase
                     'date_fin',
                     'duree_heures',
                     'type_contenu',
+                    'lieu',
                     'message',
                     'tarif_base',
                     'montant_total_producteur',

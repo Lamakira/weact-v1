@@ -8,12 +8,14 @@ import { calculatePricingPreview, type CreateBookingData, type Booking } from '.
 import BookingPricingBreakdown from './BookingPricingBreakdown.vue'
 import { FloatingField, FloatingDateField, FloatingSelect } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
+import { BENIN_CITY_OPTIONS } from '@/shared/constants/beninCities'
 import { useToast } from '@/composables/useToast'
 import {
   X,
   Calendar,
   Clock,
   Film,
+  MapPin,
   Loader2,
   Send,
   AlertCircle,
@@ -78,6 +80,7 @@ const { handleSubmit, setFieldError, resetForm } = useForm({
     date_fin: '',
     duree_heures: 4,
     type_contenu: 'Publicité',
+    lieu: '',
   },
 })
 
@@ -85,6 +88,7 @@ const { value: date_debut, errorMessage: dateDebutError } = useField<string>('da
 const { value: date_fin, errorMessage: dateFinError } = useField<string>('date_fin')
 const { value: duree_heures, errorMessage: dureeError } = useField<number>('duree_heures')
 const { value: type_contenu, errorMessage: typeContenuError } = useField<string>('type_contenu')
+const { value: lieu, errorMessage: lieuError } = useField<string>('lieu')
 
 // Sync duration preset / custom days → duree_heures field
 watch([selectedPreset, customDays], () => {
@@ -128,6 +132,7 @@ watch(
           date_fin: '',
           duree_heures: 4,
           type_contenu: 'Publicité',
+          lieu: '',
         },
       })
       nextTick(() => {
@@ -177,6 +182,7 @@ const onSubmit = handleSubmit(async (values) => {
     date_fin: values.date_fin,
     duree_heures: values.duree_heures,
     type_contenu: values.type_contenu,
+    lieu: values.lieu,
   }
 
   const result = await createBooking(data)
@@ -192,6 +198,7 @@ const onSubmit = handleSubmit(async (values) => {
       'date_fin',
       'duree_heures',
       'type_contenu',
+      'lieu',
     ] as const
     type ValidField = (typeof validFields)[number]
 
@@ -327,6 +334,18 @@ const onSubmit = handleSubmit(async (values) => {
                 :error="typeContenuError"
                 :options="contentTypeOptions"
                 required
+              />
+
+              <!-- Shooting location -->
+              <FloatingSelect
+                id="lieu"
+                v-model="lieu"
+                label="Lieu du tournage"
+                :icon="MapPin"
+                :error="lieuError"
+                :options="BENIN_CITY_OPTIONS"
+                required
+                data-testid="lieu-select"
               />
 
               <!-- Pricing Preview -->
