@@ -116,12 +116,6 @@ export const CandidatureStatusColor: Record<CandidatureStatusType, string> = {
   [CandidatureStatus.CANCELLED]: 'gray',
 }
 
-// Status filter option
-export interface StatusFilterOption {
-  value: CandidatureStatusType | ''
-  label: string
-}
-
 // Face summary for Producer candidature list (nested in ProducerCandidature)
 export interface FaceSummary {
   id: string

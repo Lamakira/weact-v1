@@ -5,14 +5,14 @@ import { useRouter } from 'vue-router'
 import { authApi, getApiErrorDetails, getApiErrorMessage, getApiErrorCode } from '../services/authApi'
 import type { FaceRegistrationForm, ProducerRegistrationForm, LoginForm, User } from '../types'
 
-export interface AuthResult {
+interface AuthResult {
   success: boolean
   errors?: Record<string, string[]>
   message?: string
   errorCode?: string | null
 }
 
-export interface UseAuthReturn {
+interface UseAuthReturn {
   login: (data: LoginForm) => Promise<AuthResult>
   registerFace: (data: FaceRegistrationForm) => Promise<AuthResult>
   registerProducer: (data: ProducerRegistrationForm) => Promise<AuthResult>

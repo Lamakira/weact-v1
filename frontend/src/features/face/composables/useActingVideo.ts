@@ -9,7 +9,7 @@ const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi']
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 const MAX_DURATION_SECONDS = 120 // 2 minutes
 
-export interface UseActingVideoReturn {
+interface UseActingVideoReturn {
   videoInfo: Ref<ActingVideoInfo | null>
   isLoading: Ref<boolean>
   isUploading: Ref<boolean>

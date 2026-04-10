@@ -3,7 +3,7 @@ import { faceApi } from '../services/faceApi'
 import type { AvailabilityInfo, AvailabilityResult, AvailabilityFormData } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
 
-export interface UseAvailabilityReturn {
+interface UseAvailabilityReturn {
   availabilityInfo: Ref<AvailabilityInfo | null>
   isLoading: Ref<boolean>
   isSaving: Ref<boolean>

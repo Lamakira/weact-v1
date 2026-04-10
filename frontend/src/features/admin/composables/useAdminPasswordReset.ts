@@ -5,7 +5,7 @@ import {
   type AdminResetPasswordForm,
 } from '../services/adminAuthApi'
 
-export interface PasswordResetResult {
+interface PasswordResetResult {
   success: boolean
   message?: string
 }

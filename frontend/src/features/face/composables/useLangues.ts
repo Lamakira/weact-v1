@@ -6,7 +6,7 @@ import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services
 const MAX_LANGUES = 10
 const MAX_LANGUE_LENGTH = 50
 
-export interface UseLanguesReturn {
+interface UseLanguesReturn {
   languesInfo: Ref<LanguesInfo | null>
   isLoading: Ref<boolean>
   isSaving: Ref<boolean>

@@ -3,7 +3,7 @@ import { faceApi } from '../services/faceApi'
 import type { ProfileCompletionInfo, ProfileCompletionMissingItem } from '../types'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
 
-export interface UseProfileCompletionReturn {
+interface UseProfileCompletionReturn {
   completionInfo: Ref<ProfileCompletionInfo | null>
   isLoading: Ref<boolean>
   error: Ref<string | null>

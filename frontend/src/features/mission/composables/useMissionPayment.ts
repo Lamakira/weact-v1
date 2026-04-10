@@ -23,7 +23,7 @@ function computePricing(budgetParFace: number, nombreFaces: number): MissionPric
   }
 }
 
-export interface SelectedFace {
+interface SelectedFace {
   candidatureId: string
   label: string
 }

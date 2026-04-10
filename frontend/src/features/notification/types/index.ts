@@ -24,8 +24,6 @@ export const NotificationType = {
   SHOOTING_DAY_REMINDER: 'shooting_day_reminder',
 } as const
 
-export type NotificationTypeValue = (typeof NotificationType)[keyof typeof NotificationType]
-
 // Notification data structure (varies by type — fields are optional to support both domains)
 export interface NotificationData {
   message: string

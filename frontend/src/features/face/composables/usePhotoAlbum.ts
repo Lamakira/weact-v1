@@ -10,7 +10,7 @@ const MAX_PHOTOS = 4
 const ALLOWED_TYPES = ['image/jpeg', 'image/png']
 const MAX_FILE_SIZE = 8 * 1024 * 1024 // 8MB
 
-export interface UsePhotoAlbumReturn {
+interface UsePhotoAlbumReturn {
   photos: Ref<FacePhoto[]>
   isLoading: Ref<boolean>
   isUploading: Ref<boolean>

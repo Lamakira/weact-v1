@@ -6,7 +6,7 @@ import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services
 const MAX_TARIF_HORAIRE = 10000000
 const MAX_TARIF_JOURNALIER = 100000000
 
-export interface UseTarifsReturn {
+interface UseTarifsReturn {
   tarifsInfo: Ref<TarifsInfo | null>
   isLoading: Ref<boolean>
   isSaving: Ref<boolean>

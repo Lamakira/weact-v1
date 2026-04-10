@@ -8,7 +8,7 @@ const MAX_TAILLE = 300
 const MIN_POIDS = 20
 const MAX_POIDS = 500
 
-export interface UsePhysicalCharacteristicsReturn {
+interface UsePhysicalCharacteristicsReturn {
   physicalCharacteristicsInfo: Ref<PhysicalCharacteristicsInfo | null>
   isLoading: Ref<boolean>
   isSaving: Ref<boolean>

@@ -8,7 +8,7 @@ import type {
 } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
 
-export interface UseCategoryNicheReturn {
+interface UseCategoryNicheReturn {
   categoryNicheInfo: Ref<CategoryNicheInfo | null>
   categoryOptions: Ref<CategoryOption[]>
   nicheOptions: Ref<NicheOption[]>

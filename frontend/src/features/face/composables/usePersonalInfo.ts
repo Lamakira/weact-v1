@@ -5,7 +5,7 @@ import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services
 import { useAuthStore } from '@/stores/auth'
 import type { Face as AuthFace } from '@/features/auth/types'
 
-export interface UsePersonalInfoReturn {
+interface UsePersonalInfoReturn {
   personalInfo: Ref<PersonalInfoInfo | null>
   isLoading: Ref<boolean>
   isSaving: Ref<boolean>

@@ -1,10 +1,10 @@
 import apiClient, { getCsrfCookie } from '@/services/apiClient'
 
-export interface EmailChangeStatusResponse {
+interface EmailChangeStatusResponse {
   pending_email: string | null
 }
 
-export interface EmailChangeConfirmResponse {
+interface EmailChangeConfirmResponse {
   email_changed: boolean
 }
 

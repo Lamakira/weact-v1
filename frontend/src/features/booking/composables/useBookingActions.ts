@@ -3,7 +3,7 @@ import { bookingApi } from '../services/bookingApi'
 import type { Booking, CancellationReasonValue } from '../types'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
 
-export interface UseBookingActionsReturn {
+interface UseBookingActionsReturn {
   isAccepting: Ref<boolean>
   isRefusing: Ref<boolean>
   isConfirming: Ref<boolean>

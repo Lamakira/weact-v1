@@ -16,7 +16,7 @@ import {
 } from 'lucide-vue-next'
 import type { LandingContent, Perspective } from './types'
 
-export const faceContent: LandingContent = {
+const faceContent: LandingContent = {
   howItWorks: {
     title: 'Comment ça marche ?',
     subtitle: '4 étapes simples pour commencer votre carrière',
@@ -88,7 +88,7 @@ export const faceContent: LandingContent = {
   },
 }
 
-export const producerContent: LandingContent = {
+const producerContent: LandingContent = {
   howItWorks: {
     title: 'Comment ça marche',
     subtitle: '4 étapes simples pour trouver vos talents',

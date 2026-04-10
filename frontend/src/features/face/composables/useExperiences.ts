@@ -3,7 +3,7 @@ import { faceApi } from '../services/faceApi'
 import type { Experience, ExperienceFormData, ExperienceResult } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
 
-export interface UseExperiencesReturn {
+interface UseExperiencesReturn {
   experiences: Ref<Experience[]>
   isLoading: Ref<boolean>
   isSaving: Ref<boolean>

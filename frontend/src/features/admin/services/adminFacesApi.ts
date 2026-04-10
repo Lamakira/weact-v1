@@ -64,7 +64,7 @@ export interface AdminFaceData {
 /**
  * Paginated face list response
  */
-export interface AdminFaceListResponse {
+interface AdminFaceListResponse {
   data: AdminFaceData[]
   meta: {
     current_page: number
@@ -77,7 +77,7 @@ export interface AdminFaceListResponse {
 /**
  * Single face detail response
  */
-export interface AdminFaceDetailResponse {
+interface AdminFaceDetailResponse {
   data: AdminFaceData
   message: string
 }

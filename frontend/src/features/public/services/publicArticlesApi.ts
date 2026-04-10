@@ -52,7 +52,7 @@ export interface PublicArticlesResponse {
 /**
  * API response for a single article detail
  */
-export interface PublicArticleDetailResponse {
+interface PublicArticleDetailResponse {
   data: PublicArticleDetail
   message: string
 }

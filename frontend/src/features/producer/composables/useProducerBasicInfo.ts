@@ -3,7 +3,7 @@ import { producerApi } from '../services/producerApi'
 import type { ProducerBasicInfo, ProducerBasicInfoFormData, ProducerBasicInfoResult } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
 
-export interface UseProducerBasicInfoReturn {
+interface UseProducerBasicInfoReturn {
   basicInfo: Ref<ProducerBasicInfo | null>
   isLoading: Ref<boolean>
   isSaving: Ref<boolean>

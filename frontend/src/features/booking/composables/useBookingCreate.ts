@@ -3,7 +3,7 @@ import { bookingApi } from '../services/bookingApi'
 import type { Booking, BookingCreateResult, CreateBookingData } from '../types'
 import { getApiErrorDetails, getApiErrorMessage, getApiErrorCode } from '@/features/auth/services/authApi'
 
-export interface UseBookingCreateReturn {
+interface UseBookingCreateReturn {
   isSubmitting: Ref<boolean>
   error: Ref<string | null>
   errorCode: Ref<string | null>

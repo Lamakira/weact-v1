@@ -6,7 +6,7 @@ import { BENIN_CITY_VALUES } from '@/shared/constants/beninCities'
 
 const MAX_BIO_LENGTH = 500
 
-export interface UseBioLocationReturn {
+interface UseBioLocationReturn {
   bioLocationInfo: Ref<BioLocationInfo | null>
   isLoading: Ref<boolean>
   isSaving: Ref<boolean>

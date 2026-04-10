@@ -66,17 +66,17 @@ export interface RecentActivityEvent {
 /**
  * API response for admin dashboard stats
  */
-export interface AdminDashboardStatsResponse {
+interface AdminDashboardStatsResponse {
   data: AdminDashboardStats
   message: string
 }
 
-export interface AdminDashboardTrendsResponse {
+interface AdminDashboardTrendsResponse {
   data: AdminDashboardTrends
   message: string
 }
 
-export interface AdminDashboardRecentActivityResponse {
+interface AdminDashboardRecentActivityResponse {
   data: RecentActivityEvent[]
   message: string
 }

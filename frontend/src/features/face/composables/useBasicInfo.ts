@@ -3,7 +3,7 @@ import { faceApi } from '../services/faceApi'
 import type { BasicInfo, BasicInfoFormData, BasicInfoResult } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
 
-export interface UseBasicInfoReturn {
+interface UseBasicInfoReturn {
   basicInfo: Ref<BasicInfo | null>
   isLoading: Ref<boolean>
   isSaving: Ref<boolean>

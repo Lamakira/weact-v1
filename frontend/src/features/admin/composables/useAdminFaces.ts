@@ -7,13 +7,13 @@ import {
 } from '../services/adminFacesApi'
 import { getApiErrorDetails, getApiErrorMessage } from '../services/adminAuthApi'
 
-export interface AdminFaceActionResult {
+interface AdminFaceActionResult {
   success: boolean
   errors?: Record<string, string[]>
   message?: string
 }
 
-export interface PaginationMeta {
+interface PaginationMeta {
   current_page: number
   last_page: number
   per_page: number
