@@ -106,34 +106,6 @@ class FedapayService
     }
 
     /**
-     * Initiate a partial refund for a cancelled paid booking.
-     *
-     * @return array{fedapay_refund_id: int, status: string}
-     */
-    public function initiateRefund(Booking $booking, int $refundAmount, string $idempotencyKey): array
-    {
-        if ($booking->fedapay_transaction_id === null) {
-            throw new \RuntimeException('Aucune transaction Fedapay liée au booking pour effectuer un remboursement.');
-        }
-
-        /** @var Transaction $transaction */
-        $transaction = Transaction::retrieve($booking->fedapay_transaction_id);
-        /** @phpstan-ignore-next-line Fedapay exposes refund dynamically on its resource object. */
-        $refund = $transaction->refund([
-            'amount' => $refundAmount,
-            'custom_metadata' => [
-                'booking_id' => $booking->id,
-                'idempotency_key' => $idempotencyKey,
-            ],
-        ]);
-
-        return [
-            'fedapay_refund_id' => (int) $refund->id,
-            'status' => (string) ($refund->status ?? 'pending'),
-        ];
-    }
-
-    /**
      * Verify a Fedapay webhook signature and return the event.
      *
      * @throws \FedaPay\Error\SignatureVerification
