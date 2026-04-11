@@ -126,14 +126,24 @@ export function useCategoryNiche(): UseCategoryNicheReturn {
    * Fetch category options for dropdown
    */
   async function fetchCategoryOptions(): Promise<void> {
+    error.value = null
     await categoryOptionsResource.fetch()
+
+    if (categoryOptionsResource.error.value) {
+      error.value = categoryOptionsResource.error.value
+    }
   }
 
   /**
    * Fetch niche options for dropdown
    */
   async function fetchNicheOptions(): Promise<void> {
+    error.value = null
     await nicheOptionsResource.fetch()
+
+    if (nicheOptionsResource.error.value) {
+      error.value = nicheOptionsResource.error.value
+    }
   }
 
   return {
