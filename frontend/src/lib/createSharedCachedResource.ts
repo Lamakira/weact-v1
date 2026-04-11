@@ -18,6 +18,7 @@ export interface SharedCachedResource<T> {
   invalidate: () => void
   clearError: () => void
   hasFreshData: () => boolean
+  __resetForTests?: () => void
 }
 
 const registry = new Map<string, SharedCachedResource<unknown>>()
@@ -65,6 +66,14 @@ export function createSharedCachedResource<T>(
     lastFetchedAt = 0
   }
 
+  function resetForTests(): void {
+    data.value = options.initialValue
+    isLoading.value = false
+    error.value = null
+    lastFetchedAt = 0
+    inFlight = null
+  }
+
   async function fetch(fetchOptions: { force?: boolean } = {}): Promise<T> {
     const { force = false } = fetchOptions
 
@@ -106,9 +115,16 @@ export function createSharedCachedResource<T>(
     invalidate,
     clearError,
     hasFreshData,
+    __resetForTests: resetForTests,
   }
 
   registry.set(options.key, resource as SharedCachedResource<unknown>)
 
   return resource
+}
+
+export function resetSharedCachedResourcesForTests(): void {
+  for (const resource of registry.values()) {
+    resource.__resetForTests?.()
+  }
 }
