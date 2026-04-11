@@ -106,7 +106,7 @@ export const useNotificationStore = defineStore('notification', () => {
   async function markAllAsRead(): Promise<boolean> {
     // Optimistic local update
     const previousUnreadCount = unreadCount.value
-    const previousReadAts = items.value.map((n) => n.read_at)
+    const previousReadAts: Array<string | null> = items.value.map((n) => n.read_at ?? null)
     const now = new Date().toISOString()
     items.value.forEach((n) => {
       if (!n.read_at) {
@@ -122,7 +122,7 @@ export const useNotificationStore = defineStore('notification', () => {
       console.error('[NotificationStore] Failed to mark all as read:', error)
       // Revert optimistic update on failure
       items.value.forEach((n, i) => {
-        n.read_at = previousReadAts[i]
+        n.read_at = previousReadAts[i] ?? null
       })
       unreadCount.value = previousUnreadCount
       return false
