@@ -2,7 +2,7 @@ import { ref, type Ref } from 'vue'
 import { bookingApi } from '../services/bookingApi'
 import type { Booking } from '../types'
 
-export interface UseBookingDetailReturn {
+interface UseBookingDetailReturn {
   booking: Ref<Booking | null>
   isLoading: Ref<boolean>
   error: Ref<string | null>

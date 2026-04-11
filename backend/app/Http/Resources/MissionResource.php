@@ -7,6 +7,9 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin \App\Models\Mission
+ */
 class MissionResource extends JsonResource
 {
     /**
@@ -32,8 +35,8 @@ class MissionResource extends JsonResource
             'genre_voulu_label' => $this->genre_voulu?->label(),
             'lieu' => $this->lieu,
             'duree' => $this->duree,
-            'status' => $this->status?->value,
-            'status_label' => $this->status?->label(),
+            'status' => $this->status->value,
+            'status_label' => $this->status->label(),
             'is_accepting_candidatures' => $this->isAcceptingCandidatures(),
             'has_paid_payment' => \App\Models\MissionPayment::where('mission_id', $this->id)->where('status', 'paid')->exists(),
             'candidatures_count' => $this->candidatures_count ?? ($this->whenLoaded('candidatures') ? $this->candidatures->count() : 0),

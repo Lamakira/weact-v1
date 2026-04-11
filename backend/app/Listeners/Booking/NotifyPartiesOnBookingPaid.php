@@ -6,8 +6,8 @@ namespace App\Listeners\Booking;
 
 use App\Events\BookingPaid;
 use App\Models\Notification;
-use Illuminate\Events\Attributes\AsEventListener;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener(event: BookingPaid::class)]
 class NotifyPartiesOnBookingPaid
@@ -24,17 +24,17 @@ class NotifyPartiesOnBookingPaid
         try {
             Notification::create([
                 'user_id' => $booking->producer_id,
-                'type'    => 'booking_paid',
-                'data'    => [
-                    'message'    => 'Paiement confirmé ! Le chat est maintenant débloqué.',
+                'type' => 'booking_paid',
+                'data' => [
+                    'message' => 'Paiement confirmé ! Le chat est maintenant débloqué.',
                     'booking_id' => $booking->id,
-                    'url'        => "/producer/bookings/{$booking->uuid}",
+                    'url' => "/producer/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {
             Log::warning('BookingPaid notification for Producer failed', [
                 'booking_id' => $booking->id,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
 
@@ -42,17 +42,17 @@ class NotifyPartiesOnBookingPaid
         try {
             Notification::create([
                 'user_id' => $booking->face_id,
-                'type'    => 'booking_paid',
-                'data'    => [
-                    'message'    => 'Le producteur a effectué le paiement. Le chat est maintenant débloqué !',
+                'type' => 'booking_paid',
+                'data' => [
+                    'message' => 'Le producteur a effectué le paiement. Le chat est maintenant débloqué !',
                     'booking_id' => $booking->id,
-                    'url'        => "/face/bookings/{$booking->uuid}",
+                    'url' => "/face/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {
             Log::warning('BookingPaid notification for Face failed', [
                 'booking_id' => $booking->id,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }

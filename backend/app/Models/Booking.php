@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\HasRouteUuid;
 use App\Enums\BookingStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,8 +12,35 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Auth;
-use App\Concerns\HasRouteUuid;
 
+/**
+ * @property int $id
+ * @property string $uuid
+ * @property \App\Enums\BookingStatus $status
+ * @property \Carbon\CarbonInterface|null $accepted_at
+ * @property \Carbon\CarbonInterface|null $payment_reminder_sent_at
+ * @property \Carbon\CarbonInterface $date_debut
+ * @property \Carbon\CarbonInterface $date_fin
+ * @property int $face_id
+ * @property int $producer_id
+ * @property int $duree_heures
+ * @property string $type_contenu
+ * @property string|null $lieu
+ * @property string|null $message
+ * @property int $tarif_base
+ * @property int $montant_total_producteur
+ * @property int $montant_face_recoit
+ * @property string|null $cancellation_reason
+ * @property string|null $custom_cancellation_reason
+ * @property int|null $fedapay_transaction_id
+ * @property string|null $payment_mode
+ * @property string|null $payment_initiation_key
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read \App\Models\User|null $face
+ * @property-read \App\Models\User|null $producer
+ * @property-read \App\Models\BookingRating|null $raterBookingRating
+ */
 class Booking extends Model
 {
     use HasFactory;
@@ -42,6 +70,7 @@ class Booking extends Model
         'date_fin',
         'duree_heures',
         'type_contenu',
+        'lieu',
         'message',
         'tarif_base',
         'montant_total_producteur',

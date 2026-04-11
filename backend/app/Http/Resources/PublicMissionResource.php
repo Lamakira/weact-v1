@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Models\Producer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -24,6 +25,9 @@ class PublicMissionResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        /** @var Producer|null $producer */
+        $producer = $this->producer;
+
         return [
             'id' => $this->uuid,
             'slug' => $this->slug,
@@ -41,18 +45,18 @@ class PublicMissionResource extends JsonResource
             'genre_voulu_label' => $this->genre_voulu?->label(),
             'lieu' => $this->lieu,
             'duree' => $this->duree,
-            'status' => $this->status?->value,
-            'status_label' => $this->status?->label(),
+            'status' => $this->status->value,
+            'status_label' => $this->status->label(),
             'created_at' => $this->created_at?->toIso8601String(),
-            'producer' => $this->producer ? [
-                'id' => $this->producer->uuid,
-                'slug' => $this->producer->slug,
-                'display_name' => $this->producer->display_name,
-                'profile_photo_thumbnail_url' => $this->producer->thumbnail_url,
-                'average_rating' => $this->producer->ratings_received_avg_score
-                    ? round((float) $this->producer->ratings_received_avg_score, 1)
+            'producer' => $producer ? [
+                'id' => $producer->uuid,
+                'slug' => $producer->slug,
+                'display_name' => $producer->display_name,
+                'profile_photo_thumbnail_url' => $producer->thumbnail_url,
+                'average_rating' => data_get($producer, 'ratings_received_avg_score')
+                    ? round((float) data_get($producer, 'ratings_received_avg_score'), 1)
                     : null,
-                'ratings_count' => (int) ($this->producer->ratings_received_count ?? 0),
+                'ratings_count' => (int) data_get($producer, 'ratings_received_count', 0),
             ] : null,
         ];
     }

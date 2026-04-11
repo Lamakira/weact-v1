@@ -111,5 +111,3 @@ export const missionSchema = z
       path: ['type_mission_autre'],
     },
   )
-
-export type MissionFormData = z.infer<typeof missionSchema>

@@ -74,6 +74,8 @@ class BookingNotificationTest extends TestCase
 
     public function test_booking_created_creates_notification_for_face(): void
     {
+        $this->booking->update(['lieu' => 'Cotonou']);
+
         $listener = new NotifyFaceOnBookingReceived;
         $listener->handle(new BookingCreated($this->booking));
 
@@ -84,7 +86,22 @@ class BookingNotificationTest extends TestCase
         $this->assertNotNull($notification);
         $this->assertEquals($this->booking->id, $notification->data['booking_id']);
         $this->assertStringContainsString('publicité', $notification->data['message']);
+        $this->assertStringContainsString('Cotonou', $notification->data['message']);
         $this->assertEquals("/face/bookings/{$this->booking->uuid}", $notification->data['url']);
+    }
+
+    public function test_booking_created_notification_omits_location_when_booking_has_no_lieu(): void
+    {
+        $listener = new NotifyFaceOnBookingReceived;
+        $listener->handle(new BookingCreated($this->booking));
+
+        $notification = Notification::where('user_id', $this->faceUser->id)
+            ->where('type', 'booking_received')
+            ->latest('id')
+            ->first();
+
+        $this->assertNotNull($notification);
+        $this->assertStringNotContainsString(' à ', $notification->data['message']);
     }
 
     public function test_booking_accepted_creates_notification_for_producer(): void

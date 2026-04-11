@@ -2,13 +2,26 @@ import { ref, type Ref } from 'vue'
 import { faceApi } from '../services/faceApi'
 import type { PhysicalCharacteristicsInfo, PhysicalCharacteristicsResult } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
+import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
 
 const MIN_TAILLE = 50
 const MAX_TAILLE = 300
 const MIN_POIDS = 20
 const MAX_POIDS = 500
+const PHYSICAL_CHARACTERISTICS_CACHE_TTL_MS = 5 * 60 * 1000
 
-export interface UsePhysicalCharacteristicsReturn {
+const physicalCharacteristicsResource = createSharedCachedResource<PhysicalCharacteristicsInfo | null>({
+  key: 'face-physical-characteristics',
+  initialValue: null,
+  ttlMs: PHYSICAL_CHARACTERISTICS_CACHE_TTL_MS,
+  load: async () => {
+    const response = await faceApi.getPhysicalCharacteristics()
+    return response.data
+  },
+  getErrorMessage: getApiErrorMessage,
+})
+
+interface UsePhysicalCharacteristicsReturn {
   physicalCharacteristicsInfo: Ref<PhysicalCharacteristicsInfo | null>
   isLoading: Ref<boolean>
   isSaving: Ref<boolean>
@@ -27,10 +40,10 @@ export interface UsePhysicalCharacteristicsReturn {
  * Composable for Face physical characteristics operations
  */
 export function usePhysicalCharacteristics(): UsePhysicalCharacteristicsReturn {
-  const physicalCharacteristicsInfo = ref<PhysicalCharacteristicsInfo | null>(null)
-  const isLoading = ref(false)
+  const physicalCharacteristicsInfo = physicalCharacteristicsResource.data
+  const isLoading = physicalCharacteristicsResource.isLoading
   const isSaving = ref(false)
-  const error = ref<string | null>(null)
+  const error = physicalCharacteristicsResource.error
 
   /**
    * Validate taille (height in cm)
@@ -92,24 +105,14 @@ export function usePhysicalCharacteristics(): UsePhysicalCharacteristicsReturn {
    * Clear the current error
    */
   function clearError(): void {
-    error.value = null
+    physicalCharacteristicsResource.clearError()
   }
 
   /**
    * Fetch the current physical characteristics
    */
   async function fetchPhysicalCharacteristics(): Promise<void> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const response = await faceApi.getPhysicalCharacteristics()
-      physicalCharacteristicsInfo.value = response.data
-    } catch (err) {
-      error.value = getApiErrorMessage(err)
-    } finally {
-      isLoading.value = false
-    }
+    await physicalCharacteristicsResource.fetch()
   }
 
   /**
@@ -148,7 +151,7 @@ export function usePhysicalCharacteristics(): UsePhysicalCharacteristicsReturn {
 
     try {
       const response = await faceApi.updatePhysicalCharacteristics(data)
-      physicalCharacteristicsInfo.value = response.data
+      physicalCharacteristicsResource.setData(response.data)
 
       return {
         success: true,

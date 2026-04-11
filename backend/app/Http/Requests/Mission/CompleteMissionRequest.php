@@ -9,6 +9,7 @@ use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Models\Candidature;
 use App\Models\Mission;
+use App\Models\MissionPayment;
 use App\Models\Producer;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -94,6 +95,7 @@ class CompleteMissionRequest extends FormRequest
                 return;
             }
 
+            /** @var MissionPayment|null $payment */
             $payment = $mission->payment;
 
             if (! $payment || $payment->status !== MissionPaymentStatus::Paid) {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Models;
 
 use App\Enums\MissionStatus;
+use App\Enums\ProducerType;
 use App\Models\Mission;
 use App\Models\Producer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -119,5 +120,41 @@ class ProducerTest extends TestCase
 
         $this->assertEquals(2, $producer1->published_missions_count);
         $this->assertEquals(3, $producer2->published_missions_count);
+    }
+
+    public function test_it_generates_a_slug_from_the_producer_identity(): void
+    {
+        $producer = Producer::factory()->create([
+            'slug' => null,
+            'type' => ProducerType::Agency,
+            'agency_name' => 'Studio XYZ',
+        ]);
+
+        $this->assertSame('studio-xyz', $producer->slug);
+    }
+
+    public function test_it_regenerates_the_slug_when_identity_fields_change(): void
+    {
+        $producer = Producer::factory()->create([
+            'slug' => null,
+            'type' => ProducerType::Agency,
+            'agency_name' => 'Studio XYZ',
+        ]);
+
+        $producer->update(['agency_name' => 'Studio Alpha']);
+
+        $this->assertSame('studio-alpha', $producer->fresh()->slug);
+    }
+
+    public function test_it_falls_back_to_a_default_slug_when_identity_is_blank(): void
+    {
+        $producer = Producer::factory()->create([
+            'slug' => null,
+            'type' => ProducerType::Particulier,
+            'first_name' => '',
+            'last_name' => '',
+        ]);
+
+        $this->assertSame('producer', $producer->slug);
     }
 }

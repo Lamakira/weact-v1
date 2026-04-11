@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\Notification;
+use App\Observers\NotificationObserver;
 use Carbon\Carbon;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -28,6 +30,9 @@ class AppServiceProvider extends ServiceProvider
         // in production to prevent accidental data loss
         DB::prohibitDestructiveCommands($this->app->isProduction());
 
+        // Broadcast NotificationCreated event whenever a notification is persisted
+        Notification::observe(NotificationObserver::class);
+
         // Set Carbon locale globally for French date formatting
         Carbon::setLocale('fr');
 
@@ -39,6 +44,13 @@ class AppServiceProvider extends ServiceProvider
         // Rate limiter for polling routes — generous limit keyed by user ID to avoid false throttling
         RateLimiter::for('polling', function (Request $request) {
             return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());
+        });
+
+        // Rate limiter for authenticated SPA read endpoints.
+        // The UI mounts multiple independent sections in parallel, so 60/min is too tight
+        // for profile and dashboard pages despite being harmless read traffic.
+        RateLimiter::for('ui-read', function (Request $request) {
+            return Limit::perMinute(240)->by($request->user()?->id ?: $request->ip());
         });
 
         // Rate limiter for withdrawal — 5 attempts per 10 minutes per user

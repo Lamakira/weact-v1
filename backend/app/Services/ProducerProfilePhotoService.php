@@ -13,17 +13,20 @@ use Intervention\Image\Laravel\Facades\Image;
 class ProducerProfilePhotoService
 {
     private const STORAGE_PATH = 'avatars/producers';
+
     private const THUMBNAIL_PATH = 'avatars/producers/thumbnails';
+
     private const MEDIUM_PATH = 'avatars/producers/medium';
+
     private const THUMBNAIL_SIZE = 150;
+
     private const MEDIUM_WIDTH = 800;
+
     private const QUALITY = 85;
 
     /**
      * Upload a profile photo for a Producer and generate thumbnail + medium.
      *
-     * @param Producer $producer
-     * @param UploadedFile $photo
      * @return array{photo: string, thumbnail: string, medium: string}
      */
     public function uploadProfilePhoto(Producer $producer, UploadedFile $photo): array
@@ -31,8 +34,8 @@ class ProducerProfilePhotoService
         $this->deleteProfilePhoto($producer);
 
         $extension = $photo->getClientOriginalExtension() ?: 'jpg';
-        $filename = Str::uuid()->toString() . '.' . $extension;
-        $mediumFilename = pathinfo($filename, PATHINFO_FILENAME) . '.webp';
+        $filename = Str::uuid()->toString().'.'.$extension;
+        $mediumFilename = pathinfo($filename, PATHINFO_FILENAME).'.webp';
 
         Storage::disk('public')->putFileAs(self::STORAGE_PATH, $photo, $filename);
 
@@ -61,18 +64,27 @@ class ProducerProfilePhotoService
         $disk = Storage::disk('public');
 
         if ($producer->profile_photo) {
-            $path = self::STORAGE_PATH . '/' . $producer->profile_photo;
-            if ($disk->exists($path)) { $disk->delete($path); $deleted = true; }
+            $path = self::STORAGE_PATH.'/'.$producer->profile_photo;
+            if ($disk->exists($path)) {
+                $disk->delete($path);
+                $deleted = true;
+            }
         }
 
         if ($producer->profile_photo_thumbnail) {
-            $path = self::THUMBNAIL_PATH . '/' . $producer->profile_photo_thumbnail;
-            if ($disk->exists($path)) { $disk->delete($path); $deleted = true; }
+            $path = self::THUMBNAIL_PATH.'/'.$producer->profile_photo_thumbnail;
+            if ($disk->exists($path)) {
+                $disk->delete($path);
+                $deleted = true;
+            }
         }
 
         if ($producer->profile_photo_medium) {
-            $path = self::MEDIUM_PATH . '/' . $producer->profile_photo_medium;
-            if ($disk->exists($path)) { $disk->delete($path); $deleted = true; }
+            $path = self::MEDIUM_PATH.'/'.$producer->profile_photo_medium;
+            if ($disk->exists($path)) {
+                $disk->delete($path);
+                $deleted = true;
+            }
         }
 
         if ($producer->profile_photo || $producer->profile_photo_thumbnail || $producer->profile_photo_medium) {
@@ -91,7 +103,7 @@ class ProducerProfilePhotoService
         $image = Image::read($photo->getRealPath());
         $image->cover(self::THUMBNAIL_SIZE, self::THUMBNAIL_SIZE);
         $encoded = $image->toJpeg(self::QUALITY);
-        Storage::disk('public')->put(self::THUMBNAIL_PATH . '/' . $filename, $encoded->toString());
+        Storage::disk('public')->put(self::THUMBNAIL_PATH.'/'.$filename, $encoded->toString());
 
         return $filename;
     }
@@ -101,6 +113,6 @@ class ProducerProfilePhotoService
         $image = Image::read($photo->getRealPath());
         $image->scaleDown(width: self::MEDIUM_WIDTH);
         $encoded = $image->toWebp(self::QUALITY);
-        Storage::disk('public')->put(self::MEDIUM_PATH . '/' . $mediumFilename, $encoded->toString());
+        Storage::disk('public')->put(self::MEDIUM_PATH.'/'.$mediumFilename, $encoded->toString());
     }
 }

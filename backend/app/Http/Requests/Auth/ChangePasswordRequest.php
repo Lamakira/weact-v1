@@ -38,7 +38,7 @@ class ChangePasswordRequest extends FormRequest
         $validator->after(function (Validator $validator) {
             $user = $this->user();
 
-            if ($user && $this->filled('current_password') && !Hash::check($this->input('current_password'), $user->password)) {
+            if ($user && $this->filled('current_password') && ! Hash::check($this->input('current_password'), $user->password)) {
                 $validator->errors()->add('current_password', 'Le mot de passe actuel est incorrect.');
             }
 

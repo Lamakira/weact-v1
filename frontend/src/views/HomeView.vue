@@ -26,7 +26,6 @@ const content = computed(() => getContent(perspective.value))
 
 // --- Sticky Toggle State ---
 const isToggleSticky = ref(false)
-const toggleContainerRef = ref<HTMLElement | null>(null)
 const togglePlaceholderRef = ref<HTMLElement | null>(null)
 
 function handleScroll(): void {
@@ -138,7 +137,6 @@ function formatDate(date: string): string {
 
     <!-- Toggle container (compact + sticky below header when scrolling) -->
     <div
-      ref="toggleContainerRef"
       :class="[
         'left-0 right-0 transition-all duration-200',
         isToggleSticky

@@ -10,7 +10,6 @@ use App\Models\User;
 use App\Notifications\PasswordChangedNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
-use Laravel\Sanctum\PersonalAccessToken;
 
 class PasswordChangeController extends Controller
 {
@@ -28,11 +27,9 @@ class PasswordChangeController extends Controller
 
         // Invalidate all other sessions/tokens (keep current)
         $currentToken = $request->user()->currentAccessToken();
-        if ($currentToken instanceof PersonalAccessToken) {
-            $user->tokens()->where('id', '!=', $currentToken->id)->delete();
-        }
+        $user->tokens()->where('id', '!=', $currentToken->id)->delete();
 
-        $user->notify(new PasswordChangedNotification());
+        $user->notify(new PasswordChangedNotification);
 
         return response()->json([
             'data' => ['password_changed' => true],

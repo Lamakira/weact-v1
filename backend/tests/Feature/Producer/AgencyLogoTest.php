@@ -17,8 +17,11 @@ class AgencyLogoTest extends TestCase
     use RefreshDatabase;
 
     private User $agencyUser;
+
     private Producer $agencyProducer;
+
     private User $particulierUser;
+
     private Producer $particulierProducer;
 
     protected function setUp(): void
@@ -71,8 +74,8 @@ class AgencyLogoTest extends TestCase
         $this->assertNotNull($this->agencyProducer->agency_logo_thumbnail);
 
         // Verify files exist in storage
-        Storage::disk('public')->assertExists('logos/agencies/' . $this->agencyProducer->agency_logo);
-        Storage::disk('public')->assertExists('logos/agencies/thumbnails/' . $this->agencyProducer->agency_logo_thumbnail);
+        Storage::disk('public')->assertExists('logos/agencies/'.$this->agencyProducer->agency_logo);
+        Storage::disk('public')->assertExists('logos/agencies/thumbnails/'.$this->agencyProducer->agency_logo_thumbnail);
     }
 
     public function test_agency_can_upload_png_logo(): void
@@ -106,7 +109,7 @@ class AgencyLogoTest extends TestCase
         $this->assertNotNull($this->agencyProducer->agency_logo_thumbnail);
 
         // Verify thumbnail exists
-        Storage::disk('public')->assertExists('logos/agencies/thumbnails/' . $this->agencyProducer->agency_logo_thumbnail);
+        Storage::disk('public')->assertExists('logos/agencies/thumbnails/'.$this->agencyProducer->agency_logo_thumbnail);
     }
 
     public function test_old_logo_is_deleted_when_uploading_new_one(): void
@@ -117,8 +120,8 @@ class AgencyLogoTest extends TestCase
             ->postJson('/api/v1/producer/profile/logo', ['logo' => $firstFile]);
 
         $this->agencyProducer->refresh();
-        $oldLogoPath = 'logos/agencies/' . $this->agencyProducer->agency_logo;
-        $oldThumbnailPath = 'logos/agencies/thumbnails/' . $this->agencyProducer->agency_logo_thumbnail;
+        $oldLogoPath = 'logos/agencies/'.$this->agencyProducer->agency_logo;
+        $oldThumbnailPath = 'logos/agencies/thumbnails/'.$this->agencyProducer->agency_logo_thumbnail;
 
         // Verify first logo exists
         Storage::disk('public')->assertExists($oldLogoPath);
@@ -137,7 +140,7 @@ class AgencyLogoTest extends TestCase
 
         // New logo should exist
         $this->agencyProducer->refresh();
-        Storage::disk('public')->assertExists('logos/agencies/' . $this->agencyProducer->agency_logo);
+        Storage::disk('public')->assertExists('logos/agencies/'.$this->agencyProducer->agency_logo);
     }
 
     public function test_agency_can_delete_logo(): void
@@ -148,8 +151,8 @@ class AgencyLogoTest extends TestCase
             ->postJson('/api/v1/producer/profile/logo', ['logo' => $file]);
 
         $this->agencyProducer->refresh();
-        $logoPath = 'logos/agencies/' . $this->agencyProducer->agency_logo;
-        $thumbnailPath = 'logos/agencies/thumbnails/' . $this->agencyProducer->agency_logo_thumbnail;
+        $logoPath = 'logos/agencies/'.$this->agencyProducer->agency_logo;
+        $thumbnailPath = 'logos/agencies/thumbnails/'.$this->agencyProducer->agency_logo_thumbnail;
 
         // Verify logo exists
         Storage::disk('public')->assertExists($logoPath);

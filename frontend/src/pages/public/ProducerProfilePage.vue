@@ -2,6 +2,7 @@
 import { watch, computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
+  CheckCircle,
   ChevronLeft,
   Star,
   Briefcase,
@@ -279,8 +280,18 @@ function handleGoBack(): void {
                     <Briefcase class="w-5 h-5" />
                   </div>
                   <div class="flex flex-col">
-                    <span class="text-lg font-bold text-slate-800 leading-none">{{ producer.missions_count }}</span>
-                    <span class="text-[10px] text-slate-500 font-medium uppercase tracking-wider mt-1">Missions</span>
+                    <span class="text-lg font-bold text-slate-800 leading-none">{{ producer.in_progress_missions_count ?? 0 }}</span>
+                    <span class="text-[10px] text-slate-500 font-medium uppercase tracking-wider mt-1">En cours</span>
+                  </div>
+                </div>
+                <div class="w-px h-8 bg-gray-100 mx-1" aria-hidden="true" />
+                <div class="flex items-center gap-3 px-3 py-1.5">
+                  <div class="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
+                    <CheckCircle class="w-5 h-5" />
+                  </div>
+                  <div class="flex flex-col">
+                    <span class="text-lg font-bold text-slate-800 leading-none">{{ producer.completed_missions_count ?? 0 }}</span>
+                    <span class="text-[10px] text-slate-500 font-medium uppercase tracking-wider mt-1">Terminées</span>
                   </div>
                 </div>
                 <div class="w-px h-8 bg-gray-100 mx-1" aria-hidden="true" />
@@ -313,8 +324,18 @@ function handleGoBack(): void {
                     <Briefcase class="w-5 h-5" />
                   </div>
                   <div>
-                    <div class="text-lg font-bold text-slate-800 leading-none" data-testid="missions-count">{{ producer.missions_count }}</div>
-                    <div class="text-xs text-slate-400 font-medium">Missions publiées</div>
+                    <div class="text-lg font-bold text-slate-800 leading-none" data-testid="missions-count">{{ producer.in_progress_missions_count ?? 0 }}</div>
+                    <div class="text-xs text-slate-400 font-medium">Missions en cours</div>
+                  </div>
+                </div>
+
+                <div class="flex items-center gap-3 bg-white p-3 pr-5 rounded-full border border-gray-50 shadow-sm transition-shadow hover:shadow-md">
+                  <div class="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-600">
+                    <CheckCircle class="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div class="text-lg font-bold text-slate-800 leading-none" data-testid="completed-missions-count">{{ producer.completed_missions_count ?? 0 }}</div>
+                    <div class="text-xs text-slate-400 font-medium">Missions terminées</div>
                   </div>
                 </div>
 

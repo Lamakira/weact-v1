@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
+use App\Models\User;
 use App\Models\WithdrawalRequest;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -38,17 +39,20 @@ class WithdrawalRequestSubmittedMail extends Mailable
                 'withdrawalRequest' => $this->withdrawalRequest,
                 'userDisplayName' => $this->userDisplayName(),
                 'formattedAmount' => $this->formattedAmount(),
-                'adminUrl' => rtrim((string) config('app.frontend_url'), '/') . '/admin/finance',
+                'adminUrl' => rtrim((string) config('app.frontend_url'), '/').'/admin/finance',
             ],
         );
     }
 
     private function userDisplayName(): string
     {
+        /** @var User|null $user */
+        $user = $this->withdrawalRequest->user;
+
         return (string) (
-            data_get($this->withdrawalRequest->user, 'userable.display_name')
-            ?? data_get($this->withdrawalRequest->user, 'userable.prenom')
-            ?? $this->withdrawalRequest->user?->email
+            data_get($user, 'userable.display_name')
+            ?? data_get($user, 'userable.prenom')
+            ?? ($user instanceof User ? $user->email : null)
             ?? 'Utilisateur'
         );
     }

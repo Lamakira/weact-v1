@@ -148,7 +148,7 @@ class EmailChangeTest extends TestCase
         $path = parse_url($signedUrl, PHP_URL_PATH);
         $query = parse_url($signedUrl, PHP_URL_QUERY);
 
-        $response = $this->getJson($path . '?' . $query);
+        $response = $this->getJson($path.'?'.$query);
 
         $response->assertOk()
             ->assertJson([
@@ -176,7 +176,7 @@ class EmailChangeTest extends TestCase
         $path = parse_url($signedUrl, PHP_URL_PATH);
         $query = parse_url($signedUrl, PHP_URL_QUERY);
 
-        $response = $this->getJson($path . '?' . $query);
+        $response = $this->getJson($path.'?'.$query);
 
         $response->assertForbidden()
             ->assertJson([
@@ -199,7 +199,7 @@ class EmailChangeTest extends TestCase
         $path = parse_url($signedUrl, PHP_URL_PATH);
         $query = parse_url($signedUrl, PHP_URL_QUERY);
 
-        $response = $this->getJson($path . '?' . $query);
+        $response = $this->getJson($path.'?'.$query);
 
         $response->assertForbidden()
             ->assertJson([
@@ -218,7 +218,7 @@ class EmailChangeTest extends TestCase
         $path = parse_url($signedUrl, PHP_URL_PATH);
         $query = parse_url($signedUrl, PHP_URL_QUERY);
 
-        $response = $this->getJson($path . '?' . $query);
+        $response = $this->getJson($path.'?'.$query);
 
         $response->assertBadRequest()
             ->assertJson([
@@ -243,7 +243,7 @@ class EmailChangeTest extends TestCase
         $path = parse_url($signedUrl, PHP_URL_PATH);
         $query = parse_url($signedUrl, PHP_URL_QUERY);
 
-        $response = $this->getJson($path . '?' . $query);
+        $response = $this->getJson($path.'?'.$query);
 
         $response->assertConflict()
             ->assertJson([

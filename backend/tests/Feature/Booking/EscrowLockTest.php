@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Booking;
 
-use App\Enums\BookingStatus;
 use App\Enums\FinancialEventType;
 use App\Models\Booking;
 use App\Models\EscrowTransaction;
@@ -119,4 +118,3 @@ class EscrowLockTest extends TestCase
         $this->assertEquals($this->acceptedBooking->montant_face_recoit, $escrow->amount);
     }
 }
-

@@ -13,7 +13,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Transforms Rating model data for public display,
  * including rater information for transparency.
  *
- * @mixin \App\Models\Rating
+ * @mixin \App\Models\BookingRating
  */
 class ReviewResource extends JsonResource
 {
@@ -35,8 +35,9 @@ class ReviewResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'formatted_date' => $this->created_at?->translatedFormat('j F Y'),
             'rater' => [
-                'display_name' => $userable?->display_name ?? $rater?->email ?? 'Utilisateur',
-                'profile_photo_url' => $userable?->profile_photo_url,
+                'display_name' => data_get($userable, 'display_name')
+                    ?? ($rater !== null ? $rater->email : 'Utilisateur'),
+                'profile_photo_url' => data_get($userable, 'profile_photo_url'),
             ],
         ];
     }

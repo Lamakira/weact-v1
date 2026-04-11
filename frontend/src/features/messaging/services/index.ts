@@ -1,1 +1,0 @@
-export { messagingApi } from './messagingApi'

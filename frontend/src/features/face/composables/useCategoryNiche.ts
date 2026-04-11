@@ -7,8 +7,46 @@ import type {
   NicheOption,
 } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
+import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
 
-export interface UseCategoryNicheReturn {
+const CATEGORY_NICHE_CACHE_TTL_MS = 5 * 60 * 1000
+const CATEGORY_OPTIONS_CACHE_TTL_MS = 30 * 60 * 1000
+const NICHE_OPTIONS_CACHE_TTL_MS = 30 * 60 * 1000
+
+const categoryNicheResource = createSharedCachedResource<CategoryNicheInfo | null>({
+  key: 'face-category-niche',
+  initialValue: null,
+  ttlMs: CATEGORY_NICHE_CACHE_TTL_MS,
+  load: async () => {
+    const response = await faceApi.getCategoryNiche()
+    return response.data
+  },
+  getErrorMessage: getApiErrorMessage,
+})
+
+const categoryOptionsResource = createSharedCachedResource<CategoryOption[]>({
+  key: 'face-category-options',
+  initialValue: [],
+  ttlMs: CATEGORY_OPTIONS_CACHE_TTL_MS,
+  load: async () => {
+    const response = await faceApi.getCategoryOptions()
+    return response.data
+  },
+  getErrorMessage: getApiErrorMessage,
+})
+
+const nicheOptionsResource = createSharedCachedResource<NicheOption[]>({
+  key: 'face-niche-options',
+  initialValue: [],
+  ttlMs: NICHE_OPTIONS_CACHE_TTL_MS,
+  load: async () => {
+    const response = await faceApi.getNicheOptions()
+    return response.data
+  },
+  getErrorMessage: getApiErrorMessage,
+})
+
+interface UseCategoryNicheReturn {
   categoryNicheInfo: Ref<CategoryNicheInfo | null>
   categoryOptions: Ref<CategoryOption[]>
   nicheOptions: Ref<NicheOption[]>
@@ -29,35 +67,25 @@ export interface UseCategoryNicheReturn {
  * Composable for Face category and niche operations (multi-select)
  */
 export function useCategoryNiche(): UseCategoryNicheReturn {
-  const categoryNicheInfo = ref<CategoryNicheInfo | null>(null)
-  const categoryOptions = ref<CategoryOption[]>([])
-  const nicheOptions = ref<NicheOption[]>([])
-  const isLoading = ref(false)
+  const categoryNicheInfo = categoryNicheResource.data
+  const categoryOptions = categoryOptionsResource.data
+  const nicheOptions = nicheOptionsResource.data
+  const isLoading = categoryNicheResource.isLoading
   const isSaving = ref(false)
-  const error = ref<string | null>(null)
+  const error = categoryNicheResource.error
 
   /**
    * Clear the current error
    */
   function clearError(): void {
-    error.value = null
+    categoryNicheResource.clearError()
   }
 
   /**
    * Fetch the current categories and niches
    */
   async function fetchCategoryNiche(): Promise<void> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const response = await faceApi.getCategoryNiche()
-      categoryNicheInfo.value = response.data
-    } catch (err) {
-      error.value = getApiErrorMessage(err)
-    } finally {
-      isLoading.value = false
-    }
+    await categoryNicheResource.fetch()
   }
 
   /**
@@ -72,7 +100,7 @@ export function useCategoryNiche(): UseCategoryNicheReturn {
 
     try {
       const response = await faceApi.updateCategoryNiche(data)
-      categoryNicheInfo.value = response.data
+      categoryNicheResource.setData(response.data)
 
       return {
         success: true,
@@ -98,11 +126,11 @@ export function useCategoryNiche(): UseCategoryNicheReturn {
    * Fetch category options for dropdown
    */
   async function fetchCategoryOptions(): Promise<void> {
-    try {
-      const response = await faceApi.getCategoryOptions()
-      categoryOptions.value = response.data
-    } catch (err) {
-      error.value = getApiErrorMessage(err)
+    error.value = null
+    await categoryOptionsResource.fetch()
+
+    if (categoryOptionsResource.error.value) {
+      error.value = categoryOptionsResource.error.value
     }
   }
 
@@ -110,11 +138,11 @@ export function useCategoryNiche(): UseCategoryNicheReturn {
    * Fetch niche options for dropdown
    */
   async function fetchNicheOptions(): Promise<void> {
-    try {
-      const response = await faceApi.getNicheOptions()
-      nicheOptions.value = response.data
-    } catch (err) {
-      error.value = getApiErrorMessage(err)
+    error.value = null
+    await nicheOptionsResource.fetch()
+
+    if (nicheOptionsResource.error.value) {
+      error.value = nicheOptionsResource.error.value
     }
   }
 

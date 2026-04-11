@@ -117,9 +117,12 @@ apiClient.interceptors.response.use(
       // Clear Pinia auth store if available
       if (piniaInstance) {
         // Dynamic import to avoid circular dependency
-        import('@/stores/auth').then(({ useAuthStore }) => {
-          const authStore = useAuthStore(piniaInstance!)
-          authStore.clearAuth()
+        Promise.all([
+          import('@/stores/notification'),
+          import('@/stores/auth'),
+        ]).then(([{ useNotificationStore }, { useAuthStore }]) => {
+          useNotificationStore(piniaInstance!).unsubscribe()
+          useAuthStore(piniaInstance!).clearAuth()
         })
       }
 

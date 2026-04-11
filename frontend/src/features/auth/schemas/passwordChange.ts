@@ -5,7 +5,7 @@ import { toTypedSchema } from '@vee-validate/zod'
  * Zod schema for password change validation
  * Matches backend validation rules in ChangePasswordRequest
  */
-export const passwordChangeSchema = z
+const passwordChangeSchema = z
   .object({
     current_password: z
       .string({ message: 'Le mot de passe actuel est obligatoire' })
@@ -32,8 +32,3 @@ export const passwordChangeSchema = z
  * Typed schema for VeeValidate
  */
 export const passwordChangeValidationSchema = toTypedSchema(passwordChangeSchema)
-
-/**
- * Type inferred from the schema
- */
-export type PasswordChangeFormData = z.infer<typeof passwordChangeSchema>

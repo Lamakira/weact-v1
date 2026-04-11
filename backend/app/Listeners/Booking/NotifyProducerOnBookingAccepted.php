@@ -6,8 +6,8 @@ namespace App\Listeners\Booking;
 
 use App\Events\BookingAccepted;
 use App\Models\Notification;
-use Illuminate\Events\Attributes\AsEventListener;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener(event: BookingAccepted::class)]
 class NotifyProducerOnBookingAccepted
@@ -22,21 +22,21 @@ class NotifyProducerOnBookingAccepted
             $booking = $event->booking;
 
             $booking->loadMissing('face.userable');
-            $faceName = $booking->face?->userable?->display_name ?? 'La Face';
+            $faceName = (string) data_get($booking, 'face.userable.display_name', 'La Face');
 
             Notification::create([
                 'user_id' => $booking->producer_id,
-                'type'    => 'booking_accepted',
-                'data'    => [
-                    'message'    => "{$faceName} a accepté votre booking",
+                'type' => 'booking_accepted',
+                'data' => [
+                    'message' => "{$faceName} a accepté votre booking",
                     'booking_id' => $booking->id,
-                    'url'        => "/producer/bookings/{$booking->uuid}",
+                    'url' => "/producer/bookings/{$booking->uuid}",
                 ],
             ]);
         } catch (\Throwable $e) {
             Log::warning('BookingAccepted notification failed', [
                 'booking_id' => $event->booking->id,
-                'error'      => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }

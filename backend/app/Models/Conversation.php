@@ -4,13 +4,24 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\HasRouteUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use App\Concerns\HasRouteUuid;
 
+/**
+ * @property int $id
+ * @property string $uuid
+ * @property int $candidature_id
+ * @property \Illuminate\Support\Carbon $updated_at
+ * @property-read \App\Models\Candidature|null $candidature
+ * @property-read \App\Models\Face|null $face
+ * @property-read \App\Models\Producer|null $producer
+ * @property-read \App\Models\Message|null $latestMessage
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Message> $messages
+ */
 class Conversation extends Model
 {
     use HasFactory;

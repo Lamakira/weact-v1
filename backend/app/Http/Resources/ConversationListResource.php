@@ -14,6 +14,8 @@ use Illuminate\Support\Str;
  *
  * Does not include full messages array - only latest message preview.
  * Used for displaying conversation list with unread counts.
+ *
+ * @mixin \App\Models\Conversation
  */
 class ConversationListResource extends JsonResource
 {
@@ -30,15 +32,15 @@ class ConversationListResource extends JsonResource
         return [
             'id' => $this->uuid,
             'candidature_id' => $this->candidature_id,
-            'mission_title' => $this->candidature?->mission?->titre ?? '',
+            'mission_title' => data_get($this->candidature, 'mission.titre', ''),
             'other_participant' => $this->getOtherParticipant($currentUser),
             'latest_message' => $latestMessage ? [
                 'content' => Str::limit($latestMessage->content, 50),
-                'sender_name' => $latestMessage->sender?->userable?->display_name ?? 'Inconnu',
+                'sender_name' => data_get($latestMessage, 'sender.userable.display_name', 'Inconnu'),
                 'is_mine' => $latestMessage->sender_id === $currentUser?->id,
                 'created_at' => $latestMessage->created_at->toIso8601String(),
             ] : null,
-            'unread_count' => $currentUser ? $this->unreadCountFor($currentUser) : 0,
+            'unread_count' => $currentUser ? $this->resource->unreadCountFor($currentUser) : 0,
             'updated_at' => $this->updated_at->toIso8601String(),
         ];
     }
@@ -53,13 +55,13 @@ class ConversationListResource extends JsonResource
      */
     private function getOtherParticipant($currentUser): ?array
     {
-        if (!$currentUser) {
+        if (! $currentUser) {
             return null;
         }
 
         $candidature = $this->candidature;
 
-        if (!$candidature) {
+        if (! $candidature) {
             return null;
         }
 
@@ -67,7 +69,7 @@ class ConversationListResource extends JsonResource
         if ($currentUser->userable_type === Face::class) {
             $producer = $candidature->mission?->producer;
 
-            if (!$producer) {
+            if (! $producer) {
                 return null;
             }
 
@@ -82,7 +84,7 @@ class ConversationListResource extends JsonResource
         // If current user is a Producer, return the Face
         $face = $candidature->face;
 
-        if (!$face) {
+        if (! $face) {
             return null;
         }
 

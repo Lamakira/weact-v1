@@ -11,8 +11,8 @@ import { LayoutDashboard, FileText, MessageCircle, User, Briefcase, CalendarChec
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { DashboardLayout, type SidebarItem } from '@/components/layout'
-import { faceApi } from '@/features/face/services/faceApi'
-import type { FaceProfile } from '@/features/face/types'
+import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
+import { usePersonalInfo } from '@/features/face/composables/usePersonalInfo'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 import TarifsMissingBanner from '@/components/TarifsMissingBanner.vue'
 import WhatsappMissingBanner from '@/components/WhatsappMissingBanner.vue'
@@ -20,13 +20,12 @@ import WhatsappMissingBanner from '@/components/WhatsappMissingBanner.vue'
 const route = useRoute()
 const authStore = useAuthStore()
 const { logout, isLoading } = useAuth()
-
-// Profile data for avatar
-const profile = ref<FaceProfile | null>(null)
+const { profile, fetchProfile } = useProfilePhoto()
+const { personalInfo, fetchPersonalInfo } = usePersonalInfo()
 
 const hasTarifs = computed(() => !!profile.value?.tarif_journalier)
 const personalInfoLoaded = ref(false)
-const hasWhatsapp = ref(false)
+const hasWhatsapp = computed(() => !!personalInfo.value?.whatsapp_number)
 
 // Sidebar navigation items for Face dashboard
 const sidebarItems: SidebarItem[] = [
@@ -50,8 +49,7 @@ const userName = computed(() => {
 // Fetch profile on mount to get avatar
 onMounted(async () => {
   try {
-    const response = await faceApi.getProfile()
-    profile.value = response.data
+    await fetchProfile()
   } catch {
     // Silently fail - avatar will show fallback
   }
@@ -61,11 +59,10 @@ onMounted(async () => {
 
 async function fetchWhatsappStatus(): Promise<void> {
   try {
-    const personalInfo = await faceApi.getPersonalInfo()
-    hasWhatsapp.value = !!personalInfo.data.whatsapp_number
+    await fetchPersonalInfo()
     personalInfoLoaded.value = true
   } catch {
-    // Silently fail - banner will show (hasWhatsapp stays false)
+    // Silently fail - banner will show until data can be loaded
     personalInfoLoaded.value = true
   }
 }

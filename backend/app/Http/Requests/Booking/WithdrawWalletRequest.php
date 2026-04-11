@@ -20,9 +20,9 @@ class WithdrawWalletRequest extends FormRequest
      * @var array<string, list<string>>
      */
     private const BENIN_PREFIXES = [
-        'mtn'     => ['0142','0146','0150','0151','0152','0153','0154','0156','0157','0159','0161','0162','0166','0167','0169','0190','0191','0196','0197'],
-        'moov'    => ['0145','0155','0158','0160','0163','0164','0165','0168','0194','0195','0198','0199'],
-        'celtiis' => ['0120','0121','0122','0123','0124','0128','0129','0140','0141','0143','0144','0147','0148','0149','0192','0193'],
+        'mtn' => ['0142', '0146', '0150', '0151', '0152', '0153', '0154', '0156', '0157', '0159', '0161', '0162', '0166', '0167', '0169', '0190', '0191', '0196', '0197'],
+        'moov' => ['0145', '0155', '0158', '0160', '0163', '0164', '0165', '0168', '0194', '0195', '0198', '0199'],
+        'celtiis' => ['0120', '0121', '0122', '0123', '0124', '0128', '0129', '0140', '0141', '0143', '0144', '0147', '0148', '0149', '0192', '0193'],
     ];
 
     public function authorize(): bool
@@ -39,9 +39,9 @@ class WithdrawWalletRequest extends FormRequest
         $balance = (int) ($this->user()->balance ?? 0);
 
         return [
-            'amount'        => ['required', 'integer', 'min:' . self::MIN_AMOUNT, "max:{$balance}"],
-            'payment_mode'  => ['required', 'string', 'in:mtn,moov,celtiis' . (app()->environment('local') ? ',momo_test' : '')],
-            'phone_number'  => ['required', 'string', 'regex:/^[0-9]{8,15}$/'],
+            'amount' => ['required', 'integer', 'min:'.self::MIN_AMOUNT, "max:{$balance}"],
+            'payment_mode' => ['required', 'string', 'in:mtn,moov,celtiis'.(app()->environment('local') ? ',momo_test' : '')],
+            'phone_number' => ['required', 'string', 'regex:/^[0-9]{8,15}$/'],
             'phone_country' => ['required', 'string', 'in:bj,tg,ci,sn,bf'],
         ];
     }
@@ -92,7 +92,7 @@ class WithdrawWalletRequest extends FormRequest
         }
 
         $operator = $this->input('payment_mode', '');
-        $phone    = preg_replace('/\D/', '', (string) $this->input('phone_number', ''));
+        $phone = preg_replace('/\D/', '', (string) $this->input('phone_number', ''));
 
         if (! isset(self::BENIN_PREFIXES[$operator])) {
             return; // momo_test or unrecognised — skip prefix check
@@ -123,9 +123,9 @@ class WithdrawWalletRequest extends FormRequest
      */
     public function messages(): array
     {
-        $balance   = (int) ($this->user()->balance ?? 0);
+        $balance = (int) ($this->user()->balance ?? 0);
         $formatted = number_format($balance, 0, ',', ' ');
-        $min       = number_format(self::MIN_AMOUNT, 0, ',', ' ');
+        $min = number_format(self::MIN_AMOUNT, 0, ',', ' ');
 
         return [
             'amount.max' => "Solde insuffisant (solde disponible : {$formatted} XOF)",

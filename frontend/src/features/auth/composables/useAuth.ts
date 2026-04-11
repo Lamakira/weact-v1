@@ -1,18 +1,19 @@
 import { storeToRefs } from 'pinia'
 import type { ComputedRef, Ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useNotificationStore } from '@/stores/notification'
 import { useRouter } from 'vue-router'
 import { authApi, getApiErrorDetails, getApiErrorMessage, getApiErrorCode } from '../services/authApi'
 import type { FaceRegistrationForm, ProducerRegistrationForm, LoginForm, User } from '../types'
 
-export interface AuthResult {
+interface AuthResult {
   success: boolean
   errors?: Record<string, string[]>
   message?: string
   errorCode?: string | null
 }
 
-export interface UseAuthReturn {
+interface UseAuthReturn {
   login: (data: LoginForm) => Promise<AuthResult>
   registerFace: (data: FaceRegistrationForm) => Promise<AuthResult>
   registerProducer: (data: ProducerRegistrationForm) => Promise<AuthResult>
@@ -29,6 +30,7 @@ export interface UseAuthReturn {
  */
 export function useAuth(): UseAuthReturn {
   const authStore = useAuthStore()
+  const notificationStore = useNotificationStore()
   const router = useRouter()
   const { isLoading, isAuthenticated, user, isFace, isProducer } = storeToRefs(authStore)
 
@@ -44,6 +46,10 @@ export function useAuth(): UseAuthReturn {
       // Store token and user data
       authStore.setToken(response.data.token)
       authStore.setUser(response.data.user)
+
+      // Initialize notification store (subscribe to WebSocket + fetch unread count)
+      notificationStore.subscribe()
+      notificationStore.fetchUnreadCount()
 
       return { success: true }
     } catch (error) {
@@ -70,6 +76,10 @@ export function useAuth(): UseAuthReturn {
       authStore.setToken(response.data.token)
       authStore.setUser(response.data.user)
 
+      // Initialize notification store
+      notificationStore.subscribe()
+      notificationStore.fetchUnreadCount()
+
       return { success: true }
     } catch (error) {
       const errors = getApiErrorDetails(error)
@@ -93,6 +103,10 @@ export function useAuth(): UseAuthReturn {
       // Store token and user data
       authStore.setToken(response.data.token)
       authStore.setUser(response.data.user)
+
+      // Initialize notification store
+      notificationStore.subscribe()
+      notificationStore.fetchUnreadCount()
 
       return { success: true }
     } catch (error) {
@@ -118,6 +132,7 @@ export function useAuth(): UseAuthReturn {
       // API call failed but we still clear local state (graceful degradation)
       console.warn('[Auth] Logout API call failed, clearing local state anyway', error)
     } finally {
+      notificationStore.unsubscribe()
       authStore.clearAuth()
       authStore.setLoading(false)
       await router.push('/login')

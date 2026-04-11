@@ -6,8 +6,8 @@ namespace App\Listeners\Booking;
 
 use App\Events\BookingPartiallyConfirmed;
 use App\Models\Notification;
-use Illuminate\Events\Attributes\AsEventListener;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener(event: BookingPartiallyConfirmed::class)]
 class NotifyOtherPartyOnBookingPartialConfirmation

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Events;
 
+use App\Enums\BookingStatus;
 use App\Models\Booking;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -39,9 +40,11 @@ class BookingExpired implements ShouldBroadcast
      */
     public function broadcastWith(): array
     {
+        $status = BookingStatus::from((string) $this->booking->getRawOriginal('status'));
+
         return [
             'booking_id' => $this->booking->id,
-            'status' => $this->booking->status->value,
+            'status' => $status->value,
         ];
     }
 }

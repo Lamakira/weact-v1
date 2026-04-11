@@ -52,8 +52,8 @@ class FaceFactory extends Factory
     public function withProfilePhoto(): static
     {
         return $this->state(fn (array $attributes) => [
-            'profile_photo' => fake()->uuid() . '.jpg',
-            'profile_photo_thumbnail' => fake()->uuid() . '.jpg',
+            'profile_photo' => fake()->uuid().'.jpg',
+            'profile_photo_thumbnail' => fake()->uuid().'.jpg',
         ]);
     }
 }

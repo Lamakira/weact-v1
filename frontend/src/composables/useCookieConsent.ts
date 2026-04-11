@@ -1,11 +1,11 @@
 import { ref, computed, onMounted } from 'vue'
 
-export interface CookiePreferences {
+interface CookiePreferences {
   necessary: true // Always true, cannot be disabled
   analytics: boolean
 }
 
-export interface CookieConsentState {
+interface CookieConsentState {
   consented: boolean
   preferences: CookiePreferences
   consentedAt: string | null

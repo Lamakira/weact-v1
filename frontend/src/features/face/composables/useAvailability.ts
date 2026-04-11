@@ -2,8 +2,22 @@ import { ref, type Ref } from 'vue'
 import { faceApi } from '../services/faceApi'
 import type { AvailabilityInfo, AvailabilityResult, AvailabilityFormData } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
+import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
 
-export interface UseAvailabilityReturn {
+const AVAILABILITY_CACHE_TTL_MS = 5 * 60 * 1000
+
+const availabilityResource = createSharedCachedResource<AvailabilityInfo | null>({
+  key: 'face-availability',
+  initialValue: null,
+  ttlMs: AVAILABILITY_CACHE_TTL_MS,
+  load: async () => {
+    const response = await faceApi.getAvailability()
+    return response.data
+  },
+  getErrorMessage: getApiErrorMessage,
+})
+
+interface UseAvailabilityReturn {
   availabilityInfo: Ref<AvailabilityInfo | null>
   isLoading: Ref<boolean>
   isSaving: Ref<boolean>
@@ -18,33 +32,23 @@ export interface UseAvailabilityReturn {
  * Composable for Face availability operations
  */
 export function useAvailability(): UseAvailabilityReturn {
-  const availabilityInfo = ref<AvailabilityInfo | null>(null)
-  const isLoading = ref(false)
+  const availabilityInfo = availabilityResource.data
+  const isLoading = availabilityResource.isLoading
   const isSaving = ref(false)
-  const error = ref<string | null>(null)
+  const error = availabilityResource.error
 
   /**
    * Clear the current error
    */
   function clearError(): void {
-    error.value = null
+    availabilityResource.clearError()
   }
 
   /**
    * Fetch the current availability status
    */
   async function fetchAvailability(): Promise<void> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const response = await faceApi.getAvailability()
-      availabilityInfo.value = response.data
-    } catch (err) {
-      error.value = getApiErrorMessage(err)
-    } finally {
-      isLoading.value = false
-    }
+    await availabilityResource.fetch()
   }
 
   /**
@@ -60,15 +64,15 @@ export function useAvailability(): UseAvailabilityReturn {
       : null
 
     // Optimistic update (always apply, even on first load)
-    availabilityInfo.value = {
+    availabilityResource.setData({
       is_available: data.is_available,
       availability_badge: data.is_available ? 'Disponible' : 'Indisponible',
       availability_badge_color: data.is_available ? 'green' : 'grey',
-    }
+    })
 
     try {
       const response = await faceApi.updateAvailability(data)
-      availabilityInfo.value = response.data
+      availabilityResource.setData(response.data)
 
       return {
         success: true,
@@ -78,7 +82,7 @@ export function useAvailability(): UseAvailabilityReturn {
     } catch (err) {
       // Rollback on error
       if (previousState) {
-        availabilityInfo.value = previousState
+        availabilityResource.setData(previousState)
       }
 
       const errors = getApiErrorDetails(err)

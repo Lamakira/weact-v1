@@ -34,13 +34,13 @@ class BookingChatTest extends TestCase
         $this->producer = Producer::factory()->create();
         $this->producerUser = User::factory()->create([
             'userable_type' => Producer::class,
-            'userable_id'   => $this->producer->id,
+            'userable_id' => $this->producer->id,
         ]);
 
         $this->face = Face::factory()->create();
         $this->faceUser = User::factory()->create([
             'userable_type' => Face::class,
-            'userable_id'   => $this->face->id,
+            'userable_id' => $this->face->id,
         ]);
     }
 
@@ -53,7 +53,7 @@ class BookingChatTest extends TestCase
         Event::fake([BookingMessageSent::class]);
 
         $booking = Booking::factory()->paid()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
 
@@ -68,8 +68,8 @@ class BookingChatTest extends TestCase
 
         $this->assertDatabaseHas('booking_messages', [
             'booking_id' => $booking->id,
-            'sender_id'  => $this->faceUser->id,
-            'content'    => 'Bonjour, hâte de travailler avec vous !',
+            'sender_id' => $this->faceUser->id,
+            'content' => 'Bonjour, hâte de travailler avec vous !',
         ]);
 
         Event::assertDispatched(BookingMessageSent::class);
@@ -80,7 +80,7 @@ class BookingChatTest extends TestCase
         Event::fake([BookingMessageSent::class]);
 
         $booking = Booking::factory()->paid()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
 
@@ -100,7 +100,7 @@ class BookingChatTest extends TestCase
         Event::fake([BookingMessageSent::class]);
 
         $booking = Booking::factory()->confirmedByProducer()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
 
@@ -116,9 +116,9 @@ class BookingChatTest extends TestCase
     public function test_cannot_send_message_in_pending_booking(): void
     {
         $booking = Booking::factory()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
-            'status'      => BookingStatus::Pending,
+            'status' => BookingStatus::Pending,
         ]);
 
         $response = $this->actingAs($this->faceUser)
@@ -133,9 +133,9 @@ class BookingChatTest extends TestCase
     public function test_chat_locked_error_body_matches_spec(): void
     {
         $booking = Booking::factory()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
-            'status'      => BookingStatus::Pending,
+            'status' => BookingStatus::Pending,
         ]);
 
         $response = $this->actingAs($this->faceUser)
@@ -149,9 +149,9 @@ class BookingChatTest extends TestCase
     public function test_cannot_send_message_in_accepted_booking(): void
     {
         $booking = Booking::factory()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
-            'status'      => BookingStatus::Accepted,
+            'status' => BookingStatus::Accepted,
         ]);
 
         $response = $this->actingAs($this->faceUser)
@@ -165,9 +165,9 @@ class BookingChatTest extends TestCase
     public function test_cannot_list_messages_in_accepted_booking(): void
     {
         $booking = Booking::factory()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
-            'status'      => BookingStatus::Accepted,
+            'status' => BookingStatus::Accepted,
         ]);
 
         $response = $this->actingAs($this->faceUser)
@@ -179,9 +179,9 @@ class BookingChatTest extends TestCase
     public function test_cannot_send_message_in_completed_booking(): void
     {
         $booking = Booking::factory()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
-            'status'      => BookingStatus::Completed,
+            'status' => BookingStatus::Completed,
         ]);
 
         $response = $this->actingAs($this->faceUser)
@@ -197,7 +197,7 @@ class BookingChatTest extends TestCase
         $otherUser = User::factory()->create();
 
         $booking = Booking::factory()->paid()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
 
@@ -212,7 +212,7 @@ class BookingChatTest extends TestCase
     public function test_cannot_send_empty_message(): void
     {
         $booking = Booking::factory()->paid()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
 
@@ -227,7 +227,7 @@ class BookingChatTest extends TestCase
     public function test_cannot_send_message_exceeding_2000_chars(): void
     {
         $booking = Booking::factory()->paid()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
 
@@ -242,7 +242,7 @@ class BookingChatTest extends TestCase
     public function test_unauthenticated_cannot_send_message(): void
     {
         $booking = Booking::factory()->paid()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
 
@@ -260,13 +260,13 @@ class BookingChatTest extends TestCase
     public function test_face_can_list_messages_in_paid_booking(): void
     {
         $booking = Booking::factory()->paid()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
 
         BookingMessage::factory()->count(3)->create([
             'booking_id' => $booking->id,
-            'sender_id'  => $this->faceUser->id,
+            'sender_id' => $this->faceUser->id,
         ]);
 
         $response = $this->actingAs($this->faceUser)
@@ -279,13 +279,13 @@ class BookingChatTest extends TestCase
     public function test_producer_can_list_messages_in_paid_booking(): void
     {
         $booking = Booking::factory()->paid()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
 
         BookingMessage::factory()->count(2)->create([
             'booking_id' => $booking->id,
-            'sender_id'  => $this->producerUser->id,
+            'sender_id' => $this->producerUser->id,
         ]);
 
         $response = $this->actingAs($this->producerUser)
@@ -298,14 +298,14 @@ class BookingChatTest extends TestCase
     public function test_both_parties_can_read_messages_in_completed_booking(): void
     {
         $booking = Booking::factory()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
-            'status'      => BookingStatus::Completed,
+            'status' => BookingStatus::Completed,
         ]);
 
         BookingMessage::factory()->create([
             'booking_id' => $booking->id,
-            'sender_id'  => $this->faceUser->id,
+            'sender_id' => $this->faceUser->id,
         ]);
 
         $this->actingAs($this->faceUser)
@@ -320,9 +320,9 @@ class BookingChatTest extends TestCase
     public function test_cannot_list_messages_in_pending_booking(): void
     {
         $booking = Booking::factory()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
-            'status'      => BookingStatus::Pending,
+            'status' => BookingStatus::Pending,
         ]);
 
         $response = $this->actingAs($this->faceUser)
@@ -336,7 +336,7 @@ class BookingChatTest extends TestCase
         $otherUser = User::factory()->create();
 
         $booking = Booking::factory()->paid()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
 
@@ -349,21 +349,21 @@ class BookingChatTest extends TestCase
     public function test_messages_returned_oldest_first(): void
     {
         $booking = Booking::factory()->paid()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
 
         $msg1 = BookingMessage::factory()->create([
             'booking_id' => $booking->id,
-            'sender_id'  => $this->faceUser->id,
-            'content'    => 'Premier message',
+            'sender_id' => $this->faceUser->id,
+            'content' => 'Premier message',
             'created_at' => now()->subMinutes(5),
         ]);
 
         $msg2 = BookingMessage::factory()->create([
             'booking_id' => $booking->id,
-            'sender_id'  => $this->producerUser->id,
-            'content'    => 'Deuxième message',
+            'sender_id' => $this->producerUser->id,
+            'content' => 'Deuxième message',
             'created_at' => now()->subMinutes(2),
         ]);
 
@@ -382,7 +382,7 @@ class BookingChatTest extends TestCase
         Event::fake([BookingMessageSent::class]);
 
         $booking = Booking::factory()->paid()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
 
@@ -411,7 +411,7 @@ class BookingChatTest extends TestCase
         Event::fake([BookingMessageSent::class]);
 
         $booking = Booking::factory()->paid()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
 
@@ -433,7 +433,7 @@ class BookingChatTest extends TestCase
         Event::fake([BookingMessageSent::class]);
 
         $booking = Booking::factory()->paid()->create([
-            'face_id'     => $this->faceUser->id,
+            'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
 

@@ -12,13 +12,13 @@
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
+    "dead-code": "knip",
     "test": "vitest",
     "test:run": "vitest run",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix"
   },
   "dependencies": {
-    "@types/dompurify": "^3.0.5",
     "@vee-validate/zod": "^4.15.1",
     "@vueuse/core": "^14.2.0",
     "axios": "^1.13.2",
@@ -55,6 +55,7 @@
     "eslint-plugin-vue": "^10.7.0",
     "globals": "^16.5.0",
     "happy-dom": "^20.1.0",
+    "knip": "^6.3.1",
     "npm-run-all2": "^8.0.4",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",

@@ -382,4 +382,46 @@ development_status:
   fix-14-1-move-account-actions-to-bottom: done           # Déplacer "Télécharger données" et "Supprimer compte" en bas du profil
   fix-14-2-rename-profile-photo-label: done               # Renommer "Photo de profil" → "Photo de mise en avant"
 
-last_updated: "2026-04-08"
+  # ============================================
+  # POST-LAUNCH FIXES Sprint 8 (Client issues - 2026-04-10)
+  # Source: epics-postlaunch-fixes-6.md (4 epics, 7 stories)
+  # ============================================
+
+  # Epic FIX-15: Booking — Formulaire & Annulation (3 stories)
+  epic-fix-15: done
+  fix-15-1-remove-misleading-amount-mention: done              # Retirer mention "montant final sera confirmé" du formulaire booking
+  fix-15-2-add-booking-location-field: done                    # Ajouter champ lieu de tournage au formulaire booking
+  fix-15-3-fix-face-cancellation-costs-display: done             # Afficher coûts d'annulation du point de vue Face
+  epic-fix-15-retrospective: done
+
+  # Epic FIX-16: Affichage transactions — Libellés (1 story)
+  epic-fix-16: done
+  fix-16-1-format-transaction-labels-without-id: done            # "Mission : {titre}" au lieu de "Mission #{id} : {titre}"
+  epic-fix-16-retrospective: done
+
+  # Epic FIX-17: Navigation & Routing (2 stories)
+  epic-fix-17: done
+  fix-17-1-whatsapp-hint-scroll-to-field: done                 # Hint WhatsApp → scroll + focus vers le champ exact
+  fix-17-2-fix-producer-mission-white-screen: done             # Écran blanc /producer/missions/:uuid
+  epic-fix-17-retrospective: done
+
+  # Epic FIX-18: Profil public Producer — Compteur missions (1 story)
+  epic-fix-18: done
+  fix-18-1-update-producer-published-missions-count: done      # Compteur missions publiées ne se met pas à jour
+  epic-fix-18-retrospective: done
+
+  # ============================================
+  # REALTIME NOTIFICATIONS (Sprint 9)
+  # Source: epics-realtime-notifications.md (1 epic, 4 stories)
+  # ============================================
+
+  # Epic RT-1: Notifications Temps Réel via Reverb/Echo (4 stories)
+  epic-rt-1: done
+  rt-1-1-backend-broadcast-observer: done                                   # NotificationCreated event + NotificationObserver afterCommit
+  rt-1-2-store-frontend-echo-subscription: done                       # Store Pinia + abonnement canal privé user.{id}
+  rt-1-3-refactor-ui-bell-dropdown: done                       # NotificationBell + Dropdown consomment le store
+  rt-1-4-fallback-non-regression: done                              # Fallback window.focus, reconnect, polling lent
+  epic-rt-1-retrospective: done
+
+last_updated: "2026-04-11"
+# Story fix-15-1 created: 2026-04-10

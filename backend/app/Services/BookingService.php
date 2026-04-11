@@ -86,6 +86,7 @@ class BookingService
             'date_fin' => $data['date_fin'],
             'duree_heures' => $data['duree_heures'],
             'type_contenu' => $data['type_contenu'],
+            'lieu' => !empty($data['lieu']) ? $data['lieu'] : null,
             'message' => $data['message'] ?? null,
             'tarif_base' => $pricing->baseTarif,
             'montant_total_producteur' => $pricing->totalProducerPays,
@@ -155,7 +156,7 @@ class BookingService
     /**
      * Cancel a booking (Producer only).
      * - pending/accepted: immediate cancel with no financial operation
-     * - paid: initiate a refund of 90%
+     * - paid: credit 90% to the Producer wallet
      *
      * @throws ValidationException
      */
@@ -179,7 +180,7 @@ class BookingService
             }
 
             if ($booking->status === BookingStatus::Paid) {
-                $this->escrowService->refund($booking, $this->fedapayService);
+                $this->escrowService->refund($booking, $this->walletService);
             }
 
             $booking->update([
@@ -208,7 +209,7 @@ class BookingService
     /**
      * Cancel a booking as Face.
      * - accepted: immediate cancel with no financial operation
-     * - paid: initiate a refund of 90%
+     * - paid: credit 90% to the Producer wallet
      * - after cancellation, apply face rating penalty (+1.0)
      *
      * @throws ValidationException
@@ -232,7 +233,7 @@ class BookingService
             }
 
             if ($booking->status === BookingStatus::Paid) {
-                $this->escrowService->refund($booking, $this->fedapayService);
+                $this->escrowService->refund($booking, $this->walletService);
             }
 
             $booking->update([
@@ -317,7 +318,7 @@ class BookingService
                 $lockedBooking->producer_id,
                 $lockedBooking->montant_total_producteur,
                 $lockedBooking,
-                "Booking #{$lockedBooking->id} — remboursement absence Face (100%)",
+                "Booking : remboursement absence Face (100%)",
             );
 
             // Record financial event for audit trail
@@ -412,6 +413,7 @@ class BookingService
                 $terminalFailedStatuses = ['declined', 'canceled', 'refunded'];
 
                 if (! in_array($existing->status, $terminalFailedStatuses, true)) {
+                    /** @var object{url:string} $tokenObj */
                     $tokenObj = $existing->generateToken();
 
                     return [

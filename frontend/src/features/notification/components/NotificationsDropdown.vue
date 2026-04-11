@@ -1,35 +1,24 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { CheckCircle, XCircle, Bell, Loader2 } from 'lucide-vue-next'
 import type { Notification } from '../types'
 import { NotificationType } from '../types'
-import { notificationApi } from '../services/notificationApi'
+import { useNotificationStore } from '@/stores/notification'
 import { useToast } from '@/composables/useToast'
-
-/**
- * NotificationsDropdown component
- * Shows list of notifications with mark as read functionality
- * Navigates to deep link (data.url) when available, otherwise candidatures
- */
 
 const emit = defineEmits<{
   close: []
-  'notification-read': []
-  'all-read': []
 }>()
 
 const router = useRouter()
 const toast = useToast()
+const notificationStore = useNotificationStore()
+const { items, isLoading } = storeToRefs(notificationStore)
 
-const notifications = ref<Notification[]>([])
-const isLoading = ref(true)
+const hasUnread = computed(() => items.value.some((n) => !n.read_at))
 
-const hasUnread = computed(() => notifications.value.some((n) => !n.read_at))
-
-/**
- * Format date to relative string (French)
- */
 function formatRelativeTime(dateString: string): string {
   const now = new Date()
   const past = new Date(dateString)
@@ -45,39 +34,14 @@ function formatRelativeTime(dateString: string): string {
   return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' }).format(past)
 }
 
-/**
- * Fetch notifications on mount
- */
-async function fetchNotifications(): Promise<void> {
-  isLoading.value = true
-  try {
-    const response = await notificationApi.getNotifications()
-    notifications.value = response.data
-  } catch (error) {
-    console.error('[NotificationsDropdown] Failed to fetch notifications:', error)
-    toast.error('Impossible de charger les notifications')
-  } finally {
-    isLoading.value = false
-  }
-}
-
-/**
- * Handle notification click - mark as read and navigate to candidatures
- */
 async function handleNotificationClick(notification: Notification): Promise<void> {
-  // Mark as read if not already
   if (!notification.read_at) {
-    try {
-      await notificationApi.markAsRead(notification.id)
-      notification.read_at = new Date().toISOString()
-      emit('notification-read')
-    } catch (error) {
-      console.error('[NotificationsDropdown] Failed to mark as read:', error)
+    const success = await notificationStore.markAsRead(notification.id)
+    if (!success) {
       toast.error('Impossible de marquer comme lu')
     }
   }
 
-  // Navigate to the deep link if available, otherwise fall back to candidatures
   emit('close')
   if (notification.data.url) {
     await router.push(notification.data.url)
@@ -86,29 +50,13 @@ async function handleNotificationClick(notification: Notification): Promise<void
   }
 }
 
-/**
- * Mark all as read
- */
 async function handleMarkAllAsRead(): Promise<void> {
-  try {
-    await notificationApi.markAllAsRead()
-    const now = new Date().toISOString()
-    notifications.value.forEach((n) => {
-      if (!n.read_at) {
-        n.read_at = now
-      }
-    })
-    emit('all-read')
-  } catch (error) {
-    console.error('[NotificationsDropdown] Failed to mark all as read:', error)
+  const success = await notificationStore.markAllAsRead()
+  if (!success) {
     toast.error('Impossible de marquer tout comme lu')
   }
 }
 
-/**
- * Returns the icon variant for a notification based on its type.
- * Positive events → 'check', negative events → 'x', informational → 'bell'
- */
 function getNotificationIcon(type: string): 'check' | 'x' | 'bell' {
   const positiveTypes: string[] = [
     NotificationType.CANDIDATURE_ACCEPTED,
@@ -126,8 +74,11 @@ function getNotificationIcon(type: string): 'check' | 'x' | 'bell' {
   return 'bell'
 }
 
-onMounted(() => {
-  fetchNotifications()
+onMounted(async () => {
+  const loaded = await notificationStore.fetchNotifications()
+  if (!loaded) {
+    toast.error('Impossible de charger les notifications')
+  }
 })
 </script>
 
@@ -172,7 +123,7 @@ onMounted(() => {
 
         <!-- Empty State -->
         <div
-          v-else-if="notifications.length === 0"
+          v-else-if="items.length === 0"
           class="flex flex-col items-center justify-center py-12 px-6 text-center"
         >
           <div class="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
@@ -185,7 +136,7 @@ onMounted(() => {
         <!-- Notifications List -->
         <ul v-else class="divide-y divide-border/50">
           <li
-            v-for="notification in notifications"
+            v-for="notification in items"
             :key="notification.id"
             class="relative group p-4 hover:bg-muted/50 cursor-pointer transition-colors"
             :class="{ 'bg-primary/5': !notification.read_at }"

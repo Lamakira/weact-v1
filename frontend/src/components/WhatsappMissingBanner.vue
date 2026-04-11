@@ -29,7 +29,7 @@ const router = useRouter()
             type="button"
             class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
             data-testid="whatsapp-banner-cta"
-            @click="router.push('/face/profile')"
+            @click="router.push('/face/profile?focus=whatsapp')"
           >
             Renseigner mon WhatsApp
           </button>

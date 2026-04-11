@@ -6,8 +6,8 @@ namespace App\Jobs;
 
 use App\Enums\FinancialEventType;
 use App\Models\Booking;
-use App\Models\FinancialEvent;
 use App\Models\FedapayWebhookEvent;
+use App\Models\FinancialEvent;
 use App\Models\MissionPayment;
 use App\Models\WalletTransaction;
 use App\Services\BookingService;
@@ -112,11 +112,12 @@ class HandleFedapayWebhook implements ShouldQueue
 
     private function handlePayoutWebhook(FinancialEvent $financialEvent, WalletService $walletService): void
     {
-        $metadata = $financialEvent->metadata ?? [];
-        $walletTransactionId = $metadata['wallet_transaction_id'] ?? null;
-        $userId = $metadata['user_id'] ?? null;
+        /** @var array<string, mixed> $metadata */
+        $metadata = is_array($financialEvent->metadata) ? $financialEvent->metadata : [];
+        $walletTransactionId = isset($metadata['wallet_transaction_id']) ? (int) $metadata['wallet_transaction_id'] : null;
+        $userId = isset($metadata['user_id']) ? (int) $metadata['user_id'] : null;
 
-        if (! $walletTransactionId || ! $userId) {
+        if ($walletTransactionId === null || $userId === null) {
             Log::warning('Fedapay payout webhook: missing metadata on FinancialEvent', [
                 'financial_event_id' => $financialEvent->id,
                 'event_name' => $this->eventName,
@@ -136,7 +137,7 @@ class HandleFedapayWebhook implements ShouldQueue
             'payout.failed' => DB::transaction(function () use ($walletTx, $userId, $financialEvent, $walletService): void {
                 $walletTx->update(['status' => 'failed']);
                 $walletService->creditDirect(
-                    userId: (int) $userId,
+                    userId: $userId,
                     amount: $financialEvent->amount,
                     description: "Remboursement retrait échoué — ref #{$financialEvent->fedapay_ref}",
                 );

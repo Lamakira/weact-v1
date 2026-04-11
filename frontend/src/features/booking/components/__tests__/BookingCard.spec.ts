@@ -23,6 +23,7 @@ function makeBooking(overrides: Partial<Booking> = {}): Booking {
     date_fin: '2026-04-10T12:00:00Z',
     duree_heures: 4,
     type_contenu: 'Publicité',
+    lieu: null,
     message: null,
     tarif_base: 50000,
     montant_total_producteur: 55000,
@@ -89,5 +90,39 @@ describe('BookingCard', () => {
     })
 
     expect(wrapper.text()).toContain('max 4h')
+  })
+
+  it('displays the shooting location when present', () => {
+    const wrapper = mount(BookingCard, {
+      props: {
+        booking: makeBooking({ lieu: 'Porto-Novo' }),
+      },
+      global: {
+        stubs: {
+          RouterLink: {
+            template: '<a><slot /></a>',
+          },
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('Porto-Novo')
+  })
+
+  it('hides the shooting location when absent', () => {
+    const wrapper = mount(BookingCard, {
+      props: {
+        booking: makeBooking({ lieu: null }),
+      },
+      global: {
+        stubs: {
+          RouterLink: {
+            template: '<a><slot /></a>',
+          },
+        },
+      },
+    })
+
+    expect(wrapper.text()).not.toContain('Porto-Novo')
   })
 })

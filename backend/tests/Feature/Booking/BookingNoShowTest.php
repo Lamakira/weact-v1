@@ -86,6 +86,7 @@ class BookingNoShowTest extends TestCase
             'booking_id' => $booking->id,
             'type' => 'credit',
             'amount' => 50000,
+            'description' => 'Booking : remboursement absence Face (100%)',
         ]);
 
         // Producer balance updated

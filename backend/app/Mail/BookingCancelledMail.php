@@ -45,10 +45,10 @@ class BookingCancelledMail extends Mailable
     private function cancellerName(): string
     {
         if ($this->cancelledBy === 'face') {
-            return (string) ($this->booking->face?->userable?->display_name ?? 'La Face');
+            return (string) data_get($this->booking, 'face.userable.display_name', 'La Face');
         }
 
-        return (string) ($this->booking->producer?->userable?->display_name ?? 'Le Producteur');
+        return (string) data_get($this->booking, 'producer.userable.display_name', 'Le Producteur');
     }
 
     private function reasonLabel(): string

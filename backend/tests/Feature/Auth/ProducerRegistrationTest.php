@@ -17,6 +17,7 @@ class ProducerRegistrationTest extends TestCase
     use RefreshDatabase;
 
     private array $validAgencyData;
+
     private array $validParticulierData;
 
     protected function setUp(): void

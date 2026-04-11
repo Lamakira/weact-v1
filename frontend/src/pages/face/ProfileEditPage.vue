@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Loader2 } from 'lucide-vue-next'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
 import { usePhotoAlbum } from '@/features/face/composables/usePhotoAlbum'
@@ -35,6 +36,10 @@ import EmailChangeForm from '@/features/auth/components/EmailChangeForm.vue'
 import PasswordChangeForm from '@/features/auth/components/PasswordChangeForm.vue'
 import DataPrivacySection from '@/components/account/DataPrivacySection.vue'
 import type { ExperienceFormData, TarifsFormData } from '@/features/face/types'
+
+const route = useRoute()
+const router = useRouter()
+
 const {
   profile,
   isLoading,
@@ -217,6 +222,20 @@ onMounted(async () => {
       console.warn('Failed to load niche options')
     }),
   ])
+
+  // Auto-scroll to WhatsApp field when navigated from banner CTA
+  if (route.query.focus === 'whatsapp') {
+    await nextTick()
+    const section = document.getElementById('section-personal-info')
+    if (section) {
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      setTimeout(() => {
+        const input = document.getElementById('whatsapp-number')
+        input?.focus()
+      }, 500)
+    }
+    router.replace({ path: route.path, query: {} })
+  }
 })
 
 /**
@@ -478,6 +497,7 @@ function handleCompletionItemClick(itemKey: string): void {
     langues: 'section-langues',
     categorie: 'section-category-niche',
     tarifs: 'section-tarifs',
+    whatsapp_number: 'section-personal-info',
   }
 
   const sectionId = sectionMap[itemKey]

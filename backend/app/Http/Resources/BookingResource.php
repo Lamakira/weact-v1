@@ -9,6 +9,9 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Auth;
 
+/**
+ * @mixin \App\Models\Booking
+ */
 class BookingResource extends JsonResource
 {
     /**
@@ -25,12 +28,13 @@ class BookingResource extends JsonResource
             'realtime_channel_key' => $this->id,
             'face_id' => $this->face_id,
             'producer_id' => $this->producer_id,
-            'status' => $this->status?->value,
-            'status_label' => $this->status?->label(),
-            'date_debut' => $this->date_debut?->toIso8601String(),
-            'date_fin' => $this->date_fin?->toIso8601String(),
+            'status' => $this->status->value,
+            'status_label' => $this->status->label(),
+            'date_debut' => $this->date_debut->toIso8601String(),
+            'date_fin' => $this->date_fin->toIso8601String(),
             'duree_heures' => $this->duree_heures,
             'type_contenu' => $this->type_contenu,
+            'lieu' => $this->lieu,
             'message' => $this->message,
             'tarif_base' => $this->tarif_base,
             'montant_total_producteur' => $this->montant_total_producteur,
@@ -49,7 +53,7 @@ class BookingResource extends JsonResource
             // to avoid N+1 on list endpoints.
             'can_rate' => $user && $this->status === BookingStatus::Completed && $user->can('rate', $this->resource),
             'my_rating' => $this->when(
-                $this->relationLoaded('raterBookingRating'),
+                $this->resource->relationLoaded('raterBookingRating'),
                 fn () => $this->raterBookingRating ? new BookingRatingResource($this->raterBookingRating) : null,
                 null,
             ),

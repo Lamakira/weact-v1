@@ -5,7 +5,7 @@ import { useAdminAuthStore } from '@/stores/adminAuth'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  scrollBehavior(to, from, savedPosition) {
+  scrollBehavior(to, _from, savedPosition) {
     // If user used browser back/forward, restore saved position
     if (savedPosition) {
       return savedPosition
@@ -231,6 +231,10 @@ const router = createRouter({
           path: 'missions/publish',
           name: 'publish-mission',
           component: () => import('../pages/producer/mission/PublishMissionPage.vue'),
+        },
+        {
+          path: 'missions/:id',
+          redirect: (to) => ({ name: 'edit-mission', params: { id: to.params.id } }),
         },
         {
           path: 'missions/:id/edit',
@@ -468,7 +472,7 @@ const router = createRouter({
 })
 
 // Navigation guards
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   const authStore = useAuthStore()
   const isAuthenticated = authStore.isAuthenticated
   const userType = authStore.user?.userable_type

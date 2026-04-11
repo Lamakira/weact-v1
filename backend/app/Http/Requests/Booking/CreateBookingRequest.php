@@ -51,6 +51,7 @@ class CreateBookingRequest extends FormRequest
             'date_fin' => ['required', 'date', 'after_or_equal:date_debut'],
             'duree_heures' => ['required', 'integer', 'min:4', 'max:720'],
             'type_contenu' => ['required', 'string', 'max:100'],
+            'lieu' => ['required', 'string', 'max:100'],
             'message' => ['nullable', 'string', 'max:1000'],
         ];
     }
@@ -72,6 +73,8 @@ class CreateBookingRequest extends FormRequest
             'duree_heures.max' => 'La duree ne peut pas depasser :max heures.',
             'type_contenu.required' => 'Le type de contenu est obligatoire.',
             'type_contenu.max' => 'Le type de contenu ne peut pas depasser :max caracteres.',
+            'lieu.required' => 'Le lieu de tournage est obligatoire.',
+            'lieu.max' => 'Le lieu ne peut pas depasser :max caracteres.',
             'message.max' => 'Le message ne peut pas depasser :max caracteres.',
         ];
     }

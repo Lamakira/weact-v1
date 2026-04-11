@@ -2,12 +2,25 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import { producerApi } from '../services/producerApi'
 import type { Producer, ProducerProfilePhotoResult } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
+import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
 
 // Allowed file types
 const ALLOWED_TYPES = ['image/jpeg', 'image/png']
 const MAX_FILE_SIZE = 8 * 1024 * 1024 // 8MB
+const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000
 
-export interface UseProducerProfilePhotoReturn {
+const profileResource = createSharedCachedResource<Producer | null>({
+  key: 'producer-profile',
+  initialValue: null,
+  ttlMs: PROFILE_CACHE_TTL_MS,
+  load: async () => {
+    const response = await producerApi.getProfile()
+    return response.data
+  },
+  getErrorMessage: getApiErrorMessage,
+})
+
+interface UseProducerProfilePhotoReturn {
   profile: Ref<Producer | null>
   isLoading: Ref<boolean>
   isUploading: Ref<boolean>
@@ -26,11 +39,11 @@ export interface UseProducerProfilePhotoReturn {
  * Composable for Producer profile photo operations
  */
 export function useProducerProfilePhoto(): UseProducerProfilePhotoReturn {
-  const profile = ref<Producer | null>(null)
-  const isLoading = ref(false)
+  const profile = profileResource.data
+  const isLoading = profileResource.isLoading
   const isUploading = ref(false)
   const isDeleting = ref(false)
-  const error = ref<string | null>(null)
+  const error = profileResource.error
 
   // Computed properties
   const hasPhoto = computed(() => !!profile.value?.profile_photo_url)
@@ -62,17 +75,7 @@ export function useProducerProfilePhoto(): UseProducerProfilePhotoReturn {
    * Fetch the current producer profile
    */
   async function fetchProfile(): Promise<void> {
-    isLoading.value = true
-    error.value = null
-
-    try {
-      const response = await producerApi.getProfile()
-      profile.value = response.data
-    } catch (err) {
-      error.value = getApiErrorMessage(err)
-    } finally {
-      isLoading.value = false
-    }
+    await profileResource.fetch()
   }
 
   /**
@@ -94,7 +97,7 @@ export function useProducerProfilePhoto(): UseProducerProfilePhotoReturn {
 
     try {
       const response = await producerApi.uploadProfilePhoto(file)
-      profile.value = response.data
+      profileResource.setData(response.data)
 
       return {
         success: true,
@@ -125,7 +128,7 @@ export function useProducerProfilePhoto(): UseProducerProfilePhotoReturn {
 
     try {
       const response = await producerApi.deleteProfilePhoto()
-      profile.value = response.data
+      profileResource.setData(response.data)
 
       return {
         success: true,

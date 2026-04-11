@@ -21,10 +21,6 @@ class MessageController extends Controller
 {
     /**
      * Send a message in a conversation.
-     *
-     * @param  SendMessageRequest  $request
-     * @param  Conversation  $conversation
-     * @return JsonResponse
      */
     public function store(SendMessageRequest $request, Conversation $conversation): JsonResponse
     {

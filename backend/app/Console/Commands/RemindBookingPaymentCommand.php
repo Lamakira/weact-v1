@@ -29,7 +29,7 @@ class RemindBookingPaymentCommand extends Command
     public function handle(): int
     {
         $from = now()->subHours(20);
-        $to   = now()->subHours(12);
+        $to = now()->subHours(12);
 
         $bookings = Booking::where('status', BookingStatus::Accepted->value)
             ->whereNotNull('accepted_at')
@@ -39,23 +39,23 @@ class RemindBookingPaymentCommand extends Command
 
         $this->info("Found {$bookings->count()} booking(s) requiring a payment reminder.");
 
-        $sent   = 0;
+        $sent = 0;
         $failed = 0;
 
         foreach ($bookings as $booking) {
             try {
                 $booking->loadMissing('face.userable');
 
-                $faceName   = $booking->face?->userable?->display_name ?? 'La Face';
-                $hoursLeft  = (int) max(0, 24 - now()->diffInHours($booking->accepted_at));
+                $faceName = data_get($booking, 'face.userable.display_name');
+                $hoursLeft = (int) max(0, 24 - now()->diffInHours($booking->accepted_at));
 
                 Notification::create([
                     'user_id' => $booking->producer_id,
-                    'type'    => 'booking_payment_reminder',
-                    'data'    => [
-                        'message'    => "Rappel : votre booking avec {$faceName} expire dans environ {$hoursLeft}h. Payez maintenant pour ne pas le perdre.",
+                    'type' => 'booking_payment_reminder',
+                    'data' => [
+                        'message' => 'Rappel : votre booking avec '.(is_string($faceName) && $faceName !== '' ? $faceName : 'La Face')." expire dans environ {$hoursLeft}h. Payez maintenant pour ne pas le perdre.",
                         'booking_id' => $booking->id,
-                        'url'        => "/producer/bookings/{$booking->uuid}",
+                        'url' => "/producer/bookings/{$booking->uuid}",
                     ],
                 ]);
 
@@ -66,7 +66,7 @@ class RemindBookingPaymentCommand extends Command
             } catch (\Throwable $e) {
                 Log::warning('Booking payment reminder failed', [
                     'booking_id' => $booking->id,
-                    'error'      => $e->getMessage(),
+                    'error' => $e->getMessage(),
                 ]);
                 $this->error("Failed for booking #{$booking->id}: {$e->getMessage()}");
                 $failed++;

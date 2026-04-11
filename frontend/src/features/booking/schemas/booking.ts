@@ -27,6 +27,11 @@ export const bookingSchema = z
       .min(1, 'Le type de contenu est obligatoire')
       .max(100, 'Le type de contenu ne peut pas dépasser 100 caractères'),
 
+    lieu: z
+      .string({ message: 'Le lieu de tournage est obligatoire' })
+      .min(1, 'Le lieu de tournage est obligatoire')
+      .max(100, 'Le lieu ne peut pas dépasser 100 caractères'),
+
     message: z
       .string()
       .max(1000, 'Le message ne peut pas dépasser 1000 caractères')
@@ -72,5 +77,3 @@ export const bookingSchema = z
       path: ['duree_heures'],
     },
   )
-
-export type BookingFormData = z.infer<typeof bookingSchema>

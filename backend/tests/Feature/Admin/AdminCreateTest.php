@@ -15,6 +15,7 @@ class AdminCreateTest extends TestCase
     use RefreshDatabase;
 
     private Admin $admin;
+
     private string $adminToken;
 
     protected function setUp(): void

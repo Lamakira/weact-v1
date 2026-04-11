@@ -6,7 +6,7 @@ import type {
   UpdateMissionData,
 } from '../types'
 
-export interface MissionPaymentData {
+interface MissionPaymentData {
   payment_id: number
   montant_total: number
   nombre_faces: number
@@ -14,12 +14,12 @@ export interface MissionPaymentData {
   status: string
 }
 
-export interface ConfirmSelectionResponse {
+interface ConfirmSelectionResponse {
   data: MissionPaymentData
   message: string
 }
 
-export interface PaymentStatusData {
+interface PaymentStatusData {
   has_payment: boolean
   payment_id?: number
   status?: string
@@ -28,7 +28,7 @@ export interface PaymentStatusData {
   mission_status: string
 }
 
-export interface PaymentStatusResponse {
+interface PaymentStatusResponse {
   data: PaymentStatusData
 }
 

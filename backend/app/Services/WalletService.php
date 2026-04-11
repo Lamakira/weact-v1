@@ -21,11 +21,11 @@ class WalletService
         User::where('id', $userId)->lockForUpdate()->increment('balance', $amount);
 
         return WalletTransaction::create([
-            'user_id'     => $userId,
-            'booking_id'  => $booking->id,
-            'type'        => 'credit',
-            'amount'      => $amount,
-            'reference'   => 'wlt_' . Str::uuid()->toString(),
+            'user_id' => $userId,
+            'booking_id' => $booking->id,
+            'type' => 'credit',
+            'amount' => $amount,
+            'reference' => 'wlt_'.Str::uuid()->toString(),
             'description' => $description,
         ]);
     }
@@ -39,11 +39,11 @@ class WalletService
         User::where('id', $userId)->lockForUpdate()->increment('balance', $amount);
 
         return WalletTransaction::create([
-            'user_id'     => $userId,
-            'booking_id'  => null,
-            'type'        => 'credit',
-            'amount'      => $amount,
-            'reference'   => 'wlt_' . Str::uuid()->toString(),
+            'user_id' => $userId,
+            'booking_id' => null,
+            'type' => 'credit',
+            'amount' => $amount,
+            'reference' => 'wlt_'.Str::uuid()->toString(),
             'description' => $description,
         ]);
     }
@@ -60,8 +60,7 @@ class WalletService
         string $description,
         ?int $bookingId = null,
         string $status = 'pending',
-    ): WalletTransaction
-    {
+    ): WalletTransaction {
         // Atomic check + decrement — lockForUpdate prevents race conditions (double-spend)
         $updated = User::where('id', $userId)
             ->where('balance', '>=', $amount)
@@ -73,13 +72,13 @@ class WalletService
         }
 
         return WalletTransaction::create([
-            'user_id'     => $userId,
-            'booking_id'  => $bookingId,
-            'type'        => 'debit',
-            'amount'      => $amount,
-            'reference'   => 'wlt_' . Str::uuid()->toString(),
+            'user_id' => $userId,
+            'booking_id' => $bookingId,
+            'type' => 'debit',
+            'amount' => $amount,
+            'reference' => 'wlt_'.Str::uuid()->toString(),
             'description' => $description,
-            'status'      => $status,
+            'status' => $status,
         ]);
     }
 }

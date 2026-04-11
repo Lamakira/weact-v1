@@ -24,7 +24,7 @@ return new class extends Migration
                 foreach ($producers as $producer) {
                     $displayName = $producer->type === 'agency'
                         ? (string) ($producer->agency_name ?: '')
-                        : trim((string) ($producer->first_name ?: '') . ' ' . (string) ($producer->last_name ?: ''));
+                        : trim((string) ($producer->first_name ?: '').' '.(string) ($producer->last_name ?: ''));
 
                     $base = Str::slug($displayName);
                     $slug = $base !== '' ? $base : 'producer';
@@ -34,7 +34,7 @@ return new class extends Migration
                         ->where('slug', $slug)
                         ->where('id', '!=', $producer->id)
                         ->exists()) {
-                        $slug = ($base !== '' ? $base : 'producer') . "-{$counter}";
+                        $slug = ($base !== '' ? $base : 'producer')."-{$counter}";
                         $counter++;
                     }
 

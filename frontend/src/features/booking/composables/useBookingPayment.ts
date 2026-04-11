@@ -7,7 +7,7 @@ import { getApiErrorMessage } from '@/features/auth/services/authApi'
 const POLL_INTERVAL_MS = 5000
 const POLL_TIMEOUT_MS = 120000
 
-export interface UseBookingPaymentReturn {
+interface UseBookingPaymentReturn {
   isInitiating: Ref<boolean>
   isPolling: Ref<boolean>
   paymentStatus: Ref<PaymentStatus>

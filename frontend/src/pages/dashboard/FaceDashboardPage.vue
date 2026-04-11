@@ -4,9 +4,12 @@
  * Dashboard home for Face users — profile card + KPIs + quick access.
  * Two-column layout: profile photo (left) and stats/actions (right).
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
+import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
+import { useCategoryNiche } from '@/features/face/composables/useCategoryNiche'
+import { useBioLocation } from '@/features/face/composables/useBioLocation'
 import {
   AlertCircle,
   Pencil,
@@ -27,18 +30,25 @@ import {
   ActivityChart,
   BookingActivityChart,
 } from '@/features/dashboard'
-import { faceApi } from '@/features/face/services/faceApi'
 import { useWallet } from '@/features/wallet'
-import type { FaceProfile, CategoryNicheInfo, BioLocationInfo } from '@/features/face/types'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const router = useRouter()
-
-// Profile data
-const profile = ref<FaceProfile | null>(null)
-const categoryNiche = ref<CategoryNicheInfo | null>(null)
-const bioLocation = ref<BioLocationInfo | null>(null)
-const isProfileLoading = ref(true)
+const {
+  profile,
+  isLoading: isProfileBaseLoading,
+  fetchProfile,
+} = useProfilePhoto()
+const {
+  categoryNicheInfo: categoryNiche,
+  isLoading: isCategoryNicheLoading,
+  fetchCategoryNiche,
+} = useCategoryNiche()
+const {
+  bioLocationInfo: bioLocation,
+  isLoading: isBioLocationLoading,
+  fetchBioLocation,
+} = useBioLocation()
 
 // Profile completion composable
 const {
@@ -91,6 +101,14 @@ const {
   retry: retryBookingCharts,
 } = useDashboardBookingCharts()
 
+const isProfileLoading = computed(() => {
+  return (
+    (isProfileBaseLoading.value && profile.value === null) ||
+    (isCategoryNicheLoading.value && categoryNiche.value === null) ||
+    (isBioLocationLoading.value && bioLocation.value === null)
+  )
+})
+
 // Computed values
 const fullName = computed(() => {
   if (profile.value) return `${profile.value.prenom} ${profile.value.nom}`
@@ -122,21 +140,18 @@ const completionOffset = computed(() => circumference - (completionPercentage.va
 
 // Fetch all data on mount
 onMounted(async () => {
-  const profilePromise = Promise.all([
-    faceApi.getProfile(),
-    faceApi.getCategoryNiche(),
-    faceApi.getBioLocation(),
-  ]).then(([profileRes, catRes, bioRes]) => {
-    profile.value = profileRes.data
-    categoryNiche.value = catRes.data
-    bioLocation.value = bioRes.data
-  }).catch(() => {
-    // Silently fail — profile card will show fallback
-  }).finally(() => {
-    isProfileLoading.value = false
-  })
-
-  await Promise.all([profilePromise, fetchCompletion(), fetchStats(), fetchChartStats(), fetchMissionsCount(), fetchWallet(), fetchBookingStats(), fetchBookingChartStats()])
+  await Promise.all([
+    fetchProfile(),
+    fetchCategoryNiche(),
+    fetchBioLocation(),
+    fetchCompletion(),
+    fetchStats(),
+    fetchChartStats(),
+    fetchMissionsCount(),
+    fetchWallet(),
+    fetchBookingStats(),
+    fetchBookingChartStats(),
+  ])
 })
 
 function goToProfile(): void {

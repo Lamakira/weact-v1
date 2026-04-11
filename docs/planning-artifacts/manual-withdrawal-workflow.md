@@ -11,6 +11,27 @@ FedaPay Payouts nécessite une activation spécifique du compte. En attendant, o
 
 Le mode actif est contrôlé par `WITHDRAWAL_MODE=manual|fedapay` dans `.env`. **Un seul mode actif à la fois.**
 
+## Note d'exploitation — annulations payées de booking
+
+- Une annulation de booking déjà payé ne tente plus de remboursement FedaPay.
+- Le Producer est recrédité directement dans son wallet à hauteur de 90 % de `montant_total_producteur`.
+- Les 10 % restants sont conservés par la plateforme comme retenue métier.
+- Le Producer retire ensuite ce solde via le workflow de retrait manuel déjà décrit dans ce document.
+- Pour rattraper des annulations déjà passées avant ce correctif, utiliser la commande :
+
+```bash
+cd backend
+php artisan bookings:backfill-cancelled-wallet-refunds --dry-run
+php artisan bookings:backfill-cancelled-wallet-refunds
+```
+
+- La commande est idempotente. Pour cibler un booking précis :
+
+```bash
+cd backend
+php artisan bookings:backfill-cancelled-wallet-refunds --booking-id=123
+```
+
 ---
 
 ## Décisions validées

@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateAdminProducerRequest;
 use App\Http\Resources\ProducerResource;
 use App\Models\Producer;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -85,6 +86,7 @@ class ProducerController extends Controller
      */
     public function toggleActive(Producer $producer): JsonResponse
     {
+        /** @var User|null $user */
         $user = $producer->user;
 
         if (! $user) {
@@ -152,8 +154,14 @@ class ProducerController extends Controller
         }
 
         DB::transaction(function () use ($producer) {
-            $producer->user?->tokens()->delete();
-            $producer->user?->delete();
+            /** @var User|null $user */
+            $user = $producer->user;
+
+            if ($user !== null) {
+                $user->tokens()->delete();
+                $user->delete();
+            }
+
             $producer->delete();
         });
 

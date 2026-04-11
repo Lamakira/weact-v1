@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\HasRouteUuid;
 use App\Enums\AdminRole;
 use App\Notifications\AdminResetPasswordNotification;
 use Illuminate\Auth\Passwords\CanResetPassword;
@@ -13,8 +14,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use App\Concerns\HasRouteUuid;
 
+/**
+ * @property int $id
+ * @property string $uuid
+ * @property string $name
+ * @property string $email
+ * @property AdminRole $role
+ */
 class Admin extends Authenticatable implements CanResetPasswordContract
 {
     use CanResetPassword, HasApiTokens, HasFactory, HasRouteUuid, Notifiable;
@@ -80,4 +87,3 @@ class Admin extends Authenticatable implements CanResetPasswordContract
         return $this->hasMany(Article::class);
     }
 }
-

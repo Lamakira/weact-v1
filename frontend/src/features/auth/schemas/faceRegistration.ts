@@ -6,7 +6,7 @@ import { COUNTRY_OPTION_VALUES, NATIONALITY_OPTION_VALUES } from '@/shared/const
  * Zod schema for Face registration validation
  * Matches backend validation rules
  */
-export const faceRegistrationSchema = z
+const faceRegistrationSchema = z
   .object({
     nom: z
       .string({ message: 'Le nom est obligatoire' })
@@ -115,8 +115,3 @@ export const faceRegistrationSchema = z
  * Typed schema for VeeValidate
  */
 export const faceRegistrationValidationSchema = toTypedSchema(faceRegistrationSchema)
-
-/**
- * Type inferred from the schema
- */
-export type FaceRegistrationFormData = z.infer<typeof faceRegistrationSchema>

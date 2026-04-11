@@ -1,13 +1,13 @@
 import { publicApiClient } from './apiClient'
 
-export interface ContactFormData {
+interface ContactFormData {
   name: string
   email: string
   subject: string
   message: string
 }
 
-export interface ContactFormResponse {
+interface ContactFormResponse {
   message: string
 }
 

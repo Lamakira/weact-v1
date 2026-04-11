@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Tests\Feature\Admin;
 
 use App\Enums\CandidatureStatus;
-use App\Enums\MissionStatus;
-use App\Enums\MissionType;
 use App\Models\Admin;
 use App\Models\Candidature;
 use App\Models\Face;

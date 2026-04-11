@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -25,10 +26,12 @@ class PublicFaceProfileResource extends JsonResource
     public function toArray(Request $request): array
     {
         $albumPhotosCount = $this->photos->count();
+        /** @var User|null $user */
+        $user = $this->user;
 
         return [
             'id' => $this->uuid,
-            'user_id' => $this->user?->id,
+            'user_id' => $user?->id,
             'username' => $this->username,
             'prenom' => $this->prenom,
             'sexe' => $this->sexe?->value,

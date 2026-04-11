@@ -37,7 +37,7 @@ export const BookingStatusLabel: Record<BookingStatusType, string> = {
 }
 
 // Commission rate (mirrors backend BookingPricing VO)
-export const COMMISSION_RATE = 0.10
+const COMMISSION_RATE = 0.10
 
 export const PRODUCER_CANCELLATION_REASONS = [
   { value: 'schedule_conflict', label: "Conflit d'agenda" },
@@ -50,7 +50,7 @@ export const FACE_CANCELLATION_REASONS = [
   { value: 'other', label: 'Autre raison' },
 ] as const
 
-export const LEGACY_CANCELLATION_REASON_LABELS: Record<string, string> = {
+const LEGACY_CANCELLATION_REASON_LABELS: Record<string, string> = {
   price_disagreement: 'Désaccord sur le prix',
 }
 
@@ -135,6 +135,7 @@ export interface Booking {
   date_fin: string
   duree_heures: number
   type_contenu: string
+  lieu: string | null
   message: string | null
   tarif_base: number
   montant_total_producteur: number
@@ -162,6 +163,7 @@ export interface CreateBookingData {
   date_fin: string
   duree_heures: number
   type_contenu: string
+  lieu: string
   message?: string
 }
 
@@ -215,7 +217,7 @@ export interface BookingCreateResult {
 }
 
 // Pricing preview (calculated client-side for UX)
-export interface BookingPricingPreview {
+interface BookingPricingPreview {
   tarifBase: number
   producerCommission: number
   totalProducerPays: number
@@ -296,12 +298,4 @@ export const CHAT_VIEW_STATUSES: BookingStatusType[] = [
   BookingStatus.CONFIRMED_BY_FACE,
   BookingStatus.CONFIRMED_BY_PRODUCER,
   BookingStatus.COMPLETED,
-]
-
-// Active chat statuses (can SEND messages — excludes completed)
-export const CHAT_SEND_STATUSES: BookingStatusType[] = [
-  BookingStatus.PAID,
-  BookingStatus.IN_PROGRESS,
-  BookingStatus.CONFIRMED_BY_FACE,
-  BookingStatus.CONFIRMED_BY_PRODUCER,
 ]

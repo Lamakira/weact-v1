@@ -7,6 +7,9 @@ namespace App\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin \App\Models\Article
+ */
 class ArticleResource extends JsonResource
 {
     /**
@@ -21,12 +24,12 @@ class ArticleResource extends JsonResource
             'content' => $this->content,
             'excerpt' => $this->excerpt,
             'category' => [
-                'value' => $this->category?->value,
-                'label' => $this->category?->label(),
+                'value' => $this->category->value,
+                'label' => $this->category->label(),
             ],
             'status' => [
-                'value' => $this->status?->value,
-                'label' => $this->status?->label(),
+                'value' => $this->status->value,
+                'label' => $this->status->label(),
             ],
             'featured_image' => $this->featured_image_url,
             'published_at' => $this->published_at?->toIso8601String(),

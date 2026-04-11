@@ -53,13 +53,13 @@ class RatingSchemaTest extends TestCase
      */
     private function createCompletedCandidature(?Face $face = null, ?Producer $producer = null): array
     {
-        if (!$face) {
+        if (! $face) {
             [$face, $faceUser] = $this->createFaceWithUser();
         } else {
             $faceUser = User::where('userable_type', Face::class)
                 ->where('userable_id', $face->id)
                 ->first();
-            if (!$faceUser) {
+            if (! $faceUser) {
                 $faceUser = User::factory()->create([
                     'userable_type' => Face::class,
                     'userable_id' => $face->id,
@@ -67,13 +67,13 @@ class RatingSchemaTest extends TestCase
             }
         }
 
-        if (!$producer) {
+        if (! $producer) {
             [$producer, $producerUser] = $this->createProducerWithUser();
         } else {
             $producerUser = User::where('userable_type', Producer::class)
                 ->where('userable_id', $producer->id)
                 ->first();
-            if (!$producerUser) {
+            if (! $producerUser) {
                 $producerUser = User::factory()->create([
                     'userable_type' => Producer::class,
                     'userable_id' => $producer->id,

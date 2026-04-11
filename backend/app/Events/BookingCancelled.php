@@ -40,10 +40,12 @@ class BookingCancelled implements ShouldBroadcast
      */
     public function broadcastWith(): array
     {
+        $status = BookingStatus::from((string) $this->booking->getRawOriginal('status'));
+
         return [
             'booking_id' => $this->booking->id,
-            'status' => $this->booking->status->value,
-            'cancelled_by' => $this->booking->status === BookingStatus::CancelledByFace ? 'face' : 'producer',
+            'status' => $status->value,
+            'cancelled_by' => $status === BookingStatus::CancelledByFace ? 'face' : 'producer',
             'cancellation_reason' => $this->booking->cancellation_reason,
         ];
     }

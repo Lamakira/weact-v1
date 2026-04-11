@@ -11,9 +11,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\EscrowTransaction;
 use App\Models\Face;
-use App\Models\Producer;
 use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
+use App\Models\Producer;
 use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Models\WithdrawalRequest;
@@ -76,29 +76,29 @@ class AdminFinanceController extends Controller
                     'amount' => $totalWalletBalance,
                     'face_balance' => $walletBalance,
                     'producer_balance' => $producerWalletBalance,
-                    'label'  => 'Soldes wallets (Faces + Producers)',
+                    'label' => 'Soldes wallets (Faces + Producers)',
                 ],
                 'faces' => [
-                    'amount'               => $walletBalance + $totalEscrow,
-                    'wallet_balance'       => $walletBalance,
-                    'escrow_booking'       => $bookingEscrowLocked,
-                    'escrow_mission'       => $missionEscrowLocked,
-                    'label'                => 'Total appartenant aux Faces',
+                    'amount' => $walletBalance + $totalEscrow,
+                    'wallet_balance' => $walletBalance,
+                    'escrow_booking' => $bookingEscrowLocked,
+                    'escrow_mission' => $missionEscrowLocked,
+                    'label' => 'Total appartenant aux Faces',
                 ],
                 'platform' => [
-                    'amount'               => $totalPlatformRevenue,
-                    'from_bookings'        => $bookingCommissions,
-                    'from_missions'        => $missionCommissions,
-                    'label'                => 'Revenus plateforme (commissions)',
+                    'amount' => $totalPlatformRevenue,
+                    'from_bookings' => $bookingCommissions,
+                    'from_missions' => $missionCommissions,
+                    'label' => 'Revenus plateforme (commissions)',
                 ],
                 'volume' => [
                     'bookings' => $bookingVolume,
                     'missions' => $missionVolume,
-                    'total'    => $bookingVolume + $missionVolume,
+                    'total' => $bookingVolume + $missionVolume,
                 ],
                 'withdrawals' => [
                     'total_amount' => $totalWithdrawals,
-                    'count'        => $withdrawalsCount,
+                    'count' => $withdrawalsCount,
                 ],
                 'withdrawal_requests' => [
                     'pending_count' => WithdrawalRequest::where('status', 'pending')->count(),
@@ -121,17 +121,17 @@ class AdminFinanceController extends Controller
             ->latest()
             ->take(20)
             ->get()
-            ->map(fn (WalletTransaction $tx) => [
-                'id'          => $tx->id,
-                'amount'      => $tx->amount,
+            ->map(fn ($tx) => [
+                'id' => $tx->id,
+                'amount' => $tx->amount,
                 'description' => $tx->description,
-                'reference'   => $tx->reference,
-                'created_at'  => $tx->created_at?->toIso8601String(),
-                'user_email'  => $tx->user?->email,
+                'reference' => $tx->reference,
+                'created_at' => $tx->created_at->toIso8601String(),
+                'user_email' => data_get($tx, 'user.email'),
             ]);
 
         return response()->json([
-            'data'    => $withdrawals,
+            'data' => $withdrawals,
             'message' => 'Recent withdrawals retrieved successfully',
         ]);
     }

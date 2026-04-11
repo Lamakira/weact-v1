@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /**
- * Run this AFTER executing `php artisan app:backfill-uuids` for all models.
+ * Backfills any missing UUIDs before making the route UUID columns NOT NULL.
  */
 return new class extends Migration
 {

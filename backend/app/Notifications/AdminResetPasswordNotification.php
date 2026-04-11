@@ -31,10 +31,10 @@ class AdminResetPasswordNotification extends Notification
      */
     public function toMail(object $notifiable): MailMessage
     {
-        $url = config('app.frontend_url') . '/admin/reset-password/' . $this->token
-            . '?email=' . urlencode($notifiable->getEmailForPasswordReset());
+        $url = config('app.frontend_url').'/admin/reset-password/'.$this->token
+            .'?email='.urlencode($notifiable->getEmailForPasswordReset());
 
-        return (new MailMessage())
+        return (new MailMessage)
             ->subject('Réinitialisation de votre mot de passe administrateur — WEACT')
             ->greeting('Bonjour,')
             ->line('Vous recevez cet email car une demande de réinitialisation de mot de passe a été effectuée pour votre compte administrateur.')

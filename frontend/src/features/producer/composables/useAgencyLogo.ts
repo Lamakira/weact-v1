@@ -2,12 +2,37 @@ import { ref, computed, type Ref, type ComputedRef } from 'vue'
 import { producerApi } from '../services/producerApi'
 import type { AgencyLogoResult } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
+import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
 
 // Allowed file types
 const ALLOWED_TYPES = ['image/jpeg', 'image/png']
 const MAX_FILE_SIZE = 2 * 1024 * 1024 // 2MB (per FR24)
+const AGENCY_LOGO_CACHE_TTL_MS = 5 * 60 * 1000
 
-export interface UseAgencyLogoReturn {
+interface AgencyLogoState {
+  logoUrl: string | null
+  thumbnailUrl: string | null
+}
+
+const agencyLogoResource = createSharedCachedResource<AgencyLogoState>({
+  key: 'producer-agency-logo',
+  initialValue: {
+    logoUrl: null,
+    thumbnailUrl: null,
+  },
+  ttlMs: AGENCY_LOGO_CACHE_TTL_MS,
+  load: async () => {
+    const response = await producerApi.getLogo()
+
+    return {
+      logoUrl: response.data.agency_logo_url,
+      thumbnailUrl: response.data.agency_logo_thumbnail_url,
+    }
+  },
+  getErrorMessage: getApiErrorMessage,
+})
+
+interface UseAgencyLogoReturn {
   logoUrl: Ref<string | null>
   thumbnailUrl: Ref<string | null>
   isLoading: Ref<boolean>
@@ -25,12 +50,28 @@ export interface UseAgencyLogoReturn {
  * Composable for Agency logo operations (Agency producers only)
  */
 export function useAgencyLogo(): UseAgencyLogoReturn {
-  const logoUrl = ref<string | null>(null)
-  const thumbnailUrl = ref<string | null>(null)
-  const isLoading = ref(false)
+  const logoUrl = computed({
+    get: () => agencyLogoResource.data.value.logoUrl,
+    set: (value: string | null) => {
+      agencyLogoResource.mutate((current) => ({
+        ...current,
+        logoUrl: value,
+      }))
+    },
+  }) as Ref<string | null>
+  const thumbnailUrl = computed({
+    get: () => agencyLogoResource.data.value.thumbnailUrl,
+    set: (value: string | null) => {
+      agencyLogoResource.mutate((current) => ({
+        ...current,
+        thumbnailUrl: value,
+      }))
+    },
+  }) as Ref<string | null>
+  const isLoading = agencyLogoResource.isLoading
   const isUploading = ref(false)
   const isDeleting = ref(false)
-  const error = ref<string | null>(null)
+  const error = agencyLogoResource.error
 
   // Computed properties
   const hasLogo = computed(() => !!logoUrl.value)
@@ -60,28 +101,15 @@ export function useAgencyLogo(): UseAgencyLogoReturn {
    * Fetch the current agency logo
    */
   async function fetchLogo(): Promise<AgencyLogoResult> {
-    isLoading.value = true
-    error.value = null
+    const state = await agencyLogoResource.fetch()
 
-    try {
-      const response = await producerApi.getLogo()
-      logoUrl.value = response.data.agency_logo_url
-      thumbnailUrl.value = response.data.agency_logo_thumbnail_url
-
-      return {
-        success: true,
-        data: response.data,
-      }
-    } catch (err) {
-      const message = getApiErrorMessage(err)
-      error.value = message
-
-      return {
-        success: false,
-        message,
-      }
-    } finally {
-      isLoading.value = false
+    return {
+      success: error.value === null,
+      data: {
+        agency_logo_url: state.logoUrl,
+        agency_logo_thumbnail_url: state.thumbnailUrl,
+      },
+      message: error.value ?? undefined,
     }
   }
 
@@ -104,8 +132,10 @@ export function useAgencyLogo(): UseAgencyLogoReturn {
 
     try {
       const response = await producerApi.uploadLogo(file)
-      logoUrl.value = response.data.agency_logo_url
-      thumbnailUrl.value = response.data.agency_logo_thumbnail_url
+      agencyLogoResource.setData({
+        logoUrl: response.data.agency_logo_url,
+        thumbnailUrl: response.data.agency_logo_thumbnail_url,
+      })
 
       return {
         success: true,
@@ -137,8 +167,10 @@ export function useAgencyLogo(): UseAgencyLogoReturn {
 
     try {
       const response = await producerApi.deleteLogo()
-      logoUrl.value = null
-      thumbnailUrl.value = null
+      agencyLogoResource.setData({
+        logoUrl: null,
+        thumbnailUrl: null,
+      })
 
       return {
         success: true,

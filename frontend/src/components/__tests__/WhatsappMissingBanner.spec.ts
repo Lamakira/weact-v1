@@ -33,6 +33,6 @@ describe('WhatsappMissingBanner', () => {
     expect(cta.text()).toBe('Renseigner mon WhatsApp')
 
     await cta.trigger('click')
-    expect(mockPush).toHaveBeenCalledWith('/face/profile')
+    expect(mockPush).toHaveBeenCalledWith('/face/profile?focus=whatsapp')
   })
 })

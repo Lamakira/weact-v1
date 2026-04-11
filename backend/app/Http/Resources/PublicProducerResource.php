@@ -25,11 +25,12 @@ class PublicProducerResource extends JsonResource
     public function toArray(Request $request): array
     {
         // Note: Carbon locale is set globally in AppServiceProvider
+        $type = $this->currentType();
 
         return [
             'id' => $this->uuid,
             'slug' => $this->slug,
-            'type' => $this->type?->value ?? $this->type,
+            'type' => $type !== null ? $type->value : (is_string($this->type) ? $this->type : null),
             'display_name' => $this->display_name,
             'agency_name' => $this->agency_name,
             'bio' => $this->bio,
@@ -37,8 +38,9 @@ class PublicProducerResource extends JsonResource
             'thumbnail_url' => $this->thumbnail_url,
             'agency_logo_url' => $this->agency_logo_url,
             'agency_logo_thumbnail_url' => $this->agency_logo_thumbnail_url,
-            // missions_count uses real data from database (Story 5-11)
             'missions_count' => $this->published_missions_count,
+            'in_progress_missions_count' => $this->in_progress_missions_count,
+            'completed_missions_count' => $this->completed_missions_count,
             // Rating data from Producer model (Story 8-5)
             'average_rating' => $this->average_rating,
             'ratings_count' => $this->ratings_count,

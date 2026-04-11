@@ -45,7 +45,7 @@ class EmailVerificationController extends Controller
     {
         $user = User::find($id);
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'error' => [
                     'code' => 'USER_NOT_FOUND',
@@ -55,7 +55,7 @@ class EmailVerificationController extends Controller
         }
 
         // Verify the hash matches the user's email
-        if (!hash_equals(sha1($user->getEmailForVerification()), $hash)) {
+        if (! hash_equals(sha1($user->getEmailForVerification()), $hash)) {
             return response()->json([
                 'error' => [
                     'code' => 'INVALID_VERIFICATION_LINK',
@@ -65,7 +65,7 @@ class EmailVerificationController extends Controller
         }
 
         // Check if the link has expired (signature validation)
-        if (!$request->hasValidSignature()) {
+        if (! $request->hasValidSignature()) {
             return response()->json([
                 'error' => [
                     'code' => 'VERIFICATION_LINK_EXPIRED',

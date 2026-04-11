@@ -20,7 +20,7 @@ trait MissionValidationRules
      */
     protected function prepareForValidation(): void
     {
-        if (!$this->has('nombre_faces_voulu') || $this->nombre_faces_voulu === null) {
+        if (! $this->has('nombre_faces_voulu') || $this->nombre_faces_voulu === null) {
             $this->merge([
                 'nombre_faces_voulu' => 1,
             ]);

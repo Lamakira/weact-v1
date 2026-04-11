@@ -5,20 +5,17 @@
  * Uses DashboardLayout with Producer-specific sidebar items.
  * Child routes render via <router-view> in the content area.
  */
-import { onMounted, ref, computed } from 'vue'
+import { onMounted, computed } from 'vue'
 import { LayoutDashboard, FileText, MessageCircle, User, PlusCircle, Users, CalendarCheck, Wallet } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { DashboardLayout, type SidebarItem } from '@/components/layout'
-import { producerApi } from '@/features/producer/services/producerApi'
-import type { Producer } from '@/features/producer/types'
+import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 
 const authStore = useAuthStore()
 const { logout, isLoading } = useAuth()
-
-// Profile data for avatar
-const profile = ref<Producer | null>(null)
+const { profile, fetchProfile } = useProducerProfilePhoto()
 
 // Sidebar navigation items for Producer dashboard
 const sidebarItems: SidebarItem[] = [
@@ -49,8 +46,7 @@ const avatarUrl = computed(() => {
 // Fetch profile on mount to get avatar
 onMounted(async () => {
   try {
-    const response = await producerApi.getProfile()
-    profile.value = response.data
+    await fetchProfile()
   } catch {
     // Silently fail - avatar will show fallback
   }

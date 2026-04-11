@@ -4,7 +4,7 @@
  * Dashboard home for Producer users — profile card + KPIs + quick access.
  * Two-column layout: profile photo (left) and stats/actions (right).
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   RefreshCw,
@@ -26,26 +26,17 @@ import {
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useProducerDashboardStats } from '@/features/dashboard/composables/useProducerDashboardStats'
+import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
 import { PRODUCER_KPI_CONFIGS } from '@/features/dashboard/types'
 import { Skeleton } from '@/components/ui/skeleton'
-import { producerApi } from '@/features/producer/services/producerApi'
-import type { Producer } from '@/features/producer/types'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const { stats, isLoading: statsLoading, error: statsError, fetchStats, retry } = useProducerDashboardStats()
-
-// Profile data
-const profile = ref<Producer | null>(null)
-const isProfileLoading = ref(true)
+const { profile, isLoading: isProfileLoading, fetchProfile } = useProducerProfilePhoto()
 
 onMounted(async () => {
-  const profilePromise = producerApi.getProfile()
-    .then((res) => { profile.value = res.data })
-    .catch(() => { /* Silently fail */ })
-    .finally(() => { isProfileLoading.value = false })
-
-  await Promise.all([profilePromise, fetchStats()])
+  await Promise.all([fetchProfile(), fetchStats()])
 })
 
 // Computed values

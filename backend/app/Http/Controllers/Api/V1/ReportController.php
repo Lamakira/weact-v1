@@ -7,8 +7,8 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Report;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ReportController extends Controller
@@ -41,7 +41,7 @@ class ReportController extends Controller
         $modelClass = $typeMap[$validated['reportable_type']];
         $reportable = $this->resolveReportable($modelClass, (string) $validated['reportable_id']);
 
-        if (!$reportable) {
+        if (! $reportable) {
             return response()->json([
                 'error' => [
                     'code' => 'not_found',
@@ -82,7 +82,7 @@ class ReportController extends Controller
     /**
      * Resolve a reportable model from either its legacy numeric ID or its public UUID.
      *
-     * @param class-string<Model> $modelClass
+     * @param  class-string<Model>  $modelClass
      */
     private function resolveReportable(string $modelClass, string $identifier): ?Model
     {

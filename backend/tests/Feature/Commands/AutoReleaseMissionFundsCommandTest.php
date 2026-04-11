@@ -90,6 +90,14 @@ class AutoReleaseMissionFundsCommandTest extends TestCase
         $faceUser->refresh();
         $this->assertSame(90000, $faceUser->balance);
 
+        $this->assertDatabaseHas('wallet_transactions', [
+            'user_id' => $faceUser->id,
+            'booking_id' => null,
+            'type' => 'credit',
+            'amount' => 90000,
+            'description' => "Mission : {$eligibleMission->titre}",
+        ]);
+
         $this->assertDatabaseHas('notifications', [
             'user_id' => $faceUser->id,
             'type' => 'mission_completed',
