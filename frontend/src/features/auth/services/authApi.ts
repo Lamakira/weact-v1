@@ -184,9 +184,18 @@ export function getApiErrorMessage(error: unknown): string {
   const status = getErrorStatus(error)
 
   // First, try to get the actual message from API error response
-  // This handles cases like login errors where backend returns specific messages
-  if (isApiError(error) && error.response?.data?.error?.message) {
-    return error.response.data.error.message
+  if (isApiError(error)) {
+    const data = error.response?.data
+    if (data?.error?.message) {
+      return data.error.message
+    }
+  }
+
+  // Laravel validation errors (422) have { message: "...", errors: {...} }
+  // Extract the specific message instead of falling through to generic 422 text
+  const axiosErr = error as AxiosError<{ message?: string }>
+  if (axiosErr?.response?.data?.message && typeof axiosErr.response.data.message === 'string') {
+    return axiosErr.response.data.message
   }
 
   // Handle specific status codes with fallback user-friendly messages
