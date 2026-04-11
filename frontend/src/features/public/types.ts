@@ -19,6 +19,8 @@ export interface PublicProducer {
   agency_logo_url: string | null
   agency_logo_thumbnail_url: string | null
   missions_count: number
+  in_progress_missions_count: number
+  completed_missions_count: number
   average_rating: number | null
   ratings_count: number
   member_since: string

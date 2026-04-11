@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Concerns\HasRouteUuid;
+use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
 use App\Enums\ProducerType;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -36,6 +37,8 @@ use Illuminate\Support\Str;
  * @property float|int|string|null $ratings_received_avg_score
  * @property int|string|null $ratings_received_count
  * @property-read int $published_missions_count
+ * @property-read int $completed_missions_count
+ * @property-read int $in_progress_missions_count
  * @property-read \Illuminate\Support\Carbon|null $created_at
  * @property-read \Illuminate\Support\Carbon|null $updated_at
  */
@@ -261,6 +264,33 @@ class Producer extends Model
     {
         return Attribute::make(
             get: fn (): int => $this->missions()->where('status', MissionStatus::Published)->count(),
+        );
+    }
+
+    /**
+     * Get the count of completed missions for this producer.
+     */
+    protected function completedMissionsCount(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): int => $this->missions()->where('status', MissionStatus::Completed)->count(),
+        );
+    }
+
+    /**
+     * Get the count of in-progress missions (with confirmed/in_progress candidatures).
+     */
+    protected function inProgressMissionsCount(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): int => $this->missions()
+                ->whereHas('candidatures', function ($query) {
+                    $query->whereIn('status', [
+                        CandidatureStatus::Confirmed->value,
+                        CandidatureStatus::InProgress->value,
+                    ]);
+                })
+                ->count(),
         );
     }
 
