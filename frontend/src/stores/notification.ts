@@ -35,7 +35,7 @@ export const useNotificationStore = defineStore('notification', () => {
     }
   }
 
-  async function fetchNotifications(page: number = 1): Promise<void> {
+  async function fetchNotifications(page: number = 1): Promise<boolean> {
     isLoading.value = true
     try {
       const response = await notificationApi.getNotifications(page)
@@ -47,14 +47,16 @@ export const useNotificationStore = defineStore('notification', () => {
       for (const item of response.data) {
         knownIds.add(item.id)
       }
+      return true
     } catch (error) {
       console.error('[NotificationStore] Failed to fetch notifications:', error)
+      return false
     } finally {
       isLoading.value = false
     }
   }
 
-  async function markAsRead(id: string): Promise<void> {
+  async function markAsRead(id: string): Promise<boolean> {
     // Optimistic local update
     const notification = items.value.find((n) => n.id === id)
     const previousReadAt = notification?.read_at ?? null
@@ -67,6 +69,7 @@ export const useNotificationStore = defineStore('notification', () => {
 
     try {
       await notificationApi.markAsRead(id)
+      return true
     } catch (error) {
       console.error('[NotificationStore] Failed to mark as read:', error)
       // Revert optimistic update on failure
@@ -74,10 +77,11 @@ export const useNotificationStore = defineStore('notification', () => {
         notification.read_at = previousReadAt
         unreadCount.value += 1
       }
+      return false
     }
   }
 
-  async function markAllAsRead(): Promise<void> {
+  async function markAllAsRead(): Promise<boolean> {
     // Optimistic local update
     const previousUnreadCount = unreadCount.value
     const previousReadAts = items.value.map((n) => n.read_at)
@@ -91,6 +95,7 @@ export const useNotificationStore = defineStore('notification', () => {
 
     try {
       await notificationApi.markAllAsRead()
+      return true
     } catch (error) {
       console.error('[NotificationStore] Failed to mark all as read:', error)
       // Revert optimistic update on failure
@@ -98,6 +103,7 @@ export const useNotificationStore = defineStore('notification', () => {
         n.read_at = previousReadAts[i]
       })
       unreadCount.value = previousUnreadCount
+      return false
     }
   }
 

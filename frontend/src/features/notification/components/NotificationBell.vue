@@ -1,55 +1,19 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import { Bell } from 'lucide-vue-next'
-import { notificationApi } from '../services/notificationApi'
+import { useNotificationStore } from '@/stores/notification'
 import NotificationsDropdown from './NotificationsDropdown.vue'
 
-/**
- * NotificationBell component for Face navbar
- * Shows bell icon with unread count badge
- * Toggles notifications dropdown on click
- * Pauses polling while dropdown is open
- */
+const notificationStore = useNotificationStore()
+const { unreadCount } = storeToRefs(notificationStore)
 
-const unreadCount = ref(0)
 const showDropdown = ref(false)
 const bellContainer = ref<HTMLElement | null>(null)
-let pollInterval: ReturnType<typeof setInterval> | null = null
 
 const displayCount = computed(() => {
   if (unreadCount.value > 9) return '9+'
   return unreadCount.value.toString()
-})
-
-async function fetchUnreadCount(): Promise<void> {
-  try {
-    const response = await notificationApi.getUnreadCount()
-    unreadCount.value = response.count
-  } catch (error) {
-    // Log error for debugging, but don't disrupt UX
-    console.error('[NotificationBell] Failed to fetch unread count:', error)
-  }
-}
-
-function startPolling(): void {
-  if (pollInterval) return
-  pollInterval = setInterval(fetchUnreadCount, 30000)
-}
-
-function stopPolling(): void {
-  if (pollInterval) {
-    clearInterval(pollInterval)
-    pollInterval = null
-  }
-}
-
-// Pause polling when dropdown is open, resume when closed
-watch(showDropdown, (isOpen) => {
-  if (isOpen) {
-    stopPolling()
-  } else {
-    startPolling()
-  }
 })
 
 function toggleDropdown(): void {
@@ -68,23 +32,11 @@ function handleClickOutside(event: MouseEvent): void {
   }
 }
 
-function handleNotificationRead(): void {
-  // Decrement count when a notification is marked as read
-  unreadCount.value = Math.max(0, unreadCount.value - 1)
-}
-
-function handleAllRead(): void {
-  unreadCount.value = 0
-}
-
 onMounted(() => {
-  fetchUnreadCount()
-  startPolling()
   window.addEventListener('click', handleClickOutside)
 })
 
 onUnmounted(() => {
-  stopPolling()
   window.removeEventListener('click', handleClickOutside)
 })
 </script>
@@ -127,8 +79,6 @@ onUnmounted(() => {
     <NotificationsDropdown
       v-if="showDropdown"
       @close="closeDropdown"
-      @notification-read="handleNotificationRead"
-      @all-read="handleAllRead"
     />
   </div>
 </template>
