@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import type { Notification } from '@/features/notification/types'
 
@@ -21,6 +21,8 @@ vi.mock('@/features/notification/services/notificationApi', () => ({
 const mockListen = vi.fn().mockReturnThis()
 const mockError = vi.fn().mockReturnThis()
 const mockSubscribed = vi.fn().mockReturnThis()
+const mockBind = vi.fn()
+const mockUnbind = vi.fn()
 const mockPrivate = vi.fn(() => ({
   listen: mockListen,
   error: mockError,
@@ -35,6 +37,12 @@ vi.mock('@/plugins/echo', () => ({
     connector: {
       options: {
         auth: { headers: {} },
+      },
+      pusher: {
+        connection: {
+          bind: (...args: unknown[]) => mockBind(...args),
+          unbind: (...args: unknown[]) => mockUnbind(...args),
+        },
       },
     },
   },
@@ -69,7 +77,14 @@ function createNotification(overrides: Partial<Notification> = {}): Notification
 describe('useNotificationStore', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    useNotificationStore().unsubscribe()
     vi.clearAllMocks()
+    vi.useRealTimers()
+  })
+
+  afterEach(() => {
+    useNotificationStore().unsubscribe()
+    vi.useRealTimers()
   })
 
   describe('initial state', () => {
@@ -259,6 +274,7 @@ describe('useNotificationStore', () => {
       expect(mockListen).toHaveBeenCalledWith('.notification.created', expect.any(Function))
       expect(mockError).toHaveBeenCalledOnce()
       expect(mockSubscribed).toHaveBeenCalledOnce()
+      expect(mockBind).toHaveBeenCalledWith('connected', expect.any(Function))
       expect(store.isSubscribed).toBe(false)
     })
 
@@ -316,6 +332,47 @@ describe('useNotificationStore', () => {
 
       expect(mockPrivate).not.toHaveBeenCalled()
       expect(store.isSubscribed).toBe(false)
+    })
+
+    it('registers a window focus listener', () => {
+      const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
+      const store = useNotificationStore()
+      const authStore = useAuthStore()
+      authStore.setUser({ id: 42, email: 'test@test.com' } as never)
+      authStore.setToken('test-token')
+
+      store.subscribe()
+
+      expect(addEventListenerSpy).toHaveBeenCalledWith('focus', expect.any(Function))
+    })
+
+    it('starts the safety poll interval', async () => {
+      vi.useFakeTimers()
+      mockGetUnreadCount.mockResolvedValue({ count: 1 })
+      const store = useNotificationStore()
+      const authStore = useAuthStore()
+      authStore.setUser({ id: 42, email: 'test@test.com' } as never)
+      authStore.setToken('test-token')
+
+      store.subscribe()
+      vi.advanceTimersByTime(120_000)
+      await Promise.resolve()
+
+      expect(mockGetUnreadCount).toHaveBeenCalledOnce()
+    })
+
+    it('does not start the safety poll when no user is authenticated', async () => {
+      vi.useFakeTimers()
+      mockGetUnreadCount.mockResolvedValue({ count: 1 })
+      const store = useNotificationStore()
+      const authStore = useAuthStore()
+      authStore.clearAuth()
+
+      store.subscribe()
+      vi.advanceTimersByTime(120_000)
+      await Promise.resolve()
+
+      expect(mockGetUnreadCount).not.toHaveBeenCalled()
     })
   })
 
@@ -404,6 +461,158 @@ describe('useNotificationStore', () => {
       expect(store.items).toEqual([])
       expect(store.isSubscribed).toBe(false)
       expect(store.hasFetchedItems).toBe(false)
+    })
+
+    it('removes the window focus listener', () => {
+      const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
+      const store = useNotificationStore()
+      const authStore = useAuthStore()
+      authStore.setUser({ id: 42, email: 'test@test.com' } as never)
+      authStore.setToken('test-token')
+
+      store.subscribe()
+      store.unsubscribe()
+
+      expect(removeEventListenerSpy).toHaveBeenCalledWith('focus', expect.any(Function))
+    })
+
+    it('clears the safety poll interval', async () => {
+      vi.useFakeTimers()
+      mockGetUnreadCount.mockResolvedValue({ count: 1 })
+      const store = useNotificationStore()
+      const authStore = useAuthStore()
+      authStore.setUser({ id: 42, email: 'test@test.com' } as never)
+      authStore.setToken('test-token')
+
+      store.subscribe()
+      store.unsubscribe()
+      vi.advanceTimersByTime(120_000)
+      await Promise.resolve()
+
+      expect(mockGetUnreadCount).not.toHaveBeenCalled()
+    })
+
+    it('unbinds the reconnect handler', () => {
+      const store = useNotificationStore()
+      const authStore = useAuthStore()
+      authStore.setUser({ id: 42, email: 'test@test.com' } as never)
+      authStore.setToken('test-token')
+
+      store.subscribe()
+
+      const reconnectHandler = mockBind.mock.calls[0][1] as () => void
+      store.unsubscribe()
+
+      expect(mockUnbind).toHaveBeenCalledWith('connected', reconnectHandler)
+    })
+  })
+
+  describe('fallback mechanisms', () => {
+    function subscribeWithAuthenticatedUser() {
+      const store = useNotificationStore()
+      const authStore = useAuthStore()
+      authStore.setUser({ id: 42, email: 'test@test.com' } as never)
+      authStore.setToken('test-token')
+      store.subscribe()
+      return store
+    }
+
+    it('triggers fetchUnreadCount on window focus', async () => {
+      mockGetUnreadCount.mockResolvedValue({ count: 7 })
+      subscribeWithAuthenticatedUser()
+
+      window.dispatchEvent(new Event('focus'))
+      await Promise.resolve()
+
+      expect(mockGetUnreadCount).toHaveBeenCalledOnce()
+    })
+
+    it('also triggers fetchNotifications on window focus when items were already fetched', async () => {
+      mockGetNotifications.mockResolvedValue({ data: [createNotification()] })
+      const store = subscribeWithAuthenticatedUser()
+      await store.fetchNotifications()
+      mockGetNotifications.mockClear()
+
+      window.dispatchEvent(new Event('focus'))
+      await Promise.resolve()
+
+      expect(mockGetNotifications).toHaveBeenCalledWith(1)
+    })
+
+    it('does not fetch notifications on window focus when items were not fetched yet', async () => {
+      mockGetUnreadCount.mockResolvedValue({ count: 7 })
+      subscribeWithAuthenticatedUser()
+
+      window.dispatchEvent(new Event('focus'))
+      await Promise.resolve()
+
+      expect(mockGetNotifications).not.toHaveBeenCalled()
+    })
+
+    it('triggers fetchUnreadCount on reconnect', async () => {
+      mockGetUnreadCount.mockResolvedValue({ count: 7 })
+      subscribeWithAuthenticatedUser()
+
+      const reconnectHandler = mockBind.mock.calls[0][1] as () => void
+      reconnectHandler()
+      await Promise.resolve()
+
+      expect(mockGetUnreadCount).toHaveBeenCalledOnce()
+    })
+
+    it('also triggers fetchNotifications on reconnect when items were already fetched', async () => {
+      mockGetNotifications.mockResolvedValue({ data: [createNotification()] })
+      const store = subscribeWithAuthenticatedUser()
+      await store.fetchNotifications()
+      mockGetNotifications.mockClear()
+
+      const reconnectHandler = mockBind.mock.calls[0][1] as () => void
+      reconnectHandler()
+      await Promise.resolve()
+
+      expect(mockGetNotifications).toHaveBeenCalledWith(1)
+    })
+
+    it('cleans up focus listener, reconnect handler, and safety poll when the channel errors', async () => {
+      vi.useFakeTimers()
+      mockGetUnreadCount.mockResolvedValue({ count: 7 })
+      const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
+      subscribeWithAuthenticatedUser()
+
+      const reconnectHandler = mockBind.mock.calls[0][1] as () => void
+      const errorHandler = mockError.mock.calls[0][0] as () => void
+      errorHandler()
+
+      expect(removeEventListenerSpy).toHaveBeenCalledWith('focus', expect.any(Function))
+      expect(mockUnbind).toHaveBeenCalledWith('connected', reconnectHandler)
+
+      window.dispatchEvent(new Event('focus'))
+      vi.advanceTimersByTime(120_000)
+      await Promise.resolve()
+
+      expect(mockGetUnreadCount).not.toHaveBeenCalled()
+    })
+
+    it('cleans up focus listener and safety poll when channel creation throws synchronously', async () => {
+      vi.useFakeTimers()
+      mockGetUnreadCount.mockResolvedValue({ count: 7 })
+      const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      mockPrivate.mockImplementationOnce(() => {
+        throw new Error('Echo init failed')
+      })
+
+      subscribeWithAuthenticatedUser()
+
+      expect(removeEventListenerSpy).toHaveBeenCalledWith('focus', expect.any(Function))
+
+      window.dispatchEvent(new Event('focus'))
+      vi.advanceTimersByTime(120_000)
+      await Promise.resolve()
+
+      expect(mockGetUnreadCount).not.toHaveBeenCalled()
+      expect(consoleSpy).toHaveBeenCalled()
+      consoleSpy.mockRestore()
     })
   })
 

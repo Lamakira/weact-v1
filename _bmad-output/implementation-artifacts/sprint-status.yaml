@@ -420,7 +420,7 @@ development_status:
   rt-1-1-backend-broadcast-observer: done                                   # NotificationCreated event + NotificationObserver afterCommit
   rt-1-2-store-frontend-echo-subscription: done                       # Store Pinia + abonnement canal privé user.{id}
   rt-1-3-refactor-ui-bell-dropdown: done                       # NotificationBell + Dropdown consomment le store
-  rt-1-4-fallback-non-regression: backlog                             # Fallback window.focus, reconnect, polling lent
+  rt-1-4-fallback-non-regression: done                              # Fallback window.focus, reconnect, polling lent
   epic-rt-1-retrospective: optional
 
 last_updated: "2026-04-11"

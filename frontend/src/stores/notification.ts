@@ -13,6 +13,28 @@ interface EchoChannel {
   subscribed?: (callback: () => void) => EchoChannel
 }
 
+interface EchoConnection {
+  bind: (event: 'connected', callback: () => void) => void
+  unbind: (event: 'connected', callback: () => void) => void
+}
+
+let focusHandler: (() => void) | null = null
+let reconnectHandler: (() => void) | null = null
+let safetyPollIntervalId: ReturnType<typeof setInterval> | null = null
+
+function getEchoConnection(): EchoConnection | null {
+  const connection = echo.connector?.pusher?.connection
+  if (
+    !connection
+    || typeof connection.bind !== 'function'
+    || typeof connection.unbind !== 'function'
+  ) {
+    return null
+  }
+
+  return connection as EchoConnection
+}
+
 export const useNotificationStore = defineStore('notification', () => {
   // State
   const unreadCount = ref(0)
@@ -107,6 +129,68 @@ export const useNotificationStore = defineStore('notification', () => {
     }
   }
 
+  function startFocusListener(): void {
+    if (typeof window === 'undefined' || focusHandler) return
+
+    focusHandler = () => {
+      void fetchUnreadCount()
+
+      if (hasFetchedItems.value) {
+        void fetchNotifications()
+      }
+    }
+
+    window.addEventListener('focus', focusHandler)
+  }
+
+  function stopFocusListener(): void {
+    if (typeof window === 'undefined' || !focusHandler) return
+
+    window.removeEventListener('focus', focusHandler)
+    focusHandler = null
+  }
+
+  function startReconnectListener(): void {
+    const connection = getEchoConnection()
+    if (!connection || reconnectHandler) return
+
+    reconnectHandler = () => {
+      void fetchUnreadCount()
+
+      if (hasFetchedItems.value) {
+        void fetchNotifications()
+      }
+    }
+
+    connection.bind('connected', reconnectHandler)
+  }
+
+  function stopReconnectListener(): void {
+    if (!reconnectHandler) return
+
+    const connection = getEchoConnection()
+    if (connection) {
+      connection.unbind('connected', reconnectHandler)
+    }
+
+    reconnectHandler = null
+  }
+
+  function startSafetyPoll(): void {
+    if (safetyPollIntervalId) return
+
+    safetyPollIntervalId = setInterval(() => {
+      void fetchUnreadCount()
+    }, 120_000)
+  }
+
+  function stopSafetyPoll(): void {
+    if (!safetyPollIntervalId) return
+
+    clearInterval(safetyPollIntervalId)
+    safetyPollIntervalId = null
+  }
+
   function subscribe(): void {
     if (isSubscribed.value || isSubscribing.value) return
 
@@ -115,6 +199,8 @@ export const useNotificationStore = defineStore('notification', () => {
     if (!userId) return
 
     isSubscribing.value = true
+    startFocusListener()
+    startSafetyPoll()
 
     // Refresh Echo auth headers from current token/cookie
     const token = getAuthToken()
@@ -143,10 +229,15 @@ export const useNotificationStore = defineStore('notification', () => {
           items.value.unshift(event)
         }
       })
-      
+
+      startReconnectListener()
+
       channel.error?.(() => {
         isSubscribing.value = false
         isSubscribed.value = false
+        stopFocusListener()
+        stopReconnectListener()
+        stopSafetyPoll()
 
         try {
           echo.leave(`App.Models.User.${userId}`)
@@ -167,11 +258,18 @@ export const useNotificationStore = defineStore('notification', () => {
     } catch (error) {
       isSubscribing.value = false
       isSubscribed.value = false
+      stopFocusListener()
+      stopReconnectListener()
+      stopSafetyPoll()
       console.error('[NotificationStore] Failed to subscribe to notifications channel:', error)
     }
   }
 
   function unsubscribe(): void {
+    stopFocusListener()
+    stopReconnectListener()
+    stopSafetyPoll()
+
     const authStore = useAuthStore()
     const userId = authStore.user?.id
     if (userId) {
