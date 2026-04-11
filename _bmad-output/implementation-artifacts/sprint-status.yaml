@@ -416,12 +416,12 @@ development_status:
   # ============================================
 
   # Epic RT-1: Notifications Temps Réel via Reverb/Echo (4 stories)
-  epic-rt-1: in-progress
+  epic-rt-1: done
   rt-1-1-backend-broadcast-observer: done                                   # NotificationCreated event + NotificationObserver afterCommit
   rt-1-2-store-frontend-echo-subscription: done                       # Store Pinia + abonnement canal privé user.{id}
   rt-1-3-refactor-ui-bell-dropdown: done                       # NotificationBell + Dropdown consomment le store
   rt-1-4-fallback-non-regression: done                              # Fallback window.focus, reconnect, polling lent
-  epic-rt-1-retrospective: optional
+  epic-rt-1-retrospective: done
 
 last_updated: "2026-04-11"
 # Story fix-15-1 created: 2026-04-10
