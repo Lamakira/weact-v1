@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Models\Notification;
+use App\Observers\NotificationObserver;
 use Carbon\Carbon;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -27,6 +29,9 @@ class AppServiceProvider extends ServiceProvider
         // Block destructive database commands (migrate:fresh, migrate:refresh, db:wipe)
         // in production to prevent accidental data loss
         DB::prohibitDestructiveCommands($this->app->isProduction());
+
+        // Broadcast NotificationCreated event whenever a notification is persisted
+        Notification::observe(NotificationObserver::class);
 
         // Set Carbon locale globally for French date formatting
         Carbon::setLocale('fr');
