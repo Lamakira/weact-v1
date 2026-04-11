@@ -233,6 +233,10 @@ const router = createRouter({
           component: () => import('../pages/producer/mission/PublishMissionPage.vue'),
         },
         {
+          path: 'missions/:id',
+          redirect: (to) => ({ name: 'edit-mission', params: { id: to.params.id } }),
+        },
+        {
           path: 'missions/:id/edit',
           name: 'edit-mission',
           component: () => import('../pages/producer/mission/EditMissionPage.vue'),
