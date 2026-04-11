@@ -1,11 +1,23 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 import CookieConsentBanner from '@/components/cookie/CookieConsentBanner.vue'
+import { useAuthStore } from '@/stores/auth'
+import { useNotificationStore } from '@/stores/notification'
 
 const route = useRoute()
+const authStore = useAuthStore()
+const notificationStore = useNotificationStore()
+
+// Bootstrap notification store on app reload for authenticated users
+onMounted(() => {
+  if (authStore.isAuthenticated && !notificationStore.isSubscribed) {
+    notificationStore.subscribe()
+    notificationStore.fetchUnreadCount()
+  }
+})
 
 /** Check if current route uses dashboard layout (no AppHeader/footer) */
 const isDashboardRoute = computed(() => {
