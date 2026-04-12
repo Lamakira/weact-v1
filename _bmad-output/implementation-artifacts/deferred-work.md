@@ -60,3 +60,13 @@
 - No debounce on window focus handler — rapid tab-switching triggers concurrent `fetchUnreadCount()` and `fetchNotifications()` calls, with potential out-of-order response overwrites. Low impact, pre-existing design choice
 - In-flight fallback fetches can repopulate the notification store after logout/reset — real but low impact race because only already in-flight requests can write stale badge state, the window is brief, and the next login reconciliation overwrites it
 - 401 cleanup can skip `clearAuth()` if the dynamic import chain rejects — defensive weakness in a pre-existing best-effort cleanup pattern; storage is cleared and redirect happens synchronously even if the import chain fails
+
+## Deferred from: code review of fix-19-1-compensate-mission-payment-initiation-failure (2026-04-12)
+
+- Orphan FedaPay transaction after remote `Transaction::create()` succeeds but `generateToken()` or network throws — local deletes payment row, remote transaction persists with stale `custom_metadata.mission_payment_id`; requires reconciliation strategy (fix-19-2/fix-19-4 scope)
+- Retry after partial compensation failure blocked by `mission_id` UNIQUE on `mission_payments` — if compensate crashes mid-way, row stays and next `confirmAndPay` hits unique violation → 500; producer trapped (fix-19-2 scope)
+- Concurrent double-submit mid-flight creates orphan remote transactions — prepare tx commits before external call, releasing locks; slow FedaPay response lets a second attempt be rejected while the first still spawns a remote transaction (fix-19-2/fix-19-5 scope)
+- `Str::uuid()` idempotency key regenerated per call and only stored in FedaPay `custom_metadata` — useless for dedup since FedaPay SDK does not honor it; should derive from `$payment->id` or persist locally (fix-19-2 scope)
+- Deadlock risk: prepare locks mission→candidatures→payment; compensate locks payment→mission→candidatures (reverse order) — no retry-on-deadlock wired, fragile under concurrent compensate+retry (fix-19-2 scope)
+- Post-commit notification failures silently lose candidature notifications on success path — `notifySafely` swallows failures after `finalizePreparedPayment` commits; producer pays but Faces never learn (pre-existing notifySafely pattern, not introduced by this change)
+- Legacy `MissionPaymentService::initiatePayment()` method is currently unused but deferred because fix-19-2 is the planned resume-checkout story and may reuse it as the single resume path
