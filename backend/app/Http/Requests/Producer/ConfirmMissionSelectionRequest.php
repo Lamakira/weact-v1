@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Producer;
 
+use App\Enums\MissionPaymentStatus;
+use App\Enums\MissionStatus;
 use App\Models\Mission;
 use App\Models\Producer;
 use Illuminate\Foundation\Http\FormRequest;
@@ -29,6 +31,18 @@ class ConfirmMissionSelectionRequest extends FormRequest
      */
     public function rules(): array
     {
+        /** @var Mission $mission */
+        $mission = $this->route('mission');
+
+        if ($this->canResumePendingPayment($mission)) {
+            // Resume contract: the body MUST be empty. To change the selection after
+            // payment has started, the producer must explicitly cancel the pending
+            // payment first (covered by a separate story).
+            return [
+                'candidature_ids' => ['prohibited'],
+            ];
+        }
+
         return [
             'candidature_ids' => ['required', 'array', 'min:1'],
             'candidature_ids.*' => ['required', 'string', 'uuid', 'exists:candidatures,uuid'],
@@ -44,6 +58,16 @@ class ConfirmMissionSelectionRequest extends FormRequest
             'candidature_ids.required' => 'Vous devez sélectionner au moins une candidature.',
             'candidature_ids.min' => 'Vous devez sélectionner au moins une candidature.',
             'candidature_ids.*.exists' => 'Une ou plusieurs candidatures sélectionnées sont invalides.',
+            'candidature_ids.prohibited' => 'Ce paiement est déjà initié. Pour changer la sélection, annulez d\'abord le paiement en cours.',
         ];
+    }
+
+    private function canResumePendingPayment(Mission $mission): bool
+    {
+        $payment = $mission->payment;
+
+        return $mission->status === MissionStatus::PendingPayment
+            && $payment !== null
+            && $payment->status === MissionPaymentStatus::Pending;
     }
 }

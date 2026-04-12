@@ -432,7 +432,7 @@ development_status:
   # Epic FIX-19: Résilience locale du paiement mission (5 stories)
   epic-fix-19: in-progress
   fix-19-1-compensate-mission-payment-initiation-failure: done
-  fix-19-2-resume-mission-payment-checkout: ready-for-dev
+  fix-19-2-resume-mission-payment-checkout: in-progress
   fix-19-3-guard-false-pending-payment-ui: ready-for-dev
   fix-19-4-log-mission-payment-failure-context: ready-for-dev
   fix-19-5-cover-mission-payment-failure-regressions: ready-for-dev

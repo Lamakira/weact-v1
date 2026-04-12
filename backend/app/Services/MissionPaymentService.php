@@ -17,6 +17,8 @@ use App\Models\MissionPaymentCandidature;
 use App\Models\Notification;
 use App\Models\User;
 use App\ValueObjects\MissionPricing;
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -24,6 +26,8 @@ use Illuminate\Validation\ValidationException;
 
 class MissionPaymentService
 {
+    private const MISSION_PAYMENT_LOCK_TTL_SECONDS = 120;
+
     public function __construct(
         private readonly FedapayService $fedapayService,
         private readonly WalletService $walletService,
@@ -33,28 +37,43 @@ class MissionPaymentService
      * Confirm face selection, initiate the external checkout, then finalize local state.
      *
      * @param  string[]  $candidatureUuids
-     * @return array{payment: MissionPayment, checkout_url: string}
+     * @return array{payment: MissionPayment, checkout_url: ?string}
      *
      * @throws ValidationException
      */
     public function confirmAndInitiatePayment(Mission $mission, array $candidatureUuids): array
     {
-        $prepared = $this->prepareSelectionForPayment($mission, $candidatureUuids);
-        $remotePayment = null;
+        return $this->withMissionPaymentLock($mission, function () use ($mission, $candidatureUuids): array {
+            $existingPayment = $this->resolveResumablePayment($mission);
 
-        try {
-            $remotePayment = $this->requestHostedCheckout($prepared['payment']);
-            $payment = $this->finalizePreparedPayment($prepared['payment'], $remotePayment);
-        } catch (\Throwable $e) {
-            $this->handleInitiationFailure($prepared, $remotePayment, $e);
-        }
+            if ($existingPayment instanceof MissionPayment) {
+                try {
+                    return $this->initiatePayment($existingPayment);
+                } catch (\Throwable $e) {
+                    // Resume path normalizes every failure (including ValidationException
+                    // from stale payment state) into a single MissionPaymentInitiationException
+                    // envelope, so the SPA has one response shape to parse for "resume failed".
+                    $this->handleResumeInitiationFailure($existingPayment, $e);
+                }
+            }
 
-        $this->dispatchSelectionNotifications($prepared['notifications']);
+            $prepared = $this->prepareSelectionForPayment($mission, $candidatureUuids);
+            $remotePayment = null;
 
-        return [
-            'payment' => $payment,
-            'checkout_url' => $remotePayment['checkout_url'],
-        ];
+            try {
+                $remotePayment = $this->requestHostedCheckout($prepared['payment']);
+                $payment = $this->finalizePreparedPayment($prepared['payment'], $remotePayment);
+            } catch (\Throwable $e) {
+                $this->handleInitiationFailure($prepared, $remotePayment, $e);
+            }
+
+            $this->dispatchSelectionNotifications($prepared['notifications']);
+
+            return [
+                'payment' => $payment,
+                'checkout_url' => $remotePayment['checkout_url'],
+            ];
+        });
     }
 
     /**
@@ -201,6 +220,68 @@ class MissionPaymentService
         return $this->fedapayService->initiatePaymentForMission(
             $payment,
             Str::uuid()->toString(),
+        );
+    }
+
+    /**
+     * @template T
+     *
+     * @param  callable(): T  $callback
+     * @return T
+     *
+     * @throws ValidationException
+     */
+    private function withMissionPaymentLock(Mission $mission, callable $callback): mixed
+    {
+        $lock = Cache::lock("mission_payment_{$mission->id}", self::MISSION_PAYMENT_LOCK_TTL_SECONDS);
+
+        try {
+            return $lock->block(5, $callback);
+        } catch (LockTimeoutException) {
+            throw ValidationException::withMessages([
+                'status' => ['Un paiement est deja en cours pour cette mission.'],
+            ]);
+        } finally {
+            optional($lock)->release();
+        }
+    }
+
+    private function resolveResumablePayment(Mission $mission): ?MissionPayment
+    {
+        /** @var Mission $freshMission */
+        $freshMission = Mission::query()
+            ->with('payment')
+            ->findOrFail($mission->id);
+
+        $payment = $freshMission->payment;
+
+        if (
+            ! $payment instanceof MissionPayment
+            || $freshMission->status !== MissionStatus::PendingPayment
+            || $payment->status !== MissionPaymentStatus::Pending
+        ) {
+            return null;
+        }
+
+        return $payment;
+    }
+
+    /**
+     * @throws MissionPaymentInitiationException
+     */
+    private function handleResumeInitiationFailure(MissionPayment $payment, \Throwable $exception): never
+    {
+        Log::error('Mission payment resume failed', [
+            'mission_payment_id' => $payment->id,
+            'mission_id' => $payment->mission_id,
+            'remote_transaction_id' => $payment->fedapay_transaction_id,
+            'error_class' => $exception::class,
+            'error_message' => $exception->getMessage(),
+        ]);
+
+        throw new MissionPaymentInitiationException(
+            'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.',
+            previous: $exception,
         );
     }
 
@@ -356,7 +437,7 @@ class MissionPaymentService
      * Initiate FedaPay checkout for a mission payment.
      * Idempotent: regenerates URL if transaction exists and is not failed.
      *
-     * @return array{payment: MissionPayment, checkout_url: string}
+     * @return array{payment: MissionPayment, checkout_url: ?string}
      *
      * @throws ValidationException
      */
@@ -369,6 +450,29 @@ class MissionPaymentService
             // Idempotent: if transaction exists and not in failed state, regenerate URL
             if ($payment->fedapay_transaction_id !== null) {
                 $existing = $this->fedapayService->retrieveTransaction((int) $payment->fedapay_transaction_id);
+
+                if ($existing->status === 'approved') {
+                    // Self-healing: the FedaPay webhook never landed (or is delayed) but the
+                    // remote side says the transaction is approved. We reconcile local state
+                    // here, nested inside initiatePayment()'s DB::transaction and
+                    // withMissionPaymentLock()'s cache lock.
+                    //
+                    // ⚠️ REQUIRES QUEUE_CONNECTION=database (or sync).
+                    // markAsPaid() fans out N+1 Notification::create() calls which can
+                    // dispatch model-observer jobs. With a non-DB queue driver (redis, sqs),
+                    // those jobs could be consumed by a worker before the outer transaction
+                    // commits, racing against the not-yet-visible rows. Switching the queue
+                    // driver requires moving this self-healing path outside the cache lock
+                    // (e.g., return a "needs_reconcile" flag and let the controller call
+                    // markAsPaid() after the lock is released).
+                    $paidPayment = $this->markAsPaid(
+                        $payment,
+                        (string) ($existing->reference ?? $payment->fedapay_transaction_id)
+                    );
+
+                    return ['payment' => $paidPayment, 'checkout_url' => null];
+                }
+
                 $terminalFailedStatuses = ['declined', 'canceled', 'refunded'];
 
                 if (! in_array($existing->status, $terminalFailedStatuses, true)) {

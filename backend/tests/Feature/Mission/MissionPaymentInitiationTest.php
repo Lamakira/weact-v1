@@ -5,15 +5,20 @@ declare(strict_types=1);
 namespace Tests\Feature\Mission;
 
 use App\Enums\CandidatureStatus;
+use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
+use App\Models\MissionPayment;
+use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
 use App\Services\FedapayService;
 use App\Services\MissionPaymentService;
+use App\ValueObjects\MissionPricing;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
@@ -130,6 +135,356 @@ class MissionPaymentInitiationTest extends TestCase
             'user_id' => $this->getFaceUserId($this->rejectedCandidate),
             'type' => 'candidature_rejected',
         ]);
+    }
+
+    public function test_retry_without_reselecting_faces_reuses_existing_checkout_url(): void
+    {
+        $payment = $this->createPendingMissionPayment('123456');
+        $existingTransaction = $this->makeTransactionStub(
+            status: 'pending',
+            checkoutUrl: 'https://checkout.fedapay.com/reused-token',
+        );
+
+        $this->mock(FedapayService::class, function ($mock) use ($existingTransaction): void {
+            $mock->shouldReceive('retrieveTransaction')
+                ->once()
+                ->with(123456)
+                ->andReturn($existingTransaction);
+            $mock->shouldNotReceive('initiatePaymentForMission');
+        });
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", []);
+
+        $response->assertOk()
+            ->assertJsonPath('data.payment_id', $payment->id)
+            ->assertJsonPath('data.checkout_url', 'https://checkout.fedapay.com/reused-token')
+            ->assertJsonPath('data.status', 'pending');
+
+        $this->assertSame(1, MissionPayment::query()->count());
+        $this->assertSame(MissionStatus::PendingPayment, $this->mission->fresh()->status);
+        $this->assertSame(CandidatureStatus::Accepted, $this->selectedFirst->fresh()->status);
+        $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
+        $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
+    }
+
+    public function test_retry_with_explicit_empty_selection_array_reuses_existing_checkout_url(): void
+    {
+        $payment = $this->createPendingMissionPayment('123456');
+        $existingTransaction = $this->makeTransactionStub(
+            status: 'pending',
+            checkoutUrl: 'https://checkout.fedapay.com/reused-token',
+        );
+
+        $this->mock(FedapayService::class, function ($mock) use ($existingTransaction): void {
+            $mock->shouldReceive('retrieveTransaction')
+                ->once()
+                ->with(123456)
+                ->andReturn($existingTransaction);
+            $mock->shouldNotReceive('initiatePaymentForMission');
+        });
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", [
+                'candidature_ids' => [],
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.payment_id', $payment->id)
+            ->assertJsonPath('data.checkout_url', 'https://checkout.fedapay.com/reused-token')
+            ->assertJsonPath('data.status', 'pending');
+    }
+
+    public function test_second_confirmation_request_reuses_same_mission_payment_without_duplicate_mutation(): void
+    {
+        $existingTransaction = $this->makeTransactionStub(
+            status: 'pending',
+            checkoutUrl: 'https://checkout.fedapay.com/reused-token',
+        );
+
+        $this->mock(FedapayService::class, function ($mock) use ($existingTransaction): void {
+            $mock->shouldReceive('initiatePaymentForMission')
+                ->once()
+                ->andReturn([
+                    'fedapay_transaction_id' => 123456,
+                    'checkout_url' => 'https://checkout.fedapay.com/mission-token',
+                ]);
+            $mock->shouldReceive('retrieveTransaction')
+                ->once()
+                ->with(123456)
+                ->andReturn($existingTransaction);
+        });
+
+        $firstPayload = [
+            'candidature_ids' => [
+                $this->selectedFirst->uuid,
+                $this->selectedSecond->uuid,
+            ],
+        ];
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", $firstPayload)
+            ->assertOk()
+            ->assertJsonPath('data.checkout_url', 'https://checkout.fedapay.com/mission-token');
+
+        // Per the resume contract (story fix-19-2, D1), the second call must NOT
+        // include candidature_ids — the SPA strips the field once the mission has
+        // moved to PendingPayment. Sending a non-empty body on resume is rejected
+        // with 422 prohibited (covered by a dedicated test below).
+        $secondResponse = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", []);
+
+        $secondResponse->assertOk()
+            ->assertJsonPath('data.checkout_url', 'https://checkout.fedapay.com/reused-token');
+
+        $this->assertSame(1, MissionPayment::query()->count());
+        $this->assertDatabaseHas('mission_payments', [
+            'mission_id' => $this->mission->id,
+            'fedapay_transaction_id' => '123456',
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_confirmation_request_returns_validation_error_when_mission_payment_lock_is_already_held(): void
+    {
+        $lock = Cache::lock("mission_payment_{$this->mission->id}", 120);
+
+        $this->assertTrue($lock->get(), 'Expected to acquire the mission payment lock for the contention test.');
+
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldNotReceive('retrieveTransaction');
+            $mock->shouldNotReceive('initiatePaymentForMission');
+        });
+
+        try {
+            $response = $this->actingAs($this->producerUser)
+                ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", [
+                    'candidature_ids' => [
+                        $this->selectedFirst->uuid,
+                        $this->selectedSecond->uuid,
+                    ],
+                ]);
+
+            $response->assertStatus(422)
+                ->assertJsonPath(
+                    'errors.status.0',
+                    'Un paiement est deja en cours pour cette mission.'
+                );
+
+            $this->assertDatabaseCount('mission_payments', 0);
+            $this->assertSame(MissionStatus::Published, $this->mission->fresh()->status);
+            $this->assertSame(CandidatureStatus::Pending, $this->selectedFirst->fresh()->status);
+            $this->assertSame(CandidatureStatus::Pending, $this->selectedSecond->fresh()->status);
+            $this->assertSame(CandidatureStatus::Pending, $this->rejectedCandidate->fresh()->status);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    public function test_retry_with_non_empty_candidature_ids_on_resume_is_rejected(): void
+    {
+        $this->createPendingMissionPayment('123456');
+
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldNotReceive('retrieveTransaction');
+            $mock->shouldNotReceive('initiatePaymentForMission');
+        });
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", [
+                'candidature_ids' => [
+                    $this->selectedFirst->uuid,
+                    $this->selectedSecond->uuid,
+                ],
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath(
+                'errors.candidature_ids.0',
+                'Ce paiement est déjà initié. Pour changer la sélection, annulez d\'abord le paiement en cours.'
+            );
+    }
+
+    public function test_retry_after_terminal_remote_failure_reuses_same_payment_record_with_new_checkout(): void
+    {
+        $payment = $this->createPendingMissionPayment('123456');
+        $failedTransaction = $this->makeTransactionStub(
+            status: 'declined',
+            checkoutUrl: 'https://checkout.fedapay.com/obsolete-token',
+            expectsGenerateToken: false,
+        );
+
+        $this->mock(FedapayService::class, function ($mock) use ($failedTransaction): void {
+            $mock->shouldReceive('retrieveTransaction')
+                ->once()
+                ->with(123456)
+                ->andReturn($failedTransaction);
+            $mock->shouldReceive('initiatePaymentForMission')
+                ->once()
+                ->andReturn([
+                    'fedapay_transaction_id' => 987654,
+                    'checkout_url' => 'https://checkout.fedapay.com/retry-token',
+                ]);
+        });
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", []);
+
+        $response->assertOk()
+            ->assertJsonPath('data.payment_id', $payment->id)
+            ->assertJsonPath('data.checkout_url', 'https://checkout.fedapay.com/retry-token')
+            ->assertJsonPath('data.status', 'pending');
+
+        $this->assertSame(1, MissionPayment::query()->count());
+        $this->assertDatabaseHas('mission_payments', [
+            'id' => $payment->id,
+            'mission_id' => $this->mission->id,
+            'fedapay_transaction_id' => '987654',
+            'status' => 'pending',
+        ]);
+        $this->assertSame(CandidatureStatus::Accepted, $this->selectedFirst->fresh()->status);
+        $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
+        $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
+    }
+
+    public function test_retry_after_remote_approval_reconciles_local_state_and_returns_mission_page_url(): void
+    {
+        $payment = $this->createPendingMissionPayment('123456');
+        $approvedTransaction = $this->makeTransactionStub(
+            status: 'approved',
+            checkoutUrl: 'https://checkout.fedapay.com/already-approved-token',
+            expectsGenerateToken: false,
+            reference: 'fedapay-approved-ref',
+        );
+
+        $this->mock(FedapayService::class, function ($mock) use ($approvedTransaction): void {
+            $mock->shouldReceive('retrieveTransaction')
+                ->once()
+                ->with(123456)
+                ->andReturn($approvedTransaction);
+            $mock->shouldNotReceive('initiatePaymentForMission');
+        });
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", []);
+
+        $response->assertOk()
+            ->assertJsonPath('data.payment_id', $payment->id)
+            ->assertJsonPath('data.status', 'paid')
+            ->assertJsonPath('message', 'Paiement déjà confirmé. Redirection vers la mission...')
+            ->assertJsonPath(
+                'data.checkout_url',
+                rtrim(
+                    (string) config('app.frontend_url', (string) config('app.url', '')),
+                    '/'
+                )."/producer/missions/{$this->mission->uuid}/candidatures?payment=confirmed"
+            );
+
+        $this->assertSame(MissionStatus::Closed, $this->mission->fresh()->status);
+        $this->assertDatabaseHas('mission_payments', [
+            'id' => $payment->id,
+            'status' => 'paid',
+            'fedapay_ref' => 'fedapay-approved-ref',
+        ]);
+
+        // Self-healing must fan out the same notifications the webhook would have created:
+        // one producer confirmation + one participation-confirmation per selected Face.
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->producerUser->id,
+            'type' => 'mission_payment_confirmed',
+        ]);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->getFaceUserId($this->selectedFirst),
+            'type' => 'mission_participation_confirmation_required',
+        ]);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->getFaceUserId($this->selectedSecond),
+            'type' => 'mission_participation_confirmation_required',
+        ]);
+    }
+
+    public function test_webhook_and_producer_retry_race_do_not_double_credit(): void
+    {
+        $payment = $this->createPendingMissionPayment('123456');
+        $approvedTransaction = $this->makeTransactionStub(
+            status: 'approved',
+            checkoutUrl: 'https://checkout.fedapay.com/already-approved-token',
+            expectsGenerateToken: false,
+            reference: 'fedapay-approved-ref',
+        );
+
+        $this->mock(FedapayService::class, function ($mock) use ($approvedTransaction): void {
+            $mock->shouldReceive('retrieveTransaction')
+                ->once()
+                ->with(123456)
+                ->andReturn($approvedTransaction);
+            $mock->shouldNotReceive('initiatePaymentForMission');
+        });
+
+        // Step 1: producer retries first and hits the self-healing branch.
+        // markAsPaid() runs inside the cache lock and fans out notifications.
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", [])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'paid');
+
+        $this->assertDatabaseCount('notifications', 3);
+
+        // Step 2: the FedaPay webhook lands LATE (it was delayed, not lost).
+        // HandleFedapayWebhook ultimately calls markAsPaid() on the same payment.
+        // The idempotency guard (status === Paid early-return) MUST keep this a
+        // no-op: no duplicate notifications, no double escrow lock, no duplicate
+        // mission mutation. This regression test locks in that contract so a
+        // future refactor that removes the early-return fails loudly here.
+        app(MissionPaymentService::class)->markAsPaid($payment->fresh(), 'fedapay-approved-ref');
+
+        $this->assertDatabaseCount('notifications', 3);
+        $this->assertSame(1, MissionPayment::query()->count());
+        $this->assertDatabaseHas('mission_payments', [
+            'id' => $payment->id,
+            'status' => 'paid',
+            'fedapay_ref' => 'fedapay-approved-ref',
+        ]);
+        $this->assertSame(MissionStatus::Closed, $this->mission->fresh()->status);
+    }
+
+    public function test_retry_resume_failure_returns_business_error_instead_of_server_error(): void
+    {
+        Log::spy();
+
+        $payment = $this->createPendingMissionPayment('123456');
+
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('retrieveTransaction')
+                ->once()
+                ->with(123456)
+                ->andThrow(new \RuntimeException('Fedapay unavailable during resume.'));
+            $mock->shouldNotReceive('initiatePaymentForMission');
+        });
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", []);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', 'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.');
+
+        $this->assertDatabaseHas('mission_payments', [
+            'id' => $payment->id,
+            'status' => 'pending',
+            'fedapay_transaction_id' => '123456',
+        ]);
+        $this->assertSame(MissionStatus::PendingPayment, $this->mission->fresh()->status);
+
+        Log::shouldHaveReceived('error')
+            ->once()
+            ->withArgs(function (string $message, array $context) use ($payment): bool {
+                return $message === 'Mission payment resume failed'
+                    && ($context['mission_payment_id'] ?? null) === $payment->id
+                    && ($context['mission_id'] ?? null) === $this->mission->id
+                    && ($context['remote_transaction_id'] ?? null) === '123456'
+                    && ($context['error_class'] ?? null) === \RuntimeException::class
+                    && ($context['error_message'] ?? null) === 'Fedapay unavailable during resume.';
+            });
     }
 
     public function test_finalization_failure_after_checkout_returns_business_error_and_restores_state(): void
@@ -261,5 +616,62 @@ class MissionPaymentInitiationTest extends TestCase
             ->where('userable_type', Face::class)
             ->where('userable_id', $candidature->face_id)
             ->value('id');
+    }
+
+    private function createPendingMissionPayment(string $fedapayTransactionId): MissionPayment
+    {
+        $selectedCandidatures = [$this->selectedFirst, $this->selectedSecond];
+        $pricing = new MissionPricing($this->mission->budget, count($selectedCandidatures));
+
+        $payment = MissionPayment::query()->create([
+            'mission_id' => $this->mission->id,
+            'producer_id' => $this->producer->id,
+            'nombre_faces_retenues' => count($selectedCandidatures),
+            'budget_par_face' => $pricing->budgetParFace,
+            'montant_sous_total' => $pricing->sousTotal,
+            'commission_producteur' => $pricing->commissionProducteur,
+            'montant_total_producteur' => $pricing->montantTotalProducteur,
+            'commission_faces_total' => $pricing->commissionFacesTotal,
+            'montant_total_faces' => $pricing->montantTotalFaces,
+            'fedapay_transaction_id' => $fedapayTransactionId,
+            'status' => 'pending',
+        ]);
+
+        foreach ($selectedCandidatures as $candidature) {
+            MissionPaymentCandidature::query()->create([
+                'mission_payment_id' => $payment->id,
+                'candidature_id' => $candidature->id,
+                'face_id' => $candidature->face_id,
+                'montant_face_recoit' => $pricing->montantParFace,
+                'escrow_status' => EscrowStatus::Pending,
+            ]);
+
+            $candidature->update(['status' => CandidatureStatus::Accepted]);
+        }
+
+        $this->rejectedCandidate->update(['status' => CandidatureStatus::Rejected]);
+        $this->mission->update(['status' => MissionStatus::PendingPayment]);
+
+        return $payment->fresh();
+    }
+
+    private function makeTransactionStub(
+        string $status,
+        string $checkoutUrl,
+        bool $expectsGenerateToken = true,
+        ?string $reference = null,
+    ): \FedaPay\Transaction {
+        /** @var \FedaPay\Transaction $transaction */
+        $transaction = \Mockery::mock(\FedaPay\Transaction::class);
+        $transaction->status = $status;
+        $transaction->reference = $reference;
+
+        if ($expectsGenerateToken) {
+            $transaction->shouldReceive('generateToken')
+                ->once()
+                ->andReturn((object) ['url' => $checkoutUrl]);
+        }
+
+        return $transaction;
     }
 }

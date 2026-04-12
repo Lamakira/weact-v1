@@ -14,6 +14,7 @@ use App\Services\FedapayService;
 use App\Services\MissionPaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class MissionPaymentController extends Controller
@@ -31,20 +32,28 @@ class MissionPaymentController extends Controller
     public function confirmAndPay(ConfirmMissionSelectionRequest $request, Mission $mission): JsonResponse
     {
         try {
+            /** @var string[] $candidatureIds */
+            $candidatureIds = (array) $request->validated('candidature_ids', []);
+
             $result = $this->missionPaymentService->confirmAndInitiatePayment(
                 $mission,
-                $request->validated('candidature_ids')
+                $candidatureIds
             );
+            $checkoutUrl = $result['checkout_url'] ?? $this->resolveMissionReturnUrl($mission);
+
+            $message = $result['payment']->status === MissionPaymentStatus::Paid
+                ? 'Paiement déjà confirmé. Redirection vers la mission...'
+                : 'Sélection confirmée. Redirection vers le paiement...';
 
             return response()->json([
                 'data' => [
                     'payment_id' => $result['payment']->id,
                     'montant_total' => $result['payment']->montant_total_producteur,
                     'nombre_faces' => $result['payment']->nombre_faces_retenues,
-                    'checkout_url' => $result['checkout_url'],
+                    'checkout_url' => $checkoutUrl,
                     'status' => $result['payment']->status,
                 ],
-                'message' => 'Sélection confirmée. Redirection vers le paiement...',
+                'message' => $message,
             ]);
         } catch (MissionPaymentInitiationException $e) {
             return response()->json([
@@ -56,6 +65,25 @@ class MissionPaymentController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         }
+    }
+
+    private function resolveMissionReturnUrl(Mission $mission): string
+    {
+        // Prefer FRONTEND_URL (SPA origin); fall back to APP_URL so config:cache
+        // without FRONTEND_URL still produces an absolute URL in production.
+        $frontendUrl = rtrim(
+            (string) config('app.frontend_url', (string) config('app.url', '')),
+            '/'
+        );
+
+        if ($frontendUrl === '') {
+            Log::warning('resolveMissionReturnUrl: both app.frontend_url and app.url are empty — returning relative URL', [
+                'mission_id' => $mission->id,
+                'mission_uuid' => $mission->uuid,
+            ]);
+        }
+
+        return "{$frontendUrl}/producer/missions/{$mission->uuid}/candidatures?payment=confirmed";
     }
 
     /**

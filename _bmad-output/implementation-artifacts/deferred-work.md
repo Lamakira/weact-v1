@@ -70,3 +70,9 @@
 - Deadlock risk: prepare locks mission→candidatures→payment; compensate locks payment→mission→candidatures (reverse order) — no retry-on-deadlock wired, fragile under concurrent compensate+retry (fix-19-2 scope)
 - Post-commit notification failures silently lose candidature notifications on success path — `notifySafely` swallows failures after `finalizePreparedPayment` commits; producer pays but Faces never learn (pre-existing notifySafely pattern, not introduced by this change)
 - Legacy `MissionPaymentService::initiatePayment()` method is currently unused but deferred because fix-19-2 is the planned resume-checkout story and may reuse it as the single resume path
+
+## Deferred from: code review of fix-19-2-resume-mission-payment-checkout (2026-04-12)
+
+- `$payment` may be read without definition when `handleInitiationFailure()` returns instead of throwing — `MissionPaymentService.php:60-69`; pre-existing fall-through from FIX-19.1, not caused by this story
+- `resolveResumablePayment()` does not `lockForUpdate` when re-reading the mission — `MissionPaymentService.php:246`; the cache lock already serializes producer retries, so the risk is only out-of-band mutation (webhook, admin action) between the read and downstream `initiatePayment()`'s own `lockForUpdate`
+- `fedapay_transaction_id` string/int casting between the DB column and FedaPay client is unverified — `MissionPaymentService.php:430` does `(int) $payment->fedapay_transaction_id` while the new test helper seeds the column as string `'123456'`; likely safe via model casts but worth a targeted test in a follow-up
