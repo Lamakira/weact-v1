@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Producer;
 
 use App\Enums\MissionPaymentStatus;
+use App\Exceptions\MissionPaymentInitiationException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Producer\ConfirmMissionSelectionRequest;
 use App\Models\Mission;
@@ -30,12 +31,10 @@ class MissionPaymentController extends Controller
     public function confirmAndPay(ConfirmMissionSelectionRequest $request, Mission $mission): JsonResponse
     {
         try {
-            $payment = $this->missionPaymentService->confirmSelection(
+            $result = $this->missionPaymentService->confirmAndInitiatePayment(
                 $mission,
                 $request->validated('candidature_ids')
             );
-
-            $result = $this->missionPaymentService->initiatePayment($payment);
 
             return response()->json([
                 'data' => [
@@ -47,6 +46,10 @@ class MissionPaymentController extends Controller
                 ],
                 'message' => 'Sélection confirmée. Redirection vers le paiement...',
             ]);
+        } catch (MissionPaymentInitiationException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 422);
         } catch (ValidationException $e) {
             return response()->json([
                 'message' => 'Erreur de validation.',
