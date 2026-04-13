@@ -19,8 +19,15 @@ interface ConfirmSelectionResponse {
   message: string
 }
 
-interface PaymentStatusData {
+export interface PaymentStatusData {
   has_payment: boolean
+  /**
+   * True only when the mission payment is still pending AND a FedaPay
+   * transaction id is on file. Drives the SPA's decision to start polling
+   * and to render the "Paiement en attente de confirmation..." banner.
+   * See FIX-19.3 — Guard false pending payment UI.
+   */
+  is_trackable: boolean
   payment_id?: number
   status?: string
   paid_at?: string | null
@@ -28,7 +35,7 @@ interface PaymentStatusData {
   mission_status: string
 }
 
-interface PaymentStatusResponse {
+export interface PaymentStatusResponse {
   data: PaymentStatusData
 }
 

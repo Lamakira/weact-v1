@@ -25,10 +25,18 @@ const props = defineProps<{
   missionBudget?: number
   missionStatus?: string
   nombreFacesVoulu?: number
+  allowRetrySelection?: boolean
 }>()
 
 const emit = defineEmits<{
   'selection-confirmed': [checkoutUrl: string]
+  /**
+   * Raised when a payment initiation attempt fails. The parent page can use
+   * this hook to re-evaluate mission + payment state so the "Paiement en
+   * attente de confirmation..." banner is never shown on a stuck-pending
+   * mission. (FIX-19.3 AC #1, #4.)
+   */
+  'selection-failed': [message: string]
 }>()
 
 /**
@@ -91,10 +99,12 @@ const {
 
 /**
  * Whether selection mode should be active
- * Only for published missions
+ * Only for published missions, except the FIX-19.3 retry path where a stuck
+ * pending payment must still allow the producer to reconfirm the preserved
+ * selection.
  */
 const isSelectionMode = computed(
-  () => props.missionStatus === 'published'
+  () => props.missionStatus === 'published' || props.allowRetrySelection === true
 )
 
 /**
@@ -169,15 +179,21 @@ async function handleFilterChange(status: CandidatureStatusType | ''): Promise<v
 }
 
 /**
- * Handle confirm and pay
+ * Handle confirm and pay.
+ * On failure the user's selection is preserved (see `useMissionPayment`) and
+ * the parent page is notified so it can re-evaluate whether the mission is
+ * stuck in pending_payment with no trackable transaction. (FIX-19.3.)
  */
 async function handleConfirmAndPay(): Promise<void> {
   const result = await confirmAndPay(props.missionId)
   if (result) {
     emit('selection-confirmed', result.checkout_url)
-  } else if (paymentError.value) {
-    displayToast(paymentError.value, 'error')
+    return
   }
+
+  emit('selection-failed',
+    paymentError.value ?? 'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.',
+  )
 }
 
 /**

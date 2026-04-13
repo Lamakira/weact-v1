@@ -130,7 +130,12 @@ export function useMissionPayment(budgetParFace: number, missionId: string, maxS
       return { checkout_url: response.data.checkout_url }
     } catch (err: unknown) {
       const e = err as { response?: { data?: { message?: string } } }
-      error.value = e?.response?.data?.message ?? 'Une erreur est survenue lors de la confirmation.'
+      // NOTE: the selection is intentionally NOT cleared here so the producer
+      // can retry without re-picking faces after a failed initiation.
+      // (FIX-19.3 AC #3 — Preserve selection for retry.)
+      error.value =
+        e?.response?.data?.message
+          ?? 'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.'
       return null
     } finally {
       isConfirming.value = false

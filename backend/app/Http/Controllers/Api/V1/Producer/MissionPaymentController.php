@@ -106,6 +106,7 @@ class MissionPaymentController extends Controller
                 'data' => [
                     'has_payment' => false,
                     'status' => null,
+                    'is_trackable' => false,
                     'mission_status' => $mission->status,
                 ],
             ]);
@@ -130,11 +131,20 @@ class MissionPaymentController extends Controller
             }
         }
 
+        // A mission payment is trackable only when it is still pending AND we have
+        // a real FedaPay transaction id to poll against. Any other state (no
+        // transaction id, paid, failed, refunded) must surface as non-trackable
+        // so the SPA does not render the "Paiement en attente de confirmation..."
+        // banner or start polling on a stuck-pending record. See FIX-19.3.
+        $isTrackable = $payment->status === MissionPaymentStatus::Pending
+            && $payment->fedapay_transaction_id !== null;
+
         return response()->json([
             'data' => [
                 'has_payment' => true,
                 'payment_id' => $payment->id,
                 'status' => $payment->status,
+                'is_trackable' => $isTrackable,
                 'paid_at' => $payment->paid_at,
                 'montant_total' => $payment->montant_total_producteur,
                 'mission_status' => $mission->fresh()->status,
