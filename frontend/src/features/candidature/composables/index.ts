@@ -1,7 +1,6 @@
 export { useFaceCandidatures } from './useFaceCandidatures'
 export { useProducerCandidatures } from './useProducerCandidatures'
 export { useCandidateProfile } from './useCandidateProfile'
-export { useAcceptCandidature } from './useAcceptCandidature'
 export { useRejectCandidature } from './useRejectCandidature'
 export { useConfirmCandidature } from './useConfirmCandidature'
 export { useCancelCandidature } from './useCancelCandidature'

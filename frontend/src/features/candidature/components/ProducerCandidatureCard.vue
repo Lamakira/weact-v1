@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, Check, X, Loader2, CheckSquare, Square } from 'lucide-vue-next'
+import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, X, Loader2, CheckSquare, Square } from 'lucide-vue-next'
 import type { ProducerCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
 
@@ -18,20 +18,20 @@ const props = defineProps<{
  * Emits
  */
 const emit = defineEmits<{
-  accept: [candidatureId: string]
   reject: [candidatureId: string]
   'toggle-selection': [candidatureId: string]
 }>()
 
 /**
- * Local state for accept/reject buttons
+ * Local state for reject button / confirmation dialog
  */
-const isAccepting = ref(false)
 const isRejecting = ref(false)
 const showRejectConfirmation = ref(false)
 
 /**
- * Computed: Can show action buttons (only for pending candidatures)
+ * Computed: Can show reject button (only for pending candidatures outside selection mode).
+ * Acceptation is now exclusively handled through the paid selection workflow —
+ * there is no manual accept button on this card.
  */
 const canTakeAction = computed(() => props.candidature.status === 'pending')
 
@@ -42,15 +42,6 @@ const canChat = computed(() => {
   const chatStatuses = ['accepted', 'confirmed', 'in_progress', 'completed']
   return chatStatuses.includes(props.candidature.status) && props.candidature.conversation_id != null
 })
-
-/**
- * Handle accept button click
- */
-function handleAccept(): void {
-  if (isAccepting.value) return
-  isAccepting.value = true
-  emit('accept', props.candidature.id)
-}
 
 /**
  * Show reject confirmation dialog
@@ -91,13 +82,6 @@ function confirmReject(): void {
 }
 
 /**
- * Reset accepting state (called from parent after API response)
- */
-function resetAccepting(): void {
-  isAccepting.value = false
-}
-
-/**
  * Reset rejecting state (called from parent after API response)
  */
 function resetRejecting(): void {
@@ -107,7 +91,7 @@ function resetRejecting(): void {
 /**
  * Expose methods for parent component
  */
-defineExpose({ resetAccepting, resetRejecting })
+defineExpose({ resetRejecting })
 
 /**
  * Computed: Status badge class
@@ -320,25 +304,12 @@ const categoryLabel = computed(() => {
 
     <!-- Actions -->
     <div class="mt-4 flex items-center justify-between gap-3">
-      <!-- Action Buttons (only for pending and NOT in selection mode) -->
+      <!-- Reject Button (only for pending and NOT in selection mode) -->
       <div v-if="canTakeAction && !selectionMode" class="flex gap-2">
-        <!-- Accept Button -->
-        <button
-          type="button"
-          class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="isAccepting || isRejecting"
-          @click="handleAccept"
-        >
-          <Loader2 v-if="isAccepting" class="h-4 w-4 animate-spin" />
-          <Check v-else class="h-4 w-4" />
-          {{ isAccepting ? 'Acceptation...' : 'Accepter' }}
-        </button>
-
-        <!-- Reject Button -->
         <button
           type="button"
           class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="isAccepting || isRejecting"
+          :disabled="isRejecting"
           @click="showRejectDialog"
         >
           <Loader2 v-if="isRejecting" class="h-4 w-4 animate-spin" />

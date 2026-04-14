@@ -86,8 +86,6 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
         ->middleware('throttle:ui-read');
 
     // Candidature action routes
-    Route::post('/candidatures/{candidature}/accept', [CandidatureController::class, 'accept'])
-        ->middleware('throttle:60,1');
     Route::post('/candidatures/{candidature}/reject', [CandidatureController::class, 'reject'])
         ->middleware('throttle:60,1');
 

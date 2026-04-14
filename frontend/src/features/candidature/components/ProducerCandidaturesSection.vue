@@ -9,7 +9,7 @@ import {
   Inbox,
   CheckSquare,
 } from 'lucide-vue-next'
-import { useProducerCandidatures, useAcceptCandidature, useRejectCandidature } from '../composables'
+import { useProducerCandidatures, useRejectCandidature } from '../composables'
 import { useMissionPayment } from '@/features/mission/composables'
 import ProducerCandidatureCard from './ProducerCandidatureCard.vue'
 import MissionSelectionSummary from '@/features/mission/components/MissionSelectionSummary.vue'
@@ -60,16 +60,6 @@ const {
   setStatusFilter,
   refresh,
 } = useProducerCandidatures(props.missionId)
-
-/**
- * Composable for accepting candidatures
- */
-const {
-  error: acceptError,
-  successMessage: acceptSuccessMessage,
-  acceptCandidature,
-  reset: resetAccept,
-} = useAcceptCandidature()
 
 /**
  * Composable for rejecting candidatures
@@ -129,26 +119,6 @@ function displayToast(message: string, type: 'success' | 'error'): void {
   setTimeout(() => {
     showToast.value = false
   }, 4000)
-}
-
-/**
- * Handle accept candidature
- */
-async function handleAccept(candidatureId: string): Promise<void> {
-  const result = await acceptCandidature(candidatureId)
-
-  // Reset the card's loading state
-  cardRefs.value[candidatureId]?.resetAccepting()
-
-  if (result) {
-    displayToast(acceptSuccessMessage.value || 'Candidature acceptée', 'success')
-    // Refresh the list to show updated status
-    await refresh()
-  } else {
-    displayToast(acceptError.value || "Erreur lors de l'acceptation", 'error')
-  }
-
-  resetAccept()
 }
 
 /**
@@ -355,7 +325,6 @@ onMounted(() => {
           :candidature="candidature"
           :selection-mode="isSelectionMode"
           :is-selected="isSelected(candidature.id)"
-          @accept="handleAccept"
           @reject="handleReject"
           @toggle-selection="(id: string) => toggleSelection(id, candidature.face.display_name)"
         />
