@@ -71,6 +71,19 @@
 - Post-commit notification failures silently lose candidature notifications on success path — `notifySafely` swallows failures after `finalizePreparedPayment` commits; producer pays but Faces never learn (pre-existing notifySafely pattern, not introduced by this change)
 - Legacy `MissionPaymentService::initiatePayment()` method is currently unused but deferred because fix-19-2 is the planned resume-checkout story and may reuse it as the single resume path
 
+## Deferred from: code review of fix-19-4-log-mission-payment-failure-context (2026-04-14)
+
+- `phase=post_finalize` branch in `MissionPaymentService::handleInitiationFailure` is very hard to reach in practice (the `try` block only spans `requestHostedCheckout`+`finalizePreparedPayment`, and the latter is itself a `DB::transaction`), but kept as a defensive default since a commit-time failure observed after the closure returns is not fully ruled out (FIX-19 follow-up scope)
+- `markAsPaid` failure inside `HandleFedapayWebhook::handle` (approved branch) is not wrapped or logged with the new structured context — out of scope for FIX-19.4 (spec only mandates failure-path logging on initiate/resume/compensate/webhook-decline) (FIX-19 follow-up scope)
+- Webhook decline/cancel processing leaves local mission/payment state untouched — a producer with a declined transaction stays in `pending_payment` until manual retry or runbook recovery; intentional per spec, not a regression of FIX-19.4 (FIX-19 follow-up scope)
+
+## Deferred from: code review of fix-19-5-cover-mission-payment-failure-regressions (2026-04-14)
+
+- Compensation outcome log assertion in the cleanup-retry test — would catch a regression that skips compensation entirely, but couples the test to log format; log-shape coverage already lives in FIX-19.4 (FIX-19.5 scope)
+- Cache lock leak coverage on resume failure — useful guard against a regression deadlocking producer retries, but out of scope for a story meant to lock down only the four named fixes (FIX-19.5 scope)
+- Runbook §4.1 SQL `DELETE … WHERE fedapay_transaction_id IS NULL` is a silent no-op for `finalize_local` rows that hold a transaction id — the new "treat as compensate" override redirects operators to §4.1, but its delete won't actually clean such rows. Pre-existing runbook gap surfaced (not introduced) by FIX-19.5 (FIX-19 follow-up scope)
+- `fedapay_transaction_id` int/string type asymmetry in the resume test mock (`with(123456)` int vs DB string `'123456'`) — pre-existing pattern already deferred in FIX-19.2 review (FIX-19.2 scope)
+
 ## Deferred from: code review of fix-19-2-resume-mission-payment-checkout (2026-04-12)
 
 - `$payment` may be read without definition when `handleInitiationFailure()` returns instead of throwing — `MissionPaymentService.php:60-69`; pre-existing fall-through from FIX-19.1, not caused by this story
