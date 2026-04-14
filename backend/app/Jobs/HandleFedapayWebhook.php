@@ -78,9 +78,13 @@ class HandleFedapayWebhook implements ShouldQueue
         if ($missionPayment) {
             match ($this->eventName) {
                 'transaction.approved' => $missionPaymentService->markAsPaid($missionPayment, $fedapayRef),
-                'transaction.declined', 'transaction.canceled' => Log::info('Fedapay webhook: mission payment declined/canceled', [
-                    'mission_payment_id' => $missionPayment->id,
-                    'event' => $this->eventName,
+                'transaction.declined', 'transaction.canceled' => Log::warning('Mission payment declined or canceled by webhook', [
+                    'payment_id' => $missionPayment->id,
+                    'mission_id' => $missionPayment->mission_id,
+                    'producer_id' => $missionPayment->producer_id,
+                    'phase' => 'webhook',
+                    'remote_transaction_id' => $missionPayment->fedapay_transaction_id,
+                    'event_name' => $this->eventName,
                 ]),
                 default => Log::info('Fedapay webhook: unhandled event', ['event' => $this->eventName]),
             };

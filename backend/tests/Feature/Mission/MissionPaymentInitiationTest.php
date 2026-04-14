@@ -7,15 +7,19 @@ namespace Tests\Feature\Mission;
 use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
+use App\Jobs\HandleFedapayWebhook;
 use App\Models\Candidature;
 use App\Models\Face;
+use App\Models\FedapayWebhookEvent;
 use App\Models\Mission;
 use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\BookingService;
 use App\Services\FedapayService;
 use App\Services\MissionPaymentService;
+use App\Services\WalletService;
 use App\ValueObjects\MissionPricing;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -479,8 +483,10 @@ class MissionPaymentInitiationTest extends TestCase
             ->once()
             ->withArgs(function (string $message, array $context) use ($payment): bool {
                 return $message === 'Mission payment resume failed'
-                    && ($context['mission_payment_id'] ?? null) === $payment->id
+                    && ($context['payment_id'] ?? null) === $payment->id
                     && ($context['mission_id'] ?? null) === $this->mission->id
+                    && ($context['producer_id'] ?? null) === $this->producer->id
+                    && ($context['phase'] ?? null) === 'resume'
                     && ($context['remote_transaction_id'] ?? null) === '123456'
                     && ($context['error_class'] ?? null) === \RuntimeException::class
                     && ($context['error_message'] ?? null) === 'Fedapay unavailable during resume.';
@@ -530,10 +536,16 @@ class MissionPaymentInitiationTest extends TestCase
             ->once()
             ->withArgs(function (string $message, array $context): bool {
                 return $message === 'Mission payment initiation failed'
+                    && ($context['mission_id'] ?? null) === $this->mission->id
+                    && ($context['producer_id'] ?? null) === $this->producer->id
+                    && is_int($context['payment_id'] ?? null)
+                    && ($context['payment_id'] ?? 0) > 0
+                    && ($context['phase'] ?? null) === 'finalize_local'
                     && ($context['remote_transaction_id'] ?? null) === 654321
                     && ($context['needs_compensation'] ?? null) === true
                     && ($context['compensation_attempted'] ?? null) === true
                     && ($context['compensation_failed'] ?? null) === false
+                    && ($context['compensation_outcome'] ?? null) === 'succeeded'
                     && ($context['manual_recovery_required'] ?? null) === true;
             });
     }
@@ -576,23 +588,125 @@ class MissionPaymentInitiationTest extends TestCase
         $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
         $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
 
+        // Compensation failed → the mission_payments row was not deleted, so we can
+        // capture its real id and assert the log context points at the same row.
+        $persistedPaymentId = MissionPayment::where('mission_id', $this->mission->id)->value('id');
+        $this->assertIsInt($persistedPaymentId);
+
         Log::shouldHaveReceived('error')->twice();
 
         Log::shouldHaveReceived('error')
-            ->withArgs(function (string $message, array $context): bool {
+            ->withArgs(function (string $message, array $context) use ($persistedPaymentId): bool {
                 return $message === 'Mission payment initiation failed'
+                    && ($context['mission_id'] ?? null) === $this->mission->id
+                    && ($context['producer_id'] ?? null) === $this->producer->id
+                    && ($context['payment_id'] ?? null) === $persistedPaymentId
+                    && ($context['phase'] ?? null) === 'finalize_local'
                     && ($context['remote_transaction_id'] ?? null) === 987654
                     && ($context['compensation_attempted'] ?? null) === true
                     && ($context['compensation_failed'] ?? null) === true
+                    && ($context['compensation_outcome'] ?? null) === 'failed'
                     && ($context['manual_recovery_required'] ?? null) === true;
             });
 
         Log::shouldHaveReceived('error')
-            ->withArgs(function (string $message, array $context): bool {
+            ->withArgs(function (string $message, array $context) use ($persistedPaymentId): bool {
                 return $message === 'Mission payment compensation failed after initiation error'
+                    && ($context['mission_id'] ?? null) === $this->mission->id
+                    && ($context['producer_id'] ?? null) === $this->producer->id
+                    && ($context['payment_id'] ?? null) === $persistedPaymentId
+                    && ($context['phase'] ?? null) === 'compensate'
                     && ($context['remote_transaction_id'] ?? null) === 987654
                     && ($context['compensation_error_message'] ?? null) === 'Compensation transaction deadlocked.';
             });
+    }
+
+    public function test_failed_request_checkout_logs_full_mission_payment_failure_context(): void
+    {
+        Log::spy();
+
+        $this->mock(FedapayService::class, function ($mock) {
+            $mock->shouldReceive('initiatePaymentForMission')
+                ->once()
+                ->andThrow(new \RuntimeException('Fedapay unavailable'));
+        });
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", [
+                'candidature_ids' => [
+                    $this->selectedFirst->uuid,
+                    $this->selectedSecond->uuid,
+                ],
+            ])
+            ->assertStatus(422);
+
+        Log::shouldHaveReceived('error')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'Mission payment initiation failed'
+                    && is_int($context['payment_id'] ?? null)
+                    && ($context['payment_id'] ?? 0) > 0
+                    && ($context['mission_id'] ?? null) === $this->mission->id
+                    && ($context['producer_id'] ?? null) === $this->producer->id
+                    && ($context['phase'] ?? null) === 'request_checkout'
+                    && ($context['remote_transaction_id'] ?? null) === null
+                    && ($context['needs_compensation'] ?? null) === true
+                    && ($context['compensation_attempted'] ?? null) === true
+                    && ($context['compensation_outcome'] ?? null) === 'succeeded'
+                    && ($context['manual_recovery_required'] ?? null) === false
+                    && ($context['error_class'] ?? null) === \RuntimeException::class;
+            });
+    }
+
+    public function test_webhook_decline_emits_warning_with_full_mission_payment_failure_context(): void
+    {
+        Log::spy();
+
+        $payment = $this->createPendingMissionPayment('444555');
+
+        $webhookEvent = FedapayWebhookEvent::create([
+            'fedapay_event_id' => 'evt_mission_decline',
+            'event_name' => 'transaction.declined',
+            'payload' => [
+                'entity' => [
+                    'id' => 444555,
+                    'reference' => 'ref_mission_fail',
+                ],
+            ],
+            'status' => 'received',
+        ]);
+
+        $job = new HandleFedapayWebhook(
+            $webhookEvent->id,
+            'transaction.declined',
+            [
+                'entity' => [
+                    'id' => 444555,
+                    'reference' => 'ref_mission_fail',
+                ],
+            ]
+        );
+
+        $job->handle(
+            app(BookingService::class),
+            app(MissionPaymentService::class),
+            app(WalletService::class),
+        );
+
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context) use ($payment): bool {
+                return $message === 'Mission payment declined or canceled by webhook'
+                    && ($context['payment_id'] ?? null) === $payment->id
+                    && ($context['mission_id'] ?? null) === $this->mission->id
+                    && ($context['producer_id'] ?? null) === $this->producer->id
+                    && ($context['phase'] ?? null) === 'webhook'
+                    && ($context['remote_transaction_id'] ?? null) === '444555'
+                    && ($context['event_name'] ?? null) === 'transaction.declined';
+            });
+
+        $webhookEvent->refresh();
+        $this->assertSame('processed', $webhookEvent->status);
     }
 
     private function createPendingCandidature(): Candidature

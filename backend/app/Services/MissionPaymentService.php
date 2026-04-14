@@ -272,8 +272,10 @@ class MissionPaymentService
     private function handleResumeInitiationFailure(MissionPayment $payment, \Throwable $exception): never
     {
         Log::error('Mission payment resume failed', [
-            'mission_payment_id' => $payment->id,
+            'payment_id' => $payment->id,
             'mission_id' => $payment->mission_id,
+            'producer_id' => $payment->producer_id,
+            'phase' => 'resume',
             'remote_transaction_id' => $payment->fedapay_transaction_id,
             'error_class' => $exception::class,
             'error_message' => $exception->getMessage(),
@@ -328,7 +330,18 @@ class MissionPaymentService
         $compensationFailed = null;
         $remoteTransactionId = $remotePayment['fedapay_transaction_id'] ?? null;
         $paymentId = $prepared['payment']->id;
-        $needsCompensation = $remotePayment === null || ! $this->hasPersistedTransactionId($paymentId);
+        $missionId = $prepared['payment']->mission_id;
+        $producerId = $prepared['payment']->producer_id;
+        $hasPersistedTransactionId = $this->hasPersistedTransactionId($paymentId);
+        $needsCompensation = $remotePayment === null || ! $hasPersistedTransactionId;
+
+        // Failure phase: encodes where in the confirm/initiate workflow the throw happened,
+        // so operators can map the log line to the affected DB rows without reading the source.
+        $phase = match (true) {
+            $remotePayment === null => 'request_checkout',
+            ! $hasPersistedTransactionId => 'finalize_local',
+            default => 'post_finalize',
+        };
 
         if ($needsCompensation) {
             $compensationAttempted = true;
@@ -340,13 +353,22 @@ class MissionPaymentService
             }
         }
 
+        $compensationOutcome = match (true) {
+            ! $compensationAttempted => 'skipped',
+            $compensationFailed !== null => 'failed',
+            default => 'succeeded',
+        };
+
         Log::error('Mission payment initiation failed', [
-            'mission_payment_id' => $paymentId,
-            'mission_id' => $prepared['payment']->mission_id,
+            'payment_id' => $paymentId,
+            'mission_id' => $missionId,
+            'producer_id' => $producerId,
+            'phase' => $phase,
             'remote_transaction_id' => $remoteTransactionId,
             'needs_compensation' => $needsCompensation,
             'compensation_attempted' => $compensationAttempted,
             'compensation_failed' => $compensationFailed !== null,
+            'compensation_outcome' => $compensationOutcome,
             'manual_recovery_required' => $remoteTransactionId !== null && $needsCompensation,
             'error_class' => $exception::class,
             'error_message' => $exception->getMessage(),
@@ -354,8 +376,10 @@ class MissionPaymentService
 
         if ($compensationFailed instanceof \Throwable) {
             Log::error('Mission payment compensation failed after initiation error', [
-                'mission_payment_id' => $paymentId,
-                'mission_id' => $prepared['payment']->mission_id,
+                'payment_id' => $paymentId,
+                'mission_id' => $missionId,
+                'producer_id' => $producerId,
+                'phase' => 'compensate',
                 'remote_transaction_id' => $remoteTransactionId,
                 'original_error_class' => $exception::class,
                 'original_error_message' => $exception->getMessage(),
