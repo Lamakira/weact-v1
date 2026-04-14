@@ -8,6 +8,7 @@ use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
+use App\Exceptions\MissionPaymentInitiationException;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
@@ -16,6 +17,8 @@ use App\Models\MissionPaymentCandidature;
 use App\Models\Notification;
 use App\Models\User;
 use App\ValueObjects\MissionPricing;
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -23,23 +26,72 @@ use Illuminate\Validation\ValidationException;
 
 class MissionPaymentService
 {
+    private const MISSION_PAYMENT_LOCK_TTL_SECONDS = 120;
+
     public function __construct(
         private readonly FedapayService $fedapayService,
         private readonly WalletService $walletService,
     ) {}
 
     /**
-     * Confirm face selection and create payment record.
-     * Sets non-selected pending candidatures to rejected.
-     * Sets mission to pending_payment status.
+     * Confirm face selection, initiate the external checkout, then finalize local state.
      *
      * @param  string[]  $candidatureUuids
+     * @return array{payment: MissionPayment, checkout_url: ?string}
      *
      * @throws ValidationException
      */
-    public function confirmSelection(Mission $mission, array $candidatureUuids): MissionPayment
+    public function confirmAndInitiatePayment(Mission $mission, array $candidatureUuids): array
     {
-        return DB::transaction(function () use ($mission, $candidatureUuids): MissionPayment {
+        return $this->withMissionPaymentLock($mission, function () use ($mission, $candidatureUuids): array {
+            $existingPayment = $this->resolveResumablePayment($mission);
+
+            if ($existingPayment instanceof MissionPayment) {
+                try {
+                    return $this->initiatePayment($existingPayment);
+                } catch (\Throwable $e) {
+                    // Resume path normalizes every failure (including ValidationException
+                    // from stale payment state) into a single MissionPaymentInitiationException
+                    // envelope, so the SPA has one response shape to parse for "resume failed".
+                    $this->handleResumeInitiationFailure($existingPayment, $e);
+                }
+            }
+
+            $prepared = $this->prepareSelectionForPayment($mission, $candidatureUuids);
+            $remotePayment = null;
+
+            try {
+                $remotePayment = $this->requestHostedCheckout($prepared['payment']);
+                $payment = $this->finalizePreparedPayment($prepared['payment'], $remotePayment);
+            } catch (\Throwable $e) {
+                $this->handleInitiationFailure($prepared, $remotePayment, $e);
+            }
+
+            $this->dispatchSelectionNotifications($prepared['notifications']);
+
+            return [
+                'payment' => $payment,
+                'checkout_url' => $remotePayment['checkout_url'],
+            ];
+        });
+    }
+
+    /**
+     * Tentatively apply the mission selection changes before external payment initiation.
+     *
+     * @param  string[]  $candidatureUuids
+     * @return array{
+     *   payment: MissionPayment,
+     *   selected_candidature_ids: list<int>,
+     *   rejected_candidature_ids: list<int>,
+     *   notifications: list<array{userId: ?int, type: string, data: array<string, mixed>}>
+     * }
+     *
+     * @throws ValidationException
+     */
+    private function prepareSelectionForPayment(Mission $mission, array $candidatureUuids): array
+    {
+        return DB::transaction(function () use ($mission, $candidatureUuids): array {
             // Lock mission row
             /** @var Mission $mission */
             $mission = Mission::lockForUpdate()->findOrFail($mission->id);
@@ -80,8 +132,10 @@ class MissionPaymentService
             /** @var \Illuminate\Support\Collection<int, Candidature> $selectedCandidatures */
             $selectedCandidatures = collect($requestedUuids)
                 ->map(fn (string $candidatureUuid): Candidature => $candidatures->get($candidatureUuid));
+            $selectedCandidatureIds = $selectedCandidatures->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
 
             $pricing = new MissionPricing($mission->budget, $selectedCandidatures->count());
+            $notifications = [];
 
             // Create MissionPayment
             /** @var MissionPayment $payment */
@@ -110,55 +164,280 @@ class MissionPaymentService
 
                 $candidature->update(['status' => CandidatureStatus::Accepted]);
 
-                // Notify selected face
-                $this->notifySafely(
-                    userId: $this->getUserIdForFace($candidature->face_id),
-                    type: 'candidature_accepted',
-                    data: [
+                $notifications[] = [
+                    'userId' => $this->getUserIdForFace($candidature->face_id),
+                    'type' => 'candidature_accepted',
+                    'data' => [
                         'message' => 'Votre candidature a été acceptée !',
                         'mission_id' => $mission->id,
                         'mission_titre' => $mission->titre,
                         'url' => '/face/candidatures',
-                    ]
-                );
+                    ],
+                ];
             }
 
             // Reject all remaining pending candidatures for this mission
             $rejectedCandidatures = Candidature::where('mission_id', $mission->id)
                 ->where('status', CandidatureStatus::Pending->value)
+                ->lockForUpdate()
                 ->get();
+            $rejectedCandidatureIds = [];
 
             foreach ($rejectedCandidatures as $rejected) {
                 /** @var Candidature $rejected */
                 $rejected->update(['status' => CandidatureStatus::Rejected]);
+                $rejectedCandidatureIds[] = $rejected->id;
 
-                $this->notifySafely(
-                    userId: $this->getUserIdForFace($rejected->face_id),
-                    type: 'candidature_rejected',
-                    data: [
+                $notifications[] = [
+                    'userId' => $this->getUserIdForFace($rejected->face_id),
+                    'type' => 'candidature_rejected',
+                    'data' => [
                         'message' => 'Votre candidature n\'a pas été retenue.',
                         'mission_id' => $mission->id,
                         'mission_titre' => $mission->titre,
                         'url' => '/face/candidatures',
-                    ]
-                );
+                    ],
+                ];
             }
 
             // Update mission status
             $mission->update(['status' => MissionStatus::PendingPayment]);
 
+            return [
+                'payment' => $payment->fresh(),
+                'selected_candidature_ids' => $selectedCandidatureIds,
+                'rejected_candidature_ids' => $rejectedCandidatureIds,
+                'notifications' => $notifications,
+            ];
+        });
+    }
+
+    /**
+     * @return array{fedapay_transaction_id: int, checkout_url: string}
+     */
+    protected function requestHostedCheckout(MissionPayment $payment): array
+    {
+        return $this->fedapayService->initiatePaymentForMission(
+            $payment,
+            Str::uuid()->toString(),
+        );
+    }
+
+    /**
+     * @template T
+     *
+     * @param  callable(): T  $callback
+     * @return T
+     *
+     * @throws ValidationException
+     */
+    private function withMissionPaymentLock(Mission $mission, callable $callback): mixed
+    {
+        $lock = Cache::lock("mission_payment_{$mission->id}", self::MISSION_PAYMENT_LOCK_TTL_SECONDS);
+
+        try {
+            return $lock->block(5, $callback);
+        } catch (LockTimeoutException) {
+            throw ValidationException::withMessages([
+                'status' => ['Un paiement est deja en cours pour cette mission.'],
+            ]);
+        } finally {
+            optional($lock)->release();
+        }
+    }
+
+    private function resolveResumablePayment(Mission $mission): ?MissionPayment
+    {
+        /** @var Mission $freshMission */
+        $freshMission = Mission::query()
+            ->with('payment')
+            ->findOrFail($mission->id);
+
+        $payment = $freshMission->payment;
+
+        if (
+            ! $payment instanceof MissionPayment
+            || $freshMission->status !== MissionStatus::PendingPayment
+            || $payment->status !== MissionPaymentStatus::Pending
+        ) {
+            return null;
+        }
+
+        return $payment;
+    }
+
+    /**
+     * @throws MissionPaymentInitiationException
+     */
+    private function handleResumeInitiationFailure(MissionPayment $payment, \Throwable $exception): never
+    {
+        Log::error('Mission payment resume failed', [
+            'mission_payment_id' => $payment->id,
+            'mission_id' => $payment->mission_id,
+            'remote_transaction_id' => $payment->fedapay_transaction_id,
+            'error_class' => $exception::class,
+            'error_message' => $exception->getMessage(),
+        ]);
+
+        throw new MissionPaymentInitiationException(
+            'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.',
+            previous: $exception,
+        );
+    }
+
+    /**
+     * @param  array{fedapay_transaction_id: int, checkout_url: string}  $remotePayment
+     */
+    protected function finalizePreparedPayment(MissionPayment $payment, array $remotePayment): MissionPayment
+    {
+        return DB::transaction(function () use ($payment, $remotePayment): MissionPayment {
+            /** @var MissionPayment $lockedPayment */
+            $lockedPayment = MissionPayment::lockForUpdate()->findOrFail($payment->id);
+
+            if ($lockedPayment->status !== MissionPaymentStatus::Pending) {
+                throw ValidationException::withMessages([
+                    'status' => ['Ce paiement ne peut pas être initié dans son état actuel.'],
+                ]);
+            }
+
+            $lockedPayment->update([
+                'fedapay_transaction_id' => $remotePayment['fedapay_transaction_id'],
+            ]);
+
             /** @var MissionPayment $freshPayment */
-            $freshPayment = $payment->fresh();
+            $freshPayment = $lockedPayment->fresh();
 
             return $freshPayment;
         });
     }
 
     /**
+     * @param  array{
+     *   payment: MissionPayment,
+     *   selected_candidature_ids: list<int>,
+     *   rejected_candidature_ids: list<int>,
+     *   notifications: list<array{userId: ?int, type: string, data: array<string, mixed>}>
+     * }  $prepared
+     * @param  array{fedapay_transaction_id: int, checkout_url: string}|null  $remotePayment
+     *
+     * @throws MissionPaymentInitiationException
+     */
+    private function handleInitiationFailure(array $prepared, ?array $remotePayment, \Throwable $exception): never
+    {
+        $compensationAttempted = false;
+        $compensationFailed = null;
+        $remoteTransactionId = $remotePayment['fedapay_transaction_id'] ?? null;
+        $paymentId = $prepared['payment']->id;
+        $needsCompensation = $remotePayment === null || ! $this->hasPersistedTransactionId($paymentId);
+
+        if ($needsCompensation) {
+            $compensationAttempted = true;
+
+            try {
+                $this->compensateFailedPreparation($prepared);
+            } catch (\Throwable $compensationException) {
+                $compensationFailed = $compensationException;
+            }
+        }
+
+        Log::error('Mission payment initiation failed', [
+            'mission_payment_id' => $paymentId,
+            'mission_id' => $prepared['payment']->mission_id,
+            'remote_transaction_id' => $remoteTransactionId,
+            'needs_compensation' => $needsCompensation,
+            'compensation_attempted' => $compensationAttempted,
+            'compensation_failed' => $compensationFailed !== null,
+            'manual_recovery_required' => $remoteTransactionId !== null && $needsCompensation,
+            'error_class' => $exception::class,
+            'error_message' => $exception->getMessage(),
+        ]);
+
+        if ($compensationFailed instanceof \Throwable) {
+            Log::error('Mission payment compensation failed after initiation error', [
+                'mission_payment_id' => $paymentId,
+                'mission_id' => $prepared['payment']->mission_id,
+                'remote_transaction_id' => $remoteTransactionId,
+                'original_error_class' => $exception::class,
+                'original_error_message' => $exception->getMessage(),
+                'compensation_error_class' => $compensationFailed::class,
+                'compensation_error_message' => $compensationFailed->getMessage(),
+            ]);
+        }
+
+        throw new MissionPaymentInitiationException(
+            'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.',
+            previous: $exception,
+        );
+    }
+
+    private function hasPersistedTransactionId(int $paymentId): bool
+    {
+        return MissionPayment::query()
+            ->whereKey($paymentId)
+            ->whereNotNull('fedapay_transaction_id')
+            ->exists();
+    }
+
+    /**
+     * @param  array{
+     *   payment: MissionPayment,
+     *   selected_candidature_ids: list<int>,
+     *   rejected_candidature_ids: list<int>,
+     *   notifications: list<array{userId: ?int, type: string, data: array<string, mixed>}>
+     * }  $prepared
+     */
+    protected function compensateFailedPreparation(array $prepared): void
+    {
+        DB::transaction(function () use ($prepared): void {
+            /** @var MissionPayment|null $payment */
+            $payment = MissionPayment::lockForUpdate()->find($prepared['payment']->id);
+
+            if (! $payment || $payment->fedapay_transaction_id !== null) {
+                return;
+            }
+
+            /** @var Mission|null $mission */
+            $mission = Mission::lockForUpdate()->find($payment->mission_id);
+
+            if ($mission && $mission->status === MissionStatus::PendingPayment) {
+                $mission->update(['status' => MissionStatus::Published]);
+            }
+
+            if ($prepared['selected_candidature_ids'] !== []) {
+                Candidature::whereIn('id', $prepared['selected_candidature_ids'])
+                    ->where('status', CandidatureStatus::Accepted->value)
+                    ->update(['status' => CandidatureStatus::Pending->value]);
+            }
+
+            if ($prepared['rejected_candidature_ids'] !== []) {
+                Candidature::whereIn('id', $prepared['rejected_candidature_ids'])
+                    ->where('status', CandidatureStatus::Rejected->value)
+                    ->update(['status' => CandidatureStatus::Pending->value]);
+            }
+
+            $payment->delete();
+        });
+    }
+
+    /**
+     * @param  list<array{userId: ?int, type: string, data: array<string, mixed>}>  $notifications
+     */
+    private function dispatchSelectionNotifications(array $notifications): void
+    {
+        foreach ($notifications as $notification) {
+            $this->notifySafely(
+                userId: $notification['userId'],
+                type: $notification['type'],
+                data: $notification['data'],
+            );
+        }
+    }
+
+    /**
      * Initiate FedaPay checkout for a mission payment.
      * Idempotent: regenerates URL if transaction exists and is not failed.
      *
-     * @return array{payment: MissionPayment, checkout_url: string}
+     * @return array{payment: MissionPayment, checkout_url: ?string}
      *
      * @throws ValidationException
      */
@@ -171,6 +450,29 @@ class MissionPaymentService
             // Idempotent: if transaction exists and not in failed state, regenerate URL
             if ($payment->fedapay_transaction_id !== null) {
                 $existing = $this->fedapayService->retrieveTransaction((int) $payment->fedapay_transaction_id);
+
+                if ($existing->status === 'approved') {
+                    // Self-healing: the FedaPay webhook never landed (or is delayed) but the
+                    // remote side says the transaction is approved. We reconcile local state
+                    // here, nested inside initiatePayment()'s DB::transaction and
+                    // withMissionPaymentLock()'s cache lock.
+                    //
+                    // ⚠️ REQUIRES QUEUE_CONNECTION=database (or sync).
+                    // markAsPaid() fans out N+1 Notification::create() calls which can
+                    // dispatch model-observer jobs. With a non-DB queue driver (redis, sqs),
+                    // those jobs could be consumed by a worker before the outer transaction
+                    // commits, racing against the not-yet-visible rows. Switching the queue
+                    // driver requires moving this self-healing path outside the cache lock
+                    // (e.g., return a "needs_reconcile" flag and let the controller call
+                    // markAsPaid() after the lock is released).
+                    $paidPayment = $this->markAsPaid(
+                        $payment,
+                        (string) ($existing->reference ?? $payment->fedapay_transaction_id)
+                    );
+
+                    return ['payment' => $paidPayment, 'checkout_url' => null];
+                }
+
                 $terminalFailedStatuses = ['declined', 'canceled', 'refunded'];
 
                 if (! in_array($existing->status, $terminalFailedStatuses, true)) {
