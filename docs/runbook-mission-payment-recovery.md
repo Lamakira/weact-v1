@@ -33,7 +33,7 @@ Every mission payment failure emits a structured log entry with enough context t
 
 ## 2. Failure phases
 
-The `phase` field is the first thing to read — it narrows the blast radius.
+Read `phase` first, then check `compensation_outcome` — the override below can promote the incident to a higher-severity phase.
 
 | Phase | Meaning | Typical DB state after failure |
 | --- | --- | --- |
@@ -41,8 +41,10 @@ The `phase` field is the first thing to read — it narrows the blast radius.
 | `finalize_local` | FedaPay accepted the transaction but the local DB finalize failed | Local state compensated; a FedaPay transaction exists and is **orphaned** (`manual_recovery_required=true`) |
 | `post_finalize` | Local persist succeeded and then something else threw | Local state is committed; treat as normal pending payment — do **not** rollback blindly |
 | `compensate` | Compensation transaction itself failed | Local state is frozen in the tentatively-mutated shape — manual SQL recovery is required |
-| `resume` | Producer hit resume-checkout but the call to FedaPay failed | Nothing changed; producer can retry when upstream recovers |
+| `resume` | Producer hit resume-checkout but the call to FedaPay failed | Nothing changed; producer can retry when upstream recovers (no `compensation_*` fields are emitted on this phase) |
 | `webhook` | FedaPay sent a `transaction.declined` or `transaction.canceled` for a mission payment | Local state unchanged — payment stays pending, mission stays `pending_payment` until producer retries or you cancel manually |
+
+> **Override (request_checkout / finalize_local only):** if the primary `Mission payment initiation failed` log has `compensation_outcome=failed`, or you see a paired `Mission payment compensation failed after initiation error` entry, treat the incident as **`phase=compensate`** regardless of the original phase — the rollback did not complete cleanly. This override does **not** apply to `phase=resume` (no compensation runs on resume) or `phase=webhook`.
 
 ## 3. Verification procedure
 
@@ -170,7 +172,13 @@ Local state is committed and valid. Do **not** rollback. Treat it as a normal pe
 
 ### 4.4 — `phase=request_checkout` or `phase=resume`
 
-Nothing to fix — the compensation already ran (`compensation_outcome=succeeded`) or never mutated state (resume). Tell the producer to retry when upstream (FedaPay) is healthy again. If it keeps failing, escalate to engineering with the original `error_class`/`error_message`.
+Both phases share the same operator action (tell the producer to retry once upstream recovers), but they reach this section through different invariants — read whichever sub-case matches the failed phase.
+
+**`phase=request_checkout`** — apply this section only when the main failure log shows `compensation_outcome=succeeded`. If `compensation_outcome=failed`, or you also see a `Mission payment compensation failed after initiation error` entry, stop here and switch to §4.1 — the rollback did not complete cleanly. Otherwise nothing to fix: compensation already restored the mission and the producer can retry safely.
+
+**`phase=resume`** — resume never mutates local state, so `compensation_*` fields are not emitted on this phase. Do **not** look for `compensation_outcome`; the §4.1 escape hatch above does not apply here. Nothing to fix locally — tell the producer to retry once upstream recovers.
+
+In both sub-cases, if retries keep failing, escalate to engineering with the original `error_class` / `error_message`.
 
 ### 4.5 — Webhook never landed but FedaPay says approved
 

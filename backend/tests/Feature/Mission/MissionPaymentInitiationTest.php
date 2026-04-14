@@ -658,6 +658,147 @@ class MissionPaymentInitiationTest extends TestCase
             });
     }
 
+    public function test_initiation_failure_leaves_mission_payment_table_clean_enough_for_a_fresh_retry_to_succeed(): void
+    {
+        // FIX-19.5 regression guard (AC #1): the fix-19-1 compensation path must leave
+        // the DB in a state where the very next confirm-selection request can create a
+        // brand-new payment row without tripping any leftover unique constraint or
+        // stale candidature status. A failure in fix-19-1 compensation would typically
+        // manifest as a second attempt returning 500 (unique violation on `mission_id`)
+        // or 422 ("mission not in Published status") instead of 200.
+
+        $callCount = 0;
+        $this->mock(FedapayService::class, function ($mock) use (&$callCount): void {
+            $mock->shouldReceive('initiatePaymentForMission')
+                ->twice()
+                ->andReturnUsing(function () use (&$callCount): array {
+                    $callCount++;
+                    if ($callCount === 1) {
+                        throw new \RuntimeException('Fedapay unavailable');
+                    }
+
+                    return [
+                        'fedapay_transaction_id' => 778899,
+                        'checkout_url' => 'https://checkout.fedapay.com/fresh-retry-token',
+                    ];
+                });
+        });
+
+        // First attempt — fails before a transaction is persisted.
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", [
+                'candidature_ids' => [
+                    $this->selectedFirst->uuid,
+                    $this->selectedSecond->uuid,
+                ],
+            ])
+            ->assertStatus(422);
+
+        $this->assertSame(MissionStatus::Published, $this->mission->fresh()->status);
+        $this->assertDatabaseMissing('mission_payments', [
+            'mission_id' => $this->mission->id,
+        ]);
+        // Compensation must also wipe the escrow stubs — a regression that
+        // leaves orphan rows behind would let the second retry succeed at the
+        // payments table while quietly accumulating duplicate candidature stubs.
+        $this->assertDatabaseCount('mission_payment_candidatures', 0);
+
+        // Second attempt — MUST succeed using the same (now-restored) candidatures.
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", [
+                'candidature_ids' => [
+                    $this->selectedFirst->uuid,
+                    $this->selectedSecond->uuid,
+                ],
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', 'pending')
+            ->assertJsonPath('data.checkout_url', 'https://checkout.fedapay.com/fresh-retry-token');
+
+        $this->assertSame(MissionStatus::PendingPayment, $this->mission->fresh()->status);
+        $this->assertSame(CandidatureStatus::Accepted, $this->selectedFirst->fresh()->status);
+        $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
+        $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
+        $this->assertSame(1, MissionPayment::query()->count());
+        $this->assertDatabaseHas('mission_payments', [
+            'mission_id' => $this->mission->id,
+            'fedapay_transaction_id' => '778899',
+            'status' => 'pending',
+        ]);
+        // Exactly two escrow stubs after the successful retry — guards against
+        // a regression that leaves orphan rows from the first failed attempt
+        // alongside the new ones.
+        $this->assertDatabaseCount('mission_payment_candidatures', 2);
+    }
+
+    public function test_transient_resume_failure_keeps_payment_row_resumable_on_the_next_attempt(): void
+    {
+        // FIX-19.5 regression guard (AC #2): a transient failure on the resume
+        // branch (e.g. FedaPay `retrieveTransaction` timeout) must leave the pending
+        // mission payment row untouched so the producer's very next retry can still
+        // resume against the same remote transaction. Regressing fix-19-2 by deleting
+        // the payment on resume-failure or mutating its status would turn a blip into
+        // a hard deadlock for the producer.
+
+        $payment = $this->createPendingMissionPayment('123456');
+
+        $successTransaction = $this->makeTransactionStub(
+            status: 'pending',
+            checkoutUrl: 'https://checkout.fedapay.com/second-attempt-token',
+        );
+
+        $call = 0;
+        $this->mock(FedapayService::class, function ($mock) use (&$call, $successTransaction): void {
+            $mock->shouldReceive('retrieveTransaction')
+                ->twice()
+                ->with(123456)
+                ->andReturnUsing(function () use (&$call, $successTransaction) {
+                    $call++;
+                    if ($call === 1) {
+                        throw new \RuntimeException('Fedapay unreachable — transient.');
+                    }
+
+                    return $successTransaction;
+                });
+            $mock->shouldNotReceive('initiatePaymentForMission');
+        });
+
+        // First retry fails transiently.
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", [])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.');
+
+        // Row is still pending with the same remote id — no data loss on resume failure.
+        $this->assertDatabaseHas('mission_payments', [
+            'id' => $payment->id,
+            'status' => 'pending',
+            'fedapay_transaction_id' => '123456',
+        ]);
+        $this->assertSame(MissionStatus::PendingPayment, $this->mission->fresh()->status);
+        $this->assertSame(1, MissionPayment::query()->count());
+        // Candidature statuses must not be touched by a resume failure — a
+        // regression that flipped them back to Pending or Rejected would
+        // silently corrupt the producer's selection between retries.
+        $this->assertSame(CandidatureStatus::Accepted, $this->selectedFirst->fresh()->status);
+        $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
+        $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
+        // Escrow stubs must also stay intact across the transient failure.
+        $this->assertDatabaseCount('mission_payment_candidatures', 2);
+
+        // Second retry succeeds against the same record.
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", []);
+
+        $response->assertOk()
+            ->assertJsonPath('data.payment_id', $payment->id)
+            ->assertJsonPath('data.checkout_url', 'https://checkout.fedapay.com/second-attempt-token')
+            ->assertJsonPath('data.status', 'pending');
+
+        $this->assertSame(1, MissionPayment::query()->count());
+    }
+
     public function test_webhook_decline_emits_warning_with_full_mission_payment_failure_context(): void
     {
         Log::spy();

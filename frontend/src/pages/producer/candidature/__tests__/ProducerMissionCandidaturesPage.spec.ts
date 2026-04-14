@@ -323,6 +323,64 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
     )
   })
 
+  it('clears the init-failed banner after a selection-failed event refreshes the mission back to published (FIX-19.5 AC #4)', async () => {
+    // FIX-19.5 regression guard: when a failed confirmAndPay attempt's
+    // compensation path restores the mission to `published`, the page must
+    // transition out of the init-failed banner on the next refresh and
+    // re-enable the normal selection flow — no infinite "stuck" banner.
+    vi.mocked(missionApi.getMission)
+      .mockResolvedValueOnce({
+        data: makePendingPaymentMission(),
+        message: 'ok',
+      })
+      .mockResolvedValueOnce({
+        data: makePendingPaymentMission({ status: 'published', status_label: 'Publiée' }),
+        message: 'ok',
+      })
+    vi.mocked(missionApi.getPaymentStatus).mockResolvedValueOnce({
+      data: {
+        has_payment: false,
+        is_trackable: false,
+        status: undefined,
+        mission_status: 'pending_payment',
+      },
+    })
+
+    const wrapper = mount(ProducerMissionCandidaturesPage)
+
+    await flushPromises()
+    await flushPromises()
+
+    // Baseline: the init-failed banner is showing and retry is enabled.
+    expect(wrapper.find('[data-testid="mission-payment-init-failed-banner"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="candidatures-section-stub"]').attributes('data-retry-selection-enabled')).toBe('true')
+
+    // Simulate the retry attempt failing → compensation restored the mission
+    // to `published`. The section emits `selection-failed`, which triggers a
+    // mission re-fetch.
+    wrapper.getComponent({ name: 'ProducerCandidaturesSectionStub' })
+      .vm
+      .$emit('selection-failed', 'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.')
+
+    await flushPromises()
+    await flushPromises()
+
+    // After refresh: mission is `published` again, so the init-failed banner
+    // MUST be gone, polling MUST NOT be running, and the section should no
+    // longer be in retry-selection mode.
+    expect(missionApi.getMission).toHaveBeenCalledTimes(2)
+    // The refreshed mission is `published`, so the page must NOT re-evaluate
+    // the payment-status endpoint a second time — exactly one call total.
+    expect(missionApi.getPaymentStatus).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('[data-testid="mission-payment-init-failed-banner"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="mission-payment-pending-banner"]').exists()).toBe(false)
+    expect(startPollingSpy).not.toHaveBeenCalled()
+    // The transition out of `pending_payment` must explicitly stop polling so
+    // any prior poll loop is torn down on compensation success.
+    expect(stopPollingSpy).toHaveBeenCalled()
+    expect(wrapper.get('[data-testid="candidatures-section-stub"]').attributes('data-retry-selection-enabled')).toBe('false')
+  })
+
   it('does not fetch the payment-status endpoint when the mission is not pending_payment', async () => {
     vi.mocked(missionApi.getMission).mockResolvedValueOnce({
       data: makePendingPaymentMission({ status: 'published', status_label: 'Publiée' }),
