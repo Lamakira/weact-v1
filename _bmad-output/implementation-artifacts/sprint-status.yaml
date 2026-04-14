@@ -444,12 +444,12 @@ development_status:
   # ============================================
 
   # Epic FIX-20: Unification du contrat Accepted = sélection payée et confirmable (6 stories)
-  epic-fix-20: backlog
+  epic-fix-20: in-progress
   fix-20-1-move-accepted-transition-to-payment-webhook: backlog        # Refactor: Accepted fire au webhook Paid, prep ne mute plus candidature.status
   fix-20-2-simplify-face-confirm-endpoint: backlog                     # Retirer/alléger le check PAYMENT_NOT_CONFIRMED désormais redondant
-  fix-20-3-remove-legacy-manual-accept-endpoint: backlog               # Supprimer endpoint zombie POST /producer/candidatures/{id}/accept + chaîne frontend
+  fix-20-3-remove-legacy-manual-accept-endpoint: review                # Commit ac2719d sur dev — en attente de merge main. Révélé un gap Conversation::firstOrCreate à traiter dans FIX-20.1
   fix-20-4-simplify-obsolete-fix-19-compensation: backlog              # Retirer le rollback candidature.status de handleInitiationFailure + update runbook
-  fix-20-5-confirm-candidature-error-mapping: backlog                  # Quick win: useConfirmCandidature mappe 422/429/500/network avec error.message backend
+  fix-20-5-confirm-candidature-error-mapping: review                   # Commit 9bca244 sur dev — en attente de merge main
   fix-20-6-reconcile-stale-selections-production-data: backlog         # Investigation payment 7 + commande de migration des 181 candidatures orphelines + notifications
   epic-fix-20-retrospective: optional
 
@@ -461,3 +461,6 @@ last_updated: "2026-04-14"
 # Epic FIX-20 created: 2026-04-14 (Sprint 11 — investigation incident confirmation Face)
 # Epic FIX-20 recadré: 2026-04-14 — Option A retenue, refactor contrat sémantique `Accepted = confirmable`, 5 stories
 # Epic FIX-20 étendu: 2026-04-14 — audit DB a révélé ~181 candidatures orphelines (4 payments pending sans fedapay_transaction_id), ajout FIX-20.6 réconciliation données + investigation payment 7 (post-FIX-19.1)
+# Story fix-20-5 moved to review: 2026-04-14 (commit 9bca244 on dev)
+# Story fix-20-3 moved to review: 2026-04-14 (commit ac2719d on dev, révèle gap Conversation::firstOrCreate à adresser dans FIX-20.1)
+# Epic FIX-20 moved to in-progress: 2026-04-14
