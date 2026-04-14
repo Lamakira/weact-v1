@@ -27,7 +27,7 @@ Résultats :
 - **Requête 2 — candidatures `Rejected` orphelines** : 177 lignes, réparties sur les **mêmes 4 payments** (≈113 sur mission 8, ≈27 sur mission 11, ≈19 sur mission 14, ≈17 sur mission 17).
 - **Total impact : ~181 candidatures à réconcilier, 4 Producers à notifier.**
 
-**Anomalie critique identifiée :** le payment 7 (mission 17, candidature 489) date du 2026-04-14 07:37, **postérieur au merge de FIX-19.1** (~2026-04-12). Les payments 1/2/3 sont antérieurs à FIX-19.1 et représentent la fuite historique que le fix devait corriger. Le payment 7 suggère un chemin de code non couvert par FIX-19.1 ou une race condition résiduelle. **Investigation bloquante sur FIX-20.6 avant exécution de la migration.**
+**Anomalie payment 7 — résolue :** initialement, le payment 7 (mission 17, candidature 489, créé le 2026-04-14 07:37) paraissait postérieur à FIX-19.1 et donc suspect. Vérification a posteriori de la date de merge de la PR #23 (`fix(mission-payment): épopée FIX-19 — fiabiliser l'initiation de paiement mission`) : mergée sur `main` le 2026-04-14 ~10:23, soit ~2h45 **après** la création du payment 7. Conclusion : payment 7 est une row historique créée dans la dernière fenêtre vulnérable juste avant la mise en prod, pas le signal d'un chemin de code non couvert. Pas de FIX-19.1 résiduel à corriger. Une requête de sanity check post-merge doit confirmer qu'aucune nouvelle orpheline n'apparaît dans la fenêtre post-déploiement (sinon, réouvrir l'investigation).
 
 Hypothèse sur l'incident initial : la candidature 489 (payment 7, 2026-04-14 07:37) correspond très probablement à l'incident Face « toast générique » qui a déclenché cette investigation. La Face voit `accepted`, clique « Confirmer ma participation », obtient un 422 `PAYMENT_NOT_CONFIRMED` masqué par le fallback générique.
 
@@ -100,13 +100,12 @@ FIX20-FR8 : Les ~181 candidatures actuellement dans un état incompatible avec l
 
 **Ordre de livraison recommandé :**
 
-1. **FIX-20.6 (phase 1 — investigation)** — bloquant. Comprendre d'où vient le payment 7 du 2026-04-14 (post-FIX-19.1) avant toute migration. Sinon, de nouvelles rows orphelines continueront d'apparaître après le nettoyage.
-2. **FIX-20.5** — quick win indépendant, améliore immédiatement le diagnostic des incidents en prod, notamment pour débloquer temporairement les 4 Faces impactées en leur affichant un message explicite (même si encore incorrect sur le fond : le paiement ne se confirmera jamais).
-3. **FIX-20.3** — suppression du chemin legacy, indépendante, faible risque, cohérente avec le nouveau contrat.
-4. **FIX-20.6 (phase 2 — migration)** — réconciliation des 181 candidatures + notifications, une fois l'investigation conclue. À exécuter **avant** le refactor pour que FIX-20.1 s'applique sur une base propre.
-5. **FIX-20.1** — cœur du sprint, refactor du contrat métier. Point bascule.
-6. **FIX-20.2** — simplification `confirm`, dépend de FIX-20.1.
-7. **FIX-20.4** — simplification compensation, dépend de FIX-20.1.
+1. **FIX-20.5** — quick win indépendant, améliore immédiatement le diagnostic des incidents en prod.
+2. **FIX-20.3** — suppression du chemin legacy, indépendante, faible risque, cohérente avec le nouveau contrat.
+3. **FIX-20.6** — réconciliation des 181 candidatures + reset `mission.status` + notifications. À exécuter **avant** le refactor pour que FIX-20.1 s'applique sur une base propre. L'investigation sur le payment 7 étant résolue (row historique pré-déploiement), la story est purement un nettoyage de données.
+4. **FIX-20.1** — cœur du sprint, refactor du contrat métier. Point bascule.
+5. **FIX-20.2** — simplification `confirm`, dépend de FIX-20.1.
+6. **FIX-20.4** — simplification compensation, dépend de FIX-20.1.
 
 ---
 
@@ -238,47 +237,61 @@ FIX20-FR8 : Les ~181 candidatures actuellement dans un état incompatible avec l
 
 #### FIX-20.6 : Réconcilier les données de production incompatibles avec le contrat cible
 
-**Description :** L'audit DB du 2026-04-14 révèle ~181 candidatures dans un état qui sera illégal sous le nouveau contrat : 4 `Accepted` + 177 `Rejected` réparties sur 4 `MissionPayment` en `Pending` sans aucun `fedapay_transaction_id`. Ces paiements n'ont jamais produit de checkout exploitable — ils sont le reliquat du bug que FIX-19.1 était censé couvrir. **Critique : le plus récent (payment 7, 2026-04-14 07:37) est postérieur au merge de FIX-19.1, ce qui suggère un chemin de code non couvert par le fix existant et doit être investigué avant toute migration.**
+**Description :** L'audit DB du 2026-04-14 révèle 181 candidatures dans un état qui sera illégal sous le nouveau contrat : 4 `Accepted` + 177 `Rejected` réparties sur 4 `MissionPayment` en `Pending` sans aucun `fedapay_transaction_id`, sur 4 missions bloquées en `mission.status = pending_payment`. Ces paiements n'ont jamais produit de checkout FedaPay exploitable — ils sont le reliquat du bug que FIX-19.1 corrige, mais créés avant le déploiement de ce fix en prod (merge 2026-04-14 ~10:23).
 
-Story en deux phases : (1) investigation bloquante sur le payment 7 pour comprendre pourquoi FIX-19.1 ne l'a pas compensé, et corriger le chemin de code correspondant si nécessaire ; (2) commande Laravel idempotente de réconciliation qui rollback les candidatures vers `Pending`, marque les `MissionPayment` orphelins, et notifie proprement Faces et Producers.
+Scope figé après audit approfondi :
+
+| Mission | `mission.status` | Payment | Accepted à migrer | Rejected à migrer | `cancelled` (hors scope) |
+|---------|-----------------|---------|-------------------|-------------------|--------------------------|
+| 8 (« Vidéo d'introduction pour une formation ») | `pending_payment` | 1 (2026-04-03) | 1 | 114 | 4 |
+| 11 (« Mettre en avant un produit ») | `pending_payment` | 2 (2026-04-08) | 1 | 27 | 2 |
+| 14 (« Créateur de contenu TikTok ») | `pending_payment` | 3 (2026-04-10) | 1 | 19 | 0 |
+| 17 (« Publicité d'un soin sauna ») | `pending_payment` | 7 (2026-04-14) | 1 | 17 | 0 |
+| **Total** | | **4 payments** | **4** | **177** | **6 préservés** |
+
+Commande Laravel idempotente qui rollback les 181 candidatures ciblées vers `Pending`, marque les 4 `MissionPayment` comme `Failed`, rebascule les 4 `mission.status` de `pending_payment` vers `published` pour débloquer les producers, et notifie proprement Faces et Producers concernés. Les candidatures `cancelled` (désengagement volontaire de la Face) sont **explicitement préservées**.
 
 **Acceptance Criteria :**
 
-*Phase 1 — Investigation payment 7 (bloquante) :*
-- Cause racine du payment 7 identifiée (chemin de code, date/séquence des événements, logs FedaPay associés).
-- Si FIX-19.1 a une faille couvrant ce cas : correctif backend livré et testé **avant** la phase 2.
-- Si FIX-19.1 est correct mais pas déployé au moment du 2026-04-14 07:37 : date de déploiement confirmée et incidents postérieurs au déploiement vérifiés à zéro.
-- Si cause tierce (race, intervention manuelle, autre) : document explicatif archivé dans les notes techniques.
+*Pré-requis — sanity check post-merge FIX-19.1 :*
+- Requête de vérification exécutée après le merge de PR #23 : aucun nouveau `MissionPayment` en `pending` + `fedapay_transaction_id = NULL` créé plus de ~10 minutes après le 2026-04-14 10:23. Si une ligne existe, réouvrir l'investigation FIX-19.1 avant de démarrer la migration.
 
-*Phase 2 — Réconciliation :*
+*Réconciliation :*
 - Commande Laravel idempotente `php artisan candidature:reconcile-stale-selections` avec flags `--dry-run` (affiche sans modifier) et `--apply` (exécute en transaction).
-- La commande identifie dynamiquement les rows impactées via les mêmes requêtes que l'audit (pas de liste hardcodée) — doit être ré-exécutable sans bug même si le nombre de rows évolue.
-- Pour chaque `MissionPayment` identifié : toutes les candidatures `Accepted` et `Rejected` liées à ce payment sont rebasculées vers `Pending` en transaction unique par payment, avec log structuré (`candidature_id`, ancien statut, nouveau statut, raison, `payment_id`).
+- La commande identifie dynamiquement les rows impactées via les mêmes requêtes que l'audit (pas de liste hardcodée) — doit rester fonctionnelle même si le nombre de rows évolue entre deux exécutions.
+- **Scope strict : seules les candidatures en `status IN ('accepted', 'rejected')` sont touchées.** Les candidatures `cancelled` (6 au total, désengagement volontaire de la Face) sont explicitement préservées — la commande doit avoir un test unitaire qui assert que les `cancelled` ne sont jamais modifiées, même en mode `--apply`.
+- Pour chaque `MissionPayment` identifié : toutes les candidatures `Accepted` et `Rejected` liées au payment sont rebasculées vers `Pending` en transaction unique par payment, avec log structuré (`candidature_id`, ancien statut, nouveau statut, raison, `payment_id`, `mission_id`).
 - Les `MissionPaymentCandidature` associées aux payments impactés sont supprimées.
 - Les `MissionPayment` impactés sont marqués `Failed` (pas supprimés — on conserve la trace d'audit financier).
-- La `mission.status` est ajustée si nécessaire (retour à `Published` si actuellement en `PendingPayment` sur ces missions — à vérifier par requête dédiée).
-- **Notifications Faces (~180) :**
-  - Les 4 Faces passées de `Accepted → Pending` reçoivent un message expliquant que le paiement du producteur n'a pas été finalisé et que leur candidature est remise en attente.
-  - Les ~177 Faces passées de `Rejected → Pending` reçoivent un message expliquant que la sélection précédente n'a pas été finalisée et que leur candidature est de nouveau en attente.
-  - Envoi en batch pour éviter de saturer le service de notifications (max N par seconde, paramétrable).
+- **La `mission.status` est rebasculée de `pending_payment` vers `published` pour les 4 missions impactées**, dans la même transaction que les autres mutations du payment correspondant. Sans ce reset, les producers restent incapables de relancer leur sélection et la migration n'a aucun effet utilisateur.
+- **Notifications Faces (181) :**
+  - Les 4 Faces passées de `Accepted → Pending` reçoivent un message expliquant que le paiement du producteur n'a pas été finalisé et que leur candidature est remise en attente (ton : factuel, pas de blâme).
+  - Les 177 Faces passées de `Rejected → Pending` reçoivent un message expliquant que la sélection précédente n'a pas été finalisée et que leur candidature est de nouveau en attente (ton : positif, la Face regagne une chance).
+  - Envoi en batch pour éviter de saturer le service de notifications (max N par seconde, paramétrable via option CLI ou constante documentée).
 - **Notifications Producers (4) :**
-  - Chaque Producer impacté reçoit un message indiquant que le paiement de sa sélection n'a pas abouti, que la sélection a été annulée, et qu'il peut la relancer depuis la page de la mission.
-- Test feature Laravel reproduisant les 4 scénarios avec fixtures et assertions post-migration (rollback, suppression entries, notifications dispatchées).
+  - Chaque Producer impacté reçoit un message indiquant que le paiement de sa sélection n'a pas abouti, que la mission est de nouveau ouverte aux candidatures, et qu'il peut relancer la sélection depuis la page de la mission.
+- Test feature Laravel reproduisant les 4 scénarios (missions 8, 11, 14, 17) avec fixtures fidèles (y compris les `cancelled` sur missions 8 et 11) et assertions post-migration :
+  - Les 181 cibles sont bien passées à `Pending`.
+  - Les 6 `cancelled` sont inchangées.
+  - Les 4 `MissionPayment` sont marqués `Failed`.
+  - Les 4 `mission.status` sont passés à `published`.
+  - 181 notifications Faces + 4 notifications Producers ont été dispatchées.
+  - La commande est idempotente : une seconde exécution ne génère aucune mutation supplémentaire et aucune notification doublon.
 - Test unitaire de la commande en mode `--dry-run` garantissant zéro mutation.
 - Revue manuelle du résultat `--dry-run` validée par Amakira **avant** exécution en `--apply` sur la prod.
-- Runbook de la migration documenté : étapes, commandes, points de bascule, rollback d'urgence si problème.
+- Runbook de la migration documenté : étapes, commandes, points de bascule, plan de rollback d'urgence (snapshot DB avant exécution, restauration manuelle si échec partiel détecté).
 - Textes exacts des notifications respectent les accents français corrects (memory `feedback_accents_francais`).
 
 **Technical Notes :**
 - Fichier à créer : `backend/app/Console/Commands/ReconcileStaleSelectionsCommand.php` (ou nom équivalent).
 - Les requêtes SQL d'identification sont celles de l'audit (Requête 1 et Requête 2 dans l'overview de l'épic).
-- La migration ne touche **pas** aux candidatures dont la mission a un `MissionPayment` en `Paid` — seulement celles liées aux paiements orphelins.
+- La migration ne touche **pas** aux candidatures dont la mission a un `MissionPayment` en `Paid` — seulement celles liées aux paiements orphelins (status <> 'paid' ET fedapay_transaction_id IS NULL en pratique, à vérifier au moment du code).
+- Mission 8 est bloquée depuis 11 jours, impact réputationnel probable sur le producer — la notification hors-app (email/WhatsApp) lui est probablement nécessaire. À trancher avec le métier.
 - Préférer `Failed` à la suppression pour les `MissionPayment` : l'audit financier doit rester traçable, les suppressions destructives complexifient les reconciliations comptables futures.
-- Notifications : réutiliser l'infrastructure `Notification` existante (création de rows `notifications` + broadcasting Echo/Reverb si actif). Ne pas envoyer d'email direct — les Faces et Producers recevront la notification in-app + broadcast temps réel si connectés.
-- **Dépendance ordering :** phase 2 doit tourner **avant** FIX-20.1 pour que le refactor opère sur une base propre. Si FIX-20.1 est déployé avant phase 2, les rows orphelines deviennent des données mortes qui ne causeront plus d'incident (grâce au nouveau contrat) mais resteront incohérentes et invisibles — mauvais pour l'audit.
-- **Décisions produit à trancher avant démarrage de phase 2 :**
+- Notifications : réutiliser l'infrastructure `Notification` existante (création de rows `notifications` + broadcasting Echo/Reverb si actif). Ne pas envoyer d'email direct **dans la commande** — si communication hors-app nécessaire pour les producers, la traiter manuellement en dehors de la commande automatisée.
+- **Dépendance ordering :** FIX-20.6 doit tourner **avant** FIX-20.1 pour que le refactor opère sur une base propre. Si FIX-20.1 est déployé avant FIX-20.6, les rows orphelines deviennent des données mortes qui ne causeront plus d'incident (grâce au nouveau contrat) mais resteront incohérentes et invisibles — mauvais pour l'audit financier.
+- **Décisions produit à trancher avant démarrage :**
   1. Textes exacts des 3 types de notifications (Face rollback Accepted, Face rollback Rejected, Producer sélection annulée).
-  2. Délai de rétention avant de re-cancel automatiquement les 4 missions si les producers ne réagissent pas (ou décision de laisser les missions en `Published` indéfiniment).
-  3. Décision sur la communication hors-app (email/WhatsApp) pour les Producers concernés — impact significatif sur leur confiance.
-- Pattern Prove It : test qui construit une base avec exactement les 4 payments orphelins + toutes leurs candidatures, exécute la commande, et asserte que chaque row a transitionné comme prévu et que chaque notification attendue a été dispatchée.
-- **Memory rule `feedback_db_retroactive_migration`** : « When changing DB data format, always migrate existing rows too — don't just fix new records. » FIX-19.1 n'a pas respecté cette règle (correctif livré sans migration rétroactive), ce qui a laissé les payments 1/2/3 pourrir. Cette story rattrape le manquement historique **et** verrouille le pattern pour FIX-20.1 qui doit impérativement intégrer son propre backfill si nécessaire.
+  2. Décision sur la communication hors-app (email/WhatsApp) pour les 4 Producers concernés, notamment le producer de mission 8 bloqué depuis ~11 jours.
+- Pattern Prove It : test qui construit une base avec exactement les 4 payments orphelins + toutes leurs candidatures (y compris les `cancelled` sur missions 8 et 11), exécute la commande, et asserte que chaque row a transitionné comme prévu, que les `cancelled` sont intactes, que les 4 missions sont repassées en `published`, et que chaque notification attendue a été dispatchée.
+- **Memory rule `feedback_db_retroactive_migration`** : « When changing DB data format, always migrate existing rows too — don't just fix new records. » FIX-19.1 n'a pas embarqué de backfill rétroactif, ce qui a laissé les payments 1/2/3 pourrir en prod (payment 7 n'entre pas dans cette catégorie — créé pendant la fenêtre pré-déploiement). Cette story rattrape le manquement historique **et** verrouille le pattern pour FIX-20.1 qui doit impérativement intégrer son propre backfill si nécessaire.
