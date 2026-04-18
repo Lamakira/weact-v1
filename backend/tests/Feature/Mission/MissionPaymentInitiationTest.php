@@ -9,6 +9,7 @@ use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
 use App\Jobs\HandleFedapayWebhook;
 use App\Models\Candidature;
+use App\Models\Conversation;
 use App\Models\Face;
 use App\Models\FedapayWebhookEvent;
 use App\Models\Mission;
@@ -62,6 +63,68 @@ class MissionPaymentInitiationTest extends TestCase
         $this->rejectedCandidate = $this->createPendingCandidature();
     }
 
+    public function test_successful_payment_initiation_leaves_candidatures_pending_until_webhook(): void
+    {
+        // FIX-20.1 (AC #1): confirm-selection + FedaPay initiation must NOT mutate
+        // candidature statuses. The Accepted/Rejected transitions are deferred to
+        // the webhook (`markAsPaid` → `applySelectionOutcomesOnPaid`). Without this
+        // contract, a Face would see "Acceptée" on a candidature she cannot confirm
+        // (because the producer's payment is still pending).
+        $this->mock(FedapayService::class, function ($mock) {
+            $mock->shouldReceive('initiatePaymentForMission')
+                ->once()
+                ->andReturn([
+                    'fedapay_transaction_id' => 123456,
+                    'checkout_url' => 'https://checkout.fedapay.com/mission-token',
+                ]);
+        });
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", [
+                'candidature_ids' => [
+                    $this->selectedFirst->uuid,
+                    $this->selectedSecond->uuid,
+                ],
+            ]);
+
+        $response->assertOk();
+
+        $this->assertSame(MissionStatus::PendingPayment, $this->mission->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->selectedFirst->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->selectedSecond->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->rejectedCandidate->fresh()->status);
+    }
+
+    public function test_successful_payment_initiation_does_not_dispatch_selection_notifications(): void
+    {
+        // FIX-20.1 (AC #2): no `candidature_accepted` or `candidature_rejected`
+        // notifications must be dispatched during initiation. They move to
+        // `applySelectionOutcomesOnPaid` and fire only once FedaPay confirms the
+        // payment via webhook.
+        $this->mock(FedapayService::class, function ($mock) {
+            $mock->shouldReceive('initiatePaymentForMission')
+                ->once()
+                ->andReturn([
+                    'fedapay_transaction_id' => 123456,
+                    'checkout_url' => 'https://checkout.fedapay.com/mission-token',
+                ]);
+        });
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", [
+                'candidature_ids' => [
+                    $this->selectedFirst->uuid,
+                    $this->selectedSecond->uuid,
+                ],
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseMissing('notifications', ['type' => 'candidature_accepted']);
+        $this->assertDatabaseMissing('notifications', ['type' => 'candidature_rejected']);
+        $this->assertDatabaseMissing('notifications', ['type' => 'mission_participation_confirmation_required']);
+        $this->assertDatabaseCount('notifications', 0);
+    }
+
     public function test_failed_payment_initiation_restores_mission_selection_and_returns_business_error(): void
     {
         $this->mock(FedapayService::class, function ($mock) {
@@ -93,7 +156,7 @@ class MissionPaymentInitiationTest extends TestCase
         $this->assertDatabaseCount('notifications', 0);
     }
 
-    public function test_successful_payment_initiation_finalizes_selection_and_creates_notifications(): void
+    public function test_successful_payment_initiation_persists_payment_row_and_escrow_stubs(): void
     {
         $this->mock(FedapayService::class, function ($mock) {
             $mock->shouldReceive('initiatePaymentForMission')
@@ -117,9 +180,6 @@ class MissionPaymentInitiationTest extends TestCase
             ->assertJsonPath('data.checkout_url', 'https://checkout.fedapay.com/mission-token');
 
         $this->assertSame(MissionStatus::PendingPayment, $this->mission->fresh()->status);
-        $this->assertSame(CandidatureStatus::Accepted, $this->selectedFirst->fresh()->status);
-        $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
-        $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
 
         $this->assertDatabaseHas('mission_payments', [
             'mission_id' => $this->mission->id,
@@ -127,18 +187,6 @@ class MissionPaymentInitiationTest extends TestCase
             'status' => 'pending',
         ]);
         $this->assertDatabaseCount('mission_payment_candidatures', 2);
-        $this->assertDatabaseHas('notifications', [
-            'user_id' => $this->getFaceUserId($this->selectedFirst),
-            'type' => 'candidature_accepted',
-        ]);
-        $this->assertDatabaseHas('notifications', [
-            'user_id' => $this->getFaceUserId($this->selectedSecond),
-            'type' => 'candidature_accepted',
-        ]);
-        $this->assertDatabaseHas('notifications', [
-            'user_id' => $this->getFaceUserId($this->rejectedCandidate),
-            'type' => 'candidature_rejected',
-        ]);
     }
 
     public function test_retry_without_reselecting_faces_reuses_existing_checkout_url(): void
@@ -167,9 +215,10 @@ class MissionPaymentInitiationTest extends TestCase
 
         $this->assertSame(1, MissionPayment::query()->count());
         $this->assertSame(MissionStatus::PendingPayment, $this->mission->fresh()->status);
-        $this->assertSame(CandidatureStatus::Accepted, $this->selectedFirst->fresh()->status);
-        $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
-        $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
+        // FIX-20.1: candidatures remain Pending until webhook confirms payment.
+        $this->assertSame(CandidatureStatus::Pending, $this->selectedFirst->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->selectedSecond->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->rejectedCandidate->fresh()->status);
     }
 
     public function test_retry_with_explicit_empty_selection_array_reuses_existing_checkout_url(): void
@@ -346,9 +395,10 @@ class MissionPaymentInitiationTest extends TestCase
             'fedapay_transaction_id' => '987654',
             'status' => 'pending',
         ]);
-        $this->assertSame(CandidatureStatus::Accepted, $this->selectedFirst->fresh()->status);
-        $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
-        $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
+        // FIX-20.1: candidatures remain Pending — no webhook has fired yet.
+        $this->assertSame(CandidatureStatus::Pending, $this->selectedFirst->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->selectedSecond->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->rejectedCandidate->fresh()->status);
     }
 
     public function test_retry_after_remote_approval_reconciles_local_state_and_returns_mission_page_url(): void
@@ -391,8 +441,19 @@ class MissionPaymentInitiationTest extends TestCase
             'fedapay_ref' => 'fedapay-approved-ref',
         ]);
 
+        // FIX-20.1: self-healing triggers markAsPaid which now also runs
+        // applySelectionOutcomesOnPaid — selected Faces transition to Accepted,
+        // non-selected Face transitions to Rejected and receives a candidature_rejected notification.
+        $this->assertSame(CandidatureStatus::Accepted, $this->selectedFirst->fresh()->status);
+        $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
+        $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
+
+        $this->assertDatabaseHas('conversations', ['candidature_id' => $this->selectedFirst->id]);
+        $this->assertDatabaseHas('conversations', ['candidature_id' => $this->selectedSecond->id]);
+
         // Self-healing must fan out the same notifications the webhook would have created:
-        // one producer confirmation + one participation-confirmation per selected Face.
+        // one producer confirmation + one participation-confirmation per selected Face +
+        // one candidature_rejected per non-selected Face.
         $this->assertDatabaseHas('notifications', [
             'user_id' => $this->producerUser->id,
             'type' => 'mission_payment_confirmed',
@@ -404,6 +465,10 @@ class MissionPaymentInitiationTest extends TestCase
         $this->assertDatabaseHas('notifications', [
             'user_id' => $this->getFaceUserId($this->selectedSecond),
             'type' => 'mission_participation_confirmation_required',
+        ]);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->getFaceUserId($this->rejectedCandidate),
+            'type' => 'candidature_rejected',
         ]);
     }
 
@@ -427,22 +492,27 @@ class MissionPaymentInitiationTest extends TestCase
 
         // Step 1: producer retries first and hits the self-healing branch.
         // markAsPaid() runs inside the cache lock and fans out notifications.
+        // FIX-20.1: 4 notifications = 1 mission_payment_confirmed (producer) +
+        // 2 mission_participation_confirmation_required (selected Faces) +
+        // 1 candidature_rejected (non-selected Face).
         $this->actingAs($this->producerUser)
             ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", [])
             ->assertOk()
             ->assertJsonPath('data.status', 'paid');
 
-        $this->assertDatabaseCount('notifications', 3);
+        $this->assertDatabaseCount('notifications', 4);
 
         // Step 2: the FedaPay webhook lands LATE (it was delayed, not lost).
         // HandleFedapayWebhook ultimately calls markAsPaid() on the same payment.
         // The idempotency guard (status === Paid early-return) MUST keep this a
         // no-op: no duplicate notifications, no double escrow lock, no duplicate
-        // mission mutation. This regression test locks in that contract so a
-        // future refactor that removes the early-return fails loudly here.
+        // mission mutation, no duplicate Conversation rows. This regression test
+        // locks in that contract so a future refactor that removes the early-return
+        // fails loudly here.
         app(MissionPaymentService::class)->markAsPaid($payment->fresh(), 'fedapay-approved-ref');
 
-        $this->assertDatabaseCount('notifications', 3);
+        $this->assertDatabaseCount('notifications', 4);
+        $this->assertSame(2, Conversation::query()->count());
         $this->assertSame(1, MissionPayment::query()->count());
         $this->assertDatabaseHas('mission_payments', [
             'id' => $payment->id,
@@ -582,11 +652,12 @@ class MissionPaymentInitiationTest extends TestCase
             ->assertJsonPath('message', 'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.');
 
         // Compensation was attempted but threw, so prepared state is left in place
-        // and the operator must rely on the logged context for manual recovery.
+        // (MissionPayment row + mission pending). FIX-20.1: candidatures were never
+        // mutated during prepare, so they stay Pending regardless of compensation outcome.
         $this->assertSame(MissionStatus::PendingPayment, $this->mission->fresh()->status);
-        $this->assertSame(CandidatureStatus::Accepted, $this->selectedFirst->fresh()->status);
-        $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
-        $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->selectedFirst->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->selectedSecond->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->rejectedCandidate->fresh()->status);
 
         // Compensation failed → the mission_payments row was not deleted, so we can
         // capture its real id and assert the log context points at the same row.
@@ -717,9 +788,12 @@ class MissionPaymentInitiationTest extends TestCase
             ->assertJsonPath('data.checkout_url', 'https://checkout.fedapay.com/fresh-retry-token');
 
         $this->assertSame(MissionStatus::PendingPayment, $this->mission->fresh()->status);
-        $this->assertSame(CandidatureStatus::Accepted, $this->selectedFirst->fresh()->status);
-        $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
-        $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
+        // FIX-20.1: candidatures remain Pending after a successful prepare — they
+        // only transition at webhook time. Second attempt persisted the payment row;
+        // the webhook has not fired yet.
+        $this->assertSame(CandidatureStatus::Pending, $this->selectedFirst->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->selectedSecond->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->rejectedCandidate->fresh()->status);
         $this->assertSame(1, MissionPayment::query()->count());
         $this->assertDatabaseHas('mission_payments', [
             'mission_id' => $this->mission->id,
@@ -778,12 +852,11 @@ class MissionPaymentInitiationTest extends TestCase
         ]);
         $this->assertSame(MissionStatus::PendingPayment, $this->mission->fresh()->status);
         $this->assertSame(1, MissionPayment::query()->count());
-        // Candidature statuses must not be touched by a resume failure — a
-        // regression that flipped them back to Pending or Rejected would
-        // silently corrupt the producer's selection between retries.
-        $this->assertSame(CandidatureStatus::Accepted, $this->selectedFirst->fresh()->status);
-        $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
-        $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
+        // FIX-20.1: candidatures are Pending pre-webhook and must stay that way
+        // across a transient resume failure — no spurious mutations or rollbacks.
+        $this->assertSame(CandidatureStatus::Pending, $this->selectedFirst->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->selectedSecond->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->rejectedCandidate->fresh()->status);
         // Escrow stubs must also stay intact across the transient failure.
         $this->assertDatabaseCount('mission_payment_candidatures', 2);
 
@@ -850,6 +923,129 @@ class MissionPaymentInitiationTest extends TestCase
         $this->assertSame('processed', $webhookEvent->status);
     }
 
+    public function test_full_flow_prep_then_webhook_approved_applies_selection_outcomes(): void
+    {
+        // FIX-20.1 (AC #3, #4, #5): end-to-end flow — producer confirms selection,
+        // FedaPay webhook fires transaction.approved, markAsPaid runs, candidatures
+        // transition (selected → Accepted, others → Rejected), a Conversation is
+        // provisioned per accepted candidature, and candidature_rejected notifications
+        // are dispatched.
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('initiatePaymentForMission')
+                ->once()
+                ->andReturn([
+                    'fedapay_transaction_id' => 555666,
+                    'checkout_url' => 'https://checkout.fedapay.com/mission-token',
+                ]);
+        });
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", [
+                'candidature_ids' => [
+                    $this->selectedFirst->uuid,
+                    $this->selectedSecond->uuid,
+                ],
+            ])
+            ->assertOk();
+
+        // Sanity check: pre-webhook state per AC #1/#2.
+        $this->assertSame(CandidatureStatus::Pending, $this->selectedFirst->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->selectedSecond->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->rejectedCandidate->fresh()->status);
+        $this->assertSame(0, Conversation::query()->count());
+
+        /** @var MissionPayment $payment */
+        $payment = MissionPayment::query()->where('mission_id', $this->mission->id)->firstOrFail();
+
+        app(MissionPaymentService::class)->markAsPaid($payment, 'fedapay-approved-ref');
+
+        $this->assertSame(MissionStatus::Closed, $this->mission->fresh()->status);
+        $this->assertSame(CandidatureStatus::Accepted, $this->selectedFirst->fresh()->status);
+        $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
+        $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
+
+        // AC #4: Conversation::firstOrCreate fires for each accepted candidature.
+        $this->assertDatabaseHas('conversations', ['candidature_id' => $this->selectedFirst->id]);
+        $this->assertDatabaseHas('conversations', ['candidature_id' => $this->selectedSecond->id]);
+        $this->assertSame(2, Conversation::query()->count());
+
+        // AC #5: candidature_rejected notification for each rejected Face + the
+        // existing mission_participation_confirmation_required for each selected Face
+        // (replaces the redundant candidature_accepted notification).
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->getFaceUserId($this->rejectedCandidate),
+            'type' => 'candidature_rejected',
+        ]);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->getFaceUserId($this->selectedFirst),
+            'type' => 'mission_participation_confirmation_required',
+        ]);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->getFaceUserId($this->selectedSecond),
+            'type' => 'mission_participation_confirmation_required',
+        ]);
+        $this->assertDatabaseMissing('notifications', ['type' => 'candidature_accepted']);
+    }
+
+    public function test_webhook_replay_is_idempotent_and_does_not_double_mutate_or_notify(): void
+    {
+        // FIX-20.1 (AC #6): a duplicate transaction.approved webhook must be a no-op:
+        // no second Conversation row, no second candidature_rejected notification,
+        // no re-transition of already-Accepted candidatures.
+        $payment = $this->createPendingMissionPayment('777888');
+
+        $service = app(MissionPaymentService::class);
+
+        $service->markAsPaid($payment->fresh(), 'fedapay-approved-ref');
+
+        $notificationCountAfterFirst = \App\Models\Notification::query()->count();
+        $conversationCountAfterFirst = Conversation::query()->count();
+
+        // Second webhook lands — markAsPaid early-returns on Paid status, so
+        // applySelectionOutcomesOnPaid never runs a second time.
+        $service->markAsPaid($payment->fresh(), 'fedapay-approved-ref');
+
+        $this->assertSame($notificationCountAfterFirst, \App\Models\Notification::query()->count());
+        $this->assertSame($conversationCountAfterFirst, Conversation::query()->count());
+
+        // Sanity: the accepted candidatures stay Accepted (not flipped back to
+        // Pending nor mutated again).
+        $this->assertSame(CandidatureStatus::Accepted, $this->selectedFirst->fresh()->status);
+        $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
+        $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
+    }
+
+    public function test_abandoned_checkout_leaves_all_candidatures_pending_and_no_conversation(): void
+    {
+        // FIX-20.1 (AC #7): the producer starts the checkout flow but never completes
+        // payment. No webhook fires. All candidatures must stay Pending and no
+        // Conversation row should exist.
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('initiatePaymentForMission')
+                ->once()
+                ->andReturn([
+                    'fedapay_transaction_id' => 999000,
+                    'checkout_url' => 'https://checkout.fedapay.com/abandoned-token',
+                ]);
+        });
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", [
+                'candidature_ids' => [
+                    $this->selectedFirst->uuid,
+                    $this->selectedSecond->uuid,
+                ],
+            ])
+            ->assertOk();
+
+        // No webhook fired — no outcomes applied.
+        $this->assertSame(CandidatureStatus::Pending, $this->selectedFirst->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->selectedSecond->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $this->rejectedCandidate->fresh()->status);
+        $this->assertSame(0, Conversation::query()->count());
+        $this->assertDatabaseCount('notifications', 0);
+    }
+
     private function createPendingCandidature(): Candidature
     {
         $face = Face::factory()->create();
@@ -900,11 +1096,11 @@ class MissionPaymentInitiationTest extends TestCase
                 'montant_face_recoit' => $pricing->montantParFace,
                 'escrow_status' => EscrowStatus::Pending,
             ]);
-
-            $candidature->update(['status' => CandidatureStatus::Accepted]);
         }
 
-        $this->rejectedCandidate->update(['status' => CandidatureStatus::Rejected]);
+        // FIX-20.1: candidatures stay Pending until the FedaPay webhook fires
+        // `markAsPaid` + `applySelectionOutcomesOnPaid`. The helper only reproduces
+        // the post-prepare state (payment row + escrow stubs + mission pending).
         $this->mission->update(['status' => MissionStatus::PendingPayment]);
 
         return $payment->fresh();

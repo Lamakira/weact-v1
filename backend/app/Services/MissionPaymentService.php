@@ -10,6 +10,7 @@ use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Exceptions\MissionPaymentInitiationException;
 use App\Models\Candidature;
+use App\Models\Conversation;
 use App\Models\Face;
 use App\Models\Mission;
 use App\Models\MissionPayment;
@@ -67,8 +68,6 @@ class MissionPaymentService
                 $this->handleInitiationFailure($prepared, $remotePayment, $e);
             }
 
-            $this->dispatchSelectionNotifications($prepared['notifications']);
-
             return [
                 'payment' => $payment,
                 'checkout_url' => $remotePayment['checkout_url'],
@@ -77,22 +76,21 @@ class MissionPaymentService
     }
 
     /**
-     * Tentatively apply the mission selection changes before external payment initiation.
+     * Prepare the mission payment row + escrow stubs before external checkout initiation.
+     *
+     * Candidature statuses are NOT mutated here (FIX-20.1). They remain `Pending`
+     * until the FedaPay webhook confirms the payment, at which point
+     * `applySelectionOutcomesOnPaid` transitions selected → `Accepted`,
+     * non-selected → `Rejected`, and provisions each Conversation row.
      *
      * @param  string[]  $candidatureUuids
-     * @return array{
-     *   payment: MissionPayment,
-     *   selected_candidature_ids: list<int>,
-     *   rejected_candidature_ids: list<int>,
-     *   notifications: list<array{userId: ?int, type: string, data: array<string, mixed>}>
-     * }
+     * @return array{payment: MissionPayment, selected_candidature_ids: list<int>}
      *
      * @throws ValidationException
      */
     private function prepareSelectionForPayment(Mission $mission, array $candidatureUuids): array
     {
         return DB::transaction(function () use ($mission, $candidatureUuids): array {
-            // Lock mission row
             /** @var Mission $mission */
             $mission = Mission::lockForUpdate()->findOrFail($mission->id);
 
@@ -135,9 +133,7 @@ class MissionPaymentService
             $selectedCandidatureIds = $selectedCandidatures->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
 
             $pricing = new MissionPricing($mission->budget, $selectedCandidatures->count());
-            $notifications = [];
 
-            // Create MissionPayment
             /** @var MissionPayment $payment */
             $payment = MissionPayment::create([
                 'mission_id' => $mission->id,
@@ -152,7 +148,6 @@ class MissionPaymentService
                 'status' => MissionPaymentStatus::Pending,
             ]);
 
-            // Create MissionPaymentCandidature entries and accept selected candidatures
             foreach ($selectedCandidatures as $candidature) {
                 MissionPaymentCandidature::create([
                     'mission_payment_id' => $payment->id,
@@ -161,53 +156,13 @@ class MissionPaymentService
                     'montant_face_recoit' => $pricing->montantParFace,
                     'escrow_status' => EscrowStatus::Pending,
                 ]);
-
-                $candidature->update(['status' => CandidatureStatus::Accepted]);
-
-                $notifications[] = [
-                    'userId' => $this->getUserIdForFace($candidature->face_id),
-                    'type' => 'candidature_accepted',
-                    'data' => [
-                        'message' => 'Votre candidature a été acceptée !',
-                        'mission_id' => $mission->id,
-                        'mission_titre' => $mission->titre,
-                        'url' => '/face/candidatures',
-                    ],
-                ];
             }
 
-            // Reject all remaining pending candidatures for this mission
-            $rejectedCandidatures = Candidature::where('mission_id', $mission->id)
-                ->where('status', CandidatureStatus::Pending->value)
-                ->lockForUpdate()
-                ->get();
-            $rejectedCandidatureIds = [];
-
-            foreach ($rejectedCandidatures as $rejected) {
-                /** @var Candidature $rejected */
-                $rejected->update(['status' => CandidatureStatus::Rejected]);
-                $rejectedCandidatureIds[] = $rejected->id;
-
-                $notifications[] = [
-                    'userId' => $this->getUserIdForFace($rejected->face_id),
-                    'type' => 'candidature_rejected',
-                    'data' => [
-                        'message' => 'Votre candidature n\'a pas été retenue.',
-                        'mission_id' => $mission->id,
-                        'mission_titre' => $mission->titre,
-                        'url' => '/face/candidatures',
-                    ],
-                ];
-            }
-
-            // Update mission status
             $mission->update(['status' => MissionStatus::PendingPayment]);
 
             return [
                 'payment' => $payment->fresh(),
                 'selected_candidature_ids' => $selectedCandidatureIds,
-                'rejected_candidature_ids' => $rejectedCandidatureIds,
-                'notifications' => $notifications,
             ];
         });
     }
@@ -314,12 +269,7 @@ class MissionPaymentService
     }
 
     /**
-     * @param  array{
-     *   payment: MissionPayment,
-     *   selected_candidature_ids: list<int>,
-     *   rejected_candidature_ids: list<int>,
-     *   notifications: list<array{userId: ?int, type: string, data: array<string, mixed>}>
-     * }  $prepared
+     * @param  array{payment: MissionPayment, selected_candidature_ids: list<int>}  $prepared
      * @param  array{fedapay_transaction_id: int, checkout_url: string}|null  $remotePayment
      *
      * @throws MissionPaymentInitiationException
@@ -403,12 +353,7 @@ class MissionPaymentService
     }
 
     /**
-     * @param  array{
-     *   payment: MissionPayment,
-     *   selected_candidature_ids: list<int>,
-     *   rejected_candidature_ids: list<int>,
-     *   notifications: list<array{userId: ?int, type: string, data: array<string, mixed>}>
-     * }  $prepared
+     * @param  array{payment: MissionPayment, selected_candidature_ids: list<int>}  $prepared
      */
     protected function compensateFailedPreparation(array $prepared): void
     {
@@ -425,18 +370,6 @@ class MissionPaymentService
 
             if ($mission && $mission->status === MissionStatus::PendingPayment) {
                 $mission->update(['status' => MissionStatus::Published]);
-            }
-
-            if ($prepared['selected_candidature_ids'] !== []) {
-                Candidature::whereIn('id', $prepared['selected_candidature_ids'])
-                    ->where('status', CandidatureStatus::Accepted->value)
-                    ->update(['status' => CandidatureStatus::Pending->value]);
-            }
-
-            if ($prepared['rejected_candidature_ids'] !== []) {
-                Candidature::whereIn('id', $prepared['rejected_candidature_ids'])
-                    ->where('status', CandidatureStatus::Rejected->value)
-                    ->update(['status' => CandidatureStatus::Pending->value]);
             }
 
             $payment->delete();
@@ -561,8 +494,9 @@ class MissionPaymentService
 
             $mission->update(['status' => MissionStatus::Closed]);
 
-            // Leave accepted candidatures as-is — each Face must confirm their participation
-            // before the candidature moves to in_progress (via Face\CandidatureController::confirm)
+            // Transition candidatures and provision conversations now that payment is confirmed.
+            // Selected → Accepted, remaining pending → Rejected, Conversation::firstOrCreate per accepted.
+            $this->applySelectionOutcomesOnPaid($payment);
 
             // Notify producer
             /** @var User|null $producerUser */
@@ -601,6 +535,74 @@ class MissionPaymentService
 
             return $freshPayment;
         });
+    }
+
+    /**
+     * Finalize the selection outcome once payment is confirmed:
+     * - selected candidatures: Pending → Accepted (idempotent — skipped if already Accepted)
+     * - remaining pending candidatures on the same mission: → Rejected
+     * - Conversation row provisioned per newly-accepted candidature
+     * - candidature_rejected notifications dispatched to each rejected Face
+     *
+     * Must run inside the same DB transaction as markAsPaid() so replays are
+     * atomic with the payment status flip (idempotency comes from markAsPaid's
+     * early return on Paid status + a status guard here).
+     */
+    protected function applySelectionOutcomesOnPaid(MissionPayment $payment): void
+    {
+        $selectedCandidatureIds = $payment->entries->pluck('candidature_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->all();
+
+        $newlyAcceptedIds = [];
+
+        if ($selectedCandidatureIds !== []) {
+            /** @var \Illuminate\Support\Collection<int, Candidature> $selectedPending */
+            $selectedPending = Candidature::whereIn('id', $selectedCandidatureIds)
+                ->where('status', CandidatureStatus::Pending->value)
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($selectedPending as $candidature) {
+                /** @var Candidature $candidature */
+                $candidature->update(['status' => CandidatureStatus::Accepted]);
+                $newlyAcceptedIds[] = (int) $candidature->id;
+            }
+        }
+
+        foreach ($newlyAcceptedIds as $candidatureId) {
+            Conversation::firstOrCreate(['candidature_id' => $candidatureId]);
+        }
+
+        /** @var \Illuminate\Support\Collection<int, Candidature> $rejectedCandidatures */
+        $rejectedCandidatures = Candidature::where('mission_id', $payment->mission_id)
+            ->where('status', CandidatureStatus::Pending->value)
+            ->whereNotIn('id', $selectedCandidatureIds)
+            ->lockForUpdate()
+            ->get();
+
+        $mission = $payment->mission;
+        $missionTitre = $mission instanceof Mission ? $mission->titre : '';
+
+        $notifications = [];
+
+        foreach ($rejectedCandidatures as $rejected) {
+            /** @var Candidature $rejected */
+            $rejected->update(['status' => CandidatureStatus::Rejected]);
+
+            $notifications[] = [
+                'userId' => $this->getUserIdForFace($rejected->face_id),
+                'type' => 'candidature_rejected',
+                'data' => [
+                    'message' => 'Votre candidature n\'a pas été retenue.',
+                    'mission_id' => $payment->mission_id,
+                    'mission_titre' => $missionTitre,
+                    'url' => '/face/candidatures',
+                ],
+            ];
+        }
+
+        $this->dispatchSelectionNotifications($notifications);
     }
 
     /**

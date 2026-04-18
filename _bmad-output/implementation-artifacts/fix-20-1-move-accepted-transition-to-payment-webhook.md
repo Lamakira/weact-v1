@@ -1,6 +1,6 @@
 # Story FIX-20.1: Déplacer la transition `Accepted` et le rejet en masse vers le webhook `Paid`
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -22,58 +22,49 @@ so that **when I see "Acceptée" I know for certain I can confirm my participati
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Write Prove It failing tests (AC: #1, #2)
-  - [ ] Test that after `prepareSelectionForPayment`, all selected candidatures remain `Pending` (currently fails: they're `Accepted`).
-  - [ ] Test that after `prepareSelectionForPayment`, no `candidature_accepted` notification exists (currently fails: notifications are dispatched in `dispatchSelectionNotifications`).
-- [ ] Task 2: Remove candidature mutations from `prepareSelectionForPayment` (AC: #1, #2, #7)
-  - [ ] Remove `$candidature->update(['status' => CandidatureStatus::Accepted])` at `MissionPaymentService.php:165`.
-  - [ ] Remove the rejected candidatures mass-update block at `MissionPaymentService.php:180-201`.
-  - [ ] Remove `candidature_accepted` and `candidature_rejected` notification entries from the `$notifications` array built in `prepareSelectionForPayment` (they will move to `applySelectionOutcomesOnPaid`).
-  - [ ] Keep: `MissionPayment` creation (L142-153), `MissionPaymentCandidature` entry creation (L157-163), `requestHostedCheckout`, `finalizePreparedPayment`.
-- [ ] Task 3: Create `applySelectionOutcomesOnPaid` method (AC: #3, #4, #5, #6)
-  - [ ] New method `MissionPaymentService::applySelectionOutcomesOnPaid(MissionPayment $payment)`.
-  - [ ] In a single DB transaction:
+- [x] Task 1: Write Prove It failing tests (AC: #1, #2)
+  - [x] Test that after `prepareSelectionForPayment`, all selected candidatures remain `Pending` (currently fails: they're `Accepted`).
+  - [x] Test that after `prepareSelectionForPayment`, no `candidature_accepted` notification exists (currently fails: notifications are dispatched in `dispatchSelectionNotifications`).
+- [x] Task 2: Remove candidature mutations from `prepareSelectionForPayment` (AC: #1, #2, #7)
+  - [x] Remove `$candidature->update(['status' => CandidatureStatus::Accepted])` at `MissionPaymentService.php:165`.
+  - [x] Remove the rejected candidatures mass-update block at `MissionPaymentService.php:180-201`.
+  - [x] Remove `candidature_accepted` and `candidature_rejected` notification entries from the `$notifications` array built in `prepareSelectionForPayment` (they will move to `applySelectionOutcomesOnPaid`).
+  - [x] Keep: `MissionPayment` creation (L142-153), `MissionPaymentCandidature` entry creation (L157-163), `requestHostedCheckout`, `finalizePreparedPayment`.
+- [x] Task 3: Create `applySelectionOutcomesOnPaid` method (AC: #3, #4, #5, #6)
+  - [x] New method `MissionPaymentService::applySelectionOutcomesOnPaid(MissionPayment $payment)`.
+  - [x] In a single DB transaction:
     - Retrieve selected candidature IDs from `$payment->entries->pluck('candidature_id')`.
     - Transition selected candidatures `Pending → Accepted` (guard: skip if already `Accepted` for idempotence).
     - Transition remaining `Pending` candidatures on the same `mission_id` to `Rejected`.
     - Create `Conversation::firstOrCreate(['candidature_id' => $candidature->id])` for each newly-accepted candidature.
     - Build and dispatch `candidature_rejected` notifications for each rejected Face (type `candidature_rejected`, message "Votre candidature n'a pas été retenue.", same payload shape as current `prepareSelectionForPayment:191-200`).
     - **Do NOT dispatch a separate `candidature_accepted` notification.** `markAsPaid` already sends `mission_participation_confirmation_required` to each selected Face (L586-597, message "Vous avez été sélectionné(e)... Confirmez votre participation."). Under the new contract both fire at Paid time, so `candidature_accepted` would be a redundant duplicate. The existing `mission_participation_confirmation_required` is more actionable and already covers the acceptance signal.
-  - [ ] Idempotence: if candidatures are already `Accepted`, skip mutations and notifications.
-- [ ] Task 4: Wire `applySelectionOutcomesOnPaid` into `markAsPaid` (AC: #3, #6)
-  - [ ] In `MissionPaymentService::markAsPaid` (L534-604), after the payment transitions to `Paid` (L545), call `$this->applySelectionOutcomesOnPaid($payment)`.
-  - [ ] Verify that `markAsPaid` already has an early return when payment is already `Paid` (L540) — this provides idempotence for the entire chain.
-- [ ] Task 5: Update `handleInitiationFailure` / `compensateFailedPreparation` (AC: #9)
-  - [ ] In `compensateFailedPreparation` (L413-444): remove the candidature rollback lines (L431-434 for `Accepted → Pending`, L436-440 for `Rejected → Pending`) since these mutations no longer happen in `prepareSelectionForPayment`.
-  - [ ] Keep: `MissionPayment`/`MissionPaymentCandidature` deletion, mission status restore (`PendingPayment → Published`), logging.
-  - [ ] *(Note: full cleanup of now-dead compensation code is FIX-20.4's scope — this task only removes the lines that would throw errors or produce incorrect behavior.)*
-- [ ] Task 6: Refactor `MissionPaymentInitiationTest` helper + update ALL dependent tests (AC: #8)
-  - [ ] **Refactor `createPendingMissionPayment` helper (L876-911):** this helper simulates the old post-prepare state by forcing candidatures to `Accepted` (L904) and `Rejected` (L907). Under the new contract, candidatures must remain `Pending` after prepare. Remove the `$candidature->update(['status' => CandidatureStatus::Accepted])` (L904) and `$this->rejectedCandidate->update(['status' => CandidatureStatus::Rejected])` (L907) lines. Keep: `MissionPayment` creation, `MissionPaymentCandidature` entries, `mission→PendingPayment` (L908).
-  - [ ] **9 tests call this helper** — ALL need review after the helper refactor (not just status assertions, but also notification counts and types):
-    - L146: `test_retry_without_reselecting_faces_reuses_existing_checkout_url`
-    - L177: (verify test name at this line)
-    - L290: (verify test name)
-    - L314: `test_retry_after_terminal_remote_failure_reuses_same_payment_record_with_new_checkout`
-    - L356: (verify test name — likely webhook/self-healing test)
-    - L412: `test_webhook_and_producer_retry_race_do_not_double_credit`
-    - L459: (verify test name)
-    - L744: `test_transient_resume_failure_keeps_payment_row_resumable_on_the_next_attempt`
-    - L806: webhook decline test
-  - [ ] **6 tests assert `CandidatureStatus::Accepted`** after `prepareSelectionForPayment` — change to assert `Pending`:
-    - L119-121, L169-171, L349-351, L587-589, L720-722, L784-786
-  - [ ] **Notification count assertions must be reviewed.** Current self-healing tests assert `assertDatabaseCount('notifications', 3)` (L435) and specific types `mission_payment_confirmed` + `mission_participation_confirmation_required` (L394-407). Under the new contract, `applySelectionOutcomesOnPaid` will also dispatch `candidature_rejected` notifications for non-selected Faces. Total notification count will change from 3 to 3 + N_rejected. Update all `assertDatabaseCount('notifications', ...)` assertions accordingly.
-  - [ ] **`candidature_accepted` notification assertions**: any test that checks for `candidature_accepted` dispatched during prep must be updated — these notifications are no longer dispatched (replaced by the existing `mission_participation_confirmation_required` in `markAsPaid`).
-- [ ] Task 7: Write webhook acceptance tests (AC: #3, #4, #5, #6)
-  - [ ] New test: simulate full flow (prep → webhook `approved`) → assert selected candidatures are `Accepted`, others are `Rejected`, `Conversation` records exist, notifications dispatched.
-  - [ ] New test: simulate webhook replay → assert no duplicate mutations or notifications.
-  - [ ] New test: prep without webhook (abandoned checkout) → assert all candidatures remain `Pending`, no conversations created.
-- [ ] Task 8: Non-regression validation (AC: #8, #9)
-  - [ ] `php artisan test --filter=MissionPayment` — all pass.
-  - [ ] `php artisan test --filter=Candidature` — all pass.
-  - [ ] `php artisan test --filter=ConditionalChatUnlock` — all pass (the `acceptCandidatureDirectly()` helper in this test already follows the new pattern: sets status + creates Conversation).
-  - [ ] `php artisan test --filter=FaceNotification` — all pass.
-  - [ ] Frontend: `npx vitest run src/features/candidature` — all pass (frontend doesn't change in this story).
-  - [ ] TypeScript check: `npm run type-check` — clean.
+  - [x] Idempotence: if candidatures are already `Accepted`, skip mutations and notifications.
+- [x] Task 4: Wire `applySelectionOutcomesOnPaid` into `markAsPaid` (AC: #3, #6)
+  - [x] In `MissionPaymentService::markAsPaid` (L534-604), after the payment transitions to `Paid` (L545), call `$this->applySelectionOutcomesOnPaid($payment)`.
+  - [x] Verify that `markAsPaid` already has an early return when payment is already `Paid` (L540) — this provides idempotence for the entire chain.
+- [x] Task 5: Update `handleInitiationFailure` / `compensateFailedPreparation` (AC: #9)
+  - [x] In `compensateFailedPreparation` (L413-444): remove the candidature rollback lines (L431-434 for `Accepted → Pending`, L436-440 for `Rejected → Pending`) since these mutations no longer happen in `prepareSelectionForPayment`.
+  - [x] Keep: `MissionPayment`/`MissionPaymentCandidature` deletion, mission status restore (`PendingPayment → Published`), logging.
+  - [x] *(Note: full cleanup of now-dead compensation code is FIX-20.4's scope — this task only removes the lines that would throw errors or produce incorrect behavior.)*
+- [x] Task 6: Refactor `MissionPaymentInitiationTest` helper + update ALL dependent tests (AC: #8)
+  - [x] **Refactor `createPendingMissionPayment` helper:** removed the candidature status mutations so the helper only reproduces the post-prepare state (payment row + escrow stubs + mission `PendingPayment`).
+  - [x] **Deleted `test_successful_payment_initiation_finalizes_selection_and_creates_notifications`** (obsolete: it asserted the old post-prepare contract — Accepted/Rejected + `candidature_accepted`/`rejected` notifications). Superseded by the two new Prove It tests plus a leaner `test_successful_payment_initiation_persists_payment_row_and_escrow_stubs` covering the payment-row side of the success path.
+  - [x] **Updated every test using the helper** and every direct assertion: candidature statuses stay `Pending` pre-webhook across resume / terminal-failure / compensation / finalization-failure / transient-resume paths.
+  - [x] **Self-healing test (`test_retry_after_remote_approval_reconciles_local_state_and_returns_mission_page_url`)**: extended to assert the new outcomes (Accepted / Rejected, 2 Conversation rows, `candidature_rejected` notification for the non-selected Face).
+  - [x] **Notification count assertions**: updated `test_webhook_and_producer_retry_race_do_not_double_credit` from 3 to 4 (adds the `candidature_rejected` notification for `rejectedCandidate`) and added a `Conversation::query()->count() === 2` guard.
+- [x] Task 7: Write webhook acceptance tests (AC: #3, #4, #5, #6)
+  - [x] New test: `test_full_flow_prep_then_webhook_approved_applies_selection_outcomes` — full flow, candidatures transition, 2 Conversation rows, notifications dispatched, no `candidature_accepted` notification.
+  - [x] New test: `test_webhook_replay_is_idempotent_and_does_not_double_mutate_or_notify` — second `markAsPaid` call is a no-op.
+  - [x] New test: `test_abandoned_checkout_leaves_all_candidatures_pending_and_no_conversation` — prep-only path keeps candidatures Pending, no Conversation rows.
+- [x] Task 8: Non-regression validation (AC: #8, #9)
+  - [x] `php artisan test --filter=MissionPayment` — 26 passed.
+  - [x] `php artisan test --filter=Candidature` — 234 passed.
+  - [x] `php artisan test --filter=ConditionalChatUnlock` — 23 passed.
+  - [x] `php artisan test --filter=FaceNotification` — 21 passed.
+  - [x] Full backend suite: 1835 passed, 1 failure (`NotificationBroadcastTest::test_event_is_dispatched_only_after_transaction_commit`) reproduced on the pre-refactor base — pre-existing failure unrelated to this story, logged under the existing broadcast telemetry deferred items.
+  - [x] Frontend: `npx vitest run src/features/candidature` — 20 passed.
+  - [x] TypeScript check: `npm run type-check` — clean.
 
 ## Dev Notes
 
@@ -172,25 +163,35 @@ After implementation, ALL of these must pass:
 
 ### Agent Model Used
 
-_(to be filled during implementation)_
+claude-opus-4-7 (1M context)
 
 ### Debug Log References
 
-_(to be filled during implementation)_
+- Red phase confirmed: the two new Prove It tests failed on the base commit with candidatures at `Accepted` and 2× `candidature_accepted` notifications — matching the AC #1/#2 failure modes predicted in the story.
+- Full backend suite: 1835 passed, 1 failure. The single failure is `NotificationBroadcastTest::test_event_is_dispatched_only_after_transaction_commit`. Reproduced on a stash of the pre-refactor files → pre-existing broadcast-telemetry issue, unrelated to this refactor.
 
 ### Completion Notes List
 
-_(to be filled during implementation)_
+- `prepareSelectionForPayment` no longer mutates candidature statuses. It still creates the `MissionPayment` row, the `MissionPaymentCandidature` escrow stubs, and flips the mission to `PendingPayment`. Its return shape dropped `rejected_candidature_ids` and `notifications` — only `{payment, selected_candidature_ids}` survive.
+- `confirmAndInitiatePayment` no longer dispatches selection notifications inline — those fire from `applySelectionOutcomesOnPaid` at webhook time.
+- New `applySelectionOutcomesOnPaid(MissionPayment $payment)` method: runs inside `markAsPaid`'s outer DB transaction, guards idempotence via `where status = Pending`, calls `Conversation::firstOrCreate` per newly-accepted candidature, then dispatches `candidature_rejected` notifications to non-selected Faces via the existing `dispatchSelectionNotifications` helper.
+- `markAsPaid`'s early-return on `Paid` status provides idempotence for webhook replays (covered by `test_webhook_replay_is_idempotent_and_does_not_double_mutate_or_notify` and the existing race test).
+- `compensateFailedPreparation` lost both candidature rollback branches (they would now target rows that were never mutated). `MissionPayment` deletion + mission status restore + logging remain. Full cleanup of now-dead compensation code deferred to FIX-20.4 per the story scope note.
+- Conversation creation lives in `applySelectionOutcomesOnPaid` under `Conversation::firstOrCreate(['candidature_id' => ...])` — closes the gap surfaced by FIX-20.3 (no production code was creating `Conversation` rows for paid-flow acceptances). This is the single most important non-obvious behavior of this refactor.
 
 ### File List
 
-_(to be filled during implementation — expected files below)_
-
-**Expected modifications:**
+**Modified:**
 - `backend/app/Services/MissionPaymentService.php`
 - `backend/tests/Feature/Mission/MissionPaymentInitiationTest.php`
 
-**Expected no-change (verify only):**
-- `backend/app/Jobs/HandleFedapayWebhook.php`
+**Verified no change needed:**
+- `backend/app/Jobs/HandleFedapayWebhook.php` (still calls `markAsPaid` — wiring flows through the service as expected)
 - `backend/app/Enums/CandidatureStatus.php`
-- Frontend files (no changes expected)
+- Frontend (FIX-20.5 already handles the 422 mapping when a Face clicks confirm while the backend contract changes)
+
+### Change Log
+
+| Date | Summary |
+|------|---------|
+| 2026-04-18 | FIX-20.1 implementation: moved the Accepted/Rejected transitions, Conversation provisioning, and `candidature_rejected` notifications from `prepareSelectionForPayment` to a new `applySelectionOutcomesOnPaid` method invoked at webhook-paid time. Removed dead candidature rollback from `compensateFailedPreparation`. Added 2 Prove It tests + 3 webhook acceptance tests; updated every existing resume/failure test to assert the new Pending-until-paid contract. |
