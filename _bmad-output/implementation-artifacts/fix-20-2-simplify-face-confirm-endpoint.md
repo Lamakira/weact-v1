@@ -1,6 +1,6 @@
 # Story FIX-20.2: `Accepted` intrinsèquement confirmable — simplifier `Face/CandidatureController::confirm`
 
-Status: review
+Status: done
 
 ## Story
 
