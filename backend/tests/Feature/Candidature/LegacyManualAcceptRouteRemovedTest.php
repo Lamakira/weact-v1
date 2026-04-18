@@ -23,8 +23,9 @@ use Tests\TestCase;
  * requires MissionPaymentStatus::Paid, which could never be true on that path).
  *
  * This test locks in the removal: hitting the legacy URL must return 404.
- * The paid selection flow (MissionPaymentService::prepareSelectionForPayment) is
- * now the only legitimate path to CandidatureStatus::Accepted.
+ * Since FIX-20.1, the only legitimate path to CandidatureStatus::Accepted is
+ * MissionPaymentService::applySelectionOutcomesOnPaid, invoked from markAsPaid
+ * when the FedaPay webhook confirms a MissionPayment.
  */
 class LegacyManualAcceptRouteRemovedTest extends TestCase
 {

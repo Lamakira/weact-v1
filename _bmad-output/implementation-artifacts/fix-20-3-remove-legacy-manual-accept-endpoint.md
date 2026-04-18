@@ -1,6 +1,6 @@
 # Story FIX-20.3: Supprimer le chemin legacy d'acceptation manuelle candidature Producer
 
-Status: review
+Status: done
 
 ## Story
 
@@ -50,19 +50,23 @@ so that **no code path can transition a candidature to `Accepted` without going 
   - [x] TypeScript (`vue-tsc --build`) — clean.
   - [x] ESLint — clean.
 
+### Review Findings
+
+- [x] [Review][Defer → Resolved by FIX-20.1] Paid selection still does not provision conversations for accepted candidatures [backend/app/Services/MissionPaymentService.php:155] — at FIX-20.3 merge time the gap was deferred as pre-existing and tracked for FIX-20.1. **Resolved in FIX-20.1 (commit `eef57c5`, 2026-04-18):** `MissionPaymentService::applySelectionOutcomesOnPaid` now calls `Conversation::firstOrCreate(['candidature_id' => $candidatureId])` for each newly-accepted candidature, invoked inside `markAsPaid` after the FedaPay webhook confirms the payment.
+
 ## Dev Notes
 
-### Critical finding: Conversation creation gap
+### Critical finding: Conversation creation gap — resolved by FIX-20.1
 
-**The legacy `accept()` method was the ONLY production code path that called `Conversation::firstOrCreate`.** After this removal, no backend code creates conversations for candidatures accepted via the paid selection flow. Verified by grep across all of `backend/app/`:
+**Historical context (kept for the audit trail):** at FIX-20.3 merge time, the legacy `accept()` method was the ONLY production code path that called `Conversation::firstOrCreate`. After this removal, no backend code created conversations for candidatures accepted via the paid selection flow. Verified by grep across all of `backend/app/`:
 - `Face/ConversationController` + `Producer/ConversationController` — read-only (list, show).
 - `Face/MessageController` + `Producer/MessageController` — store messages on existing conversations.
 - No observers, listeners, or events related to `Conversation` creation.
 - No lazy creation in send-message flow.
 
-Since the DB audit confirmed the legacy endpoint was never used in production, **no conversation has ever been created in prod for any candidature accepted through the paid flow**. The chat Face–Producer feature is silently non-functional.
+Since the DB audit confirmed the legacy endpoint was never used in production, **no conversation had ever been created in prod for any candidature accepted through the paid flow** up to that point. The chat Face–Producer feature was silently non-functional.
 
-**This is a pre-existing production gap, not a regression introduced by FIX-20.3.** It is now explicitly tracked in FIX-20.1 acceptance criteria: `applySelectionOutcomesOnPaid` must call `Conversation::firstOrCreate(['candidature_id' => $candidature->id])` for each Face transitioned to `Accepted`.
+**This was a pre-existing production gap, not a regression introduced by FIX-20.3.** It was tracked as FIX-20.1 scope and is now **resolved**: as of commit `eef57c5` (FIX-20.1, 2026-04-18), `MissionPaymentService::applySelectionOutcomesOnPaid` calls `Conversation::firstOrCreate(['candidature_id' => $candidatureId])` for each newly-accepted candidature, invoked inside `markAsPaid` after the FedaPay webhook confirms the payment. Paid-flow acceptances now provision a `Conversation` row automatically.
 
 ## Dev Agent Record
 
