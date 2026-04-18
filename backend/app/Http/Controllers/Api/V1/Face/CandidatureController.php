@@ -21,6 +21,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Log;
 
 class CandidatureController extends Controller
 {
@@ -183,6 +184,16 @@ class CandidatureController extends Controller
         $missionPayment = $mission->payment;
 
         if (! $missionPayment || $missionPayment->status !== MissionPaymentStatus::Paid) {
+            // FIX-20.2: under FIX-20.1's contract, an Accepted candidature always
+            // points at a Paid payment. Reaching this branch signals a broken
+            // invariant — log a greppable canary before returning.
+            Log::warning('INVARIANT_VIOLATION: candidature accepted without paid payment', [
+                'candidature_id' => $candidature->id,
+                'mission_id' => $mission->id,
+                'payment_id' => $missionPayment?->id,
+                'payment_status' => $missionPayment?->status?->value,
+            ]);
+
             return response()->json([
                 'error' => [
                     'code' => 'PAYMENT_NOT_CONFIRMED',

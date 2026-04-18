@@ -16,6 +16,7 @@ use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class FaceConfirmCandidatureTest extends TestCase
@@ -109,6 +110,8 @@ class FaceConfirmCandidatureTest extends TestCase
 
     public function test_cannot_confirm_candidature_when_payment_is_not_confirmed(): void
     {
+        Log::spy();
+
         $this->payment->update([
             'status' => MissionPaymentStatus::Pending,
             'paid_at' => null,
@@ -119,6 +122,12 @@ class FaceConfirmCandidatureTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonPath('error.code', 'PAYMENT_NOT_CONFIRMED');
+
+        // FIX-20.2: the 422 is retained as a defensive guard, and the invariant
+        // violation must be logged so ops can detect any future regression.
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(fn (string $message): bool => $message === 'INVARIANT_VIOLATION: candidature accepted without paid payment');
     }
 
     public function test_cannot_confirm_candidature_not_in_final_selection(): void
@@ -187,5 +196,36 @@ class FaceConfirmCandidatureTest extends TestCase
             ->assertJson([
                 'message' => 'Cette candidature ne vous appartient pas',
             ]);
+    }
+
+    public function test_defensive_check_logs_invariant_violation_when_accepted_candidature_has_unpaid_payment(): void
+    {
+        // FIX-20.2 defensive guard: under FIX-20.1's contract, reaching this branch
+        // means an invariant was broken upstream (a candidature row sits at `Accepted`
+        // while its `MissionPayment` is not `Paid`). The endpoint still returns the
+        // same 422 but must emit a structured `INVARIANT_VIOLATION:` warning so ops
+        // can grep it out of production logs and act on the regression.
+        Log::spy();
+
+        $this->payment->update([
+            'status' => MissionPaymentStatus::Pending,
+            'paid_at' => null,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/confirm");
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'PAYMENT_NOT_CONFIRMED');
+
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'INVARIANT_VIOLATION: candidature accepted without paid payment'
+                    && ($context['candidature_id'] ?? null) === $this->candidature->id
+                    && ($context['mission_id'] ?? null) === $this->mission->id
+                    && ($context['payment_id'] ?? null) === $this->payment->id
+                    && ($context['payment_status'] ?? null) === MissionPaymentStatus::Pending->value;
+            });
     }
 }

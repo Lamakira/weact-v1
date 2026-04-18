@@ -446,7 +446,7 @@ development_status:
   # Epic FIX-20: Unification du contrat Accepted = sélection payée et confirmable (6 stories)
   epic-fix-20: in-progress
   fix-20-1-move-accepted-transition-to-payment-webhook: done  # Refactor: Accepted fire au webhook Paid, prep ne mute plus candidature.status
-  fix-20-2-simplify-face-confirm-endpoint: backlog                     # Retirer/alléger le check PAYMENT_NOT_CONFIRMED désormais redondant
+  fix-20-2-simplify-face-confirm-endpoint: review                      # Retirer/alléger le check PAYMENT_NOT_CONFIRMED désormais redondant
   fix-20-3-remove-legacy-manual-accept-endpoint: done                  # Commit ac2719d sur dev — en attente de merge main. Révélé un gap Conversation::firstOrCreate à traiter dans FIX-20.1
   fix-20-4-simplify-obsolete-fix-19-compensation: backlog              # Retirer le rollback candidature.status de handleInitiationFailure + update runbook
   fix-20-5-confirm-candidature-error-mapping: done                     # Commit 9bca244 sur dev — en attente de merge main
@@ -468,4 +468,6 @@ last_updated: "2026-04-18"
 # Story fix-20-5 moved to done: 2026-04-16 (clean code review rerun with story file)
 # Story fix-20-1 moved to ready-for-dev: 2026-04-16 (comprehensive story file created with full codebase audit)
 # Story fix-20-1 moved to review: 2026-04-18 (refactor complete — candidature transitions + Conversation creation + notifications moved to webhook paid path)
+# Story fix-20-2 moved to ready-for-dev: 2026-04-18 (comprehensive story file created — simplify Face confirm endpoint now that Accepted guarantees Paid under FIX-20.1)
+# Story fix-20-2 moved to review: 2026-04-18 (defensive conservation — Log::warning INVARIANT_VIOLATION canary added before the 422 PAYMENT_NOT_CONFIRMED response)
 # Story fix-20-1 moved to done: 2026-04-18 (clean code review — no actionable findings)
