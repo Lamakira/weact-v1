@@ -37,10 +37,10 @@ Read `phase` first, then check `compensation_outcome` — the override below can
 
 | Phase | Meaning | Typical DB state after failure |
 | --- | --- | --- |
-| `request_checkout` | Threw before FedaPay returned a usable transaction | Fully compensated — mission back to `published`, candidatures back to `pending`, `mission_payments` row deleted |
+| `request_checkout` | Threw before `requestHostedCheckout` returned a usable transaction | Local state fully compensated — mission back to `published`, `mission_payments` row deleted (`mission_payment_candidatures` entries cascade via FK). Candidatures stay `pending` throughout — they are never mutated during initiation under the FIX-20.1 contract. **⚠️ Remote edge case:** FedaPay's `Transaction::create()` succeeds *before* `generateToken()` is called (`FedapayService::initiatePaymentForMission`), so a `generateToken()` failure still throws from this phase with a remote transaction already provisioned. The log reports `manual_recovery_required=false` (we never learned the remote id) but a FedaPay-side orphan can exist — see §4.4 for the dashboard check. |
 | `finalize_local` | FedaPay accepted the transaction but the local DB finalize failed | Local state compensated; a FedaPay transaction exists and is **orphaned** (`manual_recovery_required=true`) |
 | `post_finalize` | Local persist succeeded and then something else threw | Local state is committed; treat as normal pending payment — do **not** rollback blindly |
-| `compensate` | Compensation transaction itself failed | Local state is frozen in the tentatively-mutated shape — manual SQL recovery is required |
+| `compensate` | Compensation transaction itself failed | Orphan `mission_payments` row (no `fedapay_transaction_id`) + `mission.status = pending_payment`. Candidatures are not part of the frozen state — they stay `pending` under the FIX-20.1 contract. Manual SQL recovery required. |
 | `resume` | Producer hit resume-checkout but the call to FedaPay failed | Nothing changed; producer can retry when upstream recovers (no `compensation_*` fields are emitted on this phase) |
 | `webhook` | FedaPay sent a `transaction.declined` or `transaction.canceled` for a mission payment | Local state unchanged — payment stays pending, mission stays `pending_payment` until producer retries or you cancel manually |
 
@@ -61,7 +61,10 @@ SELECT id, uuid, status, producer_id, updated_at
 FROM missions
 WHERE id = :mission_id;
 
--- Inspect every candidature touched by this mission
+-- Inspect every candidature touched by this mission.
+-- Under FIX-20.1 candidatures stay `pending` during initiation/compensation; this query is
+-- only diagnostic POST-WEBHOOK (phase `webhook` or after `markAsPaid` has run). During
+-- `phase=request_checkout`/`finalize_local`/`compensate` it will just return the full pending set.
 SELECT id, uuid, face_id, status, updated_at
 FROM candidatures
 WHERE mission_id = :mission_id
@@ -81,65 +84,32 @@ Pick the procedure that matches the phase. Always run rollbacks inside a single 
 
 ### 4.1 — `phase=compensate` (compensation itself threw)
 
-The most dangerous state. Local rows were partially mutated:
+The most dangerous state. Under the FIX-20.1 contract the frozen shape is narrow — candidatures are never mutated during initiation, so they stay `pending` regardless of whether compensation completed. The only rows to clean are:
 
 - `mission.status = pending_payment`
-- selected candidatures = `accepted`
-- some candidatures may have been flipped to `rejected`
-- a `mission_payments` row exists with no `fedapay_transaction_id`
+- an orphan `mission_payments` row exists with no `fedapay_transaction_id` (and its `mission_payment_candidatures` entries)
 
-Important: do **not** bulk-reset every `rejected` candidature on the mission. The service compensation only restores the candidature IDs touched by the failed payment attempt; older unrelated rejections must stay rejected.
-
-Verification steps before rollback:
-
-```sql
--- Selected candidatures attached to the failed payment
-SELECT c.id, c.uuid, c.face_id, c.status, c.updated_at
-FROM candidatures c
-INNER JOIN mission_payment_candidatures mpc
-    ON mpc.candidature_id = c.id
-WHERE mpc.mission_payment_id = :payment_id
-ORDER BY c.id;
-
--- Shortlist rejected candidatures that changed around the failure window.
--- Review these rows manually before restoring them.
-SELECT id, uuid, face_id, status, updated_at
-FROM candidatures
-WHERE mission_id = :mission_id
-  AND status = 'rejected'
-  AND updated_at BETWEEN :failure_window_start AND :failure_window_end
-ORDER BY updated_at, id;
-```
+Use the §3 verification queries (payment row, mission row, escrow entries) to confirm the actual state before touching anything. The candidature-inspection query in §3 is uninformative here — candidatures will all still be `pending`.
 
 Manual fix:
 
 ```sql
 BEGIN;
 
--- Restore only the selected candidatures linked to this failed payment
-UPDATE candidatures c
-INNER JOIN mission_payment_candidatures mpc
-    ON mpc.candidature_id = c.id
-SET c.status = 'pending', c.updated_at = NOW()
-WHERE mpc.mission_payment_id = :payment_id
-  AND c.status = 'accepted';
-
--- Restore only the rejected candidatures you have verified were flipped by this failed attempt
-UPDATE candidatures
-SET status = 'pending', updated_at = NOW()
-WHERE id IN (:verified_rejected_candidature_ids)
-  AND status = 'rejected';
-
--- Restore the mission
+-- Restore the mission so the producer can relaunch their selection
 UPDATE missions
 SET status = 'published', updated_at = NOW()
 WHERE id = :mission_id AND status = 'pending_payment';
 
--- Drop escrow stubs
+-- Belt-and-braces: explicitly drop the escrow stubs in case the FK cascade
+-- is absent on a branched schema. On the standard schema the cascade on
+-- `mission_payment_candidatures.mission_payment_id` makes this a no-op.
 DELETE FROM mission_payment_candidatures
 WHERE mission_payment_id = :payment_id;
 
--- Drop the failed payment row
+-- Drop the failed payment row. The `fedapay_transaction_id IS NULL` guard
+-- protects against stomping a row that has a real FedaPay transaction
+-- attached (that case falls under §4.2).
 DELETE FROM mission_payments
 WHERE id = :payment_id
   AND status = 'pending'
@@ -148,7 +118,7 @@ WHERE id = :payment_id
 COMMIT;
 ```
 
-After commit, re-open the candidature selection screen with the producer and confirm the candidate list matches the verified IDs above before asking them to retry payment.
+After commit, re-open the candidature selection screen with the producer so they can relaunch payment on a clean slate.
 
 ### 4.2 — `phase=finalize_local` with `manual_recovery_required=true`
 
@@ -174,7 +144,14 @@ Local state is committed and valid. Do **not** rollback. Treat it as a normal pe
 
 Both phases share the same operator action (tell the producer to retry once upstream recovers), but they reach this section through different invariants — read whichever sub-case matches the failed phase.
 
-**`phase=request_checkout`** — apply this section only when the main failure log shows `compensation_outcome=succeeded`. If `compensation_outcome=failed`, or you also see a `Mission payment compensation failed after initiation error` entry, stop here and switch to §4.1 — the rollback did not complete cleanly. Otherwise nothing to fix: compensation already restored the mission and the producer can retry safely.
+**`phase=request_checkout`** — apply this section only when the main failure log shows `compensation_outcome=succeeded`. If `compensation_outcome=failed`, or you also see a `Mission payment compensation failed after initiation error` entry, stop here and switch to §4.1 — the rollback did not complete cleanly. Otherwise nothing to fix locally: compensation already restored the mission and the producer can retry safely.
+
+Before telling the producer to retry, run a **dashboard check for a remote orphan transaction**. `FedapayService::initiatePaymentForMission` calls `Transaction::create()` *before* `generateToken()`, so a `generateToken()` failure throws from this phase with a remote transaction already provisioned. The local log reports `manual_recovery_required=false` because the service never learned the remote id, but a FedaPay-side orphan can still exist:
+
+1. Look up transactions on the FedaPay dashboard filtered by `custom_metadata.mission_payment_id = :payment_id` (the `payment_id` from the failure log). The local row is gone by now, but the metadata survives on FedaPay.
+2. If the transaction is still `pending` → cancel it in FedaPay (no funds moved). Safe to proceed with producer retry.
+3. If the transaction is `approved` → a producer paid for nothing. Refund via FedaPay, notify the producer manually, and file an incident (see §5) — this means the customer saw a checkout URL after all, completed it, and our local state was already wiped by compensation.
+4. If no transaction matches the metadata → nothing to do; the failure really was pre-`Transaction::create()` (e.g., `firstOrFail` on the producer user, DNS error, auth failure). Producer can retry.
 
 **`phase=resume`** — resume never mutates local state, so `compensation_*` fields are not emitted on this phase. Do **not** look for `compensation_outcome`; the §4.1 escape hatch above does not apply here. Nothing to fix locally — tell the producer to retry once upstream recovers.
 
@@ -184,34 +161,78 @@ In both sub-cases, if retries keep failing, escalate to engineering with the ori
 
 Symptom: producer paid on FedaPay, but `mission_payments.status = pending` and `missions.status = pending_payment`.
 
-Preferred path: ask the producer to hit resume checkout one more time. The service will self-heal (`MissionPaymentService::initiatePayment` → approved branch → `markAsPaid`). This reconciles local state and fans out the proper notifications.
+**Strongly preferred path — self-heal via resume checkout.** Ask the producer to hit resume checkout one more time. The service will self-heal (`MissionPaymentService::initiatePayment` → approved branch → `markAsPaid` → `applySelectionOutcomesOnPaid`). This reconciles local state, creates `Conversation` rows for accepted candidatures, and fans out every notification automatically. Manual SQL is the fallback when self-heal is impossible (e.g., the producer cannot reach the SPA).
 
-If self-healing is not possible:
+**Manual fallback.** Under the FIX-20.1 contract, `markAsPaid` does more than flip the payment/entry/mission rows — it also calls `applySelectionOutcomesOnPaid`, which transitions candidatures, provisions conversations, and queues notifications. A manual SQL fix must reproduce every step or the mission will be stuck in a half-healed state (paid but Faces still `pending`, no `Conversation` rows, no notifications).
 
-The guards on each `UPDATE` make this snippet safe to re-run — a concurrent webhook that wins the race will leave the row already in its target state, and these statements become no-ops instead of overwriting `paid_at` / `locked_at` or re-closing an already-closed mission.
+The guards on each `UPDATE` make this snippet safe to re-run — a concurrent webhook that wins the race will leave each row already in its target state, and these statements become no-ops instead of overwriting `paid_at` / `locked_at` / status / conversation rows.
 
 ```sql
 BEGIN;
 
+-- 1. Flip the payment to paid.
 UPDATE mission_payments
 SET status = 'paid', paid_at = NOW(), fedapay_ref = :fedapay_ref, updated_at = NOW()
 WHERE id = :payment_id
   AND status = 'pending';
 
+-- 2. Lock the escrow entries.
 UPDATE mission_payment_candidatures
 SET escrow_status = 'locked', locked_at = NOW(), updated_at = NOW()
 WHERE mission_payment_id = :payment_id
   AND locked_at IS NULL;
 
+-- 3. Close the mission.
 UPDATE missions
 SET status = 'closed', updated_at = NOW()
 WHERE id = :mission_id
   AND status = 'pending_payment';
 
+-- 4. Transition the selected candidatures from `pending` to `accepted`.
+--    Guarded on `status = 'pending'` so a concurrent webhook race is a no-op.
+UPDATE candidatures
+SET status = 'accepted', updated_at = NOW()
+WHERE id IN (
+    SELECT candidature_id FROM mission_payment_candidatures
+    WHERE mission_payment_id = :payment_id
+)
+  AND status = 'pending';
+
+-- 5. Transition the remaining `pending` candidatures on the same mission to `rejected`.
+--    CRITICAL: filter must match `applySelectionOutcomesOnPaid` exactly. Do NOT widen this
+--    to "every non-selected Face on the mission" — previously-rejected and `cancelled`
+--    rows stay untouched.
+UPDATE candidatures
+SET status = 'rejected', updated_at = NOW()
+WHERE mission_id = :mission_id
+  AND status = 'pending'
+  AND id NOT IN (
+      SELECT candidature_id FROM mission_payment_candidatures
+      WHERE mission_payment_id = :payment_id
+  );
+
+-- 6. Provision a `Conversation` row per newly-accepted candidature. Idempotent via the
+--    unique key on `conversations.candidature_id` — a replay is a no-op.
+INSERT INTO conversations (candidature_id, created_at, updated_at)
+SELECT mpc.candidature_id, NOW(), NOW()
+FROM mission_payment_candidatures mpc
+WHERE mpc.mission_payment_id = :payment_id
+ON DUPLICATE KEY UPDATE conversations.candidature_id = conversations.candidature_id;
+
 COMMIT;
 ```
 
-After commit, manually queue the `mission_payment_confirmed` and `mission_participation_confirmation_required` notifications (or notify the users out-of-band).
+After commit, manually queue the three notification types `applySelectionOutcomesOnPaid` + `markAsPaid` would have dispatched (or notify the users out-of-band):
+
+1. `mission_payment_confirmed` → to the producer's user.
+2. `mission_participation_confirmation_required` → one per selected Face (query `SELECT face_id FROM mission_payment_candidatures WHERE mission_payment_id = :payment_id`, then map to the `user_id` via `users.userable_type = 'App\Models\Face' AND userable_id = :face_id`).
+3. `candidature_rejected` → one per **newly-rejected** Face, matching the filter from step 5 above. Explicitly **not** previously-rejected rows — re-notifying those would tell a Face their candidature was rejected twice.
+
+Before queueing anything, verify the recipients actually resolve to `users` rows. `MissionPaymentService` silently skips missing recipients (`getUserIdForFace()` returns `null`; producer lookup is optional), so if a selected Face or the producer has no matching `users` row, do **not** invent a notification row by hand. Log the data-integrity gap in the incident ticket and contact that user out-of-band instead.
+
+Notification replay is **not** idempotent. The SQL block above is safe to rerun, but `notifications` has no dedupe guard here, so on a second operator pass you must first check what was already sent (or queued) before inserting any notification rows again. If the first attempt partially succeeded, queue only the missing notifications.
+
+These notifications are dispatched automatically by `applySelectionOutcomesOnPaid` via the service path; the manual SQL fix bypasses the service so the operator must queue them explicitly.
 
 ## 5. Reporting incidents
 

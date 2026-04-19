@@ -438,8 +438,48 @@ development_status:
   fix-19-5-cover-mission-payment-failure-regressions: done
   epic-fix-19-retrospective: optional
 
-last_updated: "2026-04-14"
+  # ============================================
+  # POST-LAUNCH FIXES Sprint 11 (Accepted contract unification & stale selections reconciliation - 2026-04-14)
+  # Source: epics-postlaunch-fixes-8.md (1 epic, 6 stories)
+  # ============================================
+
+  # Epic FIX-20: Unification du contrat Accepted = sélection payée et confirmable (6 stories)
+  epic-fix-20: in-progress
+  fix-20-1-move-accepted-transition-to-payment-webhook: done  # Refactor: Accepted fire au webhook Paid, prep ne mute plus candidature.status
+  fix-20-2-simplify-face-confirm-endpoint: done                        # Retirer/alléger le check PAYMENT_NOT_CONFIRMED désormais redondant
+  fix-20-3-remove-legacy-manual-accept-endpoint: done                  # Commit ac2719d sur dev — en attente de merge main. Révélé un gap Conversation::firstOrCreate à traiter dans FIX-20.1
+  fix-20-4-simplify-obsolete-fix-19-compensation: done                 # Retirer le rollback candidature.status de handleInitiationFailure + update runbook
+  fix-20-5-confirm-candidature-error-mapping: done                     # Commit 9bca244 sur dev — en attente de merge main
+  fix-20-6-reconcile-stale-selections-production-data: done            # Investigation payment 7 + commande de migration des 181 candidatures orphelines + notifications
+  epic-fix-20-retrospective: optional
+
+last_updated: "2026-04-19"
+# Story fix-20-6 moved to done: 2026-04-19 (code review complete — 6 patches applied covering query hardening, runbook webhook-pause section, seeder env guard + remove auto-wiring, per-payment summary rename, dry-run log verb split, 3 additional tests; ReconcileStaleSelectionsCommand 10/10 + MissionPayment 26/26 + Candidature 236/236 green)
+# NOTE: Even though FIX-20.1 already landed on dev (commit eef57c5), FIX-20.6 must
+# still run on PRODUCTION before FIX-20.1 is deployed there. The reconcile command
+# cleans up the historical orphans under the old code so the new contract operates
+# on a clean state.
 # Story fix-19-5 moved to review: 2026-04-14
 # Story fix-19-5 moved to done: 2026-04-14 (after code review)
 # Story fix-15-1 created: 2026-04-10
 # Story fix-19-1 moved to done: 2026-04-12 (after pass-2 code review)
+# Epic FIX-20 created: 2026-04-14 (Sprint 11 — investigation incident confirmation Face)
+# Epic FIX-20 recadré: 2026-04-14 — Option A retenue, refactor contrat sémantique `Accepted = confirmable`, 5 stories
+# Epic FIX-20 étendu: 2026-04-14 — audit DB a révélé ~181 candidatures orphelines (4 payments pending sans fedapay_transaction_id), ajout FIX-20.6 réconciliation données + investigation payment 7 (post-FIX-19.1)
+# Story fix-20-5 moved to review: 2026-04-14 (commit 9bca244 on dev)
+# Story fix-20-3 moved to review: 2026-04-14 (commit ac2719d on dev, révèle gap Conversation::firstOrCreate à adresser dans FIX-20.1)
+# Epic FIX-20 moved to in-progress: 2026-04-14
+# Story fix-20-3 moved to done: 2026-04-16 (code review rerun with story file; conversation gap deferred to FIX-20.1)
+# Story fix-20-5 moved to done: 2026-04-16 (clean code review rerun with story file)
+# Story fix-20-1 moved to ready-for-dev: 2026-04-16 (comprehensive story file created with full codebase audit)
+# Story fix-20-1 moved to review: 2026-04-18 (refactor complete — candidature transitions + Conversation creation + notifications moved to webhook paid path)
+# Story fix-20-2 moved to ready-for-dev: 2026-04-18 (comprehensive story file created — simplify Face confirm endpoint now that Accepted guarantees Paid under FIX-20.1)
+# Story fix-20-2 moved to review: 2026-04-18 (defensive conservation — Log::warning INVARIANT_VIOLATION canary added before the 422 PAYMENT_NOT_CONFIRMED response)
+# Story fix-20-2 moved to done: 2026-04-18 (code review clean — canary approach accepted)
+# Story fix-20-1 moved to done: 2026-04-18 (clean code review — no actionable findings)
+# Story fix-20-4 moved to ready-for-dev: 2026-04-18 (story file created — cleanup pass + runbook rewrite; bulk of work already landed in FIX-20.1)
+# Story fix-20-4 moved to review: 2026-04-18 (dead plumbing removed from MissionPaymentService, runbook §2/§3/§4.1/§4.5 rewritten — 26/235 tests green unchanged)
+# Story fix-20-4 moved to done: 2026-04-19 (review follow-up fixes applied — §4.5 conversation insert corrected, notification replay warning added, recipient-resolution guidance added)
+# Story fix-20-6 moved to ready-for-dev: 2026-04-19 (comprehensive story file created — Artisan command to reconcile 181 orphan candidatures + notifications + runbook; must run on prod before FIX-20.1 deploys there)
+# Story fix-20-6 moved to in-progress: 2026-04-19
+# Story fix-20-6 moved to review: 2026-04-19 (command + marker exceptions + 7-test feature suite + runbook; MissionPayment 26/26, Candidature 236/236, ReconcileStaleSelectionsCommand 7/7 all green)

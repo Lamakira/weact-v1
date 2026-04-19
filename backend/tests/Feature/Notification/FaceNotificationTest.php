@@ -69,32 +69,6 @@ class FaceNotificationTest extends TestCase
     }
 
     // ========================================
-    // Test notification created on accept (AC#1)
-    // ========================================
-
-    public function test_notification_created_when_producer_accepts_candidature(): void
-    {
-        $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
-
-        $response->assertOk();
-
-        // Verify notification was created
-        $this->assertDatabaseHas('notifications', [
-            'user_id' => $this->faceUser->id,
-            'type' => 'candidature_accepted',
-        ]);
-
-        // Verify notification data
-        $notification = Notification::where('user_id', $this->faceUser->id)->first();
-        $this->assertNotNull($notification);
-        $this->assertEquals('candidature_accepted', $notification->type);
-        $this->assertEquals('Tournage pub cosmétiques', $notification->data['mission_title']);
-        $this->assertEquals($this->candidature->id, $notification->data['candidature_id']);
-        $this->assertEquals('Votre candidature a été acceptée', $notification->data['message']);
-    }
-
-    // ========================================
     // Test notification created on reject (AC#2)
     // ========================================
 

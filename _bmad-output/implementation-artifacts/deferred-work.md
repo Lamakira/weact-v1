@@ -89,3 +89,13 @@
 - `$payment` may be read without definition when `handleInitiationFailure()` returns instead of throwing — `MissionPaymentService.php:60-69`; pre-existing fall-through from FIX-19.1, not caused by this story
 - `resolveResumablePayment()` does not `lockForUpdate` when re-reading the mission — `MissionPaymentService.php:246`; the cache lock already serializes producer retries, so the risk is only out-of-band mutation (webhook, admin action) between the read and downstream `initiatePayment()`'s own `lockForUpdate`
 - `fedapay_transaction_id` string/int casting between the DB column and FedaPay client is unverified — `MissionPaymentService.php:430` does `(int) $payment->fedapay_transaction_id` while the new test helper seeds the column as string `'123456'`; likely safe via model casts but worth a targeted test in a follow-up
+
+## Deferred from: code review of fix-20-3-remove-legacy-manual-accept-endpoint.md (2026-04-16)
+
+- Paid selection still does not provision conversations for accepted candidatures — `backend/app/Services/MissionPaymentService.php:155`; pre-existing production gap surfaced by FIX-20.3, explicitly deferred to FIX-20.1 rather than patched in this story
+
+## Deferred from: code review of fix-20-6-reconcile-stale-selections-production-data (2026-04-19)
+
+- Unbounded transaction lock hold time + N+1 `User` lookups inside the per-payment transaction — `backend/app/Console/Commands/ReconcileStaleSelectionsCommand.php:292-322, 424-472`; lockForUpdate is held while `resolveFaceUserId` / `resolveProducerUserId` run synchronously for every affected face and producer. Academic for the 181-row prod scope; revisit if the command is ever reused for a larger batch (FIX-20.6 scope)
+- Pre-existing `mission_titre` (FR) vs frontend `mission_title` (EN) notification-data key inconsistency — `backend/app/Console/Commands/ReconcileStaleSelectionsCommand.php:440,454,466` vs `frontend/src/features/notification/components/NotificationsDropdown.vue:170`; this story perpetuates the existing `MissionPaymentService` key convention, renderer falls back to `data.message` so the text still shows, only the bold mission header is lost. Cross-cutting fix belongs to a notification-renderer cleanup, not FIX-20.6 (FIX-20.6 scope)
+- Dry-run snapshot test diffs only `['id','status']` columns on candidatures/payments/missions — `backend/tests/Feature/Commands/ReconcileStaleSelectionsCommandTest.php:942-946`; a future regression that touched `updated_at` or a sibling column via `->save()` or an observer would still pass the current dry-run test. Current implementation uses bulk updates + marker-exception rollback so actual risk is nil (FIX-20.6 scope)

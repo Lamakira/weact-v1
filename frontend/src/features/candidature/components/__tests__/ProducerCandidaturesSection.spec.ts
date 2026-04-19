@@ -29,12 +29,6 @@ vi.mock('../../composables', () => ({
     setStatusFilter: vi.fn(),
     refresh: vi.fn(),
   }),
-  useAcceptCandidature: () => ({
-    error: ref(null),
-    successMessage: ref(null),
-    acceptCandidature: vi.fn(),
-    reset: vi.fn(),
-  }),
   useRejectCandidature: () => ({
     error: ref(null),
     successMessage: ref(null),

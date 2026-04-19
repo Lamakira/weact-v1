@@ -64,47 +64,34 @@ class ConditionalChatUnlockTest extends TestCase
         ]);
     }
 
-    // ==========================================================================
-    // AC #1: Conversation created when candidature is accepted
-    // ==========================================================================
-
-    public function test_conversation_is_created_when_candidature_is_accepted(): void
+    /**
+     * Promote the candidature to Accepted and provision its conversation.
+     *
+     * Stands in for the state transition that historically happened inside the
+     * legacy manual-accept endpoint (removed by FIX-20.3). The policy and
+     * conversation-lifecycle assertions in this suite only care that the
+     * candidature reaches Accepted and that its Conversation exists — they are
+     * independent of whichever workflow (FedaPay paid selection or future)
+     * performs the promotion in production code.
+     */
+    private function acceptCandidatureDirectly(): Conversation
     {
-        // Verify no conversation exists initially
-        $this->assertFalse($this->candidature->hasConversation());
+        $this->candidature->status = CandidatureStatus::Accepted;
+        $this->candidature->save();
 
-        // Accept the candidature
-        $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
-
-        $response->assertOk();
-
-        // Verify conversation was created
-        $this->candidature->refresh();
-        $this->assertTrue($this->candidature->hasConversation());
-        $this->assertDatabaseHas('conversations', [
-            'candidature_id' => $this->candidature->id,
-        ]);
+        return Conversation::firstOrCreate(['candidature_id' => $this->candidature->id]);
     }
 
     // ==========================================================================
-    // AC #2: Idempotent - no duplicate conversation on multiple accepts
+    // AC #2: Idempotent conversation provisioning
     // ==========================================================================
 
-    public function test_no_duplicate_conversation_on_multiple_accept_attempts(): void
+    public function test_no_duplicate_conversation_when_acceptance_is_retried(): void
     {
-        // First acceptance
-        $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
+        // First acceptance provisions the conversation
+        $this->acceptCandidatureDirectly();
 
-        $response->assertOk();
-
-        $conversationId = Conversation::where('candidature_id', $this->candidature->id)->first()->id;
-
-        // Create a new pending candidature and try to trigger a second conversation somehow
-        // Actually, re-accepting the same candidature returns 400 (already accepted)
-        // The idempotency is handled by firstOrCreate - let's test by directly calling firstOrCreate twice
-
+        // A second firstOrCreate call must return the same row
         $conversation1 = Conversation::firstOrCreate(['candidature_id' => $this->candidature->id]);
         $conversation2 = Conversation::firstOrCreate(['candidature_id' => $this->candidature->id]);
 
@@ -118,11 +105,7 @@ class ConditionalChatUnlockTest extends TestCase
 
     public function test_face_can_access_conversation_after_acceptance(): void
     {
-        // Accept the candidature
-        $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
-
-        $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
+        $conversation = $this->acceptCandidatureDirectly();
 
         $policy = new ConversationPolicy;
         $this->assertTrue($policy->view($this->faceUser, $conversation));
@@ -130,11 +113,7 @@ class ConditionalChatUnlockTest extends TestCase
 
     public function test_producer_can_access_conversation_after_acceptance(): void
     {
-        // Accept the candidature
-        $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
-
-        $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
+        $conversation = $this->acceptCandidatureDirectly();
 
         $policy = new ConversationPolicy;
         $this->assertTrue($policy->view($this->producerUser, $conversation));
@@ -142,11 +121,7 @@ class ConditionalChatUnlockTest extends TestCase
 
     public function test_other_face_cannot_access_conversation(): void
     {
-        // Accept the candidature
-        $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
-
-        $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
+        $conversation = $this->acceptCandidatureDirectly();
 
         // Create another Face
         $otherFace = Face::factory()->create();
@@ -161,11 +136,7 @@ class ConditionalChatUnlockTest extends TestCase
 
     public function test_other_producer_cannot_access_conversation(): void
     {
-        // Accept the candidature
-        $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
-
-        $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
+        $conversation = $this->acceptCandidatureDirectly();
 
         // Create another Producer
         $otherProducer = Producer::factory()->create();
@@ -194,16 +165,11 @@ class ConditionalChatUnlockTest extends TestCase
 
     public function test_send_message_denied_when_candidature_is_rejected(): void
     {
-        // Accept first, then reject (to have a conversation)
-        $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
+        // Accept first (to provision the conversation), then flip to rejected
+        $conversation = $this->acceptCandidatureDirectly();
 
-        // Manually change to rejected for test (normally not possible via API)
-        $this->candidature->refresh();
         $this->candidature->status = CandidatureStatus::Rejected;
         $this->candidature->save();
-
-        $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
 
         $policy = new ConversationPolicy;
         $this->assertFalse($policy->sendMessage($this->faceUser, $conversation));
@@ -216,51 +182,33 @@ class ConditionalChatUnlockTest extends TestCase
 
     public function test_conversation_persists_when_status_changes_to_confirmed(): void
     {
-        // Accept the candidature
-        $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
+        $conversationId = $this->acceptCandidatureDirectly()->id;
 
-        $conversationId = Conversation::where('candidature_id', $this->candidature->id)->first()->id;
+        // Manually transition to confirmed (the Face::confirm endpoint requires a Paid
+        // MissionPayment which this suite does not set up)
+        $this->candidature->status = CandidatureStatus::Confirmed;
+        $this->candidature->save();
 
-        // Confirm the candidature (Face action)
-        $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/confirm");
-
-        // Verify conversation still exists
         $this->assertDatabaseHas('conversations', ['id' => $conversationId]);
     }
 
     public function test_conversation_persists_when_status_changes_to_in_progress(): void
     {
-        // Accept the candidature
-        $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
+        $conversationId = $this->acceptCandidatureDirectly()->id;
 
-        $conversationId = Conversation::where('candidature_id', $this->candidature->id)->first()->id;
-
-        // Manually change status to in_progress
-        $this->candidature->refresh();
         $this->candidature->status = CandidatureStatus::InProgress;
         $this->candidature->save();
 
-        // Verify conversation still exists
         $this->assertDatabaseHas('conversations', ['id' => $conversationId]);
     }
 
     public function test_conversation_persists_when_status_changes_to_completed(): void
     {
-        // Accept the candidature
-        $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
+        $conversationId = $this->acceptCandidatureDirectly()->id;
 
-        $conversationId = Conversation::where('candidature_id', $this->candidature->id)->first()->id;
-
-        // Manually change status to completed
-        $this->candidature->refresh();
         $this->candidature->status = CandidatureStatus::Completed;
         $this->candidature->save();
 
-        // Verify conversation still exists
         $this->assertDatabaseHas('conversations', ['id' => $conversationId]);
     }
 
@@ -270,16 +218,12 @@ class ConditionalChatUnlockTest extends TestCase
 
     public function test_conversation_accessible_after_face_confirms(): void
     {
-        // Accept the candidature
-        $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
+        $conversation = $this->acceptCandidatureDirectly();
 
-        // Confirm the candidature (Face action)
-        $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/confirm");
-
-        $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
-        $this->candidature->refresh();
+        // Simulate the Face confirming their participation (real endpoint requires
+        // a Paid MissionPayment which this policy-focused suite does not set up)
+        $this->candidature->status = CandidatureStatus::Confirmed;
+        $this->candidature->save();
 
         // Verify both can still access after confirm
         $policy = new ConversationPolicy;
@@ -295,11 +239,7 @@ class ConditionalChatUnlockTest extends TestCase
 
     public function test_conversation_links_correctly_to_candidature(): void
     {
-        // Accept the candidature
-        $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
-
-        $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
+        $conversation = $this->acceptCandidatureDirectly();
 
         // Verify relationships work
         $this->assertEquals($this->candidature->id, $conversation->candidature->id);
@@ -365,9 +305,7 @@ class ConditionalChatUnlockTest extends TestCase
 
     public function test_candidature_get_conversation_or_fail_returns_conversation(): void
     {
-        // Accept the candidature (creates conversation)
-        $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
+        $this->acceptCandidatureDirectly();
 
         $this->candidature->refresh();
         $conversation = $this->candidature->getConversationOrFail();
@@ -384,34 +322,12 @@ class ConditionalChatUnlockTest extends TestCase
     }
 
     // ==========================================================================
-    // Notification still created (regression test)
-    // ==========================================================================
-
-    public function test_notification_is_still_created_when_candidature_is_accepted(): void
-    {
-        $response = $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
-
-        $response->assertOk();
-
-        // Verify notification was created
-        $this->assertDatabaseHas('notifications', [
-            'user_id' => $this->faceUser->id,
-            'type' => 'candidature_accepted',
-        ]);
-    }
-
-    // ==========================================================================
     // Policy auto-discovery verification (using Gate facade)
     // ==========================================================================
 
     public function test_policy_is_auto_discovered_by_laravel(): void
     {
-        // Accept the candidature
-        $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
-
-        $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
+        $conversation = $this->acceptCandidatureDirectly();
 
         // Verify policy works through Gate facade (auto-discovery)
         $this->assertTrue($this->faceUser->can('view', $conversation));
@@ -422,11 +338,7 @@ class ConditionalChatUnlockTest extends TestCase
 
     public function test_policy_denies_other_users_via_gate(): void
     {
-        // Accept the candidature
-        $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/accept");
-
-        $conversation = Conversation::where('candidature_id', $this->candidature->id)->first();
+        $conversation = $this->acceptCandidatureDirectly();
 
         // Create another Face
         $otherFace = Face::factory()->create();

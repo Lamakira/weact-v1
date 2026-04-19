@@ -90,19 +90,6 @@ export const candidatureApi = {
   },
 
   /**
-   * Accept a candidature (Producer only)
-   * Changes candidature status from "pending" to "accepted"
-   * @param candidatureId The candidature ID to accept
-   * @returns Updated candidature data with success message
-   */
-  async acceptCandidature(candidatureId: string): Promise<CandidatureResponse> {
-    const response = await apiClient.post<CandidatureResponse>(
-      `/producer/candidatures/${candidatureId}/accept`,
-    )
-    return response.data
-  },
-
-  /**
    * Reject a candidature (Producer only)
    * Changes candidature status from "pending" to "rejected"
    * @param candidatureId The candidature ID to reject
