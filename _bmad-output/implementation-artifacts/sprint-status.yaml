@@ -448,12 +448,12 @@ development_status:
   fix-20-1-move-accepted-transition-to-payment-webhook: done  # Refactor: Accepted fire au webhook Paid, prep ne mute plus candidature.status
   fix-20-2-simplify-face-confirm-endpoint: done                        # Retirer/alléger le check PAYMENT_NOT_CONFIRMED désormais redondant
   fix-20-3-remove-legacy-manual-accept-endpoint: done                  # Commit ac2719d sur dev — en attente de merge main. Révélé un gap Conversation::firstOrCreate à traiter dans FIX-20.1
-  fix-20-4-simplify-obsolete-fix-19-compensation: backlog              # Retirer le rollback candidature.status de handleInitiationFailure + update runbook
+  fix-20-4-simplify-obsolete-fix-19-compensation: done                 # Retirer le rollback candidature.status de handleInitiationFailure + update runbook
   fix-20-5-confirm-candidature-error-mapping: done                     # Commit 9bca244 sur dev — en attente de merge main
   fix-20-6-reconcile-stale-selections-production-data: backlog         # Investigation payment 7 + commande de migration des 181 candidatures orphelines + notifications
   epic-fix-20-retrospective: optional
 
-last_updated: "2026-04-18"
+last_updated: "2026-04-19"
 # Story fix-19-5 moved to review: 2026-04-14
 # Story fix-19-5 moved to done: 2026-04-14 (after code review)
 # Story fix-15-1 created: 2026-04-10
@@ -472,3 +472,6 @@ last_updated: "2026-04-18"
 # Story fix-20-2 moved to review: 2026-04-18 (defensive conservation — Log::warning INVARIANT_VIOLATION canary added before the 422 PAYMENT_NOT_CONFIRMED response)
 # Story fix-20-2 moved to done: 2026-04-18 (code review clean — canary approach accepted)
 # Story fix-20-1 moved to done: 2026-04-18 (clean code review — no actionable findings)
+# Story fix-20-4 moved to ready-for-dev: 2026-04-18 (story file created — cleanup pass + runbook rewrite; bulk of work already landed in FIX-20.1)
+# Story fix-20-4 moved to review: 2026-04-18 (dead plumbing removed from MissionPaymentService, runbook §2/§3/§4.1/§4.5 rewritten — 26/235 tests green unchanged)
+# Story fix-20-4 moved to done: 2026-04-19 (review follow-up fixes applied — §4.5 conversation insert corrected, notification replay warning added, recipient-resolution guidance added)

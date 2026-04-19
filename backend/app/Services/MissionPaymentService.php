@@ -58,14 +58,14 @@ class MissionPaymentService
                 }
             }
 
-            $prepared = $this->prepareSelectionForPayment($mission, $candidatureUuids);
+            $preparedPayment = $this->prepareSelectionForPayment($mission, $candidatureUuids);
             $remotePayment = null;
 
             try {
-                $remotePayment = $this->requestHostedCheckout($prepared['payment']);
-                $payment = $this->finalizePreparedPayment($prepared['payment'], $remotePayment);
+                $remotePayment = $this->requestHostedCheckout($preparedPayment);
+                $payment = $this->finalizePreparedPayment($preparedPayment, $remotePayment);
             } catch (\Throwable $e) {
-                $this->handleInitiationFailure($prepared, $remotePayment, $e);
+                $this->handleInitiationFailure($preparedPayment, $remotePayment, $e);
             }
 
             return [
@@ -84,13 +84,12 @@ class MissionPaymentService
      * non-selected → `Rejected`, and provisions each Conversation row.
      *
      * @param  string[]  $candidatureUuids
-     * @return array{payment: MissionPayment, selected_candidature_ids: list<int>}
      *
      * @throws ValidationException
      */
-    private function prepareSelectionForPayment(Mission $mission, array $candidatureUuids): array
+    private function prepareSelectionForPayment(Mission $mission, array $candidatureUuids): MissionPayment
     {
-        return DB::transaction(function () use ($mission, $candidatureUuids): array {
+        return DB::transaction(function () use ($mission, $candidatureUuids): MissionPayment {
             /** @var Mission $mission */
             $mission = Mission::lockForUpdate()->findOrFail($mission->id);
 
@@ -130,7 +129,6 @@ class MissionPaymentService
             /** @var \Illuminate\Support\Collection<int, Candidature> $selectedCandidatures */
             $selectedCandidatures = collect($requestedUuids)
                 ->map(fn (string $candidatureUuid): Candidature => $candidatures->get($candidatureUuid));
-            $selectedCandidatureIds = $selectedCandidatures->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
 
             $pricing = new MissionPricing($mission->budget, $selectedCandidatures->count());
 
@@ -160,10 +158,10 @@ class MissionPaymentService
 
             $mission->update(['status' => MissionStatus::PendingPayment]);
 
-            return [
-                'payment' => $payment->fresh(),
-                'selected_candidature_ids' => $selectedCandidatureIds,
-            ];
+            /** @var MissionPayment $freshPayment */
+            $freshPayment = $payment->fresh();
+
+            return $freshPayment;
         });
     }
 
@@ -269,19 +267,18 @@ class MissionPaymentService
     }
 
     /**
-     * @param  array{payment: MissionPayment, selected_candidature_ids: list<int>}  $prepared
      * @param  array{fedapay_transaction_id: int, checkout_url: string}|null  $remotePayment
      *
      * @throws MissionPaymentInitiationException
      */
-    private function handleInitiationFailure(array $prepared, ?array $remotePayment, \Throwable $exception): never
+    private function handleInitiationFailure(MissionPayment $payment, ?array $remotePayment, \Throwable $exception): never
     {
         $compensationAttempted = false;
         $compensationFailed = null;
         $remoteTransactionId = $remotePayment['fedapay_transaction_id'] ?? null;
-        $paymentId = $prepared['payment']->id;
-        $missionId = $prepared['payment']->mission_id;
-        $producerId = $prepared['payment']->producer_id;
+        $paymentId = $payment->id;
+        $missionId = $payment->mission_id;
+        $producerId = $payment->producer_id;
         $hasPersistedTransactionId = $this->hasPersistedTransactionId($paymentId);
         $needsCompensation = $remotePayment === null || ! $hasPersistedTransactionId;
 
@@ -297,7 +294,7 @@ class MissionPaymentService
             $compensationAttempted = true;
 
             try {
-                $this->compensateFailedPreparation($prepared);
+                $this->compensateFailedPreparation($payment);
             } catch (\Throwable $compensationException) {
                 $compensationFailed = $compensationException;
             }
@@ -352,14 +349,11 @@ class MissionPaymentService
             ->exists();
     }
 
-    /**
-     * @param  array{payment: MissionPayment, selected_candidature_ids: list<int>}  $prepared
-     */
-    protected function compensateFailedPreparation(array $prepared): void
+    protected function compensateFailedPreparation(MissionPayment $preparedPayment): void
     {
-        DB::transaction(function () use ($prepared): void {
+        DB::transaction(function () use ($preparedPayment): void {
             /** @var MissionPayment|null $payment */
-            $payment = MissionPayment::lockForUpdate()->find($prepared['payment']->id);
+            $payment = MissionPayment::lockForUpdate()->find($preparedPayment->id);
 
             if (! $payment || $payment->fedapay_transaction_id !== null) {
                 return;
