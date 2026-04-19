@@ -451,9 +451,10 @@ development_status:
   fix-20-4-simplify-obsolete-fix-19-compensation: done                 # Retirer le rollback candidature.status de handleInitiationFailure + update runbook
   fix-20-5-confirm-candidature-error-mapping: done                     # Commit 9bca244 sur dev — en attente de merge main
   fix-20-6-reconcile-stale-selections-production-data: done            # Investigation payment 7 + commande de migration des 181 candidatures orphelines + notifications
-  epic-fix-20-retrospective: optional
+  epic-fix-20-retrospective: done
 
 last_updated: "2026-04-19"
+# Epic FIX-20 retrospective marked as done: 2026-04-19 (story-focused retro on FIX-20.6, saved to fix-20-6-retro-2026-04-19.md; stories FIX-20.1 to 20.5 had already been reviewed individually via their own code reviews, so no full-epic replay was needed)
 # Epic FIX-20 moved to done: 2026-04-19 (PR #25 merged to main, deployed, reconcile command run successfully on prod: 5 payments / 6 accepted + 214 rejected / 225 notifications / 0 failures / 0 payments skipped; audit queries return 0 rows post-run; payment 9 / mission 13 folded into scope at pre-flight after FedaPay transaction 110554804 confirmed Expirée)
 # Story fix-20-6 moved to done: 2026-04-19 (code review complete — 6 patches applied covering query hardening, runbook webhook-pause section, seeder env guard + remove auto-wiring, per-payment summary rename, dry-run log verb split, 3 additional tests; ReconcileStaleSelectionsCommand 10/10 + MissionPayment 26/26 + Candidature 236/236 green)
 # NOTE: Even though FIX-20.1 already landed on dev (commit eef57c5), FIX-20.6 must
