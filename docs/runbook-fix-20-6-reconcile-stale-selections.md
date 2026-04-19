@@ -51,15 +51,27 @@ WHERE c.status = 'rejected'
   );
 ```
 
-**Expected baseline (audit performed 2026-04-14):**
+**Expected baseline (audit performed 2026-04-14, refreshed 2026-04-19):**
 
 | Bucket | Count | Payments | Missions |
 | --- | --- | --- | --- |
-| `accepted` candidatures | 4 | mp.id ∈ {1, 2, 3, 7} | mission.id ∈ {8, 11, 14, 17} |
-| `rejected` candidatures | 177 | (same payments) | (same missions) |
-| `cancelled` candidatures (out of scope) | 6 | n/a | mission 8: 4, mission 11: 2 |
+| `accepted` candidatures | 6 | mp.id ∈ {1, 2, 3, 7, 9} | mission.id ∈ {8, 11, 13, 14, 17} |
+| `rejected` candidatures | 214 | (same payments) | (same missions) |
+| `cancelled` candidatures (out of scope) | 6 documented | n/a | mission 8: 4, mission 11: 2 (mission 13 cancelled count not re-audited; re-check in §2) |
 
-**If the counts have drifted materially** (more than ±5 candidatures, or any new payment with `fedapay_transaction_id IS NULL`), stop and escalate — the scope changed since this runbook was written and the story text needs adjustment before running `--apply`.
+**Per-payment rejected breakdown:**
+
+| payment_id | mission_id | accepted | rejected |
+| --- | --- | --- | --- |
+| 1 | 8 | 1 | 114 |
+| 2 | 11 | 1 | 27 |
+| 3 | 14 | 1 | 19 |
+| 7 | 17 | 1 | 17 |
+| 9 | 13 | 2 | 37 |
+
+> **Payment 9 note (2026-04-19):** This payment was added to the scope at pre-flight time. FedaPay transaction `110554804` (created 2026-04-16) reached status **Expirée** — the producer opened the hosted checkout but never paid (0 CFA paid, no mode de paiement). Before the reconcile run the operator executed `UPDATE mission_payments SET fedapay_transaction_id = NULL WHERE id = 9;` to fold it into the command's `whereNull` discovery guard, because (a) the FedaPay transaction is terminated and will not fire any webhook, and (b) the row is semantically equivalent to the four original orphans from this point on. If you are re-reading this runbook on a future incident, **do not blindly reproduce this UPDATE** — verify the target transaction's FedaPay status is truly terminal (`Expirée`, `canceled`, `declined`) first.
+
+**If the counts have drifted materially** (more than ±5 candidatures, or any new payment with `fedapay_transaction_id IS NULL` that is NOT in {1, 2, 3, 7, 9}), stop and escalate — the scope changed since this baseline and the story text needs adjustment before running `--apply`.
 
 Record the actual counts before continuing:
 
@@ -106,8 +118,8 @@ FedaPay retries webhook deliveries for up to ~24h. If a belated `approved` webho
 3. For each webhook endpoint pointing at the `weact` production URL, either:
    - **Disable** the endpoint (preferred — FedaPay will stop attempting redelivery while it is disabled), **or**
    - **Record** the endpoint configuration and **delete** it, then re-create it after step 6 of this runbook (more invasive; only use if disable is not available).
-4. Note the four in-scope `fedapay_transaction_id` values. They are all `NULL` in the current audit, so there are **no** pending FedaPay retries tied to these specific payments — but other unrelated payments are still active, so the pause affects the whole flow. Coordinate the window with stakeholders (producers mid-checkout during the pause will see a hanging "Redirecting to FedaPay…" step).
-5. Keep the window short: target **≤ 15 minutes** between pause and re-enable. The command itself takes ~10 s on 185 rows; the bulk of the window is §5 dry-run verification + §6 apply verification.
+4. Note the five in-scope `fedapay_transaction_id` values. All five are `NULL` after the §2 pre-flight (payment 9 was nullified because its FedaPay transaction `110554804` is `Expirée`), so there are **no** pending FedaPay retries tied to these specific payments — but other unrelated payments are still active, so the pause affects the whole flow. Coordinate the window with stakeholders (producers mid-checkout during the pause will see a hanging "Redirecting to FedaPay…" step).
+5. Keep the window short: target **≤ 15 minutes** between pause and re-enable. The command itself takes ~15 s on 220 rows; the bulk of the window is §5 dry-run verification + §6 apply verification.
 6. **Re-enable** the webhook endpoints after §7 post-apply verification passes. Check the FedaPay dashboard for any `pending delivery` entries queued during the pause — they will attempt to deliver when the endpoint is re-enabled. Monitor the webhook handler logs for ~10 minutes after re-enable; any `status='failed'` payment that somehow receives an `approved` event must be escalated immediately (it means a webhook for an in-scope payment slipped through despite the audit).
 
 **Alternative if FedaPay does not support pausing webhooks:**
@@ -126,7 +138,7 @@ if ($payment->status === MissionPaymentStatus::Failed) {
 
 This is the same guard FIX-20.1 bakes in. Deploying it ahead of the reconcile run also works, but is a larger change than pausing webhooks.
 
-**Do not skip this section.** The window is small and empirically the four in-scope payments have no recent FedaPay retries, but one stray event is enough to recreate the problem the reconcile run is supposed to fix.
+**Do not skip this section.** The window is small and empirically the five in-scope payments have no recent FedaPay retries, but one stray event is enough to recreate the problem the reconcile run is supposed to fix.
 
 ---
 
@@ -140,12 +152,13 @@ php artisan candidature:reconcile-stale-selections --dry-run
 Expected output shape (per in-scope payment, plus a final summary line):
 
 ```
-Reconciling 4 in-scope payment(s) in dry-run mode.
+Reconciling 5 in-scope payment(s) in dry-run mode.
 [dry-run] payment_id=1 mission_id=8  accepted_reset=1 rejected_reset=114 entries_deleted=1 mission=reset_to_published notifications_planned=116
 [dry-run] payment_id=2 mission_id=11 accepted_reset=1 rejected_reset=27  entries_deleted=1 mission=reset_to_published notifications_planned=29
 [dry-run] payment_id=3 mission_id=14 accepted_reset=1 rejected_reset=19  entries_deleted=1 mission=reset_to_published notifications_planned=21
 [dry-run] payment_id=7 mission_id=17 accepted_reset=1 rejected_reset=17  entries_deleted=1 mission=reset_to_published notifications_planned=19
-Done. payments_processed=4, accepted_reset=4, rejected_reset=177, entries_deleted=4, missions_reset=4, notifications_queued=0, notifications_failed=0, payments_skipped=0
+[dry-run] payment_id=9 mission_id=13 accepted_reset=2 rejected_reset=37  entries_deleted=2 mission=reset_to_published notifications_planned=40
+Done. payments_processed=5, accepted_reset=6, rejected_reset=214, entries_deleted=6, missions_reset=5, notifications_queued=0, notifications_failed=0, payments_skipped=0
 ```
 
 (Per-payment counts are illustrative — match against the audit numbers from §2. The per-payment `notifications_planned=…` reflects what each payment *would* queue; the final summary's `notifications_queued=0` in dry-run is expected because the real notification fan-out only happens under `--apply`.)
@@ -169,7 +182,7 @@ cd backend
 php artisan candidature:reconcile-stale-selections --apply
 ```
 
-Optional: tune notification pacing with `--notifications-per-second=N` (default 20). For the production scope (~185 notifications), 20/s ≈ 10 seconds total — generally fine. Lower it if Reverb / Echo broadcast pipeline is tight.
+Optional: tune notification pacing with `--notifications-per-second=N` (default 20). For the production scope (~225 notifications: 6 accepted + 214 rejected + 5 producer), 20/s ≈ 12 seconds total — generally fine. Lower it if Reverb / Echo broadcast pipeline is tight.
 
 Expected log lines (each emitted at INFO level via `Log::info`):
 
@@ -239,15 +252,15 @@ Spot-check side effects:
 
 ```sql
 -- Each in-scope payment is now `failed`.
-SELECT id, status, fedapay_transaction_id FROM mission_payments WHERE id IN (1, 2, 3, 7);
+SELECT id, status, fedapay_transaction_id FROM mission_payments WHERE id IN (1, 2, 3, 7, 9);
 
 -- Each in-scope mission is back to `published`.
-SELECT id, status FROM missions WHERE id IN (8, 11, 14, 17);
+SELECT id, status FROM missions WHERE id IN (8, 11, 13, 14, 17);
 
--- The 6 cancelled candidatures are unchanged.
-SELECT id, mission_id, status FROM candidatures WHERE status = 'cancelled' AND mission_id IN (8, 11);
+-- The documented cancelled candidatures are unchanged (missions 8 and 11; mission 13 not audited, spot-check too if relevant).
+SELECT id, mission_id, status FROM candidatures WHERE status = 'cancelled' AND mission_id IN (8, 11, 13);
 
--- Notifications were queued (count should ≈ accepted_reset + rejected_reset + payments_processed).
+-- Notifications were queued: expected 6 accepted + 214 rejected + 5 producer = 225.
 SELECT type, COUNT(*) FROM notifications
  WHERE type IN ('candidature_reset_from_accepted', 'candidature_reset_from_rejected', 'mission_selection_reset_producer')
  GROUP BY type;
@@ -286,6 +299,6 @@ The command writes irreversibly within each transaction (sets `payment.status = 
 
 ## 10. Out of scope
 
-- **Fedapay dashboard cross-checks.** All four in-scope payments have `fedapay_transaction_id IS NULL`, so there is nothing to cross-check on the FedaPay side. If a future audit finds an in-scope payment WITH a remote transaction id, escalate before running — that is a different incident.
+- **Fedapay dashboard cross-checks.** After the §2 pre-flight, all five in-scope payments have `fedapay_transaction_id IS NULL`; payment 9's original transaction `110554804` was verified `Expirée` on 2026-04-19 before the row was nullified (see §2 note). If a future audit finds any additional payment with `fedapay_transaction_id IS NOT NULL` in scope, **escalate before running** — verify the FedaPay-side status first; do not blindly nullify.
 - **Email/SMS communication to affected users** (especially the mission-8 Producer who has been blocked since 2026-04-03). The command queues in-app notifications only; out-of-band human communication is a separate manual step.
 - **Mission-payment service refactor.** This command does not touch `MissionPaymentService`, `HandleFedapayWebhook`, controllers, or any frontend code. Those changes are FIX-20.1's responsibility.
