@@ -444,7 +444,7 @@ development_status:
   # ============================================
 
   # Epic FIX-20: Unification du contrat Accepted = sélection payée et confirmable (6 stories)
-  epic-fix-20: in-progress
+  epic-fix-20: done
   fix-20-1-move-accepted-transition-to-payment-webhook: done  # Refactor: Accepted fire au webhook Paid, prep ne mute plus candidature.status
   fix-20-2-simplify-face-confirm-endpoint: done                        # Retirer/alléger le check PAYMENT_NOT_CONFIRMED désormais redondant
   fix-20-3-remove-legacy-manual-accept-endpoint: done                  # Commit ac2719d sur dev — en attente de merge main. Révélé un gap Conversation::firstOrCreate à traiter dans FIX-20.1
@@ -454,6 +454,7 @@ development_status:
   epic-fix-20-retrospective: optional
 
 last_updated: "2026-04-19"
+# Epic FIX-20 moved to done: 2026-04-19 (PR #25 merged to main, deployed, reconcile command run successfully on prod: 5 payments / 6 accepted + 214 rejected / 225 notifications / 0 failures / 0 payments skipped; audit queries return 0 rows post-run; payment 9 / mission 13 folded into scope at pre-flight after FedaPay transaction 110554804 confirmed Expirée)
 # Story fix-20-6 moved to done: 2026-04-19 (code review complete — 6 patches applied covering query hardening, runbook webhook-pause section, seeder env guard + remove auto-wiring, per-payment summary rename, dry-run log verb split, 3 additional tests; ReconcileStaleSelectionsCommand 10/10 + MissionPayment 26/26 + Candidature 236/236 green)
 # NOTE: Even though FIX-20.1 already landed on dev (commit eef57c5), FIX-20.6 must
 # still run on PRODUCTION before FIX-20.1 is deployed there. The reconcile command
