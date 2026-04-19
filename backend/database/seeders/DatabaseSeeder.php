@@ -20,6 +20,10 @@ class DatabaseSeeder extends Seeder
             'email' => 'test@example.com',
         ]);
 
+        // Only AdminSeeder runs automatically via `php artisan db:seed`.
+        // FaceSeeder / ProducerSeeder / MissionSeeder seed personal dev accounts
+        // and must be invoked explicitly (e.g. `php artisan db:seed --class=FaceSeeder`)
+        // to prevent accidental creation in shared environments.
         $this->call([
             AdminSeeder::class,
         ]);

@@ -1,6 +1,6 @@
 # Story FIX-20.5: Filet de sécurité — mapping des erreurs de confirmation Face
 
-Status: review
+Status: done
 
 ## Story
 
