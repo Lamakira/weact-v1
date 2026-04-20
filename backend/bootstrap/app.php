@@ -10,6 +10,7 @@ use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\EnsureUserIsFace;
 use App\Http\Middleware\EnsureUserIsFaceOrProducer;
 use App\Http\Middleware\EnsureUserIsProducer;
+use App\Http\Middleware\SetLocale;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -41,6 +42,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // This applies EnsureFrontendRequestsAreStateful middleware to API routes
         // CSRF protection is active for all stateful requests
         $middleware->statefulApi();
+
+        // Force Laravel locale to 'fr' on every API request (FIX-22.1)
+        $middleware->appendToGroup('api', SetLocale::class);
 
         // Register custom role-based middlewares
         $middleware->alias([

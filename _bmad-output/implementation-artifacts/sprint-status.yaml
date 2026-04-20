@@ -464,8 +464,8 @@ development_status:
   epic-fix-21-retrospective: done
 
   # Epic FIX-22 : Cohérence des messages d'erreur — locale + format + extraction (3 stories)
-  epic-fix-22: backlog
-  fix-22-1-force-backend-locale-fr: backlog                                 # config/app.php défaut fr + middleware SetLocale + lang/fr/*
+  epic-fix-22: in-progress
+  fix-22-1-force-backend-locale-fr: done                                    # config/app.php défaut fr + middleware SetLocale + lang/fr/* + lang/fr.json (mail keys) — 7 review patches appliqués 2026-04-20
   fix-22-2-standardize-api-error-format: backlog                            # Format unique {error:{message,code}} + alignement WalletController + handler global
   fix-22-3-centralize-frontend-error-formatter: backlog                     # services/errorFormatter.ts + refactor composables (useWallet, useApplyToMission, useAdminDashboardStats)
   epic-fix-22-retrospective: optional
@@ -491,6 +491,11 @@ development_status:
   epic-fix-25-retrospective: optional
 
 last_updated: "2026-04-20"
+# Story fix-22-1 moved to done: 2026-04-20 (code review — 7 patches appliqués : SetLocale docblock, 3 rephrases FR, vendor `custom` placeholder restauré EN+FR, Test 1.E canonicalize + leaf FR≠EN, lang/fr.json créé pour templates mail vendor, Test 1.F ajouté ; full suite 1859/1859 green ; lang/fr.json inclus dans le scope suite à la revue, `config:cache` dismissed car prod `.env` contient déjà APP_LOCALE=fr)
+# Story fix-22-1 moved to review: 2026-04-20 (Prove It 5/5 green, LoginTest 23/23 green, full suite 1858/1858 green; Option B retenue pour Carbon; placeholder vendor `custom`/`attributes` vidé pour parité EN/FR)
+# Story fix-22-1 moved to in-progress: 2026-04-20 (dev-story workflow started)
+# Epic FIX-22 moved to in-progress: 2026-04-20 (first story FIX-22.1 created)
+# Story fix-22-1 moved to ready-for-dev: 2026-04-20 (comprehensive story file created — Prove It targets real vendor-EN leaks via trans()/App::getLocale(); FormRequest messages() FR already hardcoded, ThrottleRequestsException explicitly out of scope, re-scoped to FIX-22.2)
 # Epic FIX-21 retrospective marked as done: 2026-04-20 (story-focused retro on FIX-21.1 + FIX-25 spawn, saved to epic-fix-21-retro-2026-04-20.md; branch fix/21-1-auth-rate-limiter-french-response not yet merged to main — commitment captured as retro action item #3)
 # Epic FIX-21 moved to done: 2026-04-20 (all stories done + retrospective complete; merge to main still pending per retro action item #3)
 # Story fix-21-1 moved to done: 2026-04-19 (code review — 3 decision-needed accepted as spec-consistent; 4 patches applied: trim() on throttle key, Retry-After: 60 header on 429, Log::warning observability, authApi.spec.ts hardened to 5 cases; LoginTest 23/23 + authApi 5/5 green)
