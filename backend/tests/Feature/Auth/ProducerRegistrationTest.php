@@ -161,7 +161,7 @@ class ProducerRegistrationTest extends TestCase
                     ],
                 ],
             ])
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.email.0', 'Cet email est déjà utilisé');
     }
 
@@ -175,7 +175,7 @@ class ProducerRegistrationTest extends TestCase
         $response = $this->postJson('/api/v1/auth/register/producer', $data);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.password.0', 'Le mot de passe doit contenir au moins 8 caractères');
 
         // Test password without uppercase
@@ -214,7 +214,7 @@ class ProducerRegistrationTest extends TestCase
                     ],
                 ],
             ])
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.agency_name.0', 'Le nom de l\'agence est obligatoire');
     }
 
@@ -235,7 +235,7 @@ class ProducerRegistrationTest extends TestCase
                     ],
                 ],
             ])
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.first_name.0', 'Le prénom est obligatoire');
     }
 
@@ -256,7 +256,7 @@ class ProducerRegistrationTest extends TestCase
                     ],
                 ],
             ])
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.last_name.0', 'Le nom est obligatoire');
     }
 
@@ -321,7 +321,7 @@ class ProducerRegistrationTest extends TestCase
         $response = $this->postJson('/api/v1/auth/register/producer', $data);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.type.0', 'Type de compte invalide');
     }
 
@@ -333,7 +333,7 @@ class ProducerRegistrationTest extends TestCase
         $response = $this->postJson('/api/v1/auth/register/producer', $data);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.type.0', 'Veuillez choisir un type de compte');
     }
 

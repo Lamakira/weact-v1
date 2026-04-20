@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Auth;
 
-use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Http\Exceptions\HttpResponseException;
 
 /**
  * Reset password request validation
@@ -58,21 +56,5 @@ class ResetPasswordRequest extends FormRequest
             'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
             'password.regex' => 'Le mot de passe doit contenir au moins une majuscule et un chiffre.',
         ];
-    }
-
-    /**
-     * Handle a failed validation attempt.
-     */
-    protected function failedValidation(Validator $validator): void
-    {
-        throw new HttpResponseException(
-            response()->json([
-                'error' => [
-                    'code' => 'validation_error',
-                    'message' => 'Les données fournies ne sont pas valides',
-                    'details' => $validator->errors()->toArray(),
-                ],
-            ], 422)
-        );
     }
 }

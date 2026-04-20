@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\ErrorCodes;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ContactFormRequest;
 use App\Mail\ContactFormMail;
@@ -32,9 +33,10 @@ class ContactController extends Controller
                 'sender' => $validated['email'],
             ]);
 
-            return response()->json([
-                'message' => 'Une erreur est survenue lors de l\'envoi du message. Veuillez réessayer.',
-            ], 500);
+            return response()->json(
+                ErrorCodes::ContactSendFailed->envelope('Une erreur est survenue lors de l\'envoi du message. Veuillez réessayer.'),
+                500
+            );
         }
 
         return response()->json([

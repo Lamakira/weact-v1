@@ -466,7 +466,7 @@ development_status:
   # Epic FIX-22 : Cohérence des messages d'erreur — locale + format + extraction (3 stories)
   epic-fix-22: in-progress
   fix-22-1-force-backend-locale-fr: done                                    # config/app.php défaut fr + middleware SetLocale + lang/fr/* + lang/fr.json (mail keys) — 7 review patches appliqués 2026-04-20
-  fix-22-2-standardize-api-error-format: backlog                            # Format unique {error:{message,code}} + alignement WalletController + handler global
+  fix-22-2-standardize-api-error-format: done                               # Format unique {error:{message,code}} + alignement WalletController + handler global + review patches 2026-04-20
   fix-22-3-centralize-frontend-error-formatter: backlog                     # services/errorFormatter.ts + refactor composables (useWallet, useApplyToMission, useAdminDashboardStats)
   epic-fix-22-retrospective: optional
 
@@ -491,6 +491,10 @@ development_status:
   epic-fix-25-retrospective: optional
 
 last_updated: "2026-04-20"
+# Story fix-22-2 moved to done: 2026-04-20 (code review via /bmad-code-review — 3 reviewers en parallèle → 4 decision-needed résolues + 6 patches appliqués : enum aligné sur le wire lowercase (5 cases) + 2 cases ajoutés EMAIL_NOT_VERIFIED/registration_disabled, closure AuthorizationException mort supprimé, mapping 401→UNAUTHENTICATED dans HttpException handler, envelope() protège code/message contre $extra, gating api exact, closure ModelNotFoundException ajouté ; 18 findings dismissed spec-compliant, 5 defer dans deferred-work.md ; full suite 1866/1866 green, pint clean)
+# Story fix-22-2 moved to review: 2026-04-20 (Prove It 7/7 green, suite complète 1866/1866 passed, pint clean; handler global bootstrap/app.php + enum ErrorCodes + 7 controllers refactorés + 19 failedValidation() retirés + 47 assertions 'validation_error' → 'VALIDATION_ERROR' + 11 tests tiers migrés sur les chemins abort normalisés; frontend inchangé, FIX-22.3 toujours en backlog)
+# Story fix-22-2 moved to in-progress: 2026-04-20 (dev-story workflow started)
+# Story fix-22-2 moved to ready-for-dev: 2026-04-20 (comprehensive story file created + cross-reviewed — Prove It 7 scenarios A-G, audit identifies 6 non-conforming controllers + 7 render() closures in bootstrap/app.php::withExceptions, ValidationException double-format to preserve 176 assertJsonValidationErrors non-regression, ErrorCodes enum opt-in instance helper, 47 legacy 'validation_error' → 'VALIDATION_ERROR' migration across 12 files coordinated with 19 FormRequest::failedValidation() removal, Test 14.A retargeted to WithdrawalLockException 409 for determinism, FaceCancelCandidatureTest + MissionPaymentInitiationTest added to Task 7 inventory)
 # Story fix-22-1 moved to done: 2026-04-20 (code review — 7 patches appliqués : SetLocale docblock, 3 rephrases FR, vendor `custom` placeholder restauré EN+FR, Test 1.E canonicalize + leaf FR≠EN, lang/fr.json créé pour templates mail vendor, Test 1.F ajouté ; full suite 1859/1859 green ; lang/fr.json inclus dans le scope suite à la revue, `config:cache` dismissed car prod `.env` contient déjà APP_LOCALE=fr)
 # Story fix-22-1 moved to review: 2026-04-20 (Prove It 5/5 green, LoginTest 23/23 green, full suite 1858/1858 green; Option B retenue pour Carbon; placeholder vendor `custom`/`attributes` vidé pour parité EN/FR)
 # Story fix-22-1 moved to in-progress: 2026-04-20 (dev-story workflow started)

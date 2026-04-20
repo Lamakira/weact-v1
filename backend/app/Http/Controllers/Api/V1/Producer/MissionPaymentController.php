@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Producer;
 
+use App\Enums\ErrorCodes;
 use App\Enums\MissionPaymentStatus;
 use App\Exceptions\MissionPaymentInitiationException;
 use App\Http\Controllers\Controller;
@@ -15,7 +16,6 @@ use App\Services\MissionPaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException;
 
 class MissionPaymentController extends Controller
 {
@@ -56,15 +56,15 @@ class MissionPaymentController extends Controller
                 'message' => $message,
             ]);
         } catch (MissionPaymentInitiationException $e) {
-            return response()->json([
-                'message' => $e->getMessage(),
-            ], 422);
-        } catch (ValidationException $e) {
-            return response()->json([
-                'message' => 'Erreur de validation.',
-                'errors' => $e->errors(),
-            ], 422);
+            return response()->json(
+                ErrorCodes::PaymentInitiationFailed->envelope($e->getMessage()),
+                422
+            );
         }
+        // ValidationException intentionally NOT caught here — the global
+        // handler in bootstrap/app.php::withExceptions() normalizes it into
+        // the double-format { error:{code,message,details}, errors, message }
+        // (FIX-22.2 AC #4/#9).
     }
 
     private function resolveMissionReturnUrl(Mission $mission): string

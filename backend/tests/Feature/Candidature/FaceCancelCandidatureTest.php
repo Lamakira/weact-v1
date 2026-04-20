@@ -103,7 +103,8 @@ class FaceCancelCandidatureTest extends TestCase
             ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/cancel");
 
         $response->assertStatus(400)
-            ->assertJsonPath('message', 'Seules les candidatures en attente peuvent être annulées.');
+            ->assertJsonPath('error.code', 'INVALID_STATUS')
+            ->assertJsonPath('error.message', 'Seules les candidatures en attente peuvent être annulées.');
     }
 
     public function test_cannot_cancel_confirmed_candidature(): void
@@ -115,7 +116,8 @@ class FaceCancelCandidatureTest extends TestCase
             ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/cancel");
 
         $response->assertStatus(400)
-            ->assertJsonPath('message', 'Seules les candidatures en attente peuvent être annulées.');
+            ->assertJsonPath('error.code', 'INVALID_STATUS')
+            ->assertJsonPath('error.message', 'Seules les candidatures en attente peuvent être annulées.');
     }
 
     public function test_cannot_cancel_rejected_candidature(): void
@@ -127,7 +129,8 @@ class FaceCancelCandidatureTest extends TestCase
             ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/cancel");
 
         $response->assertStatus(400)
-            ->assertJsonPath('message', 'Seules les candidatures en attente peuvent être annulées.');
+            ->assertJsonPath('error.code', 'INVALID_STATUS')
+            ->assertJsonPath('error.message', 'Seules les candidatures en attente peuvent être annulées.');
     }
 
     public function test_cannot_cancel_in_progress_candidature(): void
@@ -139,7 +142,8 @@ class FaceCancelCandidatureTest extends TestCase
             ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/cancel");
 
         $response->assertStatus(400)
-            ->assertJsonPath('message', 'Seules les candidatures en attente peuvent être annulées.');
+            ->assertJsonPath('error.code', 'INVALID_STATUS')
+            ->assertJsonPath('error.message', 'Seules les candidatures en attente peuvent être annulées.');
     }
 
     public function test_cannot_cancel_completed_candidature(): void
@@ -151,7 +155,8 @@ class FaceCancelCandidatureTest extends TestCase
             ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/cancel");
 
         $response->assertStatus(400)
-            ->assertJsonPath('message', 'Seules les candidatures en attente peuvent être annulées.');
+            ->assertJsonPath('error.code', 'INVALID_STATUS')
+            ->assertJsonPath('error.message', 'Seules les candidatures en attente peuvent être annulées.');
     }
 
     public function test_face_cannot_cancel_another_face_candidature(): void
@@ -166,9 +171,8 @@ class FaceCancelCandidatureTest extends TestCase
             ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/cancel");
 
         $response->assertForbidden()
-            ->assertJson([
-                'message' => 'Cette candidature ne vous appartient pas',
-            ]);
+            ->assertJsonPath('error.code', 'FORBIDDEN')
+            ->assertJsonPath('error.message', 'Cette candidature ne vous appartient pas');
     }
 
     public function test_producer_cannot_cancel_candidature(): void

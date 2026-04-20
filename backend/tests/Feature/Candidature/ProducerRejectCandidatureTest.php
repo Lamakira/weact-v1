@@ -179,9 +179,8 @@ class ProducerRejectCandidatureTest extends TestCase
             ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/reject");
 
         $response->assertForbidden()
-            ->assertJson([
-                'message' => 'Accès réservé aux Producteurs',
-            ]);
+            ->assertJsonPath('error.code', 'FORBIDDEN')
+            ->assertJsonPath('error.message', 'Accès réservé aux Producteurs');
     }
 
     public function test_producer_cannot_reject_candidature_for_another_producer_mission(): void
@@ -197,9 +196,8 @@ class ProducerRejectCandidatureTest extends TestCase
             ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/reject");
 
         $response->assertForbidden()
-            ->assertJson([
-                'message' => 'Cette candidature ne concerne pas une de vos missions',
-            ]);
+            ->assertJsonPath('error.code', 'FORBIDDEN')
+            ->assertJsonPath('error.message', 'Cette candidature ne concerne pas une de vos missions');
     }
 
     public function test_returns_404_for_non_existent_candidature(): void

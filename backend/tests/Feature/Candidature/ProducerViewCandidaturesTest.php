@@ -289,9 +289,8 @@ class ProducerViewCandidaturesTest extends TestCase
             ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures");
 
         $response->assertForbidden()
-            ->assertJson([
-                'message' => 'Cette mission ne vous appartient pas',
-            ]);
+            ->assertJsonPath('error.code', 'FORBIDDEN')
+            ->assertJsonPath('error.message', 'Cette mission ne vous appartient pas');
     }
 
     public function test_returns_401_when_unauthenticated(): void

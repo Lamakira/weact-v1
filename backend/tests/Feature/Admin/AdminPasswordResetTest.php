@@ -55,7 +55,7 @@ class AdminPasswordResetTest extends TestCase
         $response = $this->postJson('/api/v1/admin/forgot-password', []);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     public function test_admin_forgot_password_validation_invalid_email_format(): void
@@ -65,7 +65,7 @@ class AdminPasswordResetTest extends TestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     // ─── Reset Password ────────────────────────────────────────────
@@ -118,7 +118,7 @@ class AdminPasswordResetTest extends TestCase
         $response = $this->postJson('/api/v1/admin/reset-password', []);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     public function test_admin_reset_password_validation_short_password(): void
@@ -134,7 +134,7 @@ class AdminPasswordResetTest extends TestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     public function test_admin_reset_password_validation_mismatch_confirmation(): void
@@ -150,7 +150,7 @@ class AdminPasswordResetTest extends TestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     public function test_admin_can_login_with_new_password_after_reset(): void

@@ -121,7 +121,8 @@ class AdminWithdrawalRequestTest extends TestCase
         $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/finance/withdrawal-requests/{$withdrawalRequest->uuid}/approve")
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Solde insuffisant au moment de l’approbation. L’utilisateur a probablement dépensé une partie de ses fonds.');
+            ->assertJsonPath('error.code', 'INSUFFICIENT_BALANCE')
+            ->assertJsonPath('error.message', 'Solde insuffisant au moment de l’approbation. L’utilisateur a probablement dépensé une partie de ses fonds.');
 
         $withdrawalRequest->refresh();
         $this->assertSame('pending', $withdrawalRequest->status);

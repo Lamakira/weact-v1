@@ -148,7 +148,7 @@ class AdminCategorizeArticleTest extends TestCase
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.category.0', 'La catégorie sélectionnée est invalide.');
     }
 
@@ -162,7 +162,7 @@ class AdminCategorizeArticleTest extends TestCase
             ->patchJson($this->endpoint($article), []);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.category.0', 'La catégorie est obligatoire.');
     }
 

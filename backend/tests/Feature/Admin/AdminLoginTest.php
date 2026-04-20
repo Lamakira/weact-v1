@@ -77,7 +77,7 @@ class AdminLoginTest extends TestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     public function test_admin_login_without_password_returns_422(): void
@@ -87,7 +87,7 @@ class AdminLoginTest extends TestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     public function test_admin_login_with_invalid_email_format_returns_422(): void
@@ -98,6 +98,6 @@ class AdminLoginTest extends TestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 }
