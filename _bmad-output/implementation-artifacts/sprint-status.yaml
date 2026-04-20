@@ -459,7 +459,7 @@ development_status:
   # ============================================
 
   # Epic FIX-21 : Throttle login — message français via rate limiter dédié (1 story)
-  epic-fix-21: in-progress
+  epic-fix-21: done
   fix-21-1-auth-rate-limiter-french-response: done                          # In-controller email-keyed limiter + FR 429 envelope + LoginTest 23/23 + frontend authApi test green; post-review patches (trim, Retry-After, Log::warning, authApi hardening tests) applied 2026-04-19
   epic-fix-21-retrospective: done
 
@@ -492,6 +492,7 @@ development_status:
 
 last_updated: "2026-04-20"
 # Epic FIX-21 retrospective marked as done: 2026-04-20 (story-focused retro on FIX-21.1 + FIX-25 spawn, saved to epic-fix-21-retro-2026-04-20.md; branch fix/21-1-auth-rate-limiter-french-response not yet merged to main — commitment captured as retro action item #3)
+# Epic FIX-21 moved to done: 2026-04-20 (all stories done + retrospective complete; merge to main still pending per retro action item #3)
 # Story fix-21-1 moved to done: 2026-04-19 (code review — 3 decision-needed accepted as spec-consistent; 4 patches applied: trim() on throttle key, Retry-After: 60 header on 429, Log::warning observability, authApi.spec.ts hardened to 5 cases; LoginTest 23/23 + authApi 5/5 green)
 # Epic FIX-20 retrospective marked as done: 2026-04-19 (story-focused retro on FIX-20.6, saved to fix-20-6-retro-2026-04-19.md; stories FIX-20.1 to 20.5 had already been reviewed individually via their own code reviews, so no full-epic replay was needed)
 # Epic FIX-20 moved to done: 2026-04-19 (PR #25 merged to main, deployed, reconcile command run successfully on prod: 5 payments / 6 accepted + 214 rejected / 225 notifications / 0 failures / 0 payments skipped; audit queries return 0 rows post-run; payment 9 / mission 13 folded into scope at pre-flight after FedaPay transaction 110554804 confirmed Expirée)
