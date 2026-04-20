@@ -9,6 +9,9 @@ use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Resources\UserResource;
 use App\Services\Auth\LoginService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 
 class LoginController extends Controller
 {
@@ -21,12 +24,32 @@ class LoginController extends Controller
      */
     public function __invoke(LoginRequest $request): JsonResponse
     {
+        $email = $request->validated('email');
+        $password = $request->validated('password');
+        $throttleKey = 'login:'.Str::lower(trim($email));
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            Log::warning('auth.login.throttled', [
+                'email' => $email,
+                'ip' => $request->ip(),
+            ]);
+
+            return response()->json([
+                'error' => [
+                    'message' => 'Trop de tentatives de connexion. Veuillez réessayer dans une minute.',
+                    'code' => 'THROTTLED',
+                ],
+            ], 429)->header('Retry-After', '60');
+        }
+
         $result = $this->loginService->login(
-            $request->validated('email'),
-            $request->validated('password')
+            $email,
+            $password
         );
 
         if ($result === null) {
+            RateLimiter::hit($throttleKey, 60);
+
             return response()->json([
                 'error' => [
                     'message' => 'Email ou mot de passe incorrect',
@@ -43,6 +66,8 @@ class LoginController extends Controller
                 ],
             ], 403);
         }
+
+        RateLimiter::clear($throttleKey);
 
         return response()->json([
             'data' => [
