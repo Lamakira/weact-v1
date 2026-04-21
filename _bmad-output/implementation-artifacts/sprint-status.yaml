@@ -1,5 +1,5 @@
 # generated: 2026-01-07
-# last_updated: 2026-04-12
+# last_updated: 2026-04-21
 # project: WEACT
 # project_key: weact
 # tracking_system: file-system
@@ -464,15 +464,15 @@ development_status:
   epic-fix-21-retrospective: done
 
   # Epic FIX-22 : Cohérence des messages d'erreur — locale + format + extraction (3 stories)
-  epic-fix-22: in-progress
+  epic-fix-22: done
   fix-22-1-force-backend-locale-fr: done                                    # config/app.php défaut fr + middleware SetLocale + lang/fr/* + lang/fr.json (mail keys) — 7 review patches appliqués 2026-04-20
   fix-22-2-standardize-api-error-format: done                               # Format unique {error:{message,code}} + alignement WalletController + handler global + review patches 2026-04-20
   fix-22-3-centralize-frontend-error-formatter: done                        # services/errorFormatter.ts + refactor composables (useWallet, useApplyToMission, useAdminDashboardStats)
-  epic-fix-22-retrospective: optional
+  epic-fix-22-retrospective: done
 
   # Epic FIX-23 : Fiabilité du flag REGISTRATION_ENABLED (1 story)
-  epic-fix-23: backlog
-  fix-23-1-registration-enabled-deterministic-fallback: backlog             # VITE_REGISTRATION_ENABLED fallback + Cache-Control sur /auth/registration-status
+  epic-fix-23: in-progress
+  fix-23-1-registration-enabled-deterministic-fallback: done                # VITE_REGISTRATION_ENABLED fallback + Cache-Control sur /auth/registration-status
   epic-fix-23-retrospective: optional
 
   # Epic FIX-24 : Notifications email du cycle mission (6 stories)
@@ -491,6 +491,13 @@ development_status:
   epic-fix-25-retrospective: optional
 
 last_updated: "2026-04-21"
+# Story fix-23-1 moved to done: 2026-04-21 (code review via /bmad-code-review — 3 reviewers en parallèle → 34 findings bruts, ~12 dismissed spec-context, 2 decision-needed résolues et 2 patches appliqués : (D1) Cache-Control `public`→`private` sur /auth/registration-status + assertion test alignée `max-age=300, private` pour éliminer la classe de bugs fuite de cookie via cache partagé ; (D2) comparaison `!== 'false'` durcie avec `String(...).trim().toLowerCase()` pour tolérer `False`/`FALSE`/` false ` variantes opérateur ; (P1) ligne vide finale restaurée dans frontend/.env.example ; (P2) classification phrase AC #5.D ajoutée au it() ; 10 defers documentés dans deferred-work.md ; vérifications ciblées post-patch vertes : FaceRegistrationTest 21/21, RegisterProducerPage+RegisterFacePage specs 4/4, type-check ok, eslint ok)
+# Story fix-23-1 moved to review: 2026-04-21 (implementation complete; frontend fallback + env typing/example + backend cache header + Prove It tests delivered; full validation green: frontend vitest 1998/1998, backend php artisan test 1867/1867, targeted FaceRegistrationTest 21/21, type-check and eslint passed; backend header assertion aligned to framework-normalized `max-age=300, public` with explicit user approval)
+# Story fix-23-1 moved to in-progress: 2026-04-21 (dev-story workflow started; frontend red-phase reproduced and fixed locally, remaining blocker is AC #3 literal Cache-Control order because Laravel/Symfony canonicalizes response headers to `max-age=300, public`)
+# Epic FIX-23 moved to in-progress: 2026-04-21 (first story FIX-23.1 created)
+# Story fix-23-1 moved to ready-for-dev: 2026-04-21 (comprehensive story file created — Prove It pattern : frontend red-phase 5.A + 5.B sur RegisterProducerPage + RegisterFacePage avec vi.stubEnv('VITE_REGISTRATION_ENABLED'), régressions 5.C/5.D verrouillent les 4 cas du tableau décisionnel, backend red-phase 5.E sur assertHeader Cache-Control 300s ; scope strict 8 fichiers 6 modifiés + 2 nouveaux ; extraction en composable useRegistrationStatus explicitement hors scope avec justification ; typage env.d.ts optionnel permissif string? reflète la réalité runtime Vite ; 3 patches post-review appliqués 2026-04-21 : (1) AC #5 intro réécrit pour distinguer red-phase (5.A/5.B/5.E échouent pré-fix) vs régression (5.C/5.D vertes avant ET après), (2) AC #5.D reclassifié honnêtement « vert avant ET après » — l'ancien label « rouge avant fix » était une confusion car le catch force déjà `false` coïncidant avec opt-out, (3) AC #9 et Task 6 corrigés : baseline FaceRegistrationTest = 20 tests existants + 1 nouveau = 21 total (vérifié via grep -c "public function test_"), les anciennes valeurs 5/6 étaient factuellement fausses)
+# Epic FIX-22 retrospective marked as done: 2026-04-21 (epic-level retro sur les 3 stories 22.1/22.2/22.3, saved to epic-fix-22-retro-2026-04-21.md ; 6 action items notamment (1) merge géant FIX-21.1 + FIX-25.1 + FIX-22.*, (2) setup Playwright minimal avant prochain epic frontend, (4) canary INVARIANT_VIOLATION à vérifier ; codes legacy lowercase confirmés dormants)
+# Epic FIX-22 moved to done: 2026-04-21 (3 stories done, merge to main encore en attente — consolidé dans un seul PR géant avec FIX-21.1 + FIX-25.1 par décision Amakira)
 # Story fix-22-3 moved to done: 2026-04-21 (code review via /bmad-code-review — 3 reviewers en parallèle → 21 findings bruts, 12 dismissed spec-authorized, 2 patches appliqués (useConfirmCandidature 422 guard punctuation-normalized + getApiErrorDetails empty-details guard), 1 defer ajouté ; vitest 1992/1992 + tsc + eslint verts ; manual smoke Task 8 reste deferred env-limit)
 # Story fix-22-3 moved to review: 2026-04-21 (user-directed transition after implementation; automated validation green with Vitest 1992/1992, TypeScript, ESLint; manual smoke checklist still pending and deferred to review)
 # Story fix-22-3 moved to in-progress: 2026-04-21 (centralized frontend formatter implemented + 20 audited call-sites refactored; automated validation green with Vitest 1992/1992, TypeScript, ESLint; manual smoke scenarios still pending because no Playwright project/browser automation is available in this environment)
