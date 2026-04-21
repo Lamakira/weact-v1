@@ -105,6 +105,14 @@ class FaceRegistrationTest extends TestCase
             ->assertJsonPath('data.enabled', false);
     }
 
+    public function test_registration_status_endpoint_emits_cache_control_header_300s(): void
+    {
+        $response = $this->getJson('/api/v1/auth/registration-status');
+
+        $response->assertOk()
+            ->assertHeader('Cache-Control', 'max-age=300, private');
+    }
+
     public function test_registration_returns_403_when_disabled(): void
     {
         config(['app.registration_enabled' => false]);

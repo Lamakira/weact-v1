@@ -42,7 +42,7 @@ Route::prefix('v1')->group(function (): void {
     Route::prefix('auth')->group(function (): void {
         Route::get('/registration-status', fn () => response()->json([
             'data' => ['enabled' => (bool) config('app.registration_enabled', true)],
-        ]))->name('auth.registration-status');
+        ])->header('Cache-Control', 'private, max-age=300'))->name('auth.registration-status');
 
         Route::post('/register/face', RegisterFaceController::class)
             ->middleware('throttle:5,1')
