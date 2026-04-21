@@ -14,6 +14,7 @@ import { useMissionPayment } from '@/features/mission/composables'
 import ProducerCandidatureCard from './ProducerCandidatureCard.vue'
 import MissionSelectionSummary from '@/features/mission/components/MissionSelectionSummary.vue'
 import StatusFilter from './StatusFilter.vue'
+import { useToast } from '@/composables/useToast'
 import { CandidatureStatusLabel } from '../types'
 import type { CandidatureStatusType } from '../types'
 
@@ -97,29 +98,12 @@ const isSelectionMode = computed(
   () => props.missionStatus === 'published' || props.allowRetrySelection === true
 )
 
-/**
- * Toast state for notifications
- */
-const showToast = ref(false)
-const toastMessage = ref('')
-const toastType = ref<'success' | 'error'>('success')
+const toast = useToast()
 
 /**
  * Card refs for resetting loading state
  */
 const cardRefs = ref<Record<string, InstanceType<typeof ProducerCandidatureCard>>>({})
-
-/**
- * Show toast notification
- */
-function displayToast(message: string, type: 'success' | 'error'): void {
-  toastMessage.value = message
-  toastType.value = type
-  showToast.value = true
-  setTimeout(() => {
-    showToast.value = false
-  }, 4000)
-}
 
 /**
  * Handle reject candidature
@@ -131,11 +115,11 @@ async function handleReject(candidatureId: string): Promise<void> {
   cardRefs.value[candidatureId]?.resetRejecting()
 
   if (result) {
-    displayToast(rejectSuccessMessage.value || 'Candidature refusée', 'success')
+    toast.success(rejectSuccessMessage.value || 'Candidature refusée')
     // Refresh the list to show updated status
     await refresh()
   } else {
-    displayToast(rejectError.value || 'Erreur lors du refus', 'error')
+    toast.error(rejectError.value || 'Erreur lors du refus')
   }
 
   resetReject()
@@ -380,37 +364,5 @@ onMounted(() => {
         </button>
       </div>
     </template>
-
-    <!-- Toast Notification -->
-    <Teleport to="body">
-      <Transition
-        enter-active-class="transition-all duration-300 ease-out"
-        enter-from-class="translate-y-2 opacity-0"
-        enter-to-class="translate-y-0 opacity-100"
-        leave-active-class="transition-all duration-200 ease-in"
-        leave-from-class="translate-y-0 opacity-100"
-        leave-to-class="translate-y-2 opacity-0"
-      >
-        <div
-          v-if="showToast"
-          class="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-lg px-4 py-3 shadow-lg"
-          :class="[
-            toastType === 'success'
-              ? 'bg-green-600 text-white'
-              : 'bg-red-600 text-white',
-          ]"
-        >
-          <span class="text-sm font-medium">{{ toastMessage }}</span>
-          <button
-            type="button"
-            aria-label="Fermer"
-            class="ml-2 text-white/80 hover:text-white"
-            @click="showToast = false"
-          >
-            &times;
-          </button>
-        </div>
-      </Transition>
-    </Teleport>
   </section>
 </template>
