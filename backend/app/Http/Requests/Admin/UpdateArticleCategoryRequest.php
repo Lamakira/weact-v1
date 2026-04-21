@@ -6,9 +6,7 @@ namespace App\Http\Requests\Admin;
 
 use App\Enums\ArticleCategory;
 use App\Models\Admin;
-use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
 
 class UpdateArticleCategoryRequest extends FormRequest
@@ -37,18 +35,5 @@ class UpdateArticleCategoryRequest extends FormRequest
             'category.required' => 'La catégorie est obligatoire.',
             'category.in' => 'La catégorie sélectionnée est invalide.',
         ];
-    }
-
-    protected function failedValidation(Validator $validator): void
-    {
-        throw new HttpResponseException(
-            response()->json([
-                'error' => [
-                    'code' => 'validation_error',
-                    'message' => 'Les données fournies ne sont pas valides',
-                    'details' => $validator->errors()->toArray(),
-                ],
-            ], 422)
-        );
     }
 }

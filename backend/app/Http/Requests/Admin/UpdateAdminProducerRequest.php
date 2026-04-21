@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Admin;
 
 use App\Enums\ProducerType;
-use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rules\Enum;
 
 class UpdateAdminProducerRequest extends FormRequest
@@ -50,21 +48,5 @@ class UpdateAdminProducerRequest extends FormRequest
             'last_name.max' => 'Le nom ne peut pas dépasser 255 caractères.',
             'bio.max' => 'La bio ne peut pas dépasser 1000 caractères.',
         ];
-    }
-
-    /**
-     * Handle a failed validation attempt.
-     */
-    protected function failedValidation(Validator $validator): void
-    {
-        throw new HttpResponseException(
-            response()->json([
-                'error' => [
-                    'code' => 'validation_error',
-                    'message' => 'Les données fournies ne sont pas valides',
-                    'details' => $validator->errors()->toArray(),
-                ],
-            ], 422)
-        );
     }
 }

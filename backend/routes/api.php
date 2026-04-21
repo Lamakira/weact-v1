@@ -53,7 +53,6 @@ Route::prefix('v1')->group(function (): void {
             ->name('auth.register.producer');
 
         Route::post('/login', LoginController::class)
-            ->middleware('throttle:5,1')
             ->name('auth.login');
 
         Route::post('/forgot-password', ForgotPasswordController::class)

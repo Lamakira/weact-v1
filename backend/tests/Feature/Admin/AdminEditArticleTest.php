@@ -344,7 +344,7 @@ class AdminEditArticleTest extends TestCase
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.title.0', 'Le titre est obligatoire.');
     }
 
@@ -358,7 +358,7 @@ class AdminEditArticleTest extends TestCase
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.content.0', 'Le contenu doit contenir au moins 50 caractères.');
     }
 
@@ -372,7 +372,7 @@ class AdminEditArticleTest extends TestCase
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.category.0', 'La catégorie sélectionnée est invalide.');
     }
 
@@ -386,7 +386,7 @@ class AdminEditArticleTest extends TestCase
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.status.0', 'Le statut sélectionné est invalide.');
     }
 
@@ -401,7 +401,7 @@ class AdminEditArticleTest extends TestCase
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     public function test_image_too_large_returns_422(): void
@@ -415,7 +415,7 @@ class AdminEditArticleTest extends TestCase
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     // ──────────────────────────────────────────────

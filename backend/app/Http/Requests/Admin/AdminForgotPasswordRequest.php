@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Admin;
 
-use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Http\Exceptions\HttpResponseException;
 
 class AdminForgotPasswordRequest extends FormRequest
 {
@@ -34,18 +32,5 @@ class AdminForgotPasswordRequest extends FormRequest
             'email.required' => "L'email est obligatoire.",
             'email.email' => "L'email doit être une adresse email valide.",
         ];
-    }
-
-    protected function failedValidation(Validator $validator): void
-    {
-        throw new HttpResponseException(
-            response()->json([
-                'error' => [
-                    'code' => 'validation_error',
-                    'message' => 'Les données fournies ne sont pas valides',
-                    'details' => $validator->errors()->toArray(),
-                ],
-            ], 422)
-        );
     }
 }

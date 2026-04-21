@@ -173,9 +173,8 @@ class FaceBrowseMissionsTest extends TestCase
             ->getJson('/api/v1/face/missions');
 
         $response->assertStatus(403)
-            ->assertJson([
-                'message' => 'Cette action n\'est pas autorisée',
-            ]);
+            ->assertJsonPath('error.code', 'FORBIDDEN')
+            ->assertJsonPath('error.message', 'Cette action n\'est pas autorisée');
     }
 
     public function test_unauthenticated_user_cannot_access(): void

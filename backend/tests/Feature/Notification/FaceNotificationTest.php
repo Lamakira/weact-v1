@@ -496,9 +496,8 @@ class FaceNotificationTest extends TestCase
             ->postJson("/api/v1/face/notifications/{$notification->uuid}/read");
 
         $response->assertForbidden()
-            ->assertJson([
-                'message' => 'Cette notification ne vous appartient pas',
-            ]);
+            ->assertJsonPath('error.code', 'FORBIDDEN')
+            ->assertJsonPath('error.message', 'Cette notification ne vous appartient pas');
     }
 
     public function test_face_only_sees_own_notifications(): void

@@ -7,9 +7,7 @@ namespace App\Http\Requests\Admin;
 use App\Enums\ArticleCategory;
 use App\Enums\ArticleStatus;
 use App\Models\Admin;
-use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
 
 class IndexArticleRequest extends FormRequest
@@ -42,18 +40,5 @@ class IndexArticleRequest extends FormRequest
             'status.in' => 'Le statut sélectionné est invalide.',
             'search.max' => 'La recherche ne peut pas dépasser 255 caractères.',
         ];
-    }
-
-    protected function failedValidation(Validator $validator): void
-    {
-        throw new HttpResponseException(
-            response()->json([
-                'error' => [
-                    'code' => 'validation_error',
-                    'message' => 'Les données fournies ne sont pas valides',
-                    'details' => $validator->errors()->toArray(),
-                ],
-            ], 422)
-        );
     }
 }

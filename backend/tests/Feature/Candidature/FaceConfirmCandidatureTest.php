@@ -193,9 +193,8 @@ class FaceConfirmCandidatureTest extends TestCase
             ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/confirm");
 
         $response->assertForbidden()
-            ->assertJson([
-                'message' => 'Cette candidature ne vous appartient pas',
-            ]);
+            ->assertJsonPath('error.code', 'FORBIDDEN')
+            ->assertJsonPath('error.message', 'Cette candidature ne vous appartient pas');
     }
 
     public function test_defensive_check_logs_invariant_violation_when_accepted_candidature_has_unpaid_payment(): void

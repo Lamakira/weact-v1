@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { isAxiosError } from 'axios'
 import type { AdminDashboardStats } from '../services/adminDashboardApi'
 import { adminDashboardApi } from '../services/adminDashboardApi'
+import { formatApiError } from '@/services/errorFormatter'
 
 /**
  * Composable for fetching and managing Admin dashboard statistics
@@ -33,7 +34,7 @@ export function useAdminDashboardStats() {
         } else if (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED') {
           error.value = 'Impossible de se connecter au serveur. Vérifiez votre connexion.'
         } else {
-          error.value = err.response?.data?.message || 'Une erreur est survenue'
+          error.value = formatApiError(err, 'Une erreur est survenue')
         }
       } else {
         error.value = 'Une erreur inattendue est survenue'

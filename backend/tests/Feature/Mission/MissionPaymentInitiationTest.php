@@ -142,7 +142,8 @@ class MissionPaymentInitiationTest extends TestCase
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('message', 'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.');
+            ->assertJsonPath('error.code', 'PAYMENT_INITIATION_FAILED')
+            ->assertJsonPath('error.message', 'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.');
 
         $this->assertSame(MissionStatus::Published, $this->mission->fresh()->status);
         $this->assertSame(CandidatureStatus::Pending, $this->selectedFirst->fresh()->status);
@@ -540,7 +541,8 @@ class MissionPaymentInitiationTest extends TestCase
             ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", []);
 
         $response->assertStatus(422)
-            ->assertJsonPath('message', 'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.');
+            ->assertJsonPath('error.code', 'PAYMENT_INITIATION_FAILED')
+            ->assertJsonPath('error.message', 'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.');
 
         $this->assertDatabaseHas('mission_payments', [
             'id' => $payment->id,
@@ -589,7 +591,8 @@ class MissionPaymentInitiationTest extends TestCase
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('message', 'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.');
+            ->assertJsonPath('error.code', 'PAYMENT_INITIATION_FAILED')
+            ->assertJsonPath('error.message', 'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.');
 
         $this->assertSame(MissionStatus::Published, $this->mission->fresh()->status);
         $this->assertSame(CandidatureStatus::Pending, $this->selectedFirst->fresh()->status);
@@ -649,7 +652,8 @@ class MissionPaymentInitiationTest extends TestCase
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('message', 'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.');
+            ->assertJsonPath('error.code', 'PAYMENT_INITIATION_FAILED')
+            ->assertJsonPath('error.message', 'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.');
 
         // Compensation was attempted but threw, so prepared state is left in place
         // (MissionPayment row + mission pending). FIX-20.1: candidatures were never
@@ -842,7 +846,8 @@ class MissionPaymentInitiationTest extends TestCase
         $this->actingAs($this->producerUser)
             ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", [])
             ->assertStatus(422)
-            ->assertJsonPath('message', 'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.');
+            ->assertJsonPath('error.code', 'PAYMENT_INITIATION_FAILED')
+            ->assertJsonPath('error.message', 'Le paiement de la mission n\'a pas pu être initialisé. Veuillez réessayer.');
 
         // Row is still pending with the same remote id — no data loss on resume failure.
         $this->assertDatabaseHas('mission_payments', [

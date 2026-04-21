@@ -170,7 +170,7 @@ describe('useMissionsCount', () => {
       await fetchMissionsCount()
 
       expect(count.value).toBe(0)
-      expect(error.value).toBe('Une erreur est survenue')
+      expect(error.value).toBe('Le serveur est temporairement indisponible. Veuillez réessayer.')
     })
 
     it('handles non-axios error with generic message', async () => {

@@ -7,9 +7,7 @@ namespace App\Http\Requests\Admin;
 use App\Enums\ArticleCategory;
 use App\Enums\ArticleStatus;
 use App\Models\Admin;
-use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
 
 class StoreArticleRequest extends FormRequest
@@ -52,18 +50,5 @@ class StoreArticleRequest extends FormRequest
             'featured_image.mimes' => "L'image doit être au format JPEG ou PNG.",
             'featured_image.max' => "L'image ne peut pas dépasser 2 Mo.",
         ];
-    }
-
-    protected function failedValidation(Validator $validator): void
-    {
-        throw new HttpResponseException(
-            response()->json([
-                'error' => [
-                    'code' => 'validation_error',
-                    'message' => 'Les données fournies ne sont pas valides',
-                    'details' => $validator->errors()->toArray(),
-                ],
-            ], 422)
-        );
     }
 }

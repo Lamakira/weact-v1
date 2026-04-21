@@ -27,8 +27,11 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Block destructive database commands (migrate:fresh, migrate:refresh, db:wipe)
-        // in production to prevent accidental data loss
-        DB::prohibitDestructiveCommands($this->app->isProduction());
+        // everywhere except the testing env — RefreshDatabase needs them on weact_test.
+        // Blocks accidental wipes of the dev `weact` database from a stray `artisan migrate:fresh`.
+        DB::prohibitDestructiveCommands(
+            ! $this->app->environment('testing')
+        );
 
         // Broadcast NotificationCreated event whenever a notification is persisted
         Notification::observe(NotificationObserver::class);

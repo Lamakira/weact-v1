@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Producer;
 
+use App\Enums\ErrorCodes;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Producer\DeleteAgencyLogoRequest;
 use App\Http\Requests\Producer\ShowAgencyLogoRequest;
@@ -39,6 +40,14 @@ class ProfileController extends Controller
         return $user->userable;
     }
 
+    private function unauthorizedResponse(): JsonResponse
+    {
+        return response()->json(
+            ErrorCodes::Forbidden->envelope('Utilisateur non autorisé'),
+            403
+        );
+    }
+
     /**
      * Get the current Producer's profile.
      */
@@ -47,9 +56,7 @@ class ProfileController extends Controller
         $producer = $this->getAuthenticatedProducer($request);
 
         if (! $producer) {
-            return response()->json([
-                'message' => 'Utilisateur non autorisé',
-            ], 403);
+            return $this->unauthorizedResponse();
         }
 
         return response()->json([
@@ -65,9 +72,7 @@ class ProfileController extends Controller
         $producer = $this->getAuthenticatedProducer($request);
 
         if (! $producer) {
-            return response()->json([
-                'message' => 'Utilisateur non autorisé',
-            ], 403);
+            return $this->unauthorizedResponse();
         }
 
         $this->profilePhotoService->uploadProfilePhoto(
@@ -92,9 +97,7 @@ class ProfileController extends Controller
         $producer = $this->getAuthenticatedProducer($request);
 
         if (! $producer) {
-            return response()->json([
-                'message' => 'Utilisateur non autorisé',
-            ], 403);
+            return $this->unauthorizedResponse();
         }
 
         $this->profilePhotoService->deleteProfilePhoto($producer);

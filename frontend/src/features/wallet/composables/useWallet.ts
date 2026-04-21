@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
-import { isAxiosError } from 'axios'
 import { walletApi } from '../services/walletApi'
+import { formatApiError } from '@/services/errorFormatter'
 import type {
   WalletData,
   WalletTransaction,
@@ -67,13 +67,7 @@ export function useWallet() {
       await fetchWallet(1) // Refresh balance + transaction list
       return true
     } catch (err: unknown) {
-      if (isAxiosError(err) && err.response?.data?.errors?.amount) {
-        withdrawError.value = err.response.data.errors.amount[0]
-      } else if (isAxiosError(err) && err.response?.data?.message) {
-        withdrawError.value = err.response.data.message
-      } else {
-        withdrawError.value = 'Retrait échoué. Veuillez réessayer.'
-      }
+      withdrawError.value = formatApiError(err, 'Retrait échoué. Veuillez réessayer.')
       return false
     } finally {
       isWithdrawing.value = false

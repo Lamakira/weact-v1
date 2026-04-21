@@ -195,7 +195,7 @@ class AdminSetArticleStatusTest extends TestCase
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.status.0', 'Le statut sélectionné est invalide.');
     }
 
@@ -213,7 +213,7 @@ class AdminSetArticleStatusTest extends TestCase
             ->patchJson($this->endpoint($article), []);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.status.0', 'Le statut est obligatoire.');
     }
 

@@ -227,6 +227,10 @@ After implementation, all of these must pass (run from repo root — frontend in
 ### Change Log
 
 - 2026-04-19 — Initial implementation: command + marker exceptions + 7-test feature suite + runbook. All non-regression filters green.
+- 2026-04-19 — Code review: 2 decisions resolved (rejected-query hardening + runbook webhook-pause section), 6 patches applied (+ 3 new tests), 3 items deferred. Final test suite: 10/10 Reconcile, 26/26 MissionPayment, 236/236 Candidature.
+- 2026-04-19 — Merged to `main` via PR #25 (merge commit `39be8d1`), deployed via CI.
+- 2026-04-19 — Prod pre-flight re-audit folded payment 9 / mission 13 into scope after FedaPay transaction `110554804` confirmed `Expirée` (0 CFA paid, no webhook possible). Operator ran `UPDATE mission_payments SET fedapay_transaction_id = NULL WHERE id = 9` so the command's `whereNull` discovery guard picks it up.
+- 2026-04-19 — `candidature:reconcile-stale-selections --apply` run successfully on prod: **5 payments processed / 6 accepted + 214 rejected candidatures flipped to pending / 6 mpc entries deleted / 5 missions reset to published / 225 notifications queued / 0 failed / 0 skipped.** Post-run audit confirms both orphan queries return 0 rows; 6 cancelled candidatures untouched; 3 notification types present with exact expected counts (6 + 214 + 5).
 
 ### Review Findings
 

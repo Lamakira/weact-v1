@@ -66,7 +66,7 @@ describe('usePasswordChange', () => {
 
     expect(result).toBe(false)
     expect(fieldErrors.value.current_password).toEqual(['Le mot de passe actuel est incorrect.'])
-    expect(error.value).toBe('Les données fournies ne sont pas valides')
+    expect(error.value).toBe('Le mot de passe actuel est incorrect.')
   })
 
   it('sets isLoading during request', async () => {

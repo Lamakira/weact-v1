@@ -3,23 +3,17 @@
  * DataPrivacySection - User data rights (Art. 437-443 Code du Numerique)
  * Provides: data export (portability) and account deletion (right to be forgotten)
  */
-import type { AxiosError } from 'axios'
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Download, Trash2, AlertTriangle, Loader2, Eye, X } from 'lucide-vue-next'
 import apiClient, { getCsrfCookie } from '@/services/apiClient'
+import { formatApiError } from '@/services/errorFormatter'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 
 interface DeleteAccountResponse {
   message?: string
   warning?: string | null
-}
-
-interface ApiErrorResponse {
-  error?: {
-    message?: string
-  }
 }
 
 const router = useRouter()
@@ -91,9 +85,7 @@ async function handleDelete() {
       toast.warning(response.data.warning, { timeout: 7000 })
     }
   } catch (err) {
-    const apiError = err as AxiosError<ApiErrorResponse>
-    const msg = apiError.response?.data?.error?.message
-    deleteError.value = msg || 'Erreur lors de la suppression. Vérifiez votre mot de passe.'
+    deleteError.value = formatApiError(err, 'Erreur lors de la suppression. Vérifiez votre mot de passe.')
   } finally {
     isDeleting.value = false
   }

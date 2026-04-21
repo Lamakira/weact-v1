@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { isAxiosError } from 'axios'
 import { candidatureApi } from '../services/candidatureApi'
 import { useToast } from '@/composables/useToast'
+import { formatApiError, getApiErrorCode } from '@/services/errorFormatter'
 import type { Candidature, ApplyToMissionResult } from '../types'
 
 /**
@@ -44,44 +45,34 @@ export function useApplyToMission() {
         data: response.data,
       }
     } catch (err: unknown) {
+      const message = formatApiError(err, 'Une erreur est survenue lors de l\'envoi de votre candidature')
+      const code = getApiErrorCode(err)
+
+      error.value = message
+      errorCode.value = code
+
       if (isAxiosError(err)) {
-        // Handle structured error response
-        if (err.response?.data?.error) {
-          const apiError = err.response.data.error
-          error.value = apiError.message
-          errorCode.value = apiError.code
-
-          // Gender mismatch: surface server message directly
-          if (apiError.code === 'gender_mismatch') {
-            toast.error(apiError.message)
-            return {
-              success: false,
-              error: apiError,
-            }
-          }
-
-          return {
-            success: false,
-            error: apiError,
-          }
-        }
-
-        // Handle validation errors
-        if (err.response?.status === 422 && err.response?.data?.errors) {
-          const validationErrors = err.response.data.errors
-          const firstError = Object.values(validationErrors).flat()[0] as string
-          error.value = firstError || 'Erreur de validation'
-
+        if (code === 'gender_mismatch') {
+          toast.error(message)
           return {
             success: false,
             error: {
-              code: 'VALIDATION_ERROR',
-              message: firstError || 'Erreur de validation',
+              code,
+              message,
             },
           }
         }
 
-        // Handle other HTTP errors
+        if (err.response?.status === 422) {
+          return {
+            success: false,
+            error: {
+              code: code ?? 'VALIDATION_ERROR',
+              message,
+            },
+          }
+        }
+
         if (err.response?.status === 401) {
           error.value = 'Veuillez vous connecter pour postuler'
           return {
@@ -94,14 +85,13 @@ export function useApplyToMission() {
         }
 
         if (err.response?.status === 403) {
-          // Check for email verification error
-          if (err.response?.data?.error?.code === 'EMAIL_NOT_VERIFIED') {
-            const apiError = err.response.data.error
-            error.value = apiError.message
-            errorCode.value = 'EMAIL_NOT_VERIFIED'
+          if (code === 'EMAIL_NOT_VERIFIED') {
             return {
               success: false,
-              error: apiError,
+              error: {
+                code: 'EMAIL_NOT_VERIFIED',
+                message,
+              },
             }
           }
 
@@ -127,13 +117,11 @@ export function useApplyToMission() {
         }
       }
 
-      // Generic error
-      error.value = 'Une erreur est survenue lors de l\'envoi de votre candidature'
       return {
         success: false,
         error: {
           code: 'UNKNOWN_ERROR',
-          message: error.value,
+          message,
         },
       }
     } finally {

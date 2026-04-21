@@ -1,6 +1,8 @@
 import { ref } from 'vue'
+import { isAxiosError } from 'axios'
 import { messagingApi } from '../services/messagingApi'
-import type { Message, ApiErrorResponse } from '../types'
+import { formatApiError, getApiErrorDetails } from '@/services/errorFormatter'
+import type { Message } from '../types'
 
 /**
  * Composable for sending messages in a conversation
@@ -40,30 +42,25 @@ export function useSendMessage() {
       const response = await messagingApi.sendMessage(conversationId, { content: trimmedContent })
       return response.data
     } catch (err: unknown) {
-      // Handle API error response
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosError = err as {
-          response?: { data?: ApiErrorResponse; status?: number }
-        }
+      if (isAxiosError(err)) {
+        if (err.response?.status === 422) {
+          const errors = getApiErrorDetails(err)
+          const firstField = Object.keys(errors)[0]
+          const firstMessage = firstField
+            ? (errors[firstField]?.[0] ?? formatApiError(err, 'Erreur de validation'))
+            : formatApiError(err, 'Erreur de validation')
 
-        if (axiosError.response?.status === 422) {
-          // Validation errors
-          const errors = axiosError.response.data?.errors
-          if (errors?.content && errors.content.length > 0) {
-            validationErrors.value = errors.content
-            error.value = errors.content[0] ?? 'Erreur de validation'
-          } else {
-            error.value = 'Erreur de validation'
-          }
-        } else if (axiosError.response?.status === 403) {
+          validationErrors.value = errors.content ?? []
+          error.value = firstMessage || 'Erreur de validation'
+        } else if (err.response?.status === 403) {
           error.value = "Vous n'êtes pas autorisé à envoyer des messages dans cette conversation"
-        } else if (axiosError.response?.status === 404) {
+        } else if (err.response?.status === 404) {
           error.value = 'Conversation introuvable'
         } else {
-          error.value = "Impossible d'envoyer le message. Veuillez réessayer."
+          error.value = formatApiError(err, "Impossible d'envoyer le message. Veuillez réessayer.")
         }
       } else {
-        error.value = 'Une erreur est survenue. Veuillez réessayer.'
+        error.value = formatApiError(err, 'Une erreur est survenue. Veuillez réessayer.')
       }
       console.error('Failed to send message:', err)
       return null

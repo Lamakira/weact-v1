@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Face;
 
 use App\Enums\CandidatureStatus;
+use App\Enums\ErrorCodes;
 use App\Enums\MissionGender;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
@@ -280,9 +281,10 @@ class CandidatureController extends Controller
 
         // Verify candidature is pending
         if ($candidature->status !== CandidatureStatus::Pending) {
-            return response()->json([
-                'message' => 'Seules les candidatures en attente peuvent être annulées.',
-            ], 400);
+            return response()->json(
+                ErrorCodes::InvalidStatus->envelope('Seules les candidatures en attente peuvent être annulées.'),
+                400
+            );
         }
 
         $candidature->update(['status' => CandidatureStatus::Cancelled]);

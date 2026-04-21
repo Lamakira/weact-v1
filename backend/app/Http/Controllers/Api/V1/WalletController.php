@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\ErrorCodes;
 use App\Exceptions\WithdrawalLockException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\WithdrawWalletRequest;
@@ -58,15 +59,15 @@ class WalletController extends Controller
         } catch (WithdrawalLockException $e) {
             \Log::warning('Withdrawal lock conflict', ['user_id' => $request->user()->id]);
 
-            return response()->json(['message' => $e->getMessage()], 409);
+            return response()->json(ErrorCodes::WithdrawalLock->envelope($e->getMessage()), 409);
         } catch (\RuntimeException $e) {
             \Log::warning('Withdrawal insufficient balance', ['user_id' => $request->user()->id, 'error' => $e->getMessage()]);
 
-            return response()->json(['message' => 'Solde insuffisant.'], 422);
+            return response()->json(ErrorCodes::InsufficientBalance->envelope('Solde insuffisant.'), 422);
         } catch (\Exception $e) {
             \Log::error('Withdrawal failed', ['user_id' => $request->user()->id, 'error' => $e->getMessage(), 'class' => get_class($e)]);
 
-            return response()->json(['message' => 'Retrait échoué. Veuillez réessayer.'], 500);
+            return response()->json(ErrorCodes::WithdrawalFailed->envelope('Retrait échoué. Veuillez réessayer.'), 500);
         }
 
         return response()->json([

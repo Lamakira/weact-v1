@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Enums\ErrorCodes;
 use App\Enums\FinancialEventType;
 use App\Http\Controllers\Controller;
 use App\Mail\WithdrawalApprovedMail;
@@ -135,9 +136,10 @@ class WithdrawalRequestController extends Controller
                 return $lockedRequest->fresh(['user.userable', 'walletTransaction']);
             });
         } catch (RuntimeException $e) {
-            return response()->json([
-                'message' => 'Solde insuffisant au moment de l’approbation. L’utilisateur a probablement dépensé une partie de ses fonds.',
-            ], 422);
+            return response()->json(
+                ErrorCodes::InsufficientBalance->envelope('Solde insuffisant au moment de l’approbation. L’utilisateur a probablement dépensé une partie de ses fonds.'),
+                422
+            );
         }
 
         Mail::to($processedRequest->user->email)->send(new WithdrawalApprovedMail($processedRequest));

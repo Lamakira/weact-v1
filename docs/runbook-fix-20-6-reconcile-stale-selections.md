@@ -136,9 +136,9 @@ if ($payment->status === MissionPaymentStatus::Failed) {
 }
 ```
 
-This is the same guard FIX-20.1 bakes in. Deploying it ahead of the reconcile run also works, but is a larger change than pausing webhooks.
+> **Important:** FIX-20.1 only adds a `Paid` idempotency guard (`if ($payment->status === MissionPaymentStatus::Paid) return $payment;` in `MissionPaymentService::markAsPaid`). It does **not** short-circuit on `Failed` state. A belated webhook `transaction.approved` arriving for a reconciled payment that still has a live `fedapay_transaction_id` would flip it to `Paid` despite the reconcile. The 2026-04-19 prod run skipped the pause safely because (a) payments 1/2/3/7 never had a `fedapay_transaction_id` and (b) payment 9's transaction `110554804` was terminal (`Expirée`) — neither case allows FedaPay to emit an `approved` event. **Any future incident where an in-scope payment still has a non-terminal FedaPay transaction must use the pause or deploy the Failed guard above.**
 
-**Do not skip this section.** The window is small and empirically the five in-scope payments have no recent FedaPay retries, but one stray event is enough to recreate the problem the reconcile run is supposed to fix.
+**Do not skip this section** unless (a) no in-scope payment has ever had a `fedapay_transaction_id`, or (b) every in-scope payment's remote transaction is verified terminal (`Expirée`, `canceled`, `declined`). Otherwise, one stray event is enough to recreate the problem the reconcile run is supposed to fix.
 
 ---
 

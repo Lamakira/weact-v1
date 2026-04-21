@@ -120,7 +120,7 @@ class ResetPasswordTest extends TestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     /**
@@ -142,7 +142,7 @@ class ResetPasswordTest extends TestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     /**
@@ -164,7 +164,7 @@ class ResetPasswordTest extends TestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     /**
@@ -186,7 +186,7 @@ class ResetPasswordTest extends TestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     /**
@@ -197,6 +197,6 @@ class ResetPasswordTest extends TestCase
         $response = $this->postJson('/api/v1/auth/reset-password', []);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 }

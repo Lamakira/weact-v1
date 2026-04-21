@@ -145,7 +145,8 @@ class WalletWithdrawalTest extends TestCase
         $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 20000]))
             ->assertStatus(500)
-            ->assertJsonPath('message', 'Retrait échoué. Veuillez réessayer.');
+            ->assertJsonPath('error.code', 'WITHDRAWAL_FAILED')
+            ->assertJsonPath('error.message', 'Retrait échoué. Veuillez réessayer.');
 
         // Balance unchanged
         $this->faceUser->refresh();
@@ -328,6 +329,7 @@ class WalletWithdrawalTest extends TestCase
         $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload())
             ->assertStatus(409)
-            ->assertJsonPath('message', 'Un retrait est déjà en cours pour ce compte. Veuillez patienter.');
+            ->assertJsonPath('error.code', 'WITHDRAWAL_LOCK')
+            ->assertJsonPath('error.message', 'Un retrait est déjà en cours pour ce compte. Veuillez patienter.');
     }
 }

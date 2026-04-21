@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { candidatureApi } from '../services/candidatureApi'
+import { formatApiError, GENERIC_VALIDATION_MESSAGE } from '@/services/errorFormatter'
 import type { CandidatureResponse } from '../types'
 
 type ConfirmErrorPayload = {
@@ -24,7 +25,7 @@ function resolveConfirmErrorMessage(err: unknown): string {
     return 'Impossible de contacter le serveur. Vérifiez votre connexion et réessayez.'
   }
 
-  const backendMessage = response.data?.error?.message ?? response.data?.message
+  const backendMessage = formatApiError(err, '')
 
   switch (response.status) {
     case 400:
@@ -33,8 +34,14 @@ function resolveConfirmErrorMessage(err: unknown): string {
       return backendMessage || "Vous n'êtes pas autorisé à effectuer cette action"
     case 404:
       return 'Candidature introuvable'
-    case 422:
-      return backendMessage || 'Cette candidature ne peut pas être confirmée dans son état actuel.'
+    case 422: {
+      const normalized = backendMessage.endsWith('.')
+        ? backendMessage.slice(0, -1)
+        : backendMessage
+      return normalized && normalized !== GENERIC_VALIDATION_MESSAGE
+        ? backendMessage
+        : 'Cette candidature ne peut pas être confirmée dans son état actuel.'
+    }
     case 429:
       return 'Trop de tentatives. Veuillez réessayer dans quelques instants.'
     case 500:

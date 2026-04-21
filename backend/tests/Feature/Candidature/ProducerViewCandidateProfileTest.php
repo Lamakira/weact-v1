@@ -257,9 +257,8 @@ class ProducerViewCandidateProfileTest extends TestCase
         );
 
         $response->assertForbidden()
-            ->assertJson([
-                'message' => 'Accès réservé aux Producteurs',
-            ]);
+            ->assertJsonPath('error.code', 'FORBIDDEN')
+            ->assertJsonPath('error.message', 'Accès réservé aux Producteurs');
     }
 
     public function test_producer_can_view_any_face_profile(): void

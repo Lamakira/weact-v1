@@ -1,8 +1,9 @@
 import { ref, computed } from 'vue'
+import { isAxiosError } from 'axios'
 import { producerApi } from '../services/producerApi'
 import type { ProducerBioResult } from '../types'
-import { isAxiosError } from 'axios'
 import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
+import { formatApiError, getApiErrorDetails } from '@/services/errorFormatter'
 
 const MAX_BIO_LENGTH = 500
 const BIO_CACHE_TTL_MS = 5 * 60 * 1000
@@ -59,8 +60,9 @@ export function useProducerBio() {
       }
     } catch (err) {
       if (isAxiosError(err) && err.response?.status === 422) {
-        const validationErrors = err.response.data.errors as Record<string, string[]>
-        error.value = validationErrors.bio?.[0] || 'Erreur de validation'
+        const validationErrors = getApiErrorDetails(err)
+        const validationMessage = formatApiError(err, 'Erreur de validation')
+        error.value = validationErrors.bio?.[0] || validationMessage
         return { success: false, errors: validationErrors, message: error.value }
       }
       const errorMessage = 'Erreur lors de la mise à jour de la bio'

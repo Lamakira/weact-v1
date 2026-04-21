@@ -99,7 +99,7 @@ class ForgotPasswordTest extends TestCase
         $response = $this->postJson('/api/v1/auth/forgot-password', []);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     /**
@@ -112,7 +112,7 @@ class ForgotPasswordTest extends TestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     /**

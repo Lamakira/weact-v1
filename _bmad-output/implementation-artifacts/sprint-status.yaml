@@ -444,16 +444,71 @@ development_status:
   # ============================================
 
   # Epic FIX-20: Unification du contrat Accepted = sélection payée et confirmable (6 stories)
-  epic-fix-20: in-progress
+  epic-fix-20: done
   fix-20-1-move-accepted-transition-to-payment-webhook: done  # Refactor: Accepted fire au webhook Paid, prep ne mute plus candidature.status
   fix-20-2-simplify-face-confirm-endpoint: done                        # Retirer/alléger le check PAYMENT_NOT_CONFIRMED désormais redondant
   fix-20-3-remove-legacy-manual-accept-endpoint: done                  # Commit ac2719d sur dev — en attente de merge main. Révélé un gap Conversation::firstOrCreate à traiter dans FIX-20.1
   fix-20-4-simplify-obsolete-fix-19-compensation: done                 # Retirer le rollback candidature.status de handleInitiationFailure + update runbook
   fix-20-5-confirm-candidature-error-mapping: done                     # Commit 9bca244 sur dev — en attente de merge main
   fix-20-6-reconcile-stale-selections-production-data: done            # Investigation payment 7 + commande de migration des 181 candidatures orphelines + notifications
-  epic-fix-20-retrospective: optional
+  epic-fix-20-retrospective: done
 
-last_updated: "2026-04-19"
+  # ============================================
+  # POST-LAUNCH FIXES Sprint 12 (4 axes parallèles — 2026-04-19)
+  # Source: epics-postlaunch-fixes-9.md (4 epics, 11 stories)
+  # ============================================
+
+  # Epic FIX-21 : Throttle login — message français via rate limiter dédié (1 story)
+  epic-fix-21: done
+  fix-21-1-auth-rate-limiter-french-response: done                          # In-controller email-keyed limiter + FR 429 envelope + LoginTest 23/23 + frontend authApi test green; post-review patches (trim, Retry-After, Log::warning, authApi hardening tests) applied 2026-04-19
+  epic-fix-21-retrospective: done
+
+  # Epic FIX-22 : Cohérence des messages d'erreur — locale + format + extraction (3 stories)
+  epic-fix-22: in-progress
+  fix-22-1-force-backend-locale-fr: done                                    # config/app.php défaut fr + middleware SetLocale + lang/fr/* + lang/fr.json (mail keys) — 7 review patches appliqués 2026-04-20
+  fix-22-2-standardize-api-error-format: done                               # Format unique {error:{message,code}} + alignement WalletController + handler global + review patches 2026-04-20
+  fix-22-3-centralize-frontend-error-formatter: done                        # services/errorFormatter.ts + refactor composables (useWallet, useApplyToMission, useAdminDashboardStats)
+  epic-fix-22-retrospective: optional
+
+  # Epic FIX-23 : Fiabilité du flag REGISTRATION_ENABLED (1 story)
+  epic-fix-23: backlog
+  fix-23-1-registration-enabled-deterministic-fallback: backlog             # VITE_REGISTRATION_ENABLED fallback + Cache-Control sur /auth/registration-status
+  epic-fix-23-retrospective: optional
+
+  # Epic FIX-24 : Notifications email du cycle mission (6 stories)
+  epic-fix-24: backlog
+  fix-24-1-email-infrastructure-base-layout-smtp: backlog                   # Layout base.blade.php + BaseMail abstract + runbook SMTP prod
+  fix-24-2-face-selected-mail: backlog                                      # Email Face sélectionnée après paiement Producer → hook dans applySelectionOutcomesOnPaid
+  fix-24-3-face-confirmed-mail: backlog                                     # Email participation Face confirmée → Producer (hook Face/CandidatureController::confirm)
+  fix-24-4-mission-completed-mail: backlog                                  # Email mission clôturée + crédit wallet Face (hook MissionService::completeMission)
+  fix-24-5-booking-received-mail: backlog                                   # Email demande booking reçue → Face (listener sur event BookingCreated)
+  fix-24-6-wallet-credited-mail: backlog                                    # Email portefeuille Producer crédité (event ProducerWalletCredited sur WalletService::creditDirect)
+  epic-fix-24-retrospective: optional
+
+  # Epic FIX-25 : Hardening — bloquer commandes DB destructives en local (1 story)
+  epic-fix-25: in-progress
+  fix-25-1-prohibit-destructive-commands-outside-testing: review            # DB::prohibitDestructiveCommands(! environment('testing')) — appliqué en pré-commit direct 2026-04-19
+  epic-fix-25-retrospective: optional
+
+last_updated: "2026-04-21"
+# Story fix-22-3 moved to done: 2026-04-21 (code review via /bmad-code-review — 3 reviewers en parallèle → 21 findings bruts, 12 dismissed spec-authorized, 2 patches appliqués (useConfirmCandidature 422 guard punctuation-normalized + getApiErrorDetails empty-details guard), 1 defer ajouté ; vitest 1992/1992 + tsc + eslint verts ; manual smoke Task 8 reste deferred env-limit)
+# Story fix-22-3 moved to review: 2026-04-21 (user-directed transition after implementation; automated validation green with Vitest 1992/1992, TypeScript, ESLint; manual smoke checklist still pending and deferred to review)
+# Story fix-22-3 moved to in-progress: 2026-04-21 (centralized frontend formatter implemented + 20 audited call-sites refactored; automated validation green with Vitest 1992/1992, TypeScript, ESLint; manual smoke scenarios still pending because no Playwright project/browser automation is available in this environment)
+# Story fix-22-3 moved to ready-for-dev: 2026-04-20 (comprehensive story file created — contract mirrors FIX-22.2 global handler envelope exactly, AC #1 7-branch resolution with §1 validation-detail shunt first / §2 standard envelope second (unified into single-rule precedence post-review), Prove It targets useWallet.withdraw showing INSUFFICIENT_BALANCE message leak post-FIX-22.2; audit extended to 20 sites (17 composables + 3 Vue components) after second grep pass; authApi.ts re-export preserves 6+ existing consumers; 17 errorFormatter branches locked via unit tests + 1 real red-phase test (6.A) + 2 regression-guard tests (6.B/6.C reclassified honest after review) on useWallet)
+# Story fix-22-2 moved to done: 2026-04-20 (code review via /bmad-code-review — 3 reviewers en parallèle → 4 decision-needed résolues + 6 patches appliqués : enum aligné sur le wire lowercase (5 cases) + 2 cases ajoutés EMAIL_NOT_VERIFIED/registration_disabled, closure AuthorizationException mort supprimé, mapping 401→UNAUTHENTICATED dans HttpException handler, envelope() protège code/message contre $extra, gating api exact, closure ModelNotFoundException ajouté ; 18 findings dismissed spec-compliant, 5 defer dans deferred-work.md ; full suite 1866/1866 green, pint clean)
+# Story fix-22-2 moved to review: 2026-04-20 (Prove It 7/7 green, suite complète 1866/1866 passed, pint clean; handler global bootstrap/app.php + enum ErrorCodes + 7 controllers refactorés + 19 failedValidation() retirés + 47 assertions 'validation_error' → 'VALIDATION_ERROR' + 11 tests tiers migrés sur les chemins abort normalisés; frontend inchangé, FIX-22.3 toujours en backlog)
+# Story fix-22-2 moved to in-progress: 2026-04-20 (dev-story workflow started)
+# Story fix-22-2 moved to ready-for-dev: 2026-04-20 (comprehensive story file created + cross-reviewed — Prove It 7 scenarios A-G, audit identifies 6 non-conforming controllers + 7 render() closures in bootstrap/app.php::withExceptions, ValidationException double-format to preserve 176 assertJsonValidationErrors non-regression, ErrorCodes enum opt-in instance helper, 47 legacy 'validation_error' → 'VALIDATION_ERROR' migration across 12 files coordinated with 19 FormRequest::failedValidation() removal, Test 14.A retargeted to WithdrawalLockException 409 for determinism, FaceCancelCandidatureTest + MissionPaymentInitiationTest added to Task 7 inventory)
+# Story fix-22-1 moved to done: 2026-04-20 (code review — 7 patches appliqués : SetLocale docblock, 3 rephrases FR, vendor `custom` placeholder restauré EN+FR, Test 1.E canonicalize + leaf FR≠EN, lang/fr.json créé pour templates mail vendor, Test 1.F ajouté ; full suite 1859/1859 green ; lang/fr.json inclus dans le scope suite à la revue, `config:cache` dismissed car prod `.env` contient déjà APP_LOCALE=fr)
+# Story fix-22-1 moved to review: 2026-04-20 (Prove It 5/5 green, LoginTest 23/23 green, full suite 1858/1858 green; Option B retenue pour Carbon; placeholder vendor `custom`/`attributes` vidé pour parité EN/FR)
+# Story fix-22-1 moved to in-progress: 2026-04-20 (dev-story workflow started)
+# Epic FIX-22 moved to in-progress: 2026-04-20 (first story FIX-22.1 created)
+# Story fix-22-1 moved to ready-for-dev: 2026-04-20 (comprehensive story file created — Prove It targets real vendor-EN leaks via trans()/App::getLocale(); FormRequest messages() FR already hardcoded, ThrottleRequestsException explicitly out of scope, re-scoped to FIX-22.2)
+# Epic FIX-21 retrospective marked as done: 2026-04-20 (story-focused retro on FIX-21.1 + FIX-25 spawn, saved to epic-fix-21-retro-2026-04-20.md; branch fix/21-1-auth-rate-limiter-french-response not yet merged to main — commitment captured as retro action item #3)
+# Epic FIX-21 moved to done: 2026-04-20 (all stories done + retrospective complete; merge to main still pending per retro action item #3)
+# Story fix-21-1 moved to done: 2026-04-19 (code review — 3 decision-needed accepted as spec-consistent; 4 patches applied: trim() on throttle key, Retry-After: 60 header on 429, Log::warning observability, authApi.spec.ts hardened to 5 cases; LoginTest 23/23 + authApi 5/5 green)
+# Epic FIX-20 retrospective marked as done: 2026-04-19 (story-focused retro on FIX-20.6, saved to fix-20-6-retro-2026-04-19.md; stories FIX-20.1 to 20.5 had already been reviewed individually via their own code reviews, so no full-epic replay was needed)
+# Epic FIX-20 moved to done: 2026-04-19 (PR #25 merged to main, deployed, reconcile command run successfully on prod: 5 payments / 6 accepted + 214 rejected / 225 notifications / 0 failures / 0 payments skipped; audit queries return 0 rows post-run; payment 9 / mission 13 folded into scope at pre-flight after FedaPay transaction 110554804 confirmed Expirée)
 # Story fix-20-6 moved to done: 2026-04-19 (code review complete — 6 patches applied covering query hardening, runbook webhook-pause section, seeder env guard + remove auto-wiring, per-payment summary rename, dry-run log verb split, 3 additional tests; ReconcileStaleSelectionsCommand 10/10 + MissionPayment 26/26 + Candidature 236/236 green)
 # NOTE: Even though FIX-20.1 already landed on dev (commit eef57c5), FIX-20.6 must
 # still run on PRODUCTION before FIX-20.1 is deployed there. The reconcile command
@@ -483,3 +538,8 @@ last_updated: "2026-04-19"
 # Story fix-20-6 moved to ready-for-dev: 2026-04-19 (comprehensive story file created — Artisan command to reconcile 181 orphan candidatures + notifications + runbook; must run on prod before FIX-20.1 deploys there)
 # Story fix-20-6 moved to in-progress: 2026-04-19
 # Story fix-20-6 moved to review: 2026-04-19 (command + marker exceptions + 7-test feature suite + runbook; MissionPayment 26/26, Candidature 236/236, ReconcileStaleSelectionsCommand 7/7 all green)
+# Sprint 12 created: 2026-04-19 (4 epics FIX-21 à FIX-24, 11 stories, 4 issues post-lancement scindées par décision produit; source: epics-postlaunch-fixes-9.md)
+# Epic FIX-21 moved to in-progress: 2026-04-19 (first story FIX-21.1 created)
+# Story fix-21-1 moved to ready-for-dev: 2026-04-19 (comprehensive story file created — Prove It test-first workflow, pattern withdrawals limiter as reference)
+# Story fix-21-1 moved to review: 2026-04-19 (login throttle moved in-controller, route middleware removed, LoginTest 23/23 green, frontend vitest 144/144 green; wider php artisan test --filter=Auth still blocked by pre-existing MySQL migration instability on weact_test)
+# Epic FIX-25 added + applied: 2026-04-19 (hardening AppServiceProvider after user reported historical weact DB wipes — prohibitDestructiveCommands inverted to block everywhere except testing env; LoginTest green post-change)

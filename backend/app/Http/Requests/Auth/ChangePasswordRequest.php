@@ -6,7 +6,6 @@ namespace App\Http\Requests\Auth;
 
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\Hash;
 
 class ChangePasswordRequest extends FormRequest
@@ -60,18 +59,5 @@ class ChangePasswordRequest extends FormRequest
             'new_password.regex' => 'Le nouveau mot de passe doit contenir au moins une majuscule et un chiffre.',
             'new_password.confirmed' => 'La confirmation du nouveau mot de passe ne correspond pas.',
         ];
-    }
-
-    protected function failedValidation(Validator $validator): void
-    {
-        throw new HttpResponseException(
-            response()->json([
-                'error' => [
-                    'code' => 'validation_error',
-                    'message' => 'Les données fournies ne sont pas valides',
-                    'details' => $validator->errors()->toArray(),
-                ],
-            ], 422)
-        );
     }
 }

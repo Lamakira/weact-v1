@@ -119,7 +119,7 @@ class AdminManagementTest extends TestCase
             ]);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.email.0', 'Cet email est déjà utilisé.');
     }
 

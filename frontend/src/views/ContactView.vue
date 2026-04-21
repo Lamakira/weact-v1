@@ -2,6 +2,7 @@
 import { ref, reactive } from 'vue'
 import { Mail, Phone, MapPin, Share2, Send, CheckCircle2, AlertCircle, Loader2 } from 'lucide-vue-next'
 import { submitContactForm } from '@/features/public/services/contactApi'
+import { formatApiError } from '@/services/errorFormatter'
 
 interface ContactForm {
   name: string
@@ -41,11 +42,7 @@ const handleSubmit = async () => {
     form.message = ''
   } catch (err: unknown) {
     submitStatus.value = 'error'
-    const e = err as { response?: { data?: { message?: string } }; message?: string }
-    errorMessage.value =
-      e?.response?.data?.message ||
-      e?.message ||
-      "Une erreur est survenue lors de l'envoi du message."
+    errorMessage.value = formatApiError(err, "Une erreur est survenue lors de l'envoi du message.")
   } finally {
     isSubmitting.value = false
   }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\ErrorCodes;
 use App\Http\Controllers\Controller;
 use App\Jobs\HandleFedapayWebhook;
 use App\Models\FedapayWebhookEvent;
@@ -34,7 +35,10 @@ class FedapayWebhookController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return response()->json(['error' => 'Invalid signature'], 403);
+            return response()->json(
+                ErrorCodes::InvalidSignature->envelope('Invalid signature'),
+                403
+            );
         }
 
         $eventId = (string) ($event->id ?? $event->data->id ?? '');

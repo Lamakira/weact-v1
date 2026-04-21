@@ -155,7 +155,7 @@ class FaceRegistrationTest extends TestCase
                     ],
                 ],
             ])
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.email.0', 'Cet email est déjà utilisé');
     }
 
@@ -180,7 +180,7 @@ class FaceRegistrationTest extends TestCase
                     ],
                 ],
             ])
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.username.0', 'Ce nom d\'utilisateur est déjà pris');
     }
 
@@ -194,7 +194,7 @@ class FaceRegistrationTest extends TestCase
         $response = $this->postJson('/api/v1/auth/register/face', $data);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.password.0', 'Le mot de passe doit contenir au moins 8 caractères');
 
         // Test password without uppercase
@@ -238,7 +238,7 @@ class FaceRegistrationTest extends TestCase
                     ],
                 ],
             ])
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.nom.0', 'Le nom est obligatoire')
             ->assertJsonPath('error.details.prenom.0', 'Le prénom est obligatoire')
             ->assertJsonPath('error.details.username.0', 'Le nom d\'utilisateur est obligatoire')

@@ -192,7 +192,7 @@ class AdminCreateArticleTest extends TestCase
             ]));
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.title.0', 'Le titre est obligatoire.');
     }
 
@@ -204,7 +204,7 @@ class AdminCreateArticleTest extends TestCase
             ]));
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     public function test_content_too_short_returns_422(): void
@@ -215,7 +215,7 @@ class AdminCreateArticleTest extends TestCase
             ]));
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     public function test_missing_category_returns_422(): void
@@ -227,7 +227,7 @@ class AdminCreateArticleTest extends TestCase
             ->postJson($this->endpoint, $data);
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.category.0', 'La catégorie est obligatoire.');
     }
 
@@ -239,7 +239,7 @@ class AdminCreateArticleTest extends TestCase
             ]));
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.category.0', 'La catégorie sélectionnée est invalide.');
     }
 
@@ -251,7 +251,7 @@ class AdminCreateArticleTest extends TestCase
             ]));
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error')
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.status.0', 'Le statut sélectionné est invalide.');
     }
 
@@ -299,7 +299,7 @@ class AdminCreateArticleTest extends TestCase
             ]));
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 
     public function test_image_too_large_returns_422(): void
@@ -312,6 +312,6 @@ class AdminCreateArticleTest extends TestCase
             ]));
 
         $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'validation_error');
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
 }
