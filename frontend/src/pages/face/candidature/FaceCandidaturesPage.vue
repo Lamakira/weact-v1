@@ -11,6 +11,7 @@ import {
 import { useFaceCandidatures, useConfirmCandidature, useCancelCandidature } from '@/features/candidature/composables'
 import { CandidatureCard, StatusFilter } from '@/features/candidature/components'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
+import { useToast } from '@/composables/useToast'
 import type { CandidatureStatusType } from '@/features/candidature/types'
 import { CandidatureStatusLabel } from '@/features/candidature/types'
 
@@ -59,12 +60,7 @@ const {
   reset: resetCancel,
 } = useCancelCandidature()
 
-/**
- * Toast state for notifications
- */
-const showToast = ref(false)
-const toastMessage = ref('')
-const toastType = ref<'success' | 'error'>('success')
+const toast = useToast()
 
 /**
  * Card refs for resetting loading state
@@ -78,18 +74,6 @@ const showCancelModal = ref(false)
 const candidatureToCancel = ref<string | null>(null)
 
 /**
- * Show toast notification
- */
-function displayToast(message: string, type: 'success' | 'error'): void {
-  toastMessage.value = message
-  toastType.value = type
-  showToast.value = true
-  setTimeout(() => {
-    showToast.value = false
-  }, 4000)
-}
-
-/**
  * Handle confirm candidature
  */
 async function handleConfirm(candidatureId: string): Promise<void> {
@@ -99,11 +83,11 @@ async function handleConfirm(candidatureId: string): Promise<void> {
   cardRefs.value[candidatureId]?.resetConfirming()
 
   if (result) {
-    displayToast(confirmSuccessMessage.value || 'Participation confirmée', 'success')
+    toast.success(confirmSuccessMessage.value || 'Participation confirmée')
     // Refresh the list to show updated status
     await refresh()
   } else {
-    displayToast(confirmError.value || 'Erreur lors de la confirmation', 'error')
+    toast.error(confirmError.value || 'Erreur lors de la confirmation')
   }
 
   resetConfirm()
@@ -132,10 +116,10 @@ async function handleCancelConfirm(): Promise<void> {
   cardRefs.value[candidatureId]?.resetCancelling()
 
   if (success) {
-    displayToast(cancelSuccessMessage.value || 'Candidature annulée', 'success')
+    toast.success(cancelSuccessMessage.value || 'Candidature annulée')
     await refresh()
   } else {
-    displayToast(cancelError.value || 'Erreur lors de l\'annulation', 'error')
+    toast.error(cancelError.value || 'Erreur lors de l\'annulation')
   }
 
   candidatureToCancel.value = null
@@ -400,39 +384,5 @@ watch(
       @confirm="handleCancelConfirm"
       @cancel="handleCancelModalClose"
     />
-
-    <!-- Toast Notification -->
-    <Teleport to="body">
-      <Transition
-        enter-active-class="transition-all duration-300 ease-out"
-        enter-from-class="translate-y-2 opacity-0"
-        enter-to-class="translate-y-0 opacity-100"
-        leave-active-class="transition-all duration-200 ease-in"
-        leave-from-class="translate-y-0 opacity-100"
-        leave-to-class="translate-y-2 opacity-0"
-      >
-        <div
-          v-if="showToast"
-          role="alert"
-          aria-live="polite"
-          class="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-lg px-4 py-3 shadow-lg"
-          :class="[
-            toastType === 'success'
-              ? 'bg-green-600 text-white'
-              : 'bg-red-600 text-white',
-          ]"
-        >
-          <span class="text-sm font-medium">{{ toastMessage }}</span>
-          <button
-            type="button"
-            aria-label="Fermer la notification"
-            class="ml-2 text-white/80 hover:text-white text-lg font-bold leading-none"
-            @click="showToast = false"
-          >
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-      </Transition>
-    </Teleport>
   </div>
 </template>

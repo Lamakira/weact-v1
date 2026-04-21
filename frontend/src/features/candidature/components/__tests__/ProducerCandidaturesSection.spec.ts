@@ -3,6 +3,10 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { shallowMount } from '@vue/test-utils'
 import ProducerCandidaturesSection from '../ProducerCandidaturesSection.vue'
 
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(), clear: vi.fn() }),
+}))
+
 vi.mock('../../composables', () => ({
   useProducerCandidatures: () => ({
     candidatures: ref([
