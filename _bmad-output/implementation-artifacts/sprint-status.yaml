@@ -471,9 +471,9 @@ development_status:
   epic-fix-22-retrospective: done
 
   # Epic FIX-23 : Fiabilité du flag REGISTRATION_ENABLED (1 story)
-  epic-fix-23: in-progress
+  epic-fix-23: done
   fix-23-1-registration-enabled-deterministic-fallback: done                # VITE_REGISTRATION_ENABLED fallback + Cache-Control sur /auth/registration-status
-  epic-fix-23-retrospective: optional
+  epic-fix-23-retrospective: done
 
   # Epic FIX-24 : Notifications email du cycle mission (6 stories)
   epic-fix-24: backlog
@@ -491,6 +491,8 @@ development_status:
   epic-fix-25-retrospective: optional
 
 last_updated: "2026-04-21"
+# Epic FIX-23 retrospective marked as done: 2026-04-21 (epic-level retro sur la seule story 23.1, saved to epic-fix-23-retro-2026-04-21.md ; point fort confirmé par Amakira : revue adversariale 3-layer ayant produit 2 decision-needed absentes de la spec originale ; point de friction : AC #3 livrée puis déviée de `public` vers `private` en revue — dette narrative mais pas matérielle ; 7 action items dont 1 URGENT : vérifier canary INVARIANT_VIOLATION fenêtre expirant aujourd'hui, reporté depuis FIX-20.6 puis FIX-22 rétros ; 4/4 items opérationnels FIX-22 toujours non vérifiés — signal que le suivi inter-rétros est lâche)
+# Epic FIX-23 moved to done: 2026-04-21 (1 story livrée — mono-story epic par design)
 # Story fix-23-1 moved to done: 2026-04-21 (code review via /bmad-code-review — 3 reviewers en parallèle → 34 findings bruts, ~12 dismissed spec-context, 2 decision-needed résolues et 2 patches appliqués : (D1) Cache-Control `public`→`private` sur /auth/registration-status + assertion test alignée `max-age=300, private` pour éliminer la classe de bugs fuite de cookie via cache partagé ; (D2) comparaison `!== 'false'` durcie avec `String(...).trim().toLowerCase()` pour tolérer `False`/`FALSE`/` false ` variantes opérateur ; (P1) ligne vide finale restaurée dans frontend/.env.example ; (P2) classification phrase AC #5.D ajoutée au it() ; 10 defers documentés dans deferred-work.md ; vérifications ciblées post-patch vertes : FaceRegistrationTest 21/21, RegisterProducerPage+RegisterFacePage specs 4/4, type-check ok, eslint ok)
 # Story fix-23-1 moved to review: 2026-04-21 (implementation complete; frontend fallback + env typing/example + backend cache header + Prove It tests delivered; full validation green: frontend vitest 1998/1998, backend php artisan test 1867/1867, targeted FaceRegistrationTest 21/21, type-check and eslint passed; backend header assertion aligned to framework-normalized `max-age=300, public` with explicit user approval)
 # Story fix-23-1 moved to in-progress: 2026-04-21 (dev-story workflow started; frontend red-phase reproduced and fixed locally, remaining blocker is AC #3 literal Cache-Control order because Laravel/Symfony canonicalizes response headers to `max-age=300, public`)
