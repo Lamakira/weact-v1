@@ -50,14 +50,14 @@ describe('getApiErrorMessage', () => {
     )
   })
 
-  it('returns the default French message on a network error with no response', () => {
+  it('returns the dedicated French network message on a network error with no response', () => {
     const error = {
       isAxiosError: true,
       response: undefined,
     } as unknown as AxiosError
 
     expect(getApiErrorMessage(error)).toBe(
-      'Une erreur est survenue. Veuillez réessayer.'
+      'Impossible de se connecter au serveur. Vérifiez votre connexion.'
     )
   })
 

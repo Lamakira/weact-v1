@@ -3,19 +3,12 @@
  * ReportButton - Signalement de contenu illicite (Art. 498 Code du Numérique)
  * Affiche un bouton discret + modal de signalement.
  */
-import type { AxiosError } from 'axios'
 import { ref } from 'vue'
 import { Flag, X, Loader2, CheckCircle } from 'lucide-vue-next'
 import apiClient, { getCsrfCookie } from '@/services/apiClient'
+import { formatApiError } from '@/services/errorFormatter'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
-
-interface ApiErrorResponse {
-  message?: string
-  error?: {
-    message?: string
-  }
-}
 
 const props = defineProps<{
   reportableType: 'face' | 'mission'
@@ -75,9 +68,7 @@ async function handleSubmit() {
     })
     submitted.value = true
   } catch (err) {
-    const apiError = err as AxiosError<ApiErrorResponse>
-    const msg = apiError.response?.data?.error?.message ?? apiError.response?.data?.message
-    error.value = msg || 'Une erreur est survenue. Veuillez réessayer.'
+    error.value = formatApiError(err, 'Une erreur est survenue. Veuillez réessayer.')
   } finally {
     isSubmitting.value = false
   }

@@ -107,3 +107,7 @@
 - No pinning test snapshots the list of preserved lowercase legacy codes — silent refactor drift possible. Recommend adding a guardrail snapshot test (FIX-22.2 scope)
 - `Throwable` fallback in `bootstrap/app.php` logs `$e->getMessage()` verbatim without sanitization — potential log hygiene issue if exceptions carry secrets (PDO query with password, FedaPay token). Recommend shared sanitizing log helper (FIX-22.2 scope)
 - `FedapayWebhookController` still calls `FedapayWebhookEvent::firstOrCreate(['fedapay_event_id' => ''])` when the event ID is empty — idempotency collapses on first empty-ID event. Pre-existing, surfaced by the refactor (FIX-22.2 scope)
+
+## Deferred from: code review of fix-22-3-centralize-frontend-error-formatter (2026-04-21)
+
+- `formatApiError` rule §1 peut surfacer un champ de validation interne (`_token`, `csrf_token`, etc.) comme premier détail — `getFirstDetailMessage` itère `Object.values(details)` sans filtrer les clés techniques. Pas de preuve que le backend actuel émet de tels champs, mais opportunité de hardening future : skip keys commençant par `_` (FIX-22.3 scope)

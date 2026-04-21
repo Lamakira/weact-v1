@@ -467,7 +467,7 @@ development_status:
   epic-fix-22: in-progress
   fix-22-1-force-backend-locale-fr: done                                    # config/app.php défaut fr + middleware SetLocale + lang/fr/* + lang/fr.json (mail keys) — 7 review patches appliqués 2026-04-20
   fix-22-2-standardize-api-error-format: done                               # Format unique {error:{message,code}} + alignement WalletController + handler global + review patches 2026-04-20
-  fix-22-3-centralize-frontend-error-formatter: backlog                     # services/errorFormatter.ts + refactor composables (useWallet, useApplyToMission, useAdminDashboardStats)
+  fix-22-3-centralize-frontend-error-formatter: done                        # services/errorFormatter.ts + refactor composables (useWallet, useApplyToMission, useAdminDashboardStats)
   epic-fix-22-retrospective: optional
 
   # Epic FIX-23 : Fiabilité du flag REGISTRATION_ENABLED (1 story)
@@ -490,7 +490,11 @@ development_status:
   fix-25-1-prohibit-destructive-commands-outside-testing: review            # DB::prohibitDestructiveCommands(! environment('testing')) — appliqué en pré-commit direct 2026-04-19
   epic-fix-25-retrospective: optional
 
-last_updated: "2026-04-20"
+last_updated: "2026-04-21"
+# Story fix-22-3 moved to done: 2026-04-21 (code review via /bmad-code-review — 3 reviewers en parallèle → 21 findings bruts, 12 dismissed spec-authorized, 2 patches appliqués (useConfirmCandidature 422 guard punctuation-normalized + getApiErrorDetails empty-details guard), 1 defer ajouté ; vitest 1992/1992 + tsc + eslint verts ; manual smoke Task 8 reste deferred env-limit)
+# Story fix-22-3 moved to review: 2026-04-21 (user-directed transition after implementation; automated validation green with Vitest 1992/1992, TypeScript, ESLint; manual smoke checklist still pending and deferred to review)
+# Story fix-22-3 moved to in-progress: 2026-04-21 (centralized frontend formatter implemented + 20 audited call-sites refactored; automated validation green with Vitest 1992/1992, TypeScript, ESLint; manual smoke scenarios still pending because no Playwright project/browser automation is available in this environment)
+# Story fix-22-3 moved to ready-for-dev: 2026-04-20 (comprehensive story file created — contract mirrors FIX-22.2 global handler envelope exactly, AC #1 7-branch resolution with §1 validation-detail shunt first / §2 standard envelope second (unified into single-rule precedence post-review), Prove It targets useWallet.withdraw showing INSUFFICIENT_BALANCE message leak post-FIX-22.2; audit extended to 20 sites (17 composables + 3 Vue components) after second grep pass; authApi.ts re-export preserves 6+ existing consumers; 17 errorFormatter branches locked via unit tests + 1 real red-phase test (6.A) + 2 regression-guard tests (6.B/6.C reclassified honest after review) on useWallet)
 # Story fix-22-2 moved to done: 2026-04-20 (code review via /bmad-code-review — 3 reviewers en parallèle → 4 decision-needed résolues + 6 patches appliqués : enum aligné sur le wire lowercase (5 cases) + 2 cases ajoutés EMAIL_NOT_VERIFIED/registration_disabled, closure AuthorizationException mort supprimé, mapping 401→UNAUTHENTICATED dans HttpException handler, envelope() protège code/message contre $extra, gating api exact, closure ModelNotFoundException ajouté ; 18 findings dismissed spec-compliant, 5 defer dans deferred-work.md ; full suite 1866/1866 green, pint clean)
 # Story fix-22-2 moved to review: 2026-04-20 (Prove It 7/7 green, suite complète 1866/1866 passed, pint clean; handler global bootstrap/app.php + enum ErrorCodes + 7 controllers refactorés + 19 failedValidation() retirés + 47 assertions 'validation_error' → 'VALIDATION_ERROR' + 11 tests tiers migrés sur les chemins abort normalisés; frontend inchangé, FIX-22.3 toujours en backlog)
 # Story fix-22-2 moved to in-progress: 2026-04-20 (dev-story workflow started)

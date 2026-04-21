@@ -239,7 +239,7 @@ describe('useProducerDashboardStats', () => {
       await fetchStats()
 
       expect(stats.value).toBeNull()
-      expect(error.value).toBe('Une erreur est survenue')
+      expect(error.value).toBe('Le serveur est temporairement indisponible. Veuillez réessayer.')
     })
 
     it('handles non-axios error with generic message', async () => {

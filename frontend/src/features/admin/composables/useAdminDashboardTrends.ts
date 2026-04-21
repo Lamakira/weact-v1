@@ -5,6 +5,7 @@ import type {
   RecentActivityEvent,
 } from '../services/adminDashboardApi'
 import { adminDashboardApi } from '../services/adminDashboardApi'
+import { formatApiError } from '@/services/errorFormatter'
 
 /**
  * Composable for fetching dashboard trends and recent activity
@@ -28,7 +29,7 @@ export function useAdminDashboardTrends() {
       if (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED') {
         return 'Impossible de se connecter au serveur. Vérifiez votre connexion.'
       }
-      return err.response?.data?.message || 'Une erreur est survenue'
+      return formatApiError(err, 'Une erreur est survenue')
     }
     return 'Une erreur inattendue est survenue'
   }

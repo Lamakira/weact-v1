@@ -73,6 +73,23 @@ describe('useConfirmCandidature', () => {
     )
   })
 
+  it('falls back to the local 422 message when backend returns the generic standardized validation message', async () => {
+    vi.mocked(candidatureApi.confirmCandidature).mockRejectedValue(
+      makeAxiosError(422, {
+        error: {
+          message: 'Les données fournies ne sont pas valides',
+        },
+      }),
+    )
+
+    const { confirmCandidature, error } = useConfirmCandidature()
+    await confirmCandidature('cand-1')
+
+    expect(error.value).toBe(
+      'Cette candidature ne peut pas être confirmée dans son état actuel.',
+    )
+  })
+
   it('uses the backend message on 400 INVALID_STATUS', async () => {
     vi.mocked(candidatureApi.confirmCandidature).mockRejectedValue(
       makeAxiosError(400, {

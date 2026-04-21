@@ -1,11 +1,9 @@
 import apiClient, { getCsrfCookie } from '@/services/apiClient'
-import type { AxiosError } from 'axios'
 import type {
   FaceRegistrationForm,
   ProducerRegistrationForm,
   LoginForm,
   AuthResponse,
-  ApiError,
   ResetPasswordData,
 } from '../types'
 
@@ -121,103 +119,8 @@ export const authApi = {
   },
 }
 
-/**
- * Type guard to check if error is an API error response
- */
-function isApiError(error: unknown): error is AxiosError<ApiError> {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'response' in error &&
-    typeof (error as AxiosError).response?.data === 'object' &&
-    (error as AxiosError<ApiError>).response?.data?.error !== undefined
-  )
-}
-
-/**
- * Type guard to check if error is an Axios error
- */
-function isAxiosError(error: unknown): error is AxiosError {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'isAxiosError' in error &&
-    (error as AxiosError).isAxiosError
-  )
-}
-
-/**
- * Get HTTP status code from error
- */
-function getErrorStatus(error: unknown): number | undefined {
-  if (isAxiosError(error)) {
-    return error.response?.status
-  }
-  return undefined
-}
-
-/**
- * Extract error details from API error response
- */
-export function getApiErrorDetails(error: unknown): Record<string, string[]> {
-  if (isApiError(error) && error.response?.data?.error?.details) {
-    return error.response.data.error.details
-  }
-  return {}
-}
-
-/**
- * Extract error code from API error response
- */
-export function getApiErrorCode(error: unknown): string | null {
-  if (isApiError(error) && error.response?.data?.error?.code) {
-    return error.response.data.error.code
-  }
-  return null
-}
-
-/**
- * Extract user-friendly error message from API error response
- * Handles different HTTP status codes with appropriate French messages
- */
-export function getApiErrorMessage(error: unknown): string {
-  const status = getErrorStatus(error)
-
-  // First, try to get the actual message from API error response
-  if (isApiError(error)) {
-    const data = error.response?.data
-    if (data?.error?.message) {
-      return data.error.message
-    }
-  }
-
-  // Laravel validation errors (422) have { message: "...", errors: {...} }
-  // Extract the specific message instead of falling through to generic 422 text
-  const axiosErr = error as AxiosError<{ message?: string }>
-  if (axiosErr?.response?.data?.message && typeof axiosErr.response.data.message === 'string') {
-    return axiosErr.response.data.message
-  }
-
-  // Handle specific status codes with fallback user-friendly messages
-  switch (status) {
-    case 419:
-      return 'Votre session a expiré, veuillez rafraîchir la page.'
-    case 422:
-      return 'Les données fournies ne sont pas valides.'
-    case 429:
-      return 'Trop de tentatives. Veuillez réessayer dans quelques instants.'
-    case 500:
-    case 502:
-    case 503:
-      return 'Le serveur est temporairement indisponible. Veuillez réessayer.'
-    case 401:
-      return 'Vous n\'êtes pas autorisé à effectuer cette action.'
-    case 403:
-      return 'Accès refusé.'
-    case 404:
-      return 'La ressource demandée n\'existe pas.'
-    default:
-      // Generic error message
-      return 'Une erreur est survenue. Veuillez réessayer.'
-  }
-}
+export {
+  formatApiError as getApiErrorMessage,
+  getApiErrorCode,
+  getApiErrorDetails,
+} from '@/services/errorFormatter'

@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { isAxiosError } from 'axios'
 import type { BookingMonthlyStats, MonthlyCount } from '../types'
 import { dashboardApi } from '../services/dashboardApi'
+import { formatApiError } from '@/services/errorFormatter'
 
 export function useDashboardBookingCharts() {
   const bookingsByMonth = ref<BookingMonthlyStats[]>([])
@@ -22,7 +23,7 @@ export function useDashboardBookingCharts() {
         if (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED') {
           error.value = 'Impossible de se connecter au serveur.'
         } else {
-          error.value = err.response?.data?.error?.message || 'Une erreur est survenue'
+          error.value = formatApiError(err, 'Une erreur est survenue')
         }
       } else {
         error.value = 'Une erreur inattendue est survenue'

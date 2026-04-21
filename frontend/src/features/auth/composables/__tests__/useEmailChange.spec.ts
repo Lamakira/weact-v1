@@ -74,7 +74,7 @@ describe('useEmailChange', () => {
 
       expect(result).toBe(false)
       expect(fieldErrors.value.email).toEqual(['Cette adresse email est déjà utilisée.'])
-      expect(error.value).toBe('Les données fournies ne sont pas valides')
+      expect(error.value).toBe('Cette adresse email est déjà utilisée.')
     })
 
     it('sets isLoading during request', async () => {

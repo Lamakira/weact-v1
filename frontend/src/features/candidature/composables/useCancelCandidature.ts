@@ -1,5 +1,7 @@
 import { ref } from 'vue'
+import { isAxiosError } from 'axios'
 import { candidatureApi } from '../services/candidatureApi'
+import { formatApiError } from '@/services/errorFormatter'
 
 /**
  * Composable for cancelling a pending candidature (Face only)
@@ -25,20 +27,18 @@ export function useCancelCandidature() {
       successMessage.value = response.message || 'Candidature annulée avec succès.'
       return true
     } catch (err: unknown) {
-      // Handle API error response
-      if (err && typeof err === 'object' && 'response' in err) {
-        const axiosError = err as { response?: { data?: { message?: string }; status?: number } }
-        if (axiosError.response?.status === 400) {
-          error.value = axiosError.response.data?.message || 'Cette candidature ne peut pas être annulée'
-        } else if (axiosError.response?.status === 403) {
-          error.value = axiosError.response.data?.message || 'Vous n\'êtes pas autorisé à effectuer cette action'
-        } else if (axiosError.response?.status === 404) {
+      if (isAxiosError(err)) {
+        if (err.response?.status === 400) {
+          error.value = formatApiError(err, 'Cette candidature ne peut pas être annulée')
+        } else if (err.response?.status === 403) {
+          error.value = formatApiError(err, 'Vous n\'êtes pas autorisé à effectuer cette action')
+        } else if (err.response?.status === 404) {
           error.value = 'Candidature introuvable'
         } else {
-          error.value = 'Une erreur est survenue. Veuillez réessayer.'
+          error.value = formatApiError(err, 'Une erreur est survenue. Veuillez réessayer.')
         }
       } else {
-        error.value = 'Une erreur est survenue. Veuillez réessayer.'
+        error.value = formatApiError(err, 'Une erreur est survenue. Veuillez réessayer.')
       }
       return false
     } finally {
