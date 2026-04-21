@@ -16,7 +16,14 @@ onMounted(async () => {
     const response = await authApi.getRegistrationStatus()
     registrationEnabled.value = response.data.enabled
   } catch {
-    registrationEnabled.value = false
+    // FIX-23.1 — Fallback build-time permissif : si l'API /auth/registration-status
+    // échoue (réseau, 5xx, CDN), on lit VITE_REGISTRATION_ENABLED. Valeur par défaut
+    // permissive ('true') pour ne jamais masquer le formulaire par erreur réseau
+    // quand le flag backend est à true. Seule une réponse API explicite enabled=false
+    // masque le formulaire. Normalisation (trim + lowercase) pour tolérer les
+    // variantes opérateur (`False`, `FALSE`, ` false `).
+    registrationEnabled.value =
+      String(import.meta.env.VITE_REGISTRATION_ENABLED ?? '').trim().toLowerCase() !== 'false'
   }
 })
 

@@ -1,5 +1,18 @@
 # Deferred Work
 
+## Deferred from: code review of fix-23-1-registration-enabled-deterministic-fallback (2026-04-21)
+
+- Bare `catch` in RegisterProducerPage.vue / RegisterFacePage.vue is broader than the inline comment suggests — swallows 4xx, CORS, JSON parse and TypeError errors in addition to network/5xx/CDN failures (FIX-23.1 scope; comment-vs-reality doc nit, behaviour matches AC #11 table)
+- Magic string `Les inscriptions sont temporairement suspendues.` duplicated across RegisterProducerPage.vue, RegisterFacePage.vue and the two new spec files — any i18n/wording change silently breaks regression tests (FIX-23.1 scope; pre-existing copy duplication)
+- API returning 200 with a malformed or HTML body (Cloudflare/SSO/502 intercept) leaves `response.data.enabled` `undefined`, and the `v-else-if="!registrationEnabled"` branch then hides the form without firing the `catch`/env fallback (FIX-23.1 scope; pre-existing trust-the-backend assumption)
+- API returning string `"true"`/`"false"` for `enabled` is not coerced frontend-side — string `"false"` is truthy in JS and would incorrectly show the form (FIX-23.1 scope; pre-existing)
+- `assertHeader('Cache-Control', 'max-age=300, public')` in FaceRegistrationTest.php is brittle — coupled to Symfony's internal directive-order normalization, would fail opaquely if Symfony stops reordering (FIX-23.1 scope; user-approved as the pragmatic framework truth)
+- Race condition: component unmount or HMR double-mount before the `onMounted` promise settles — no `AbortController` or mounted guard, last-resolved wins (FIX-23.1 scope; pre-existing, low risk)
+- HTTP 401 on the public `/auth/registration-status` endpoint would trip the global 401 response interceptor in `apiClient.ts`, clearing auth and redirecting to `/login?message=session-expired` (FIX-23.1 scope; pre-existing interceptor behaviour, no allow-list)
+- Build-time Vite inlining vs runtime `vi.stubEnv` — unit tests exercise the runtime env path, but production bundles get `VITE_REGISTRATION_ENABLED` substituted at `vite build`, giving false confidence that runtime env changes flip behaviour (FIX-23.1 scope; spec-deliberate build-time choice)
+- No explicit happy-path test for `{ enabled: true }` resolved response — current suite implicitly covers it via the null→true transition path; AC #11 case 1 not under mechanical lock (FIX-23.1 scope; spec treats it as implicitly covered)
+- Pre-fix red/green raw output not captured verbatim in Completion Notes as Task 1.D asked — only a narrative summary is recorded (FIX-23.1 scope; tests re-runnable and green now)
+
 ## Deferred from: code review of fix-4-2-admin-featured-faces-ordering (2026-04-05)
 
 - Migration down() does not restore original ville free-text values or quartier data — irreversible migration (FIX-4.1 scope)
