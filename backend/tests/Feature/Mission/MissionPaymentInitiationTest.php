@@ -8,6 +8,7 @@ use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
 use App\Jobs\HandleFedapayWebhook;
+use App\Mail\FaceSelectedMail;
 use App\Models\Candidature;
 use App\Models\Conversation;
 use App\Models\Face;
@@ -25,6 +26,7 @@ use App\ValueObjects\MissionPricing;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class MissionPaymentInitiationTest extends TestCase
@@ -1049,6 +1051,104 @@ class MissionPaymentInitiationTest extends TestCase
         $this->assertSame(CandidatureStatus::Pending, $this->rejectedCandidate->fresh()->status);
         $this->assertSame(0, Conversation::query()->count());
         $this->assertDatabaseCount('notifications', 0);
+    }
+
+    public function test_mark_as_paid_queues_face_selected_mail_for_each_selected_face(): void
+    {
+        Mail::fake();
+
+        $payment = $this->createPendingMissionPayment('123456');
+
+        app(MissionPaymentService::class)
+            ->markAsPaid($payment->fresh(), 'fedapay-approved-ref');
+
+        // Exactement 2 mails — un par Face sélectionnée, zéro pour la rejetée.
+        Mail::assertQueuedCount(2);
+
+        $selectedFirstEmail = User::query()
+            ->where('userable_type', Face::class)
+            ->where('userable_id', $this->selectedFirst->face_id)
+            ->value('email');
+
+        $selectedSecondEmail = User::query()
+            ->where('userable_type', Face::class)
+            ->where('userable_id', $this->selectedSecond->face_id)
+            ->value('email');
+
+        $rejectedEmail = User::query()
+            ->where('userable_type', Face::class)
+            ->where('userable_id', $this->rejectedCandidate->face_id)
+            ->value('email');
+
+        Mail::assertQueued(
+            FaceSelectedMail::class,
+            fn (FaceSelectedMail $m): bool => $m->hasTo($selectedFirstEmail),
+        );
+        Mail::assertQueued(
+            FaceSelectedMail::class,
+            fn (FaceSelectedMail $m): bool => $m->hasTo($selectedSecondEmail),
+        );
+        Mail::assertNotQueued(
+            FaceSelectedMail::class,
+            fn (FaceSelectedMail $m): bool => $m->hasTo($rejectedEmail),
+        );
+
+        // Non-régression FIX-20.1 : statuts + conversations + notifications in-app
+        // restent intactes après l'ajout du pipeline email.
+        $this->assertSame(CandidatureStatus::Accepted, $this->selectedFirst->fresh()->status);
+        $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
+        $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
+        $this->assertDatabaseHas('conversations', ['candidature_id' => $this->selectedFirst->id]);
+        $this->assertDatabaseHas('conversations', ['candidature_id' => $this->selectedSecond->id]);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->getFaceUserId($this->selectedFirst),
+            'type' => 'mission_participation_confirmation_required',
+        ]);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->getFaceUserId($this->rejectedCandidate),
+            'type' => 'candidature_rejected',
+        ]);
+    }
+
+    public function test_mark_as_paid_is_idempotent_and_does_not_queue_duplicate_face_selected_mails(): void
+    {
+        Mail::fake();
+
+        $payment = $this->createPendingMissionPayment('777888');
+        $service = app(MissionPaymentService::class);
+
+        $service->markAsPaid($payment->fresh(), 'fedapay-approved-ref');
+
+        // Baseline : 2 mails queued pour les 2 Faces sélectionnées.
+        Mail::assertQueuedCount(2);
+
+        // Deuxième appel (webhook en retard, producer retry race, etc.) — l'early-return
+        // sur Paid status doit court-circuiter la boucle email AVANT d'ajouter des
+        // duplicatas à la file.
+        $service->markAsPaid($payment->fresh(), 'fedapay-approved-ref');
+
+        Mail::assertQueuedCount(2);
+    }
+
+    public function test_mark_as_paid_uses_producer_fallback_when_display_name_is_empty(): void
+    {
+        Mail::fake();
+
+        $this->producer->update([
+            'agency_name' => '',
+            'first_name' => '',
+            'last_name' => '',
+        ]);
+
+        $payment = $this->createPendingMissionPayment('999000');
+
+        app(MissionPaymentService::class)
+            ->markAsPaid($payment->fresh(), 'fedapay-approved-ref');
+
+        Mail::assertQueued(
+            FaceSelectedMail::class,
+            fn (FaceSelectedMail $m): bool => $m->producerName === 'Le Producteur',
+        );
     }
 
     private function createPendingCandidature(): Candidature
