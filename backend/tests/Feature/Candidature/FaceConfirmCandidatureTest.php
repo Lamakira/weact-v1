@@ -8,6 +8,7 @@ use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
+use App\Mail\FaceConfirmedMail;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
@@ -17,6 +18,7 @@ use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class FaceConfirmCandidatureTest extends TestCase
@@ -195,6 +197,94 @@ class FaceConfirmCandidatureTest extends TestCase
         $response->assertForbidden()
             ->assertJsonPath('error.code', 'FORBIDDEN')
             ->assertJsonPath('error.message', 'Cette candidature ne vous appartient pas');
+    }
+
+    public function test_confirmation_queues_face_confirmed_mail_and_preserves_in_app_notification(): void
+    {
+        Mail::fake();
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/confirm");
+
+        $response->assertOk();
+
+        // Email queued to the Producer user with the full mailable payload.
+        Mail::assertQueued(
+            FaceConfirmedMail::class,
+            fn (FaceConfirmedMail $mail): bool => $mail->hasTo($this->producerUser->email)
+                && $mail->producer->is($this->producer)
+                && $mail->face->is($this->face)
+                && $mail->mission->is($this->mission),
+        );
+        Mail::assertQueuedCount(1);
+
+        // In-app notification still created (non-regression of FIX-20.1 contract).
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->producerUser->id,
+            'type' => 'face_confirmed_participation',
+        ]);
+
+        // Lifecycle preserved: single selected face → confirmation transitions to in_progress.
+        $this->assertDatabaseHas('candidatures', [
+            'id' => $this->candidature->id,
+            'status' => 'in_progress',
+        ]);
+    }
+
+    public function test_face_confirmed_mail_is_not_queued_when_payment_is_not_confirmed(): void
+    {
+        Mail::fake();
+
+        $this->payment->update([
+            'status' => MissionPaymentStatus::Pending,
+            'paid_at' => null,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/confirm");
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'PAYMENT_NOT_CONFIRMED');
+
+        Mail::assertNothingQueued();
+        $this->assertDatabaseMissing('notifications', [
+            'user_id' => $this->producerUser->id,
+            'type' => 'face_confirmed_participation',
+        ]);
+    }
+
+    public function test_confirmation_remains_successful_when_face_confirmed_mail_queue_fails(): void
+    {
+        Log::spy();
+        Mail::shouldReceive('to')
+            ->once()
+            ->with($this->producerUser->email)
+            ->andThrow(new \RuntimeException('Mail transport unavailable'));
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/candidatures/{$this->candidature->uuid}/confirm");
+
+        $response->assertOk()
+            ->assertJsonPath('message', 'Participation confirmée');
+
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->producerUser->id,
+            'type' => 'face_confirmed_participation',
+        ]);
+        $this->assertDatabaseHas('candidatures', [
+            'id' => $this->candidature->id,
+            'status' => 'in_progress',
+        ]);
+
+        Log::shouldHaveReceived('warning')
+            ->once()
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'FaceConfirmedMail queue failed'
+                    && ($context['candidature_id'] ?? null) === $this->candidature->id
+                    && ($context['mission_id'] ?? null) === $this->mission->id
+                    && ($context['producer_user_id'] ?? null) === $this->producerUser->id
+                    && ($context['exception'] ?? null) === 'Mail transport unavailable';
+            });
     }
 
     public function test_defensive_check_logs_invariant_violation_when_accepted_candidature_has_unpaid_payment(): void
