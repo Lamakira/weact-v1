@@ -13,6 +13,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Face\StoreCandidatureRequest;
 use App\Http\Resources\CandidatureResource;
 use App\Http\Resources\FaceCandidatureResource;
+use App\Mail\FaceConfirmedMail;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
@@ -23,6 +24,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class CandidatureController extends Controller
 {
@@ -234,6 +236,31 @@ class CandidatureController extends Controller
                 ]);
             } catch (\Throwable) {
                 // Non-fatal: confirmation is already persisted
+            }
+
+            // FIX-24.3: best-effort confirmation email to Producer.
+            // Non-fatal: confirmation + in-app notification remain the source of truth.
+            try {
+                $mission->loadMissing('producer');
+                $producer = $mission->producer;
+                $producerEmail = trim((string) $producerUser->email);
+
+                if ($producer instanceof Producer && $producerEmail !== '') {
+                    Mail::to($producerEmail)->queue(
+                        new FaceConfirmedMail(
+                            producer: $producer,
+                            face: $face,
+                            mission: $mission,
+                        )
+                    );
+                }
+            } catch (\Throwable $e) {
+                Log::warning('FaceConfirmedMail queue failed', [
+                    'candidature_id' => $candidature->id,
+                    'mission_id' => $mission->id,
+                    'producer_user_id' => $producerUser->id,
+                    'exception' => $e->getMessage(),
+                ]);
             }
         }
 
