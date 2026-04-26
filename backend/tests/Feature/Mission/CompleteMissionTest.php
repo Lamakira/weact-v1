@@ -7,6 +7,7 @@ namespace Tests\Feature\Mission;
 use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionPaymentStatus;
+use App\Mail\MissionCompletedMail;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
@@ -15,6 +16,7 @@ use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class CompleteMissionTest extends TestCase
@@ -94,6 +96,8 @@ class CompleteMissionTest extends TestCase
 
     public function test_producer_can_complete_closed_mission_with_paid_confirmed_selection(): void
     {
+        Mail::fake();
+
         $candidature = $this->createPaidSelection($this->closedMission, CandidatureStatus::Confirmed);
 
         $response = $this->actingAs($this->producerUser)
@@ -125,6 +129,98 @@ class CompleteMissionTest extends TestCase
             'user_id' => $this->producerUser->id,
             'type' => 'mission_completed_producer',
         ]);
+
+        // FIX-24.4: MissionCompletedMail queued to the Face user with full payload.
+        Mail::assertQueuedCount(1);
+        Mail::assertQueued(
+            MissionCompletedMail::class,
+            fn (MissionCompletedMail $mail): bool => $mail->hasTo($this->faceUser->email)
+                && $mail->face->is($this->face)
+                && $mail->mission->is($this->closedMission)
+                && $mail->amount === 90000,
+        );
+    }
+
+    public function test_complete_mission_with_three_confirmed_faces_queues_three_mails(): void
+    {
+        Mail::fake();
+
+        $mission = Mission::factory()->closed()->create([
+            'producer_id' => $this->producer->id,
+        ]);
+
+        // 3 distinct Face/User/Candidature (we don't reuse $this->face/$this->faceUser
+        // to keep this test self-contained from setUp side-effects).
+        // Status MUST be Confirmed — Accepted would trip hasUnconfirmedSelectedFaces
+        // and short-circuit before releaseFunds (covered by another test).
+        $faces = [];
+        $users = [];
+        $candidatures = [];
+        for ($i = 0; $i < 3; $i++) {
+            $face = Face::factory()->create([
+                'prenom' => "Face{$i}",
+                'nom' => 'Test',
+            ]);
+            $user = User::factory()->create([
+                'userable_type' => Face::class,
+                'userable_id' => $face->id,
+                'email' => "face{$i}@example.test",
+            ]);
+            $candidature = Candidature::factory()->create([
+                'mission_id' => $mission->id,
+                'face_id' => $face->id,
+                'status' => CandidatureStatus::Confirmed,
+            ]);
+            $faces[] = $face;
+            $users[] = $user;
+            $candidatures[] = $candidature;
+        }
+
+        // Single MissionPayment shared across the 3 entries — invariants scaled × 3.
+        $payment = MissionPayment::create([
+            'mission_id' => $mission->id,
+            'producer_id' => $this->producer->id,
+            'nombre_faces_retenues' => 3,
+            'budget_par_face' => 100000,
+            'montant_sous_total' => 300000,
+            'commission_producteur' => 30000,
+            'montant_total_producteur' => 330000,
+            'commission_faces_total' => 30000,
+            'montant_total_faces' => 270000,
+            'status' => MissionPaymentStatus::Paid,
+            'paid_at' => now(),
+        ]);
+
+        foreach ($candidatures as $i => $candidature) {
+            MissionPaymentCandidature::create([
+                'mission_payment_id' => $payment->id,
+                'candidature_id' => $candidature->id,
+                'face_id' => $faces[$i]->id,
+                'montant_face_recoit' => 90000,
+                'escrow_status' => EscrowStatus::Locked,
+                'locked_at' => now(),
+            ]);
+        }
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$mission->uuid}/complete");
+
+        $response->assertOk();
+
+        // Each Face balance credited and each Face received a MissionCompletedMail.
+        Mail::assertQueuedCount(3);
+        foreach ($users as $i => $user) {
+            $user->refresh();
+            $this->assertSame(90000, $user->balance, "User #{$i} should have balance 90000");
+
+            Mail::assertQueued(
+                MissionCompletedMail::class,
+                fn (MissionCompletedMail $mail): bool => $mail->hasTo($user->email)
+                    && $mail->face->is($faces[$i])
+                    && $mail->mission->is($mission)
+                    && $mail->amount === 90000,
+            );
+        }
     }
 
     public function test_cannot_complete_published_mission(): void
@@ -139,16 +235,22 @@ class CompleteMissionTest extends TestCase
 
     public function test_cannot_complete_closed_mission_without_paid_payment(): void
     {
+        Mail::fake();
+
         $response = $this->actingAs($this->producerUser)
             ->postJson("/api/v1/producer/missions/{$this->closedMission->uuid}/complete");
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['status'])
             ->assertJsonPath('errors.status.0', 'Le paiement doit être confirmé avant de terminer la mission');
+
+        Mail::assertNothingQueued();
     }
 
     public function test_cannot_complete_when_selected_face_has_not_confirmed_participation(): void
     {
+        Mail::fake();
+
         $this->createPaidSelection($this->closedMission, CandidatureStatus::Accepted);
 
         $response = $this->actingAs($this->producerUser)
@@ -157,6 +259,8 @@ class CompleteMissionTest extends TestCase
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['candidatures'])
             ->assertJsonPath('errors.candidatures.0', 'Toutes les faces sélectionnées doivent confirmer leur participation avant de terminer la mission');
+
+        Mail::assertNothingQueued();
     }
 
     public function test_cannot_complete_draft_mission(): void
