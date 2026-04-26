@@ -9,6 +9,7 @@ use App\Enums\EscrowStatus;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Exceptions\MissionPaymentInitiationException;
+use App\Mail\FaceSelectedMail;
 use App\Models\Candidature;
 use App\Models\Conversation;
 use App\Models\Face;
@@ -16,12 +17,14 @@ use App\Models\Mission;
 use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
 use App\Models\Notification;
+use App\Models\Producer;
 use App\Models\User;
 use App\ValueObjects\MissionPricing;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -522,6 +525,52 @@ class MissionPaymentService
                         'url' => '/face/candidatures',
                     ]
                 );
+            }
+
+            // Queue FaceSelectedMail for each selected face (non-fatal, best-effort).
+            $mission->loadMissing('producer');
+            $producer = $mission->producer;
+            $producerDisplayName = $producer instanceof Producer ? trim((string) $producer->display_name) : '';
+            $producerName = $producerDisplayName !== '' ? $producerDisplayName : 'Le Producteur';
+
+            foreach ($payment->entries as $entry) {
+                /** @var MissionPaymentCandidature $entry */
+                $userId = $this->getUserIdForFace($entry->face_id);
+
+                if ($userId === null) {
+                    continue;
+                }
+
+                /** @var User|null $faceUser */
+                $faceUser = User::query()->with('userable')->find($userId);
+
+                if (! $faceUser || ! $faceUser->email) {
+                    continue;
+                }
+
+                $face = $faceUser->userable instanceof Face ? $faceUser->userable : null;
+
+                if (! $face) {
+                    continue;
+                }
+
+                try {
+                    Mail::to($faceUser->email)->queue(
+                        new FaceSelectedMail(
+                            face: $face,
+                            mission: $mission,
+                            producerName: $producerName,
+                            amount: (int) $entry->montant_face_recoit,
+                        )
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning('FaceSelectedMail queue failed', [
+                        'mission_id' => $mission->id,
+                        'payment_id' => $payment->id,
+                        'face_id' => $entry->face_id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
 
             /** @var MissionPayment $freshPayment */

@@ -124,3 +124,7 @@
 ## Deferred from: code review of fix-22-3-centralize-frontend-error-formatter (2026-04-21)
 
 - `formatApiError` rule §1 peut surfacer un champ de validation interne (`_token`, `csrf_token`, etc.) comme premier détail — `getFirstDetailMessage` itère `Object.values(details)` sans filtrer les clés techniques. Pas de preuve que le backend actuel émet de tels champs, mais opportunité de hardening future : skip keys commençant par `_` (FIX-22.3 scope)
+
+## Deferred from: code review of fix-24-2-face-selected-mail.md (2026-04-26)
+
+- Missing payment-entry invariant before applying paid outcomes — pre-existing `markAsPaid()` behavior marks a payment paid and calls `applySelectionOutcomesOnPaid()` without first asserting that the payment has the expected selected entries. If a webhook or self-healing path ever reaches this method with empty/incomplete entries, pending candidatures can be rejected incorrectly. Deferred because FIX-24.2 only adds the Face-selected email hook and explicitly does not refactor `applySelectionOutcomesOnPaid()`.
