@@ -10,6 +10,7 @@ use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Exceptions\MissionPaymentInitiationException;
 use App\Mail\FaceSelectedMail;
+use App\Mail\MissionCompletedMail;
 use App\Models\Candidature;
 use App\Models\Conversation;
 use App\Models\Face;
@@ -718,6 +719,38 @@ class MissionPaymentService
                     'url' => '/face/candidatures',
                 ]
             );
+
+            // FIX-24.4: best-effort MissionCompletedMail to the Face.
+            // Non-fatal: NEVER rolls back the parent DB::transaction(completeMission).
+            /** @var User|null $faceUser */
+            $faceUser = User::query()->with('userable')->find($userId);
+
+            if (! $faceUser || ! $faceUser->email) {
+                continue;
+            }
+
+            $face = $faceUser->userable instanceof Face ? $faceUser->userable : null;
+
+            if (! $face) {
+                continue;
+            }
+
+            try {
+                Mail::to($faceUser->email)->queue(
+                    new MissionCompletedMail(
+                        face: $face,
+                        mission: $mission,
+                        amount: (int) $entry->montant_face_recoit,
+                    )
+                );
+            } catch (\Throwable $e) {
+                Log::warning('MissionCompletedMail queue failed', [
+                    'mission_id' => $mission->id,
+                    'payment_id' => $payment->id,
+                    'face_id' => $entry->face_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
     }
 

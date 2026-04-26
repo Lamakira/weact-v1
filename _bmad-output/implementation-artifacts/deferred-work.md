@@ -1,5 +1,10 @@
 # Deferred Work
 
+## Deferred from: code review of fix-24-4-mission-completed-mail (2026-04-26)
+
+- CTA URL fragile quand `app.frontend_url` est null — pattern `rtrim((string) config('app.frontend_url'), '/').'/...'` partagé par `FaceSelectedMail::buildConfirmUrl`, `FaceConfirmedMail::buildCandidaturesUrl`, `WithdrawalRequestSubmittedMail::adminUrl` et `MissionCompletedMail::buildWalletUrl` produit un CTA relatif non-cliquable dans la plupart des clients mail si la config est vide ; à traiter en sprint email-infra (FIX-24.4 scope ; pre-existing infrastructure pattern, non introduit par cette story)
+- Test du chemin `Mail::to(...)->queue(...)` qui throw — aucun test ne simule un échec de queue dans `CompleteMissionTest` pour valider que la complétion mission réussit toujours + crédit wallet OK + notification in-app OK + `Log::warning('MissionCompletedMail queue failed', ...)` émis ; pattern de hardening reproductible depuis FIX-24.3 (test ajouté post-review 2026-04-26) ; non-bloquant car le try/catch est strict-miroir FIX-24.2 (FIX-24.4 scope ; test-only hardening)
+
 ## Deferred from: code review of fix-23-1-registration-enabled-deterministic-fallback (2026-04-21)
 
 - Bare `catch` in RegisterProducerPage.vue / RegisterFacePage.vue is broader than the inline comment suggests — swallows 4xx, CORS, JSON parse and TypeError errors in addition to network/5xx/CDN failures (FIX-23.1 scope; comment-vs-reality doc nit, behaviour matches AC #11 table)
