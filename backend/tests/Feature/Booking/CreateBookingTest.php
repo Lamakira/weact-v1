@@ -6,6 +6,7 @@ namespace Tests\Feature\Booking;
 
 use App\Enums\BookingStatus;
 use App\Events\BookingCreated;
+use App\Mail\BookingReceivedMail;
 use App\Models\Booking;
 use App\Models\Face;
 use App\Models\Producer;
@@ -13,6 +14,7 @@ use App\Models\User;
 use App\ValueObjects\BookingPricing;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class CreateBookingTest extends TestCase
@@ -87,6 +89,35 @@ class CreateBookingTest extends TestCase
         ]);
 
         Event::assertDispatched(BookingCreated::class);
+    }
+
+    public function test_create_booking_dispatches_event_and_queues_email_to_face(): void
+    {
+        // FIX-24.5: end-to-end integration test — let listeners actually execute.
+        // PAS de Event::fake (les 13 autres tests fakent l'event pour isoler la logique
+        // de création ; ce test-ci vérifie que le listener email est bien câblé).
+        Mail::fake();
+
+        $data = $this->getValidBookingData();
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertCreated();
+
+        // FIX-24.5 SendBookingReceivedEmail listener queues the mail to the Face user.
+        Mail::assertQueued(
+            BookingReceivedMail::class,
+            fn (BookingReceivedMail $mail): bool => $mail->hasTo($this->faceUser->email)
+                && $mail->face->is($this->face)
+                && $mail->producer->is($this->producer),
+        );
+
+        // Non-régression : NotifyFaceOnBookingReceived listener still creates the in-app notification.
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->faceUser->id,
+            'type' => 'booking_received',
+        ]);
     }
 
     public function test_booking_pricing_is_calculated_correctly(): void
