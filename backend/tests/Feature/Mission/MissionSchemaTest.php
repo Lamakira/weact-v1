@@ -223,7 +223,9 @@ class MissionSchemaTest extends TestCase
     {
         $this->assertEquals('Brouillon', MissionStatus::Draft->label());
         $this->assertEquals('Publiée', MissionStatus::Published->label());
+        $this->assertEquals('En attente de paiement', MissionStatus::PendingPayment->label());
         $this->assertEquals('Clôturée', MissionStatus::Closed->label());
+        $this->assertEquals('En attente de validation des présences', MissionStatus::PendingAttendanceValidation->label());
         $this->assertEquals('Terminée', MissionStatus::Completed->label());
     }
 
@@ -318,7 +320,7 @@ class MissionSchemaTest extends TestCase
         $typeValues = MissionType::values();
         $genderValues = MissionGender::values();
 
-        $this->assertEquals(['draft', 'published', 'pending_payment', 'closed', 'completed'], $statusValues);
+        $this->assertEquals(['draft', 'published', 'pending_payment', 'closed', 'pending_attendance_validation', 'completed'], $statusValues);
         $this->assertEquals(['publicite', 'film', 'court_metrage', 'clip_musical', 'shooting_photo', 'autre'], $typeValues);
         $this->assertEquals(['homme', 'femme', 'tous'], $genderValues);
     }

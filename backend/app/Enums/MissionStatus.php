@@ -10,6 +10,7 @@ enum MissionStatus: string
     case Published = 'published';
     case PendingPayment = 'pending_payment';
     case Closed = 'closed';
+    case PendingAttendanceValidation = 'pending_attendance_validation';
     case Completed = 'completed';
 
     /**
@@ -22,6 +23,7 @@ enum MissionStatus: string
             self::Published => 'Publiée',
             self::PendingPayment => 'En attente de paiement',
             self::Closed => 'Clôturée',
+            self::PendingAttendanceValidation => 'En attente de validation des présences',
             self::Completed => 'Terminée',
         };
     }

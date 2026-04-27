@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\AttendanceStatus;
 use App\Enums\EscrowStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $face_id
  * @property int $montant_face_recoit
  * @property \App\Enums\EscrowStatus $escrow_status
+ * @property \App\Enums\AttendanceStatus $attendance_status
  * @property-read \App\Models\MissionPayment|null $missionPayment
  * @property-read \App\Models\Candidature|null $candidature
  * @property-read \App\Models\Face|null $face
@@ -27,6 +29,7 @@ class MissionPaymentCandidature extends Model
         'face_id',
         'montant_face_recoit',
         'escrow_status',
+        'attendance_status',
         'locked_at',
         'released_at',
         'refunded_at',
@@ -36,6 +39,7 @@ class MissionPaymentCandidature extends Model
     {
         return [
             'escrow_status' => EscrowStatus::class,
+            'attendance_status' => AttendanceStatus::class,
             'montant_face_recoit' => 'integer',
             'locked_at' => 'datetime',
             'released_at' => 'datetime',
