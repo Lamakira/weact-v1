@@ -1,0 +1,6 @@
+# Code owners for the WEACT repository.
+# Syntax reference: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-security/customizing-your-repository/about-code-owners
+#
+# Combined with the `main` branch ruleset (Require review from Code Owners),
+# this ensures every PR targeting `main` requires Lamakira's approval.
+* @Lamakira
