@@ -507,4 +507,41 @@ class BookingCancellationTest extends TestCase
 
         $response->assertForbidden();
     }
+
+    public function test_cancel_paid_booking_e2e_dispatches_wallet_credited_email_to_producer(): void
+    {
+        Mail::fake();
+        // PAS de Event::fake — on veut que les listeners s'exécutent réellement.
+
+        $booking = Booking::factory()->paid()->withFedapayTransaction()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        EscrowTransaction::factory()->create([
+            'booking_id' => $booking->id,
+            'amount' => $booking->montant_face_recoit,
+            'status' => 'locked',
+        ]);
+
+        $expectedRefund = (int) round($booking->montant_total_producteur * 0.90);
+
+        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
+                'cancellation_reason' => 'other',
+                'custom_cancellation_reason' => 'Test e2e wallet credited',
+            ]);
+
+        $response->assertOk();
+
+        Mail::assertQueued(
+            \App\Mail\WalletCreditedMail::class,
+            fn (\App\Mail\WalletCreditedMail $mail): bool => $mail->hasTo($this->producerUser->email)
+                && $mail->amount === $expectedRefund
+                && $mail->motif === \App\Enums\WalletCreditMotif::BookingCancellationRefund,
+        );
+
+        // Non-régression : l'email d'annulation existant continue de partir.
+        Mail::assertQueued(BookingCancelledMail::class);
+    }
 }
