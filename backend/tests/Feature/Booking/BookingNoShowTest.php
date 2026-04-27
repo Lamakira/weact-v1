@@ -15,6 +15,7 @@ use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class BookingNoShowTest extends TestCase
@@ -253,6 +254,37 @@ class BookingNoShowTest extends TestCase
                 ->where('type', 'booking_no_show')
                 ->where('data->booking_id', $booking->id)
                 ->exists()
+        );
+    }
+
+    public function test_report_no_show_e2e_dispatches_wallet_credited_email_to_producer(): void
+    {
+        Mail::fake();
+        // PAS de Event::fake — on veut que les listeners s'exécutent réellement.
+
+        $booking = Booking::factory()->paid()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'date_debut' => now()->subDay(),
+            'montant_total_producteur' => 50000,
+        ]);
+
+        EscrowTransaction::factory()->create([
+            'booking_id' => $booking->id,
+            'amount' => $booking->montant_face_recoit,
+            'status' => 'locked',
+        ]);
+
+        $response = $this->withApiToken($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/report-no-show");
+
+        $response->assertOk();
+
+        Mail::assertQueued(
+            \App\Mail\WalletCreditedMail::class,
+            fn (\App\Mail\WalletCreditedMail $mail): bool => $mail->hasTo($this->producerUser->email)
+                && $mail->amount === 50000
+                && $mail->motif === \App\Enums\WalletCreditMotif::BookingNoShowRefund,
         );
     }
 }
