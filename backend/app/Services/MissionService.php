@@ -245,9 +245,12 @@ class MissionService
 
             // FIX-26.2 BACKWARD-COMPAT BRIDGE — TEMPORARY
             // Auto-mark all `Locked + pending` entries as `present` so the legacy Producer
-            // flow (without the new attendance UI) continues to behave as before.
-            // This bridge will be REMOVED in FIX-26.4 once the new attendance endpoint
-            // (POST /api/v1/producer/missions/{uuid}/validate-attendance) takes over.
+            // flow (POST /api/v1/producer/missions/{uuid}/complete, called by older clients
+            // and existing CompleteMissionTest fixtures) continues to behave as before.
+            // FIX-26.4 added the new attendance endpoint
+            // (POST /api/v1/producer/missions/{uuid}/validate-attendance) but kept this
+            // bridge intact to avoid migrating CompleteMissionTest. Bridge retirement is
+            // deferred to FIX-26.10 (legacy auto-release-funds cron deprecation).
             $mission->payment?->entries()
                 ->where('escrow_status', EscrowStatus::Locked)
                 ->where('attendance_status', AttendanceStatus::Pending)

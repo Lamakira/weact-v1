@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\Producer\CandidatureController;
 use App\Http\Controllers\Api\V1\Producer\ConversationController;
 use App\Http\Controllers\Api\V1\Producer\FaceController;
 use App\Http\Controllers\Api\V1\Producer\MessageController;
+use App\Http\Controllers\Api\V1\Producer\MissionAttendanceController;
 use App\Http\Controllers\Api\V1\Producer\MissionController;
 use App\Http\Controllers\Api\V1\Producer\MissionPaymentController;
 use App\Http\Controllers\Api\V1\Producer\ProducerDashboardController;
@@ -73,6 +74,10 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
     Route::post('/missions/{mission}/reopen', [MissionController::class, 'reopen'])
         ->middleware('throttle:60,1');
     Route::post('/missions/{mission}/complete', [MissionController::class, 'complete'])
+        ->middleware('throttle:60,1');
+    Route::get('/missions/{mission}/attendance-form', [MissionAttendanceController::class, 'show'])
+        ->middleware('throttle:ui-read');
+    Route::post('/missions/{mission}/validate-attendance', [MissionAttendanceController::class, 'validate'])
         ->middleware('throttle:60,1');
 
     // Mission payment routes
