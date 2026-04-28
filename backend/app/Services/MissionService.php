@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
+use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
 use App\Models\Candidature;
 use App\Models\Mission;
@@ -240,6 +242,16 @@ class MissionService
             if ($this->missionPaymentService->hasUnconfirmedSelectedFaces($mission)) {
                 throw new \RuntimeException('Mission completion requires all selected faces to confirm participation.');
             }
+
+            // FIX-26.2 BACKWARD-COMPAT BRIDGE — TEMPORARY
+            // Auto-mark all `Locked + pending` entries as `present` so the legacy Producer
+            // flow (without the new attendance UI) continues to behave as before.
+            // This bridge will be REMOVED in FIX-26.3 once MissionAttendanceService
+            // takes over via the new endpoints.
+            $mission->payment?->entries()
+                ->where('escrow_status', EscrowStatus::Locked)
+                ->where('attendance_status', AttendanceStatus::Pending)
+                ->update(['attendance_status' => AttendanceStatus::Present]);
 
             // Release funds to selected faces if payment exists
             $this->missionPaymentService->releaseFunds($mission);
