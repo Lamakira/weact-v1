@@ -720,8 +720,11 @@ class MissionPaymentService
      *
      * MUST be called inside an existing DB::transaction().
      */
-    private function releaseToFace(MissionPaymentCandidature $entry, Mission $mission): void
-    {
+    public function releaseToFace(
+        MissionPaymentCandidature $entry,
+        Mission $mission,
+        string $reason = 'attendance_present',
+    ): void {
         $userId = $this->getUserIdForFace($entry->face_id);
 
         if ($userId === null) {
@@ -748,7 +751,7 @@ class MissionPaymentService
             FinancialEventType::EscrowRelease,
             $entry,
             (int) $entry->montant_face_recoit,
-            ['status' => 'completed', 'metadata' => ['reason' => 'attendance_present']],
+            ['status' => 'completed', 'metadata' => ['reason' => $reason]],
         );
 
         // Move candidature to completed using candidature_id directly
@@ -809,8 +812,11 @@ class MissionPaymentService
      *
      * MUST be called inside an existing DB::transaction().
      */
-    private function refundToProducer(MissionPaymentCandidature $entry, Mission $mission): void
-    {
+    public function refundToProducer(
+        MissionPaymentCandidature $entry,
+        Mission $mission,
+        string $reason = 'attendance_absent',
+    ): void {
         $producerUserId = $this->getUserIdForProducer($mission->producer_id);
 
         if ($producerUserId === null) {
@@ -840,7 +846,7 @@ class MissionPaymentService
             [
                 'status' => 'completed',
                 'metadata' => [
-                    'reason' => 'attendance_absent',
+                    'reason' => $reason,
                     'refund_percentage' => 100,
                 ],
             ],

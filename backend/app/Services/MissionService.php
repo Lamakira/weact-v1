@@ -246,8 +246,8 @@ class MissionService
             // FIX-26.2 BACKWARD-COMPAT BRIDGE — TEMPORARY
             // Auto-mark all `Locked + pending` entries as `present` so the legacy Producer
             // flow (without the new attendance UI) continues to behave as before.
-            // This bridge will be REMOVED in FIX-26.3 once MissionAttendanceService
-            // takes over via the new endpoints.
+            // This bridge will be REMOVED in FIX-26.4 once the new attendance endpoint
+            // (POST /api/v1/producer/missions/{uuid}/validate-attendance) takes over.
             $mission->payment?->entries()
                 ->where('escrow_status', EscrowStatus::Locked)
                 ->where('attendance_status', AttendanceStatus::Pending)
@@ -268,7 +268,7 @@ class MissionService
         });
     }
 
-    private function notifyProducerOnCompletion(Mission $mission): void
+    public function notifyProducerOnCompletion(Mission $mission): void
     {
         /** @var User|null $producerUser */
         $producerUser = User::where('userable_type', Producer::class)
