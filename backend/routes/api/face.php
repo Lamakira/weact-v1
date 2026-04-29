@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V1\Face\ExperienceController;
 use App\Http\Controllers\Api\V1\Face\FaceDashboardController;
 use App\Http\Controllers\Api\V1\Face\LanguesController;
 use App\Http\Controllers\Api\V1\Face\MessageController;
+use App\Http\Controllers\Api\V1\Face\MissionAttendanceController;
 use App\Http\Controllers\Api\V1\Face\MissionController;
 use App\Http\Controllers\Api\V1\Face\NotificationController;
 use App\Http\Controllers\Api\V1\Face\PersonalInfoController;
@@ -149,6 +150,10 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
     // Candidature routes - apply to missions (Face only, verified email required)
     Route::post('/missions/{mission}/apply', [CandidatureController::class, 'store'])
         ->middleware(['face', 'verified', 'throttle:30,1']);
+
+    // Mission attendance dispute - Face contests being marked absent
+    Route::post('/missions/{mission}/dispute-attendance', [MissionAttendanceController::class, 'dispute'])
+        ->middleware(['face', 'throttle:30,1']);
 
     // Candidature routes - view my candidatures (Face only)
     Route::get('/candidatures', [CandidatureController::class, 'index'])

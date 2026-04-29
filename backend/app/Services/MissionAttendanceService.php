@@ -9,6 +9,7 @@ use App\Enums\DisputeResolutionOutcome;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
+use App\Events\MissionAttendanceMarkedAbsent;
 use App\Models\Admin;
 use App\Models\Face;
 use App\Models\Mission;
@@ -80,7 +81,9 @@ class MissionAttendanceService
             ]);
         }
 
-        return DB::transaction(function () use ($mission, $entryIdToStatus, $actor): Mission {
+        $entriesNewlyAbsent = [];
+
+        $freshMission = DB::transaction(function () use ($mission, $entryIdToStatus, $actor, &$entriesNewlyAbsent): Mission {
             /** @var Mission $lockedMission */
             $lockedMission = Mission::lockForUpdate()->findOrFail($mission->id);
             $lockedMission->loadMissing('payment');
@@ -142,6 +145,8 @@ class MissionAttendanceService
 
                 if ($targetStatus === AttendanceStatus::Present) {
                     $entriesToRelease[] = $entry->refresh();
+                } elseif ($targetStatus === AttendanceStatus::Absent) {
+                    $entriesNewlyAbsent[] = $entry->refresh();
                 }
             }
 
@@ -160,6 +165,20 @@ class MissionAttendanceService
 
             return $freshMission;
         });
+
+        foreach ($entriesNewlyAbsent as $absentEntry) {
+            try {
+                MissionAttendanceMarkedAbsent::dispatch($absentEntry);
+            } catch (\Throwable $e) {
+                Log::warning('MissionAttendanceMarkedAbsent dispatch failed', [
+                    'entry_id' => $absentEntry->id,
+                    'mission_id' => $mission->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $freshMission;
     }
 
     public function disputeAttendance(MissionPaymentCandidature $entry, User $actor): MissionPaymentCandidature
