@@ -11,6 +11,7 @@ use App\Enums\EscrowStatus;
 use App\Enums\FinancialEventType;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
+use App\Events\MissionAttendanceMarkedAbsent;
 use App\Mail\MissionCompletedMail;
 use App\Models\Admin;
 use App\Models\Candidature;
@@ -25,6 +26,7 @@ use App\Models\User;
 use App\Services\MissionAttendanceService;
 use App\Services\MissionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
@@ -421,6 +423,139 @@ class MissionAttendanceServiceTest extends TestCase
         $this->service->markAttendance($mission->fresh(), [$faces[0]['entry']->id => 'absent'], $this->producerUser);
 
         $this->assertTrue($faces[0]['entry']->fresh()->notified_at->equalTo($firstNotifiedAt));
+    }
+
+    public function test_mark_attendance_dispatches_one_event_per_newly_absent_entry(): void
+    {
+        Event::fake([MissionAttendanceMarkedAbsent::class]);
+        [$mission, $faces] = $this->createPaidMissionWithFaces(3);
+
+        $this->service->markAttendance(
+            $mission,
+            [
+                $faces[0]['entry']->id => 'present',
+                $faces[1]['entry']->id => 'absent',
+                $faces[2]['entry']->id => 'absent',
+            ],
+            $this->producerUser,
+        );
+
+        Event::assertDispatched(MissionAttendanceMarkedAbsent::class, 2);
+        Event::assertDispatched(
+            MissionAttendanceMarkedAbsent::class,
+            fn (MissionAttendanceMarkedAbsent $event): bool => $event->entry->id === $faces[1]['entry']->id,
+        );
+        Event::assertDispatched(
+            MissionAttendanceMarkedAbsent::class,
+            fn (MissionAttendanceMarkedAbsent $event): bool => $event->entry->id === $faces[2]['entry']->id,
+        );
+
+        $dispatchedIds = array_map(
+            fn (MissionAttendanceMarkedAbsent $event): int => $event->entry->id,
+            Event::dispatched(MissionAttendanceMarkedAbsent::class)
+                ->map(fn (array $args): MissionAttendanceMarkedAbsent => $args[0])
+                ->all(),
+        );
+        $this->assertSame(
+            [$faces[1]['entry']->id, $faces[2]['entry']->id],
+            $dispatchedIds,
+            'Events must be dispatched in foreach (ksort) order: entry2 then entry3.',
+        );
+    }
+
+    public function test_mark_attendance_does_not_dispatch_event_when_no_absence(): void
+    {
+        Event::fake([MissionAttendanceMarkedAbsent::class]);
+        [$mission, $faces] = $this->createPaidMissionWithFaces(2);
+
+        $this->service->markAttendance(
+            $mission,
+            [
+                $faces[0]['entry']->id => 'present',
+                $faces[1]['entry']->id => 'present',
+            ],
+            $this->producerUser,
+        );
+
+        Event::assertNotDispatched(MissionAttendanceMarkedAbsent::class);
+    }
+
+    public function test_mark_attendance_does_not_re_dispatch_event_on_idempotent_recall(): void
+    {
+        [$mission, $faces] = $this->createPaidMissionWithFaces(1);
+
+        Event::fake([MissionAttendanceMarkedAbsent::class]);
+        $this->service->markAttendance(
+            $mission,
+            [$faces[0]['entry']->id => 'absent'],
+            $this->producerUser,
+        );
+        Event::assertDispatched(MissionAttendanceMarkedAbsent::class, 1);
+        $firstNotifiedAt = $faces[0]['entry']->fresh()->notified_at;
+        $this->assertNotNull($firstNotifiedAt);
+
+        $this->travel(10)->seconds();
+        Event::fake([MissionAttendanceMarkedAbsent::class]);
+        $this->service->markAttendance(
+            $mission->fresh(),
+            [$faces[0]['entry']->id => 'absent'],
+            $this->producerUser,
+        );
+        Event::assertNotDispatched(MissionAttendanceMarkedAbsent::class);
+        $this->assertTrue(
+            $faces[0]['entry']->fresh()->notified_at->equalTo($firstNotifiedAt),
+            'notified_at must remain the original timestamp on idempotent recall.',
+        );
+    }
+
+    public function test_mark_attendance_does_not_dispatch_event_when_transaction_rolls_back(): void
+    {
+        Event::fake([MissionAttendanceMarkedAbsent::class]);
+        [$mission1, $faces1] = $this->createPaidMissionWithFaces(1);
+        [, $faces2] = $this->createPaidMissionWithFaces(1);
+
+        try {
+            $this->service->markAttendance(
+                $mission1,
+                [
+                    $faces1[0]['entry']->id => 'absent',
+                    $faces2[0]['entry']->id => 'absent',
+                ],
+                $this->producerUser,
+            );
+            $this->fail('Expected RuntimeException');
+        } catch (\RuntimeException) {
+            // Expected ownership mismatch rollback.
+        }
+
+        Event::assertNotDispatched(MissionAttendanceMarkedAbsent::class);
+        $this->assertSame(AttendanceStatus::Pending, $faces1[0]['entry']->fresh()->attendance_status);
+    }
+
+    public function test_mark_attendance_swallows_dispatch_failure_via_log_warning(): void
+    {
+        [$mission, $faces] = $this->createPaidMissionWithFaces(1);
+
+        Event::listen(MissionAttendanceMarkedAbsent::class, function (): void {
+            throw new \RuntimeException('Listener crashed');
+        });
+
+        Log::shouldReceive('warning')
+            ->once()
+            ->withArgs(fn (string $message, array $context): bool => $message === 'MissionAttendanceMarkedAbsent dispatch failed'
+                && $context['entry_id'] === $faces[0]['entry']->id
+                && $context['mission_id'] === $mission->id
+                && isset($context['error']));
+
+        $freshMission = $this->service->markAttendance(
+            $mission,
+            [$faces[0]['entry']->id => 'absent'],
+            $this->producerUser,
+        );
+
+        $this->assertSame(MissionStatus::PendingAttendanceValidation, $freshMission->status);
+        $this->assertSame(AttendanceStatus::Absent, $faces[0]['entry']->fresh()->attendance_status);
+        $this->assertNotNull($faces[0]['entry']->fresh()->notified_at);
     }
 
     public function test_dispute_attendance_flips_absent_to_disputed(): void
