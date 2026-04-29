@@ -774,4 +774,308 @@ class MissionAttendanceServiceTest extends TestCase
         $this->assertSame(EscrowStatus::Released, $faces[0]['entry']->fresh()->escrow_status);
         $this->assertSame(90000, $faces[0]['faceUser']->refresh()->balance);
     }
+
+    // ============================================================
+    // FIX-26.6 — Service::autoValidatePendingAsPresent
+    // ============================================================
+
+    public function test_auto_validate_pending_as_present_releases_pending_entries_and_completes_mission(): void
+    {
+        [$mission, $faces] = $this->createPaidMissionWithFaces(2, MissionStatus::PendingAttendanceValidation);
+
+        $result = $this->service->autoValidatePendingAsPresent($mission);
+
+        $this->assertSame(MissionStatus::Completed, $result->status);
+
+        foreach ($faces as $faceData) {
+            $this->assertDatabaseHas('mission_payment_candidatures', [
+                'id' => $faceData['entry']->id,
+                'attendance_status' => AttendanceStatus::Present->value,
+                'escrow_status' => EscrowStatus::Released->value,
+            ]);
+
+            $this->assertSame(90000, $faceData['faceUser']->refresh()->balance);
+
+            $this->assertDatabaseHas('financial_events', [
+                'type' => FinancialEventType::EscrowRelease->value,
+                'idempotency_key' => "mission_attendance_escrow_release:{$faceData['entry']->id}",
+            ]);
+        }
+
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->producerUser->id,
+            'type' => 'mission_completed_producer',
+        ]);
+
+        Mail::assertQueuedCount(2);
+        Mail::assertQueued(MissionCompletedMail::class, 2);
+    }
+
+    public function test_auto_validate_pending_as_present_is_no_op_when_no_pending_entries(): void
+    {
+        [$mission, $faces] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
+
+        $faces[0]['entry']->update([
+            'attendance_status' => AttendanceStatus::Present,
+            'escrow_status' => EscrowStatus::Released,
+        ]);
+
+        $walletTransactionsBefore = \App\Models\WalletTransaction::count();
+
+        $result = $this->service->autoValidatePendingAsPresent($mission);
+
+        // tryCompleteIfReady fires and flips mission to Completed since no Locked+Pending/Absent left.
+        $this->assertSame(MissionStatus::Completed, $result->status);
+        $this->assertDatabaseMissing('financial_events', [
+            'idempotency_key' => "mission_attendance_escrow_release:{$faces[0]['entry']->id}",
+        ]);
+        $this->assertSame($walletTransactionsBefore, \App\Models\WalletTransaction::count());
+        Mail::assertNothingQueued();
+    }
+
+    public function test_auto_validate_pending_as_present_rejects_mission_in_closed_status(): void
+    {
+        [$mission] = $this->createPaidMissionWithFaces(1, MissionStatus::Closed);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('La validation automatique n\'est possible que sur une mission en attente de validation des présences.');
+
+        $this->service->autoValidatePendingAsPresent($mission);
+    }
+
+    public function test_auto_validate_pending_as_present_rejects_mission_in_completed_status(): void
+    {
+        [$mission] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
+        $mission->update(['status' => MissionStatus::Completed]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('La validation automatique n\'est possible que sur une mission en attente de validation des présences.');
+
+        $this->service->autoValidatePendingAsPresent($mission->refresh());
+    }
+
+    public function test_auto_validate_pending_as_present_keeps_disputed_entries_locked_but_completes_mission(): void
+    {
+        [$mission, $faces] = $this->createPaidMissionWithFaces(2, MissionStatus::PendingAttendanceValidation);
+
+        $faces[1]['entry']->update([
+            'attendance_status' => AttendanceStatus::Disputed,
+            'notified_at' => now()->subHours(10),
+        ]);
+
+        $result = $this->service->autoValidatePendingAsPresent($mission);
+
+        $this->assertSame(MissionStatus::Completed, $result->status);
+
+        $this->assertDatabaseHas('mission_payment_candidatures', [
+            'id' => $faces[0]['entry']->id,
+            'attendance_status' => AttendanceStatus::Present->value,
+            'escrow_status' => EscrowStatus::Released->value,
+        ]);
+
+        $this->assertDatabaseHas('mission_payment_candidatures', [
+            'id' => $faces[1]['entry']->id,
+            'attendance_status' => AttendanceStatus::Disputed->value,
+            'escrow_status' => EscrowStatus::Locked->value,
+        ]);
+    }
+
+    public function test_auto_validate_pending_as_present_keeps_mission_pending_when_absent_in_window_remains(): void
+    {
+        [$mission, $faces] = $this->createPaidMissionWithFaces(2, MissionStatus::PendingAttendanceValidation);
+
+        $faces[1]['entry']->update([
+            'attendance_status' => AttendanceStatus::Absent,
+            'notified_at' => now()->subHours(10),
+        ]);
+
+        $result = $this->service->autoValidatePendingAsPresent($mission);
+
+        $this->assertSame(MissionStatus::PendingAttendanceValidation, $result->status);
+
+        $this->assertDatabaseHas('mission_payment_candidatures', [
+            'id' => $faces[0]['entry']->id,
+            'attendance_status' => AttendanceStatus::Present->value,
+            'escrow_status' => EscrowStatus::Released->value,
+        ]);
+
+        $this->assertDatabaseHas('mission_payment_candidatures', [
+            'id' => $faces[1]['entry']->id,
+            'attendance_status' => AttendanceStatus::Absent->value,
+            'escrow_status' => EscrowStatus::Locked->value,
+        ]);
+    }
+
+    public function test_auto_validate_pending_as_present_uses_distinct_financial_event_reason(): void
+    {
+        [$mission, $faces] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
+
+        $this->service->autoValidatePendingAsPresent($mission);
+
+        $event = FinancialEvent::where('idempotency_key', "mission_attendance_escrow_release:{$faces[0]['entry']->id}")->first();
+        $this->assertNotNull($event);
+        $this->assertSame('attendance_auto_validated', $event->metadata['reason'] ?? null);
+    }
+
+    public function test_auto_validate_pending_as_present_rejects_mission_without_paid_payment(): void
+    {
+        [$mission] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
+        $mission->payment->update(['status' => MissionPaymentStatus::Pending]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('La validation des présences requiert un paiement confirmé sur la mission.');
+
+        $this->service->autoValidatePendingAsPresent($mission->refresh());
+    }
+
+    // ============================================================
+    // FIX-26.6 — Service::autoSettleAbsentAfterDisputeWindow
+    // ============================================================
+
+    public function test_auto_settle_absent_after_dispute_window_refunds_producer_and_completes_mission(): void
+    {
+        [$mission, $faces] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
+
+        $entry = $faces[0]['entry'];
+        $entry->update([
+            'attendance_status' => AttendanceStatus::Absent,
+            'notified_at' => now()->subHours(73),
+        ]);
+
+        $producerBalanceBefore = $this->producerUser->refresh()->balance;
+
+        $result = $this->service->autoSettleAbsentAfterDisputeWindow($entry->refresh());
+
+        $this->assertSame(EscrowStatus::Refunded, $result->escrow_status);
+        $this->assertSame(AttendanceStatus::Absent, $result->attendance_status);
+        $this->assertNotNull($result->refunded_at);
+
+        $this->producerUser->refresh();
+        $this->assertSame($producerBalanceBefore + 90000, $this->producerUser->balance);
+
+        $this->assertDatabaseHas('financial_events', [
+            'type' => FinancialEventType::Refund->value,
+            'idempotency_key' => "mission_attendance_refund:{$entry->id}",
+        ]);
+
+        $event = FinancialEvent::where('idempotency_key', "mission_attendance_refund:{$entry->id}")->first();
+        $this->assertNotNull($event);
+        $this->assertSame('attendance_auto_settled_absent', $event->metadata['reason'] ?? null);
+        $this->assertSame(100, $event->metadata['refund_percentage'] ?? null);
+
+        $mission->refresh();
+        $this->assertSame(MissionStatus::Completed, $mission->status);
+
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->producerUser->id,
+            'type' => 'mission_completed_producer',
+        ]);
+    }
+
+    public function test_auto_settle_absent_after_dispute_window_rejects_entry_within_window(): void
+    {
+        [, $faces] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
+
+        $entry = $faces[0]['entry'];
+        $entry->update([
+            'attendance_status' => AttendanceStatus::Absent,
+            'notified_at' => now()->subHours(71),
+        ]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('La fenêtre de contestation 72h n\'est pas encore expirée pour cette entry.');
+
+        $this->service->autoSettleAbsentAfterDisputeWindow($entry->refresh());
+    }
+
+    public function test_auto_settle_absent_after_dispute_window_rejects_entry_with_null_notified_at(): void
+    {
+        [, $faces] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
+
+        $entry = $faces[0]['entry'];
+        $entry->update([
+            'attendance_status' => AttendanceStatus::Absent,
+            'notified_at' => null,
+        ]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('La fenêtre de contestation 72h ne peut pas être calculée — `notified_at` manquant.');
+
+        $this->service->autoSettleAbsentAfterDisputeWindow($entry->refresh());
+    }
+
+    public function test_auto_settle_absent_after_dispute_window_rejects_pending_entry(): void
+    {
+        [, $faces] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Cette entry n\'est pas en absence non contestée — settle impossible.');
+
+        $this->service->autoSettleAbsentAfterDisputeWindow($faces[0]['entry']);
+    }
+
+    public function test_auto_settle_absent_after_dispute_window_rejects_disputed_entry(): void
+    {
+        [, $faces] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
+
+        $entry = $faces[0]['entry'];
+        $entry->update([
+            'attendance_status' => AttendanceStatus::Disputed,
+            'notified_at' => now()->subHours(73),
+        ]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Cette entry n\'est pas en absence non contestée — settle impossible.');
+
+        $this->service->autoSettleAbsentAfterDisputeWindow($entry->refresh());
+    }
+
+    public function test_auto_settle_absent_after_dispute_window_rejects_already_refunded_entry(): void
+    {
+        [, $faces] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
+
+        $entry = $faces[0]['entry'];
+        $entry->update([
+            'attendance_status' => AttendanceStatus::Absent,
+            'escrow_status' => EscrowStatus::Refunded,
+            'notified_at' => now()->subHours(73),
+            'refunded_at' => now()->subHour(),
+        ]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Cette entry n\'est pas en absence non contestée — settle impossible.');
+
+        $this->service->autoSettleAbsentAfterDisputeWindow($entry->refresh());
+    }
+
+    public function test_auto_settle_absent_after_dispute_window_keeps_mission_pending_when_disputed_remains(): void
+    {
+        [$mission, $faces] = $this->createPaidMissionWithFaces(2, MissionStatus::PendingAttendanceValidation);
+
+        $faces[0]['entry']->update([
+            'attendance_status' => AttendanceStatus::Absent,
+            'notified_at' => now()->subHours(73),
+        ]);
+
+        $faces[1]['entry']->update([
+            'attendance_status' => AttendanceStatus::Disputed,
+            'notified_at' => now()->subHours(50),
+        ]);
+
+        $this->service->autoSettleAbsentAfterDisputeWindow($faces[0]['entry']->refresh());
+
+        $this->assertDatabaseHas('mission_payment_candidatures', [
+            'id' => $faces[0]['entry']->id,
+            'escrow_status' => EscrowStatus::Refunded->value,
+        ]);
+
+        $this->assertDatabaseHas('mission_payment_candidatures', [
+            'id' => $faces[1]['entry']->id,
+            'escrow_status' => EscrowStatus::Locked->value,
+            'attendance_status' => AttendanceStatus::Disputed->value,
+        ]);
+
+        $mission->refresh();
+        $this->assertSame(MissionStatus::Completed, $mission->status);
+    }
 }
