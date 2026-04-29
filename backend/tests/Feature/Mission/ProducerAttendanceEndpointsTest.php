@@ -423,6 +423,24 @@ class ProducerAttendanceEndpointsTest extends TestCase
         )->assertStatus(422)->assertJsonValidationErrors(['entries.0.status']);
     }
 
+    public function test_validate_attendance_returns_422_for_duplicate_entry_ids(): void
+    {
+        [$mission, $faces] = $this->createPaidMissionWithFaces(1);
+
+        $this->actingAs($this->producerUser)->postJson(
+            "/api/v1/producer/missions/{$mission->uuid}/validate-attendance",
+            ['entries' => [
+                ['entry_id' => $faces[0]['entry']->id, 'status' => 'present'],
+                ['entry_id' => $faces[0]['entry']->id, 'status' => 'absent'],
+            ]],
+        )->assertStatus(422)->assertJsonValidationErrors(['entries.0.entry_id']);
+
+        $entry = $faces[0]['entry']->fresh();
+        $this->assertInstanceOf(MissionPaymentCandidature::class, $entry);
+        $this->assertSame(AttendanceStatus::Pending, $entry->attendance_status);
+        $this->assertSame(EscrowStatus::Locked, $entry->escrow_status);
+    }
+
     public function test_validate_attendance_returns_422_for_entry_belonging_to_another_mission(): void
     {
         [$mission1] = $this->createPaidMissionWithFaces(1);

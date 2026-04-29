@@ -38,7 +38,7 @@ class ValidateMissionAttendanceRequest extends FormRequest
         return [
             'entries' => ['required', 'array', 'min:1'],
             'entries.*' => ['required', 'array'],
-            'entries.*.entry_id' => ['required', 'integer', 'min:1'],
+            'entries.*.entry_id' => ['required', 'integer', 'min:1', 'distinct'],
             'entries.*.status' => ['required', 'string', 'in:present,absent'],
         ];
     }
@@ -55,6 +55,7 @@ class ValidateMissionAttendanceRequest extends FormRequest
             'entries.*.entry_id.required' => 'L\'identifiant de l\'entry est requis.',
             'entries.*.entry_id.integer' => 'L\'identifiant de l\'entry doit être un entier positif.',
             'entries.*.entry_id.min' => 'L\'identifiant de l\'entry doit être un entier positif.',
+            'entries.*.entry_id.distinct' => 'Chaque entry ne peut être fournie qu\'une seule fois.',
             'entries.*.status.required' => 'Le statut de l\'entry est requis.',
             'entries.*.status.in' => 'Les statuts acceptés sont : present, absent.',
         ];

@@ -1,6 +1,6 @@
 # Story FIX-26.4: Endpoints Producer — afficher et soumettre la validation présence
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -986,6 +986,10 @@ so that **la couche HTTP exhibe la validation présence pour FIX-26.7 (UI Vue) e
   - Changer `fix-26-4-producer-attendance-endpoints: backlog` (ligne 498) en `fix-26-4-producer-attendance-endpoints: ready-for-dev`.
   - Mettre à jour `last_updated:` à la date courante (`2026-04-28`).
 
+### Review Findings
+
+- [x] [Review][Patch] Reject duplicate attendance entry IDs before folding payload into a map [backend/app/Http/Requests/Mission/ValidateMissionAttendanceRequest.php:41]
+
 ## Dev Notes
 
 ### Architecture du flux HTTP attendance Producer
@@ -1110,6 +1114,7 @@ claude-opus-4-7[1m] (BMM dev-story workflow)
 - 2026-04-28: Full project PHPStan reports pre-existing project-wide findings outside this story scope (793 errors); scoped files are clean.
 - 2026-04-28: `php artisan route:cache` passed; route list shows both attendance endpoints.
 - 2026-04-28: Targeted endpoint suite passed: `ProducerAttendanceEndpointsTest` 22 tests / 105 assertions.
+- 2026-04-28: Code review patch applied: duplicate `entry_id` values are rejected via `distinct`; targeted endpoint suite now passes with 23 tests / 111 assertions; Pint and scoped PHPStan clean for patched files.
 - 2026-04-28: Targeted regressions passed sequentially: `CompleteMissionTest` 11/58, `MissionAttendanceServiceTest` 26/102, `MissionAttendanceReleaseFundsTest` 7/55, `AutoReleaseMissionFundsCommandTest` 1/7.
 - 2026-04-28: Full Feature suite executed after `php artisan migrate:fresh --env=testing`: 1950 passed, 1 unrelated transient failure, 8895 assertions. Failed test: `NotificationBroadcastTest > event is dispatched only after transaction commit`; isolated rerun passed (1 test / 2 assertions).
 
@@ -1120,8 +1125,8 @@ claude-opus-4-7[1m] (BMM dev-story workflow)
 - Implemented `MissionAttendanceController` with `GET attendance-form` and `POST validate-attendance`, delegating mutation to `MissionAttendanceService::markAttendance`.
 - Registered the two Producer routes with `ui-read` and `60,1` throttles.
 - Updated the legacy `/complete` bridge comment to defer bridge retirement to FIX-26.10 while leaving behavior unchanged.
-- Added 22 endpoint tests covering GET/POST success, auth boundaries, validation errors, foreign entry guard, and replay-on-completed behavior.
-- Story ready for review. DB-backed targeted endpoint and regression suites passed. Full Feature suite had one unrelated transient notification broadcast failure that passed on isolated rerun.
+- Added 23 endpoint tests covering GET/POST success, auth boundaries, validation errors, duplicate entry guard, foreign entry guard, and replay-on-completed behavior.
+- Story completed after code review patch. DB-backed targeted endpoint and regression suites passed. Full Feature suite had one unrelated transient notification broadcast failure that passed on isolated rerun.
 
 ### File List
 
