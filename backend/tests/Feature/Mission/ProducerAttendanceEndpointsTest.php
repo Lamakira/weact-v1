@@ -10,6 +10,7 @@ use App\Enums\EscrowStatus;
 use App\Enums\FinancialEventType;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
+use App\Http\Resources\MissionAttendanceEntryResource;
 use App\Mail\MissionCompletedMail;
 use App\Models\Candidature;
 use App\Models\Face;
@@ -43,6 +44,26 @@ class ProducerAttendanceEndpointsTest extends TestCase
             'userable_type' => Producer::class,
             'userable_id' => $this->producer->id,
         ]);
+    }
+
+    public function test_attendance_entry_resource_treats_legacy_null_attendance_status_as_pending(): void
+    {
+        $entry = new MissionPaymentCandidature([
+            'montant_face_recoit' => 90000,
+            'escrow_status' => EscrowStatus::Locked,
+            'attendance_status' => null,
+            'released_at' => null,
+            'refunded_at' => null,
+            'notified_at' => null,
+        ]);
+        $entry->id = 123;
+
+        $payload = (new MissionAttendanceEntryResource($entry))->resolve(request());
+
+        $this->assertSame('pending', $payload['attendance_status']);
+        $this->assertSame('En attente', $payload['attendance_status_label']);
+        $this->assertSame('locked', $payload['escrow_status']);
+        $this->assertSame('Bloqué', $payload['escrow_status_label']);
     }
 
     /**

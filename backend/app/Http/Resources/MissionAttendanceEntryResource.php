@@ -21,6 +21,9 @@ class MissionAttendanceEntryResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $attendanceStatus = $this->attendance_status ?? AttendanceStatus::Pending;
+        $escrowStatus = $this->escrow_status ?? EscrowStatus::Pending;
+
         return [
             'id' => $this->id,
             'face' => $this->whenLoaded('face', function (): array {
@@ -34,10 +37,10 @@ class MissionAttendanceEntryResource extends JsonResource
                 ];
             }),
             'montant_face_recoit' => (int) $this->montant_face_recoit,
-            'attendance_status' => $this->attendance_status->value,
-            'attendance_status_label' => $this->attendanceStatusLabel($this->attendance_status),
-            'escrow_status' => $this->escrow_status->value,
-            'escrow_status_label' => $this->escrowStatusLabel($this->escrow_status),
+            'attendance_status' => $attendanceStatus->value,
+            'attendance_status_label' => $this->attendanceStatusLabel($attendanceStatus),
+            'escrow_status' => $escrowStatus->value,
+            'escrow_status_label' => $this->escrowStatusLabel($escrowStatus),
             'released_at' => $this->dateTimeToIso8601($this->released_at),
             'refunded_at' => $this->dateTimeToIso8601($this->refunded_at),
             'notified_at' => $this->dateTimeToIso8601($this->notified_at),

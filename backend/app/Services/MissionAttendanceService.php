@@ -127,9 +127,11 @@ class MissionAttendanceService
                     );
                 }
 
+                $attendanceStatus = $entry->attendance_status ?? AttendanceStatus::Pending;
+
                 if (
                     $entry->escrow_status !== EscrowStatus::Locked
-                    || $entry->attendance_status !== AttendanceStatus::Pending
+                    || $attendanceStatus !== AttendanceStatus::Pending
                 ) {
                     continue;
                 }
