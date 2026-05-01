@@ -719,11 +719,14 @@ class MissionPaymentService
      * notify, queue MissionCompletedMail, and record the EscrowRelease FinancialEvent.
      *
      * MUST be called inside an existing DB::transaction().
+     *
+     * @param  array<string, mixed>  $extraMetadata
      */
     public function releaseToFace(
         MissionPaymentCandidature $entry,
         Mission $mission,
         string $reason = 'attendance_present',
+        array $extraMetadata = [],
     ): void {
         $userId = $this->getUserIdForFace($entry->face_id);
 
@@ -751,7 +754,10 @@ class MissionPaymentService
             FinancialEventType::EscrowRelease,
             $entry,
             (int) $entry->montant_face_recoit,
-            ['status' => 'completed', 'metadata' => ['reason' => $reason]],
+            [
+                'status' => 'completed',
+                'metadata' => array_merge($extraMetadata, ['reason' => $reason]),
+            ],
         );
 
         // Move candidature to completed using candidature_id directly
@@ -811,11 +817,14 @@ class MissionPaymentService
      * here — the Producer-facing notification is deferred to FIX-26.4/26.5.
      *
      * MUST be called inside an existing DB::transaction().
+     *
+     * @param  array<string, mixed>  $extraMetadata
      */
     public function refundToProducer(
         MissionPaymentCandidature $entry,
         Mission $mission,
         string $reason = 'attendance_absent',
+        array $extraMetadata = [],
     ): void {
         $producerUserId = $this->getUserIdForProducer($mission->producer_id);
 
@@ -845,10 +854,10 @@ class MissionPaymentService
             (int) $entry->montant_face_recoit,
             [
                 'status' => 'completed',
-                'metadata' => [
-                    'reason' => $reason,
-                    'refund_percentage' => 100,
-                ],
+                'metadata' => array_merge(
+                    $extraMetadata,
+                    ['reason' => $reason, 'refund_percentage' => 100],
+                ),
             ],
         );
     }

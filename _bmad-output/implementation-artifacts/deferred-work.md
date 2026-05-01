@@ -217,3 +217,8 @@
 ## Deferred from: code review of fix-26-7-producer-attendance-validation-ui (2026-04-30, v3)
 
 - MissionCard `formatDate()` does not guard invalid date strings — `frontend/src/features/mission/components/MissionCard.vue:37-43`. Pre-existing formatter behavior in MissionCard, not introduced by the attendance CTA; consider adding the same invalid-date guard used by `AttendanceValidationPage` in a general MissionCard hardening pass.
+
+## Deferred from: code review of fix-26-8-admin-attendance-disputes-resolution (2026-05-01)
+
+- `releaseToFace` silently returns when the Face has no linked User — `backend/app/Services/MissionPaymentService.php:731`. This was pre-existing helper behavior before FIX-26.8, but the new admin resolve path inherits it: anomalous data can make a favor-Face resolution report success while escrow remains locked. Harden in a financial helper follow-up by throwing a validation/domain exception instead of returning.
+- `refundToProducer` silently returns when the Producer has no linked User — `backend/app/Services/MissionPaymentService.php:827`. This was pre-existing helper behavior before FIX-26.8, but the new admin resolve path inherits it: anomalous data can make a favor-Producer resolution report success while escrow remains locked. Harden in the same financial helper follow-up.

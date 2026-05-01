@@ -392,6 +392,12 @@ const router = createRouter({
           meta: { title: 'Vue financière - WEACT' },
         },
         {
+          path: 'attendance-disputes',
+          name: 'admin-attendance-disputes',
+          component: () => import('../pages/admin/AdminAttendanceDisputesPage.vue'),
+          meta: { title: 'Litiges présence - WEACT' },
+        },
+        {
           path: 'articles',
           name: 'admin-articles-list',
           component: () => import('../pages/admin/AdminArticlesListPage.vue'),

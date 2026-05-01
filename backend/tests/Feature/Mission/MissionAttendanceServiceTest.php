@@ -137,18 +137,9 @@ class MissionAttendanceServiceTest extends TestCase
         return [$mission, $faces];
     }
 
-    private function createAdminUser(): User
+    private function createAdmin(): Admin
     {
-        /** @var Admin $admin */
-        $admin = Admin::factory()->create();
-
-        /** @var User $adminUser */
-        $adminUser = User::factory()->create([
-            'userable_type' => Admin::class,
-            'userable_id' => $admin->id,
-        ]);
-
-        return $adminUser;
+        return Admin::factory()->create();
     }
 
     public function test_mark_attendance_releases_present_entries_and_keeps_absent_locked(): void
@@ -642,9 +633,9 @@ class MissionAttendanceServiceTest extends TestCase
     {
         [$mission, $faces] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
         $faces[0]['entry']->update(['attendance_status' => AttendanceStatus::Disputed]);
-        $adminUser = $this->createAdminUser();
+        $admin = $this->createAdmin();
 
-        $this->service->resolveDispute($faces[0]['entry'], DisputeResolutionOutcome::FavorFace, $adminUser);
+        $this->service->resolveDispute($faces[0]['entry'], DisputeResolutionOutcome::FavorFace, $admin, 'Note admin de test');
 
         $entry = $faces[0]['entry']->fresh();
         $this->assertSame(EscrowStatus::Released, $entry->escrow_status);
@@ -657,6 +648,10 @@ class MissionAttendanceServiceTest extends TestCase
         $event = FinancialEvent::where('idempotency_key', "mission_attendance_escrow_release:{$faces[0]['entry']->id}")->firstOrFail();
         $this->assertSame(FinancialEventType::EscrowRelease, $event->type);
         $this->assertSame('disputed_resolved_face', $event->metadata['reason'] ?? null);
+        $this->assertSame($admin->id, $event->metadata['admin_id'] ?? null);
+        $this->assertSame($admin->role->value, $event->metadata['admin_role'] ?? null);
+        $this->assertSame('Note admin de test', $event->metadata['admin_notes'] ?? null);
+        $this->assertSame('favor_face', $event->metadata['outcome'] ?? null);
         $this->assertSame(MissionStatus::Completed, $mission->fresh()->status);
     }
 
@@ -664,9 +659,9 @@ class MissionAttendanceServiceTest extends TestCase
     {
         [, $faces] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
         $faces[0]['entry']->update(['attendance_status' => AttendanceStatus::Disputed]);
-        $adminUser = $this->createAdminUser();
+        $admin = $this->createAdmin();
 
-        $this->service->resolveDispute($faces[0]['entry'], DisputeResolutionOutcome::FavorProducer, $adminUser);
+        $this->service->resolveDispute($faces[0]['entry'], DisputeResolutionOutcome::FavorProducer, $admin, 'Note admin de test');
 
         $entry = $faces[0]['entry']->fresh();
         $this->assertSame(EscrowStatus::Refunded, $entry->escrow_status);
@@ -680,40 +675,34 @@ class MissionAttendanceServiceTest extends TestCase
         $this->assertSame(FinancialEventType::Refund, $event->type);
         $this->assertSame('disputed_resolved_producer', $event->metadata['reason'] ?? null);
         $this->assertSame(100, $event->metadata['refund_percentage'] ?? null);
-    }
-
-    public function test_resolve_dispute_rejects_non_admin_actor(): void
-    {
-        [, $faces] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
-        $faces[0]['entry']->update(['attendance_status' => AttendanceStatus::Disputed]);
-
-        $this->expectException(ValidationException::class);
-
-        $this->service->resolveDispute($faces[0]['entry'], DisputeResolutionOutcome::FavorFace, $faces[0]['faceUser']);
+        $this->assertSame($admin->id, $event->metadata['admin_id'] ?? null);
+        $this->assertSame($admin->role->value, $event->metadata['admin_role'] ?? null);
+        $this->assertSame('Note admin de test', $event->metadata['admin_notes'] ?? null);
+        $this->assertSame('favor_producer', $event->metadata['outcome'] ?? null);
     }
 
     public function test_resolve_dispute_rejects_entry_not_in_disputed_state(): void
     {
         [, $faces] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
         $faces[0]['entry']->update(['attendance_status' => AttendanceStatus::Absent]);
-        $adminUser = $this->createAdminUser();
+        $admin = $this->createAdmin();
 
         $this->expectException(ValidationException::class);
 
-        $this->service->resolveDispute($faces[0]['entry'], DisputeResolutionOutcome::FavorFace, $adminUser);
+        $this->service->resolveDispute($faces[0]['entry'], DisputeResolutionOutcome::FavorFace, $admin, 'Note admin de test');
     }
 
     public function test_resolve_dispute_is_idempotent_via_state_guard(): void
     {
         [, $faces] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
         $faces[0]['entry']->update(['attendance_status' => AttendanceStatus::Disputed]);
-        $adminUser = $this->createAdminUser();
+        $admin = $this->createAdmin();
 
-        $this->service->resolveDispute($faces[0]['entry'], DisputeResolutionOutcome::FavorFace, $adminUser);
+        $this->service->resolveDispute($faces[0]['entry'], DisputeResolutionOutcome::FavorFace, $admin, 'Note admin de test');
         $this->assertSame(EscrowStatus::Released, $faces[0]['entry']->fresh()->escrow_status);
 
         try {
-            $this->service->resolveDispute($faces[0]['entry']->fresh(), DisputeResolutionOutcome::FavorFace, $adminUser);
+            $this->service->resolveDispute($faces[0]['entry']->fresh(), DisputeResolutionOutcome::FavorFace, $admin, 'Note admin de test');
             $this->fail('Expected ValidationException on second resolveDispute call');
         } catch (ValidationException) {
             // Expected.
@@ -737,12 +726,42 @@ class MissionAttendanceServiceTest extends TestCase
             'refunded_at' => now(),
         ]);
         $faces[2]['entry']->update(['attendance_status' => AttendanceStatus::Disputed]);
-        $adminUser = $this->createAdminUser();
+        $admin = $this->createAdmin();
 
-        $this->service->resolveDispute($faces[2]['entry'], DisputeResolutionOutcome::FavorFace, $adminUser);
+        $this->service->resolveDispute($faces[2]['entry'], DisputeResolutionOutcome::FavorFace, $admin, 'Note admin de test');
 
         $this->assertSame(MissionStatus::Completed, $mission->fresh()->status);
         $this->assertTrue(
+            Notification::where('user_id', $this->producerUser->id)
+                ->where('type', 'mission_completed_producer')
+                ->exists(),
+        );
+    }
+
+    public function test_resolve_dispute_keeps_mission_in_pending_attendance_validation_when_others_locked(): void
+    {
+        [$mission, $faces] = $this->createPaidMissionWithFaces(3, MissionStatus::PendingAttendanceValidation);
+        // Entry 0: still Locked + Pending (blocking)
+        // Entry 1: Locked + Absent (blocking)
+        $faces[1]['entry']->update(['attendance_status' => AttendanceStatus::Absent]);
+        // Entry 2: Locked + Disputed (the one we resolve)
+        $faces[2]['entry']->update(['attendance_status' => AttendanceStatus::Disputed]);
+        $admin = $this->createAdmin();
+
+        $this->service->resolveDispute($faces[2]['entry'], DisputeResolutionOutcome::FavorFace, $admin, 'Note admin de test');
+
+        // Mission MUST stay in PendingAttendanceValidation because entry 0 (Locked+Pending)
+        // and entry 1 (Locked+Absent) are still blocking per tryCompleteIfReady's filter.
+        $this->assertSame(
+            MissionStatus::PendingAttendanceValidation,
+            $mission->fresh()->status,
+            'Mission should NOT complete while other entries are Locked + (Pending|Absent).',
+        );
+        // The disputed entry was resolved → Released (audit attendance_status stays Disputed).
+        $this->assertSame(EscrowStatus::Released, $faces[2]['entry']->fresh()->escrow_status);
+        $this->assertSame(AttendanceStatus::Disputed, $faces[2]['entry']->fresh()->attendance_status);
+        // notifyProducerOnCompletion NOT called (mission didn't transition to Completed).
+        $this->assertFalse(
             Notification::where('user_id', $this->producerUser->id)
                 ->where('type', 'mission_completed_producer')
                 ->exists(),

@@ -362,18 +362,28 @@ class MissionAttendanceService
         });
     }
 
+    /**
+     * Resolve a `Locked + Disputed` entry by an admin decision (FIX-26.8).
+     *
+     * Type-system enforced: `$admin` must be an Admin model. The previous runtime
+     * guard `$admin->userable_type !== Admin::class` was removed when this method
+     * migrated from User to Admin (FIX-26.8) — admin auth (`auth:sanctum` +
+     * `EnsureApiBearerToken`) returns an Admin instance directly.
+     *
+     * `$notes` is propagated to `FinancialEvent.metadata.admin_notes` for audit;
+     * the FormRequest layer (ResolveAttendanceDisputeRequest) enforces non-empty
+     * min:5 max:1000 chars upstream — the service does not re-validate.
+     *
+     * `$outcome->value` is propagated to `metadata.outcome` (`favor_face` or
+     * `favor_producer`) for direct SQL audit reporting without parsing `reason`.
+     */
     public function resolveDispute(
         MissionPaymentCandidature $entry,
         DisputeResolutionOutcome $outcome,
-        User $admin,
+        Admin $admin,
+        string $notes,
     ): MissionPaymentCandidature {
-        if ($admin->userable_type !== Admin::class) {
-            throw ValidationException::withMessages([
-                'admin' => ['Seul un administrateur peut résoudre un litige.'],
-            ]);
-        }
-
-        return DB::transaction(function () use ($entry, $outcome): MissionPaymentCandidature {
+        return DB::transaction(function () use ($entry, $outcome, $admin, $notes): MissionPaymentCandidature {
             /** @var MissionPaymentCandidature $lockedEntry */
             $lockedEntry = MissionPaymentCandidature::lockForUpdate()->findOrFail($entry->id);
 
@@ -394,16 +404,25 @@ class MissionAttendanceService
                 throw new \RuntimeException("MissionAttendanceService::resolveDispute — mission not found for entry {$lockedEntry->id}.");
             }
 
+            $extraMetadata = [
+                'admin_id' => $admin->id,
+                'admin_role' => $admin->role->value,
+                'admin_notes' => $notes,
+                'outcome' => $outcome->value,
+            ];
+
             match ($outcome) {
                 DisputeResolutionOutcome::FavorFace => $this->missionPaymentService->releaseToFace(
                     $lockedEntry,
                     $mission,
                     'disputed_resolved_face',
+                    $extraMetadata,
                 ),
                 DisputeResolutionOutcome::FavorProducer => $this->missionPaymentService->refundToProducer(
                     $lockedEntry,
                     $mission,
                     'disputed_resolved_producer',
+                    $extraMetadata,
                 ),
             };
 
