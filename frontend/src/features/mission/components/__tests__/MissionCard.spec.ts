@@ -91,6 +91,20 @@ describe('MissionCard — Valider les présences CTA (FIX-26.7)', () => {
     expect(wrapper.text()).not.toContain('Valider les présences')
   })
 
+  it('does NOT show the button on pending_attendance_validation when has_paid_payment is false', () => {
+    const wrapper = mount(MissionCard, {
+      props: {
+        mission: createMission({
+          status: 'pending_attendance_validation',
+          status_label: 'En attente de validation des présences',
+          has_paid_payment: false,
+        }),
+        emailVerified: true,
+      },
+    })
+    expect(wrapper.text()).not.toContain('Valider les présences')
+  })
+
   it('renders the CTA as an enabled <button type="button"> with the visible label', () => {
     const wrapper = mount(MissionCard, {
       props: { mission: createMission({ status: 'closed' }), emailVerified: true },

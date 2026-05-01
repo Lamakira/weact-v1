@@ -35,6 +35,7 @@ const {
 const decisions = reactive<Record<number, AttendanceDecision>>({})
 const failedImages = reactive(new Set<number>())
 const isDialogOpen = ref(false)
+let loadRequestId = 0
 
 function formatCurrency(amount: number): string {
   return (
@@ -82,6 +83,7 @@ function resetState(): void {
     delete decisions[Number(k)]
   }
   failedImages.clear()
+  isDialogOpen.value = false
 }
 
 function markAllPresent(): void {
@@ -106,11 +108,11 @@ const absentEntries = computed<AttendanceEntry[]>(() => {
   return data.value.entries.filter((e) => decisions[e.id] === 'absent')
 })
 
-const totalReleased = computed(() =>
+const totalReleased = computed<number>(() =>
   presentEntries.value.reduce((sum, e) => sum + e.montant_face_recoit, 0)
 )
 
-const totalRefunded = computed(() =>
+const totalRefunded = computed<number>(() =>
   absentEntries.value.reduce((sum, e) => sum + e.montant_face_recoit, 0)
 )
 
@@ -129,11 +131,11 @@ const submittedAbsentEntries = computed<AttendanceEntry[]>(() => {
   )
 })
 
-const submittedReleased = computed(() =>
+const submittedReleased = computed<number>(() =>
   submittedPresentEntries.value.reduce((sum, e) => sum + e.montant_face_recoit, 0)
 )
 
-const submittedRefunded = computed(() =>
+const submittedRefunded = computed<number>(() =>
   submittedAbsentEntries.value.reduce((sum, e) => sum + e.montant_face_recoit, 0)
 )
 
@@ -151,28 +153,33 @@ const submittablePayload = computed<Array<{ entry_id: number; status: Attendance
   }
 )
 
-const allEditableDecided = computed(() => {
+const allEditableDecided = computed<boolean>(() => {
   if (!data.value) return false
   const editable = data.value.entries.filter(isEntryEditable)
   if (editable.length === 0) return false
   return editable.every((e) => decisions[e.id] !== undefined)
 })
 
-const canSubmit = computed(() => allEditableDecided.value && !isSubmitting.value)
+const canSubmit = computed<boolean>(() => allEditableDecided.value && !isSubmitting.value)
 
-const hasEditableEntries = computed(() => {
+const hasEditableEntries = computed<boolean>(() => {
   if (!data.value) return false
   return data.value.entries.some(isEntryEditable)
 })
 
 async function loadForm(): Promise<void> {
+  const requestId = ++loadRequestId
+  const requestedUuid = missionUuid.value
   resetState()
-  if (!missionUuid.value) {
+  if (!requestedUuid) {
     // Empty/missing route param — bail early instead of hitting the backend with ''.
     router.push({ name: 'producer-missions' })
     return
   }
-  const result = await fetchForm(missionUuid.value)
+  const result = await fetchForm(requestedUuid)
+  if (requestId !== loadRequestId || requestedUuid !== missionUuid.value) {
+    return
+  }
   if (!result.success || !result.data) {
     // Route by HTTP status (deterministic; never substring-match localized messages).
     // 422 → stay on page, banner via `error.value`. Anything else → toast + redirect.

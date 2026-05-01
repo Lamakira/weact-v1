@@ -22,12 +22,12 @@ const emit = defineEmits<{
 
 // Computed: Only show actions for editable statuses
 // Note: When email is not verified, only delete is allowed
-const canEdit = computed(() => props.emailVerified && ['draft', 'published'].includes(props.mission.status))
-const canDelete = computed(() => ['draft', 'published'].includes(props.mission.status))
-const canClose = computed(() => props.emailVerified && props.mission.status === 'published')
-const canReopen = computed(() => props.emailVerified && props.mission.status === 'closed' && !props.mission.has_paid_payment)
-const canComplete = computed(() => props.emailVerified && props.mission.status === 'closed')
-const canValidateAttendance = computed(() =>
+const canEdit = computed<boolean>(() => props.emailVerified && ['draft', 'published'].includes(props.mission.status))
+const canDelete = computed<boolean>(() => ['draft', 'published'].includes(props.mission.status))
+const canClose = computed<boolean>(() => props.emailVerified && props.mission.status === 'published')
+const canReopen = computed<boolean>(() => props.emailVerified && props.mission.status === 'closed' && !props.mission.has_paid_payment)
+const canComplete = computed<boolean>(() => props.emailVerified && props.mission.status === 'closed')
+const canValidateAttendance = computed<boolean>(() =>
   props.emailVerified
     && props.mission.has_paid_payment
     && ['closed', 'pending_attendance_validation'].includes(props.mission.status)
@@ -57,7 +57,7 @@ function formatCurrency(amount: number): string {
 }
 
 // Status Color Mapping
-const statusClasses = computed(() => {
+const statusClasses = computed<string>(() => {
   const mapping: Record<MissionStatusType, string> = {
     draft: 'bg-gray-100 text-gray-800 border-gray-200',
     published: 'bg-green-100 text-green-800 border-green-200',
@@ -70,7 +70,7 @@ const statusClasses = computed(() => {
 })
 
 // Get candidatures count (default to 0 if not set)
-const candidaturesCount = computed(() => props.mission.candidatures_count ?? 0)
+const candidaturesCount = computed<number>(() => props.mission.candidatures_count ?? 0)
 </script>
 
 <template>

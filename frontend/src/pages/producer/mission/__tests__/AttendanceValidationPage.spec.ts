@@ -5,17 +5,34 @@ import { AxiosError, AxiosHeaders } from 'axios'
 import AttendanceValidationPage from '../AttendanceValidationPage.vue'
 import { missionApi } from '@/features/mission/services/missionApi'
 import type { AttendanceFormResponse, ValidateAttendanceResponse } from '@/features/mission/types/attendance'
+import type { VueWrapper } from '@vue/test-utils'
 
 const MISSION_UUID = 'mission-uuid-under-test'
+const SECOND_MISSION_UUID = 'second-mission-uuid'
 
 const toastSuccessSpy = vi.fn()
 const toastErrorSpy = vi.fn()
 const routerPushSpy = vi.fn()
-
-vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { id: MISSION_UUID } }),
-  useRouter: () => ({ push: routerPushSpy }),
+const { routeState } = vi.hoisted(() => ({
+  routeState: {
+    route: null as null | { params: { id: string | string[] } },
+  },
 }))
+
+vi.mock('vue-router', async () => {
+  const { reactive } = await vi.importActual<typeof import('vue')>('vue')
+  const route = reactive({
+    params: {
+      id: 'mission-uuid-under-test' as string | string[],
+    },
+  })
+  routeState.route = route
+
+  return {
+    useRoute: () => route,
+    useRouter: () => ({ push: routerPushSpy }),
+  }
+})
 
 vi.mock('@/composables/useToast', () => ({
   useToast: () => ({
@@ -195,12 +212,26 @@ function makeAxiosError(status: number, body: unknown = {}): AxiosError {
   )
 }
 
+const mountedWrappers: VueWrapper[] = []
+
+function mountPage(): VueWrapper {
+  const wrapper = mount(AttendanceValidationPage, { attachTo: document.body })
+  mountedWrappers.push(wrapper)
+  return wrapper
+}
+
 describe('AttendanceValidationPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    if (routeState.route) {
+      routeState.route.params.id = MISSION_UUID
+    }
   })
 
   afterEach(() => {
+    for (const wrapper of mountedWrappers.splice(0)) {
+      wrapper.unmount()
+    }
     document.body.innerHTML = ''
   })
 
@@ -212,7 +243,7 @@ describe('AttendanceValidationPage', () => {
       }),
     )
 
-    const wrapper = mount(AttendanceValidationPage, { attachTo: document.body })
+    const wrapper = mountPage()
     await nextTick()
 
     expect(wrapper.find('[data-testid="skeleton-stub"]').exists()).toBe(true)
@@ -225,10 +256,53 @@ describe('AttendanceValidationPage', () => {
     expect(wrapper.find('[data-testid="attendance-entry-1"]').exists()).toBe(true)
   })
 
+  it('ignores stale fetch results after a fast route param change', async () => {
+    let resolveFirst: (value: AttendanceFormResponse) => void = () => undefined
+    let resolveSecond: (value: AttendanceFormResponse) => void = () => undefined
+    vi.mocked(missionApi.getAttendanceForm)
+      .mockImplementationOnce(
+        () => new Promise<AttendanceFormResponse>((resolve) => {
+          resolveFirst = resolve
+        }),
+      )
+      .mockImplementationOnce(
+        () => new Promise<AttendanceFormResponse>((resolve) => {
+          resolveSecond = resolve
+        }),
+      )
+
+    const wrapper = mountPage()
+    await nextTick()
+
+    expect(routeState.route).toBeTruthy()
+    routeState.route!.params.id = SECOND_MISSION_UUID
+    await nextTick()
+
+    const firstForm = makeAttendanceForm()
+    firstForm.data.mission.titre = 'First Mission'
+    const secondForm = makeAttendanceForm()
+    secondForm.data.mission.id = SECOND_MISSION_UUID
+    secondForm.data.mission.titre = 'Second Mission'
+
+    resolveSecond(secondForm)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Second Mission')
+    expect(wrapper.text()).not.toContain('First Mission')
+
+    resolveFirst(firstForm)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Second Mission')
+    expect(wrapper.text()).not.toContain('First Mission')
+    expect(missionApi.getAttendanceForm).toHaveBeenNthCalledWith(1, MISSION_UUID)
+    expect(missionApi.getAttendanceForm).toHaveBeenNthCalledWith(2, SECOND_MISSION_UUID)
+  })
+
   it('renders the form with entries after fetch resolves', async () => {
     vi.mocked(missionApi.getAttendanceForm).mockResolvedValueOnce(makeAttendanceForm())
 
-    const wrapper = mount(AttendanceValidationPage, { attachTo: document.body })
+    const wrapper = mountPage()
     await flushPromises()
 
     expect(wrapper.text()).toContain('Tournage Spot TV')
@@ -240,7 +314,7 @@ describe('AttendanceValidationPage', () => {
   it('clicks "Toutes présentes" sets all editable decisions to present', async () => {
     vi.mocked(missionApi.getAttendanceForm).mockResolvedValueOnce(makeAttendanceForm())
 
-    const wrapper = mount(AttendanceValidationPage, { attachTo: document.body })
+    const wrapper = mountPage()
     await flushPromises()
 
     await wrapper.find('[data-testid="mark-all-present-button"]').trigger('click')
@@ -257,7 +331,7 @@ describe('AttendanceValidationPage', () => {
   it('"Toutes présentes" overrides previously-marked absent decisions for editable entries', async () => {
     vi.mocked(missionApi.getAttendanceForm).mockResolvedValueOnce(makeAttendanceForm())
 
-    const wrapper = mount(AttendanceValidationPage, { attachTo: document.body })
+    const wrapper = mountPage()
     await flushPromises()
 
     await wrapper.find('[data-testid="decision-1-absent"]').setValue(true)
@@ -272,7 +346,7 @@ describe('AttendanceValidationPage', () => {
   it('keeps submit disabled until every editable entry is decided', async () => {
     vi.mocked(missionApi.getAttendanceForm).mockResolvedValueOnce(makeAttendanceForm())
 
-    const wrapper = mount(AttendanceValidationPage, { attachTo: document.body })
+    const wrapper = mountPage()
     await flushPromises()
 
     await wrapper.find('[data-testid="decision-1-present"]').setValue(true)
@@ -286,7 +360,7 @@ describe('AttendanceValidationPage', () => {
     vi.mocked(missionApi.getAttendanceForm).mockResolvedValueOnce(makeAttendanceForm())
     vi.mocked(missionApi.validateAttendance).mockResolvedValueOnce(makeValidateResponse())
 
-    const wrapper = mount(AttendanceValidationPage, { attachTo: document.body })
+    const wrapper = mountPage()
     await flushPromises()
 
     await wrapper.find('[data-testid="decision-1-present"]').setValue(true)
@@ -318,7 +392,7 @@ describe('AttendanceValidationPage', () => {
       }),
     )
 
-    const wrapper = mount(AttendanceValidationPage, { attachTo: document.body })
+    const wrapper = mountPage()
     await flushPromises()
 
     await wrapper.find('[data-testid="decision-1-present"]').setValue(true)
@@ -340,7 +414,7 @@ describe('AttendanceValidationPage', () => {
       makeAxiosError(403, { error: { message: "Cette action n’est pas autorisée." } }),
     )
 
-    const wrapper = mount(AttendanceValidationPage, { attachTo: document.body })
+    const wrapper = mountPage()
     await flushPromises()
 
     await wrapper.find('[data-testid="decision-1-present"]').setValue(true)
@@ -359,7 +433,7 @@ describe('AttendanceValidationPage', () => {
       makeAxiosError(403, { error: { message: "Cette action n’est pas autorisée." } }),
     )
 
-    mount(AttendanceValidationPage, { attachTo: document.body })
+    mountPage()
     await flushPromises()
 
     expect(toastErrorSpy).toHaveBeenCalledTimes(1)
@@ -372,7 +446,7 @@ describe('AttendanceValidationPage', () => {
       makeAxiosError(422, { error: { message: 'Mission no longer eligible.' } }),
     )
 
-    const wrapper = mount(AttendanceValidationPage, { attachTo: document.body })
+    const wrapper = mountPage()
     await flushPromises()
 
     await wrapper.find('[data-testid="decision-1-present"]').setValue(true)
@@ -392,7 +466,7 @@ describe('AttendanceValidationPage', () => {
     vi.mocked(missionApi.getAttendanceForm).mockResolvedValueOnce(makeMixedAttendanceForm())
     vi.mocked(missionApi.validateAttendance).mockResolvedValueOnce(makeValidateResponse())
 
-    const wrapper = mount(AttendanceValidationPage, { attachTo: document.body })
+    const wrapper = mountPage()
     await flushPromises()
 
     const r1Present = wrapper.find<HTMLInputElement>('[data-testid="decision-1-present"]').element
@@ -420,7 +494,7 @@ describe('AttendanceValidationPage', () => {
     form.data.entries[1]!.attendance_status_label = 'Contestée'
     vi.mocked(missionApi.getAttendanceForm).mockResolvedValueOnce(form)
 
-    const wrapper = mount(AttendanceValidationPage, { attachTo: document.body })
+    const wrapper = mountPage()
     await flushPromises()
 
     const r2Absent = wrapper.find<HTMLInputElement>('[data-testid="decision-2-absent"]').element
@@ -433,7 +507,7 @@ describe('AttendanceValidationPage', () => {
     vi.mocked(missionApi.getAttendanceForm).mockResolvedValueOnce(makeMixedAttendanceForm())
     vi.mocked(missionApi.validateAttendance).mockResolvedValueOnce(makeValidateResponse())
 
-    const wrapper = mount(AttendanceValidationPage, { attachTo: document.body })
+    const wrapper = mountPage()
     await flushPromises()
 
     await wrapper.find('[data-testid="decision-3-present"]').setValue(true)
@@ -468,7 +542,7 @@ describe('AttendanceValidationPage', () => {
       }),
     )
 
-    const wrapper = mount(AttendanceValidationPage, { attachTo: document.body })
+    const wrapper = mountPage()
     await flushPromises()
 
     expect(routerPushSpy).not.toHaveBeenCalled()

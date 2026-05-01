@@ -21,25 +21,25 @@ const emit = defineEmits<{
   confirm: []
 }>()
 
-const handleCancel = () => {
+const handleCancel = (): void => {
   if (!props.isLoading) {
     emit('cancel')
   }
 }
 
-const handleConfirm = () => {
+const handleConfirm = (): void => {
   if (!props.isLoading) {
     emit('confirm')
   }
 }
 
-const handleBackdropClick = (event: MouseEvent) => {
+const handleBackdropClick = (event: MouseEvent): void => {
   if (event.target === event.currentTarget && !props.isLoading) {
     emit('cancel')
   }
 }
 
-const truncatedTitle = computed(() => {
+const truncatedTitle = computed<string>(() => {
   if (props.missionTitle.length > 50) {
     return props.missionTitle.substring(0, 50) + '...'
   }
@@ -59,7 +59,7 @@ function formatCurrency(amount: number): string {
   )
 }
 
-const handleKeydown = (event: KeyboardEvent) => {
+const handleKeydown = (event: KeyboardEvent): void => {
   if (event.key === 'Escape' && props.isOpen && !props.isLoading) {
     emit('cancel')
   }
