@@ -8,6 +8,7 @@ export const MissionStatus = {
   PUBLISHED: 'published',
   PENDING_PAYMENT: 'pending_payment',
   CLOSED: 'closed',
+  PENDING_ATTENDANCE_VALIDATION: 'pending_attendance_validation',
   COMPLETED: 'completed',
 } as const
 
@@ -19,6 +20,7 @@ export const MissionStatusLabel: Record<MissionStatusType, string> = {
   [MissionStatus.PUBLISHED]: 'Publiée',
   [MissionStatus.PENDING_PAYMENT]: 'En attente de paiement',
   [MissionStatus.CLOSED]: 'Clôturée',
+  [MissionStatus.PENDING_ATTENDANCE_VALIDATION]: 'En attente de validation des présences',
   [MissionStatus.COMPLETED]: 'Terminée',
 }
 

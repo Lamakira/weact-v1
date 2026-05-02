@@ -7,6 +7,7 @@ namespace App\Concerns;
 use App\Enums\FinancialEventType;
 use App\Models\Booking;
 use App\Models\FinancialEvent;
+use App\Models\MissionPaymentCandidature;
 use Illuminate\Support\Str;
 
 /**
@@ -38,6 +39,37 @@ trait RecordsFinancialEvent
             'idempotency_key' => $extra['idempotency_key'] ?? Str::uuid()->toString(),
             'status' => $extra['status'] ?? 'pending',
             'metadata' => $extra['metadata'] ?? null,
+        ]);
+    }
+
+    /**
+     * Record a FinancialEvent for a mission attendance settlement (release/refund).
+     * Uses booking_id = null and a deterministic idempotency_key per (entry, type).
+     *
+     * MUST be called inside an existing DB::transaction() context.
+     *
+     * @param  array<string, mixed>  $extra  Optional overrides: idempotency_key, status, metadata
+     */
+    protected function recordMissionAttendanceFinancialEvent(
+        FinancialEventType $type,
+        MissionPaymentCandidature $entry,
+        int $amount,
+        array $extra = [],
+    ): FinancialEvent {
+        $defaultMetadata = [
+            'mission_payment_candidature_id' => $entry->id,
+            'mission_payment_id' => $entry->mission_payment_id,
+            'face_id' => $entry->face_id,
+        ];
+
+        return FinancialEvent::create([
+            'type' => $type,
+            'booking_id' => null,
+            'amount' => $amount,
+            'fedapay_ref' => null,
+            'idempotency_key' => $extra['idempotency_key'] ?? "mission_attendance_{$type->value}:{$entry->id}",
+            'status' => $extra['status'] ?? 'completed',
+            'metadata' => array_merge($defaultMetadata, $extra['metadata'] ?? []),
         ]);
     }
 

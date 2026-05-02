@@ -248,6 +248,12 @@ const router = createRouter({
             import('../pages/producer/candidature/ProducerMissionCandidaturesPage.vue'),
         },
         {
+          path: 'missions/:id/attendance',
+          name: 'producer-mission-attendance',
+          component: () =>
+            import('../pages/producer/mission/AttendanceValidationPage.vue'),
+        },
+        {
           path: 'candidates/:id',
           name: 'producer-candidate-profile',
           component: () =>
@@ -384,6 +390,12 @@ const router = createRouter({
           name: 'admin-finance',
           component: () => import('../pages/admin/AdminFinancePage.vue'),
           meta: { title: 'Vue financière - WEACT' },
+        },
+        {
+          path: 'attendance-disputes',
+          name: 'admin-attendance-disputes',
+          component: () => import('../pages/admin/AdminAttendanceDisputesPage.vue'),
+          meta: { title: 'Litiges présence - WEACT' },
         },
         {
           path: 'articles',

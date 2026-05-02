@@ -1,0 +1,483 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services;
+
+use App\Enums\AttendanceStatus;
+use App\Enums\DisputeResolutionOutcome;
+use App\Enums\EscrowStatus;
+use App\Enums\MissionPaymentStatus;
+use App\Enums\MissionStatus;
+use App\Events\MissionAttendanceMarkedAbsent;
+use App\Models\Admin;
+use App\Models\Face;
+use App\Models\Mission;
+use App\Models\MissionPayment;
+use App\Models\MissionPaymentCandidature;
+use App\Models\Producer;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
+
+class MissionAttendanceService
+{
+    public function __construct(
+        private readonly MissionPaymentService $missionPaymentService,
+        private readonly MissionService $missionService,
+    ) {}
+
+    /**
+     * Apply a Producer batch of presence/absence decisions on a mission.
+     * Present entries are released to Face wallets immediately. Absent entries
+     * stay Locked, awaiting the 72h dispute window (FIX-26.5) or auto-settle cron (FIX-26.6).
+     *
+     * @param  array<array-key, 'present'|'absent'>  $entryIdToStatus
+     */
+    public function markAttendance(Mission $mission, array $entryIdToStatus, User $actor): Mission
+    {
+        if (! $this->isProducerMissionOwner($actor, $mission)) {
+            throw ValidationException::withMessages([
+                'actor' => ['Seul le producteur de la mission peut valider les présences.'],
+            ]);
+        }
+
+        if (! in_array($mission->status, [MissionStatus::Closed, MissionStatus::PendingAttendanceValidation, MissionStatus::Completed], true)) {
+            throw ValidationException::withMessages([
+                'mission' => ['La validation des présences n\'est possible que sur une mission clôturée ou en attente de validation.'],
+            ]);
+        }
+
+        if ($entryIdToStatus === []) {
+            throw ValidationException::withMessages([
+                'entries' => ['Au moins une entry doit être fournie.'],
+            ]);
+        }
+
+        foreach ($entryIdToStatus as $entryId => $status) {
+            if (! is_int($entryId) || $entryId <= 0) {
+                throw ValidationException::withMessages([
+                    'entries' => ['Les identifiants des entries doivent être des entiers positifs.'],
+                ]);
+            }
+
+            if (! in_array($status, ['present', 'absent'], true)) {
+                throw ValidationException::withMessages([
+                    'entries' => ['Les statuts acceptés sont : present, absent.'],
+                ]);
+            }
+        }
+
+        ksort($entryIdToStatus, SORT_NUMERIC);
+
+        $mission->loadMissing('payment');
+        if (
+            ! $mission->payment instanceof MissionPayment
+            || $mission->payment->status !== MissionPaymentStatus::Paid
+        ) {
+            throw ValidationException::withMessages([
+                'mission' => ['La validation des présences requiert un paiement confirmé sur la mission.'],
+            ]);
+        }
+
+        $entriesNewlyAbsent = [];
+
+        $freshMission = DB::transaction(function () use ($mission, $entryIdToStatus, $actor, &$entriesNewlyAbsent): Mission {
+            /** @var Mission $lockedMission */
+            $lockedMission = Mission::lockForUpdate()->findOrFail($mission->id);
+            $lockedMission->loadMissing('payment');
+
+            if (! $this->isProducerMissionOwner($actor, $lockedMission)) {
+                throw ValidationException::withMessages([
+                    'actor' => ['Seul le producteur de la mission peut valider les présences.'],
+                ]);
+            }
+
+            if (! in_array($lockedMission->status, [MissionStatus::Closed, MissionStatus::PendingAttendanceValidation, MissionStatus::Completed], true)) {
+                throw ValidationException::withMessages([
+                    'mission' => ['La validation des présences n\'est possible que sur une mission clôturée ou en attente de validation.'],
+                ]);
+            }
+
+            if (
+                ! $lockedMission->payment instanceof MissionPayment
+                || $lockedMission->payment->status !== MissionPaymentStatus::Paid
+            ) {
+                throw ValidationException::withMessages([
+                    'mission' => ['La validation des présences requiert un paiement confirmé sur la mission.'],
+                ]);
+            }
+
+            $entriesToRelease = [];
+
+            foreach ($entryIdToStatus as $entryId => $status) {
+                /** @var MissionPaymentCandidature|null $entry */
+                $entry = MissionPaymentCandidature::lockForUpdate()->find((int) $entryId);
+
+                if (! $entry) {
+                    throw new \RuntimeException("MissionAttendanceService::markAttendance — entry {$entryId} not found.");
+                }
+
+                $entry->loadMissing('missionPayment');
+
+                if (! $entry->missionPayment || $entry->missionPayment->mission_id !== $lockedMission->id) {
+                    throw new \RuntimeException(
+                        "Entry {$entry->id} does not belong to mission {$lockedMission->id}."
+                    );
+                }
+
+                $attendanceStatus = $entry->attendance_status ?? AttendanceStatus::Pending;
+
+                if (
+                    $entry->escrow_status !== EscrowStatus::Locked
+                    || $attendanceStatus !== AttendanceStatus::Pending
+                ) {
+                    continue;
+                }
+
+                $targetStatus = AttendanceStatus::from($status);
+                $updatePayload = ['attendance_status' => $targetStatus];
+
+                if ($targetStatus === AttendanceStatus::Absent && $entry->notified_at === null) {
+                    $updatePayload['notified_at'] = now();
+                }
+
+                $entry->update($updatePayload);
+
+                if ($targetStatus === AttendanceStatus::Present) {
+                    $entriesToRelease[] = $entry->refresh();
+                } elseif ($targetStatus === AttendanceStatus::Absent) {
+                    $entriesNewlyAbsent[] = $entry->refresh();
+                }
+            }
+
+            if ($lockedMission->status === MissionStatus::Closed) {
+                $lockedMission->update(['status' => MissionStatus::PendingAttendanceValidation]);
+            }
+
+            foreach ($entriesToRelease as $entry) {
+                $this->missionPaymentService->releaseToFace($entry, $lockedMission, 'attendance_present');
+            }
+
+            $this->tryCompleteIfReady($lockedMission->refresh());
+
+            /** @var Mission $freshMission */
+            $freshMission = $lockedMission->fresh();
+
+            return $freshMission;
+        });
+
+        foreach ($entriesNewlyAbsent as $absentEntry) {
+            try {
+                MissionAttendanceMarkedAbsent::dispatch($absentEntry);
+            } catch (\Throwable $e) {
+                Log::warning('MissionAttendanceMarkedAbsent dispatch failed', [
+                    'entry_id' => $absentEntry->id,
+                    'mission_id' => $mission->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $freshMission;
+    }
+
+    /**
+     * Auto-validate all `Locked + Pending` entries of a mission as `present` after
+     * the Producer's 72h-post-shooting deadline expires without action.
+     *
+     * System-driven (no User actor) — invoked by the missions:auto-validate-attendance
+     * scheduled command (FIX-26.6).
+     *
+     * Each pending entry transitions to attendance=Present + escrow=Released, crediting
+     * the Face wallet via MissionPaymentService::releaseToFace with reason
+     * 'attendance_auto_validated' (distinct from 'attendance_present' to allow
+     * downstream auditing of system-vs-Producer-driven validations).
+     *
+     * Idempotent: re-invoking on a mission with no Locked+Pending entries is a no-op.
+     *
+     * @throws ValidationException if mission is not in PendingAttendanceValidation, or
+     *                             if its payment is not Paid.
+     */
+    public function autoValidatePendingAsPresent(Mission $mission): Mission
+    {
+        return DB::transaction(function () use ($mission): Mission {
+            /** @var Mission $lockedMission */
+            $lockedMission = Mission::lockForUpdate()->findOrFail($mission->id);
+            $lockedMission->loadMissing('payment');
+
+            if ($lockedMission->status !== MissionStatus::PendingAttendanceValidation) {
+                throw ValidationException::withMessages([
+                    'mission' => ['La validation automatique n\'est possible que sur une mission en attente de validation des présences.'],
+                ]);
+            }
+
+            if (
+                ! $lockedMission->payment instanceof MissionPayment
+                || $lockedMission->payment->status !== MissionPaymentStatus::Paid
+            ) {
+                throw ValidationException::withMessages([
+                    'mission' => ['La validation des présences requiert un paiement confirmé sur la mission.'],
+                ]);
+            }
+
+            /** @var \Illuminate\Database\Eloquent\Collection<int, MissionPaymentCandidature> $entriesToValidate */
+            $entriesToValidate = $lockedMission->payment->entries()
+                ->where('escrow_status', EscrowStatus::Locked)
+                ->where('attendance_status', AttendanceStatus::Pending)
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($entriesToValidate as $entry) {
+                $entry->update(['attendance_status' => AttendanceStatus::Present]);
+                $this->missionPaymentService->releaseToFace(
+                    $entry->refresh(),
+                    $lockedMission,
+                    'attendance_auto_validated',
+                );
+            }
+
+            $this->tryCompleteIfReady($lockedMission->refresh());
+
+            /** @var Mission $freshMission */
+            $freshMission = $lockedMission->fresh();
+
+            return $freshMission;
+        });
+    }
+
+    /**
+     * Auto-settle a `Locked + Absent` entry by refunding the Producer 100% of the
+     * per-Face amount once the Face's 72h dispute window has expired without contest.
+     *
+     * System-driven (no User actor) — invoked by the missions:settle-disputed-attendance
+     * scheduled command (FIX-26.6).
+     *
+     * The entry transitions to escrow=Refunded, crediting the Producer wallet via
+     * MissionPaymentService::refundToProducer with reason 'attendance_auto_settled_absent'.
+     * `attendance_status` stays `Absent` (audit history preserved).
+     *
+     * Idempotent: re-invoking on a non-eligible entry (already Refunded, or Disputed,
+     * or within the 72h window) throws ValidationException.
+     *
+     * @throws ValidationException if entry is not Locked+Absent, has null notified_at,
+     *                             or is still within the 72h dispute window.
+     */
+    public function autoSettleAbsentAfterDisputeWindow(MissionPaymentCandidature $entry): MissionPaymentCandidature
+    {
+        return DB::transaction(function () use ($entry): MissionPaymentCandidature {
+            /** @var MissionPaymentCandidature $lockedEntry */
+            $lockedEntry = MissionPaymentCandidature::lockForUpdate()->findOrFail($entry->id);
+
+            if (
+                $lockedEntry->escrow_status !== EscrowStatus::Locked
+                || $lockedEntry->attendance_status !== AttendanceStatus::Absent
+            ) {
+                throw ValidationException::withMessages([
+                    'entry' => ['Cette entry n\'est pas en absence non contestée — settle impossible.'],
+                ]);
+            }
+
+            if ($lockedEntry->notified_at === null) {
+                throw ValidationException::withMessages([
+                    'entry' => ['La fenêtre de contestation 72h ne peut pas être calculée — `notified_at` manquant.'],
+                ]);
+            }
+
+            if ($lockedEntry->notified_at->copy()->addHours(72)->isFuture()) {
+                throw ValidationException::withMessages([
+                    'entry' => ['La fenêtre de contestation 72h n\'est pas encore expirée pour cette entry.'],
+                ]);
+            }
+
+            $lockedEntry->loadMissing('missionPayment.mission');
+            /** @var Mission|null $mission */
+            $mission = $lockedEntry->missionPayment?->mission;
+
+            if (! $mission) {
+                throw new \RuntimeException(
+                    "MissionAttendanceService::autoSettleAbsentAfterDisputeWindow — mission not found for entry {$lockedEntry->id}."
+                );
+            }
+
+            /** @var Mission $lockedMission */
+            $lockedMission = Mission::lockForUpdate()->findOrFail($mission->id);
+
+            $this->missionPaymentService->refundToProducer(
+                $lockedEntry,
+                $lockedMission,
+                'attendance_auto_settled_absent',
+            );
+
+            $this->tryCompleteIfReady($lockedMission->refresh());
+
+            /** @var MissionPaymentCandidature $freshEntry */
+            $freshEntry = $lockedEntry->fresh();
+
+            return $freshEntry;
+        });
+    }
+
+    public function disputeAttendance(MissionPaymentCandidature $entry, User $actor): MissionPaymentCandidature
+    {
+        if (! $this->isFaceEntryOwner($actor, $entry)) {
+            throw ValidationException::withMessages([
+                'actor' => ['Seule la Face concernée peut contester sa propre absence.'],
+            ]);
+        }
+
+        return DB::transaction(function () use ($entry, $actor): MissionPaymentCandidature {
+            /** @var MissionPaymentCandidature $lockedEntry */
+            $lockedEntry = MissionPaymentCandidature::lockForUpdate()->findOrFail($entry->id);
+
+            if (! $this->isFaceEntryOwner($actor, $lockedEntry)) {
+                throw ValidationException::withMessages([
+                    'actor' => ['Seule la Face concernée peut contester sa propre absence.'],
+                ]);
+            }
+
+            if (
+                $lockedEntry->escrow_status !== EscrowStatus::Locked
+                || $lockedEntry->attendance_status !== AttendanceStatus::Absent
+            ) {
+                throw ValidationException::withMessages([
+                    'entry' => ['La contestation n\'est possible que sur une absence non encore tranchée.'],
+                ]);
+            }
+
+            $lockedEntry->update(['attendance_status' => AttendanceStatus::Disputed]);
+            $lockedEntry->loadMissing('missionPayment');
+
+            Log::info('MissionAttendanceService::disputeAttendance — entry disputed by Face', [
+                'entry_id' => $lockedEntry->id,
+                'face_id' => $lockedEntry->face_id,
+                'mission_id' => $lockedEntry->missionPayment?->mission_id,
+            ]);
+
+            /** @var MissionPaymentCandidature $freshEntry */
+            $freshEntry = $lockedEntry->fresh();
+
+            return $freshEntry;
+        });
+    }
+
+    /**
+     * Resolve a `Locked + Disputed` entry by an admin decision (FIX-26.8).
+     *
+     * Type-system enforced: `$admin` must be an Admin model. The previous runtime
+     * guard `$admin->userable_type !== Admin::class` was removed when this method
+     * migrated from User to Admin (FIX-26.8) — admin auth (`auth:sanctum` +
+     * `EnsureApiBearerToken`) returns an Admin instance directly.
+     *
+     * `$notes` is propagated to `FinancialEvent.metadata.admin_notes` for audit;
+     * the FormRequest layer (ResolveAttendanceDisputeRequest) enforces non-empty
+     * min:5 max:1000 chars upstream — the service does not re-validate.
+     *
+     * `$outcome->value` is propagated to `metadata.outcome` (`favor_face` or
+     * `favor_producer`) for direct SQL audit reporting without parsing `reason`.
+     */
+    public function resolveDispute(
+        MissionPaymentCandidature $entry,
+        DisputeResolutionOutcome $outcome,
+        Admin $admin,
+        string $notes,
+    ): MissionPaymentCandidature {
+        return DB::transaction(function () use ($entry, $outcome, $admin, $notes): MissionPaymentCandidature {
+            /** @var MissionPaymentCandidature $lockedEntry */
+            $lockedEntry = MissionPaymentCandidature::lockForUpdate()->findOrFail($entry->id);
+
+            if (
+                $lockedEntry->escrow_status !== EscrowStatus::Locked
+                || $lockedEntry->attendance_status !== AttendanceStatus::Disputed
+            ) {
+                throw ValidationException::withMessages([
+                    'entry' => ['La résolution de litige n\'est possible que sur une entry contestée non encore tranchée.'],
+                ]);
+            }
+
+            $lockedEntry->loadMissing('missionPayment.mission');
+            /** @var Mission|null $mission */
+            $mission = $lockedEntry->missionPayment?->mission;
+
+            if (! $mission) {
+                throw new \RuntimeException("MissionAttendanceService::resolveDispute — mission not found for entry {$lockedEntry->id}.");
+            }
+
+            $extraMetadata = [
+                'admin_id' => $admin->id,
+                'admin_role' => $admin->role->value,
+                'admin_notes' => $notes,
+                'outcome' => $outcome->value,
+            ];
+
+            match ($outcome) {
+                DisputeResolutionOutcome::FavorFace => $this->missionPaymentService->releaseToFace(
+                    $lockedEntry,
+                    $mission,
+                    'disputed_resolved_face',
+                    $extraMetadata,
+                ),
+                DisputeResolutionOutcome::FavorProducer => $this->missionPaymentService->refundToProducer(
+                    $lockedEntry,
+                    $mission,
+                    'disputed_resolved_producer',
+                    $extraMetadata,
+                ),
+            };
+
+            $this->tryCompleteIfReady($mission->refresh());
+
+            /** @var MissionPaymentCandidature $freshEntry */
+            $freshEntry = $lockedEntry->fresh();
+
+            return $freshEntry;
+        });
+    }
+
+    private function tryCompleteIfReady(Mission $mission): void
+    {
+        if ($mission->status === MissionStatus::Completed) {
+            return;
+        }
+
+        $mission->loadMissing('payment');
+
+        if (
+            ! $mission->payment instanceof MissionPayment
+            || $mission->payment->status !== MissionPaymentStatus::Paid
+        ) {
+            return;
+        }
+
+        if (! $mission->payment->entries()->exists()) {
+            return;
+        }
+
+        $hasUnsettled = $mission->payment->entries()
+            ->where('escrow_status', EscrowStatus::Locked)
+            ->whereIn('attendance_status', [AttendanceStatus::Pending, AttendanceStatus::Absent])
+            ->exists();
+
+        if ($hasUnsettled) {
+            return;
+        }
+
+        $mission->update(['status' => MissionStatus::Completed]);
+        /** @var Mission $freshMission */
+        $freshMission = $mission->fresh();
+        $this->missionService->notifyProducerOnCompletion($freshMission);
+    }
+
+    private function isProducerMissionOwner(User $actor, Mission $mission): bool
+    {
+        return $actor->userable_type === Producer::class
+            && $actor->userable_id === $mission->producer_id;
+    }
+
+    private function isFaceEntryOwner(User $actor, MissionPaymentCandidature $entry): bool
+    {
+        return $actor->userable_type === Face::class
+            && $actor->userable_id === $entry->face_id;
+    }
+}

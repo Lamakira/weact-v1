@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Admin\AdminAttendanceDisputeController;
 use App\Http\Controllers\Api\V1\Admin\AdminController;
 use App\Http\Controllers\Api\V1\Admin\AdminDashboardController;
 use App\Http\Controllers\Api\V1\Admin\AdminFinanceController;
@@ -123,6 +124,14 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'api.token', 'admin'])->g
         Route::post('/finance/withdrawal-requests/{withdrawalRequest}/reject', [WithdrawalRequestController::class, 'reject'])
             ->middleware('throttle:30,1')
             ->name('admin.finance.withdrawal-requests.reject');
+
+        // Mission attendance dispute resolution (FIX-26.8)
+        Route::get('/attendance-disputes', [AdminAttendanceDisputeController::class, 'index'])
+            ->middleware('throttle:30,1')
+            ->name('admin.attendance-disputes.index');
+        Route::post('/attendance-disputes/{entry}/resolve', [AdminAttendanceDisputeController::class, 'resolve'])
+            ->middleware('throttle:30,1')
+            ->name('admin.attendance-disputes.resolve');
     });
 
     // SuperAdmin only

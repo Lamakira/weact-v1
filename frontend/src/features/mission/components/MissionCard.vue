@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Calendar, Wallet, Users, Pencil, Trash2, XCircle, RefreshCw, CheckCircle2, ArrowRight } from 'lucide-vue-next'
+import { Calendar, Wallet, Users, Pencil, Trash2, XCircle, RefreshCw, CheckCircle2, ClipboardCheck, ArrowRight } from 'lucide-vue-next'
 import type { Mission, MissionStatusType } from '../types'
 
 const props = withDefaults(defineProps<{
@@ -17,15 +17,21 @@ const emit = defineEmits<{
   reopen: [id: string]
   complete: [id: string]
   viewCandidatures: [id: string]
+  viewAttendance: [id: string]
 }>()
 
 // Computed: Only show actions for editable statuses
 // Note: When email is not verified, only delete is allowed
-const canEdit = computed(() => props.emailVerified && ['draft', 'published'].includes(props.mission.status))
-const canDelete = computed(() => ['draft', 'published'].includes(props.mission.status))
-const canClose = computed(() => props.emailVerified && props.mission.status === 'published')
-const canReopen = computed(() => props.emailVerified && props.mission.status === 'closed' && !props.mission.has_paid_payment)
-const canComplete = computed(() => props.emailVerified && props.mission.status === 'closed')
+const canEdit = computed<boolean>(() => props.emailVerified && ['draft', 'published'].includes(props.mission.status))
+const canDelete = computed<boolean>(() => ['draft', 'published'].includes(props.mission.status))
+const canClose = computed<boolean>(() => props.emailVerified && props.mission.status === 'published')
+const canReopen = computed<boolean>(() => props.emailVerified && props.mission.status === 'closed' && !props.mission.has_paid_payment)
+const canComplete = computed<boolean>(() => props.emailVerified && props.mission.status === 'closed')
+const canValidateAttendance = computed<boolean>(() =>
+  props.emailVerified
+    && props.mission.has_paid_payment
+    && ['closed', 'pending_attendance_validation'].includes(props.mission.status)
+)
 
 // Formatters
 function formatDate(dateString: string): string {
@@ -51,19 +57,20 @@ function formatCurrency(amount: number): string {
 }
 
 // Status Color Mapping
-const statusClasses = computed(() => {
+const statusClasses = computed<string>(() => {
   const mapping: Record<MissionStatusType, string> = {
     draft: 'bg-gray-100 text-gray-800 border-gray-200',
     published: 'bg-green-100 text-green-800 border-green-200',
     pending_payment: 'bg-yellow-100 text-yellow-800 border-yellow-200',
     closed: 'bg-orange-100 text-orange-800 border-orange-200',
+    pending_attendance_validation: 'bg-amber-100 text-amber-800 border-amber-200',
     completed: 'bg-blue-100 text-blue-800 border-blue-200',
   }
   return mapping[props.mission.status] ?? mapping.draft
 })
 
 // Get candidatures count (default to 0 if not set)
-const candidaturesCount = computed(() => props.mission.candidatures_count ?? 0)
+const candidaturesCount = computed<number>(() => props.mission.candidatures_count ?? 0)
 </script>
 
 <template>
@@ -118,7 +125,7 @@ const candidaturesCount = computed(() => props.mission.candidatures_count ?? 0)
       </div>
 
       <!-- Right Section: Actions -->
-      <div class="flex items-center gap-3 pt-4 md:pt-0 border-t md:border-t-0 border-border">
+      <div class="flex flex-wrap items-center gap-3 pt-4 md:pt-0 border-t md:border-t-0 border-border">
         <button
           type="button"
           class="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-muted text-foreground border border-border rounded-lg font-medium transition-all hover:bg-primary/10 hover:text-primary hover:border-primary/30 active:scale-95"
@@ -160,6 +167,17 @@ const candidaturesCount = computed(() => props.mission.candidatures_count ?? 0)
         >
           <RefreshCw :size="16" />
           <span>Réouvrir</span>
+        </button>
+
+        <button
+          v-if="canValidateAttendance"
+          type="button"
+          class="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 text-white rounded-lg font-medium transition-all hover:bg-amber-600 active:scale-95 focus:ring-2 focus:ring-amber-500/20"
+          title="Valider les présences"
+          @click.stop="emit('viewAttendance', mission.id)"
+        >
+          <ClipboardCheck :size="16" />
+          <span>Valider les présences</span>
         </button>
 
         <button

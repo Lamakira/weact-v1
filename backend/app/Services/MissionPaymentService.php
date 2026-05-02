@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Concerns\RecordsFinancialEvent;
+use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
+use App\Enums\FinancialEventType;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Exceptions\MissionPaymentInitiationException;
@@ -31,6 +34,8 @@ use Illuminate\Validation\ValidationException;
 
 class MissionPaymentService
 {
+    use RecordsFinancialEvent;
+
     private const MISSION_PAYMENT_LOCK_TTL_SECONDS = 120;
 
     public function __construct(
@@ -650,7 +655,12 @@ class MissionPaymentService
     }
 
     /**
-     * Release escrowed funds to each selected face after mission completion.
+     * Release escrowed funds for each Locked entry of a paid mission, routed by attendance:
+     * - present  → release to Face wallet
+     * - absent   → refund to Producer wallet (100 % of the per-Face amount)
+     * - disputed → skip (admin will resolve later — FIX-26.8)
+     * - pending  → invariant violation, RuntimeException
+     *
      * MUST be called inside an existing DB::transaction().
      */
     public function releaseFunds(Mission $mission): void
@@ -681,77 +691,179 @@ class MissionPaymentService
                 );
             }
 
-            $userId = $this->getUserIdForFace($entry->face_id);
-
-            if ($userId === null) {
-                Log::warning('MissionPaymentService::releaseFunds — face user not found', [
-                    'face_id' => $entry->face_id,
-                    'mission_id' => $mission->id,
-                ]);
-
+            // FIX-26.2 — Skip disputed entries; admin will resolve them later (FIX-26.8).
+            if ($entry->attendance_status === AttendanceStatus::Disputed) {
                 continue;
             }
 
-            $this->walletService->creditDirect(
-                $userId,
-                $entry->montant_face_recoit,
-                "Mission : {$mission->titre}"
-            );
+            // FIX-26.2 — Pending = presence not yet validated, invariant violation.
+            // `continue` and `throw` cannot be expressions inside a `match` in PHP, so we
+            // gate Disputed/Pending before the match and keep the match exhaustive on the
+            // two routing cases. A future AttendanceStatus case (e.g. Late) will trip
+            // UnhandledMatchError, which is the defensive behavior we want.
+            if ($entry->attendance_status === AttendanceStatus::Pending) {
+                throw new \RuntimeException(
+                    "MissionPaymentService::releaseFunds — entry {$entry->id} has attendance_status=pending; presence must be validated before release."
+                );
+            }
 
-            $entry->update([
-                'escrow_status' => EscrowStatus::Released,
-                'released_at' => now(),
+            match ($entry->attendance_status) {
+                AttendanceStatus::Present => $this->releaseToFace($entry, $mission),
+                AttendanceStatus::Absent => $this->refundToProducer($entry, $mission),
+            };
+        }
+    }
+
+    /**
+     * Release one entry to its Face: credit wallet, mark Released, complete candidature,
+     * notify, queue MissionCompletedMail, and record the EscrowRelease FinancialEvent.
+     *
+     * MUST be called inside an existing DB::transaction().
+     *
+     * @param  array<string, mixed>  $extraMetadata
+     */
+    public function releaseToFace(
+        MissionPaymentCandidature $entry,
+        Mission $mission,
+        string $reason = 'attendance_present',
+        array $extraMetadata = [],
+    ): void {
+        $userId = $this->getUserIdForFace($entry->face_id);
+
+        if ($userId === null) {
+            Log::warning('MissionPaymentService::releaseToFace — face user not found', [
+                'face_id' => $entry->face_id,
+                'mission_id' => $mission->id,
             ]);
 
-            // Move candidature to completed using candidature_id directly
-            Candidature::where('id', $entry->candidature_id)
-                ->whereIn('status', [CandidatureStatus::InProgress->value, CandidatureStatus::Confirmed->value])
-                ->update(['status' => CandidatureStatus::Completed->value]);
-
-            // Notify face: wallet credited + mission completed
-            $this->notifySafely(
-                userId: $userId,
-                type: 'mission_completed',
-                data: [
-                    'message' => "La mission \"{$mission->titre}\" est terminée. Votre portefeuille a été crédité de {$entry->montant_face_recoit} XOF.",
-                    'mission_id' => $mission->id,
-                    'amount' => $entry->montant_face_recoit,
-                    'url' => '/face/candidatures',
-                ]
-            );
-
-            // FIX-24.4: best-effort MissionCompletedMail to the Face.
-            // Non-fatal: NEVER rolls back the parent DB::transaction(completeMission).
-            /** @var User|null $faceUser */
-            $faceUser = User::query()->with('userable')->find($userId);
-
-            if (! $faceUser || ! $faceUser->email) {
-                continue;
-            }
-
-            $face = $faceUser->userable instanceof Face ? $faceUser->userable : null;
-
-            if (! $face) {
-                continue;
-            }
-
-            try {
-                Mail::to($faceUser->email)->queue(
-                    new MissionCompletedMail(
-                        face: $face,
-                        mission: $mission,
-                        amount: (int) $entry->montant_face_recoit,
-                    )
-                );
-            } catch (\Throwable $e) {
-                Log::warning('MissionCompletedMail queue failed', [
-                    'mission_id' => $mission->id,
-                    'payment_id' => $payment->id,
-                    'face_id' => $entry->face_id,
-                    'error' => $e->getMessage(),
-                ]);
-            }
+            return;
         }
+
+        $this->walletService->creditDirect(
+            $userId,
+            $entry->montant_face_recoit,
+            "Mission : {$mission->titre}"
+        );
+
+        $entry->update([
+            'escrow_status' => EscrowStatus::Released,
+            'released_at' => now(),
+        ]);
+
+        $this->recordMissionAttendanceFinancialEvent(
+            FinancialEventType::EscrowRelease,
+            $entry,
+            (int) $entry->montant_face_recoit,
+            [
+                'status' => 'completed',
+                'metadata' => array_merge($extraMetadata, ['reason' => $reason]),
+            ],
+        );
+
+        // Move candidature to completed using candidature_id directly
+        Candidature::where('id', $entry->candidature_id)
+            ->whereIn('status', [CandidatureStatus::InProgress->value, CandidatureStatus::Confirmed->value])
+            ->update(['status' => CandidatureStatus::Completed->value]);
+
+        // Notify face: wallet credited + mission completed
+        $this->notifySafely(
+            userId: $userId,
+            type: 'mission_completed',
+            data: [
+                'message' => "La mission \"{$mission->titre}\" est terminée. Votre portefeuille a été crédité de {$entry->montant_face_recoit} XOF.",
+                'mission_id' => $mission->id,
+                'amount' => $entry->montant_face_recoit,
+                'url' => '/face/candidatures',
+            ]
+        );
+
+        if (config('weact.suppress_mission_completed_mail', false) === true) {
+            return;
+        }
+
+        // FIX-24.4: best-effort MissionCompletedMail to the Face.
+        // Non-fatal: NEVER rolls back the parent DB::transaction(completeMission).
+        /** @var User|null $faceUser */
+        $faceUser = User::query()->with('userable')->find($userId);
+
+        if (! $faceUser || ! $faceUser->email) {
+            return;
+        }
+
+        $face = $faceUser->userable instanceof Face ? $faceUser->userable : null;
+
+        if (! $face) {
+            return;
+        }
+
+        try {
+            Mail::to($faceUser->email)->queue(
+                new MissionCompletedMail(
+                    face: $face,
+                    mission: $mission,
+                    amount: (int) $entry->montant_face_recoit,
+                )
+            );
+        } catch (\Throwable $e) {
+            Log::warning('MissionCompletedMail queue failed', [
+                'mission_id' => $mission->id,
+                'payment_id' => $entry->mission_payment_id,
+                'face_id' => $entry->face_id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Refund one entry to its Producer (100 % of the per-Face amount): credit Producer wallet,
+     * mark Refunded, and record the Refund FinancialEvent. Candidature status is NOT touched
+     * (an absent Face does not "complete" the candidature). No notification or email is sent
+     * here — the Producer-facing notification is deferred to FIX-26.4/26.5.
+     *
+     * MUST be called inside an existing DB::transaction().
+     *
+     * @param  array<string, mixed>  $extraMetadata
+     */
+    public function refundToProducer(
+        MissionPaymentCandidature $entry,
+        Mission $mission,
+        string $reason = 'attendance_absent',
+        array $extraMetadata = [],
+    ): void {
+        $producerUserId = $this->getUserIdForProducer($mission->producer_id);
+
+        if ($producerUserId === null) {
+            Log::warning('MissionPaymentService::refundToProducer — producer user not found', [
+                'producer_id' => $mission->producer_id,
+                'mission_id' => $mission->id,
+            ]);
+
+            return;
+        }
+
+        $this->walletService->creditDirect(
+            $producerUserId,
+            (int) $entry->montant_face_recoit,
+            "Mission : remboursement absence Face — {$mission->titre}",
+        );
+
+        $entry->update([
+            'escrow_status' => EscrowStatus::Refunded,
+            'refunded_at' => now(),
+        ]);
+
+        $this->recordMissionAttendanceFinancialEvent(
+            FinancialEventType::Refund,
+            $entry,
+            (int) $entry->montant_face_recoit,
+            [
+                'status' => 'completed',
+                'metadata' => array_merge(
+                    $extraMetadata,
+                    ['reason' => $reason, 'refund_percentage' => 100],
+                ),
+            ],
+        );
     }
 
     /**
@@ -792,6 +904,19 @@ class MissionPaymentService
         /** @var User|null $user */
         $user = User::where('userable_type', Face::class)
             ->where('userable_id', $faceId)
+            ->first();
+
+        return $user?->id;
+    }
+
+    /**
+     * Get the User ID for a given Producer profile ID.
+     */
+    private function getUserIdForProducer(int $producerId): ?int
+    {
+        /** @var User|null $user */
+        $user = User::where('userable_type', Producer::class)
+            ->where('userable_id', $producerId)
             ->first();
 
         return $user?->id;

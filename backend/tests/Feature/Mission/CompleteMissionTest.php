@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Mission;
 
+use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
+use App\Enums\FinancialEventType;
 use App\Enums\MissionPaymentStatus;
 use App\Mail\MissionCompletedMail;
 use App\Models\Candidature;
 use App\Models\Face;
+use App\Models\FinancialEvent;
 use App\Models\Mission;
 use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
@@ -120,6 +123,13 @@ class CompleteMissionTest extends TestCase
             'status' => 'completed',
         ]);
 
+        // FIX-26.2 — bridge auto-marks pending entry as present, then releaseFunds → Released.
+        $this->assertDatabaseHas('mission_payment_candidatures', [
+            'candidature_id' => $candidature->id,
+            'attendance_status' => 'present',
+            'escrow_status' => 'released',
+        ]);
+
         $this->assertDatabaseHas('notifications', [
             'user_id' => $this->faceUser->id,
             'type' => 'mission_completed',
@@ -221,6 +231,127 @@ class CompleteMissionTest extends TestCase
                     && $mail->amount === 90000,
             );
         }
+
+        // FIX-26.2 — bridge auto-marks all 3 pending entries as present, all released.
+        $this->assertSame(
+            3,
+            MissionPaymentCandidature::where('mission_payment_id', $payment->id)
+                ->where('attendance_status', 'present')
+                ->where('escrow_status', 'released')
+                ->count(),
+        );
+    }
+
+    public function test_complete_mission_with_one_present_one_absent_one_disputed_routes_correctly(): void
+    {
+        Mail::fake();
+
+        $mission = Mission::factory()->closed()->create([
+            'producer_id' => $this->producer->id,
+        ]);
+
+        $faces = [];
+        $users = [];
+        $candidatures = [];
+        for ($i = 0; $i < 3; $i++) {
+            $face = Face::factory()->create([
+                'prenom' => "Mixed{$i}",
+                'nom' => 'Test',
+            ]);
+            $user = User::factory()->create([
+                'userable_type' => Face::class,
+                'userable_id' => $face->id,
+                'email' => "mixed{$i}@example.test",
+            ]);
+            $candidature = Candidature::factory()->create([
+                'mission_id' => $mission->id,
+                'face_id' => $face->id,
+                'status' => CandidatureStatus::Confirmed,
+            ]);
+            $faces[] = $face;
+            $users[] = $user;
+            $candidatures[] = $candidature;
+        }
+
+        $payment = MissionPayment::create([
+            'mission_id' => $mission->id,
+            'producer_id' => $this->producer->id,
+            'nombre_faces_retenues' => 3,
+            'budget_par_face' => 100000,
+            'montant_sous_total' => 300000,
+            'commission_producteur' => 30000,
+            'montant_total_producteur' => 330000,
+            'commission_faces_total' => 30000,
+            'montant_total_faces' => 270000,
+            'status' => MissionPaymentStatus::Paid,
+            'paid_at' => now(),
+        ]);
+
+        $explicitStatuses = [AttendanceStatus::Present, AttendanceStatus::Absent, AttendanceStatus::Disputed];
+        $entries = [];
+        foreach ($candidatures as $i => $candidature) {
+            $entries[] = MissionPaymentCandidature::create([
+                'mission_payment_id' => $payment->id,
+                'candidature_id' => $candidature->id,
+                'face_id' => $faces[$i]->id,
+                'montant_face_recoit' => 90000,
+                'escrow_status' => EscrowStatus::Locked,
+                'locked_at' => now(),
+                'attendance_status' => $explicitStatuses[$i],
+            ]);
+        }
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$mission->uuid}/complete");
+
+        $response->assertOk()->assertJsonPath('data.status', 'completed');
+
+        $this->assertDatabaseHas('missions', [
+            'id' => $mission->id,
+            'status' => 'completed',
+        ]);
+
+        // Face[present] received the release.
+        $users[0]->refresh();
+        $this->assertSame(90000, $users[0]->balance);
+
+        // Face[absent] received nothing.
+        $users[1]->refresh();
+        $this->assertSame(0, $users[1]->balance);
+
+        // Face[disputed] received nothing.
+        $users[2]->refresh();
+        $this->assertSame(0, $users[2]->balance);
+
+        // Producer received exactly one refund (Face[absent]).
+        $this->producerUser->refresh();
+        $this->assertSame(90000, $this->producerUser->balance);
+
+        // Disputed entry stays Locked + disputed (invariant 5: Completed mission may keep
+        // a disputed Locked entry pending admin resolution in FIX-26.8).
+        $this->assertDatabaseHas('mission_payment_candidatures', [
+            'id' => $entries[2]->id,
+            'escrow_status' => 'locked',
+            'attendance_status' => 'disputed',
+        ]);
+
+        $this->assertSame(
+            1,
+            FinancialEvent::where('type', FinancialEventType::EscrowRelease)->count(),
+        );
+        $this->assertSame(
+            1,
+            FinancialEvent::where('type', FinancialEventType::Refund)->count(),
+        );
+        $this->assertDatabaseMissing('financial_events', [
+            'idempotency_key' => "mission_attendance_escrow_release:{$entries[2]->id}",
+        ]);
+        $this->assertDatabaseMissing('financial_events', [
+            'idempotency_key' => "mission_attendance_refund:{$entries[2]->id}",
+        ]);
+
+        // Only 1 mail queued (Face[present]).
+        Mail::assertQueuedCount(1);
     }
 
     public function test_cannot_complete_published_mission(): void

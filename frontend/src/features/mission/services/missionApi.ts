@@ -5,6 +5,11 @@ import type {
   MissionsListResponse,
   UpdateMissionData,
 } from '../types'
+import type {
+  AttendanceFormResponse,
+  ValidateAttendancePayload,
+  ValidateAttendanceResponse,
+} from '../types/attendance'
 
 interface MissionPaymentData {
   payment_id: number
@@ -125,6 +130,35 @@ export const missionApi = {
     await getCsrfCookie()
 
     const response = await apiClient.post<MissionResponse>(`/producer/missions/${id}/complete`)
+    return response.data
+  },
+
+  /**
+   * Get the attendance validation form for a mission (FIX-26.7)
+   * @param missionUuid The mission UUID
+   */
+  async getAttendanceForm(missionUuid: string): Promise<AttendanceFormResponse> {
+    const response = await apiClient.get<AttendanceFormResponse>(
+      `/producer/missions/${missionUuid}/attendance-form`
+    )
+    return response.data
+  },
+
+  /**
+   * Submit Producer attendance decisions for a mission (FIX-26.7)
+   * @param missionUuid The mission UUID
+   * @param payload The entries decisions
+   */
+  async validateAttendance(
+    missionUuid: string,
+    payload: ValidateAttendancePayload
+  ): Promise<ValidateAttendanceResponse> {
+    await getCsrfCookie()
+
+    const response = await apiClient.post<ValidateAttendanceResponse>(
+      `/producer/missions/${missionUuid}/validate-attendance`,
+      payload
+    )
     return response.data
   },
 

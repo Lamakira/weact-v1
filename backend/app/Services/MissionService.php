@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
+use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
 use App\Models\Candidature;
 use App\Models\Mission;
@@ -241,6 +243,19 @@ class MissionService
                 throw new \RuntimeException('Mission completion requires all selected faces to confirm participation.');
             }
 
+            // FIX-26.2 BACKWARD-COMPAT BRIDGE — TEMPORARY
+            // Auto-mark all `Locked + pending` entries as `present` so the legacy Producer
+            // flow (POST /api/v1/producer/missions/{uuid}/complete, called by older clients
+            // and existing CompleteMissionTest fixtures) continues to behave as before.
+            // FIX-26.4 added the new attendance endpoint
+            // (POST /api/v1/producer/missions/{uuid}/validate-attendance) but kept this
+            // bridge intact to avoid migrating CompleteMissionTest. Bridge retirement is
+            // deferred to FIX-26.10 (legacy auto-release-funds cron deprecation).
+            $mission->payment?->entries()
+                ->where('escrow_status', EscrowStatus::Locked)
+                ->where('attendance_status', AttendanceStatus::Pending)
+                ->update(['attendance_status' => AttendanceStatus::Present]);
+
             // Release funds to selected faces if payment exists
             $this->missionPaymentService->releaseFunds($mission);
 
@@ -256,7 +271,7 @@ class MissionService
         });
     }
 
-    private function notifyProducerOnCompletion(Mission $mission): void
+    public function notifyProducerOnCompletion(Mission $mission): void
     {
         /** @var User|null $producerUser */
         $producerUser = User::where('userable_type', Producer::class)
