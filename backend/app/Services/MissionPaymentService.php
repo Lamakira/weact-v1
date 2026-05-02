@@ -777,6 +777,10 @@ class MissionPaymentService
             ]
         );
 
+        if (config('weact.suppress_mission_completed_mail', false) === true) {
+            return;
+        }
+
         // FIX-24.4: best-effort MissionCompletedMail to the Face.
         // Non-fatal: NEVER rolls back the parent DB::transaction(completeMission).
         /** @var User|null $faceUser */
