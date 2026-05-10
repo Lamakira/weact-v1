@@ -1,0 +1,254 @@
+---
+stepsCompleted: [1, 2]
+status: 'draft'
+draftedAt: '2026-05-03'
+totalEpics: 1
+totalStories: 8
+project_name: 'WEACT - Annual Face Premium Subscription Sprint 14'
+user_name: 'Amakira'
+date: '2026-05-03'
+---
+
+# WEACT - Annual Face Premium Subscription Sprint 14 - Epic Breakdown
+
+## Overview
+
+Sprint 14 introduces a paid annual subscription for Faces who want stronger public visibility and a larger public portfolio. The product decision is intentionally annual-only because the Benin economic/payment context does not support reliable monthly automatic debits. The operating model is therefore: the Face pays once, WEACT activates premium benefits until `expires_at`, and benefits are removed automatically when the annual period expires.
+
+The first paid benefits are:
+
+- Featured public placement for subscribed Faces.
+- Public visibility of up to 4 album photos.
+- Free/non-subscribed Faces keep only 2 album photos publicly visible.
+- Existing photos 3-4 are never deleted when a subscription expires; they remain stored and visible to the Face in their private album management area, but they are hidden from public and producer-facing profile views until the subscription is active again.
+
+### Current Codebase Baseline
+
+- `faces.is_featured` already exists and is used to prioritize public Face listing.
+- Album upload is currently hard-limited to 4 photos via `PhotoAlbumService::MAX_PHOTOS`.
+- Public Face profile detail returns album photos through `PublicFaceProfileResource`.
+- Private Face album management returns all photos through the authenticated album endpoint.
+- Payment infrastructure already exists in adjacent domains (Fedapay, wallet, financial events, mission/booking payment flows), but there is no dedicated Face subscription table or annual plan model yet.
+
+### Product Decisions
+
+1. **Annual only**: no monthly recurring billing, no automatic monthly debit, no proration for MVP.
+2. **No media deletion on downgrade**: photos beyond the free quota remain stored.
+3. **Public masking on downgrade**: photos 3-4 are hidden publicly when the Face is not premium.
+4. **Private transparency**: the Face can still see all stored photos and understand which ones are publicly locked.
+5. **Admin fallback is required**: because local payment operations may need manual intervention, admins must be able to activate, extend, cancel, or correct annual subscriptions.
+6. **Featured placement is entitlement-driven**: paid featured visibility should be derived from an active subscription/feature window, not only a permanent admin boolean.
+
+## Requirements Inventory
+
+### Functional Requirements
+
+**FEAT-FP-FR1**: The backend must persist annual Face subscriptions with plan, status, payment metadata, start date, expiry date, and cancellation fields.
+
+**FEAT-FP-FR2**: The backend must expose a single entitlement source of truth for Face premium capabilities: public album photo limit, upload limit, featured status, and expiry.
+
+**FEAT-FP-FR3**: Album upload and validation must become entitlement-aware: free Faces can upload up to 2 photos; active premium Faces can upload up to 4 photos.
+
+**FEAT-FP-FR4**: Public and producer-facing profile responses must hide photos beyond the active public quota. Private Face album responses must return all photos and mark locked/non-public photos.
+
+**FEAT-FP-FR5**: Annual payment initiation and confirmation must activate the subscription for 12 months. Payment confirmation must be idempotent.
+
+**FEAT-FP-FR6**: Admin users must be able to view, activate, extend, cancel, and correct Face subscriptions for operational support.
+
+**FEAT-FP-FR7**: The Face dashboard/profile area must show subscription state, annual expiry, available benefits, album quota, and locked photo states.
+
+**FEAT-FP-FR8**: Expired subscriptions must automatically stop premium benefits and featured placement without deleting stored media.
+
+## Epic & Story Breakdown
+
+---
+
+### Epic FEATURE-FP-1: Annual Face Premium Subscription & Featured Portfolio
+
+**Goal:** Launch a production-ready annual premium subscription for Faces that unlocks paid featured placement and up to 4 publicly visible album photos, while keeping the free tier at 2 public photos and preserving photos 3-4 privately after downgrade or expiration.
+
+**Priority:** High — revenue feature, public discovery impact, and direct dependency on clear payment/admin operations.
+
+#### Stories
+
+| ID | Story | FRs | Priority |
+|----|-------|-----|----------|
+| FEATURE-FP-1.1 | Subscription schema and entitlement service | FEAT-FP-FR1, FEAT-FP-FR2 | High |
+| FEATURE-FP-1.2 | Dynamic album quota and public photo masking | FEAT-FP-FR3, FEAT-FP-FR4 | High |
+| FEATURE-FP-1.3 | Annual payment initiation and idempotent activation | FEAT-FP-FR5 | High |
+| FEATURE-FP-1.4 | Featured placement driven by active subscription | FEAT-FP-FR2, FEAT-FP-FR8 | High |
+| FEATURE-FP-1.5 | Face subscription UI and locked album states | FEAT-FP-FR7 | Medium |
+| FEATURE-FP-1.6 | Admin subscription operations | FEAT-FP-FR6 | High |
+| FEATURE-FP-1.7 | Expiration command, notifications, and renewal reminders | FEAT-FP-FR8 | Medium |
+| FEATURE-FP-1.8 | Regression coverage and rollout/backfill safeguards | FEAT-FP-FR1-FR8 | High |
+
+**Recommended delivery order:**
+
+1. **FEATURE-FP-1.1** — schema and entitlement source of truth.
+2. **FEATURE-FP-1.2** — enforce quotas and public/private visibility contract.
+3. **FEATURE-FP-1.6** — admin activation fallback, useful before payment automation is fully live.
+4. **FEATURE-FP-1.3** — annual payment flow and webhook/confirmation activation.
+5. **FEATURE-FP-1.4** — wire featured placement to active premium entitlement.
+6. **FEATURE-FP-1.5** — Face-facing subscription and album UX.
+7. **FEATURE-FP-1.7** — expiry automation and reminders.
+8. **FEATURE-FP-1.8** — final regression sweep, rollout checklist, and data safeguards.
+
+---
+
+#### FEATURE-FP-1.1: Subscription schema and entitlement service
+
+**Description:** Add the persistence and domain layer for annual Face subscriptions. Create a subscription table/model, status enum, plan enum/value object if needed, and a service that answers entitlement questions for a Face without scattering premium checks through controllers/resources.
+
+**Acceptance Criteria (draft):**
+- Migration creates a subscription table linked to `faces` with fields for `plan`, `status`, `starts_at`, `expires_at`, `cancelled_at`, `paid_amount`, `currency`, `provider`, `provider_reference`, and timestamps.
+- Subscription statuses cover at least `pending_payment`, `active`, `expired`, `cancelled`, and `failed`.
+- The model exposes an active scope based on `status = active` and `expires_at > now()`.
+- `FaceEntitlementService` or equivalent exposes methods for:
+  - `albumUploadLimit(Face $face): int`
+  - `publicAlbumPhotoLimit(Face $face): int`
+  - `isPremium(Face $face): bool`
+  - `isFeaturedBySubscription(Face $face): bool`
+- Free tier returns 2 photos; active annual premium returns 4 photos.
+- Unit/feature tests cover active, expired, cancelled, and missing subscription cases.
+
+**Technical Notes:**
+- Keep entitlement checks server-side. Frontend may display state, but backend remains source of truth.
+- Prefer integer XOF amounts.
+- Use explicit date fields rather than deriving expiry from payment timestamps in every caller.
+- Avoid overloading `faces.is_featured` as the only paid-state source; keep admin manual featuring and paid featuring distinguishable.
+
+---
+
+#### FEATURE-FP-1.2: Dynamic album quota and public photo masking
+
+**Description:** Replace the fixed album limit with entitlement-aware limits. Public and producer-facing APIs return only photos allowed by the current subscription. Private Face album management returns all stored photos, with metadata explaining which photos are publicly visible or locked.
+
+**Acceptance Criteria (draft):**
+- Free Face upload is blocked after 2 album photos.
+- Active premium Face upload is allowed up to 4 album photos.
+- A Face with 4 stored photos and no active premium subscription receives all 4 photos from the private album endpoint, with photos 3-4 marked as not publicly visible.
+- Public Face profile response returns only photos 1-2 for non-premium Faces.
+- Public Face profile response returns photos 1-4 for active premium Faces.
+- Producer candidate/profile views apply the same public visibility rule unless the endpoint is explicitly owner/admin-only.
+- `has_album_photos` and `album_photos_count` reflect visible public photos in public responses.
+- Tests cover downgrade: premium Face with 4 photos becomes expired; no files are deleted; public API returns 2; private API returns 4.
+
+**Technical Notes:**
+- Use `position` as the public masking boundary.
+- Avoid deleting files or DB rows during expiration.
+- Do not trust frontend counts for upload enforcement.
+
+---
+
+#### FEATURE-FP-1.3: Annual payment initiation and idempotent activation
+
+**Description:** Add an annual subscription payment flow. A Face can initiate payment for one annual premium plan. Successful confirmation activates or extends the subscription for 12 months. Webhook/confirmation handling must be idempotent to avoid double extensions for the same payment event.
+
+**Acceptance Criteria (draft):**
+- Authenticated Face can initiate annual premium payment.
+- Backend stores a pending subscription or payment intent with provider metadata.
+- Successful Fedapay confirmation activates the subscription for one year.
+- Replaying the same provider event/reference does not create duplicate active periods or double financial events.
+- Failed/cancelled payment leaves the Face on free tier.
+- API responses follow the standard `{ data, meta, message }` and `{ error: { code, message, details } }` contracts.
+- Tests cover successful activation, failed payment, duplicate webhook/event, and expired previous subscription renewal.
+
+**Technical Notes:**
+- Reuse existing Fedapay patterns where possible.
+- Because there is no monthly recurring debit, no retry/proration machinery is required for MVP.
+- Define renewal behavior explicitly: if a Face renews while active, extend from current `expires_at`; if expired, start from `now()`.
+
+---
+
+#### FEATURE-FP-1.4: Featured placement driven by active subscription
+
+**Description:** Connect public listing priority to active paid featured entitlement while preserving admin-controlled featuring. The public query should treat a Face as featured when either admin featuring is active or paid subscription featuring is active.
+
+**Acceptance Criteria (draft):**
+- Public Face listing prioritizes active subscription-featured Faces.
+- Admin manual `is_featured` behavior remains supported.
+- Expired/cancelled subscriptions stop contributing to featured ordering automatically.
+- Public response still avoids exposing internal subscription/payment details.
+- Admin detail view can distinguish manual featured from subscription featured.
+- Tests cover ordering: paid active featured first, expired paid no longer first, manual admin featured still first.
+
+**Technical Notes:**
+- Consider a computed query expression or materialized `featured_until` depending on query complexity.
+- Avoid long-term reliance on a permanent boolean for paid featured state.
+
+---
+
+#### FEATURE-FP-1.5: Face subscription UI and locked album states
+
+**Description:** Add Face-facing UI for annual premium status and album visibility. The Face should understand their current plan, expiry date, quota, and why photos 3-4 may be hidden publicly.
+
+**Acceptance Criteria (draft):**
+- Face dashboard/profile area displays subscription state: free, pending payment, active, expired, cancelled.
+- UI displays annual expiry date for active subscriptions.
+- Album management displays quota as 2/2 for free and 4/4 for premium.
+- Photos beyond the free quota show a locked/non-public state when premium is inactive.
+- CTA allows starting annual premium payment.
+- UI handles payment pending/success/failure states.
+- Tests cover locked photo rendering and quota messaging.
+
+**Technical Notes:**
+- Keep public profile UI simple; backend filtering should handle visibility.
+- Use existing Vue 3 Composition API and Pinia/service patterns.
+- For any new visually rich UI, use Gemini Design MCP per project instruction before implementation.
+
+---
+
+#### FEATURE-FP-1.6: Admin subscription operations
+
+**Description:** Add back-office controls so admins can support annual subscriptions even if payment confirmation requires manual intervention. Admins can inspect, activate, extend, cancel, or correct a Face subscription.
+
+**Acceptance Criteria (draft):**
+- Admin can view a Face subscription state on the Face detail page.
+- Admin can manually activate annual premium for a Face with required reason/notes.
+- Admin can extend an active subscription.
+- Admin can cancel a subscription.
+- Admin operations write audit metadata including admin id, action, notes, previous state, and new state.
+- Non-admin users cannot access these operations.
+- Tests cover each admin operation and authorization failure.
+
+**Technical Notes:**
+- This story is intentionally before or parallel to payment automation to support a manual launch path.
+- Avoid silent changes; admin mutation endpoints should require notes.
+
+---
+
+#### FEATURE-FP-1.7: Expiration command, notifications, and renewal reminders
+
+**Description:** Add lifecycle automation for annual subscriptions: expire subscriptions, remove premium entitlements automatically, and notify Faces before/after expiry.
+
+**Acceptance Criteria (draft):**
+- Scheduled command marks active subscriptions as expired when `expires_at <= now()`.
+- Expiration does not delete photos.
+- Expiration immediately causes public photo masking and removes paid featured ordering.
+- Renewal reminders are sent before expiry (for example 30 days and 7 days before) if email infrastructure is configured.
+- Expired notification tells the Face that photos 3-4 are now hidden publicly until renewal.
+- Command is idempotent.
+- Tests cover expiration, no media deletion, and reminder selection windows.
+
+**Technical Notes:**
+- If reminder email delivery is too large for Sprint 14, keep notification hooks and document the deferred email templates.
+- Commands should be safe to run repeatedly.
+
+---
+
+#### FEATURE-FP-1.8: Regression coverage and rollout/backfill safeguards
+
+**Description:** Add final regression tests and rollout documentation to prevent billing/visibility mistakes. Include a deployment checklist and data checks for Faces with more than 2 existing photos.
+
+**Acceptance Criteria (draft):**
+- Regression tests cover public/private album visibility across free, active premium, expired, cancelled, and admin-featured cases.
+- Tests cover that no storage delete is triggered by subscription expiry.
+- Tests cover payment idempotency and admin manual activation audit.
+- Rollout checklist documents feature flags/env vars, Fedapay config, scheduler requirements, and rollback plan.
+- Data check identifies Faces with more than 2 photos before launch so support can anticipate locked-photo UX.
+- `sprint-status.yaml` tracking entries are updated.
+
+**Technical Notes:**
+- Treat this as a release hardening story, not a dumping ground for unfinished implementation.
+- Keep any one-shot data query read-only unless an explicit migration/backfill is approved.
+

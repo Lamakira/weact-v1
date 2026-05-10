@@ -171,4 +171,55 @@ describe('ProducerRegistrationForm', () => {
 
     expect(wrapper.text()).toContain('Min. 8 car., 1 majuscule, 1 chiffre')
   })
+
+  it('submits agency registration payload', async () => {
+    mockRegisterProducer.mockResolvedValue({ success: true })
+    const wrapper = mountComponent()
+
+    await wrapper.find('[data-testid="agency-name-input"]').setValue('Studio Pro')
+    await wrapper.find('[data-testid="email-input"]').setValue('agency@example.com')
+    await wrapper.find('[data-testid="password-input"]').setValue('Password123')
+    await wrapper.find('[data-testid="password-confirmation-input"]').setValue('Password123')
+    await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
+    await wrapper.find('[data-testid="producer-registration-form"]').trigger('submit')
+    await flushPromises()
+
+    await vi.waitFor(() => expect(mockRegisterProducer).toHaveBeenCalledTimes(1))
+    expect(mockRegisterProducer).toHaveBeenCalledWith({
+      type: 'agency',
+      agency_name: 'Studio Pro',
+      email: 'agency@example.com',
+      password: 'Password123',
+      password_confirmation: 'Password123',
+      accept_cgu: true,
+    })
+  })
+
+  it('submits particulier registration payload after switching type', async () => {
+    mockRegisterProducer.mockResolvedValue({ success: true })
+    const wrapper = mountComponent()
+
+    await wrapper.find('[data-testid="type-particulier-button"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="first-name-input"]').setValue('Jean')
+    await wrapper.find('[data-testid="last-name-input"]').setValue('Dupont')
+    await wrapper.find('[data-testid="email-input"]').setValue('jean@example.com')
+    await wrapper.find('[data-testid="password-input"]').setValue('Password123')
+    await wrapper.find('[data-testid="password-confirmation-input"]').setValue('Password123')
+    await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
+    await wrapper.find('[data-testid="producer-registration-form"]').trigger('submit')
+    await flushPromises()
+
+    await vi.waitFor(() => expect(mockRegisterProducer).toHaveBeenCalledTimes(1))
+    expect(mockRegisterProducer).toHaveBeenCalledWith({
+      type: 'particulier',
+      first_name: 'Jean',
+      last_name: 'Dupont',
+      email: 'jean@example.com',
+      password: 'Password123',
+      password_confirmation: 'Password123',
+      accept_cgu: true,
+    })
+  })
 })

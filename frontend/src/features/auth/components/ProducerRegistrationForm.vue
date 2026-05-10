@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useForm, useField } from 'vee-validate'
 import { z } from 'zod'
 import { toTypedSchema } from '@vee-validate/zod'
@@ -76,9 +76,11 @@ const getSchema = (type: ProducerType) => {
   }
 }
 
+const validationSchema = computed(() => toTypedSchema(getSchema(selectedType.value)))
+
 // Form setup with VeeValidate
 const { handleSubmit, setFieldError, setFieldValue } = useForm({
-  validationSchema: toTypedSchema(getSchema(selectedType.value)),
+  validationSchema,
   initialValues: {
     type: selectedType.value,
     email: '',
@@ -114,9 +116,13 @@ watch(selectedType, (newType) => {
   if (newType === 'agency') {
     setFieldValue('first_name', '')
     setFieldValue('last_name', '')
+    setFieldError('first_name', undefined)
+    setFieldError('last_name', undefined)
   } else {
     setFieldValue('agency_name', '')
+    setFieldError('agency_name', undefined)
   }
+  setFieldError('type', undefined)
   apiError.value = null
 })
 
