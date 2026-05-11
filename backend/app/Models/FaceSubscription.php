@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -29,6 +30,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read \App\Models\Face $face
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\FaceSubscriptionAudit> $audits
  */
 class FaceSubscription extends Model
 {
@@ -79,6 +81,17 @@ class FaceSubscription extends Model
     public function face(): BelongsTo
     {
         return $this->belongsTo(Face::class);
+    }
+
+    /**
+     * Append-only audit history of admin operations on this subscription.
+     * Ordered most recent first.
+     */
+    public function audits(): HasMany
+    {
+        return $this->hasMany(FaceSubscriptionAudit::class)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
     }
 
     /**

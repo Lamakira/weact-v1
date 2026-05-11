@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\Admin\AdminAttendanceDisputeController;
 use App\Http\Controllers\Api\V1\Admin\AdminController;
 use App\Http\Controllers\Api\V1\Admin\AdminDashboardController;
+use App\Http\Controllers\Api\V1\Admin\AdminFaceSubscriptionController;
 use App\Http\Controllers\Api\V1\Admin\AdminFinanceController;
 use App\Http\Controllers\Api\V1\Admin\AdminForgotPasswordController;
 use App\Http\Controllers\Api\V1\Admin\AdminResetPasswordController;
@@ -132,6 +133,23 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'api.token', 'admin'])->g
         Route::post('/attendance-disputes/{entry}/resolve', [AdminAttendanceDisputeController::class, 'resolve'])
             ->middleware('throttle:30,1')
             ->name('admin.attendance-disputes.resolve');
+
+        // Face subscription operations (FEATURE-FP-1.4)
+        Route::get('/faces/{face}/subscriptions', [AdminFaceSubscriptionController::class, 'index'])
+            ->middleware('throttle:30,1')
+            ->name('admin.faces.subscriptions.index');
+        Route::post('/faces/{face}/subscriptions/activate', [AdminFaceSubscriptionController::class, 'activate'])
+            ->middleware('throttle:30,1')
+            ->name('admin.faces.subscriptions.activate');
+        Route::post('/face-subscriptions/{subscription}/extend', [AdminFaceSubscriptionController::class, 'extend'])
+            ->middleware('throttle:30,1')
+            ->name('admin.face-subscriptions.extend');
+        Route::post('/face-subscriptions/{subscription}/cancel', [AdminFaceSubscriptionController::class, 'cancel'])
+            ->middleware('throttle:30,1')
+            ->name('admin.face-subscriptions.cancel');
+        Route::post('/face-subscriptions/{subscription}/correct', [AdminFaceSubscriptionController::class, 'correct'])
+            ->middleware('throttle:30,1')
+            ->name('admin.face-subscriptions.correct');
     });
 
     // SuperAdmin only
