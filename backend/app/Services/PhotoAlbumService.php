@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Exceptions\AlbumQuotaReachedException;
 use App\Models\Face;
 use App\Models\FacePhoto;
 use Illuminate\Database\Eloquent\Collection;
@@ -15,6 +16,9 @@ use Intervention\Image\Laravel\Facades\Image;
 
 class PhotoAlbumService
 {
+    /**
+     * @deprecated since FEATURE-FP-1.2 — prefer FaceEntitlementService::albumUploadLimit()
+     */
     public const MAX_PHOTOS = 4;
 
     private const STORAGE_PATH = 'avatars/faces/albums';
@@ -32,26 +36,29 @@ class PhotoAlbumService
     /**
      * Add a photo to a Face's album.
      *
-     * @throws \Exception If album is full
+     * @throws AlbumQuotaReachedException If album quota is reached for this Face's tier
      */
     public function addPhoto(Face $face, UploadedFile $photo): FacePhoto
     {
-        // Check if face already has maximum photos
-        $currentCount = $face->photos()->count();
-        if ($currentCount >= self::MAX_PHOTOS) {
-            throw new \Exception('Maximum '.self::MAX_PHOTOS.' photos atteint');
-        }
-
         // Generate unique filename with UUID
         $extension = $photo->getClientOriginalExtension() ?: 'jpg';
         $filename = Str::uuid()->toString().'.'.$extension;
         $mediumFilename = pathinfo($filename, PATHINFO_FILENAME).'.webp';
 
-        // Calculate next position
-        $nextPosition = $currentCount + 1;
-
         // Use transaction to ensure atomicity - cleanup files on DB failure
-        return DB::transaction(function () use ($face, $photo, $filename, $mediumFilename, $nextPosition) {
+        return DB::transaction(function () use ($face, $photo, $filename, $mediumFilename) {
+            // Re-check entitlement-aware quota inside the transaction, before any
+            // filesystem write, to close the race between FormRequest validation
+            // and service execution. DB transactions do not roll back filesystem
+            // writes, so the quota check must run first.
+            $currentCount = $face->photos()->count();
+            $limit = app(FaceEntitlementService::class)->albumUploadLimit($face);
+            if ($currentCount >= $limit) {
+                throw new AlbumQuotaReachedException($limit);
+            }
+
+            $nextPosition = $currentCount + 1;
+
             // Store original photo
             Storage::disk('public')->putFileAs(self::STORAGE_PATH, $photo, $filename);
 

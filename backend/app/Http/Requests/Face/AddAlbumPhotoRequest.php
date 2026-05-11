@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Face;
 
 use App\Models\Face;
-use App\Services\PhotoAlbumService;
+use App\Services\FaceEntitlementService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\File;
 
@@ -67,11 +67,12 @@ class AddAlbumPhotoRequest extends FormRequest
                 /** @var Face $face */
                 $face = $user->userable;
                 $photoCount = $face->photos()->count();
+                $limit = app(FaceEntitlementService::class)->albumUploadLimit($face);
 
-                if ($photoCount >= PhotoAlbumService::MAX_PHOTOS) {
+                if ($photoCount >= $limit) {
                     $validator->errors()->add(
                         'photo',
-                        'Maximum '.PhotoAlbumService::MAX_PHOTOS.' photos atteint'
+                        'Quota de '.$limit.' photos atteint'
                     );
                 }
             }

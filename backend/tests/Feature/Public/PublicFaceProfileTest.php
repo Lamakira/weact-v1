@@ -8,6 +8,7 @@ use App\Enums\FaceCategory;
 use App\Enums\FaceNiche;
 use App\Models\Face;
 use App\Models\FacePhoto;
+use App\Models\FaceSubscription;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -156,14 +157,15 @@ class PublicFaceProfileTest extends TestCase
             'userable_id' => $faceWithPhotos->id,
         ]);
 
-        // Add album photos with sequential positions
+        // Add 3 album photos. Free Face exposes only first 2 publicly (free quota).
         FacePhoto::factory()->createSequentialForFace($faceWithPhotos, 3);
 
         $response = $this->getJson("/api/v1/public/faces/{$faceWithPhotos->username}");
 
         $response->assertOk();
         $this->assertTrue($response->json('data.has_album_photos'));
-        $this->assertEquals(3, $response->json('data.album_photos_count'));
+        $this->assertEquals(2, $response->json('data.album_photos_count'));
+        $response->assertJsonCount(2, 'data.photos');
 
         // Face without photos
         $faceWithoutPhotos = Face::factory()->create(['is_available' => true]);
@@ -177,6 +179,15 @@ class PublicFaceProfileTest extends TestCase
         $response->assertOk();
         $this->assertFalse($response->json('data.has_album_photos'));
         $this->assertEquals(0, $response->json('data.album_photos_count'));
+
+        // After upgrading the same Face to premium, all 3 photos become public.
+        FaceSubscription::factory()->active()->create(['face_id' => $faceWithPhotos->id]);
+
+        $response = $this->getJson("/api/v1/public/faces/{$faceWithPhotos->username}");
+
+        $response->assertOk();
+        $this->assertEquals(3, $response->json('data.album_photos_count'));
+        $response->assertJsonCount(3, 'data.photos');
     }
 
     public function test_has_presentation_video_indicator_is_correct(): void
@@ -222,10 +233,13 @@ class PublicFaceProfileTest extends TestCase
             'userable_id' => $faceWithVideo->id,
         ]);
 
+        // Free Face: acting video is masked publicly even when stored in DB.
         $response = $this->getJson("/api/v1/public/faces/{$faceWithVideo->username}");
 
         $response->assertOk();
-        $this->assertTrue($response->json('data.has_acting_video'));
+        $this->assertFalse($response->json('data.has_acting_video'));
+        $this->assertNull($response->json('data.acting_video_url'));
+        $this->assertNull($response->json('data.acting_video_thumbnail_url'));
 
         // Face without video
         $faceWithoutVideo = Face::factory()->create([
@@ -241,6 +255,16 @@ class PublicFaceProfileTest extends TestCase
 
         $response->assertOk();
         $this->assertFalse($response->json('data.has_acting_video'));
+
+        // After upgrading the first Face to premium, the URL becomes visible.
+        FaceSubscription::factory()->active()->create(['face_id' => $faceWithVideo->id]);
+
+        $response = $this->getJson("/api/v1/public/faces/{$faceWithVideo->username}");
+
+        $response->assertOk();
+        $this->assertTrue($response->json('data.has_acting_video'));
+        $this->assertNotNull($response->json('data.acting_video_url'));
+        $this->assertStringContainsString('acting.mp4', $response->json('data.acting_video_url'));
     }
 
     public function test_does_not_require_authentication(): void

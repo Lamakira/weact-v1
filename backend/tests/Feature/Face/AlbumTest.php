@@ -6,6 +6,7 @@ namespace Tests\Feature\Face;
 
 use App\Models\Face;
 use App\Models\FacePhoto;
+use App\Models\FaceSubscription;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -148,10 +149,10 @@ class AlbumTest extends TestCase
         Storage::disk('public')->assertExists('avatars/faces/albums/thumbnails/'.$photo->thumbnail);
     }
 
-    public function test_rejects_upload_when_album_is_full(): void
+    public function test_rejects_upload_when_free_quota_of_2_reached(): void
     {
-        // Create 4 photos to fill the album with explicit positions
-        for ($i = 1; $i <= 4; $i++) {
+        // Free Face: 2 photos already in album (no subscription on $this->face)
+        for ($i = 1; $i <= 2; $i++) {
             FacePhoto::factory()->create([
                 'face_id' => $this->face->id,
                 'position' => $i,
@@ -167,6 +168,82 @@ class AlbumTest extends TestCase
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['photo']);
+
+        $errors = $response->json('errors.photo');
+        $this->assertStringContainsString('Quota de 2 photos atteint', $errors[0]);
+    }
+
+    public function test_premium_face_can_upload_up_to_4_photos(): void
+    {
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
+        for ($i = 1; $i <= 3; $i++) {
+            FacePhoto::factory()->create([
+                'face_id' => $this->face->id,
+                'position' => $i,
+            ]);
+        }
+
+        // 4th photo: should succeed under premium quota
+        $file4 = UploadedFile::fake()->image('album4.jpg', 500, 500);
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/album', ['photo' => $file4]);
+        $response->assertCreated();
+
+        // 5th photo: should be rejected with premium quota message
+        $file5 = UploadedFile::fake()->image('album5.jpg', 500, 500);
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/album', ['photo' => $file5]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['photo']);
+
+        $errors = $response->json('errors.photo');
+        $this->assertStringContainsString('Quota de 4 photos atteint', $errors[0]);
+    }
+
+    public function test_pending_payment_subscription_still_caps_at_free_quota(): void
+    {
+        FaceSubscription::factory()->pendingPayment()->create(['face_id' => $this->face->id]);
+
+        for ($i = 1; $i <= 2; $i++) {
+            FacePhoto::factory()->create([
+                'face_id' => $this->face->id,
+                'position' => $i,
+            ]);
+        }
+
+        $file = UploadedFile::fake()->image('album.jpg', 500, 500);
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/album', ['photo' => $file]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['photo']);
+
+        $errors = $response->json('errors.photo');
+        $this->assertStringContainsString('Quota de 2 photos atteint', $errors[0]);
+    }
+
+    public function test_expired_subscription_caps_at_free_quota(): void
+    {
+        FaceSubscription::factory()->expired()->create(['face_id' => $this->face->id]);
+
+        for ($i = 1; $i <= 2; $i++) {
+            FacePhoto::factory()->create([
+                'face_id' => $this->face->id,
+                'position' => $i,
+            ]);
+        }
+
+        $file = UploadedFile::fake()->image('album.jpg', 500, 500);
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/album', ['photo' => $file]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['photo']);
+
+        $errors = $response->json('errors.photo');
+        $this->assertStringContainsString('Quota de 2 photos atteint', $errors[0]);
     }
 
     public function test_rejects_invalid_file_type_gif(): void
@@ -211,6 +288,9 @@ class AlbumTest extends TestCase
 
     public function test_position_increments_correctly(): void
     {
+        // Premium subscription unlocks the 4-photo upload quota for this test
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
         // Upload 3 photos
         for ($i = 1; $i <= 3; $i++) {
             $file = UploadedFile::fake()->image("album{$i}.jpg", 500, 500);
@@ -393,6 +473,10 @@ class AlbumTest extends TestCase
 
     public function test_upload_is_rate_limited(): void
     {
+        // Premium subscription unlocks the 4-photo upload quota so that the rate
+        // limiter is reached after the album-full guard triggers, not before.
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
         // Make 21 requests (limit is 20/min)
         for ($i = 0; $i < 21; $i++) {
             $file = UploadedFile::fake()->image("album{$i}.jpg", 500, 500);
@@ -400,7 +484,7 @@ class AlbumTest extends TestCase
                 ->postJson('/api/v1/face/album', ['photo' => $file]);
 
             if ($i < 4) {
-                // First 4 should succeed (we have 4 photo limit)
+                // First 4 should succeed (premium quota = 4)
                 $response->assertCreated();
             } elseif ($i < 20) {
                 // Next ones will hit album full validation before rate limit

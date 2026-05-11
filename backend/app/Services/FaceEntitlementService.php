@@ -63,6 +63,17 @@ class FaceEntitlementService
     }
 
     /**
+     * Whether this Face is allowed to upload an acting video.
+     *
+     * Mirrors `isPremium()` because the presentation video is always public for
+     * every Face — only the acting video is gated behind the annual premium tier.
+     */
+    public function canUploadActingVideo(Face $face): bool
+    {
+        return $this->isPremium($face);
+    }
+
+    /**
      * Whether this Face's featured placement is granted by an active paid subscription.
      *
      * This is independent from the legacy `faces.is_featured` admin flag, which

@@ -6,8 +6,10 @@ namespace App\Http\Requests\Face;
 
 use App\Models\Face;
 use App\Services\ActingVideoService;
+use App\Services\FaceEntitlementService;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rules\File;
 
 class UploadActingVideoRequest extends FormRequest
@@ -19,9 +21,29 @@ class UploadActingVideoRequest extends FormRequest
     {
         $user = $this->user();
 
-        return $user !== null
+        $isFace = $user !== null
             && $user->userable_type === Face::class
             && $user->userable_id !== null;
+
+        if (! $isFace) {
+            return false;
+        }
+
+        /** @var Face $face */
+        $face = $user->userable;
+
+        if (! app(FaceEntitlementService::class)->canUploadActingVideo($face)) {
+            throw new HttpResponseException(
+                response()->json([
+                    'error' => [
+                        'code' => 'PREMIUM_REQUIRED',
+                        'message' => "L'upload de la vidéo d'acting est réservé aux Faces avec un abonnement premium actif.",
+                    ],
+                ], 403)
+            );
+        }
+
+        return true;
     }
 
     /**

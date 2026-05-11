@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Face;
 
 use App\Models\Face;
+use App\Models\FaceSubscription;
 use App\Models\Producer;
 use App\Models\User;
 use App\Services\ActingVideoService;
@@ -138,6 +139,7 @@ class ActingVideoTest extends TestCase
 
     public function test_can_upload_mp4_video(): void
     {
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
         $this->mockVideoService(60.0);
 
         $file = UploadedFile::fake()->create('video.mp4', 10 * 1024, 'video/mp4');
@@ -167,6 +169,7 @@ class ActingVideoTest extends TestCase
 
     public function test_can_upload_mov_video(): void
     {
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
         $this->mockVideoService(60.0);
 
         $file = UploadedFile::fake()->create('video.mov', 10 * 1024, 'video/quicktime');
@@ -181,6 +184,7 @@ class ActingVideoTest extends TestCase
 
     public function test_can_upload_avi_video(): void
     {
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
         $this->mockVideoService(60.0);
 
         $file = UploadedFile::fake()->create('video.avi', 10 * 1024, 'video/x-msvideo');
@@ -195,6 +199,7 @@ class ActingVideoTest extends TestCase
 
     public function test_thumbnail_is_generated_on_upload(): void
     {
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
         $this->mockVideoService(60.0);
 
         $file = UploadedFile::fake()->create('video.mp4', 10 * 1024, 'video/mp4');
@@ -215,6 +220,8 @@ class ActingVideoTest extends TestCase
 
     public function test_uploading_new_video_replaces_old_video(): void
     {
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
         // Set up existing video
         $oldVideo = 'old-video.mp4';
         $oldThumbnail = 'old-thumbnail.jpg';
@@ -242,11 +249,80 @@ class ActingVideoTest extends TestCase
     }
 
     // =========================================================================
+    // Premium Gating Tests
+    // =========================================================================
+
+    public function test_free_face_cannot_upload_acting_video(): void
+    {
+        // No subscription on $this->face
+        $this->mockVideoService(60.0);
+
+        $file = UploadedFile::fake()->create('video.mp4', 10 * 1024, 'video/mp4');
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/acting-video', [
+                'video' => $file,
+            ]);
+
+        $response->assertForbidden()
+            ->assertJsonPath('error.code', 'PREMIUM_REQUIRED');
+
+        $this->assertStringContainsString(
+            'abonnement premium actif',
+            $response->json('error.message')
+        );
+
+        // No file written to storage under acting video path
+        $this->assertSame(
+            [],
+            Storage::disk('public')->files('videos/faces/acting'),
+            'No acting video file should be written for a free Face.'
+        );
+
+        $this->face->refresh();
+        $this->assertNull($this->face->acting_video);
+    }
+
+    public function test_pending_payment_subscription_cannot_upload_acting_video(): void
+    {
+        FaceSubscription::factory()->pendingPayment()->create(['face_id' => $this->face->id]);
+        $this->mockVideoService(60.0);
+
+        $file = UploadedFile::fake()->create('video.mp4', 10 * 1024, 'video/mp4');
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/acting-video', [
+                'video' => $file,
+            ]);
+
+        $response->assertForbidden()
+            ->assertJsonPath('error.code', 'PREMIUM_REQUIRED');
+    }
+
+    public function test_expired_subscription_cannot_upload_acting_video(): void
+    {
+        FaceSubscription::factory()->expired()->create(['face_id' => $this->face->id]);
+        $this->mockVideoService(60.0);
+
+        $file = UploadedFile::fake()->create('video.mp4', 10 * 1024, 'video/mp4');
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/acting-video', [
+                'video' => $file,
+            ]);
+
+        $response->assertForbidden()
+            ->assertJsonPath('error.code', 'PREMIUM_REQUIRED');
+    }
+
+    // =========================================================================
     // Validation Tests
     // =========================================================================
 
     public function test_rejects_oversized_video(): void
     {
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
         // Create a file larger than 50MB (50 * 1024 KB)
         $file = UploadedFile::fake()->create('video.mp4', 51 * 1024, 'video/mp4');
 
@@ -264,6 +340,8 @@ class ActingVideoTest extends TestCase
 
     public function test_rejects_video_longer_than_2_minutes(): void
     {
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
         // Mock service to return a duration > 120 seconds
         $this->mockVideoService(150.0);
 
@@ -283,6 +361,8 @@ class ActingVideoTest extends TestCase
 
     public function test_rejects_invalid_file_type_pdf(): void
     {
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
         $file = UploadedFile::fake()->create('document.pdf', 1024, 'application/pdf');
 
         $response = $this->actingAs($this->faceUser)
@@ -296,6 +376,8 @@ class ActingVideoTest extends TestCase
 
     public function test_rejects_invalid_file_type_txt(): void
     {
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
         $file = UploadedFile::fake()->create('text.txt', 1024, 'text/plain');
 
         $response = $this->actingAs($this->faceUser)
@@ -309,6 +391,8 @@ class ActingVideoTest extends TestCase
 
     public function test_rejects_invalid_file_type_image(): void
     {
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
         $file = UploadedFile::fake()->image('photo.jpg', 500, 500);
 
         $response = $this->actingAs($this->faceUser)
@@ -322,6 +406,8 @@ class ActingVideoTest extends TestCase
 
     public function test_rejects_wmv_video_format(): void
     {
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
         $file = UploadedFile::fake()->create('video.wmv', 10 * 1024, 'video/x-ms-wmv');
 
         $response = $this->actingAs($this->faceUser)
@@ -335,6 +421,8 @@ class ActingVideoTest extends TestCase
 
     public function test_rejects_webm_video_format(): void
     {
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
         $file = UploadedFile::fake()->create('video.webm', 10 * 1024, 'video/webm');
 
         $response = $this->actingAs($this->faceUser)
@@ -439,6 +527,7 @@ class ActingVideoTest extends TestCase
 
     public function test_upload_is_rate_limited(): void
     {
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
         $this->mockVideoService(60.0);
 
         // Make 21 requests (limit is 20/min)

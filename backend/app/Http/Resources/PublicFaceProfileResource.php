@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\User;
+use App\Services\FaceEntitlementService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -25,7 +26,13 @@ class PublicFaceProfileResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $albumPhotosCount = $this->photos->count();
+        $entitlement = app(FaceEntitlementService::class);
+        $isPremium = $entitlement->isPremium($this->resource);
+        $publicLimit = $entitlement->publicAlbumPhotoLimit($this->resource);
+
+        $visiblePhotos = $this->photos->filter(fn ($photo) => $photo->position <= $publicLimit)->values();
+        $albumPhotosCount = $visiblePhotos->count();
+
         /** @var User|null $user */
         $user = $this->user;
 
@@ -51,15 +58,15 @@ class PublicFaceProfileResource extends JsonResource
             'profile_photo_medium_url' => $this->medium_url,
             'presentation_video_url' => $this->presentation_video_url,
             'presentation_video_thumbnail_url' => $this->presentation_video_thumbnail_url,
-            'acting_video_url' => $this->acting_video_url,
-            'acting_video_thumbnail_url' => $this->acting_video_thumbnail_url,
+            'acting_video_url' => $isPremium ? $this->acting_video_url : null,
+            'acting_video_thumbnail_url' => $isPremium ? $this->acting_video_thumbnail_url : null,
             'average_rating' => $this->average_rating,
             'ratings_count' => $this->ratings_count,
             'has_album_photos' => $albumPhotosCount > 0,
             'album_photos_count' => $albumPhotosCount,
             'has_presentation_video' => $this->presentation_video !== null,
-            'has_acting_video' => $this->acting_video !== null,
-            'photos' => FacePhotoResource::collection($this->whenLoaded('photos')),
+            'has_acting_video' => $isPremium && $this->acting_video !== null,
+            'photos' => FacePhotoResource::collection($visiblePhotos),
             'experiences' => ExperienceResource::collection($this->whenLoaded('experiences')),
         ];
     }

@@ -13,6 +13,7 @@ use App\Models\Candidature;
 use App\Models\Experience;
 use App\Models\Face;
 use App\Models\FacePhoto;
+use App\Models\FaceSubscription;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
@@ -160,6 +161,12 @@ class ProducerViewCandidateProfileTest extends TestCase
 
     public function test_response_includes_video_urls(): void
     {
+        // Producer view of acting_video is masked for free Faces; this test asserts
+        // the legacy "URL contains marie_acting.mp4" semantic, so we promote the
+        // Face to premium so the URL stays exposed. Free-Face masking is covered
+        // by PremiumActingVideoMaskingTest::test_producer_response_masks_acting_video_for_free_face.
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
         $response = $this->getJson(
             "/api/v1/producer/candidates/{$this->face->uuid}",
             $this->authHeaders($this->producerUser),

@@ -6,6 +6,7 @@ namespace App\Http\Resources;
 
 use App\Models\Admin;
 use App\Models\Face;
+use App\Services\FaceEntitlementService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -23,6 +24,12 @@ class FaceResource extends JsonResource
     {
         $user = $this->user;
 
+        $entitlement = app(FaceEntitlementService::class);
+        $isPremium = $entitlement->isPremium($this->resource);
+        $publicLimit = $entitlement->publicAlbumPhotoLimit($this->resource);
+        $viewer = $this->resolveViewerContext($request);
+        $isPrivileged = $viewer === 'owner' || $viewer === 'admin';
+
         return [
             'id' => $this->uuid,
             'nom' => $this->nom,
@@ -37,8 +44,13 @@ class FaceResource extends JsonResource
             'thumbnail_url' => $this->thumbnail_url,
             'presentation_video_url' => $this->presentation_video_url,
             'presentation_video_thumbnail_url' => $this->presentation_video_thumbnail_url,
-            'acting_video_url' => $this->acting_video_url,
-            'acting_video_thumbnail_url' => $this->acting_video_thumbnail_url,
+            'acting_video_url' => $isPrivileged
+                ? $this->acting_video_url
+                : ($isPremium ? $this->acting_video_url : null),
+            'acting_video_thumbnail_url' => $isPrivileged
+                ? $this->acting_video_thumbnail_url
+                : ($isPremium ? $this->acting_video_thumbnail_url : null),
+            ...($isPrivileged ? ['is_acting_video_publicly_visible' => $isPremium] : []),
             'bio' => $this->bio,
             'ville' => $this->ville,
             'pays' => $this->pays,
@@ -65,7 +77,25 @@ class FaceResource extends JsonResource
             'is_active' => $this->whenLoaded('user', fn () => $user?->is_active),
             'experiences' => ExperienceResource::collection($this->whenLoaded('experiences')),
             'experiences_count' => $this->experiences_count,
-            'photos' => FacePhotoResource::collection($this->whenLoaded('photos')),
+            'photos' => $isPrivileged
+                ? $this->whenLoaded('photos', fn () => $this->photos->map(fn ($photo) => [
+                    'id' => $photo->uuid,
+                    'photo_url' => $photo->photo_url,
+                    'medium_url' => $photo->medium_url,
+                    'thumbnail_url' => $photo->thumbnail_url,
+                    'position' => $photo->position,
+                    'is_publicly_visible' => $photo->position <= $publicLimit,
+                ])->values())
+                : $this->whenLoaded('photos', fn () => $this->photos
+                    ->filter(fn ($photo) => $photo->position <= $publicLimit)
+                    ->values()
+                    ->map(fn ($photo) => [
+                        'id' => $photo->uuid,
+                        'photo_url' => $photo->photo_url,
+                        'medium_url' => $photo->medium_url,
+                        'thumbnail_url' => $photo->thumbnail_url,
+                        'position' => $photo->position,
+                    ])),
             'photos_count' => $this->photos_count,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
@@ -92,5 +122,25 @@ class FaceResource extends JsonResource
 
         // Everyone else (producers) respects show_age
         return $this->show_age ? $this->age : null;
+    }
+
+    /**
+     * Classify the requesting viewer for entitlement-aware masking.
+     *
+     * @return 'owner'|'admin'|'other'
+     */
+    private function resolveViewerContext(Request $request): string
+    {
+        $user = $request->user();
+
+        if ($user instanceof Admin) {
+            return 'admin';
+        }
+
+        if ($user && $user->userable_type === Face::class && $user->userable_id === $this->id) {
+            return 'owner';
+        }
+
+        return 'other';
     }
 }
