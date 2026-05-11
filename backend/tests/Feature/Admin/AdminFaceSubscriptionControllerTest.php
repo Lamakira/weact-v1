@@ -419,6 +419,71 @@ class AdminFaceSubscriptionControllerTest extends TestCase
             ])->assertStatus(422)->assertJsonValidationErrors(['duration_days']);
     }
 
+    public function test_activate_rejects_starts_at_older_than_90_days(): void
+    {
+        // Code review patch: prevents admins from backfilling an arbitrarily-old starts_at
+        // that combined with a short duration_days produces an immediately-expired Active row.
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'notes' => 'Backfill bien trop ancien pour être valide',
+                'starts_at' => now()->subDays(100)->toIso8601String(),
+                'duration_days' => 30,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['starts_at']);
+
+        // Boundary case — 89 days back must still succeed.
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'notes' => 'Backfill récent dans la fenêtre autorisée',
+                'starts_at' => now()->subDays(89)->toIso8601String(),
+                'duration_days' => 365,
+            ])
+            ->assertStatus(201);
+    }
+
+    public function test_activate_acquires_face_row_lock_before_scanning_subscriptions(): void
+    {
+        // Code review patch: serialises concurrent activations on the same Face.
+        // We can't easily run real concurrent requests in PHPUnit, so we pin the
+        // SQL pattern: a SELECT ... FROM `faces` ... FOR UPDATE must fire before
+        // the SELECT ... FROM `face_subscriptions` ... FOR UPDATE.
+        $queries = [];
+        \Illuminate\Support\Facades\DB::listen(static function ($query) use (&$queries): void {
+            $sql = strtolower($query->sql);
+            if (str_contains($sql, 'for update')) {
+                $queries[] = $sql;
+            }
+        });
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'notes' => 'Activation déclenchant la séquence de verrous',
+            ])
+            ->assertStatus(201);
+
+        $this->assertGreaterThanOrEqual(2, count($queries), 'Expected at least two FOR UPDATE queries during activate');
+
+        $facesLockIndex = null;
+        $subscriptionsLockIndex = null;
+        foreach ($queries as $index => $sql) {
+            if ($facesLockIndex === null && str_contains($sql, 'from `faces`')) {
+                $facesLockIndex = $index;
+            }
+            if ($subscriptionsLockIndex === null && str_contains($sql, 'from `face_subscriptions`')) {
+                $subscriptionsLockIndex = $index;
+            }
+        }
+
+        $this->assertNotNull($facesLockIndex, 'Expected a FOR UPDATE lock on faces');
+        $this->assertNotNull($subscriptionsLockIndex, 'Expected a FOR UPDATE lock on face_subscriptions');
+        $this->assertLessThan(
+            $subscriptionsLockIndex,
+            $facesLockIndex,
+            'Face row lock must be acquired before scanning face_subscriptions',
+        );
+    }
+
     // ===================================================================
     // Extend (AC #16, #17, #18)
     // ===================================================================
@@ -754,6 +819,74 @@ class AdminFaceSubscriptionControllerTest extends TestCase
             ])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['expires_at']);
+    }
+
+    public function test_correct_rejects_dates_outside_sanity_bounds(): void
+    {
+        // Code review patch: sanity bounds [2020-01-01, +10 years] on both dates
+        // block typos like 1970 or 9999 from being persisted as subscription dates.
+        $sub = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
+        // Pre-2020 starts_at must be rejected.
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/correct", [
+                'notes' => 'Typo grossier sur starts_at — année 1970',
+                'starts_at' => '1970-01-01T00:00:00Z',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['starts_at']);
+
+        // expires_at beyond +10 years must be rejected.
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/correct", [
+                'notes' => 'Typo grossier sur expires_at — horizon absurde',
+                'expires_at' => now()->addYears(11)->toIso8601String(),
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['expires_at']);
+    }
+
+    public function test_correct_requires_both_dates_when_persisted_counterpart_is_null(): void
+    {
+        // Code review patch: prevents leaving a PendingPayment row in an anchorless state.
+        // When the persisted starts_at OR expires_at is null and the payload only sends one
+        // of them, the cross-field invariant cannot be evaluated — we require both dates.
+        $sub = FaceSubscription::factory()->pendingPayment()->create(['face_id' => $this->face->id]);
+        $this->assertNull($sub->starts_at);
+        $this->assertNull($sub->expires_at);
+
+        // Only expires_at sent — persisted starts_at is null → validation must fail on starts_at.
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/correct", [
+                'notes' => 'Pose seulement expires_at sur un PendingPayment sans starts_at',
+                'expires_at' => now()->addYear()->toIso8601String(),
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath(
+                'error.details.starts_at.0',
+                'starts_at est requis lorsque l\'abonnement n\'a pas encore de date de début.',
+            );
+
+        // Only starts_at sent — persisted expires_at is null → validation must fail on expires_at.
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/correct", [
+                'notes' => 'Pose seulement starts_at sur un PendingPayment sans expires_at',
+                'starts_at' => now()->toIso8601String(),
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath(
+                'error.details.expires_at.0',
+                'expires_at est requis lorsque l\'abonnement n\'a pas encore de date de fin.',
+            );
+
+        // Both dates sent — must succeed.
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/correct", [
+                'notes' => 'Pose les deux dates sur un PendingPayment sans anchor',
+                'starts_at' => now()->toIso8601String(),
+                'expires_at' => now()->addYear()->toIso8601String(),
+            ])
+            ->assertOk();
     }
 
     // ===================================================================
