@@ -3,7 +3,7 @@ stepsCompleted: [1, 2]
 status: 'draft'
 draftedAt: '2026-05-03'
 totalEpics: 1
-totalStories: 8
+totalStories: 10
 project_name: 'WEACT - Annual Face Premium Subscription Sprint 14'
 user_name: 'Amakira'
 date: '2026-05-03'
@@ -38,6 +38,8 @@ The first paid benefits are:
 4. **Private transparency**: the Face can still see all stored photos and understand which ones are publicly locked.
 5. **Admin fallback is required**: because local payment operations may need manual intervention, admins must be able to activate, extend, cancel, or correct annual subscriptions.
 6. **Featured placement is entitlement-driven**: paid featured visibility should be derived from an active subscription/feature window, not only a permanent admin boolean.
+7. **Price is configuration-driven**: the annual plan amount must be stored in backend configuration/env, not hard-coded in frontend code.
+8. **Subscription state is API-driven**: the Face UI consumes a backend status/entitlements endpoint instead of duplicating entitlement rules client-side.
 
 ## Requirements Inventory
 
@@ -59,6 +61,10 @@ The first paid benefits are:
 
 **FEAT-FP-FR8**: Expired subscriptions must automatically stop premium benefits and featured placement without deleting stored media.
 
+**FEAT-FP-FR9**: The backend must expose a Face subscription status endpoint returning current plan, status, expiry, quota, entitlements, and payment CTA metadata.
+
+**FEAT-FP-FR10**: Admin subscription mutations must be auditable with admin id, action, notes, previous state, and new state.
+
 ## Epic & Story Breakdown
 
 ---
@@ -75,23 +81,27 @@ The first paid benefits are:
 |----|-------|-----|----------|
 | FEATURE-FP-1.1 | Subscription schema and entitlement service | FEAT-FP-FR1, FEAT-FP-FR2 | High |
 | FEATURE-FP-1.2 | Dynamic album quota and public photo masking | FEAT-FP-FR3, FEAT-FP-FR4 | High |
-| FEATURE-FP-1.3 | Annual payment initiation and idempotent activation | FEAT-FP-FR5 | High |
-| FEATURE-FP-1.4 | Featured placement driven by active subscription | FEAT-FP-FR2, FEAT-FP-FR8 | High |
-| FEATURE-FP-1.5 | Face subscription UI and locked album states | FEAT-FP-FR7 | Medium |
-| FEATURE-FP-1.6 | Admin subscription operations | FEAT-FP-FR6 | High |
-| FEATURE-FP-1.7 | Expiration command, notifications, and renewal reminders | FEAT-FP-FR8 | Medium |
-| FEATURE-FP-1.8 | Regression coverage and rollout/backfill safeguards | FEAT-FP-FR1-FR8 | High |
+| FEATURE-FP-1.3 | Face subscription status and entitlement API | FEAT-FP-FR2, FEAT-FP-FR7, FEAT-FP-FR9 | High |
+| FEATURE-FP-1.4 | Admin subscription operations and audit trail | FEAT-FP-FR6, FEAT-FP-FR10 | High |
+| FEATURE-FP-1.5 | Annual payment initiation and idempotent activation | FEAT-FP-FR5 | High |
+| FEATURE-FP-1.6 | Featured placement driven by active subscription | FEAT-FP-FR2, FEAT-FP-FR8 | High |
+| FEATURE-FP-1.7 | Face subscription UI and locked album states | FEAT-FP-FR7, FEAT-FP-FR9 | Medium |
+| FEATURE-FP-1.8 | Expiration command and entitlement removal | FEAT-FP-FR8 | High |
+| FEATURE-FP-1.9 | Renewal reminders and subscription notifications | FEAT-FP-FR8 | Medium |
+| FEATURE-FP-1.10 | Regression coverage and rollout/backfill safeguards | FEAT-FP-FR1-FR10 | High |
 
 **Recommended delivery order:**
 
 1. **FEATURE-FP-1.1** — schema and entitlement source of truth.
 2. **FEATURE-FP-1.2** — enforce quotas and public/private visibility contract.
-3. **FEATURE-FP-1.6** — admin activation fallback, useful before payment automation is fully live.
-4. **FEATURE-FP-1.3** — annual payment flow and webhook/confirmation activation.
-5. **FEATURE-FP-1.4** — wire featured placement to active premium entitlement.
-6. **FEATURE-FP-1.5** — Face-facing subscription and album UX.
-7. **FEATURE-FP-1.7** — expiry automation and reminders.
-8. **FEATURE-FP-1.8** — final regression sweep, rollout checklist, and data safeguards.
+3. **FEATURE-FP-1.3** — expose the subscription status/entitlement contract needed by frontend and QA.
+4. **FEATURE-FP-1.4** — admin activation fallback, useful before payment automation is fully live.
+5. **FEATURE-FP-1.5** — annual payment flow and webhook/confirmation activation.
+6. **FEATURE-FP-1.6** — wire featured placement to active premium entitlement.
+7. **FEATURE-FP-1.7** — Face-facing subscription and album UX.
+8. **FEATURE-FP-1.8** — expiry automation for entitlement removal.
+9. **FEATURE-FP-1.9** — reminders and lifecycle notifications.
+10. **FEATURE-FP-1.10** — final regression sweep, rollout checklist, and data safeguards.
 
 ---
 
@@ -140,15 +150,65 @@ The first paid benefits are:
 
 ---
 
-#### FEATURE-FP-1.3: Annual payment initiation and idempotent activation
+#### FEATURE-FP-1.3: Face subscription status and entitlement API
+
+**Description:** Expose a backend contract that the Face dashboard/profile UI can consume to render subscription state, premium benefits, album quota, payment CTA state, and expiry without duplicating entitlement logic in the frontend.
+
+**Acceptance Criteria (draft):**
+- Authenticated Face can fetch their current subscription status.
+- Response includes `status`, `plan`, `starts_at`, `expires_at`, `is_premium`, `is_featured_by_subscription`, and `can_renew`.
+- Response includes entitlement limits:
+  - `album_upload_limit`
+  - `public_album_photo_limit`
+  - `current_album_photo_count`
+  - `public_album_photo_count`
+  - `locked_album_photo_count`
+- Response includes configured annual plan metadata: amount in XOF, currency, provider, and CTA availability.
+- Free Faces receive a stable response with `status = free`, no active subscription id, and free-tier limits.
+- Pending payment Faces receive enough metadata for the UI to show a pending state without exposing sensitive provider data.
+- Non-Face users cannot access the Face subscription status endpoint.
+- Tests cover free, pending payment, active, expired, cancelled, and non-Face access.
+
+**Technical Notes:**
+- The endpoint should use `FaceEntitlementService`; it must not recalculate entitlement rules independently.
+- Keep the response public-safe for the authenticated Face; do not leak raw provider payloads.
+- This story is a contract story for frontend and QA. Avoid adding UI here.
+
+---
+
+#### FEATURE-FP-1.4: Admin subscription operations and audit trail
+
+**Description:** Add back-office controls so admins can support annual subscriptions even if payment confirmation requires manual intervention. Admins can inspect, activate, extend, cancel, or correct a Face subscription, and every mutation is auditable.
+
+**Acceptance Criteria (draft):**
+- Admin can view a Face subscription state on the Face detail page.
+- Admin can manually activate annual premium for a Face with required reason/notes.
+- Admin can extend an active subscription.
+- Admin can cancel a subscription.
+- Admin can correct start/expiry dates when operational support requires it.
+- Admin operations write audit metadata including admin id, action, notes, previous state, and new state.
+- Audit entries are persisted in a dedicated table or equivalent append-only history model.
+- Non-admin users cannot access these operations.
+- Tests cover each admin operation, audit creation, and authorization failure.
+
+**Technical Notes:**
+- This story is intentionally before or parallel to payment automation to support a manual launch path.
+- Avoid silent changes; admin mutation endpoints should require notes.
+- Prefer append-only audit rows over overwriting opaque JSON blobs.
+
+---
+
+#### FEATURE-FP-1.5: Annual payment initiation and idempotent activation
 
 **Description:** Add an annual subscription payment flow. A Face can initiate payment for one annual premium plan. Successful confirmation activates or extends the subscription for 12 months. Webhook/confirmation handling must be idempotent to avoid double extensions for the same payment event.
 
 **Acceptance Criteria (draft):**
 - Authenticated Face can initiate annual premium payment.
 - Backend stores a pending subscription or payment intent with provider metadata.
+- Annual plan amount and currency are read from backend configuration/env.
 - Successful Fedapay confirmation activates the subscription for one year.
 - Replaying the same provider event/reference does not create duplicate active periods or double financial events.
+- A Face cannot create conflicting concurrent pending annual subscriptions for the same plan.
 - Failed/cancelled payment leaves the Face on free tier.
 - API responses follow the standard `{ data, meta, message }` and `{ error: { code, message, details } }` contracts.
 - Tests cover successful activation, failed payment, duplicate webhook/event, and expired previous subscription renewal.
@@ -157,10 +217,11 @@ The first paid benefits are:
 - Reuse existing Fedapay patterns where possible.
 - Because there is no monthly recurring debit, no retry/proration machinery is required for MVP.
 - Define renewal behavior explicitly: if a Face renews while active, extend from current `expires_at`; if expired, start from `now()`.
+- Record financial events for initiation/confirmation/failure using existing idempotency conventions where applicable.
 
 ---
 
-#### FEATURE-FP-1.4: Featured placement driven by active subscription
+#### FEATURE-FP-1.6: Featured placement driven by active subscription
 
 **Description:** Connect public listing priority to active paid featured entitlement while preserving admin-controlled featuring. The public query should treat a Face as featured when either admin featuring is active or paid subscription featuring is active.
 
@@ -170,15 +231,18 @@ The first paid benefits are:
 - Expired/cancelled subscriptions stop contributing to featured ordering automatically.
 - Public response still avoids exposing internal subscription/payment details.
 - Admin detail view can distinguish manual featured from subscription featured.
+- Ordering rules define what happens when manual featured Faces and paid featured Faces coexist.
+- Ordering remains deterministic inside each featured group.
 - Tests cover ordering: paid active featured first, expired paid no longer first, manual admin featured still first.
 
 **Technical Notes:**
 - Consider a computed query expression or materialized `featured_until` depending on query complexity.
 - Avoid long-term reliance on a permanent boolean for paid featured state.
+- Be explicit about ranking priority before implementation. Recommended MVP: paid active and manual featured are both elevated, then existing secondary sort rules apply.
 
 ---
 
-#### FEATURE-FP-1.5: Face subscription UI and locked album states
+#### FEATURE-FP-1.7: Face subscription UI and locked album states
 
 **Description:** Add Face-facing UI for annual premium status and album visibility. The Face should understand their current plan, expiry date, quota, and why photos 3-4 may be hidden publicly.
 
@@ -189,6 +253,7 @@ The first paid benefits are:
 - Photos beyond the free quota show a locked/non-public state when premium is inactive.
 - CTA allows starting annual premium payment.
 - UI handles payment pending/success/failure states.
+- UI consumes the subscription status API from `FEATURE-FP-1.3` instead of reconstructing subscription rules.
 - Tests cover locked photo rendering and quota messaging.
 
 **Technical Notes:**
@@ -198,45 +263,43 @@ The first paid benefits are:
 
 ---
 
-#### FEATURE-FP-1.6: Admin subscription operations
+#### FEATURE-FP-1.8: Expiration command and entitlement removal
 
-**Description:** Add back-office controls so admins can support annual subscriptions even if payment confirmation requires manual intervention. Admins can inspect, activate, extend, cancel, or correct a Face subscription.
-
-**Acceptance Criteria (draft):**
-- Admin can view a Face subscription state on the Face detail page.
-- Admin can manually activate annual premium for a Face with required reason/notes.
-- Admin can extend an active subscription.
-- Admin can cancel a subscription.
-- Admin operations write audit metadata including admin id, action, notes, previous state, and new state.
-- Non-admin users cannot access these operations.
-- Tests cover each admin operation and authorization failure.
-
-**Technical Notes:**
-- This story is intentionally before or parallel to payment automation to support a manual launch path.
-- Avoid silent changes; admin mutation endpoints should require notes.
-
----
-
-#### FEATURE-FP-1.7: Expiration command, notifications, and renewal reminders
-
-**Description:** Add lifecycle automation for annual subscriptions: expire subscriptions, remove premium entitlements automatically, and notify Faces before/after expiry.
+**Description:** Add lifecycle automation that expires annual subscriptions and removes premium entitlements automatically without deleting stored media.
 
 **Acceptance Criteria (draft):**
 - Scheduled command marks active subscriptions as expired when `expires_at <= now()`.
 - Expiration does not delete photos.
 - Expiration immediately causes public photo masking and removes paid featured ordering.
-- Renewal reminders are sent before expiry (for example 30 days and 7 days before) if email infrastructure is configured.
-- Expired notification tells the Face that photos 3-4 are now hidden publicly until renewal.
 - Command is idempotent.
-- Tests cover expiration, no media deletion, and reminder selection windows.
+- Command outputs summary counts for expired, skipped, and failed subscriptions.
+- Tests cover expiration, no media deletion, public masking after expiration, featured removal after expiration, and idempotency.
 
 **Technical Notes:**
-- If reminder email delivery is too large for Sprint 14, keep notification hooks and document the deferred email templates.
 - Commands should be safe to run repeatedly.
+- Keep reminders out of this story so entitlement removal can ship independently.
 
 ---
 
-#### FEATURE-FP-1.8: Regression coverage and rollout/backfill safeguards
+#### FEATURE-FP-1.9: Renewal reminders and subscription notifications
+
+**Description:** Notify Faces about subscription lifecycle events and renewal windows without blocking the core entitlement expiration path.
+
+**Acceptance Criteria (draft):**
+- Renewal reminders are sent before expiry, at minimum 30 days and 7 days before `expires_at`.
+- Expired notification tells the Face that photos 3-4 are now hidden publicly until renewal.
+- Activation notification confirms premium benefits and annual expiry date.
+- Cancellation notification explains when benefits stop.
+- Reminder selection is idempotent and does not send duplicate reminders for the same window.
+- Tests cover reminder windows, duplicate prevention, activation notification, expiration notification, and cancellation notification.
+
+**Technical Notes:**
+- If email templates are too large for Sprint 14, keep in-app notifications and document deferred email copy.
+- Prefer explicit reminder timestamp fields or notification audit rows over inferring from sent mail state.
+
+---
+
+#### FEATURE-FP-1.10: Regression coverage and rollout/backfill safeguards
 
 **Description:** Add final regression tests and rollout documentation to prevent billing/visibility mistakes. Include a deployment checklist and data checks for Faces with more than 2 existing photos.
 
@@ -244,11 +307,10 @@ The first paid benefits are:
 - Regression tests cover public/private album visibility across free, active premium, expired, cancelled, and admin-featured cases.
 - Tests cover that no storage delete is triggered by subscription expiry.
 - Tests cover payment idempotency and admin manual activation audit.
-- Rollout checklist documents feature flags/env vars, Fedapay config, scheduler requirements, and rollback plan.
+- Rollout checklist documents feature flags/env vars, annual price config, Fedapay config, scheduler requirements, and rollback plan.
 - Data check identifies Faces with more than 2 photos before launch so support can anticipate locked-photo UX.
 - `sprint-status.yaml` tracking entries are updated.
 
 **Technical Notes:**
 - Treat this as a release hardening story, not a dumping ground for unfinished implementation.
 - Keep any one-shot data query read-only unless an explicit migration/backfill is approved.
-

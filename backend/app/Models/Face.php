@@ -8,12 +8,15 @@ use App\Concerns\HasRouteUuid;
 use App\Enums\FaceCategory;
 use App\Enums\FaceGender;
 use App\Enums\FaceNiche;
+use App\Enums\FaceSubscriptionPlan;
+use App\Enums\FaceSubscriptionStatus;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 
@@ -224,6 +227,42 @@ class Face extends Model
     public function photos(): HasMany
     {
         return $this->hasMany(FacePhoto::class)->orderBy('position');
+    }
+
+    /**
+     * Get all subscriptions (current + historical) attached to this Face.
+     */
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(FaceSubscription::class);
+    }
+
+    /**
+     * The currently active, unexpired subscription (if any).
+     *
+     * Useful for eager-loading the single relevant row that drives entitlements:
+     *   Face::with('activeSubscription')->find($id)
+     * `FaceEntitlementService` can read this preloaded relation when available,
+     * but should fall back to its own query when the relation has not been loaded.
+     *
+     * Resolution policy when multiple active annual premium rows overlap:
+     * longest `expires_at` wins; ties are broken by highest `id` (most recently
+     * inserted row). Revisit this contract before introducing a second plan
+     * (e.g. monthly, trial) so the chosen row remains semantically correct.
+     */
+    public function activeSubscription(): HasOne
+    {
+        return $this->hasOne(FaceSubscription::class)
+            ->ofMany(
+                [
+                    'expires_at' => 'max',
+                    'id' => 'max',
+                ],
+                fn ($query) => $query
+                    ->where('plan', FaceSubscriptionPlan::AnnualPremium)
+                    ->where('status', FaceSubscriptionStatus::Active)
+                    ->where('expires_at', '>', now())
+            );
     }
 
     /**
