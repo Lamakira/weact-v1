@@ -21,6 +21,9 @@ The first paid benefits are:
 - Public visibility of up to 4 album photos.
 - Free/non-subscribed Faces keep only 2 album photos publicly visible.
 - Existing photos 3-4 are never deleted when a subscription expires; they remain stored and visible to the Face in their private album management area, but they are hidden from public and producer-facing profile views until the subscription is active again.
+- Public visibility of both the presentation video and the acting video for premium Faces.
+- Free/non-subscribed Faces keep only the presentation video publicly visible; the acting video becomes a premium-only feature.
+- Existing acting videos are never deleted on downgrade; they remain stored and visible to the Face in their private profile management area, but they are hidden from public and producer-facing profile views until the subscription is active again.
 
 ### Current Codebase Baseline
 
@@ -28,18 +31,20 @@ The first paid benefits are:
 - Album upload is currently hard-limited to 4 photos via `PhotoAlbumService::MAX_PHOTOS`.
 - Public Face profile detail returns album photos through `PublicFaceProfileResource`.
 - Private Face album management returns all photos through the authenticated album endpoint.
+- Presentation and acting videos are stored as two fixed columns on `faces` (`presentation_video`, `acting_video`), uploaded via `PresentationVideoService`/`PresentationVideoController` and `ActingVideoService`/`ActingVideoController`. Both videos are currently uploadable by every Face regardless of subscription state, and both are exposed publicly through `PublicFaceProfileResource`.
 - Payment infrastructure already exists in adjacent domains (Fedapay, wallet, financial events, mission/booking payment flows), but there is no dedicated Face subscription table or annual plan model yet.
 
 ### Product Decisions
 
 1. **Annual only**: no monthly recurring billing, no automatic monthly debit, no proration for MVP.
-2. **No media deletion on downgrade**: photos beyond the free quota remain stored.
-3. **Public masking on downgrade**: photos 3-4 are hidden publicly when the Face is not premium.
-4. **Private transparency**: the Face can still see all stored photos and understand which ones are publicly locked.
+2. **No media deletion on downgrade**: photos beyond the free quota and the acting video beyond the free quota remain stored on disk and in DB.
+3. **Public masking on downgrade**: photos 3-4 and the acting video are hidden publicly when the Face is not premium.
+4. **Private transparency**: the Face can still see all stored photos and the acting video in their private management area, and understand which ones are publicly locked.
 5. **Admin fallback is required**: because local payment operations may need manual intervention, admins must be able to activate, extend, cancel, or correct annual subscriptions.
 6. **Featured placement is entitlement-driven**: paid featured visibility should be derived from an active subscription/feature window, not only a permanent admin boolean.
 7. **Price is configuration-driven**: the annual plan amount must be stored in backend configuration/env, not hard-coded in frontend code.
 8. **Subscription state is API-driven**: the Face UI consumes a backend status/entitlements endpoint instead of duplicating entitlement rules client-side.
+9. **Acting video is a premium feature, presentation video is universal**: every Face can upload a presentation video so a free profile remains regardable; only premium Faces can upload and publicly expose the acting video. Existing acting videos on free Faces are masked, not deleted, to avoid destroying user content and to keep the upgrade path frictionless.
 
 ## Requirements Inventory
 
@@ -49,9 +54,9 @@ The first paid benefits are:
 
 **FEAT-FP-FR2**: The backend must expose a single entitlement source of truth for Face premium capabilities: public album photo limit, upload limit, featured status, and expiry.
 
-**FEAT-FP-FR3**: Album upload and validation must become entitlement-aware: free Faces can upload up to 2 photos; active premium Faces can upload up to 4 photos.
+**FEAT-FP-FR3**: Album upload and validation must become entitlement-aware: free Faces can upload up to 2 photos; active premium Faces can upload up to 4 photos. Acting video upload must also become entitlement-aware: free Faces are blocked from uploading an acting video; active premium Faces can upload one. Presentation video upload remains available to every Face.
 
-**FEAT-FP-FR4**: Public and producer-facing profile responses must hide photos beyond the active public quota. Private Face album responses must return all photos and mark locked/non-public photos.
+**FEAT-FP-FR4**: Public and producer-facing profile responses must hide photos and the acting video beyond the active public quota. Private Face management responses must return all photos and the acting video, and mark locked/non-public media.
 
 **FEAT-FP-FR5**: Annual payment initiation and confirmation must activate the subscription for 12 months. Payment confirmation must be idempotent.
 
@@ -80,7 +85,7 @@ The first paid benefits are:
 | ID | Story | FRs | Priority |
 |----|-------|-----|----------|
 | FEATURE-FP-1.1 | Subscription schema and entitlement service | FEAT-FP-FR1, FEAT-FP-FR2 | High |
-| FEATURE-FP-1.2 | Dynamic album quota and public photo masking | FEAT-FP-FR3, FEAT-FP-FR4 | High |
+| FEATURE-FP-1.2 | Dynamic album quota, public photo masking, and acting video premium gating | FEAT-FP-FR3, FEAT-FP-FR4 | High |
 | FEATURE-FP-1.3 | Face subscription status and entitlement API | FEAT-FP-FR2, FEAT-FP-FR7, FEAT-FP-FR9 | High |
 | FEATURE-FP-1.4 | Admin subscription operations and audit trail | FEAT-FP-FR6, FEAT-FP-FR10 | High |
 | FEATURE-FP-1.5 | Annual payment initiation and idempotent activation | FEAT-FP-FR5 | High |
@@ -129,11 +134,13 @@ The first paid benefits are:
 
 ---
 
-#### FEATURE-FP-1.2: Dynamic album quota and public photo masking
+#### FEATURE-FP-1.2: Dynamic album quota, public photo masking, and acting video premium gating
 
-**Description:** Replace the fixed album limit with entitlement-aware limits. Public and producer-facing APIs return only photos allowed by the current subscription. Private Face album management returns all stored photos, with metadata explaining which photos are publicly visible or locked.
+**Description:** Replace the fixed album limit with entitlement-aware limits. Public and producer-facing APIs return only photos allowed by the current subscription. Private Face album management returns all stored photos, with metadata explaining which photos are publicly visible or locked. The same gating is applied to videos: the presentation video remains free for every Face, but the acting video becomes a premium-only feature for upload and public exposure. Existing acting videos on free Faces are masked in public responses, never deleted.
 
 **Acceptance Criteria (draft):**
+
+Album quota and masking:
 - Free Face upload is blocked after 2 album photos.
 - Active premium Face upload is allowed up to 4 album photos.
 - A Face with 4 stored photos and no active premium subscription receives all 4 photos from the private album endpoint, with photos 3-4 marked as not publicly visible.
@@ -143,10 +150,24 @@ The first paid benefits are:
 - `has_album_photos` and `album_photos_count` reflect visible public photos in public responses.
 - Tests cover downgrade: premium Face with 4 photos becomes expired; no files are deleted; public API returns 2; private API returns 4.
 
+Video quota and masking:
+- Presentation video upload remains available to every Face (free and premium), unchanged from current behavior.
+- Acting video upload (`POST` on `ActingVideoController`) is blocked for free Faces with an HTTP 403 and a French error message; only Faces with an active premium subscription can upload an acting video.
+- Public Face profile response returns `acting_video = null` (and the derived `acting_video_url` / `acting_video_thumbnail_url` accessors as null) for non-premium Faces, even when the DB column is populated.
+- Public Face profile response returns the acting video URLs for active premium Faces.
+- Producer candidate/profile views apply the same public visibility rule unless the endpoint is explicitly owner/admin-only.
+- Private Face management responses (`FaceResource` on owner/admin endpoints) always return the acting video URLs with a flag indicating whether it is publicly visible, so the Face can see their own content and understand it is locked.
+- Tests cover downgrade: a Face that uploaded an acting video while premium becomes expired; the file is preserved on disk and in DB; public API hides the acting video; private API returns it with the locked flag.
+- Tests cover upgrade: a free Face that already has an acting video stored in DB (e.g. uploaded before the gating shipped) automatically sees it become public again when they subscribe.
+
 **Technical Notes:**
-- Use `position` as the public masking boundary.
-- Avoid deleting files or DB rows during expiration.
-- Do not trust frontend counts for upload enforcement.
+- Extend `FaceEntitlementService` with `canUploadActingVideo(Face $face): bool` and a public video visibility helper (e.g. `publicVideoVisibility(Face $face): array{presentation: bool, acting: bool}` or two boolean accessors). Do not introduce a separate `VideoEntitlementService`; entitlement rules stay in one place.
+- Reuse the same masking pattern as the album: `PublicFaceProfileResource` consults `FaceEntitlementService` and nulls out the relevant fields rather than removing them from the response shape, so the contract remains stable for frontend.
+- Use `position` as the public masking boundary for album photos. There is no equivalent ordering for videos because the schema keeps two fixed columns (`presentation_video`, `acting_video`) — keep that schema, do not introduce a `face_videos` table in this story.
+- Acting video upload guard must live in the Form Request layer (e.g. `UploadActingVideoRequest`) so the controller stays thin, mirroring the album upload guard.
+- The Form Request error message must be returned in French (project convention).
+- Avoid deleting files or DB rows during expiration. Storage reclaim is intentionally out of scope for MVP; reconsider in a later hardening story if storage cost becomes a concern.
+- Do not trust frontend counts or frontend role flags for upload enforcement; all gating decisions are server-side via `FaceEntitlementService`.
 
 ---
 
@@ -163,6 +184,9 @@ The first paid benefits are:
   - `current_album_photo_count`
   - `public_album_photo_count`
   - `locked_album_photo_count`
+  - `can_upload_acting_video` (boolean)
+  - `has_acting_video` (boolean — true if a non-null `acting_video` exists in DB, regardless of premium state)
+  - `is_acting_video_publicly_visible` (boolean — true only when premium is active AND an acting video exists)
 - Response includes configured annual plan metadata: amount in XOF, currency, provider, and CTA availability.
 - Free Faces receive a stable response with `status = free`, no active subscription id, and free-tier limits.
 - Pending payment Faces receive enough metadata for the UI to show a pending state without exposing sensitive provider data.
@@ -251,10 +275,13 @@ The first paid benefits are:
 - UI displays annual expiry date for active subscriptions.
 - Album management displays quota as 2/2 for free and 4/4 for premium.
 - Photos beyond the free quota show a locked/non-public state when premium is inactive.
+- Video management displays the presentation video as universally available and the acting video as premium-only.
+- A stored acting video on a free Face shows a locked/non-public state with a clear explanation that subscribing republishes it without re-upload.
+- The acting video upload entry point is disabled for free Faces with an explanatory tooltip; the frontend never bypasses the backend guard, the disabled state is a UX hint only.
 - CTA allows starting annual premium payment.
 - UI handles payment pending/success/failure states.
 - UI consumes the subscription status API from `FEATURE-FP-1.3` instead of reconstructing subscription rules.
-- Tests cover locked photo rendering and quota messaging.
+- Tests cover locked photo rendering, locked acting video rendering, and quota messaging.
 
 **Technical Notes:**
 - Keep public profile UI simple; backend filtering should handle visibility.
@@ -287,7 +314,7 @@ The first paid benefits are:
 
 **Acceptance Criteria (draft):**
 - Renewal reminders are sent before expiry, at minimum 30 days and 7 days before `expires_at`.
-- Expired notification tells the Face that photos 3-4 are now hidden publicly until renewal.
+- Expired notification tells the Face that photos 3-4 and the acting video are now hidden publicly until renewal.
 - Activation notification confirms premium benefits and annual expiry date.
 - Cancellation notification explains when benefits stop.
 - Reminder selection is idempotent and does not send duplicate reminders for the same window.
@@ -305,10 +332,11 @@ The first paid benefits are:
 
 **Acceptance Criteria (draft):**
 - Regression tests cover public/private album visibility across free, active premium, expired, cancelled, and admin-featured cases.
-- Tests cover that no storage delete is triggered by subscription expiry.
+- Regression tests cover public/private acting video visibility across the same matrix.
+- Tests cover that no storage delete is triggered by subscription expiry, for both album photos and the acting video.
 - Tests cover payment idempotency and admin manual activation audit.
 - Rollout checklist documents feature flags/env vars, annual price config, Fedapay config, scheduler requirements, and rollback plan.
-- Data check identifies Faces with more than 2 photos before launch so support can anticipate locked-photo UX.
+- Data check identifies Faces with more than 2 photos AND Faces with an existing acting video before launch so support can anticipate locked-media UX.
 - `sprint-status.yaml` tracking entries are updated.
 
 **Technical Notes:**

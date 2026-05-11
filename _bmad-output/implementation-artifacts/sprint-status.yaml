@@ -1,5 +1,5 @@
 # generated: 2026-01-07
-# last_updated: 2026-05-01
+# last_updated: 2026-05-11
 # project: WEACT
 # project_key: weact
 # tracking_system: file-system
@@ -512,7 +512,7 @@ development_status:
   # Epic FEATURE-FP-1: Annual Face Premium Subscription & Featured Portfolio (10 stories)
   epic-feature-fp-1: in-progress
   feature-fp-1-1-subscription-schema-and-entitlement-service: done
-  feature-fp-1-2-dynamic-album-quota-and-public-photo-masking: backlog
+  feature-fp-1-2-dynamic-album-quota-and-public-photo-masking: done
   feature-fp-1-3-face-subscription-status-and-entitlement-api: backlog
   feature-fp-1-4-admin-subscription-operations-and-audit-trail: backlog
   feature-fp-1-5-annual-payment-initiation-and-idempotent-activation: backlog
@@ -524,6 +524,10 @@ development_status:
   epic-feature-fp-1-retrospective: optional
 
 last_updated: "2026-05-11"
+
+# Story feature-fp-1-2 moved to done: 2026-05-11 (code review complete: clean review, no patch/defer findings; targeted story regression suite passed 90 tests / 499 assertions)
+# Story feature-fp-1-2 moved to review: 2026-05-11 (FEATURE-FP-1.2 implementation complete: 21 ACs implemented — entitlement-aware album upload guard free=2/premium=4 via FaceEntitlementService::albumUploadLimit + new AlbumQuotaReachedException raised inside DB::transaction before storage write to close race condition; acting video upload premium gate in UploadActingVideoRequest::authorize() throwing HttpResponseException {error:{code:'PREMIUM_REQUIRED',...}} 403; resource-layer masking — PublicFaceProfileResource slices photos to publicAlbumPhotoLimit + null-masks acting_video_url/thumbnail/has_acting_video for non-premium; FaceResource introduces resolveViewerContext('owner'|'admin'|'other') + privileged viewers get full photo list with per-photo `is_publicly_visible` flag + top-level `is_acting_video_publicly_visible`, non-privileged viewers get masked slice without flag leak; downgrade/upgrade preserves files+DB (Storage::fake assertExists assertions); Face\ProfileController::show() added $face->load('photos') glue to satisfy AC #9 owner view; 37 new/augmented test cases across 7 test files: AlbumTest 22/22 + ActingVideoTest 22/22 + PublicFaceProfileTest 14/14 + PremiumAlbumMaskingTest 7/7 + PremiumActingVideoMaskingTest 8/8 + PhotoAlbumServiceQuotaTest 1/1 + ProducerViewCandidateProfileTest 16/16 + AdminFaceCrudTest 22/22 + FaceEntitlementServiceTest 12/12; full backend suite 2115 passed / 9622 assertions zero regression; Pint pass on all modified files; strict non-scope upheld — routes/models/Producer FaceController/Admin FaceController/CandidatureResource unchanged, MAX_PHOTOS deprecated constant kept for backward compat, no new Storage::delete in entitlement paths)
+# Story feature-fp-1-2 moved to in-progress: 2026-05-11 (dev-story workflow started: implementing dynamic album quota + public photo masking + acting video premium gating per FEATURE-FP-1.2 acceptance criteria)
 # Story feature-fp-1-1 moved to done: 2026-05-11 (bmad-code-review pass + v2 rerun terminés ; 3 reviewers parallèles sur les 2 passes ; v1: 0 decision-needed, 2 patches appliqués par dev agent — Face::activeSubscription via ofMany(['expires_at'=>'max','id'=>'max'], fn=plan/status/expiry filter) + null-expires_at branch couvert dans test_is_active_helper_matches_scope_semantic ; v2 rerun: Acceptance Auditor confirmé 11/11 ACs encore validés, 0 BLOCKER/HIGH introduits, 3 patches additionnels appliqués — P1 scopeActive parity assertion ajoutée au test helper↔scope, P2 nouveau test_preloaded_active_subscription_is_null_when_only_non_annual_rows_exist (régression test sur le contrat ofMany), P3 docblock policy "longest expires_at wins; ties broken by highest id" ajouté à Face::activeSubscription ; targeted FaceSubscriptionSchemaTest + FaceEntitlementServiceTest 23/23 verts (86 assertions, +2 tests +11 assertions vs implémentation initiale 21/75) ; defers persistés dans deferred-work.md sous 2 headings: `## Deferred from: code review of feature-fp-1.1...` (8 items v1 = isPremium starts_at gap, fillable mass-assignment, paid_amount cast hardening, metadata cast, dateTime timezone, test coverage null→non-null lifecycle, factory paid_amount realism, partial unique index per spec line 240) et `## Deferred from: code review v2 of feature-fp-1.1...` (6 items v2 = asymmetric qualifiesAsPremium defense, subscriptions HasMany no ordering, composite index missing plan column, dateTime 1s precision webhook double-fire, HasRouteUuid trait coverage, plan/status DB-level CHECK constraint))
 # Story feature-fp-1-1 moved to review: 2026-05-11 (FEATURE-FP-1.1 implementation complete: face_subscriptions migration + enums + model + factory + FaceEntitlementService + 21 targeted tests; full backend suite 2091 passed / 9504 assertions, no regressions; strict non-scope held — only Face model modified, no routes/controllers/resources/Form Requests/frontend/payment/wallet/Fedapay/scheduler/notification code touched)
 # Story feature-fp-1-1 moved to in-progress: 2026-05-11 (dev-story workflow started: implementing subscription schema, enums, model, factory, and FaceEntitlementService per FEATURE-FP-1.1 acceptance criteria)
