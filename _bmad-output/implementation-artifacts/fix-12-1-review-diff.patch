@@ -1,0 +1,408 @@
+diff --git a/backend/app/Events/BookingCancelled.php b/backend/app/Events/BookingCancelled.php
+index 4a2b409..f38ab2d 100644
+--- a/backend/app/Events/BookingCancelled.php
++++ b/backend/app/Events/BookingCancelled.php
+@@ -8,11 +8,11 @@
+ use App\Models\Booking;
+ use Illuminate\Broadcasting\InteractsWithSockets;
+ use Illuminate\Broadcasting\PrivateChannel;
+-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
++use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+ use Illuminate\Foundation\Events\Dispatchable;
+ use Illuminate\Queue\SerializesModels;
+ 
+-class BookingCancelled implements ShouldBroadcastNow
++class BookingCancelled implements ShouldBroadcast
+ {
+     use Dispatchable, InteractsWithSockets, SerializesModels;
+ 
+diff --git a/backend/app/Events/BookingExpired.php b/backend/app/Events/BookingExpired.php
+index d6050d3..c840fd5 100644
+--- a/backend/app/Events/BookingExpired.php
++++ b/backend/app/Events/BookingExpired.php
+@@ -7,11 +7,11 @@
+ use App\Models\Booking;
+ use Illuminate\Broadcasting\InteractsWithSockets;
+ use Illuminate\Broadcasting\PrivateChannel;
+-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
++use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+ use Illuminate\Foundation\Events\Dispatchable;
+ use Illuminate\Queue\SerializesModels;
+ 
+-class BookingExpired implements ShouldBroadcastNow
++class BookingExpired implements ShouldBroadcast
+ {
+     use Dispatchable, InteractsWithSockets, SerializesModels;
+ 
+diff --git a/backend/app/Events/BookingMessageSent.php b/backend/app/Events/BookingMessageSent.php
+index b653853..aaa33f4 100644
+--- a/backend/app/Events/BookingMessageSent.php
++++ b/backend/app/Events/BookingMessageSent.php
+@@ -7,11 +7,11 @@
+ use App\Models\BookingMessage;
+ use Illuminate\Broadcasting\InteractsWithSockets;
+ use Illuminate\Broadcasting\PrivateChannel;
+-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
++use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+ use Illuminate\Foundation\Events\Dispatchable;
+ use Illuminate\Queue\SerializesModels;
+ 
+-class BookingMessageSent implements ShouldBroadcastNow
++class BookingMessageSent implements ShouldBroadcast
+ {
+     use Dispatchable, InteractsWithSockets, SerializesModels;
+ 
+diff --git a/backend/app/Events/BookingNoShowReported.php b/backend/app/Events/BookingNoShowReported.php
+index f8dabdf..30c5414 100644
+--- a/backend/app/Events/BookingNoShowReported.php
++++ b/backend/app/Events/BookingNoShowReported.php
+@@ -7,11 +7,11 @@
+ use App\Models\Booking;
+ use Illuminate\Broadcasting\InteractsWithSockets;
+ use Illuminate\Broadcasting\PrivateChannel;
+-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
++use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+ use Illuminate\Foundation\Events\Dispatchable;
+ use Illuminate\Queue\SerializesModels;
+ 
+-class BookingNoShowReported implements ShouldBroadcastNow
++class BookingNoShowReported implements ShouldBroadcast
+ {
+     use Dispatchable, InteractsWithSockets, SerializesModels;
+ 
+diff --git a/backend/app/Listeners/Booking/NotifyPartyOnBookingCancelled.php b/backend/app/Listeners/Booking/NotifyPartyOnBookingCancelled.php
+index 5889332..61403da 100644
+--- a/backend/app/Listeners/Booking/NotifyPartyOnBookingCancelled.php
++++ b/backend/app/Listeners/Booking/NotifyPartyOnBookingCancelled.php
+@@ -6,9 +6,11 @@
+ 
+ use App\Enums\BookingStatus;
+ use App\Events\BookingCancelled;
++use App\Mail\BookingCancelledMail;
+ use App\Models\Notification;
+ use Illuminate\Events\Attributes\AsEventListener;
+ use Illuminate\Support\Facades\Log;
++use Illuminate\Support\Facades\Mail;
+ 
+ #[AsEventListener(event: BookingCancelled::class)]
+ class NotifyPartyOnBookingCancelled
+@@ -29,9 +31,10 @@ public function handle(BookingCancelled $event): void
+             if ($cancelledByFace) {
+                 // Notify Producer
+                 $faceName = $booking->face?->userable?->display_name ?? 'La Face';
++                $recipientUserId = $booking->producer_id;
+ 
+                 Notification::create([
+-                    'user_id' => $booking->producer_id,
++                    'user_id' => $recipientUserId,
+                     'type'    => 'booking_cancelled',
+                     'data'    => [
+                         'message'    => "{$faceName} a annulé le booking.",
+@@ -42,9 +45,10 @@ public function handle(BookingCancelled $event): void
+             } else {
+                 // Notify Face (cancelled by Producer)
+                 $producerName = $booking->producer?->userable?->display_name ?? 'Le Producteur';
++                $recipientUserId = $booking->face_id;
+ 
+                 Notification::create([
+-                    'user_id' => $booking->face_id,
++                    'user_id' => $recipientUserId,
+                     'type'    => 'booking_cancelled',
+                     'data'    => [
+                         'message'    => "Votre booking a été annulé par {$producerName}. Vous n'êtes pas pénalisé.",
+@@ -53,6 +57,14 @@ public function handle(BookingCancelled $event): void
+                     ],
+                 ]);
+             }
++
++            // Send email to the non-cancelling party
++            $recipientUser = \App\Models\User::find($recipientUserId);
++            if ($recipientUser?->email) {
++                Mail::to($recipientUser->email)->send(
++                    new BookingCancelledMail($booking, $cancelledByFace ? 'face' : 'producer')
++                );
++            }
+         } catch (\Throwable $e) {
+             Log::warning('BookingCancelled notification failed', [
+                 'booking_id' => $event->booking->id,
+diff --git a/backend/app/Services/BookingService.php b/backend/app/Services/BookingService.php
+index e6e6ac4..137972c 100644
+--- a/backend/app/Services/BookingService.php
++++ b/backend/app/Services/BookingService.php
+@@ -159,7 +159,7 @@ public function refuse(Booking $booking, ?string $reason = null): Booking
+      */
+     public function cancel(Booking $booking, string $reason): Booking
+     {
+-        return DB::transaction(function () use ($booking, $reason) {
++        $cancelledBooking = DB::transaction(function () use ($booking, $reason) {
+             $booking = $booking->lockForUpdate()->find($booking->id);
+ 
+             $cancellableStatuses = [
+@@ -183,11 +183,19 @@ public function cancel(Booking $booking, string $reason): Booking
+                 'cancellation_reason' => BookingCancellationReason::from($reason)->value,
+             ]);
+ 
+-            $freshBooking = $booking->fresh();
+-            BookingCancelled::dispatch($freshBooking);
+-
+-            return $freshBooking;
++            return $booking->fresh();
+         });
++
++        try {
++            BookingCancelled::dispatch($cancelledBooking);
++        } catch (\Throwable $e) {
++            Log::warning('BookingCancelled broadcast failed', [
++                'booking_id' => $cancelledBooking->id,
++                'error' => $e->getMessage(),
++            ]);
++        }
++
++        return $cancelledBooking;
+     }
+ 
+     /**
+diff --git a/backend/tests/Feature/Booking/BookingCancellationTest.php b/backend/tests/Feature/Booking/BookingCancellationTest.php
+index 72ecd14..ffd9c93 100644
+--- a/backend/tests/Feature/Booking/BookingCancellationTest.php
++++ b/backend/tests/Feature/Booking/BookingCancellationTest.php
+@@ -29,6 +29,11 @@ class BookingCancellationTest extends TestCase
+ 
+     private Face $face;
+ 
++    private function withApiToken(User $user): static
++    {
++        return $this->withToken($user->createToken('test-token')->plainTextToken);
++    }
++
+     protected function setUp(): void
+     {
+         parent::setUp();
+@@ -55,7 +60,7 @@ public function test_producer_can_cancel_pending_booking_without_financial_impac
+             'producer_id' => $this->producerUser->id,
+         ]);
+ 
+-        $response = $this->actingAs($this->producerUser)
++        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                 'cancellation_reason' => 'schedule_conflict',
+             ]);
+@@ -92,7 +97,7 @@ public function test_producer_can_cancel_accepted_booking_without_financial_impa
+             'producer_id' => $this->producerUser->id,
+         ]);
+ 
+-        $response = $this->actingAs($this->producerUser)
++        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                 'cancellation_reason' => 'price_disagreement',
+             ]);
+@@ -143,7 +148,7 @@ public function test_producer_can_cancel_paid_booking_and_trigger_refund(): void
+                 ]);
+         });
+ 
+-        $response = $this->actingAs($this->producerUser)
++        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                 'cancellation_reason' => 'other',
+             ]);
+@@ -196,7 +201,7 @@ public function test_paid_booking_refund_stays_pending_until_provider_settlement
+                 ]);
+         });
+ 
+-        $this->actingAs($this->producerUser)
++        $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                 'cancellation_reason' => 'other',
+             ])
+@@ -218,7 +223,7 @@ public function test_face_can_cancel_accepted_booking_and_get_penalty(): void
+             'producer_id' => $this->producerUser->id,
+         ]);
+ 
+-        $response = $this->actingAs($this->faceUser)
++        $response = $this->actingAs($this->faceUser)->withApiToken($this->faceUser)
+             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                 'cancellation_reason' => 'schedule_conflict',
+             ]);
+@@ -248,7 +253,7 @@ public function test_face_cannot_cancel_pending_booking(): void
+             'producer_id' => $this->producerUser->id,
+         ]);
+ 
+-        $response = $this->actingAs($this->faceUser)
++        $response = $this->actingAs($this->faceUser)->withApiToken($this->faceUser)
+             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                 'cancellation_reason' => 'schedule_conflict',
+             ]);
+@@ -263,7 +268,7 @@ public function test_cancel_requires_reason(): void
+             'producer_id' => $this->producerUser->id,
+         ]);
+ 
+-        $response = $this->actingAs($this->producerUser)
++        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+             ->postJson("/api/v1/bookings/{$booking->id}/cancel", []);
+ 
+         $response->assertUnprocessable()
+@@ -277,7 +282,7 @@ public function test_cancel_with_invalid_reason_returns_422(): void
+             'producer_id' => $this->producerUser->id,
+         ]);
+ 
+-        $response = $this->actingAs($this->producerUser)
++        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                 'cancellation_reason' => 'invalid_reason',
+             ]);
+@@ -293,7 +298,7 @@ public function test_producer_cannot_cancel_completed_booking(): void
+             'producer_id' => $this->producerUser->id,
+         ]);
+ 
+-        $response = $this->actingAs($this->producerUser)
++        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                 'cancellation_reason' => 'other',
+             ]);
+@@ -308,7 +313,7 @@ public function test_second_cancel_on_already_cancelled_booking_is_forbidden():
+             'producer_id' => $this->producerUser->id,
+         ]);
+ 
+-        $response = $this->actingAs($this->producerUser)
++        $response = $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+             ->postJson("/api/v1/bookings/{$booking->id}/cancel", [
+                 'cancellation_reason' => 'other',
+             ]);
+
+diff --git a/backend/app/Mail/BookingCancelledMail.php b/backend/app/Mail/BookingCancelledMail.php
+new file mode 100644
+index 0000000..7e36142
+--- /dev/null
++++ b/backend/app/Mail/BookingCancelledMail.php
+@@ -0,0 +1,66 @@
++<?php
++
++declare(strict_types=1);
++
++namespace App\Mail;
++
++use App\Enums\BookingCancellationReason;
++use App\Enums\BookingStatus;
++use App\Models\Booking;
++use Illuminate\Bus\Queueable;
++use Illuminate\Mail\Mailable;
++use Illuminate\Mail\Mailables\Content;
++use Illuminate\Mail\Mailables\Envelope;
++use Illuminate\Queue\SerializesModels;
++
++class BookingCancelledMail extends Mailable
++{
++    use Queueable, SerializesModels;
++
++    public function __construct(
++        public readonly Booking $booking,
++        public readonly string $cancelledBy,
++    ) {}
++
++    public function envelope(): Envelope
++    {
++        return new Envelope(
++            subject: "Votre booking #{$this->booking->id} a été annulé",
++        );
++    }
++
++    public function content(): Content
++    {
++        return new Content(
++            view: 'emails.booking-cancelled',
++            with: [
++                'booking' => $this->booking,
++                'cancellerName' => $this->cancellerName(),
++                'reasonLabel' => $this->reasonLabel(),
++                'cancelledByFace' => $this->cancelledBy === 'face',
++            ],
++        );
++    }
++
++    private function cancellerName(): string
++    {
++        if ($this->cancelledBy === 'face') {
++            return (string) ($this->booking->face?->userable?->display_name ?? 'La Face');
++        }
++
++        return (string) ($this->booking->producer?->userable?->display_name ?? 'Le Producteur');
++    }
++
++    private function reasonLabel(): string
++    {
++        $reason = $this->booking->cancellation_reason;
++
++        if (! $reason) {
++            return 'Non spécifiée';
++        }
++
++        $enum = BookingCancellationReason::tryFrom($reason);
++
++        return $enum?->label() ?? $reason;
++    }
++}
+
+diff --git a/backend/resources/views/emails/booking-cancelled.blade.php b/backend/resources/views/emails/booking-cancelled.blade.php
+new file mode 100644
+index 0000000..3154781
+--- /dev/null
++++ b/backend/resources/views/emails/booking-cancelled.blade.php
+@@ -0,0 +1,58 @@
++<!DOCTYPE html>
++<html lang="fr">
++<head>
++    <meta charset="UTF-8">
++    <meta name="viewport" content="width=device-width, initial-scale=1.0">
++    <title>Booking annulé</title>
++</head>
++<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
++    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 32px 16px;">
++        <tr>
++            <td align="center">
++                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden;">
++                    <tr>
++                        <td style="background-color: #198496; padding: 24px 32px;">
++                            <h1 style="margin: 0; color: #ffffff; font-size: 20px; font-weight: 600;">
++                                Booking annulé
++                            </h1>
++                        </td>
++                    </tr>
++                    <tr>
++                        <td style="padding: 32px;">
++                            <p style="margin: 0 0 20px; color: #374151; font-size: 14px; line-height: 1.6;">
++                                Le booking <strong>#{{ $booking->id }}</strong> a été annulé par <strong>{{ $cancellerName }}</strong>.
++                            </p>
++                            <table width="100%" cellpadding="0" cellspacing="0">
++                                <tr>
++                                    <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">Raison</td>
++                                    <td style="padding: 0 0 12px; color: #111827; font-size: 14px; text-align: right;">{{ $reasonLabel }}</td>
++                                </tr>
++                                <tr>
++                                    <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">Date d'annulation</td>
++                                    <td style="padding: 0 0 12px; color: #111827; font-size: 14px; text-align: right;">{{ now()->format('d/m/Y H:i') }}</td>
++                                </tr>
++                            </table>
++                            @if($cancelledByFace)
++                                <p style="margin: 20px 0 0; padding: 12px 16px; background-color: #fef3c7; border-radius: 6px; color: #92400e; font-size: 13px; line-height: 1.5;">
++                                    La Face a annulé ce booking. Si un paiement avait été effectué, un remboursement de 90% sera initié.
++                                </p>
++                            @else
++                                <p style="margin: 20px 0 0; padding: 12px 16px; background-color: #ecfdf5; border-radius: 6px; color: #065f46; font-size: 13px; line-height: 1.5;">
++                                    Le Producteur a annulé ce booking. Vous n'êtes pas pénalisé(e).
++                                </p>
++                            @endif
++                        </td>
++                    </tr>
++                    <tr>
++                        <td style="background-color: #f9fafb; padding: 16px 32px; border-top: 1px solid #e5e7eb;">
++                            <p style="margin: 0; color: #9ca3af; font-size: 12px; text-align: center;">
++                                Merci d'utiliser WEACT.
++                            </p>
++                        </td>
++                    </tr>
++                </table>
++            </td>
++        </tr>
++    </table>
++</body>
++</html>

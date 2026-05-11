@@ -95,7 +95,7 @@ public/hot/
 
 # Outils IA & Gestion de projet (BMAD)
 _bmad/
-_bmad-output/implementation-artifacts/
+_bmad-output/implementation-artifacts/*.md
 CLAUDE.md
 AGENTS.md
 .opencode/
