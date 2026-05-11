@@ -100,7 +100,10 @@ CLAUDE.md
 AGENTS.md
 .opencode/
 .agents/
+.codex
 
+#Fichiers divers
 .mcp.json
 nginx-weact.conf
+scripts/codex-notify.sh
 
