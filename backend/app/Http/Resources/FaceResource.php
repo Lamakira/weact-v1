@@ -66,6 +66,9 @@ class FaceResource extends JsonResource
             'formatted_tarif_journalier' => $this->formatted_tarif_journalier,
             'is_available' => $this->is_available,
             'is_featured' => $this->is_featured,
+            ...($viewer === 'admin' ? [
+                'is_featured_by_subscription' => $entitlement->isFeaturedBySubscription($this->resource),
+            ] : []),
             'availability_badge' => $this->availability_badge,
             'availability_badge_color' => $this->availability_badge_color,
             'profile_completion_percentage' => $this->profile_completion_percentage,

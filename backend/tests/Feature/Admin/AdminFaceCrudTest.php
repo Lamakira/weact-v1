@@ -11,6 +11,7 @@ use App\Models\Candidature;
 use App\Models\Experience;
 use App\Models\Face;
 use App\Models\FacePhoto;
+use App\Models\FaceSubscription;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
@@ -451,5 +452,129 @@ class AdminFaceCrudTest extends TestCase
             ->getJson('/api/v1/admin/faces');
 
         $response->assertForbidden();
+    }
+
+    // ─── Subscription-driven Featured (FEATURE-FP-1.6) ────────────
+
+    public function test_admin_show_exposes_is_featured_by_subscription_true_for_active_subscriber(): void
+    {
+        $face = Face::factory()->create(['is_featured' => false]);
+        FaceSubscription::factory()->active()->create(['face_id' => $face->id]);
+
+        $response = $this->withToken($this->adminToken)
+            ->getJson("/api/v1/admin/faces/{$face->uuid}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.is_featured', false)
+            ->assertJsonPath('data.is_featured_by_subscription', true);
+    }
+
+    public function test_admin_show_exposes_is_featured_by_subscription_false_when_no_active_subscription(): void
+    {
+        $face = Face::factory()->create(['is_featured' => false]);
+        FaceSubscription::factory()->expired()->create(['face_id' => $face->id]);
+
+        $response = $this->withToken($this->adminToken)
+            ->getJson("/api/v1/admin/faces/{$face->uuid}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.is_featured', false)
+            ->assertJsonPath('data.is_featured_by_subscription', false);
+    }
+
+    public function test_admin_show_distinguishes_manual_featured_from_subscription_featured(): void
+    {
+        $manualOnly = Face::factory()->create(['is_featured' => true]);
+
+        $subscriptionOnly = Face::factory()->create(['is_featured' => false]);
+        FaceSubscription::factory()->active()->create(['face_id' => $subscriptionOnly->id]);
+
+        $bothFlags = Face::factory()->create(['is_featured' => true]);
+        FaceSubscription::factory()->active()->create(['face_id' => $bothFlags->id]);
+
+        $manualResponse = $this->withToken($this->adminToken)
+            ->getJson("/api/v1/admin/faces/{$manualOnly->uuid}");
+        $manualResponse->assertOk()
+            ->assertJsonPath('data.is_featured', true)
+            ->assertJsonPath('data.is_featured_by_subscription', false);
+
+        $subscriptionResponse = $this->withToken($this->adminToken)
+            ->getJson("/api/v1/admin/faces/{$subscriptionOnly->uuid}");
+        $subscriptionResponse->assertOk()
+            ->assertJsonPath('data.is_featured', false)
+            ->assertJsonPath('data.is_featured_by_subscription', true);
+
+        $bothResponse = $this->withToken($this->adminToken)
+            ->getJson("/api/v1/admin/faces/{$bothFlags->uuid}");
+        $bothResponse->assertOk()
+            ->assertJsonPath('data.is_featured', true)
+            ->assertJsonPath('data.is_featured_by_subscription', true);
+    }
+
+    public function test_admin_index_exposes_is_featured_by_subscription_for_each_face(): void
+    {
+        $activeSubscriber = Face::factory()->create([
+            'prenom' => 'Active Subscriber',
+            'created_at' => now()->subHour(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $activeSubscriber->id]);
+        FaceSubscription::factory()->active()->create(['face_id' => $activeSubscriber->id]);
+
+        $freeFace = Face::factory()->create([
+            'prenom' => 'Free Face',
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $freeFace->id]);
+
+        $response = $this->withToken($this->adminToken)
+            ->getJson('/api/v1/admin/faces');
+
+        $response->assertOk()
+            ->assertJsonPath('data.0.id', $activeSubscriber->uuid)
+            ->assertJsonPath('data.0.is_featured_by_subscription', true)
+            ->assertJsonPath('data.1.id', $freeFace->uuid)
+            ->assertJsonPath('data.1.is_featured_by_subscription', false);
+    }
+
+    public function test_producer_view_does_not_expose_is_featured_by_subscription(): void
+    {
+        $face = Face::factory()->create(['is_featured' => false]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+        FaceSubscription::factory()->active()->create(['face_id' => $face->id]);
+
+        $producer = Producer::factory()->create();
+        $producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+        $producerToken = $producerUser->createToken('producer-token')->plainTextToken;
+
+        $response = $this->withToken($producerToken)
+            ->getJson("/api/v1/producer/candidates/{$face->uuid}");
+
+        $response->assertOk();
+        $body = $response->json('data');
+        $this->assertArrayHasKey('is_featured', $body);
+        $this->assertArrayNotHasKey('is_featured_by_subscription', $body);
+    }
+
+    public function test_face_owner_profile_does_not_expose_is_featured_by_subscription(): void
+    {
+        $face = Face::factory()->create(['is_featured' => false]);
+        FaceSubscription::factory()->active()->create(['face_id' => $face->id]);
+
+        $faceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+        $faceToken = $faceUser->createToken('face-token')->plainTextToken;
+
+        $response = $this->withToken($faceToken)
+            ->getJson('/api/v1/face/profile');
+
+        $response->assertOk();
+        $body = $response->json('data');
+        $this->assertArrayHasKey('is_featured', $body);
+        $this->assertArrayNotHasKey('is_featured_by_subscription', $body);
     }
 }
