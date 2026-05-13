@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Enums\FaceSubscriptionStatus;
 use App\Enums\FinancialEventType;
 use App\Models\Booking;
+use App\Models\FaceSubscription;
 use App\Models\FedapayWebhookEvent;
 use App\Models\FinancialEvent;
 use App\Models\MissionPayment;
 use App\Models\WalletTransaction;
 use App\Services\BookingService;
+use App\Services\FaceSubscriptionPaymentService;
 use App\Services\MissionPaymentService;
 use App\Services\WalletService;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -31,7 +34,7 @@ class HandleFedapayWebhook implements ShouldQueue
         public readonly array $payload,
     ) {}
 
-    public function handle(BookingService $bookingService, MissionPaymentService $missionPaymentService, WalletService $walletService): void
+    public function handle(BookingService $bookingService, MissionPaymentService $missionPaymentService, WalletService $walletService, FaceSubscriptionPaymentService $facePaymentService): void
     {
         $webhookEvent = FedapayWebhookEvent::find($this->webhookEventId);
 
@@ -92,6 +95,49 @@ class HandleFedapayWebhook implements ShouldQueue
             $this->markProcessed($webhookEvent);
 
             return;
+        }
+
+        if (str_starts_with($this->eventName, 'transaction.')) {
+            // Try to find a FaceSubscription (annual premium payment).
+            // resolveFaceSubscription() does a two-step lookup: primary by
+            // provider_reference (happy path), fallback by
+            // custom_metadata.face_subscription_id (recovery for the AC #6bis
+            // remote-success/local-finalize-failure mode).
+            $faceSubscription = $this->resolveFaceSubscription((string) $transactionId, $transactionData);
+
+            if ($faceSubscription) {
+                $providerReference = (string) $transactionId;
+
+                match ($this->eventName) {
+                    'transaction.approved' => $facePaymentService->markAsPaid(
+                        $faceSubscription,
+                        $fedapayRef,
+                        $this->extractPaidAmount($transactionData),
+                        $this->payload,
+                        $providerReference,
+                    ),
+                    'transaction.declined', 'transaction.canceled' => $facePaymentService->markAsFailed(
+                        $faceSubscription,
+                        $fedapayRef,
+                        "Payment {$this->eventName}",
+                        $providerReference,
+                    ),
+                    'transaction.refunded', 'transaction.transferred' => Log::critical('Fedapay webhook: face subscription refund/transfer requires manual admin review', [
+                        'event' => $this->eventName,
+                        'face_subscription_id' => $faceSubscription->id,
+                        'face_id' => $faceSubscription->face_id,
+                        'fedapay_transaction_id' => $transactionId,
+                    ]),
+                    default => Log::info('Fedapay webhook: unhandled event for face subscription', [
+                        'event' => $this->eventName,
+                        'face_subscription_id' => $faceSubscription->id,
+                    ]),
+                };
+
+                $this->markProcessed($webhookEvent);
+
+                return;
+            }
         }
 
         // Try to find a withdrawal FinancialEvent (payout.sent / payout.failed)
@@ -160,5 +206,111 @@ class HandleFedapayWebhook implements ShouldQueue
             'status' => 'processed',
             'processed_at' => now(),
         ]);
+    }
+
+    /**
+     * Resolve the FaceSubscription this webhook belongs to. Two-step lookup:
+     *
+     * 1. Primary — match by face_subscriptions.provider_reference (the happy
+     *    path; provider_reference is written by FaceSubscriptionPaymentService::
+     *    finalizePendingWithRetry after Fedapay confirms the transaction id).
+     * 2. Fallback — if the primary misses, inspect Fedapay's custom_metadata
+     *    (embedded by FedapayService::initiatePaymentForFaceSubscription) and
+     *    resolve by face_subscription_id when `type === 'face_subscription'`.
+     *    The fallback only matches pending rows with a NULL provider_reference,
+     *    so it cannot collide with the primary path. See AC #12bis.
+     *
+     * Returns null if neither lookup matches; the caller falls through to the
+     * "no booking, mission payment or withdrawal found" warning.
+     *
+     * @param  array<string, mixed>  $transactionData
+     */
+    private function resolveFaceSubscription(string $transactionId, array $transactionData): ?FaceSubscription
+    {
+        $primary = FaceSubscription::query()
+            ->where('provider_reference', $transactionId)
+            ->first();
+
+        if ($primary) {
+            return $primary;
+        }
+
+        $customMetadata = data_get($transactionData, 'custom_metadata', []);
+
+        if (! is_array($customMetadata)) {
+            return null;
+        }
+
+        if (($customMetadata['type'] ?? null) !== 'face_subscription') {
+            return null;
+        }
+
+        $faceSubscriptionId = $customMetadata['face_subscription_id'] ?? null;
+
+        if (! is_int($faceSubscriptionId) && ! (is_string($faceSubscriptionId) && ctype_digit($faceSubscriptionId))) {
+            return null;
+        }
+
+        $fallback = FaceSubscription::query()
+            ->whereKey((int) $faceSubscriptionId)
+            ->whereNull('provider_reference')
+            ->where('status', FaceSubscriptionStatus::PendingPayment)
+            ->first();
+
+        if ($fallback) {
+            $rowMetadata = is_array($fallback->metadata) ? $fallback->metadata : [];
+            $webhookIdempotencyKey = $customMetadata['idempotency_key'] ?? null;
+            $rowIdempotencyKey = $rowMetadata['idempotency_key'] ?? null;
+
+            if (! is_string($webhookIdempotencyKey) || ! is_string($rowIdempotencyKey) || $webhookIdempotencyKey !== $rowIdempotencyKey) {
+                Log::critical('Fedapay webhook: face subscription fallback idempotency mismatch — possible corruption, forged webhook, or unanticipated race', [
+                    'face_subscription_id' => $fallback->id,
+                    'fedapay_transaction_id' => $transactionId,
+                    'webhook_event_id' => $this->webhookEventId,
+                ]);
+
+                return null;
+            }
+        }
+
+        if ($fallback) {
+            Log::warning('Fedapay webhook: face subscription resolved via custom_metadata fallback', [
+                'face_subscription_id' => $fallback->id,
+                'fedapay_transaction_id' => $transactionId,
+                'webhook_event_id' => $this->webhookEventId,
+            ]);
+        }
+
+        return $fallback;
+    }
+
+    /**
+     * Defensive coercion for Fedapay-supplied `amount` payload values. Returns
+     * null on any parse failure (negative, float with decimals, "NaN",
+     * non-numeric, missing) so the payment service can refuse activation.
+     *
+     * Closes FP-1.1 deferred-work item at deferred-work.md:256.
+     *
+     * @param  array<string, mixed>  $transactionData
+     */
+    private function extractPaidAmount(array $transactionData): ?int
+    {
+        $raw = $transactionData['amount'] ?? null;
+        $stringValue = (! is_bool($raw) && is_scalar($raw)) ? (string) $raw : '';
+
+        if ($stringValue !== '' && preg_match('/^\d+$/', $stringValue) === 1) {
+            $intValue = (int) $stringValue;
+
+            if ($intValue > 0) {
+                return $intValue;
+            }
+        }
+
+        Log::warning('Fedapay webhook: paid_amount fallback used', [
+            'raw' => $raw,
+            'fedapay_event_id' => $this->webhookEventId,
+        ]);
+
+        return null;
     }
 }

@@ -13,8 +13,9 @@ class FaceSubscriptionConflictException extends HttpException
     public function __construct(
         private readonly string $errorCode,
         string $message,
+        int $statusCode = 409,
     ) {
-        parent::__construct(statusCode: 409, message: $message);
+        parent::__construct(statusCode: $statusCode, message: $message);
     }
 
     public static function alreadyActive(): self
@@ -33,6 +34,14 @@ class FaceSubscriptionConflictException extends HttpException
         );
     }
 
+    public static function pendingPaymentExistsForFace(): self
+    {
+        return new self(
+            errorCode: 'PENDING_PAYMENT_EXISTS',
+            message: 'Un paiement est déjà en cours pour cette Face. Veuillez attendre la confirmation ou réessayer plus tard.',
+        );
+    }
+
     public static function notExtendable(): self
     {
         return new self(
@@ -46,6 +55,15 @@ class FaceSubscriptionConflictException extends HttpException
         return new self(
             errorCode: 'NOT_CANCELLABLE',
             message: 'Cet abonnement ne peut pas être annulé : il est déjà dans un état terminal.',
+        );
+    }
+
+    public static function planUnavailable(): self
+    {
+        return new self(
+            errorCode: 'PLAN_UNAVAILABLE',
+            message: 'L\'abonnement annuel n\'est pas disponible pour le moment. Veuillez réessayer plus tard ou contacter le support.',
+            statusCode: 422,
         );
     }
 

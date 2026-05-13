@@ -284,6 +284,7 @@ class BookingPaymentTest extends TestCase
             app(BookingService::class),
             app(MissionPaymentService::class),
             app(WalletService::class),
+            app(\App\Services\FaceSubscriptionPaymentService::class),
         );
 
         // Booking stays accepted (can retry)
@@ -426,6 +427,7 @@ class BookingPaymentTest extends TestCase
             app(BookingService::class),
             app(MissionPaymentService::class),
             app(WalletService::class),
+            app(\App\Services\FaceSubscriptionPaymentService::class),
         );
 
         $booking->refresh();

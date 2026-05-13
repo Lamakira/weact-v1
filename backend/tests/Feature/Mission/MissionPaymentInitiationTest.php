@@ -912,6 +912,7 @@ class MissionPaymentInitiationTest extends TestCase
             app(BookingService::class),
             app(MissionPaymentService::class),
             app(WalletService::class),
+            app(\App\Services\FaceSubscriptionPaymentService::class),
         );
 
         Log::shouldHaveReceived('warning')

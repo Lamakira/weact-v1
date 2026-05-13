@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Booking;
+use App\Models\FaceSubscription;
 use App\Models\Mission;
 use App\Models\MissionPayment;
 use App\Models\Producer;
@@ -93,6 +94,46 @@ class FedapayService
             'customer' => [
                 'firstname' => $this->resolveCustomerName($producerUser),
                 'email' => $producerUser->email,
+            ],
+        ]);
+
+        /** @var object{url:string} $tokenObj */
+        $tokenObj = $transaction->generateToken();
+
+        return [
+            'fedapay_transaction_id' => (int) $transaction->id,
+            'checkout_url' => $tokenObj->url,
+        ];
+    }
+
+    /**
+     * Initiate a hosted checkout payment for a Face annual premium subscription.
+     * The Fedapay transaction id is stored in face_subscriptions.provider_reference
+     * by the caller and is what the webhook handler (HandleFedapayWebhook) uses to
+     * route incoming transaction.approved / transaction.declined events back to the
+     * subscription row.
+     *
+     * @return array{fedapay_transaction_id: int, checkout_url: string}
+     */
+    public function initiatePaymentForFaceSubscription(
+        FaceSubscription $subscription,
+        User $faceUser,
+        string $idempotencyKey,
+    ): array {
+        /** @var Transaction $transaction */
+        $transaction = Transaction::create([
+            'description' => "Abonnement Premium annuel — {$faceUser->email}",
+            'amount' => (int) config('face_premium.annual_plan.amount'),
+            'currency' => ['iso' => (string) config('face_premium.annual_plan.currency', 'XOF')],
+            'callback_url' => route('webhooks.fedapay'),
+            'custom_metadata' => [
+                'face_subscription_id' => $subscription->id,
+                'idempotency_key' => $idempotencyKey,
+                'type' => 'face_subscription',
+            ],
+            'customer' => [
+                'firstname' => $this->resolveCustomerName($faceUser),
+                'email' => $faceUser->email,
             ],
         ]);
 
