@@ -52,4 +52,50 @@ describe('ProfileEditPage structure', () => {
     const templateSection = template.slice(template.indexOf('<template>'))
     expect(templateSection).not.toContain('Photo de profil')
   })
+
+  it('SubscriptionCard is imported and placed before BasicInfoSection (FP-1.7)', () => {
+    expect(template).toContain(
+      "import SubscriptionCard from '@/features/face/components/SubscriptionCard.vue'",
+    )
+    expect(template).toContain(
+      "import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'",
+    )
+    expect(template).toContain(
+      "import { useSubscriptionPayment } from '@/features/face/composables/useSubscriptionPayment'",
+    )
+
+    const templateSection = template.slice(template.indexOf('<template>'))
+    const cardIndex = templateSection.indexOf('<SubscriptionCard')
+    const basicIndex = templateSection.indexOf('<BasicInfoSection')
+    expect(cardIndex).toBeGreaterThan(-1)
+    expect(basicIndex).toBeGreaterThan(-1)
+    expect(cardIndex).toBeLessThan(basicIndex)
+  })
+
+  it('album add-click handler guards against entitlement-resolved quota (FP-1.7)', () => {
+    // The grid shortcut must not open the hidden file input once the
+    // entitlement-resolved quota is reached.
+    expect(template).toContain('isFullByEntitlement')
+    expect(template).toContain(
+      "toast.warning('Votre quota de photos est atteint pour votre abonnement actuel.')",
+    )
+  })
+
+  it('hidden album file input early-returns when entitlement quota is reached (FP-1.7)', () => {
+    const templateSection = template.slice(template.indexOf('<template>'))
+    // The hidden file input's @change handler must check isFullByEntitlement
+    // before forwarding to handleAlbumUpload.
+    const hiddenInputBlock = templateSection.slice(
+      templateSection.indexOf("ref=\"albumFileInputRef\""),
+    )
+    expect(hiddenInputBlock.slice(0, 600)).toContain('isFullByEntitlement')
+  })
+
+  it('album quota text is reactive to subscriptionUploadLimit (FP-1.7)', () => {
+    const templateSection = template.slice(template.indexOf('<template>'))
+    // The hardcoded "jusqu'à 4 photos" must be gone — replaced by a dynamic
+    // {{ subscriptionUploadLimit }} expression.
+    expect(templateSection).not.toMatch(/Ajoutez jusqu'à 4 photos/)
+    expect(templateSection).toContain('subscriptionUploadLimit')
+  })
 })

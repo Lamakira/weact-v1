@@ -388,3 +388,70 @@ export interface PersonalInfoResult {
   errors?: Record<string, string[]>
   message?: string
 }
+
+// Subscription status (FP-1.7) — read contract from GET /api/v1/face/subscription-status
+export type SubscriptionStatus =
+  | 'free'
+  | 'pending_payment'
+  | 'active'
+  | 'expired'
+  | 'cancelled'
+  | 'failed'
+
+export interface SubscriptionEntitlements {
+  album_upload_limit: number
+  public_album_photo_limit: number
+  current_album_photo_count: number
+  public_album_photo_count: number
+  locked_album_photo_count: number
+  can_upload_acting_video: boolean
+  has_acting_video: boolean
+  is_acting_video_publicly_visible: boolean
+}
+
+export interface SubscriptionAnnualPlan {
+  amount: number
+  currency: string
+  provider: string
+  is_available: boolean
+}
+
+export interface SubscriptionStatusInfo {
+  status: SubscriptionStatus
+  plan: 'annual_premium' | null
+  starts_at: string | null
+  expires_at: string | null
+  cancelled_at: string | null
+  is_premium: boolean
+  is_featured_by_subscription: boolean
+  can_renew: boolean
+  subscription_id: string | null
+  entitlements: SubscriptionEntitlements
+  annual_plan: SubscriptionAnnualPlan
+}
+
+export interface SubscriptionStatusResponse {
+  data: SubscriptionStatusInfo
+}
+
+// Payment initiation (FP-1.5) — POST /api/v1/face/subscription/initiate-payment
+export interface SubscriptionInitiatePaymentResponse {
+  data: {
+    subscription_id: string
+    status: SubscriptionStatus
+    checkout_url: string
+    amount: number
+    currency: string
+  }
+  message?: string
+}
+
+export interface SubscriptionVerifyPaymentResponse {
+  data: {
+    subscription_id: string | null
+    status: SubscriptionStatus | 'free'
+  }
+}
+
+// UI-only ephemeral state for the payment flow
+export type SubscriptionPaymentState = 'idle' | 'waiting' | 'confirmed' | 'failed'

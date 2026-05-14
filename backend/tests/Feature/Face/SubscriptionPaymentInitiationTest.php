@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\FaceEntitlementService;
 use App\Services\FaceSubscriptionPaymentService;
 use App\Services\FedapayService;
+use FedaPay\Transaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -220,6 +221,93 @@ class SubscriptionPaymentInitiationTest extends TestCase
                 ->where('provider_reference', '999000')
                 ->count()
         );
+    }
+
+    public function test_verify_payment_self_heals_approved_pending_subscription(): void
+    {
+        Carbon::setTestNow('2026-05-14 09:30:00');
+
+        $pending = FaceSubscription::factory()->create([
+            'face_id' => $this->face->id,
+            'plan' => FaceSubscriptionPlan::AnnualPremium,
+            'status' => FaceSubscriptionStatus::PendingPayment,
+            'provider_reference' => '123456',
+            'paid_amount' => null,
+            'currency' => 'XOF',
+            'starts_at' => null,
+            'expires_at' => null,
+            'metadata' => [
+                'quoted_amount' => 50000,
+                'quoted_currency' => 'XOF',
+            ],
+        ]);
+
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('retrieveTransaction')
+                ->once()
+                ->with(123456)
+                ->andReturn(new Transaction([
+                    'id' => 123456,
+                    'status' => 'approved',
+                    'reference' => 'fedapay-approved-ref',
+                    'amount' => 50000,
+                    'currency' => ['iso' => 'XOF'],
+                ]));
+        });
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/subscription/verify-payment');
+
+        $response->assertOk()
+            ->assertJsonPath('data.subscription_id', $pending->uuid)
+            ->assertJsonPath('data.status', 'active');
+
+        $pending->refresh();
+        $this->assertSame(FaceSubscriptionStatus::Active, $pending->status);
+        $this->assertSame(50000, $pending->paid_amount);
+        $this->assertSame('2026-05-14T09:30:00+00:00', $pending->starts_at->toIso8601String());
+        $this->assertSame('2027-05-14T09:30:00+00:00', $pending->expires_at->toIso8601String());
+        $this->assertSame('fedapay-approved-ref', $pending->metadata['fedapay_reference']);
+    }
+
+    public function test_verify_payment_keeps_pending_when_fedapay_transaction_is_not_approved_yet(): void
+    {
+        $pending = FaceSubscription::factory()->create([
+            'face_id' => $this->face->id,
+            'plan' => FaceSubscriptionPlan::AnnualPremium,
+            'status' => FaceSubscriptionStatus::PendingPayment,
+            'provider_reference' => '123456',
+            'paid_amount' => null,
+            'currency' => 'XOF',
+            'starts_at' => null,
+            'expires_at' => null,
+            'metadata' => [
+                'quoted_amount' => 50000,
+                'quoted_currency' => 'XOF',
+            ],
+        ]);
+
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('retrieveTransaction')
+                ->once()
+                ->with(123456)
+                ->andReturn(new Transaction([
+                    'id' => 123456,
+                    'status' => 'pending',
+                    'reference' => null,
+                    'amount' => 50000,
+                    'currency' => ['iso' => 'XOF'],
+                ]));
+        });
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/subscription/verify-payment');
+
+        $response->assertOk()
+            ->assertJsonPath('data.subscription_id', $pending->uuid)
+            ->assertJsonPath('data.status', 'pending_payment');
+
+        $this->assertSame(FaceSubscriptionStatus::PendingPayment, $pending->fresh()->status);
     }
 
     public function test_initiation_sets_provider_currency_from_config(): void

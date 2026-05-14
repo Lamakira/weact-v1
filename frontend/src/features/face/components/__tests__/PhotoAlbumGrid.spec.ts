@@ -31,7 +31,7 @@ describe('PhotoAlbumGrid', () => {
 
     expect(wrapper.find('[data-testid="photo-album-grid"]').exists()).toBe(true)
     // Should have 4 slots
-    expect(wrapper.findAll('[data-testid^="album-slot-"]')).toHaveLength(4)
+    expect(wrapper.findAll('[data-testid^="album-slot-"]:not([data-testid*="premium-hint"])')).toHaveLength(4)
     // Should have 4 add buttons (since canAddMore is true by default)
     expect(wrapper.findAll('[data-testid^="add-photo-slot-"]')).toHaveLength(4)
   })
@@ -138,6 +138,72 @@ describe('PhotoAlbumGrid', () => {
     })
 
     // Should always have 4 slots
-    expect(wrapper.findAll('[data-testid^="album-slot-"]')).toHaveLength(4)
+    expect(wrapper.findAll('[data-testid^="album-slot-"]:not([data-testid*="premium-hint"])')).toHaveLength(4)
+  })
+
+  it('renders locked badge on photos beyond public limit (free tier)', () => {
+    const photo3 = { ...mockPhoto1, id: 3, position: 3 }
+    const photo4 = { ...mockPhoto1, id: 4, position: 4 }
+
+    const wrapper = mount(PhotoAlbumGrid, {
+      props: {
+        photos: [mockPhoto1, mockPhoto2, photo3, photo4],
+        publicPhotoLimit: 2,
+      },
+    })
+
+    expect(wrapper.find(`[data-testid="album-locked-badge-${photo3.id}"]`).exists()).toBe(true)
+    expect(wrapper.find(`[data-testid="album-locked-badge-${photo4.id}"]`).exists()).toBe(true)
+    expect(wrapper.find(`[data-testid="album-locked-badge-${mockPhoto1.id}"]`).exists()).toBe(false)
+    expect(wrapper.find(`[data-testid="album-locked-badge-${mockPhoto2.id}"]`).exists()).toBe(false)
+  })
+
+  it('uses each photo position, not array index, for locked badges', () => {
+    const publicPhotoInLateArraySlot = { ...mockPhoto1, id: 10, position: 1 }
+    const privatePhotoInEarlyArraySlot = { ...mockPhoto2, id: 11, position: 4 }
+
+    const wrapper = mount(PhotoAlbumGrid, {
+      props: {
+        photos: [privatePhotoInEarlyArraySlot, publicPhotoInLateArraySlot],
+        publicPhotoLimit: 2,
+      },
+    })
+
+    expect(
+      wrapper.find(`[data-testid="album-locked-badge-${privatePhotoInEarlyArraySlot.id}"]`).exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find(`[data-testid="album-locked-badge-${publicPhotoInLateArraySlot.id}"]`).exists(),
+    ).toBe(false)
+  })
+
+  it('does not render locked badge when public limit reaches all photos (premium tier)', () => {
+    const photo3 = { ...mockPhoto1, id: 3, position: 3 }
+    const photo4 = { ...mockPhoto1, id: 4, position: 4 }
+
+    const wrapper = mount(PhotoAlbumGrid, {
+      props: {
+        photos: [mockPhoto1, mockPhoto2, photo3, photo4],
+        publicPhotoLimit: 4,
+      },
+    })
+
+    expect(wrapper.findAll('[data-testid^="album-locked-badge-"]')).toHaveLength(0)
+  })
+
+  it('renders premium hint on empty slots beyond public limit (free tier)', () => {
+    const wrapper = mount(PhotoAlbumGrid, {
+      props: {
+        photos: [],
+        publicPhotoLimit: 2,
+        canAddMore: true,
+      },
+    })
+
+    // Empty slots 2 and 3 (0-based) are beyond the publicPhotoLimit=2 boundary
+    expect(wrapper.find('[data-testid="album-slot-premium-hint-2"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="album-slot-premium-hint-3"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="album-slot-premium-hint-0"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="album-slot-premium-hint-1"]').exists()).toBe(false)
   })
 })

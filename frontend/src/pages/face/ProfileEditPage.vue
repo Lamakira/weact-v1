@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Loader2 } from 'lucide-vue-next'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
@@ -15,7 +15,10 @@ import { useExperiences } from '@/features/face/composables/useExperiences'
 import { useTarifs } from '@/features/face/composables/useTarifs'
 import { useAvailability } from '@/features/face/composables/useAvailability'
 import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
+import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'
+import { useSubscriptionPayment } from '@/features/face/composables/useSubscriptionPayment'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vue'
 import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
 import AlbumPhotoUpload from '@/features/face/components/AlbumPhotoUpload.vue'
@@ -32,6 +35,7 @@ import AvailabilityToggle from '@/features/face/components/AvailabilityToggle.vu
 import ProfileCompletionIndicator from '@/features/face/components/ProfileCompletionIndicator.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import BasicInfoSection from '@/features/face/components/BasicInfoSection.vue'
+import SubscriptionCard from '@/features/face/components/SubscriptionCard.vue'
 import EmailChangeForm from '@/features/auth/components/EmailChangeForm.vue'
 import PasswordChangeForm from '@/features/auth/components/PasswordChangeForm.vue'
 import DataPrivacySection from '@/components/account/DataPrivacySection.vue'
@@ -39,6 +43,7 @@ import type { ExperienceFormData, TarifsFormData } from '@/features/face/types'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 const {
   profile,
@@ -59,7 +64,6 @@ const {
   isDeleting: isAlbumDeleting,
   error: albumError,
   canAddMore,
-  isFull,
   fetchPhotos: fetchAlbumPhotos,
   addPhoto: addAlbumPhoto,
   deletePhoto: deleteAlbumPhoto,
@@ -187,6 +191,42 @@ const {
   fetchCompletion,
 } = useProfileCompletion()
 
+// Subscription status composable (FP-1.7)
+const {
+  status: subscriptionStatus,
+  isLoading: isSubscriptionStatusLoading,
+  isPremium: subscriptionIsPremium,
+  statusValue: subscriptionStatusValue,
+  albumUploadLimit: subscriptionUploadLimit,
+  publicAlbumPhotoLimit: subscriptionPublicLimit,
+  lockedAlbumPhotoCount: subscriptionLockedCount,
+  canUploadActingVideo: subscriptionCanUploadActingVideo,
+  hasActingVideo: subscriptionHasActingVideo,
+  isActingVideoPubliclyVisible: subscriptionIsActingVideoPubliclyVisible,
+  canRenew: subscriptionCanRenew,
+  planIsAvailable: subscriptionPlanIsAvailable,
+  fetchStatus: fetchSubscriptionStatus,
+  refreshStatus: refreshSubscriptionStatus,
+} = useSubscriptionStatus()
+
+// Subscription payment composable (FP-1.7)
+const {
+  isInitiating: isSubscriptionInitiating,
+  isPolling: isSubscriptionPolling,
+  paymentState: subscriptionPaymentState,
+  error: subscriptionPaymentError,
+  initiatePayment: initiateSubscriptionPayment,
+  verifyPayment: verifySubscriptionPayment,
+  reset: resetSubscriptionPayment,
+} = useSubscriptionPayment()
+
+// Entitlement-aware "album is full" predicate.
+// Distinct from `isFull` (absolute UI ceiling = 4): this one fires at the
+// subscription-resolved upload limit (2 free / 4 premium).
+const isFullByEntitlement = computed(
+  () => albumPhotos.value.length >= subscriptionUploadLimit.value,
+)
+
 // Ref to ExperiencesList component for resetting form states
 const experiencesListRef = ref<InstanceType<typeof ExperiencesList> | null>(null)
 
@@ -212,6 +252,7 @@ onMounted(async () => {
     fetchTarifs(),
     fetchAvailability(),
     fetchCompletion(),
+    fetchSubscriptionStatus(),
     // Fetch options separately with error handling
     fetchCategoryOptions().catch(() => {
       // Options failed to load - dropdowns will be empty but form still usable
@@ -295,6 +336,11 @@ async function handleAlbumDelete(photoId: string): Promise<void> {
  * Trigger album file input when clicking "add" in grid
  */
 function handleAlbumAddClick(): void {
+  if (isFullByEntitlement.value) {
+    toast.warning('Votre quota de photos est atteint pour votre abonnement actuel.')
+    return
+  }
+
   albumFileInputRef.value?.click()
 }
 
@@ -327,6 +373,11 @@ async function handleVideoDelete(): Promise<void> {
  * Handle acting video upload
  */
 async function handleActingVideoUpload(file: File): Promise<void> {
+  if (!subscriptionCanUploadActingVideo.value) {
+    toast.warning('La vidéo d\'acting est réservée aux abonnés Premium.')
+    return
+  }
+
   successMessage.value = null
   const result = await uploadActingVideo(file)
 
@@ -480,6 +531,37 @@ async function handleAvailabilityToggle(): Promise<void> {
   if (result.success) {
     toast.success(result.message || 'Disponibilité mise à jour avec succès')
   }
+}
+
+/**
+ * Handle subscription card CTA (FP-1.7)
+ */
+async function handleSubscriptionInitiatePayment(): Promise<void> {
+  const initiated = await initiateSubscriptionPayment()
+  if (initiated) {
+    toast.success('Redirection vers le paiement Fedapay…')
+  } else {
+    toast.error(subscriptionPaymentError.value ?? 'Le paiement n\'a pas pu être initialisé.')
+  }
+}
+
+async function handleSubscriptionRefreshStatus(): Promise<void> {
+  const confirmed = await verifySubscriptionPayment()
+  if (confirmed) {
+    toast.success('Paiement confirmé. Votre abonnement Premium est actif.')
+    await Promise.all([
+      fetchAlbumPhotos(),
+      fetchActingVideoInfo(),
+      fetchCompletion(),
+    ])
+    return
+  }
+
+  await refreshSubscriptionStatus()
+}
+
+function handleSubscriptionDismissError(): void {
+  resetSubscriptionPayment()
 }
 
 /**
@@ -647,6 +729,35 @@ function handleCompletionItemClick(itemKey: string): void {
           </div>
         </div>
 
+        <!-- Subscription card (FP-1.7) -->
+        <div class="mb-6">
+          <SubscriptionCard
+            :status="subscriptionStatusValue"
+            :is-premium="subscriptionIsPremium"
+            :expires-at="subscriptionStatus?.expires_at ?? null"
+            :album-upload-limit="subscriptionUploadLimit"
+            :public-album-photo-limit="subscriptionPublicLimit"
+            :current-album-photo-count="albumPhotos.length"
+            :locked-album-photo-count="subscriptionLockedCount"
+            :has-acting-video="subscriptionHasActingVideo"
+            :can-upload-acting-video="subscriptionCanUploadActingVideo"
+            :is-acting-video-publicly-visible="subscriptionIsActingVideoPubliclyVisible"
+            :can-renew="subscriptionCanRenew"
+            :plan-amount="subscriptionStatus?.annual_plan.amount ?? 0"
+            :plan-currency="subscriptionStatus?.annual_plan.currency ?? 'XOF'"
+            :plan-is-available="subscriptionPlanIsAvailable"
+            :is-loading="isSubscriptionStatusLoading"
+            :is-initiating="isSubscriptionInitiating"
+            :is-polling="isSubscriptionPolling"
+            :payment-state="subscriptionPaymentState"
+            :payment-error="subscriptionPaymentError"
+            :can-initiate-payment="authStore.isEmailVerified"
+            @initiate-payment="handleSubscriptionInitiatePayment"
+            @refresh-status="handleSubscriptionRefreshStatus"
+            @dismiss-error="handleSubscriptionDismissError"
+          />
+        </div>
+
         <!-- Basic info section (name/username) -->
         <div class="mb-6">
           <BasicInfoSection />
@@ -689,7 +800,8 @@ function handleCompletionItemClick(itemKey: string): void {
         <div class="p-6 border-b border-gray-200">
           <h2 class="text-lg font-medium text-gray-900 mb-2">Album photos</h2>
           <p class="text-sm text-gray-500 mb-6">
-            Ajoutez jusqu'à 4 photos pour montrer votre polyvalence aux producteurs.
+            Ajoutez jusqu'à {{ subscriptionUploadLimit }} photo{{ subscriptionUploadLimit > 1 ? 's' : '' }}
+            pour montrer votre polyvalence aux producteurs.
           </p>
 
           <!-- Album grid -->
@@ -697,7 +809,8 @@ function handleCompletionItemClick(itemKey: string): void {
             :photos="albumPhotos"
             :is-loading="isAlbumLoading"
             :is-deleting="isAlbumDeleting"
-            :can-add-more="canAddMore"
+            :can-add-more="canAddMore && !isFullByEntitlement"
+            :public-photo-limit="subscriptionPublicLimit"
             @delete="handleAlbumDelete"
             @add-click="handleAlbumAddClick"
           />
@@ -705,9 +818,12 @@ function handleCompletionItemClick(itemKey: string): void {
           <!-- Album upload -->
           <div class="mt-6">
             <AlbumPhotoUpload
-              :is-full="isFull"
+              :is-full="isFullByEntitlement"
               :is-uploading="isAlbumUploading"
               :error="albumError"
+              :upload-limit="subscriptionUploadLimit"
+              :current-count="albumPhotos.length"
+              :locked-by-quota="isFullByEntitlement"
               @upload="handleAlbumUpload"
             />
           </div>
@@ -718,7 +834,12 @@ function handleCompletionItemClick(itemKey: string): void {
             type="file"
             accept="image/jpeg,image/png"
             class="hidden"
-            @change="(e) => { const file = (e.target as HTMLInputElement).files?.[0]; if (file) handleAlbumUpload(file); (e.target as HTMLInputElement).value = ''; }"
+            @change="(e) => {
+              const file = (e.target as HTMLInputElement).files?.[0];
+              if (isFullByEntitlement) { (e.target as HTMLInputElement).value = ''; return; }
+              if (file) handleAlbumUpload(file);
+              (e.target as HTMLInputElement).value = '';
+            }"
           />
         </div>
 
@@ -743,9 +864,16 @@ function handleCompletionItemClick(itemKey: string): void {
         <!-- Acting video section -->
         <div id="section-acting-video" class="p-6 border-b border-gray-200">
           <h2 class="text-lg font-medium text-gray-900 mb-2">Vidéo d'acting</h2>
-          <p class="text-sm text-gray-500 mb-6">
+          <p class="text-sm text-gray-500">
             Ajoutez une vidéo démontrant votre talent d'acteur aux producteurs.
           </p>
+          <p
+            v-if="!subscriptionCanUploadActingVideo"
+            class="text-amber-700 text-xs mt-1 mb-6"
+          >
+            Fonctionnalité réservée aux abonnés Premium.
+          </p>
+          <div v-else class="mb-6"></div>
 
           <ActingVideoUpload
             :video-info="actingVideoInfo"
@@ -753,6 +881,8 @@ function handleCompletionItemClick(itemKey: string): void {
             :is-deleting="isActingVideoDeleting"
             :error="actingVideoError"
             :upload-progress="actingUploadProgress"
+            :can-upload="subscriptionCanUploadActingVideo"
+            :is-publicly-visible="subscriptionIsActingVideoPubliclyVisible"
             @upload="handleActingVideoUpload"
             @delete="handleActingVideoDelete"
           />

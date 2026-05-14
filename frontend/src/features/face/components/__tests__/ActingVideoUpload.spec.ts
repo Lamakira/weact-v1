@@ -334,4 +334,87 @@ describe('ActingVideoUpload', () => {
     expect(wrapper.find('[data-testid="video-placeholder"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="video-player"]').exists()).toBe(false)
   })
+
+  it('renders premium-required placeholder when canUpload is false and no video', () => {
+    const wrapper = mount(ActingVideoUpload, {
+      props: {
+        videoInfo: null,
+        canUpload: false,
+      },
+    })
+
+    expect(wrapper.find('[data-testid="acting-video-premium-required"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="video-placeholder"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Cliquez ou glissez-déposez une vidéo')
+
+    const uploadButton = wrapper.find('[data-testid="upload-button"]')
+    expect(uploadButton.text()).toContain('Premium requis')
+    expect(uploadButton.attributes('disabled')).toBeDefined()
+  })
+
+  it('does not emit upload from file input when canUpload is false', async () => {
+    const wrapper = mount(ActingVideoUpload, {
+      props: {
+        videoInfo: null,
+        canUpload: false,
+      },
+    })
+    const fileInput = wrapper.find('[data-testid="file-input"]')
+    const file = new File(['test'], 'acting.mp4', { type: 'video/mp4' })
+
+    Object.defineProperty(fileInput.element, 'files', {
+      value: [file],
+      writable: false,
+    })
+
+    await fileInput.trigger('change')
+    await flushPromises()
+
+    expect(wrapper.emitted('upload')).toBeFalsy()
+  })
+
+  it('does not emit upload from drag-and-drop when canUpload is false', async () => {
+    const wrapper = mount(ActingVideoUpload, {
+      props: {
+        videoInfo: null,
+        canUpload: false,
+      },
+    })
+    const file = new File(['test'], 'acting.mp4', { type: 'video/mp4' })
+    const dropZone = wrapper.find('.aspect-video')
+
+    await dropZone.trigger('drop', {
+      dataTransfer: {
+        files: [file],
+      },
+    })
+
+    expect(wrapper.emitted('upload')).toBeFalsy()
+  })
+
+  it('renders locked ribbon when stored video is not publicly visible', () => {
+    const wrapper = mount(ActingVideoUpload, {
+      props: {
+        videoInfo: mockVideoInfo,
+        canUpload: false,
+        isPubliclyVisible: false,
+      },
+    })
+
+    expect(wrapper.find('[data-testid="acting-video-locked-ribbon"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="video-player"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="delete-button"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="delete-button"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('renders standard placeholder when canUpload defaults to true', () => {
+    const wrapper = mount(ActingVideoUpload, {
+      props: {
+        videoInfo: null,
+      },
+    })
+
+    expect(wrapper.find('[data-testid="video-placeholder"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="acting-video-premium-required"]').exists()).toBe(false)
+  })
 })

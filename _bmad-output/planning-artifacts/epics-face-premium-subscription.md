@@ -3,7 +3,7 @@ stepsCompleted: [1, 2]
 status: 'draft'
 draftedAt: '2026-05-03'
 totalEpics: 1
-totalStories: 10
+totalStories: 11
 project_name: 'WEACT - Annual Face Premium Subscription Sprint 14'
 user_name: 'Amakira'
 date: '2026-05-03'
@@ -94,6 +94,7 @@ The first paid benefits are:
 | FEATURE-FP-1.8 | Expiration command and entitlement removal | FEAT-FP-FR8 | High |
 | FEATURE-FP-1.9 | Renewal reminders and subscription notifications | FEAT-FP-FR8 | Medium |
 | FEATURE-FP-1.10 | Regression coverage and rollout/backfill safeguards | FEAT-FP-FR1-FR10 | High |
+| FEATURE-FP-1.11 | Admin subscription management UI | FEAT-FP-FR6, FEAT-FP-FR10 | Medium |
 
 **Recommended delivery order:**
 
@@ -107,6 +108,7 @@ The first paid benefits are:
 8. **FEATURE-FP-1.8** — expiry automation for entitlement removal.
 9. **FEATURE-FP-1.9** — reminders and lifecycle notifications.
 10. **FEATURE-FP-1.10** — final regression sweep, rollout checklist, and data safeguards.
+11. **FEATURE-FP-1.11** — frontend admin screen for the FP-1.4 subscription operations.
 
 ---
 
@@ -342,3 +344,25 @@ Video quota and masking:
 **Technical Notes:**
 - Treat this as a release hardening story, not a dumping ground for unfinished implementation.
 - Keep any one-shot data query read-only unless an explicit migration/backfill is approved.
+
+---
+
+#### FEATURE-FP-1.11: Admin subscription management UI
+
+**Description:** Consume the FP-1.4 admin subscription endpoints from the existing Vue admin Face screens. Admins can see Premium subscription state, inspect subscription history and audits, manually activate, extend, cancel, and correct dates without leaving the back office.
+
+**Acceptance Criteria (draft):**
+- Admin Face list shows a compact Premium/subscription indicator without replacing the account status column.
+- Admin Face detail shows a dedicated subscription section near the top of the detail page.
+- The section fetches `GET /api/v1/admin/faces/{face}/subscriptions` and renders subscriptions and audits most-recent-first.
+- Admin can manually activate Premium with required notes and optional start/duration fields.
+- Admin can extend active subscriptions with required notes and additional days.
+- Admin can immediately cancel active or pending subscriptions with required notes.
+- Admin can correct start/expiry dates with required notes and at least one date.
+- Validation and conflict errors are surfaced in French and the section refreshes after mutations.
+- Tests cover service methods, composable behavior, list indicator, detail section rendering, action payloads, and error states.
+
+**Technical Notes:**
+- This is frontend-only. Do not change the FP-1.4 backend contract unless a mismatch is discovered.
+- Reuse existing admin API/client/composable patterns under `frontend/src/features/admin`.
+- Keep self-service Face cancellation out of scope.

@@ -150,6 +150,8 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
     // Subscription payment initiation (Face only — Fedapay hosted checkout)
     Route::post('/subscription/initiate-payment', [SubscriptionPaymentController::class, 'initiate'])
         ->middleware('throttle:30,1');
+    Route::post('/subscription/verify-payment', [SubscriptionPaymentController::class, 'verify'])
+        ->middleware('throttle:30,1');
 
     // Mission routes - browse available missions (Face only)
     Route::get('/missions', [MissionController::class, 'index'])

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { Lock } from 'lucide-vue-next'
 import type { ActingVideoInfo, VideoUploadProgress } from '../types'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 
@@ -9,6 +10,8 @@ interface Props {
   isDeleting?: boolean
   error?: string | null
   uploadProgress?: VideoUploadProgress | null
+  canUpload?: boolean
+  isPubliclyVisible?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -16,6 +19,8 @@ const props = withDefaults(defineProps<Props>(), {
   isDeleting: false,
   error: null,
   uploadProgress: null,
+  canUpload: true,
+  isPubliclyVisible: true,
 })
 
 const emit = defineEmits<{
@@ -49,6 +54,8 @@ const hasVideo = computed(() => !!displayVideoUrl.value || !!previewUrl.value)
 
 const isProcessing = computed(() => props.isUploading || props.isDeleting)
 
+const isPremiumLocked = computed(() => !props.canUpload)
+
 const progressPercentage = computed(() => props.uploadProgress?.percentage ?? 0)
 
 // Clear preview when videoInfo updates (after successful upload)
@@ -77,6 +84,7 @@ watch(
  * Trigger file input click
  */
 function triggerFileInput(): void {
+  if (isPremiumLocked.value || isProcessing.value) return
   fileInputRef.value?.click()
 }
 
@@ -86,6 +94,11 @@ function triggerFileInput(): void {
 function handleFileSelect(event: Event): void {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
+
+  if (isPremiumLocked.value || isProcessing.value) {
+    input.value = ''
+    return
+  }
 
   if (file) {
     processFile(file)
@@ -101,6 +114,8 @@ function handleFileSelect(event: Event): void {
 function handleDrop(event: DragEvent): void {
   isDragging.value = false
 
+  if (isPremiumLocked.value || isProcessing.value) return
+
   const file = event.dataTransfer?.files?.[0]
   if (file) {
     processFile(file)
@@ -111,6 +126,8 @@ function handleDrop(event: DragEvent): void {
  * Process the selected file
  */
 function processFile(file: File): void {
+  if (isPremiumLocked.value || isProcessing.value) return
+
   // Create preview URL
   if (previewUrl.value) {
     URL.revokeObjectURL(previewUrl.value)
@@ -125,6 +142,7 @@ function processFile(file: File): void {
  * Handle drag events
  */
 function handleDragOver(event: DragEvent): void {
+  if (isPremiumLocked.value || isProcessing.value) return
   event.preventDefault()
   isDragging.value = true
 }
@@ -178,9 +196,20 @@ function cancelDelete(): void {
       <!-- Video container -->
       <div
         class="relative w-full max-w-md"
-        :class="{ 'cursor-pointer': !isProcessing }"
-        @click="!isProcessing && !hasVideo && triggerFileInput()"
+        :class="{ 'cursor-pointer': !isProcessing && !isPremiumLocked }"
+        @click="!isProcessing && !hasVideo && !isPremiumLocked && triggerFileInput()"
       >
+        <!-- Locked-state ribbon for stored but masked videos -->
+        <div
+          v-if="isPremiumLocked && hasVideo && !isPubliclyVisible"
+          class="mb-3 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded-md text-sm flex items-start gap-2"
+          data-testid="acting-video-locked-ribbon"
+        >
+          <Lock class="w-4 h-4 flex-shrink-0 mt-0.5" />
+          <span>
+            Visible en privé uniquement — redevenez Premium pour rendre cette vidéo publique.
+          </span>
+        </div>
         <!-- Drop zone / Video display -->
         <div
           class="relative aspect-video rounded-lg overflow-hidden border-2 transition-all"
@@ -205,11 +234,25 @@ function cancelDelete(): void {
             Votre navigateur ne supporte pas la lecture vidéo.
           </video>
 
+          <!-- Premium-required placeholder (free Face, no stored video) -->
+          <div
+            v-else-if="isPremiumLocked"
+            class="w-full h-full flex flex-col items-center justify-center p-6"
+            data-testid="acting-video-premium-required"
+          >
+            <Lock class="w-16 h-16 text-gray-300 mb-3" />
+            <p class="text-sm text-gray-600 text-center font-medium">
+              Vidéo réservée aux Premium
+            </p>
+            <p class="text-xs text-gray-400 mt-1 text-center">
+              L'ajout d'une vidéo d'acting nécessite un abonnement Premium.
+            </p>
+          </div>
+
           <!-- Placeholder (when no video) -->
           <div
             v-else
             class="w-full h-full flex flex-col items-center justify-center p-6 cursor-pointer"
-            @click="triggerFileInput"
             data-testid="video-placeholder"
           >
             <svg
@@ -302,12 +345,12 @@ function cancelDelete(): void {
         <!-- Upload/Change button -->
         <button
           type="button"
-          :disabled="isProcessing"
+          :disabled="isProcessing || isPremiumLocked"
           class="px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           @click="triggerFileInput"
           data-testid="upload-button"
         >
-          {{ hasVideo ? 'Changer la vidéo' : 'Ajouter une vidéo' }}
+          {{ isPremiumLocked ? 'Premium requis' : hasVideo ? 'Changer la vidéo' : 'Ajouter une vidéo' }}
         </button>
 
         <!-- Delete button (only show if has video and not in preview mode) -->

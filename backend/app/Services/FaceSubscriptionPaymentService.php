@@ -375,6 +375,50 @@ class FaceSubscriptionPaymentService
     }
 
     /**
+     * Poll Fedapay for the current pending subscription and reconcile local
+     * state when the webhook has not landed yet.
+     */
+    public function checkAndProcessPayment(Face $face): ?FaceSubscription
+    {
+        /** @var FaceSubscription|null $subscription */
+        $subscription = FaceSubscription::query()
+            ->where('face_id', $face->id)
+            ->where('status', FaceSubscriptionStatus::PendingPayment)
+            ->latest('id')
+            ->first();
+
+        if (! $subscription || ! $subscription->provider_reference) {
+            return $subscription;
+        }
+
+        $transaction = $this->fedapayService->retrieveTransaction((int) $subscription->provider_reference);
+        $fedapayRef = (string) ($transaction->reference ?? $subscription->provider_reference);
+        $remoteStatus = (string) ($transaction->status ?? '');
+        $providerReference = (string) $subscription->provider_reference;
+
+        if ($remoteStatus === 'approved') {
+            return $this->markAsPaid(
+                $subscription,
+                $fedapayRef,
+                $this->extractPaidAmountFromTransaction($transaction),
+                $this->transactionPayload($transaction),
+                $providerReference,
+            );
+        }
+
+        if (in_array($remoteStatus, ['declined', 'canceled'], true)) {
+            return $this->markAsFailed(
+                $subscription,
+                $fedapayRef,
+                "Payment transaction.{$remoteStatus}",
+                $providerReference,
+            );
+        }
+
+        return $subscription;
+    }
+
+    /**
      * Persist the Fedapay transaction id on the pending row. Retries up to
      * FINALIZE_MAX_ATTEMPTS times on transient DB failures (lock timeout,
      * deadlock, connection drop). On exhaustion, re-throws the last exception
@@ -480,6 +524,45 @@ class FaceSubscriptionPaymentService
             ?? data_get($rawWebhookPayload, 'data.currency.iso');
 
         return is_string($reported) && $reported !== '' ? $reported : null;
+    }
+
+    private function extractPaidAmountFromTransaction(object $transaction): ?int
+    {
+        $raw = $transaction->amount ?? null;
+        $stringValue = (! is_bool($raw) && is_scalar($raw)) ? (string) $raw : '';
+
+        if ($stringValue !== '' && preg_match('/^\d+$/', $stringValue) === 1) {
+            $intValue = (int) $stringValue;
+
+            if ($intValue > 0) {
+                return $intValue;
+            }
+        }
+
+        Log::warning('Fedapay poll: paid_amount fallback used for face subscription', [
+            'raw' => $raw,
+            'fedapay_transaction_id' => $transaction->id ?? null,
+        ]);
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function transactionPayload(object $transaction): array
+    {
+        return [
+            'entity' => [
+                'id' => $transaction->id ?? null,
+                'reference' => $transaction->reference ?? null,
+                'status' => $transaction->status ?? null,
+                'amount' => $transaction->amount ?? null,
+                'currency' => [
+                    'iso' => data_get($transaction, 'currency.iso'),
+                ],
+            ],
+        ];
     }
 
     private function logInitiationFailure(

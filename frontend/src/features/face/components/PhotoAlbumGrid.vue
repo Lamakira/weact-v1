@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { Lock } from 'lucide-vue-next'
 import type { FacePhoto } from '../types'
 
 interface Props {
@@ -7,12 +8,14 @@ interface Props {
   isLoading?: boolean
   isDeleting?: boolean
   canAddMore?: boolean
+  publicPhotoLimit?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isLoading: false,
   isDeleting: false,
   canAddMore: true,
+  publicPhotoLimit: 2,
 })
 
 const emit = defineEmits<{
@@ -31,6 +34,15 @@ const slots = computed(() => {
 })
 
 const isProcessing = computed(() => props.isLoading || props.isDeleting)
+
+function isPhotoLockedForPublic(photo: FacePhoto): boolean {
+  return photo.position > (props.publicPhotoLimit ?? 2)
+}
+
+// Empty slots are index-based because there is no persisted photo position yet.
+function isSlotLockedForPublic(slotIndex: number): boolean {
+  return slotIndex + 1 > (props.publicPhotoLimit ?? 2)
+}
 
 /**
  * Lightbox state
@@ -82,6 +94,16 @@ function handleAddClick(): void {
             class="w-full h-full object-cover"
             :data-testid="`album-photo-${slot.id}`"
           />
+
+          <!-- Locked-for-public badge (positions > publicPhotoLimit) -->
+          <div
+            v-if="isPhotoLockedForPublic(slot)"
+            class="absolute top-2 right-2 inline-flex items-center gap-1 bg-amber-500 text-white rounded-md px-2 py-1 text-xs font-medium shadow-sm pointer-events-none"
+            :data-testid="`album-locked-badge-${slot.id}`"
+          >
+            <Lock class="w-3 h-3" />
+            Visible en privé uniquement
+          </div>
 
           <!-- Action buttons overlay -->
           <div
@@ -158,6 +180,13 @@ function handleAddClick(): void {
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
             <span class="text-xs mt-1">Ajouter</span>
+            <span
+              v-if="isSlotLockedForPublic(index)"
+              class="text-[10px] italic text-gray-400 mt-1 block"
+              :data-testid="`album-slot-premium-hint-${index}`"
+            >
+              Premium requis pour publier
+            </span>
           </button>
 
           <!-- Disabled placeholder when full or processing -->

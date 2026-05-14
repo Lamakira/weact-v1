@@ -72,4 +72,31 @@ class SubscriptionPaymentController extends Controller
         // ValidationException (cache lock timeout) propagates to the global
         // handler at backend/bootstrap/app.php.
     }
+
+    public function verify(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->userable_type !== Face::class) {
+            return response()->json([
+                'error' => [
+                    'code' => 'FORBIDDEN',
+                    'message' => 'Accès réservé aux Faces',
+                ],
+            ], 403);
+        }
+
+        /** @var Face $face */
+        $face = Face::query()->findOrFail($user->userable_id);
+
+        $subscription = $this->paymentService->checkAndProcessPayment($face);
+        $subscription?->refresh();
+
+        return response()->json([
+            'data' => [
+                'subscription_id' => $subscription?->uuid,
+                'status' => $subscription ? $subscription->status->value : 'free',
+            ],
+        ]);
+    }
 }
