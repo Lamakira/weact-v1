@@ -3,6 +3,7 @@
 use App\Console\Commands\AutoCompleteBookingsCommand;
 use App\Console\Commands\AutoReleaseMissionFundsCommand;
 use App\Console\Commands\AutoValidateMissionAttendanceCommand;
+use App\Console\Commands\ExpireFaceSubscriptionsCommand;
 use App\Console\Commands\ExpireUnacceptedBookingsCommand;
 use App\Console\Commands\ExpireUnpaidBookingsCommand;
 use App\Console\Commands\ReconcileWalletCommand;
@@ -27,3 +28,4 @@ app(Schedule::class)->command(AutoReleaseMissionFundsCommand::class)->daily();
 app(Schedule::class)->command(AutoValidateMissionAttendanceCommand::class)->hourly();
 app(Schedule::class)->command(SettleDisputedMissionAttendanceCommand::class)->hourly();
 app(Schedule::class)->command(RemindShootingDayCommand::class)->dailyAt('08:00');
+app(Schedule::class)->command(ExpireFaceSubscriptionsCommand::class)->hourly();
