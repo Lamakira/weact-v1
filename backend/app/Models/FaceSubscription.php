@@ -22,6 +22,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property \Carbon\CarbonInterface|null $starts_at
  * @property \Carbon\CarbonInterface|null $expires_at
  * @property \Carbon\CarbonInterface|null $cancelled_at
+ * @property \Carbon\CarbonInterface|null $reminder_30d_sent_at
+ * @property \Carbon\CarbonInterface|null $reminder_7d_sent_at
  * @property int|null $paid_amount
  * @property string $currency
  * @property string|null $provider
@@ -50,6 +52,8 @@ class FaceSubscription extends Model
         'starts_at',
         'expires_at',
         'cancelled_at',
+        'reminder_30d_sent_at',
+        'reminder_7d_sent_at',
         'paid_amount',
         'currency',
         'provider',
@@ -70,6 +74,8 @@ class FaceSubscription extends Model
             'starts_at' => 'datetime',
             'expires_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'reminder_30d_sent_at' => 'datetime',
+            'reminder_7d_sent_at' => 'datetime',
             'paid_amount' => 'integer',
             'metadata' => 'array',
         ];

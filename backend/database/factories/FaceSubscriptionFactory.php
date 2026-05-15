@@ -38,6 +38,8 @@ class FaceSubscriptionFactory extends Factory
             'starts_at' => $startsAt,
             'expires_at' => $expiresAt,
             'cancelled_at' => null,
+            'reminder_30d_sent_at' => null,
+            'reminder_7d_sent_at' => null,
             'paid_amount' => fake()->numberBetween(10000, 200000),
             'currency' => 'XOF',
             'provider' => null,

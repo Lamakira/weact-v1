@@ -7,6 +7,8 @@ namespace App\Services;
 use App\Enums\FaceSubscriptionAdminAction;
 use App\Enums\FaceSubscriptionPlan;
 use App\Enums\FaceSubscriptionStatus;
+use App\Events\FaceSubscriptionActivated;
+use App\Events\FaceSubscriptionCancelled;
 use App\Exceptions\FaceSubscriptionConflictException;
 use App\Models\Admin;
 use App\Models\Face;
@@ -79,6 +81,8 @@ class FaceSubscriptionAdminService
                 newState: $this->snapshot($subscription),
             );
 
+            DB::afterCommit(fn (): mixed => FaceSubscriptionActivated::dispatch($subscription));
+
             return $subscription;
         });
     }
@@ -147,7 +151,11 @@ class FaceSubscriptionAdminService
                 newState: $this->snapshot($locked->fresh()),
             );
 
-            return $locked->fresh();
+            $fresh = $locked->fresh();
+
+            DB::afterCommit(fn (): mixed => FaceSubscriptionCancelled::dispatch($fresh));
+
+            return $fresh;
         });
     }
 
@@ -212,8 +220,8 @@ class FaceSubscriptionAdminService
     private function snapshot(FaceSubscription $subscription): array
     {
         return [
-            'plan' => $subscription->plan?->value,
-            'status' => $subscription->status?->value,
+            'plan' => $subscription->plan->value,
+            'status' => $subscription->status->value,
             'starts_at' => $subscription->starts_at?->toIso8601String(),
             'expires_at' => $subscription->expires_at?->toIso8601String(),
             'cancelled_at' => $subscription->cancelled_at?->toIso8601String(),

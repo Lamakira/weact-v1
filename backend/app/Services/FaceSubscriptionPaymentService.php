@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Enums\FaceSubscriptionPlan;
 use App\Enums\FaceSubscriptionStatus;
+use App\Events\FaceSubscriptionActivated;
 use App\Exceptions\FaceSubscriptionConflictException;
 use App\Exceptions\FaceSubscriptionPaymentInitiationException;
 use App\Models\Face;
@@ -317,6 +318,8 @@ class FaceSubscriptionPaymentService
 
             /** @var FaceSubscription $fresh */
             $fresh = $locked->fresh();
+
+            DB::afterCommit(fn (): mixed => FaceSubscriptionActivated::dispatch($fresh));
 
             return $fresh;
         });

@@ -47,4 +47,17 @@ class ScheduleWiringTest extends TestCase
         $this->assertNotNull($event, 'ExpireFaceSubscriptionsCommand is not scheduled.');
         $this->assertSame('0 * * * *', $event->expression, 'Schedule must be hourly.');
     }
+
+    public function test_remind_face_subscription_renewals_is_scheduled_hourly(): void
+    {
+        $schedule = $this->app->make(Schedule::class);
+        $events = collect($schedule->events());
+
+        $event = $events->first(
+            fn ($e) => str_contains($e->command ?? '', 'subscriptions:remind-face-renewals'),
+        );
+
+        $this->assertNotNull($event, 'RemindFaceSubscriptionRenewalsCommand is not scheduled.');
+        $this->assertSame('0 * * * *', $event->expression, 'Schedule must be hourly.');
+    }
 }

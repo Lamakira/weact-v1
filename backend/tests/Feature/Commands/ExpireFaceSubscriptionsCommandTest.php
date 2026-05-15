@@ -395,6 +395,10 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
 
     public function test_command_sends_no_mail_or_notification_when_subscriptions_expire(): void
     {
+        // FP-1.9 introduces FaceSubscriptionExpired listeners (in-app + email). The command itself
+        // still does no I/O — it only dispatches the event. Faking the event proves the command's
+        // own surface stays mail-free and notification-free.
+        \Illuminate\Support\Facades\Event::fake([\App\Events\FaceSubscriptionExpired::class]);
         Mail::fake();
         Notification::fake();
 

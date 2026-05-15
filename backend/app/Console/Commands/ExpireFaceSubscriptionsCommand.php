@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Enums\FaceSubscriptionStatus;
+use App\Events\FaceSubscriptionExpired;
 use App\Models\FaceSubscription;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -64,6 +65,7 @@ class ExpireFaceSubscriptionsCommand extends Command
                         'previous_expires_at' => $subscription->expires_at?->toIso8601String(),
                     ]);
                     $this->info("Expired face subscription #{$subscription->id} (face #{$subscription->face_id})");
+                    FaceSubscriptionExpired::dispatch($subscription->fresh());
                     $expired++;
                 } else {
                     $skipped++;
