@@ -519,7 +519,7 @@ development_status:
   # ============================================
 
   # Epic FEATURE-FP-1: Annual Face Premium Subscription & Featured Portfolio (11 stories)
-  epic-feature-fp-1: in-progress
+  epic-feature-fp-1: done
   feature-fp-1-1-subscription-schema-and-entitlement-service: done
   feature-fp-1-2-dynamic-album-quota-and-public-photo-masking: done
   feature-fp-1-3-face-subscription-status-and-entitlement-api: done
@@ -531,7 +531,7 @@ development_status:
   feature-fp-1-9-renewal-reminders-and-subscription-notifications: done
   feature-fp-1-10-regression-coverage-and-rollout-backfill-safeguards: done
   feature-fp-1-11-admin-subscription-management-ui: done
-  epic-feature-fp-1-retrospective: optional
+  epic-feature-fp-1-retrospective: done
 
 last_updated: "2026-05-20"
 last_code_review: "2026-05-20"
