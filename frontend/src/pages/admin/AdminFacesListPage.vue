@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Users, AlertCircle, Loader2, X } from 'lucide-vue-next'
+import { Search, Users, AlertCircle, Loader2, X, Crown } from 'lucide-vue-next'
 import { useAdminFaces } from '@/features/admin/composables/useAdminFaces'
 import { getCategoryColor } from '@/features/admin/utils/faceLabels'
 
@@ -252,13 +252,25 @@ function formatDate(dateString: string): string {
               </span>
             </td>
             <td class="whitespace-nowrap px-6 py-4">
-              <span
-                class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-                :class="f.is_active !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
-                data-testid="status-badge"
-              >
-                {{ f.is_active !== false ? 'Actif' : 'Inactif' }}
-              </span>
+              <div class="flex items-center gap-1.5">
+                <span
+                  class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                  :class="f.is_active !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
+                  data-testid="status-badge"
+                >
+                  {{ f.is_active !== false ? 'Actif' : 'Inactif' }}
+                </span>
+                <span
+                  v-if="f.is_featured_by_subscription"
+                  class="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700"
+                  data-testid="face-row-premium-badge"
+                  title="Abonnement Premium actif"
+                  aria-label="Abonnement Premium actif"
+                >
+                  <Crown class="h-3.5 w-3.5" />
+                  Premium
+                </span>
+              </div>
             </td>
             <td class="whitespace-nowrap px-6 py-4">
               <div class="flex items-center gap-2">

@@ -33,6 +33,7 @@ export interface AdminFaceData {
   niches: Array<{ value: string; label: string }>
   is_available: boolean
   is_featured: boolean
+  is_featured_by_subscription?: boolean
   profile_completion_percentage: number
   profile_completion_missing: Array<{ key: string; label: string }>
   profile_completion_is_complete: boolean

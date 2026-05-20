@@ -26,6 +26,7 @@ import { useAdminFaces } from '@/features/admin/composables/useAdminFaces'
 import type { UpdateAdminFaceForm, AdminFacePhoto } from '@/features/admin/services/adminFacesApi'
 import { getCategoryLabels, getNicheLabels } from '@/features/admin/utils/faceLabels'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
+import AdminFaceSubscriptionSection from '@/features/admin/components/AdminFaceSubscriptionSection.vue'
 import { useToast } from '@/composables/useToast'
 import { COUNTRY_OPTIONS, COUNTRY_OPTION_VALUES } from '@/shared/constants/territoryOptions'
 
@@ -348,6 +349,9 @@ function closeVideoModal(): void {
           </template>
         </div>
       </div>
+
+      <!-- Premium subscription management (FEATURE-FP-1.11) -->
+      <AdminFaceSubscriptionSection :face-id="faceId" />
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Section 1: Personal Info -->
