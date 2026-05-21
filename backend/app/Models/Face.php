@@ -8,7 +8,6 @@ use App\Concerns\HasRouteUuid;
 use App\Enums\FaceCategory;
 use App\Enums\FaceGender;
 use App\Enums\FaceNiche;
-use App\Enums\FaceSubscriptionPlan;
 use App\Enums\FaceSubscriptionStatus;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -245,10 +244,9 @@ class Face extends Model
      * `FaceEntitlementService` can read this preloaded relation when available,
      * but should fall back to its own query when the relation has not been loaded.
      *
-     * Resolution policy when multiple active annual premium rows overlap:
+     * Resolution policy when multiple active subscription rows overlap:
      * longest `expires_at` wins; ties are broken by highest `id` (most recently
-     * inserted row). Revisit this contract before introducing a second plan
-     * (e.g. monthly, trial) so the chosen row remains semantically correct.
+     * inserted row).
      */
     public function activeSubscription(): HasOne
     {
@@ -259,7 +257,6 @@ class Face extends Model
                     'id' => 'max',
                 ],
                 fn ($query) => $query
-                    ->where('plan', FaceSubscriptionPlan::AnnualPremium)
                     ->where('status', FaceSubscriptionStatus::Active)
                     ->where('expires_at', '>', now())
             );

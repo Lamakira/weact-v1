@@ -4,25 +4,30 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Enums\FaceSubscriptionPlan;
-use App\Enums\FaceSubscriptionStatus;
+use App\Enums\FaceSubscriptionTier;
 use App\Models\Face;
 use App\Models\FaceSubscription;
+use App\ValueObjects\TierCapabilities;
 
 /**
- * Single source of truth for Face premium entitlements.
+ * Single source of truth for Face subscription entitlements.
  *
- * Entitlements are derived from an active, unexpired annual premium subscription.
- * Free / pending / expired / cancelled / failed / past-expiry Faces receive the
- * default free tier limits and are not considered premium.
+ * `capabilities()` is the canonical API: it returns the full tier matrix
+ * (quotas, ugc access, commission rate, sort priority, elite badge) driven
+ * entirely by config/face_subscription_tiers.php. A Face with no active paid
+ * subscription resolves to the Free tier.
  *
- * Consumers should call this service instead of inferring premium state from
- * the raw `face_subscriptions` rows or from `faces.is_featured`.
+ * The legacy isPremium()/albumUploadLimit()/publicAlbumPhotoLimit()/
+ * canUploadActingVideo()/isFeaturedBySubscription() methods are TRANSITIONAL
+ * shims kept so FP-1.2..FP-1.11 surfaces keep working unchanged; downstream
+ * FP-2 stories migrate their consumers to capabilities() and the final
+ * consumer story removes the orphaned shims.
  *
- * If the caller has already eager-loaded the `activeSubscription` relation on
- * the Face model (e.g. `Face::with('activeSubscription')`), the service will
- * read that preloaded value and skip an extra query. Otherwise it performs
- * a single targeted lookup.
+ * Resolution prefers an eager-loaded `activeSubscription` relation when
+ * present; otherwise it issues a single targeted query. Results are memoized
+ * per Face object (keyed by spl_object_id) on this instance. The service is
+ * intentionally NOT a container singleton: each resolution gets a fresh,
+ * short-lived instance, so there is no cross-request staleness.
  */
 class FaceEntitlementService
 {
@@ -34,8 +39,36 @@ class FaceEntitlementService
 
     public const PREMIUM_PUBLIC_ALBUM_LIMIT = 4;
 
+    /** @var array<int, TierCapabilities> */
+    private array $capabilitiesMemo = [];
+
     /**
-     * Maximum number of album photos this Face is allowed to upload.
+     * Canonical entitlement matrix for this Face's current tier.
+     */
+    public function capabilities(Face $face): TierCapabilities
+    {
+        $key = spl_object_id($face);
+
+        if (isset($this->capabilitiesMemo[$key])) {
+            return $this->capabilitiesMemo[$key];
+        }
+
+        $subscription = $this->resolveActiveSubscription($face);
+        $tier = $subscription?->plan->tier() ?? FaceSubscriptionTier::Free;
+
+        return $this->capabilitiesMemo[$key] = $this->buildCapabilities($tier);
+    }
+
+    /**
+     * TRANSITIONAL SHIM — true when the Face holds any active paid subscription.
+     */
+    public function isPremium(Face $face): bool
+    {
+        return $this->capabilities($face)->tier !== FaceSubscriptionTier::Free;
+    }
+
+    /**
+     * TRANSITIONAL SHIM — FP-1 album upload limit (free 2 / premium 4).
      */
     public function albumUploadLimit(Face $face): int
     {
@@ -45,7 +78,7 @@ class FaceEntitlementService
     }
 
     /**
-     * Maximum number of album photos this Face is allowed to expose publicly.
+     * TRANSITIONAL SHIM — FP-1 public album limit (free 2 / premium 4).
      */
     public function publicAlbumPhotoLimit(Face $face): int
     {
@@ -55,18 +88,7 @@ class FaceEntitlementService
     }
 
     /**
-     * Whether this Face currently holds an active, unexpired annual premium subscription.
-     */
-    public function isPremium(Face $face): bool
-    {
-        return $this->resolveActivePremiumSubscription($face) !== null;
-    }
-
-    /**
-     * Whether this Face is allowed to upload an acting video.
-     *
-     * Mirrors `isPremium()` because the presentation video is always public for
-     * every Face — only the acting video is gated behind the annual premium tier.
+     * TRANSITIONAL SHIM — FP-1 acting-video upload gate.
      */
     public function canUploadActingVideo(Face $face): bool
     {
@@ -74,10 +96,7 @@ class FaceEntitlementService
     }
 
     /**
-     * Whether this Face's featured placement is granted by an active paid subscription.
-     *
-     * This is independent from the legacy `faces.is_featured` admin flag, which
-     * remains under manual admin control.
+     * TRANSITIONAL SHIM — FP-1 subscription-driven featured placement.
      */
     public function isFeaturedBySubscription(Face $face): bool
     {
@@ -85,34 +104,65 @@ class FaceEntitlementService
     }
 
     /**
-     * Resolve the single active, unexpired annual premium subscription for this
-     * Face, preferring the preloaded `activeSubscription` relation when present.
+     * Resolve the Face's active, unexpired subscription — preferring the
+     * eager-loaded `activeSubscription` relation, re-validated defensively.
+     *
+     * The query-path ordering mirrors the `Face::activeSubscription` HasOne
+     * `ofMany(['expires_at' => 'max', 'id' => 'max'])` selection so the
+     * preloaded and query paths resolve the same row when subscriptions overlap.
      */
-    private function resolveActivePremiumSubscription(Face $face): ?FaceSubscription
+    private function resolveActiveSubscription(Face $face): ?FaceSubscription
     {
         if ($face->relationLoaded('activeSubscription')) {
             $candidate = $face->getRelation('activeSubscription');
 
-            return $this->qualifiesAsPremium($candidate) ? $candidate : null;
+            return ($candidate instanceof FaceSubscription && $candidate->isActive())
+                ? $candidate
+                : null;
         }
 
-        $candidate = $face->subscriptions()
+        return FaceSubscription::query()
+            ->where('face_id', $face->getKey())
             ->active()
-            ->where('plan', FaceSubscriptionPlan::AnnualPremium)
+            ->orderByDesc('expires_at')
+            ->orderByDesc('id')
             ->first();
-
-        return $candidate;
     }
 
-    private function qualifiesAsPremium(?FaceSubscription $subscription): bool
+    private function buildCapabilities(FaceSubscriptionTier $tier): TierCapabilities
     {
-        if ($subscription === null) {
-            return false;
+        $caps = config('face_subscription_tiers.tiers.'.$tier->value.'.capabilities');
+
+        $requiredKeys = [
+            'max_album_photos',
+            'max_presentation_videos',
+            'max_acting_videos',
+            'max_ugc_videos',
+            'ugc_access',
+            'commission_rate',
+            'sort_priority',
+            'has_elite_badge',
+        ];
+
+        // Fail loudly on a missing/stale config rather than crashing on a null
+        // array access or silently coercing absent keys to 0/false.
+        if (! is_array($caps) || array_diff($requiredKeys, array_keys($caps)) !== []) {
+            throw new \RuntimeException(
+                "Incomplete capabilities config for tier '{$tier->value}' — "
+                .'check config/face_subscription_tiers.php (run `php artisan config:clear` if the config cache is stale).'
+            );
         }
 
-        return $subscription->plan === FaceSubscriptionPlan::AnnualPremium
-            && $subscription->status === FaceSubscriptionStatus::Active
-            && $subscription->expires_at !== null
-            && $subscription->expires_at->isFuture();
+        return new TierCapabilities(
+            tier: $tier,
+            maxAlbumPhotos: (int) $caps['max_album_photos'],
+            maxPresentationVideos: (int) $caps['max_presentation_videos'],
+            maxActingVideos: (int) $caps['max_acting_videos'],
+            maxUgcVideos: (int) $caps['max_ugc_videos'],
+            ugcAccess: (bool) $caps['ugc_access'],
+            commissionRate: (float) $caps['commission_rate'],
+            sortPriority: (int) $caps['sort_priority'],
+            hasEliteBadge: (bool) $caps['has_elite_badge'],
+        );
     }
 }

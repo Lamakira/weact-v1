@@ -33,7 +33,7 @@ class FaceSubscriptionFactory extends Factory
         return [
             'uuid' => fake()->uuid(),
             'face_id' => Face::factory(),
-            'plan' => FaceSubscriptionPlan::AnnualPremium,
+            'plan' => FaceSubscriptionPlan::Pro,
             'status' => FaceSubscriptionStatus::Active,
             'starts_at' => $startsAt,
             'expires_at' => $expiresAt,
@@ -62,22 +62,19 @@ class FaceSubscriptionFactory extends Factory
     }
 
     /**
-     * Active, unexpired annual premium subscription.
+     * Active, unexpired subscription.
+     *
+     * Sets status + coverage window only — never `plan` — so the plan states
+     * (starter/pro/elite) compose in either order, e.g. `elite()->active()`.
      */
     public function active(): static
     {
-        return $this->state(function (array $attributes): array {
-            $startsAt = now()->subDays(7);
-            $expiresAt = now()->addYear();
-
-            return [
-                'status' => FaceSubscriptionStatus::Active,
-                'plan' => FaceSubscriptionPlan::AnnualPremium,
-                'starts_at' => $startsAt,
-                'expires_at' => $expiresAt,
-                'cancelled_at' => null,
-            ];
-        });
+        return $this->state(fn (array $attributes): array => [
+            'status' => FaceSubscriptionStatus::Active,
+            'starts_at' => now()->subDays(7),
+            'expires_at' => now()->addYear(),
+            'cancelled_at' => null,
+        ]);
     }
 
     /**
@@ -119,6 +116,36 @@ class FaceSubscriptionFactory extends Factory
             'starts_at' => null,
             'expires_at' => null,
             'cancelled_at' => null,
+        ]);
+    }
+
+    /**
+     * Starter-tier subscription.
+     */
+    public function starter(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'plan' => FaceSubscriptionPlan::Starter,
+        ]);
+    }
+
+    /**
+     * Pro-tier subscription.
+     */
+    public function pro(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'plan' => FaceSubscriptionPlan::Pro,
+        ]);
+    }
+
+    /**
+     * Élite-tier subscription.
+     */
+    public function elite(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'plan' => FaceSubscriptionPlan::Elite,
         ]);
     }
 }

@@ -1,0 +1,71 @@
+<?php
+
+declare(strict_types=1);
+
+/*
+ * Single source of truth for Face subscription tier pricing and capabilities.
+ * Adding a tier or changing a price/capability requires editing ONLY this file
+ * — no schema migration, no controller/service change (FEAT-FP2-NFR1).
+ * `tiers` is keyed by FaceSubscriptionTier value. `free` is the implicit tier
+ * for any Face without an active paid subscription (price 0).
+ */
+
+return [
+    'currency' => 'XOF',
+    'provider' => 'fedapay',
+
+    'tiers' => [
+        'free' => [
+            'price' => 0,
+            'capabilities' => [
+                'max_album_photos' => 1,
+                'max_presentation_videos' => 0,
+                'max_acting_videos' => 0,
+                'max_ugc_videos' => 0,
+                'ugc_access' => false,
+                'commission_rate' => 0.10,
+                'sort_priority' => 4,
+                'has_elite_badge' => false,
+            ],
+        ],
+        'starter' => [
+            'price' => 12000,
+            'capabilities' => [
+                'max_album_photos' => 2,
+                'max_presentation_videos' => 1,
+                'max_acting_videos' => 0,
+                'max_ugc_videos' => 0,
+                'ugc_access' => true,
+                'commission_rate' => 0.10,
+                'sort_priority' => 3,
+                'has_elite_badge' => false,
+            ],
+        ],
+        'pro' => [
+            'price' => 25000,
+            'capabilities' => [
+                'max_album_photos' => 4,
+                'max_presentation_videos' => 1,
+                'max_acting_videos' => 1,
+                'max_ugc_videos' => 0,
+                'ugc_access' => true,
+                'commission_rate' => 0.10,
+                'sort_priority' => 2,
+                'has_elite_badge' => false,
+            ],
+        ],
+        'elite' => [
+            'price' => 40000,
+            'capabilities' => [
+                'max_album_photos' => 6,
+                'max_presentation_videos' => 1,
+                'max_acting_videos' => 2,
+                'max_ugc_videos' => 1,
+                'ugc_access' => true,
+                'commission_rate' => 0.05,
+                'sort_priority' => 1,
+                'has_elite_badge' => true,
+            ],
+        ],
+    ],
+];

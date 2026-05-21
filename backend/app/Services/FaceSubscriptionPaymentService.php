@@ -94,7 +94,7 @@ class FaceSubscriptionPaymentService
 
                     return FaceSubscription::create([
                         'face_id' => $face->id,
-                        'plan' => FaceSubscriptionPlan::AnnualPremium,
+                        'plan' => FaceSubscriptionPlan::Pro,
                         'status' => FaceSubscriptionStatus::PendingPayment,
                         'starts_at' => null,
                         'expires_at' => null,
@@ -272,7 +272,6 @@ class FaceSubscriptionPaymentService
             /** @var FaceSubscription|null $existingActive */
             $existingActive = FaceSubscription::query()
                 ->where('face_id', $locked->face_id)
-                ->where('plan', FaceSubscriptionPlan::AnnualPremium)
                 ->where('status', FaceSubscriptionStatus::Active)
                 ->where('expires_at', '>', now())
                 ->where('id', '!=', $locked->id)

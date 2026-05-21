@@ -118,7 +118,7 @@ class SubscriptionStatusTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.status', 'active')
-            ->assertJsonPath('data.plan', 'annual_premium')
+            ->assertJsonPath('data.plan', 'pro')
             ->assertJsonPath('data.cancelled_at', null)
             ->assertJsonPath('data.is_premium', true)
             ->assertJsonPath('data.is_featured_by_subscription', true)
@@ -176,7 +176,7 @@ class SubscriptionStatusTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.status', 'pending_payment')
-            ->assertJsonPath('data.plan', 'annual_premium')
+            ->assertJsonPath('data.plan', 'pro')
             ->assertJsonPath('data.starts_at', null)
             ->assertJsonPath('data.expires_at', null)
             ->assertJsonPath('data.cancelled_at', null)
@@ -225,7 +225,7 @@ class SubscriptionStatusTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.status', 'expired')
-            ->assertJsonPath('data.plan', 'annual_premium')
+            ->assertJsonPath('data.plan', 'pro')
             ->assertJsonPath('data.is_premium', false)
             ->assertJsonPath('data.is_featured_by_subscription', false)
             ->assertJsonPath('data.can_renew', true)
@@ -248,7 +248,7 @@ class SubscriptionStatusTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.status', 'cancelled')
-            ->assertJsonPath('data.plan', 'annual_premium')
+            ->assertJsonPath('data.plan', 'pro')
             ->assertJsonPath('data.is_premium', false)
             ->assertJsonPath('data.is_featured_by_subscription', false)
             ->assertJsonPath('data.can_renew', true)
@@ -269,7 +269,7 @@ class SubscriptionStatusTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.status', 'failed')
-            ->assertJsonPath('data.plan', 'annual_premium')
+            ->assertJsonPath('data.plan', 'pro')
             ->assertJsonPath('data.is_premium', false)
             ->assertJsonPath('data.is_featured_by_subscription', false)
             ->assertJsonPath('data.can_renew', true)

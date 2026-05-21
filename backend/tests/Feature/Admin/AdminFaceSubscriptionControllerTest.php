@@ -269,14 +269,14 @@ class AdminFaceSubscriptionControllerTest extends TestCase
             ]);
 
         $response->assertStatus(201)
-            ->assertJsonPath('data.plan', 'annual_premium')
+            ->assertJsonPath('data.plan', 'pro')
             ->assertJsonPath('data.status', 'active')
             ->assertJsonPath('message', 'Abonnement activé manuellement');
 
         $this->assertDatabaseCount('face_subscriptions', 1);
         $sub = FaceSubscription::query()->where('face_id', $this->face->id)->first();
         $this->assertSame(FaceSubscriptionStatus::Active, $sub->status);
-        $this->assertSame(FaceSubscriptionPlan::AnnualPremium, $sub->plan);
+        $this->assertSame(FaceSubscriptionPlan::Pro, $sub->plan);
         $this->assertNotNull($sub->starts_at);
         $this->assertNotNull($sub->expires_at);
         $this->assertTrue($sub->expires_at->equalTo($sub->starts_at->copy()->addDays(365)));
@@ -291,7 +291,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
         $this->assertSame($this->admin->id, $audit->admin_id);
         $this->assertSame('Paiement reçu offline le 11/05/2026 par dépôt MTN', $audit->notes);
         $this->assertNull($audit->previous_state);
-        $this->assertSame('annual_premium', $audit->new_state['plan']);
+        $this->assertSame('pro', $audit->new_state['plan']);
         $this->assertSame('active', $audit->new_state['status']);
         $this->assertNotNull($audit->new_state['starts_at']);
         $this->assertNotNull($audit->new_state['expires_at']);

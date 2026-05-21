@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Enums\FaceSubscriptionPlan;
 use App\Enums\FaceSubscriptionStatus;
 use App\Models\Face;
 use App\Models\FaceSubscription;
@@ -23,13 +22,11 @@ class AuditFacePremiumReadinessCommand extends Command
 
         // Section A — Active premium overview
         $activeSubscriptionsCount = FaceSubscription::query()
-            ->where('plan', FaceSubscriptionPlan::AnnualPremium)
             ->where('status', FaceSubscriptionStatus::Active)
             ->where('expires_at', '>', $asOf)
             ->count();
 
         $premiumFacesCount = FaceSubscription::query()
-            ->where('plan', FaceSubscriptionPlan::AnnualPremium)
             ->where('status', FaceSubscriptionStatus::Active)
             ->where('expires_at', '>', $asOf)
             ->distinct('face_id')
@@ -43,7 +40,6 @@ class AuditFacePremiumReadinessCommand extends Command
         // Section B — Free Faces with locked album photos at launch
         $freeFacesWithLockedPhotosQuery = Face::query()
             ->whereDoesntHave('subscriptions', fn ($query) => $query
-                ->where('plan', FaceSubscriptionPlan::AnnualPremium)
                 ->where('status', FaceSubscriptionStatus::Active)
                 ->where('expires_at', '>', $asOf))
             ->has('photos', '>', 2);
@@ -69,7 +65,6 @@ class AuditFacePremiumReadinessCommand extends Command
         // Section C — Free Faces with locked acting video at launch
         $freeFacesWithActingVideoQuery = Face::query()
             ->whereDoesntHave('subscriptions', fn ($query) => $query
-                ->where('plan', FaceSubscriptionPlan::AnnualPremium)
                 ->where('status', FaceSubscriptionStatus::Active)
                 ->where('expires_at', '>', $asOf))
             ->whereNotNull('acting_video');
@@ -92,13 +87,11 @@ class AuditFacePremiumReadinessCommand extends Command
 
         // Section D — Data hygiene anomalies (read-only surface)
         $activeWithNullExpiresCount = FaceSubscription::query()
-            ->where('plan', FaceSubscriptionPlan::AnnualPremium)
             ->where('status', FaceSubscriptionStatus::Active)
             ->whereNull('expires_at')
             ->count();
 
         $activeWithPastExpiresCount = FaceSubscription::query()
-            ->where('plan', FaceSubscriptionPlan::AnnualPremium)
             ->where('status', FaceSubscriptionStatus::Active)
             ->whereNotNull('expires_at')
             ->where('expires_at', '<=', $asOf)

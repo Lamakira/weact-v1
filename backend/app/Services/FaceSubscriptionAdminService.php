@@ -60,7 +60,7 @@ class FaceSubscriptionAdminService
 
             $subscription = FaceSubscription::create([
                 'face_id' => $face->id,
-                'plan' => FaceSubscriptionPlan::AnnualPremium,
+                'plan' => FaceSubscriptionPlan::Pro,
                 'status' => FaceSubscriptionStatus::Active,
                 'starts_at' => $resolvedStarts,
                 'expires_at' => $resolvedExpires,

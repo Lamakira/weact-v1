@@ -7,7 +7,6 @@ namespace App\Http\Controllers\Api\V1\Public;
 use App\Constants\BeninCities;
 use App\Enums\FaceCategory;
 use App\Enums\FaceNiche;
-use App\Enums\FaceSubscriptionPlan;
 use App\Enums\FaceSubscriptionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Public\ListFacesRequest;
@@ -52,7 +51,6 @@ class FaceController extends Controller
                         SELECT 1 FROM face_subscriptions
                         WHERE face_subscriptions.face_id = faces.id
                           AND face_subscriptions.status = ?
-                          AND face_subscriptions.plan = ?
                           AND face_subscriptions.expires_at > NOW()
                     ) THEN 0
                     WHEN profile_photo IS NOT NULL AND tarif_journalier IS NOT NULL THEN 1
@@ -61,7 +59,6 @@ class FaceController extends Controller
                 END',
                 [
                     FaceSubscriptionStatus::Active->value,
-                    FaceSubscriptionPlan::AnnualPremium->value,
                 ]
             )
             ->orderBy('created_at', 'desc')

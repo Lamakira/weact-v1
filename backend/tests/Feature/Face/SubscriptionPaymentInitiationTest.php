@@ -159,7 +159,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
         /** @var FaceSubscription $row */
         $row = FaceSubscription::query()->where('face_id', $this->face->id)->firstOrFail();
         $this->assertSame(FaceSubscriptionStatus::PendingPayment, $row->status);
-        $this->assertSame(FaceSubscriptionPlan::AnnualPremium, $row->plan);
+        $this->assertSame(FaceSubscriptionPlan::Pro, $row->plan);
         $this->assertSame('123456', $row->provider_reference);
         $this->assertSame('fedapay', $row->provider);
         $this->assertSame('XOF', $row->currency);
@@ -229,7 +229,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
 
         $pending = FaceSubscription::factory()->create([
             'face_id' => $this->face->id,
-            'plan' => FaceSubscriptionPlan::AnnualPremium,
+            'plan' => FaceSubscriptionPlan::Pro,
             'status' => FaceSubscriptionStatus::PendingPayment,
             'provider_reference' => '123456',
             'paid_amount' => null,
@@ -274,7 +274,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
     {
         $pending = FaceSubscription::factory()->create([
             'face_id' => $this->face->id,
-            'plan' => FaceSubscriptionPlan::AnnualPremium,
+            'plan' => FaceSubscriptionPlan::Pro,
             'status' => FaceSubscriptionStatus::PendingPayment,
             'provider_reference' => '123456',
             'paid_amount' => null,
@@ -721,7 +721,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
         try {
             $existingActive = FaceSubscription::factory()->create([
                 'face_id' => $this->face->id,
-                'plan' => FaceSubscriptionPlan::AnnualPremium,
+                'plan' => FaceSubscriptionPlan::Pro,
                 'status' => FaceSubscriptionStatus::Active,
                 'starts_at' => now()->subDays(330),
                 'expires_at' => now()->addDays(35),
@@ -734,7 +734,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
 
             $pending = FaceSubscription::factory()->create([
                 'face_id' => $this->face->id,
-                'plan' => FaceSubscriptionPlan::AnnualPremium,
+                'plan' => FaceSubscriptionPlan::Pro,
                 'status' => FaceSubscriptionStatus::PendingPayment,
                 'starts_at' => null,
                 'expires_at' => null,

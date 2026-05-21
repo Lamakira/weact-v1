@@ -6,6 +6,7 @@ namespace Tests\Feature\Face;
 
 use App\Enums\FaceSubscriptionPlan;
 use App\Enums\FaceSubscriptionStatus;
+use App\Enums\FaceSubscriptionTier;
 use App\Models\Face;
 use App\Models\FaceSubscription;
 use Illuminate\Database\QueryException;
@@ -54,7 +55,7 @@ class FaceSubscriptionSchemaTest extends TestCase
         $id = \DB::table('face_subscriptions')->insertGetId([
             'uuid' => \Illuminate\Support\Str::uuid()->toString(),
             'face_id' => $face->id,
-            'plan' => FaceSubscriptionPlan::AnnualPremium->value,
+            'plan' => FaceSubscriptionPlan::Pro->value,
             'status' => FaceSubscriptionStatus::PendingPayment->value,
             'created_at' => now(),
             'updated_at' => now(),
@@ -99,7 +100,7 @@ class FaceSubscriptionSchemaTest extends TestCase
     {
         $subscription = FaceSubscription::factory()->create([
             'status' => FaceSubscriptionStatus::Active,
-            'plan' => FaceSubscriptionPlan::AnnualPremium,
+            'plan' => FaceSubscriptionPlan::Pro,
         ]);
 
         $subscription->refresh();
@@ -107,7 +108,7 @@ class FaceSubscriptionSchemaTest extends TestCase
         $this->assertInstanceOf(FaceSubscriptionStatus::class, $subscription->status);
         $this->assertInstanceOf(FaceSubscriptionPlan::class, $subscription->plan);
         $this->assertEquals(FaceSubscriptionStatus::Active, $subscription->status);
-        $this->assertEquals(FaceSubscriptionPlan::AnnualPremium, $subscription->plan);
+        $this->assertEquals(FaceSubscriptionPlan::Pro, $subscription->plan);
     }
 
     public function test_active_scope_returns_only_active_unexpired_subscriptions(): void
@@ -200,5 +201,22 @@ class FaceSubscriptionSchemaTest extends TestCase
             3,
             FaceSubscription::query()->where('face_id', $face->id)->count()
         );
+    }
+
+    public function test_face_subscription_plan_maps_to_tier(): void
+    {
+        $this->assertSame(FaceSubscriptionTier::Starter, FaceSubscriptionPlan::Starter->tier());
+        $this->assertSame(FaceSubscriptionTier::Pro, FaceSubscriptionPlan::Pro->tier());
+        $this->assertSame(FaceSubscriptionTier::Elite, FaceSubscriptionPlan::Elite->tier());
+    }
+
+    public function test_face_subscription_plan_values(): void
+    {
+        $this->assertSame(['starter', 'pro', 'elite'], FaceSubscriptionPlan::values());
+    }
+
+    public function test_face_subscription_tier_values(): void
+    {
+        $this->assertSame(['free', 'starter', 'pro', 'elite'], FaceSubscriptionTier::values());
     }
 }

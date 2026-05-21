@@ -4,33 +4,27 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
-enum FaceSubscriptionPlan: string
+/**
+ * Entitlement tier of a Face. `Free` is the implicit floor for any Face
+ * without an active paid subscription; it is a tier but never a `plan`.
+ */
+enum FaceSubscriptionTier: string
 {
+    case Free = 'free';
     case Starter = 'starter';
     case Pro = 'pro';
     case Elite = 'elite';
 
     /**
-     * French display name for this paid plan.
+     * French display name for this tier.
      */
     public function label(): string
     {
         return match ($this) {
+            self::Free => 'Découverte',
             self::Starter => 'Starter',
             self::Pro => 'Pro',
             self::Elite => 'Élite',
-        };
-    }
-
-    /**
-     * The entitlement tier this paid plan grants.
-     */
-    public function tier(): FaceSubscriptionTier
-    {
-        return match ($this) {
-            self::Starter => FaceSubscriptionTier::Starter,
-            self::Pro => FaceSubscriptionTier::Pro,
-            self::Elite => FaceSubscriptionTier::Elite,
         };
     }
 
