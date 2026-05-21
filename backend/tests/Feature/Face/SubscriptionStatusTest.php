@@ -7,6 +7,7 @@ namespace Tests\Feature\Face;
 use App\Models\Face;
 use App\Models\FacePhoto;
 use App\Models\FaceSubscription;
+use App\Models\FaceVideo;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -317,7 +318,7 @@ class SubscriptionStatusTest extends TestCase
     public function test_face_with_acting_video_and_no_subscription_shows_locked_acting_video_flags(): void
     {
         // AC #12 — has_acting_video=true regardless of premium; visibility=false when free
-        $this->face->update(['acting_video' => 'legacy.mp4']);
+        FaceVideo::factory()->acting()->create(['face_id' => $this->face->id]);
 
         $response = $this->actingAs($this->faceUser)
             ->getJson('/api/v1/face/subscription-status');
@@ -331,7 +332,7 @@ class SubscriptionStatusTest extends TestCase
     public function test_face_with_acting_video_and_active_subscription_shows_unlocked_acting_video_flags(): void
     {
         // AC #12 — premium path: all three acting-video flags true
-        $this->face->update(['acting_video' => 'showtime.mp4']);
+        FaceVideo::factory()->acting()->create(['face_id' => $this->face->id]);
         FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
 
         $response = $this->actingAs($this->faceUser)

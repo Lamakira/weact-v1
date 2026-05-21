@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Enums\FaceSubscriptionStatus;
+use App\Enums\FaceVideoType;
 use App\Models\Face;
 use App\Models\FaceSubscription;
 use Illuminate\Console\Command;
@@ -67,19 +68,20 @@ class AuditFacePremiumReadinessCommand extends Command
             ->whereDoesntHave('subscriptions', fn ($query) => $query
                 ->where('status', FaceSubscriptionStatus::Active)
                 ->where('expires_at', '>', $asOf))
-            ->whereNotNull('acting_video');
+            ->whereHas('videos', fn ($query) => $query->where('type', FaceVideoType::Acting->value));
 
         $freeFacesWithActingVideoCount = (clone $freeFacesWithActingVideoQuery)->count();
 
-        $this->line("Free Faces with non-null acting_video (will be hidden publicly at launch): {$freeFacesWithActingVideoCount}");
+        $this->line("Free Faces with an acting video (will be hidden publicly at launch): {$freeFacesWithActingVideoCount}");
 
         if ($detailed && $freeFacesWithActingVideoCount > 0) {
             $freeFacesWithActingVideoQuery
-                ->select('id', 'username', 'prenom', 'acting_video')
+                ->select('id', 'username', 'prenom')
+                ->withCount(['videos as acting_videos_count' => fn ($query) => $query->where('type', FaceVideoType::Acting->value)])
                 ->orderBy('id')
                 ->chunk(100, function ($faces): void {
                     foreach ($faces as $face) {
-                        $this->line("  - face#{$face->id} username={$face->username} prenom={$face->prenom} acting_video={$face->acting_video}");
+                        $this->line("  - face#{$face->id} username={$face->username} prenom={$face->prenom} acting_videos={$face->getAttribute('acting_videos_count')}");
                     }
                 });
         }

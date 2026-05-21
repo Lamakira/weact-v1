@@ -153,7 +153,7 @@ class FaceController extends Controller
 
     private function loadDetailRelations(Face $face): Face
     {
-        $face->load(['user', 'photos', 'experiences', 'ratingsReceived', 'activeSubscription']);
+        $face->load(['user', 'photos', 'videos', 'experiences', 'ratingsReceived', 'activeSubscription']);
         $face->loadCount(['candidatures', 'photos', 'experiences']);
 
         return $face;

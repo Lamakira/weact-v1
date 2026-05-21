@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Enums\FaceVideoType;
+use App\Models\FaceVideo;
 use App\Models\User;
 use App\Services\FaceEntitlementService;
 use Illuminate\Http\Request;
@@ -27,11 +29,21 @@ class PublicFaceProfileResource extends JsonResource
     public function toArray(Request $request): array
     {
         $entitlement = app(FaceEntitlementService::class);
-        $isPremium = $entitlement->isPremium($this->resource);
-        $maxPhotos = $entitlement->capabilities($this->resource)->maxAlbumPhotos;
+        $capabilities = $entitlement->capabilities($this->resource);
+        $maxPhotos = $capabilities->maxAlbumPhotos;
 
         $visiblePhotos = $this->photos->filter(fn ($photo) => $photo->position <= $maxPhotos)->values();
         $albumPhotosCount = $visiblePhotos->count();
+
+        $presentationVisible = $capabilities->maxPresentationVideos >= 1;
+
+        $visibleVideos = $this->videos->filter(function (FaceVideo $video) use ($capabilities): bool {
+            $quota = $video->type === FaceVideoType::Acting
+                ? $capabilities->maxActingVideos
+                : $capabilities->maxUgcVideos;
+
+            return $video->position <= $quota;
+        })->values();
 
         /** @var User|null $user */
         $user = $this->user;
@@ -56,17 +68,15 @@ class PublicFaceProfileResource extends JsonResource
             'is_available' => $this->is_available,
             'profile_photo_url' => $this->profile_photo_url,
             'profile_photo_medium_url' => $this->medium_url,
-            'presentation_video_url' => $this->presentation_video_url,
-            'presentation_video_thumbnail_url' => $this->presentation_video_thumbnail_url,
-            'acting_video_url' => $isPremium ? $this->acting_video_url : null,
-            'acting_video_thumbnail_url' => $isPremium ? $this->acting_video_thumbnail_url : null,
+            'presentation_video_url' => $presentationVisible ? $this->presentation_video_url : null,
+            'presentation_video_thumbnail_url' => $presentationVisible ? $this->presentation_video_thumbnail_url : null,
             'average_rating' => $this->average_rating,
             'ratings_count' => $this->ratings_count,
             'has_album_photos' => $albumPhotosCount > 0,
             'album_photos_count' => $albumPhotosCount,
-            'has_presentation_video' => $this->presentation_video !== null,
-            'has_acting_video' => $isPremium && $this->acting_video !== null,
+            'has_presentation_video' => $presentationVisible && $this->presentation_video !== null,
             'photos' => FacePhotoResource::collection($visiblePhotos),
+            'videos' => FaceVideoResource::collection($visibleVideos),
             'experiences' => ExperienceResource::collection($this->whenLoaded('experiences')),
         ];
     }

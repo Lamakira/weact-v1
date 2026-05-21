@@ -9,6 +9,7 @@ use App\Enums\FaceCategory;
 use App\Enums\FaceGender;
 use App\Enums\FaceNiche;
 use App\Enums\FaceSubscriptionStatus;
+use App\Enums\FaceVideoType;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -37,7 +38,6 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
  * @property bool $show_age
  * @property bool $is_featured
  * @property string|null $presentation_video
- * @property string|null $acting_video
  * @property \App\Enums\FaceGender|null $sexe
  * @property \Carbon\CarbonInterface|null $date_naissance
  * @property bool $is_available
@@ -48,8 +48,6 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
  * @property-read string|null $medium_url
  * @property-read string|null $presentation_video_url
  * @property-read string|null $presentation_video_thumbnail_url
- * @property-read string|null $acting_video_url
- * @property-read string|null $acting_video_thumbnail_url
  * @property-read string|null $formatted_location
  * @property-read string|null $formatted_tarif_horaire
  * @property-read string|null $formatted_tarif_journalier
@@ -61,6 +59,7 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
  * @property-read int $ratings_count
  * @property-read int $profile_completion_percentage
  * @property-read User|null $user
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, FaceVideo> $videos
  * @property int|null $experiences_count
  * @property int|null $photos_count
  * @property-read \Illuminate\Support\Carbon|null $created_at
@@ -88,8 +87,6 @@ class Face extends Model
         'profile_photo_medium',
         'presentation_video',
         'presentation_video_thumbnail',
-        'acting_video',
-        'acting_video_thumbnail',
         'bio',
         'ville',
         'pays',
@@ -135,8 +132,6 @@ class Face extends Model
         'display_name',
         'presentation_video_url',
         'presentation_video_thumbnail_url',
-        'acting_video_url',
-        'acting_video_thumbnail_url',
         'formatted_location',
         'formatted_tarif_horaire',
         'formatted_tarif_journalier',
@@ -231,6 +226,16 @@ class Face extends Model
     }
 
     /**
+     * Get the portfolio videos (acting + UGC) for this Face.
+     *
+     * @return HasMany<FaceVideo, $this>
+     */
+    public function videos(): HasMany
+    {
+        return $this->hasMany(FaceVideo::class)->orderBy('type')->orderBy('position');
+    }
+
+    /**
      * Get all subscriptions (current + historical) attached to this Face.
      */
     public function subscriptions(): HasMany
@@ -305,30 +310,6 @@ class Face extends Model
     }
 
     /**
-     * Get the full URL for the acting video.
-     */
-    protected function actingVideoUrl(): Attribute
-    {
-        return Attribute::make(
-            get: fn (): ?string => $this->acting_video
-                ? asset('storage/videos/faces/acting/'.$this->acting_video)
-                : null,
-        );
-    }
-
-    /**
-     * Get the full URL for the acting video thumbnail.
-     */
-    protected function actingVideoThumbnailUrl(): Attribute
-    {
-        return Attribute::make(
-            get: fn (): ?string => $this->acting_video_thumbnail
-                ? asset('storage/videos/faces/acting/thumbnails/'.$this->acting_video_thumbnail)
-                : null,
-        );
-    }
-
-    /**
      * Get the formatted location string (Ville, Pays).
      */
     protected function formattedLocation(): Attribute
@@ -390,6 +371,21 @@ class Face extends Model
     }
 
     /**
+     * Whether this Face has at least one acting portfolio video. Eager-load
+     * aware: reads the loaded `videos` relation when present, else one query.
+     */
+    private function hasActingVideo(): bool
+    {
+        if ($this->relationLoaded('videos')) {
+            return $this->videos->contains(
+                fn (FaceVideo $video): bool => $video->type === FaceVideoType::Acting
+            );
+        }
+
+        return $this->videos()->where('type', FaceVideoType::Acting)->exists();
+    }
+
+    /**
      * Get the profile completion percentage (0-100).
      *
      * Required fields (8 total):
@@ -416,7 +412,7 @@ class Face extends Model
                 if ($this->presentation_video) {
                     $completed++;
                 }
-                if ($this->acting_video) {
+                if ($this->hasActingVideo()) {
                     $completed++;
                 }
                 if ($this->bio) {
@@ -455,7 +451,7 @@ class Face extends Model
                 if (! $this->presentation_video) {
                     $missing[] = ['key' => 'presentation_video', 'label' => 'Ajoutez une vidéo de présentation'];
                 }
-                if (! $this->acting_video) {
+                if (! $this->hasActingVideo()) {
                     $missing[] = ['key' => 'acting_video', 'label' => "Ajoutez une vidéo d'acting"];
                 }
                 if (! $this->bio) {

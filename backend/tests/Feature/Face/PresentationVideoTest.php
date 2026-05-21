@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Face;
 
 use App\Models\Face;
+use App\Models\FaceSubscription;
 use App\Models\Producer;
 use App\Models\User;
 use App\Services\PresentationVideoService;
@@ -34,6 +35,10 @@ class PresentationVideoTest extends TestCase
             'userable_type' => Face::class,
             'userable_id' => $this->face->id,
         ]);
+
+        // Presentation video is tier-gated (Free quota 0) — give the default
+        // Face a paying tier so the upload-path tests are not blocked.
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
     }
 
     /**
@@ -429,5 +434,23 @@ class PresentationVideoTest extends TestCase
                 $response->assertTooManyRequests();
             }
         }
+    }
+
+    public function test_free_face_cannot_upload_presentation_video(): void
+    {
+        $freeFace = Face::factory()->create();
+        $freeUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $freeFace->id,
+        ]);
+
+        $response = $this->actingAs($freeUser)
+            ->postJson('/api/v1/face/presentation-video', [
+                'video' => UploadedFile::fake()->create('video.mp4', 10 * 1024, 'video/mp4'),
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['video']);
+        $this->assertStringContainsString('formule', $response->json('errors.video.0'));
     }
 }

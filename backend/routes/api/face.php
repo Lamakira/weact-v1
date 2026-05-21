@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Http\Controllers\Api\V1\Face\ActingVideoController;
 use App\Http\Controllers\Api\V1\Face\AlbumController;
 use App\Http\Controllers\Api\V1\Face\AvailabilityController;
 use App\Http\Controllers\Api\V1\Face\BasicInfoController;
@@ -13,6 +12,7 @@ use App\Http\Controllers\Api\V1\Face\CategoryNicheOptionsController;
 use App\Http\Controllers\Api\V1\Face\ConversationController;
 use App\Http\Controllers\Api\V1\Face\ExperienceController;
 use App\Http\Controllers\Api\V1\Face\FaceDashboardController;
+use App\Http\Controllers\Api\V1\Face\FaceVideoController;
 use App\Http\Controllers\Api\V1\Face\LanguesController;
 use App\Http\Controllers\Api\V1\Face\MessageController;
 use App\Http\Controllers\Api\V1\Face\MissionAttendanceController;
@@ -85,11 +85,11 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
         ->middleware('throttle:uploads');
     Route::delete('/presentation-video', [PresentationVideoController::class, 'destroy']);
 
-    // Acting video routes
-    Route::get('/acting-video', [ActingVideoController::class, 'show']);
-    Route::post('/acting-video', [ActingVideoController::class, 'store'])
+    // Face portfolio video routes (acting + UGC — typed, multi-row)
+    Route::get('/videos', [FaceVideoController::class, 'index']);
+    Route::post('/videos', [FaceVideoController::class, 'store'])
         ->middleware('throttle:uploads');
-    Route::delete('/acting-video', [ActingVideoController::class, 'destroy']);
+    Route::delete('/videos/{video}', [FaceVideoController::class, 'destroy']);
 
     // Bio and location routes
     Route::get('/bio-location', [BioLocationController::class, 'show'])

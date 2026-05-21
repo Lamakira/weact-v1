@@ -9,6 +9,7 @@ use App\Models\Face;
 use App\Models\FacePhoto;
 use App\Models\FaceSubscription;
 use App\Models\FaceSubscriptionAudit;
+use App\Models\FaceVideo;
 use App\Models\User;
 use App\Services\FaceEntitlementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -204,10 +205,13 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
         FacePhoto::factory()->createSequentialForFace($face, 4);
 
         $face->update([
-            'acting_video' => 'acting.mp4',
-            'acting_video_thumbnail' => 'acting-thumb.jpg',
             'presentation_video' => 'presentation.mp4',
             'presentation_video_thumbnail' => 'presentation-thumb.jpg',
+        ]);
+        FaceVideo::factory()->acting()->create([
+            'face_id' => $face->id,
+            'filename' => 'acting.mp4',
+            'thumbnail' => 'acting-thumb.jpg',
         ]);
 
         foreach ($face->fresh()->photos as $photo) {
@@ -235,7 +239,7 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
         Storage::disk('public')->assertExists('videos/faces/presentation/presentation-thumb.jpg');
 
         $this->assertSame(4, FacePhoto::where('face_id', $face->id)->count());
-        $this->assertSame('acting.mp4', $face->fresh()->acting_video);
+        $this->assertSame(1, FaceVideo::where('face_id', $face->id)->count());
         $this->assertSame('presentation.mp4', $face->fresh()->presentation_video);
     }
 
@@ -362,9 +366,9 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
 
         FacePhoto::factory()->createSequentialForFace($face, 4);
-        $face->update([
-            'acting_video' => 'video.mp4',
-            'acting_video_thumbnail' => 'video-thumb.jpg',
+        FaceVideo::factory()->acting()->create([
+            'face_id' => $face->id,
+            'filename' => 'video.mp4',
         ]);
 
         FaceSubscription::factory()->active()->create([
@@ -379,11 +383,10 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
         $response->assertOk()
             ->assertJsonCount(1, 'data.photos')
             ->assertJsonPath('data.album_photos_count', 1)
-            ->assertJsonPath('data.has_acting_video', false)
-            ->assertJsonPath('data.acting_video_url', null);
+            ->assertJsonCount(0, 'data.videos');
 
         $this->assertSame(4, FacePhoto::where('face_id', $face->id)->count());
-        $this->assertSame('video.mp4', $face->fresh()->acting_video);
+        $this->assertSame(1, FaceVideo::where('face_id', $face->id)->count());
 
         $latestSub = FaceSubscription::query()
             ->where('face_id', $face->id)

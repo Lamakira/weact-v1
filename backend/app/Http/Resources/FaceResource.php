@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Enums\FaceVideoType;
 use App\Models\Admin;
 use App\Models\Face;
+use App\Models\FaceVideo;
 use App\Services\FaceEntitlementService;
+use App\ValueObjects\TierCapabilities;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -25,7 +28,6 @@ class FaceResource extends JsonResource
         $user = $this->user;
 
         $entitlement = app(FaceEntitlementService::class);
-        $isPremium = $entitlement->isPremium($this->resource);
         $capabilities = $entitlement->capabilities($this->resource);
         $viewer = $this->resolveViewerContext($request);
         $isPrivileged = $viewer === 'owner' || $viewer === 'admin';
@@ -42,15 +44,19 @@ class FaceResource extends JsonResource
             'langues' => $this->langues,
             'profile_photo_url' => $this->profile_photo_url,
             'thumbnail_url' => $this->thumbnail_url,
-            'presentation_video_url' => $this->presentation_video_url,
-            'presentation_video_thumbnail_url' => $this->presentation_video_thumbnail_url,
-            'acting_video_url' => $isPrivileged
-                ? $this->acting_video_url
-                : ($isPremium ? $this->acting_video_url : null),
-            'acting_video_thumbnail_url' => $isPrivileged
-                ? $this->acting_video_thumbnail_url
-                : ($isPremium ? $this->acting_video_thumbnail_url : null),
-            ...($isPrivileged ? ['is_acting_video_publicly_visible' => $isPremium] : []),
+            'presentation_video_url' => ($isPrivileged || $capabilities->maxPresentationVideos >= 1)
+                ? $this->presentation_video_url
+                : null,
+            'presentation_video_thumbnail_url' => ($isPrivileged || $capabilities->maxPresentationVideos >= 1)
+                ? $this->presentation_video_thumbnail_url
+                : null,
+            ...($isPrivileged ? [
+                'is_presentation_video_locked' => $this->presentation_video !== null
+                    && $capabilities->maxPresentationVideos < 1,
+                'presentation_video_lock_reason' => ($this->presentation_video !== null
+                    && $capabilities->maxPresentationVideos < 1) ? 'tier_below_required' : null,
+            ] : []),
+            'videos' => $this->whenLoaded('videos', fn () => $this->maskVideos($capabilities, $isPrivileged)),
             'bio' => $this->bio,
             'ville' => $this->ville,
             'pays' => $this->pays,
@@ -150,5 +156,46 @@ class FaceResource extends JsonResource
         }
 
         return 'other';
+    }
+
+    /**
+     * Build the videos array: privileged viewers get every video with lock
+     * metadata; others get only within-quota videos with no lock fields.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function maskVideos(TierCapabilities $capabilities, bool $isPrivileged): array
+    {
+        return $this->videos
+            ->map(function (FaceVideo $video) use ($capabilities, $isPrivileged): ?array {
+                $quota = $video->type === FaceVideoType::Acting
+                    ? $capabilities->maxActingVideos
+                    : $capabilities->maxUgcVideos;
+                $locked = $video->position > $quota;
+
+                if (! $isPrivileged && $locked) {
+                    return null;
+                }
+
+                $item = [
+                    'id' => $video->uuid,
+                    'type' => $video->type->value,
+                    'video_url' => $video->video_url,
+                    'thumbnail_url' => $video->thumbnail_url,
+                    'position' => $video->position,
+                ];
+
+                if ($isPrivileged) {
+                    $item['is_locked'] = $locked;
+                    $item['lock_reason'] = $locked
+                        ? ($quota < 1 ? 'tier_below_required' : 'quota_exceeded')
+                        : null;
+                }
+
+                return $item;
+            })
+            ->filter()
+            ->values()
+            ->all();
     }
 }

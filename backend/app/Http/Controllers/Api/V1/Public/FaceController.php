@@ -116,7 +116,7 @@ class FaceController extends Controller
         $face = Face::query()
             ->where('username', $username)
             ->whereHas('user', fn ($q) => $q->where('is_active', true))
-            ->with(['photos', 'experiences', 'user'])
+            ->with(['photos', 'videos', 'experiences', 'user'])
             ->first();
 
         if (! $face) {

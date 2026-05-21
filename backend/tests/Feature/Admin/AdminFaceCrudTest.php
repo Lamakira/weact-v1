@@ -206,8 +206,7 @@ class AdminFaceCrudTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.presentation_video_url', fn ($url) => str_contains($url, 'test-presentation.mp4'))
-            ->assertJsonPath('data.presentation_video_thumbnail_url', fn ($url) => str_contains($url, 'test-presentation-thumb.jpg'))
-            ->assertJsonPath('data.acting_video_url', null);
+            ->assertJsonPath('data.presentation_video_thumbnail_url', fn ($url) => str_contains($url, 'test-presentation-thumb.jpg'));
     }
 
     public function test_show_face_includes_physical_and_tariffs(): void

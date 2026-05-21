@@ -10,11 +10,12 @@ use App\Models\Candidature;
 use App\Models\Experience;
 use App\Models\Face;
 use App\Models\FacePhoto;
+use App\Models\FaceVideo;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\Rating;
-use App\Services\ActingVideoService;
 use App\Services\AgencyLogoService;
+use App\Services\FaceVideoService;
 use App\Services\PhotoAlbumService;
 use App\Services\PresentationVideoService;
 use App\Services\ProducerProfilePhotoService;
@@ -232,11 +233,14 @@ class UserDataController extends Controller
                 Log::warning('Failed to delete presentation video for deleted user '.$user->id.': '.$e->getMessage());
             }
 
-            try {
-                app(ActingVideoService::class)->deleteActingVideo($face);
-            } catch (\Throwable $e) {
-                $cleanupFailures[] = 'vidéo d\'acting';
-                Log::warning('Failed to delete acting video for deleted user '.$user->id.': '.$e->getMessage());
+            foreach ($face->videos as $video) {
+                /** @var FaceVideo $video */
+                try {
+                    app(FaceVideoService::class)->deleteVideo($video);
+                } catch (\Throwable $e) {
+                    $cleanupFailures[] = 'vidéo de portfolio';
+                    Log::warning('Failed to delete face video '.$video->id.' for deleted user '.$user->id.': '.$e->getMessage());
+                }
             }
 
             foreach ($face->photos as $photo) {

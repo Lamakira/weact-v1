@@ -6,6 +6,7 @@ namespace Tests\Feature\Face;
 
 use App\Enums\FaceCategory;
 use App\Models\Face;
+use App\Models\FaceVideo;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -27,7 +28,6 @@ class ProfileCompletionTest extends TestCase
         $this->face = Face::factory()->create([
             'profile_photo' => null,
             'presentation_video' => null,
-            'acting_video' => null,
             'bio' => null,
             'ville' => null,
             'categories' => [],
@@ -96,7 +96,6 @@ class ProfileCompletionTest extends TestCase
         $this->face->update([
             'profile_photo' => 'photo.jpg',
             'presentation_video' => 'presentation.mp4',
-            'acting_video' => 'acting.mp4',
             'bio' => 'Test bio',
             'ville' => 'Paris',
             'categories' => [FaceCategory::MANNEQUIN->value],
@@ -104,6 +103,7 @@ class ProfileCompletionTest extends TestCase
             'langues' => ['Français'],
             'whatsapp_number' => '+22990001122',
         ]);
+        FaceVideo::factory()->acting()->create(['face_id' => $this->face->id]);
 
         $response = $this->actingAs($this->faceUser)
             ->getJson('/api/v1/face/profile-completion');

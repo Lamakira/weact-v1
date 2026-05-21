@@ -9,6 +9,7 @@ use App\Enums\FaceNiche;
 use App\Models\Face;
 use App\Models\FacePhoto;
 use App\Models\FaceSubscription;
+use App\Models\FaceVideo;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -51,7 +52,6 @@ class PublicFaceProfileTest extends TestCase
                     'has_album_photos',
                     'album_photos_count',
                     'has_presentation_video',
-                    'has_acting_video',
                 ],
                 'message',
             ]);
@@ -123,7 +123,6 @@ class PublicFaceProfileTest extends TestCase
         $this->assertArrayHasKey('has_album_photos', $data);
         $this->assertArrayHasKey('album_photos_count', $data);
         $this->assertArrayHasKey('has_presentation_video', $data);
-        $this->assertArrayHasKey('has_acting_video', $data);
 
         // Should include username (public for slug-based URLs)
         $this->assertArrayHasKey('username', $data);
@@ -200,6 +199,7 @@ class PublicFaceProfileTest extends TestCase
             'userable_type' => Face::class,
             'userable_id' => $faceWithVideo->id,
         ]);
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $faceWithVideo->id]);
 
         $response = $this->getJson("/api/v1/public/faces/{$faceWithVideo->username}");
 
@@ -222,49 +222,28 @@ class PublicFaceProfileTest extends TestCase
         $this->assertFalse($response->json('data.has_presentation_video'));
     }
 
-    public function test_has_acting_video_indicator_is_correct(): void
+    public function test_videos_array_masks_acting_video_by_tier(): void
     {
-        $faceWithVideo = Face::factory()->create([
-            'acting_video' => 'acting.mp4',
-            'is_available' => true,
-        ]);
+        $face = Face::factory()->create(['is_available' => true]);
         User::factory()->create([
             'userable_type' => Face::class,
-            'userable_id' => $faceWithVideo->id,
+            'userable_id' => $face->id,
+        ]);
+        FaceVideo::factory()->acting()->create([
+            'face_id' => $face->id,
+            'filename' => 'acting.mp4',
         ]);
 
-        // Free Face: acting video is masked publicly even when stored in DB.
-        $response = $this->getJson("/api/v1/public/faces/{$faceWithVideo->username}");
+        // Free Face: the acting video is masked from the public videos array.
+        $response = $this->getJson("/api/v1/public/faces/{$face->username}");
+        $response->assertOk()->assertJsonCount(0, 'data.videos');
 
-        $response->assertOk();
-        $this->assertFalse($response->json('data.has_acting_video'));
-        $this->assertNull($response->json('data.acting_video_url'));
-        $this->assertNull($response->json('data.acting_video_thumbnail_url'));
+        // Pro Face (maxActingVideos = 1): the acting video becomes visible.
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $face->id]);
 
-        // Face without video
-        $faceWithoutVideo = Face::factory()->create([
-            'acting_video' => null,
-            'is_available' => true,
-        ]);
-        User::factory()->create([
-            'userable_type' => Face::class,
-            'userable_id' => $faceWithoutVideo->id,
-        ]);
-
-        $response = $this->getJson("/api/v1/public/faces/{$faceWithoutVideo->username}");
-
-        $response->assertOk();
-        $this->assertFalse($response->json('data.has_acting_video'));
-
-        // After upgrading the first Face to premium, the URL becomes visible.
-        FaceSubscription::factory()->active()->create(['face_id' => $faceWithVideo->id]);
-
-        $response = $this->getJson("/api/v1/public/faces/{$faceWithVideo->username}");
-
-        $response->assertOk();
-        $this->assertTrue($response->json('data.has_acting_video'));
-        $this->assertNotNull($response->json('data.acting_video_url'));
-        $this->assertStringContainsString('acting.mp4', $response->json('data.acting_video_url'));
+        $response = $this->getJson("/api/v1/public/faces/{$face->username}");
+        $response->assertOk()->assertJsonCount(1, 'data.videos');
+        $this->assertStringContainsString('acting.mp4', $response->json('data.videos.0.video_url'));
     }
 
     public function test_does_not_require_authentication(): void
@@ -312,7 +291,6 @@ class PublicFaceProfileTest extends TestCase
         $this->assertIsBool($data['has_album_photos']);
         $this->assertIsInt($data['album_photos_count']);
         $this->assertIsBool($data['has_presentation_video']);
-        $this->assertIsBool($data['has_acting_video']);
     }
 
     public function test_returns_full_profile_photo_url_not_thumbnail(): void

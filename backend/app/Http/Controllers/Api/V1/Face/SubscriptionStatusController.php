@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Face;
 
 use App\Enums\FaceSubscriptionStatus;
+use App\Enums\FaceVideoType;
 use App\Http\Controllers\Controller;
 use App\Models\Face;
 use App\Models\FaceSubscription;
+use App\Models\FaceVideo;
 use App\Services\FaceEntitlementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -32,7 +34,7 @@ class SubscriptionStatusController extends Controller
         }
 
         $face = Face::query()
-            ->with(['activeSubscription', 'photos'])
+            ->with(['activeSubscription', 'photos', 'videos'])
             ->findOrFail($user->userable_id);
 
         $subscription = $this->resolveRepresentativeSubscription($face);
@@ -43,7 +45,9 @@ class SubscriptionStatusController extends Controller
         $currentPhotos = $face->photos->count();
         $publicPhotos = min($currentPhotos, $publicLimit);
         $lockedPhotos = max(0, $currentPhotos - $publicLimit);
-        $hasActingVideo = $face->acting_video !== null;
+        $hasActingVideo = $face->videos->contains(
+            fn (FaceVideo $video): bool => $video->type === FaceVideoType::Acting
+        );
         $canRenew = $status !== FaceSubscriptionStatus::PendingPayment->value;
         $configuredAmount = max(0, (int) config('face_premium.annual_plan.amount'));
 

@@ -8,6 +8,7 @@ use App\Enums\FaceSubscriptionStatus;
 use App\Models\Face;
 use App\Models\FacePhoto;
 use App\Models\FaceSubscription;
+use App\Models\FaceVideo;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
@@ -25,7 +26,7 @@ class AuditFacePremiumReadinessCommandTest extends TestCase
             ->expectsOutputToContain('Active premium subscriptions: 0')
             ->expectsOutputToContain('Distinct Faces with active premium: 0')
             ->expectsOutputToContain('Free Faces with > 2 album photos (positions 3-4 will be locked at launch): 0')
-            ->expectsOutputToContain('Free Faces with non-null acting_video (will be hidden publicly at launch): 0')
+            ->expectsOutputToContain('Free Faces with an acting video (will be hidden publicly at launch): 0')
             ->expectsOutputToContain('Active subscriptions with NULL expires_at: 0')
             ->expectsOutputToContain('Active subscriptions with past expires_at (stale, awaiting expiry cron): 0')
             ->expectsOutputToContain('Audit complete.')
@@ -113,24 +114,27 @@ class AuditFacePremiumReadinessCommandTest extends TestCase
 
     public function test_command_counts_free_faces_with_non_null_acting_video(): void
     {
-        // 2 free Faces with acting video
-        $freeA = Face::factory()->create(['acting_video' => 'a.mp4']);
+        // 2 free Faces with an acting video
+        $freeA = Face::factory()->create();
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $freeA->id]);
+        FaceVideo::factory()->acting()->create(['face_id' => $freeA->id]);
 
-        $freeB = Face::factory()->create(['acting_video' => 'b.mp4']);
+        $freeB = Face::factory()->create();
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $freeB->id]);
+        FaceVideo::factory()->acting()->create(['face_id' => $freeB->id]);
 
-        // 1 free Face with null acting_video
-        $freeNull = Face::factory()->create(['acting_video' => null]);
-        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $freeNull->id]);
+        // 1 free Face with no acting video
+        $freeNone = Face::factory()->create();
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $freeNone->id]);
 
-        // 1 active-premium Face with acting video (NOT counted because premium)
-        $premium = Face::factory()->create(['acting_video' => 'c.mp4']);
+        // 1 active-premium Face with an acting video (NOT counted because premium)
+        $premium = Face::factory()->create();
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $premium->id]);
+        FaceVideo::factory()->acting()->create(['face_id' => $premium->id]);
         FaceSubscription::factory()->active()->create(['face_id' => $premium->id]);
 
         $this->artisan('faces:audit-premium-readiness')
-            ->expectsOutputToContain('Free Faces with non-null acting_video (will be hidden publicly at launch): 2')
+            ->expectsOutputToContain('Free Faces with an acting video (will be hidden publicly at launch): 2')
             ->assertExitCode(0);
     }
 
@@ -167,54 +171,60 @@ class AuditFacePremiumReadinessCommandTest extends TestCase
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $freeThree->id]);
         FacePhoto::factory()->createSequentialForFace($freeThree, 3);
 
-        $freeWithActingVideo = Face::factory()->create(['acting_video' => 'section-c.mp4']);
+        $freeWithActingVideo = Face::factory()->create();
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $freeWithActingVideo->id]);
+        FaceVideo::factory()->acting()->create(['face_id' => $freeWithActingVideo->id]);
 
         $this->assertSame(0, Artisan::call('faces:audit-premium-readiness'));
         $output = Artisan::output();
         $this->assertStringContainsString('Free Faces with > 2 album photos', $output);
         $this->assertStringNotContainsString('  - face#', $output);
-        $this->assertStringNotContainsString('acting_video=section-c.mp4', $output);
+        $this->assertStringNotContainsString('acting_videos=', $output);
 
         $this->assertSame(0, Artisan::call('faces:audit-premium-readiness', ['--detailed' => true]));
         $detailedOutput = Artisan::output();
         $this->assertStringContainsString('Free Faces with > 2 album photos', $detailedOutput);
         $this->assertStringContainsString('  - face#', $detailedOutput);
-        $this->assertStringContainsString('acting_video=section-c.mp4', $detailedOutput);
+        $this->assertStringContainsString('acting_videos=1', $detailedOutput);
     }
 
     public function test_command_performs_no_writes(): void
     {
         // 1 free Face
-        $freeFace = Face::factory()->create(['acting_video' => 'free.mp4']);
+        $freeFace = Face::factory()->create();
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $freeFace->id]);
         FacePhoto::factory()->createSequentialForFace($freeFace, 4);
+        FaceVideo::factory()->acting()->create(['face_id' => $freeFace->id]);
 
         // 1 active-premium Face
-        $premiumFace = Face::factory()->create(['acting_video' => 'premium.mp4']);
+        $premiumFace = Face::factory()->create();
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $premiumFace->id]);
         FacePhoto::factory()->createSequentialForFace($premiumFace, 4);
+        FaceVideo::factory()->acting()->create(['face_id' => $premiumFace->id]);
         FaceSubscription::factory()->active()->create(['face_id' => $premiumFace->id]);
 
         // 1 stale-Active Face (Active row with past expires_at)
-        $staleFace = Face::factory()->create(['acting_video' => 'stale.mp4']);
+        $staleFace = Face::factory()->create();
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $staleFace->id]);
+        FaceVideo::factory()->acting()->create(['face_id' => $staleFace->id]);
         FaceSubscription::factory()->active()->create([
             'face_id' => $staleFace->id,
             'expires_at' => now()->subHour(),
         ]);
 
         $beforeSubscriptions = FaceSubscription::query()->orderBy('id')->get()->toArray();
-        $beforeFaces = Face::query()->orderBy('id')->get(['id', 'acting_video', 'is_featured'])->toArray();
+        $beforeFaces = Face::query()->orderBy('id')->get(['id', 'is_featured'])->toArray();
         $beforePhotos = FacePhoto::query()->orderBy('id')->get()->toArray();
+        $beforeVideos = FaceVideo::query()->orderBy('id')->get()->toArray();
         $beforeAuditRows = DB::table('face_subscription_audits')->orderBy('id')->get()->toArray();
 
         $this->artisan('faces:audit-premium-readiness', ['--detailed' => true])
             ->assertExitCode(0);
 
         $this->assertEquals($beforeSubscriptions, FaceSubscription::query()->orderBy('id')->get()->toArray());
-        $this->assertEquals($beforeFaces, Face::query()->orderBy('id')->get(['id', 'acting_video', 'is_featured'])->toArray());
+        $this->assertEquals($beforeFaces, Face::query()->orderBy('id')->get(['id', 'is_featured'])->toArray());
         $this->assertEquals($beforePhotos, FacePhoto::query()->orderBy('id')->get()->toArray());
+        $this->assertEquals($beforeVideos, FaceVideo::query()->orderBy('id')->get()->toArray());
         $this->assertEquals($beforeAuditRows, DB::table('face_subscription_audits')->orderBy('id')->get()->toArray());
     }
 }
