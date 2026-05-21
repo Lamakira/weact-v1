@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Face;
 
 use App\Models\Face;
-use App\Models\FacePhoto;
 use App\Models\FaceSubscription;
-use App\Models\FaceVideo;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -33,9 +31,12 @@ class SubscriptionStatusTest extends TestCase
         ]);
     }
 
+    // ---------------------------------------------------------------------
+    // Auth (AC #15)
+    // ---------------------------------------------------------------------
+
     public function test_unauthenticated_request_returns_401_with_envelope(): void
     {
-        // AC #13 — sanctum returns 401 with global UNAUTHENTICATED envelope + French message
         $response = $this->getJson('/api/v1/face/subscription-status');
 
         $response->assertUnauthorized()
@@ -45,7 +46,6 @@ class SubscriptionStatusTest extends TestCase
 
     public function test_producer_user_gets_403_with_envelope(): void
     {
-        // AC #14 — non-Face access is rejected with controller-level FORBIDDEN
         $producer = Producer::factory()->create();
         $producerUser = User::factory()->create([
             'userable_type' => Producer::class,
@@ -62,7 +62,6 @@ class SubscriptionStatusTest extends TestCase
 
     public function test_user_without_face_userable_gets_403_with_envelope(): void
     {
-        // AC #15 — admin / unlinked user (userable_type = null) gets the same 403 envelope
         $orphanUser = User::factory()->create([
             'userable_type' => null,
             'userable_id' => null,
@@ -76,99 +75,28 @@ class SubscriptionStatusTest extends TestCase
             ->assertJsonPath('error.message', 'Accès réservé aux Faces');
     }
 
-    public function test_free_face_with_no_subscription_returns_free_status(): void
+    // ---------------------------------------------------------------------
+    // data.current per subscription state (AC #3 / #4)
+    // ---------------------------------------------------------------------
+
+    public function test_free_face_with_no_subscription_returns_free_current_block(): void
     {
-        // AC #3, #11, #12 — free baseline + zero photos + no acting video
         $response = $this->actingAs($this->faceUser)
             ->getJson('/api/v1/face/subscription-status');
 
         $response->assertOk()
-            ->assertJsonPath('data.status', 'free')
-            ->assertJsonPath('data.plan', null)
-            ->assertJsonPath('data.starts_at', null)
-            ->assertJsonPath('data.expires_at', null)
-            ->assertJsonPath('data.cancelled_at', null)
-            ->assertJsonPath('data.is_premium', false)
-            ->assertJsonPath('data.is_featured_by_subscription', false)
-            ->assertJsonPath('data.can_renew', true)
-            ->assertJsonPath('data.subscription_id', null)
-            ->assertJsonPath('data.entitlements.album_upload_limit', 2)
-            ->assertJsonPath('data.entitlements.public_album_photo_limit', 2)
-            ->assertJsonPath('data.entitlements.current_album_photo_count', 0)
-            ->assertJsonPath('data.entitlements.public_album_photo_count', 0)
-            ->assertJsonPath('data.entitlements.locked_album_photo_count', 0)
-            ->assertJsonPath('data.entitlements.can_upload_acting_video', false)
-            ->assertJsonPath('data.entitlements.has_acting_video', false)
-            ->assertJsonPath('data.entitlements.is_acting_video_publicly_visible', false)
-            ->assertJsonPath('data.annual_plan.amount', 50000)
-            ->assertJsonPath('data.annual_plan.currency', 'XOF')
-            ->assertJsonPath('data.annual_plan.provider', 'fedapay')
-            ->assertJsonPath('data.annual_plan.is_available', true);
+            ->assertJsonPath('data.current.tier', 'free')
+            ->assertJsonPath('data.current.plan', null)
+            ->assertJsonPath('data.current.status', 'free')
+            ->assertJsonPath('data.current.starts_at', null)
+            ->assertJsonPath('data.current.expires_at', null)
+            ->assertJsonPath('data.current.cancelled_at', null)
+            ->assertJsonPath('data.current.capabilities', $this->tierMatrices()['free']);
     }
 
-    public function test_active_premium_face_returns_active_status_with_premium_limits(): void
+    public function test_active_starter_face_returns_starter_current_block(): void
     {
-        // AC #4, #11 — active + 3 photos: premium limits, no locked photos
-        $subscription = FaceSubscription::factory()->active()->create([
-            'face_id' => $this->face->id,
-        ]);
-        FacePhoto::factory()->createSequentialForFace($this->face, 3);
-
-        $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/subscription-status');
-
-        $response->assertOk()
-            ->assertJsonPath('data.status', 'active')
-            ->assertJsonPath('data.plan', 'pro')
-            ->assertJsonPath('data.cancelled_at', null)
-            ->assertJsonPath('data.is_premium', true)
-            ->assertJsonPath('data.is_featured_by_subscription', true)
-            ->assertJsonPath('data.can_renew', true)
-            ->assertJsonPath('data.subscription_id', $subscription->uuid)
-            ->assertJsonPath('data.entitlements.album_upload_limit', 4)
-            ->assertJsonPath('data.entitlements.public_album_photo_limit', 4)
-            ->assertJsonPath('data.entitlements.current_album_photo_count', 3)
-            ->assertJsonPath('data.entitlements.public_album_photo_count', 3)
-            ->assertJsonPath('data.entitlements.locked_album_photo_count', 0)
-            ->assertJsonPath('data.entitlements.can_upload_acting_video', true);
-
-        $this->assertNotNull($response->json('data.starts_at'));
-        $this->assertNotNull($response->json('data.expires_at'));
-    }
-
-    public function test_active_premium_face_with_4_photos_returns_no_locked_photos(): void
-    {
-        // AC #11 — premium boundary: 4 photos all publicly visible
-        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
-        FacePhoto::factory()->createSequentialForFace($this->face, 4);
-
-        $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/subscription-status');
-
-        $response->assertOk()
-            ->assertJsonPath('data.entitlements.current_album_photo_count', 4)
-            ->assertJsonPath('data.entitlements.public_album_photo_count', 4)
-            ->assertJsonPath('data.entitlements.locked_album_photo_count', 0);
-    }
-
-    public function test_free_face_with_4_photos_returns_2_locked_photos(): void
-    {
-        // AC #11 — free boundary / downgrade scenario: 4 photos stored, 2 locked
-        FacePhoto::factory()->createSequentialForFace($this->face, 4);
-
-        $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/subscription-status');
-
-        $response->assertOk()
-            ->assertJsonPath('data.entitlements.current_album_photo_count', 4)
-            ->assertJsonPath('data.entitlements.public_album_photo_count', 2)
-            ->assertJsonPath('data.entitlements.locked_album_photo_count', 2);
-    }
-
-    public function test_pending_payment_face_returns_pending_status_with_free_limits_and_blocked_renew(): void
-    {
-        // AC #5 — pending blocks renew, free limits apply, plan is_available=false
-        $subscription = FaceSubscription::factory()->pendingPayment()->create([
+        FaceSubscription::factory()->starter()->active()->create([
             'face_id' => $this->face->id,
         ]);
 
@@ -176,25 +104,377 @@ class SubscriptionStatusTest extends TestCase
             ->getJson('/api/v1/face/subscription-status');
 
         $response->assertOk()
-            ->assertJsonPath('data.status', 'pending_payment')
-            ->assertJsonPath('data.plan', 'pro')
-            ->assertJsonPath('data.starts_at', null)
-            ->assertJsonPath('data.expires_at', null)
-            ->assertJsonPath('data.cancelled_at', null)
-            ->assertJsonPath('data.is_premium', false)
-            ->assertJsonPath('data.is_featured_by_subscription', false)
-            ->assertJsonPath('data.can_renew', false)
-            ->assertJsonPath('data.subscription_id', $subscription->uuid)
-            ->assertJsonPath('data.entitlements.album_upload_limit', 2)
-            ->assertJsonPath('data.entitlements.public_album_photo_limit', 2)
-            ->assertJsonPath('data.entitlements.can_upload_acting_video', false)
-            ->assertJsonPath('data.annual_plan.is_available', false);
+            ->assertJsonPath('data.current.tier', 'starter')
+            ->assertJsonPath('data.current.plan', 'starter')
+            ->assertJsonPath('data.current.status', 'active')
+            ->assertJsonPath('data.current.capabilities', $this->tierMatrices()['starter']);
+
+        $this->assertNotNull($response->json('data.current.starts_at'));
+        $this->assertNotNull($response->json('data.current.expires_at'));
     }
+
+    public function test_active_pro_face_returns_pro_current_block(): void
+    {
+        FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.current.tier', 'pro')
+            ->assertJsonPath('data.current.plan', 'pro')
+            ->assertJsonPath('data.current.status', 'active')
+            ->assertJsonPath('data.current.capabilities', $this->tierMatrices()['pro']);
+
+        $this->assertNotNull($response->json('data.current.starts_at'));
+        $this->assertNotNull($response->json('data.current.expires_at'));
+    }
+
+    public function test_active_elite_face_returns_elite_current_block(): void
+    {
+        FaceSubscription::factory()->elite()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.current.tier', 'elite')
+            ->assertJsonPath('data.current.plan', 'elite')
+            ->assertJsonPath('data.current.status', 'active')
+            ->assertJsonPath('data.current.capabilities', $this->tierMatrices()['elite'])
+            ->assertJsonPath('data.current.capabilities.commission_rate', 0.05)
+            ->assertJsonPath('data.current.capabilities.sort_priority', 1)
+            ->assertJsonPath('data.current.capabilities.has_elite_badge', true);
+    }
+
+    public function test_expired_face_returns_free_tier_with_historical_plan_and_dates(): void
+    {
+        FaceSubscription::factory()->pro()->expired()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.current.tier', 'free')
+            ->assertJsonPath('data.current.plan', 'pro')
+            ->assertJsonPath('data.current.status', 'expired')
+            ->assertJsonPath('data.current.capabilities', $this->tierMatrices()['free']);
+
+        $this->assertNotNull($response->json('data.current.starts_at'));
+        $this->assertNotNull($response->json('data.current.expires_at'));
+    }
+
+    public function test_cancelled_face_returns_free_tier_with_cancelled_at(): void
+    {
+        FaceSubscription::factory()->pro()->cancelled()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.current.tier', 'free')
+            ->assertJsonPath('data.current.plan', 'pro')
+            ->assertJsonPath('data.current.status', 'cancelled')
+            ->assertJsonPath('data.current.capabilities', $this->tierMatrices()['free']);
+
+        $this->assertNotNull($response->json('data.current.cancelled_at'));
+    }
+
+    public function test_failed_face_returns_free_tier_failed_status(): void
+    {
+        FaceSubscription::factory()->pro()->failed()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.current.tier', 'free')
+            ->assertJsonPath('data.current.plan', 'pro')
+            ->assertJsonPath('data.current.status', 'failed')
+            ->assertJsonPath('data.current.capabilities', $this->tierMatrices()['free']);
+    }
+
+    public function test_pending_payment_face_returns_free_tier_pending_status(): void
+    {
+        FaceSubscription::factory()->pro()->pendingPayment()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.current.tier', 'free')
+            ->assertJsonPath('data.current.plan', 'pro')
+            ->assertJsonPath('data.current.status', 'pending_payment')
+            ->assertJsonPath('data.current.starts_at', null)
+            ->assertJsonPath('data.current.expires_at', null)
+            ->assertJsonPath('data.current.capabilities', $this->tierMatrices()['free']);
+    }
+
+    // ---------------------------------------------------------------------
+    // Representative subscription resolver (AC #12 / #13)
+    // ---------------------------------------------------------------------
+
+    public function test_active_row_wins_over_historical_terminal_rows(): void
+    {
+        $faceId = $this->face->id;
+        FaceSubscription::factory()->pro()->expired()->create(['face_id' => $faceId]);
+        FaceSubscription::factory()->starter()->failed()->create(['face_id' => $faceId]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $faceId]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.current.status', 'active')
+            ->assertJsonPath('data.current.tier', 'pro');
+    }
+
+    public function test_most_recent_terminal_row_wins_when_no_active(): void
+    {
+        $faceId = $this->face->id;
+        FaceSubscription::factory()->pro()->expired()->create([
+            'face_id' => $faceId,
+            'created_at' => now()->subYears(2),
+        ]);
+        FaceSubscription::factory()->pro()->cancelled()->create([
+            'face_id' => $faceId,
+            'created_at' => now()->subMonths(2),
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.current.status', 'cancelled');
+    }
+
+    public function test_zombie_active_row_with_past_expiry_resolves_to_free(): void
+    {
+        $subscription = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+        DB::table('face_subscriptions')
+            ->where('id', $subscription->id)
+            ->update(['expires_at' => now()->subDay()]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.current.tier', 'free')
+            ->assertJsonPath('data.current.status', 'free')
+            ->assertJsonPath('data.current.plan', null)
+            ->assertJsonPath('data.current.capabilities', $this->tierMatrices()['free']);
+    }
+
+    // ---------------------------------------------------------------------
+    // data.offers (AC #6 / #7)
+    // ---------------------------------------------------------------------
+
+    public function test_offers_returns_four_tiers_in_ascending_order(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonCount(4, 'data.offers')
+            ->assertJsonPath('data.offers.0.tier', 'free')
+            ->assertJsonPath('data.offers.1.tier', 'starter')
+            ->assertJsonPath('data.offers.2.tier', 'pro')
+            ->assertJsonPath('data.offers.3.tier', 'elite');
+    }
+
+    public function test_offers_prices_match_config(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.offers.0.price', 0)
+            ->assertJsonPath('data.offers.1.price', 12000)
+            ->assertJsonPath('data.offers.2.price', 25000)
+            ->assertJsonPath('data.offers.3.price', 40000)
+            ->assertJsonPath('data.offers.0.currency', 'XOF')
+            ->assertJsonPath('data.offers.1.currency', 'XOF')
+            ->assertJsonPath('data.offers.2.currency', 'XOF')
+            ->assertJsonPath('data.offers.3.currency', 'XOF');
+    }
+
+    public function test_offers_capabilities_match_config_per_tier(): void
+    {
+        $matrices = $this->tierMatrices();
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.offers.0.capabilities', $matrices['free'])
+            ->assertJsonPath('data.offers.1.capabilities', $matrices['starter'])
+            ->assertJsonPath('data.offers.2.capabilities', $matrices['pro'])
+            ->assertJsonPath('data.offers.3.capabilities', $matrices['elite']);
+    }
+
+    public function test_offer_capabilities_shape_matches_current_capabilities_shape(): void
+    {
+        $expectedKeys = [
+            'max_album_photos',
+            'max_presentation_videos',
+            'max_acting_videos',
+            'max_ugc_videos',
+            'ugc_access',
+            'commission_rate',
+            'sort_priority',
+            'has_elite_badge',
+        ];
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk();
+
+        $this->assertSame($expectedKeys, array_keys((array) $response->json('data.current.capabilities')));
+        $this->assertSame($expectedKeys, array_keys((array) $response->json('data.offers.0.capabilities')));
+    }
+
+    public function test_offer_price_is_config_driven(): void
+    {
+        config(['face_subscription_tiers.tiers.pro.price' => 99999]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.offers.2.tier', 'pro')
+            ->assertJsonPath('data.offers.2.price', 99999);
+    }
+
+    // ---------------------------------------------------------------------
+    // data.cta (AC #8 / #9)
+    // ---------------------------------------------------------------------
+
+    public function test_cta_for_free_face_allows_upgrade_only(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.cta.upgrade_available', true)
+            ->assertJsonPath('data.cta.downgrade_available', false)
+            ->assertJsonPath('data.cta.renew_available', false);
+    }
+
+    public function test_cta_for_active_starter_allows_upgrade_and_renew_not_downgrade(): void
+    {
+        FaceSubscription::factory()->starter()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.cta.upgrade_available', true)
+            ->assertJsonPath('data.cta.downgrade_available', false)
+            ->assertJsonPath('data.cta.renew_available', true);
+    }
+
+    public function test_cta_for_active_pro_allows_all_three(): void
+    {
+        FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.cta.upgrade_available', true)
+            ->assertJsonPath('data.cta.downgrade_available', true)
+            ->assertJsonPath('data.cta.renew_available', true);
+    }
+
+    public function test_cta_for_active_elite_allows_downgrade_and_renew_not_upgrade(): void
+    {
+        FaceSubscription::factory()->elite()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.cta.upgrade_available', false)
+            ->assertJsonPath('data.cta.downgrade_available', true)
+            ->assertJsonPath('data.cta.renew_available', true);
+    }
+
+    public function test_cta_for_expired_face_allows_upgrade_and_renew_not_downgrade(): void
+    {
+        FaceSubscription::factory()->pro()->expired()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.cta.upgrade_available', true)
+            ->assertJsonPath('data.cta.downgrade_available', false)
+            ->assertJsonPath('data.cta.renew_available', true);
+    }
+
+    public function test_cta_is_all_false_during_pending_payment(): void
+    {
+        FaceSubscription::factory()->pro()->pendingPayment()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.cta.upgrade_available', false)
+            ->assertJsonPath('data.cta.downgrade_available', false)
+            ->assertJsonPath('data.cta.renew_available', false);
+    }
+
+    public function test_cta_is_all_false_during_pending_tier_change_with_active_subscription(): void
+    {
+        $faceId = $this->face->id;
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $faceId]);
+        FaceSubscription::factory()->elite()->pendingPayment()->create(['face_id' => $faceId]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/subscription-status');
+
+        $response->assertOk()
+            ->assertJsonPath('data.current.status', 'active')
+            ->assertJsonPath('data.current.tier', 'pro')
+            ->assertJsonPath('data.current.plan', 'pro')
+            ->assertJsonPath('data.cta.upgrade_available', false)
+            ->assertJsonPath('data.cta.downgrade_available', false)
+            ->assertJsonPath('data.cta.renew_available', false);
+    }
+
+    // ---------------------------------------------------------------------
+    // Contract: leak guard, envelope, query budget (AC #10 / #11 / #16)
+    // ---------------------------------------------------------------------
 
     public function test_response_never_leaks_provider_payload_fields(): void
     {
-        // AC #5 — provider/provider_reference/metadata never appear in response
-        FaceSubscription::factory()->pendingPayment()->create([
+        FaceSubscription::factory()->pro()->pendingPayment()->create([
             'face_id' => $this->face->id,
             'provider' => 'fedapay',
             'provider_reference' => 'fedapay_txn_secret_123',
@@ -208,226 +488,41 @@ class SubscriptionStatusTest extends TestCase
             ->assertDontSee('fedapay_txn_secret_123')
             ->assertDontSee('should_not_leak');
 
-        $data = $response->json('data');
-        $this->assertArrayNotHasKey('provider', $data);
-        $this->assertArrayNotHasKey('provider_reference', $data);
-        $this->assertArrayNotHasKey('metadata', $data);
+        $current = (array) $response->json('data.current');
+        $this->assertArrayNotHasKey('provider', $current);
+        $this->assertArrayNotHasKey('provider_reference', $current);
+        $this->assertArrayNotHasKey('metadata', $current);
     }
 
-    public function test_expired_face_returns_expired_status_with_free_limits(): void
+    public function test_response_data_envelope_has_exactly_current_offers_cta(): void
     {
-        // AC #6 — expired surfaces historical dates but free limits apply, can_renew=true
-        $subscription = FaceSubscription::factory()->expired()->create([
-            'face_id' => $this->face->id,
-        ]);
-
-        $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/subscription-status');
-
-        $response->assertOk()
-            ->assertJsonPath('data.status', 'expired')
-            ->assertJsonPath('data.plan', 'pro')
-            ->assertJsonPath('data.is_premium', false)
-            ->assertJsonPath('data.is_featured_by_subscription', false)
-            ->assertJsonPath('data.can_renew', true)
-            ->assertJsonPath('data.subscription_id', $subscription->uuid)
-            ->assertJsonPath('data.entitlements.album_upload_limit', 2)
-            ->assertJsonPath('data.entitlements.public_album_photo_limit', 2)
-            ->assertJsonPath('data.entitlements.can_upload_acting_video', false);
-
-        $this->assertNotNull($response->json('data.starts_at'));
-        $this->assertNotNull($response->json('data.expires_at'));
-    }
-
-    public function test_cancelled_face_returns_cancelled_status_with_cancelled_at_set(): void
-    {
-        // AC #7 — cancelled exposes cancelled_at timestamp + free-tier entitlements
-        FaceSubscription::factory()->cancelled()->create(['face_id' => $this->face->id]);
-
-        $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/subscription-status');
-
-        $response->assertOk()
-            ->assertJsonPath('data.status', 'cancelled')
-            ->assertJsonPath('data.plan', 'pro')
-            ->assertJsonPath('data.is_premium', false)
-            ->assertJsonPath('data.is_featured_by_subscription', false)
-            ->assertJsonPath('data.can_renew', true)
-            ->assertJsonPath('data.entitlements.album_upload_limit', 2)
-            ->assertJsonPath('data.entitlements.public_album_photo_limit', 2)
-            ->assertJsonPath('data.entitlements.can_upload_acting_video', false);
-
-        $this->assertNotNull($response->json('data.cancelled_at'));
-    }
-
-    public function test_failed_face_returns_failed_status_with_free_limits(): void
-    {
-        // AC #8 — failed allows renewal + free-tier entitlements
-        FaceSubscription::factory()->failed()->create(['face_id' => $this->face->id]);
-
-        $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/subscription-status');
-
-        $response->assertOk()
-            ->assertJsonPath('data.status', 'failed')
-            ->assertJsonPath('data.plan', 'pro')
-            ->assertJsonPath('data.is_premium', false)
-            ->assertJsonPath('data.is_featured_by_subscription', false)
-            ->assertJsonPath('data.can_renew', true)
-            ->assertJsonPath('data.entitlements.album_upload_limit', 2)
-            ->assertJsonPath('data.entitlements.public_album_photo_limit', 2)
-            ->assertJsonPath('data.entitlements.can_upload_acting_video', false);
-    }
-
-    public function test_active_row_wins_over_historical_terminal_rows(): void
-    {
-        // AC #9 — Face::activeSubscription() short-circuit ignores historical rows
-        FaceSubscription::factory()->expired()->create(['face_id' => $this->face->id]);
-        FaceSubscription::factory()->failed()->create(['face_id' => $this->face->id]);
-        $active = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
-
-        $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/subscription-status');
-
-        $response->assertOk()
-            ->assertJsonPath('data.status', 'active')
-            ->assertJsonPath('data.subscription_id', $active->uuid)
-            ->assertJsonPath('data.is_premium', true);
-    }
-
-    public function test_most_recent_terminal_row_wins_when_no_active_or_pending(): void
-    {
-        // AC #10 — created_at DESC orders terminal rows; recent cancelled beats old expired
-        FaceSubscription::factory()->expired()->create([
-            'face_id' => $this->face->id,
-            'created_at' => now()->subYears(2),
-        ]);
-        $recent = FaceSubscription::factory()->cancelled()->create([
-            'face_id' => $this->face->id,
-            'created_at' => now()->subMonths(2),
-        ]);
-
-        $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/subscription-status');
-
-        $response->assertOk()
-            ->assertJsonPath('data.status', 'cancelled')
-            ->assertJsonPath('data.subscription_id', $recent->uuid);
-    }
-
-    public function test_face_with_acting_video_and_no_subscription_shows_locked_acting_video_flags(): void
-    {
-        // AC #12 — has_acting_video=true regardless of premium; visibility=false when free
-        FaceVideo::factory()->acting()->create(['face_id' => $this->face->id]);
-
-        $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/subscription-status');
-
-        $response->assertOk()
-            ->assertJsonPath('data.entitlements.has_acting_video', true)
-            ->assertJsonPath('data.entitlements.is_acting_video_publicly_visible', false)
-            ->assertJsonPath('data.entitlements.can_upload_acting_video', false);
-    }
-
-    public function test_face_with_acting_video_and_active_subscription_shows_unlocked_acting_video_flags(): void
-    {
-        // AC #12 — premium path: all three acting-video flags true
-        FaceVideo::factory()->acting()->create(['face_id' => $this->face->id]);
-        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
-
-        $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/subscription-status');
-
-        $response->assertOk()
-            ->assertJsonPath('data.entitlements.has_acting_video', true)
-            ->assertJsonPath('data.entitlements.is_acting_video_publicly_visible', true)
-            ->assertJsonPath('data.entitlements.can_upload_acting_video', true);
-    }
-
-    public function test_active_face_without_acting_video_has_false_is_acting_video_publicly_visible(): void
-    {
-        // AC #12 — premium but no DB row: visibility=false even though upload allowed
-        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
-
-        $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/subscription-status');
-
-        $response->assertOk()
-            ->assertJsonPath('data.entitlements.has_acting_video', false)
-            ->assertJsonPath('data.entitlements.is_acting_video_publicly_visible', false)
-            ->assertJsonPath('data.entitlements.can_upload_acting_video', true);
-    }
-
-    public function test_annual_plan_metadata_reflects_config(): void
-    {
-        // AC #3 — config-driven amount/currency/provider read at runtime
-        config([
-            'face_premium.annual_plan.amount' => 75000,
-            'face_premium.annual_plan.currency' => 'XOF',
-            'face_premium.annual_plan.provider' => 'fedapay',
-        ]);
-
-        $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/subscription-status');
-
-        $response->assertOk()
-            ->assertJsonPath('data.annual_plan.amount', 75000)
-            ->assertJsonPath('data.annual_plan.currency', 'XOF')
-            ->assertJsonPath('data.annual_plan.provider', 'fedapay')
-            ->assertJsonPath('data.annual_plan.is_available', true);
-    }
-
-    public function test_annual_plan_is_unavailable_when_amount_is_zero(): void
-    {
-        // AC #3 — amount=0 disables the CTA without affecting can_renew
-        config(['face_premium.annual_plan.amount' => 0]);
-
-        $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/subscription-status');
-
-        $response->assertOk()
-            ->assertJsonPath('data.annual_plan.amount', 0)
-            ->assertJsonPath('data.annual_plan.is_available', false)
-            ->assertJsonPath('data.can_renew', true);
-    }
-
-    public function test_response_uses_data_envelope_only(): void
-    {
-        // Envelope contract: only `data` at the top level (no `message`, `meta`, etc.)
         $response = $this->actingAs($this->faceUser)
             ->getJson('/api/v1/face/subscription-status');
 
         $response->assertOk();
-        $this->assertSame(['data'], array_keys($response->json()));
+
+        $this->assertSame(['data'], array_keys((array) $response->json()));
+        $this->assertSame(['current', 'offers', 'cta'], array_keys((array) $response->json('data')));
+
+        $this->assertSame(
+            ['tier', 'plan', 'status', 'starts_at', 'expires_at', 'cancelled_at', 'capabilities'],
+            array_keys((array) $response->json('data.current')),
+        );
+        $this->assertSame(
+            ['tier', 'price', 'currency', 'capabilities'],
+            array_keys((array) $response->json('data.offers.0')),
+        );
+        $this->assertSame(
+            ['upgrade_available', 'downgrade_available', 'renew_available'],
+            array_keys((array) $response->json('data.cta')),
+        );
     }
 
-    public function test_active_status_row_with_past_expires_at_does_not_surface_as_active(): void
+    public function test_active_path_uses_eager_loaded_subscription_within_query_budget(): void
     {
-        // Resolver contract — a zombie row (status='active' but expires_at past) is
-        // rejected by both Face::activeSubscription() (expires_at > now() filter) and
-        // the fallback whereIn() (excludes Active). The response must surface 'free',
-        // not the misleading status='active' with free-tier entitlements.
-        $subscription = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
-        DB::table('face_subscriptions')
-            ->where('id', $subscription->id)
-            ->update(['expires_at' => now()->subDay()]);
-
-        $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/subscription-status');
-
-        $response->assertOk()
-            ->assertJsonPath('data.status', 'free')
-            ->assertJsonPath('data.subscription_id', null)
-            ->assertJsonPath('data.is_premium', false)
-            ->assertJsonPath('data.is_featured_by_subscription', false)
-            ->assertJsonPath('data.entitlements.album_upload_limit', 2)
-            ->assertJsonPath('data.entitlements.public_album_photo_limit', 2);
-    }
-
-    public function test_uses_preloaded_active_subscription_to_avoid_extra_query(): void
-    {
-        // AC #2 — eager-load contract: active path issues no extra subscription SELECT after Face load
-        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
 
         DB::enableQueryLog();
         $response = $this->actingAs($this->faceUser)
@@ -442,5 +537,60 @@ class SubscriptionStatusTest extends TestCase
             fn (array $query): bool => str_contains($query['query'], 'face_subscriptions'),
         );
         $this->assertLessThanOrEqual(2, count($subscriptionQueries));
+    }
+
+    // ---------------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------------
+
+    /**
+     * The capabilities matrix per tier, mirroring config/face_subscription_tiers.php.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private function tierMatrices(): array
+    {
+        return [
+            'free' => [
+                'max_album_photos' => 1,
+                'max_presentation_videos' => 0,
+                'max_acting_videos' => 0,
+                'max_ugc_videos' => 0,
+                'ugc_access' => false,
+                'commission_rate' => 0.1,
+                'sort_priority' => 4,
+                'has_elite_badge' => false,
+            ],
+            'starter' => [
+                'max_album_photos' => 2,
+                'max_presentation_videos' => 1,
+                'max_acting_videos' => 0,
+                'max_ugc_videos' => 0,
+                'ugc_access' => true,
+                'commission_rate' => 0.1,
+                'sort_priority' => 3,
+                'has_elite_badge' => false,
+            ],
+            'pro' => [
+                'max_album_photos' => 4,
+                'max_presentation_videos' => 1,
+                'max_acting_videos' => 1,
+                'max_ugc_videos' => 0,
+                'ugc_access' => true,
+                'commission_rate' => 0.1,
+                'sort_priority' => 2,
+                'has_elite_badge' => false,
+            ],
+            'elite' => [
+                'max_album_photos' => 6,
+                'max_presentation_videos' => 1,
+                'max_acting_videos' => 2,
+                'max_ugc_videos' => 1,
+                'ugc_access' => true,
+                'commission_rate' => 0.05,
+                'sort_priority' => 1,
+                'has_elite_badge' => true,
+            ],
+        ];
     }
 }

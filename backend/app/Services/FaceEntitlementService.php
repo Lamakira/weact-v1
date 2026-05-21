@@ -60,6 +60,16 @@ class FaceEntitlementService
     }
 
     /**
+     * Canonical entitlement matrix for an explicit tier — used to expose the
+     * four tier offers (FP-2.3 status endpoint) without resolving a Face.
+     * Goes through the same config-driven, validated build path as capabilities().
+     */
+    public function capabilitiesForTier(FaceSubscriptionTier $tier): TierCapabilities
+    {
+        return $this->buildCapabilities($tier);
+    }
+
+    /**
      * TRANSITIONAL SHIM — true when the Face holds any active paid subscription.
      */
     public function isPremium(Face $face): bool

@@ -303,4 +303,32 @@ class FaceEntitlementServiceTest extends TestCase
         $this->assertFalse($this->service->isFeaturedBySubscription($free));
         $this->assertTrue($this->service->isFeaturedBySubscription($paid));
     }
+
+    // ===================================================================
+    // capabilitiesForTier() — explicit per-tier matrix lookup (FP-2.3)
+    // ===================================================================
+
+    public function test_capabilities_for_tier_returns_correct_matrix_for_every_tier(): void
+    {
+        $cases = [
+            [FaceSubscriptionTier::Free, 1, 0, 0, 0, false, 0.10, 4, false],
+            [FaceSubscriptionTier::Starter, 2, 1, 0, 0, true, 0.10, 3, false],
+            [FaceSubscriptionTier::Pro, 4, 1, 1, 0, true, 0.10, 2, false],
+            [FaceSubscriptionTier::Elite, 6, 1, 2, 1, true, 0.05, 1, true],
+        ];
+
+        foreach ($cases as [$tier, $photos, $pres, $acting, $ugc, $ugcAccess, $commission, $sort, $badge]) {
+            $caps = $this->service->capabilitiesForTier($tier);
+
+            $this->assertSame($tier, $caps->tier);
+            $this->assertSame($photos, $caps->maxAlbumPhotos);
+            $this->assertSame($pres, $caps->maxPresentationVideos);
+            $this->assertSame($acting, $caps->maxActingVideos);
+            $this->assertSame($ugc, $caps->maxUgcVideos);
+            $this->assertSame($ugcAccess, $caps->ugcAccess);
+            $this->assertSame($commission, $caps->commissionRate);
+            $this->assertSame($sort, $caps->sortPriority);
+            $this->assertSame($badge, $caps->hasEliteBadge);
+        }
+    }
 }
