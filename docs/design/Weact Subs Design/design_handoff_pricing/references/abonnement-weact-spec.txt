@@ -1,0 +1,44 @@
+[NOTE D'INTÉGRATION FP-2 — 2026-05-21]
+Ce fichier est la copie verbatim de la spec client d'origine. Une décision produit
+postérieure a porté le quota photos du palier PRO de 2 à 4 photos. La valeur qui
+fait foi pour l'implémentation est 4 (voir epics-face-premium-subscription-v2.md,
+FEAT-FP2-FR3). La ligne 21 ci-dessous ("2 photos" pour Pro) est conservée telle
+quelle uniquement comme trace historique de la demande initiale.
+
+💳 Nouvelle Grille Tarifaire &amp; Abonnements (Faces)
+L'objectif est de proposer un modèle Freemium pour attirer les profils, puis de les faire basculer sur les offres payantes annuelles pour débloquer l'UGC, le multimédia et la visibilité.
+
+💎 Les 4 Offres de la Plateforme
+1. Offre GRATUITE : &quot;Découverte&quot; – 0 F
+Pour s'inscrire et tester la plateforme.
+Portfolio : Photo de profil + 1 seule photo dans la galerie.
+UGC : ❌ Aucun accès aux missions/bookings UGC.
+Mise en avant : Standard (Aucune mise en avant, profils classés après les membres payants).
+2. Offre STARTER : 12 000 FCFA / an
+Pour les talents qui veulent commencer à décrocher des contrats UGC.
+Portfolio : Photo de profil + 2 photos dans la galerie + 1 vidéo de présentation.
+UGC : ✅ Accès complet au module UGC (Dotation produit / missions).
+Mise en avant : Boostée (Le profil apparaît avant les gratuits dans les recherches).
+3. Offre PRO : 25 000 FCFA / an
+Pour les talents plus sérieux qui font aussi de l'acting/cinéma.
+Portfolio : Photo de profil + 2 photos dans la galerie + 1 vidéo de présentation + 1 vidéo de démo Acting.
+UGC : ✅ Accès complet au module UGC.
+Mise en avant : Premium (Le profil est mis en tête de liste, juste après les VIP).
+4. Offre ÉLITE : 40 000 FCFA / an
+L'offre VIP pour les professionnels et les tops profils de la plateforme.
+Portfolio Max : Photo de profil + 6 photos + 1 vidéo de présentation + 2 vidéos Acting + 1 vidéo modèle UGC (pour montrer leur savoir-faire).
+UGC : ✅ Accès complet au module UGC.
+Avantage Financier : Commission réduite à 5% (au lieu de 10%) sur les missions rémunérées en argent.
+Badge : Badge public &quot;VIP / Elite&quot; sur le profil.
+Support : Assistance prioritaire par l'équipe WeAct pour optimiser le profil et le portfolio.
+Mise en avant : Prioritaire Absolue (Le profil apparaît tout en haut de la plateforme et des recherches des producteurs).
+
+🛠️ Note pour l'équipe technique (Logique de tri / Ordre d'affichage)
+Pour le moteur de recherche des producteurs, l'algorithme doit trier les profils selon la logique des &quot;Mises en avant&quot; dans cet ordre strict :
+Mise en avant Prioritaire (Membres Élite)
+Mise en avant Premium (Membres Pro)
+Mise en avant Boostée (Membres Starter)
+Standard (Membres Gratuits)
+De plus, il faudra bloquer le bouton &quot;Postuler&quot; ou masquer les détails des missions UGC si l'utilisateur possède le statut &quot;Gratuit&quot;.
+
+

@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WeAct — Aperçu Vue responsive</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  html, body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; -webkit-font-smoothing: antialiased; margin: 0; padding: 0; background: #F3F4F6; }
+  /* viewport-style preview frames */
+  .frame { background: #fff; border-radius: 12px; box-shadow: 0 8px 32px -8px rgba(15,20,25,0.12); overflow: hidden; flex-shrink: 0; }
+  .frame-label { font-size: 11px; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 8px; }
+  .frame-mobile { width: 380px; height: 720px; overflow-y: auto; }
+  .frame-tablet { width: 820px; height: 720px; overflow-y: auto; }
+  .frame-desktop { width: 1280px; height: 720px; overflow-y: auto; }
+  .scroll-hint { font-size: 10px; color: #9CA3AF; margin-top: 6px; text-align: center; }
+  /* hide scrollbar */
+  .frame::-webkit-scrollbar { width: 6px; }
+  .frame::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="p-8">
+  <div class="max-w-[2400px] mx-auto">
+    <div class="mb-6">
+      <div class="text-xs font-semibold text-[#198496] uppercase tracking-[0.14em] mb-2">Aperçu PricingView.vue</div>
+      <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Comportement responsive — 3 breakpoints</h1>
+      <p class="text-sm text-gray-500 mt-1">Mobile (380px) · Tablette (820px) · Desktop (1280px) — défile dans chaque cadre pour voir la page complète.</p>
+    </div>
+
+    <div class="flex gap-8 items-start overflow-x-auto pb-8">
+      <!-- MOBILE -->
+      <div>
+        <div class="frame-label">Mobile · 380 px</div>
+        <div class="frame frame-mobile">
+          <iframe src="#mobile" data-bp="mobile" class="page-iframe" style="width:100%;height:100%;border:0;"></iframe>
+        </div>
+        <div class="scroll-hint">↕ défile</div>
+      </div>
+
+      <!-- TABLET -->
+      <div>
+        <div class="frame-label">Tablette · 820 px</div>
+        <div class="frame frame-tablet">
+          <iframe src="#tablet" data-bp="tablet" class="page-iframe" style="width:100%;height:100%;border:0;"></iframe>
+        </div>
+        <div class="scroll-hint">↕ défile</div>
+      </div>
+
+      <!-- DESKTOP -->
+      <div>
+        <div class="frame-label">Desktop · 1280 px</div>
+        <div class="frame frame-desktop">
+          <iframe src="#desktop" data-bp="desktop" class="page-iframe" style="width:100%;height:100%;border:0;"></iframe>
+        </div>
+        <div class="scroll-hint">↕ défile</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- The actual responsive page rendered inside each iframe.
+     Stored as a <script type="text/template"> so the HTML parser
+     does NOT strip text nodes inside <thead>/<tbody>. -->
+<script type="text/template" id="page-template">
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="https://cdn.tailwindcss.com"><\/script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; -webkit-font-smoothing: antialiased; margin: 0; }
+</style>
+</head>
+<body class="bg-white">
+<div class="bg-white">
+
+  <!-- Hero -->
+  <section class="max-w-3xl mx-auto px-6 pt-12 pb-10 text-center sm:pt-16 lg:pt-20">
+    <div class="text-xs font-semibold text-[#198496] uppercase tracking-[0.14em] mb-4">
+      Abonnements Faces · Tarifs 2026
+    </div>
+    <h1 class="text-3xl sm:text-4xl lg:text-[44px] font-bold text-[#0F1419] leading-[1.1] tracking-tight mb-4">
+      Plus tu montes, plus tu décroches.
+    </h1>
+    <p class="text-base text-gray-500 leading-relaxed max-w-xl mx-auto">
+      Quatre paliers pensés pour les talents béninois et ouest-africains. Du profil découverte gratuit au statut VIP, chaque palier débloque plus de portfolio, de visibilité et de missions UGC.
+    </p>
+  </section>
+
+  <!-- Pricing Cards -->
+  <section class="max-w-7xl mx-auto px-6 pb-16">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-0 lg:rounded-2xl lg:overflow-hidden lg:border lg:border-gray-200 lg:shadow-[0_4px_32px_-16px_rgba(15,20,25,0.10)]">
+      __CARDS__
+    </div>
+    <p class="text-center text-xs text-gray-400 mt-6">
+      Tous les abonnements sont annuels et payables une seule fois. Mobile Money, carte bancaire et virement acceptés.
+    </p>
+  </section>
+
+  <!-- Comparison Table -->
+  <section class="bg-[#FAFAFA] py-16">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="text-center mb-10">
+        <div class="text-xs font-semibold text-[#198496] uppercase tracking-[0.14em] mb-3">Comparatif détaillé</div>
+        <h2 class="text-2xl sm:text-3xl font-bold text-[#0F1419] tracking-tight mb-3">Toutes les fonctionnalités, palier par palier</h2>
+        <p class="text-sm text-gray-500">Ce que tu débloques exactement à chaque niveau d'abonnement.</p>
+      </div>
+      <div class="border border-gray-200 rounded-2xl overflow-hidden bg-white overflow-x-auto">
+        <table class="w-full border-collapse table-fixed min-w-[760px]">
+          <colgroup>
+            <col style="width:32%" /><col style="width:17%" /><col style="width:17%" /><col style="width:17%" /><col style="width:17%" />
+          </colgroup>
+          __TABLE_HEAD__
+          <tbody>__TABLE_BODY__</tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="max-w-3xl mx-auto px-6 py-16">
+    <div class="text-center mb-8">
+      <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight mb-2">Questions fréquentes</h2>
+      <p class="text-sm text-gray-500">Tout ce que tu dois savoir avant de souscrire.</p>
+    </div>
+    <div class="flex flex-col gap-2.5">__FAQ__</div>
+  </section>
+
+  <!-- Footer CTA -->
+  <section class="bg-[#FAFAFA] pb-16">
+    <div class="max-w-3xl mx-auto px-6">
+      <div class="bg-white border border-gray-200 rounded-2xl p-8 sm:p-10 text-center shadow-sm">
+        <h3 class="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight mb-3">Tu hésites encore ?</h3>
+        <p class="text-sm text-gray-500 leading-relaxed mb-6 max-w-md mx-auto">
+          Commence avec l'offre Découverte, crée ton profil, et passe à un palier supérieur dès que tu veux candidater à des missions UGC.
+        </p>
+        <div class="flex flex-col sm:flex-row gap-3 justify-center">
+          <a class="text-sm font-semibold bg-[#198496] text-white px-5 py-2.5 rounded-md cursor-pointer">Créer mon profil gratuit</a>
+          <a class="text-sm font-semibold text-[#198496] border border-[#198496] px-5 py-2.5 rounded-md cursor-pointer">Nous contacter</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  // FAQ toggle
+  document.querySelectorAll('[data-faq]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const body = btn.nextElementSibling;
+      const chev = btn.querySelector('[data-chev]');
+      if (!body) return;
+      const open = !body.classList.contains('hidden');
+      if (open) {
+        body.classList.add('hidden');
+        chev.style.transform = 'rotate(0)';
+      } else {
+        body.classList.remove('hidden');
+        chev.style.transform = 'rotate(180deg)';
+      }
+    });
+  });
+<\/script>
+</body>
+</html>
+</script>
+
+<script>
+const TIERS = [
+  {
+    key: 'decouverte', name: 'Découverte', tagline: 'Pour tester la plateforme',
+    priceLabel: '0', isFree: true, badge: null, cta: "S'inscrire",
+    features: [
+      { text: 'Photo de profil', included: true },
+      { text: '1 photo dans la galerie', included: true },
+      { text: 'Profil visible (rang standard)', included: true },
+    ],
+  },
+  {
+    key: 'starter', name: 'Starter', tagline: 'Décroche tes premiers contrats UGC',
+    priceLabel: '12 000', isFree: false, badge: null, cta: 'Choisir Starter',
+    features: [
+      { text: 'Photo de profil', included: true },
+      { text: '2 photos dans la galerie', included: true },
+      { text: '1 vidéo de présentation', included: true },
+      { text: 'Accès complet au module UGC', included: true },
+      { text: 'Mise en avant Boostée', included: true },
+    ],
+  },
+  {
+    key: 'pro', name: 'Pro', tagline: 'Acting + UGC, le combo sérieux',
+    priceLabel: '25 000', isFree: false, badge: 'Populaire', cta: 'Choisir Pro',
+    features: [
+      { text: 'Photo de profil', included: true },
+      { text: '4 photos dans la galerie', included: true },
+      { text: '1 vidéo de présentation', included: true },
+      { text: '1 vidéo démo Acting', included: true },
+      { text: 'Accès complet au module UGC', included: true },
+      { text: 'Mise en avant Premium', included: true },
+    ],
+  },
+  {
+    key: 'elite', name: 'Élite', tagline: "L'offre VIP des tops profils",
+    priceLabel: '40 000', isFree: false, badge: 'VIP', cta: 'Passer Élite',
+    features: [
+      { text: 'Portfolio complet : 6 photos', included: true },
+      { text: '1 vidéo de présentation', included: true },
+      { text: '2 vidéos Acting', included: true },
+      { text: '1 vidéo modèle UGC', included: true },
+      { text: 'Commission réduite à 5% (au lieu de 10%)', included: true, highlight: true },
+      { text: 'Badge "VIP / Elite" sur le profil', included: true, highlight: true },
+      { text: 'Mise en avant Prioritaire Absolue', included: true, highlight: true },
+      { text: 'Assistance prioritaire WeAct', included: true },
+    ],
+  },
+];
+
+const CHECK_SVG_DARK = `<svg class="h-4 w-4 mt-0.5 shrink-0 text-white" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.5L6.5 12L13 5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const CHECK_SVG_TEAL = `<svg class="h-4 w-4 mt-0.5 shrink-0 text-[#198496]" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8.5L6.5 12L13 5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const DASH_SVG = `<svg class="h-4 w-4 text-gray-300 shrink-0" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 8h8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/></svg>`;
+const CHEVRON_SVG = `<svg data-chev class="h-4 w-4 text-gray-400 shrink-0 transition-transform duration-200" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const CROWN_SVG = `<svg class="h-3.5 w-3.5 text-white" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 5l2.5 2L8 3l3.5 4L14 5v6.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
+
+function renderCards() {
+  return TIERS.map((tier, idx) => {
+    const isElite = tier.key === 'elite';
+    const isPro = tier.key === 'pro';
+    const ladder = [0,1,2,3].map(i => {
+      const active = i <= idx;
+      const bg = active ? (isElite ? 'bg-white' : 'bg-[#198496]') : (isElite ? 'bg-gray-700' : 'bg-gray-200');
+      return `<div class="w-5 h-[3px] rounded-full ${bg}"></div>`;
+    }).join('');
+
+    const badgeHtml = tier.badge && !isElite
+      ? `<span class="text-[9px] font-bold tracking-[0.12em] uppercase text-white bg-[#198496] px-1.5 py-0.5 rounded">${tier.badge}</span>`
+      : '';
+    const crownHtml = isElite ? CROWN_SVG : '';
+
+    const ctaClasses = isElite
+      ? 'bg-white text-[#0F1419] hover:bg-gray-100'
+      : isPro
+        ? 'bg-[#198496] text-white hover:bg-[#146c7a]'
+        : 'text-[#198496] border border-[#198496] hover:bg-[#198496]/5';
+
+    const features = tier.features.map(f => {
+      const checkHtml = isElite ? CHECK_SVG_DARK : CHECK_SVG_TEAL;
+      const textClass = isElite
+        ? (f.highlight ? 'text-white font-semibold' : 'text-gray-300')
+        : (f.highlight ? 'text-gray-900 font-semibold' : 'text-gray-700');
+      return `<li class="flex items-start gap-2.5">${checkHtml}<span class="text-sm leading-snug ${textClass}">${f.text}</span></li>`;
+    }).join('');
+
+    const decouverteNote = tier.key === 'decouverte'
+      ? `<div class="mt-4 pt-4 border-t border-gray-100 text-[11px] text-gray-400 leading-snug">Pas d'accès aux missions UGC</div>` : '';
+
+    const borderClasses = idx < 3 && !isElite ? 'lg:border-r lg:border-gray-200' : '';
+
+    return `
+      <div class="flex flex-col p-7 relative rounded-2xl lg:rounded-none border lg:border-0 border-gray-200 ${isElite ? 'bg-[#0F1419] text-white' : 'bg-white'} ${borderClasses}">
+        <div class="flex gap-1 mb-5">${ladder}</div>
+        <div class="flex items-center gap-2 mb-1.5">
+          <h3 class="text-xl font-bold tracking-tight ${isElite ? 'text-white' : 'text-gray-900'}">${tier.name}</h3>
+          ${crownHtml}
+          ${badgeHtml}
+        </div>
+        <p class="text-sm leading-snug mb-6 min-h-[38px] ${isElite ? 'text-gray-400' : 'text-gray-500'}">${tier.tagline}</p>
+        <div class="mb-6">
+          <div class="flex items-baseline gap-1">
+            <span class="text-[38px] font-bold tracking-tight leading-none ${isElite ? 'text-white' : 'text-gray-900'}">${tier.priceLabel}</span>
+            ${!tier.isFree ? `<span class="text-sm font-medium ${isElite ? 'text-gray-400' : 'text-gray-500'}">FCFA</span>` : ''}
+          </div>
+          <div class="text-xs mt-1.5 ${isElite ? 'text-gray-500' : 'text-gray-400'}">${tier.isFree ? 'Offre découverte' : 'par an · sans engagement'}</div>
+        </div>
+        <a class="block text-center text-sm font-semibold py-2.5 px-4 rounded-md transition-colors mb-7 cursor-pointer ${ctaClasses}">${tier.cta}</a>
+        <div class="text-[11px] font-bold uppercase tracking-[0.10em] mb-3.5 ${isElite ? 'text-gray-500' : 'text-gray-400'}">Inclus</div>
+        <ul class="flex flex-col gap-3 flex-grow">${features}</ul>
+        ${decouverteNote}
+      </div>
+    `;
+  }).join('');
+}
+
+const TIER_KEYS = ['decouverte', 'starter', 'pro', 'elite'];
+const TIER_LABELS = { decouverte: 'Découverte', starter: 'Starter', pro: 'Pro', elite: 'Élite' };
+const TIER_PRICES = { decouverte: '0', starter: '12 000', pro: '25 000', elite: '40 000' };
+const GROUPS = [
+  { label: 'Portfolio', rows: [
+    { name: 'Photo de profil', decouverte: true, starter: true, pro: true, elite: true },
+    { name: 'Photos dans la galerie', decouverte: '1', starter: '2', pro: '4', elite: '6' },
+    { name: 'Vidéo de présentation', decouverte: false, starter: true, pro: true, elite: true },
+    { name: 'Vidéos Acting / démo', decouverte: false, starter: false, pro: '1', elite: '2' },
+    { name: 'Vidéo modèle UGC', decouverte: false, starter: false, pro: false, elite: true },
+  ]},
+  { label: 'Missions & revenus', rows: [
+    { name: 'Accès aux missions UGC', decouverte: false, starter: true, pro: true, elite: true },
+    { name: 'Dotation produit', decouverte: false, starter: true, pro: true, elite: true },
+    { name: 'Missions rémunérées', decouverte: false, starter: true, pro: true, elite: true },
+    { name: 'Commission plateforme', decouverte: '—', starter: '10 %', pro: '10 %', elite: '5 %' },
+  ]},
+  { label: 'Visibilité', rows: [
+    { name: 'Mise en avant', decouverte: 'Standard', starter: 'Boostée', pro: 'Premium', elite: 'Prioritaire' },
+    { name: 'Rang dans la recherche', decouverte: '4ᵉ', starter: '3ᵉ', pro: '2ᵉ', elite: '1ᵉʳ' },
+    { name: 'Badge VIP / Élite', decouverte: false, starter: false, pro: false, elite: true },
+  ]},
+  { label: 'Support', rows: [
+    { name: "Centre d'aide", decouverte: true, starter: true, pro: true, elite: true },
+    { name: 'Assistance prioritaire WeAct', decouverte: false, starter: false, pro: false, elite: true },
+  ]},
+];
+
+function renderTableHead() {
+  const ths = TIER_KEYS.map(k => {
+    const isElite = k === 'elite';
+    const isPro = k === 'pro';
+    const headerBg = isElite ? 'bg-[#0F1419] text-white border-[#0F1419]' : 'bg-[#FAFAFA] text-gray-900 border-gray-200';
+    const badge = isPro
+      ? `<div class="absolute top-3.5 right-3.5 text-[9px] font-bold tracking-[0.12em] uppercase text-white bg-[#198496] px-1.5 py-0.5 rounded">Populaire</div>`
+      : isElite
+        ? `<div class="absolute top-3.5 right-3.5 text-[9px] font-bold tracking-[0.12em] uppercase text-[#0F1419] bg-white px-1.5 py-0.5 rounded">VIP</div>`
+        : '';
+    const priceSuffix = k === 'decouverte'
+      ? `<span class="text-[11px] text-gray-500">· gratuit</span>`
+      : `<span class="text-[11px] ${isElite ? 'text-gray-400' : 'text-gray-500'}">FCFA / an</span>`;
+    const ctaClasses = isElite
+      ? 'bg-white text-[#0F1419] hover:bg-gray-100'
+      : isPro
+        ? 'bg-[#198496] text-white hover:bg-[#146c7a]'
+        : 'border border-[#198496] text-[#198496] hover:bg-[#198496]/5';
+    return `
+      <th class="px-4 pt-6 pb-5 text-left align-top relative border-b ${headerBg}">
+        ${badge}
+        <div class="text-base font-bold">${TIER_LABELS[k]}</div>
+        <div class="flex items-baseline gap-1 mt-1.5">
+          <span class="text-[22px] font-bold tracking-tight">${TIER_PRICES[k]}</span>
+          ${priceSuffix}
+        </div>
+        <a class="inline-block mt-3.5 px-3.5 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${ctaClasses}">Choisir</a>
+      </th>`;
+  }).join('');
+  return `<thead><tr>
+    <th class="px-6 pt-6 pb-5 text-left align-top bg-[#FAFAFA] border-b border-gray-200">
+      <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-[0.12em]">Comparatif</div>
+      <div class="text-sm text-gray-700 mt-2 font-medium">Tarifs annuels en FCFA</div>
+    </th>
+    ${ths}
+  </tr></thead>`;
+}
+
+function renderTableBody() {
+  return GROUPS.map(group => {
+    const header = `<tr>
+      <td colspan="4" class="px-6 py-3.5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#198496] bg-gray-50 border-t border-b border-gray-200">${group.label}</td>
+      <td class="bg-[#0F1419] border-t border-b border-gray-200"></td>
+    </tr>`;
+    const rows = group.rows.map(row => {
+      const cells = TIER_KEYS.map(k => {
+        const isElite = k === 'elite';
+        const v = row[k];
+        let content;
+        if (v === true) content = isElite ? CHECK_SVG_DARK.replace('mt-0.5','') : CHECK_SVG_TEAL.replace('mt-0.5','');
+        else if (v === false) content = DASH_SVG;
+        else content = `<span class="font-medium">${v}</span>`;
+        const tdClass = isElite ? 'bg-[#0F1419] text-white border-b border-gray-800' : 'text-gray-900 border-b border-gray-100';
+        return `<td class="px-4 py-3.5 text-sm ${tdClass}">${content}</td>`;
+      }).join('');
+      return `<tr>
+        <td class="px-6 py-3.5 text-sm font-medium text-gray-700 border-b border-gray-100">${row.name}</td>
+        ${cells}
+      </tr>`;
+    }).join('');
+    return header + rows;
+  }).join('');
+}
+
+const FAQ_ITEMS = [
+  { q: 'Puis-je changer de palier à tout moment ?', a: "Oui. Tu peux passer à un autre palier quand tu veux. Le nouveau palier est facturé au prix annuel plein et démarre une nouvelle période de 12 mois — les jours restants de ton abonnement en cours ne sont pas reportés. Le nombre de jours perdus t'est indiqué avant la confirmation.", open: true },
+  { q: 'Comment fonctionne la commission réduite Élite ?', a: "Sur toutes les missions rémunérées en argent, la plateforme prélève 10 % de frais. Avec l'abonnement Élite, ce taux passe à 5 % — soit la moitié. Sur 100 000 FCFA de cachet, tu encaisses 95 000 FCFA au lieu de 90 000 FCFA.", open: false },
+  { q: 'Quels moyens de paiement acceptez-vous ?', a: 'Mobile Money (MTN, Moov), carte bancaire internationale (Visa, Mastercard) et virement bancaire pour les paliers Pro et Élite.', open: false },
+  { q: 'Que se passe-t-il si mon abonnement expire ?', a: "Ton profil bascule automatiquement sur l'offre Découverte gratuite. Tes photos et vidéos restent stockées 90 jours, le temps de te réabonner si tu le souhaites.", open: false },
+  { q: 'Comment fonctionne la mise en avant ?', a: "Dans la recherche des producteurs, les profils sont triés par palier : Élite en premier, puis Pro, puis Starter, puis Découverte. À palier égal, c'est l'algorithme classique de pertinence qui s'applique.", open: false },
+];
+
+function renderFaq() {
+  return FAQ_ITEMS.map(item => `
+    <div class="border border-gray-200 rounded-lg bg-white overflow-hidden">
+      <button data-faq class="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors">
+        <span class="text-sm font-semibold text-gray-900 pr-4">${item.q}</span>
+        <span style="transform:${item.open ? 'rotate(180deg)' : 'rotate(0)'};transition:transform 200ms">${CHEVRON_SVG}</span>
+      </button>
+      <div class="px-5 pb-4 text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-3 ${item.open ? '' : 'hidden'}">${item.a}</div>
+    </div>
+  `).join('');
+}
+
+// inject into iframes
+const tpl = document.getElementById('page-template').textContent;
+const html = tpl
+  .replace('__CARDS__', renderCards())
+  .replace('__TABLE_HEAD__', renderTableHead())
+  .replace('__TABLE_BODY__', renderTableBody())
+  .replace('__FAQ__', renderFaq())
+  .replace(/<\\\/script>/g, '<\/script>');
+
+document.querySelectorAll('.page-iframe').forEach(ifr => {
+  ifr.srcdoc = html;
+});
+</script>
+</body>
+</html>
