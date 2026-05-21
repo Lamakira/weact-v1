@@ -4,7 +4,7 @@ status: 'draft'
 draftedAt: '2026-05-20'
 supersedes: 'epics-face-premium-subscription.md (FEATURE-FP-1, all 11 stories done, NEVER deployed to production)'
 totalEpics: 1
-totalStories: 14
+totalStories: 15
 project_name: 'WEACT - Tiered Face Premium Subscriptions Sprint 15'
 user_name: 'Amakira'
 date: '2026-05-20'
@@ -110,7 +110,7 @@ The operating model remains **annual-only** (no monthly recurring) and **prepaid
 
 **FEAT-FP2-NFR4**: No production source code from the booking/mission module may be modified by FP-2 stories (the Élite commission 5 % story is explicitly scheduled separately to keep the booking blast radius contained).
 
-**FEAT-FP2-NFR5**: The `FaceEntitlementService::capabilities()` call must remain cheap (single query or eager-load aware). The N+1 entitlement pattern documented in FP-1.2 and partially addressed in FP-1.6 must be fully resolved as part of FP-2.1 / FP-2.2.
+**FEAT-FP2-NFR5**: The `FaceEntitlementService::capabilities()` call must remain cheap (single query or eager-load aware). The N+1 entitlement pattern documented in FP-1.2 and partially addressed in FP-1.6 must be fully resolved as part of FP-2.1 / FP-2.2 / FP-2.2.1.
 
 ### Additional Requirements (from FP-1 retrospective lessons)
 
@@ -133,7 +133,8 @@ The operating model remains **annual-only** (no monthly recurring) and **prepaid
 | ID | Story | FRs | Priority |
 |---|---|---|---|
 | FEATURE-FP-2.1 | Tier-aware subscription schema + capabilities matrix | FEAT-FP2-FR1, FEAT-FP2-FR2, FEAT-FP2-NFR1, FEAT-FP2-NFR5 | High |
-| FEATURE-FP-2.2 | Dynamic photo quota + three video types (presentation, acting, UGC) | FEAT-FP2-FR3, FEAT-FP2-FR4 | High |
+| FEATURE-FP-2.2 | Dynamic photo quota + tier-aware photo masking | FEAT-FP2-FR3, FEAT-FP2-FR4 | High |
+| FEATURE-FP-2.2.1 | face_videos table + three video types (presentation, acting, UGC) + video masking | FEAT-FP2-FR3, FEAT-FP2-FR4 | High |
 | FEATURE-FP-2.3 | Face subscription status API exposing capabilities matrix + tier offers | FEAT-FP2-FR2, FEAT-FP2-FR7, FEAT-FP2-FR9 | High |
 | FEATURE-FP-2.4 | Admin subscription operations with tier param + extended audit | FEAT-FP2-FR6, FEAT-FP2-FR10 | High |
 | FEATURE-FP-2.5 | Annual payment flow with tier selection + upgrade/downgrade without pro-rata | FEAT-FP2-FR5, FEAT-FP2-NFR2 | High |
@@ -150,19 +151,20 @@ The operating model remains **annual-only** (no monthly recurring) and **prepaid
 **Recommended delivery order:**
 
 1. **FEATURE-FP-2.1** — schema rewrite and capabilities matrix; locks the entitlement contract for every downstream story.
-2. **FEATURE-FP-2.2** — enforce dynamic quotas per tier and per media type; introduces the UGC video media type.
-3. **FEATURE-FP-2.3** — expose the capabilities matrix + the 4 tier offers via status endpoint; unblocks frontend and QA.
-4. **FEATURE-FP-2.4** — admin fallback with tier param; useful before payment flow is wired.
-5. **FEATURE-FP-2.5** — annual payment with tier selection and upgrade/downgrade; chained-renewal preserved.
-6. **FEATURE-FP-2.6** — wire featured search ordering to 4-bucket tier priority.
-7. **FEATURE-FP-2.7** — Face-facing tier UI and locked states UX (consumes the FP-2.13 design system).
-8. **FEATURE-FP-2.8** — expiration automation (drop any tier to Free).
-9. **FEATURE-FP-2.14** — 90-day retention window + purge command (depends on FP-2.8 expiration + FP-2.2 quota model).
-10. **FEATURE-FP-2.9** — reminders and lifecycle notifications with per-tier copy.
-11. **FEATURE-FP-2.10** — admin UI tier selector.
-12. **FEATURE-FP-2.12** — public Élite badge (small frontend-only story, late delivery is safe).
-13. **FEATURE-FP-2.13** — public `/pricing` page refonte (frontend-only, near drop-in; can be delivered any time after FP-2 pricing is final).
-14. **FEATURE-FP-2.11** — final regression sweep, runbook update, and 4-tier × 6-state matrix.
+2. **FEATURE-FP-2.2** — enforce dynamic per-tier photo quotas; tier-aware public/producer/owner photo masking.
+3. **FEATURE-FP-2.2.1** — introduce the `face_videos` table and the three video types (presentation, acting, UGC); per-tier per-type video quotas and masking.
+4. **FEATURE-FP-2.3** — expose the capabilities matrix + the 4 tier offers via status endpoint; unblocks frontend and QA.
+5. **FEATURE-FP-2.4** — admin fallback with tier param; useful before payment flow is wired.
+6. **FEATURE-FP-2.5** — annual payment with tier selection and upgrade/downgrade; chained-renewal preserved.
+7. **FEATURE-FP-2.6** — wire featured search ordering to 4-bucket tier priority.
+8. **FEATURE-FP-2.7** — Face-facing tier UI and locked states UX (consumes the FP-2.13 design system).
+9. **FEATURE-FP-2.8** — expiration automation (drop any tier to Free).
+10. **FEATURE-FP-2.14** — 90-day retention window + purge command (depends on FP-2.8 expiration + FP-2.2 / FP-2.2.1 quota model).
+11. **FEATURE-FP-2.9** — reminders and lifecycle notifications with per-tier copy.
+12. **FEATURE-FP-2.10** — admin UI tier selector.
+13. **FEATURE-FP-2.12** — public Élite badge (small frontend-only story, late delivery is safe).
+14. **FEATURE-FP-2.13** — public `/pricing` page refonte (frontend-only, near drop-in; can be delivered any time after FP-2 pricing is final).
+15. **FEATURE-FP-2.11** — final regression sweep, runbook update, and 4-tier × 6-state matrix.
 
 ---
 
@@ -180,18 +182,35 @@ The operating model remains **annual-only** (no monthly recurring) and **prepaid
 
 ---
 
-#### FEATURE-FP-2.2: Dynamic photo quota + three video types (presentation, acting, UGC)
+#### FEATURE-FP-2.2: Dynamic photo quota + tier-aware photo masking
 
-**Description:** Refactor FP-1.2 to enforce dynamic per-tier photo quotas (1 / 2 / 4 / 6 for Free / Starter / Pro / Élite) and introduce the UGC video media type alongside the existing presentation + acting types. Public/producer/owner masking is driven entirely by the capabilities matrix returned from FP-2.1.
+**Description:** Refactor the FP-1.2 photo-album surface to enforce dynamic per-tier photo quotas (1 / 2 / 4 / 6 for Free / Starter / Pro / Élite). Album upload guards and public/producer/owner masking are driven entirely by the capabilities matrix returned from FP-2.1. The three-video-types work is split out to FEATURE-FP-2.2.1.
 
 **Acceptance Criteria (draft):**
-- `PhotoAlbumService` upload guard reads `capabilities.max_album_photos`; rejects upload beyond tier.
-- Video upload services enforce `max_presentation_videos`, `max_acting_videos`, `max_ugc_videos` per tier.
-- New `ugc_video` media column or relation on Faces (only Élite can upload one).
-- Public + producer Face profile resources mask photos beyond `max_album_photos` and videos beyond per-type quotas.
-- Owner private profile management returns all stored media with per-item `is_locked` + `lock_reason` (`quota_exceeded`, `tier_below_required`, etc.).
-- Over-quota media is preserved on downgrade (not deleted in this story); the bounded 90-day retention + purge is owned by FP-2.14.
-- ≥ 30 feature tests covering every (tier × media type × viewer lens) combination.
+- `PhotoAlbumService` upload guard and `AddAlbumPhotoRequest` validation read `capabilities.max_album_photos`; reject upload beyond tier.
+- Public + producer Face profile resources mask photos beyond `max_album_photos`.
+- Owner / admin private profile responses return all stored photos with per-item `is_locked` + `lock_reason` (`quota_exceeded` for locked photos, `null` otherwise).
+- Over-quota photos are preserved on downgrade (not deleted in this story); the bounded 90-day retention + purge is owned by FP-2.14.
+- The legacy binary album shims (`albumUploadLimit()` / `publicAlbumPhotoLimit()`) are migrated to `capabilities()` for the album surface.
+- No schema change — `face_photos` already supports positions 1-6 and `config/face_subscription_tiers.php` already carries the photo quotas.
+- ≥ 15 feature tests covering every (tier × photo-count × viewer lens) combination.
+
+---
+
+#### FEATURE-FP-2.2.1: face_videos table + three video types (presentation, acting, UGC) + video masking
+
+**Description:** Introduce a `face_videos` table to store the Face's portfolio videos — acting and UGC — as positioned, typed, multi-row media. The current single `faces.acting_video` column cannot hold the Élite tier's 2 acting videos, and no storage exists for the new UGC video type; the table applies the same pattern the project already uses for album photos (`face_photos`). The `presentation_video` stays a scalar column on `faces` (capped at 1 for every tier). Existing production `faces.acting_video` data is migrated into the new table. Video upload enforces per-tier per-type quotas, and public/producer resources mask videos beyond quota while the owner sees all with per-item `is_locked` + `lock_reason`.
+
+**Acceptance Criteria (draft):**
+- New `face_videos` table (`type` enum `acting` | `ugc`, `position`) + `FaceVideo` model + `FaceVideoType` enum + factory.
+- Migration copies every non-null `faces.acting_video` row into `face_videos` (type `acting`, position 1), then drops the `faces.acting_video` / `acting_video_thumbnail` columns — no production data lost.
+- Unified `FaceVideoController` / `FaceVideoService` / video upload Form Request for acting + UGC; `ActingVideoController` / `ActingVideoService` / `UploadActingVideoRequest` are retired.
+- Video upload enforces `max_presentation_videos`, `max_acting_videos`, `max_ugc_videos` per tier; presentation-video upload is gated for Free (quota 0).
+- Public + producer resources mask videos beyond per-type quotas; owner / admin responses return all stored videos with per-item `is_locked` + `lock_reason`.
+- Over-quota video is preserved on downgrade (not deleted in this story); the bounded 90-day retention + purge is owned by FP-2.14.
+- ≥ 30 feature tests covering every (tier × video type × viewer lens) combination.
+
+**Depends on:** FEATURE-FP-2.1 (capabilities matrix) and FEATURE-FP-2.2 (shared masking shape `is_locked` / `lock_reason`).
 
 ---
 
@@ -360,7 +379,7 @@ The operating model remains **annual-only** (no monthly recurring) and **prepaid
 - Media that the Face's current tier covers (e.g. after re-subscribing to a tier that re-covers it) is never purged — re-subscription within the window fully restores access.
 - Purge is logged per-item; no purge of media still within the 90-day window; idempotent on repeat invocation.
 - Purge respects all three media types (photos beyond quota, acting video, UGC video).
-- Depends on FP-2.8 (expiration transitions) and FP-2.2 (quota model + over-quota identification).
+- Depends on FP-2.8 (expiration transitions) and FP-2.2 / FP-2.2.1 (quota model + over-quota identification).
 - ≥ 20 feature tests: window not elapsed → no purge; window elapsed → purge; re-subscription within window → no purge; re-subscription that re-covers media → no purge; per-media-type coverage; idempotence.
 
 ---
