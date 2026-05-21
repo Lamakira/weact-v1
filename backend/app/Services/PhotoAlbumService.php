@@ -16,11 +16,6 @@ use Intervention\Image\Laravel\Facades\Image;
 
 class PhotoAlbumService
 {
-    /**
-     * @deprecated since FEATURE-FP-1.2 — prefer FaceEntitlementService::albumUploadLimit()
-     */
-    public const MAX_PHOTOS = 4;
-
     private const STORAGE_PATH = 'avatars/faces/albums';
 
     private const THUMBNAIL_PATH = 'avatars/faces/albums/thumbnails';
@@ -52,7 +47,7 @@ class PhotoAlbumService
             // and service execution. DB transactions do not roll back filesystem
             // writes, so the quota check must run first.
             $currentCount = $face->photos()->count();
-            $limit = app(FaceEntitlementService::class)->albumUploadLimit($face);
+            $limit = app(FaceEntitlementService::class)->capabilities($face)->maxAlbumPhotos;
             if ($currentCount >= $limit) {
                 throw new AlbumQuotaReachedException($limit);
             }
@@ -159,7 +154,7 @@ class PhotoAlbumService
         // Update positions in a transaction
         DB::transaction(function () use ($order) {
             // First, set all positions to high temporary values to avoid unique constraint violations
-            // Using 1000 + index as temp value (since max photos is 4, positions 1-4 are used)
+            // Using 1000 + index as temp value (max album positions reach 6 for Élite; the offset stays clear of real positions)
             foreach ($order as $index => $photoId) {
                 FacePhoto::where('id', $photoId)->update(['position' => 1000 + $index]);
             }

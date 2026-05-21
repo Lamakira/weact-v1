@@ -11,6 +11,6 @@ class AlbumQuotaReachedException extends \RuntimeException
 {
     public function __construct(public readonly int $limit)
     {
-        parent::__construct(sprintf('Quota de %d photos atteint.', $limit));
+        parent::__construct(sprintf('Quota de %d %s atteint.', $limit, $limit > 1 ? 'photos' : 'photo'));
     }
 }

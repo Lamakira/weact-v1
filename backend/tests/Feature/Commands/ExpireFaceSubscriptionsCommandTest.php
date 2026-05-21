@@ -377,8 +377,8 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
 
         $response = $this->getJson("/api/v1/public/faces/{$face->username}");
         $response->assertOk()
-            ->assertJsonCount(2, 'data.photos')
-            ->assertJsonPath('data.album_photos_count', 2)
+            ->assertJsonCount(1, 'data.photos')
+            ->assertJsonPath('data.album_photos_count', 1)
             ->assertJsonPath('data.has_acting_video', false)
             ->assertJsonPath('data.acting_video_url', null);
 

@@ -93,7 +93,7 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
         ]);
 
         foreach ($response->json('data.photos') as $photo) {
-            $this->assertArrayNotHasKey('is_publicly_visible', $photo);
+            $this->assertArrayNotHasKey('is_locked', $photo);
         }
     }
 
@@ -108,12 +108,12 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
         $response = $this->getJson("/api/v1/public/faces/{$face->username}");
 
         $response->assertOk()
-            ->assertJsonCount(2, 'data.photos')
-            ->assertJsonPath('data.album_photos_count', 2)
+            ->assertJsonCount(1, 'data.photos')
+            ->assertJsonPath('data.album_photos_count', 1)
             ->assertJsonPath('data.acting_video_url', null)
             ->assertJsonPath('data.has_acting_video', false);
 
-        $this->assertPhotoPositions($response, [1, 2]);
+        $this->assertPhotoPositions($response, [1]);
     }
 
     public function test_public_lens_masks_pending_payment_face(): void
@@ -123,12 +123,12 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
         $response = $this->getJson("/api/v1/public/faces/{$face->username}");
 
         $response->assertOk()
-            ->assertJsonCount(2, 'data.photos')
-            ->assertJsonPath('data.album_photos_count', 2)
+            ->assertJsonCount(1, 'data.photos')
+            ->assertJsonPath('data.album_photos_count', 1)
             ->assertJsonPath('data.acting_video_url', null)
             ->assertJsonPath('data.has_acting_video', false);
 
-        $this->assertPhotoPositions($response, [1, 2]);
+        $this->assertPhotoPositions($response, [1]);
     }
 
     public function test_public_lens_exposes_4_photos_and_acting_video_for_active_face(): void
@@ -154,12 +154,12 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
         $response = $this->getJson("/api/v1/public/faces/{$face->username}");
 
         $response->assertOk()
-            ->assertJsonCount(2, 'data.photos')
-            ->assertJsonPath('data.album_photos_count', 2)
+            ->assertJsonCount(1, 'data.photos')
+            ->assertJsonPath('data.album_photos_count', 1)
             ->assertJsonPath('data.acting_video_url', null)
             ->assertJsonPath('data.has_acting_video', false);
 
-        $this->assertPhotoPositions($response, [1, 2]);
+        $this->assertPhotoPositions($response, [1]);
     }
 
     public function test_public_lens_masks_cancelled_face_even_with_future_expires_at(): void
@@ -173,12 +173,12 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
         $response = $this->getJson("/api/v1/public/faces/{$face->username}");
 
         $response->assertOk()
-            ->assertJsonCount(2, 'data.photos')
-            ->assertJsonPath('data.album_photos_count', 2)
+            ->assertJsonCount(1, 'data.photos')
+            ->assertJsonPath('data.album_photos_count', 1)
             ->assertJsonPath('data.acting_video_url', null)
             ->assertJsonPath('data.has_acting_video', false);
 
-        $this->assertPhotoPositions($response, [1, 2]);
+        $this->assertPhotoPositions($response, [1]);
     }
 
     public function test_public_lens_masks_failed_face(): void
@@ -188,12 +188,12 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
         $response = $this->getJson("/api/v1/public/faces/{$face->username}");
 
         $response->assertOk()
-            ->assertJsonCount(2, 'data.photos')
-            ->assertJsonPath('data.album_photos_count', 2)
+            ->assertJsonCount(1, 'data.photos')
+            ->assertJsonPath('data.album_photos_count', 1)
             ->assertJsonPath('data.acting_video_url', null)
             ->assertJsonPath('data.has_acting_video', false);
 
-        $this->assertPhotoPositions($response, [1, 2]);
+        $this->assertPhotoPositions($response, [1]);
     }
 
     public function test_public_lens_does_not_grant_premium_to_admin_manually_featured_free_face(): void
@@ -204,12 +204,12 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
         $response = $this->getJson("/api/v1/public/faces/{$face->username}");
 
         $response->assertOk()
-            ->assertJsonCount(2, 'data.photos')
-            ->assertJsonPath('data.album_photos_count', 2)
+            ->assertJsonCount(1, 'data.photos')
+            ->assertJsonPath('data.album_photos_count', 1)
             ->assertJsonPath('data.acting_video_url', null)
             ->assertJsonPath('data.has_acting_video', false);
 
-        $this->assertPhotoPositions($response, [1, 2]);
+        $this->assertPhotoPositions($response, [1]);
     }
 
     public function test_public_lens_grants_premium_to_admin_featured_active_face(): void
@@ -241,10 +241,10 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->getJson("/api/v1/producer/candidates/{$face->uuid}");
 
         $response->assertOk()
-            ->assertJsonCount(2, 'data.photos')
+            ->assertJsonCount(1, 'data.photos')
             ->assertJsonPath('data.acting_video_url', null);
 
-        $this->assertPhotoPositions($response, [1, 2]);
+        $this->assertPhotoPositions($response, [1]);
         $this->assertProducerResponseShape($response);
     }
 
@@ -257,10 +257,10 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->getJson("/api/v1/producer/candidates/{$face->uuid}");
 
         $response->assertOk()
-            ->assertJsonCount(2, 'data.photos')
+            ->assertJsonCount(1, 'data.photos')
             ->assertJsonPath('data.acting_video_url', null);
 
-        $this->assertPhotoPositions($response, [1, 2]);
+        $this->assertPhotoPositions($response, [1]);
         $this->assertProducerResponseShape($response);
     }
 
@@ -290,10 +290,10 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->getJson("/api/v1/producer/candidates/{$face->uuid}");
 
         $response->assertOk()
-            ->assertJsonCount(2, 'data.photos')
+            ->assertJsonCount(1, 'data.photos')
             ->assertJsonPath('data.acting_video_url', null);
 
-        $this->assertPhotoPositions($response, [1, 2]);
+        $this->assertPhotoPositions($response, [1]);
         $this->assertProducerResponseShape($response);
     }
 
@@ -306,10 +306,10 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->getJson("/api/v1/producer/candidates/{$face->uuid}");
 
         $response->assertOk()
-            ->assertJsonCount(2, 'data.photos')
+            ->assertJsonCount(1, 'data.photos')
             ->assertJsonPath('data.acting_video_url', null);
 
-        $this->assertPhotoPositions($response, [1, 2]);
+        $this->assertPhotoPositions($response, [1]);
         $this->assertProducerResponseShape($response);
     }
 
@@ -322,10 +322,10 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->getJson("/api/v1/producer/candidates/{$face->uuid}");
 
         $response->assertOk()
-            ->assertJsonCount(2, 'data.photos')
+            ->assertJsonCount(1, 'data.photos')
             ->assertJsonPath('data.acting_video_url', null);
 
-        $this->assertPhotoPositions($response, [1, 2]);
+        $this->assertPhotoPositions($response, [1]);
         $this->assertProducerResponseShape($response);
     }
 
@@ -344,10 +344,10 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->assertJsonCount(4, 'data.photos');
 
         $photos = collect($response->json('data.photos'))->keyBy('position');
-        $this->assertTrue($photos[1]['is_publicly_visible']);
-        $this->assertTrue($photos[2]['is_publicly_visible']);
-        $this->assertFalse($photos[3]['is_publicly_visible']);
-        $this->assertFalse($photos[4]['is_publicly_visible']);
+        $this->assertFalse($photos[1]['is_locked']);
+        $this->assertTrue($photos[2]['is_locked']);
+        $this->assertTrue($photos[3]['is_locked']);
+        $this->assertTrue($photos[4]['is_locked']);
 
         $this->assertNotNull($response->json('data.acting_video_url'));
         $this->assertFalse($response->json('data.is_acting_video_publicly_visible'));
@@ -364,10 +364,10 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->assertJsonCount(4, 'data.photos');
 
         $photos = collect($response->json('data.photos'))->keyBy('position');
-        $this->assertTrue($photos[1]['is_publicly_visible']);
-        $this->assertTrue($photos[2]['is_publicly_visible']);
-        $this->assertFalse($photos[3]['is_publicly_visible']);
-        $this->assertFalse($photos[4]['is_publicly_visible']);
+        $this->assertFalse($photos[1]['is_locked']);
+        $this->assertTrue($photos[2]['is_locked']);
+        $this->assertTrue($photos[3]['is_locked']);
+        $this->assertTrue($photos[4]['is_locked']);
 
         $this->assertNotNull($response->json('data.acting_video_url'));
         $this->assertFalse($response->json('data.is_acting_video_publicly_visible'));
@@ -384,7 +384,7 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->assertJsonCount(4, 'data.photos');
 
         foreach ($response->json('data.photos') as $photo) {
-            $this->assertTrue($photo['is_publicly_visible']);
+            $this->assertFalse($photo['is_locked']);
         }
 
         $this->assertNotNull($response->json('data.acting_video_url'));
@@ -402,10 +402,10 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->assertJsonCount(4, 'data.photos');
 
         $photos = collect($response->json('data.photos'))->keyBy('position');
-        $this->assertTrue($photos[1]['is_publicly_visible']);
-        $this->assertTrue($photos[2]['is_publicly_visible']);
-        $this->assertFalse($photos[3]['is_publicly_visible']);
-        $this->assertFalse($photos[4]['is_publicly_visible']);
+        $this->assertFalse($photos[1]['is_locked']);
+        $this->assertTrue($photos[2]['is_locked']);
+        $this->assertTrue($photos[3]['is_locked']);
+        $this->assertTrue($photos[4]['is_locked']);
 
         $this->assertNotNull($response->json('data.acting_video_url'));
         $this->assertFalse($response->json('data.is_acting_video_publicly_visible'));
@@ -422,10 +422,10 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->assertJsonCount(4, 'data.photos');
 
         $photos = collect($response->json('data.photos'))->keyBy('position');
-        $this->assertTrue($photos[1]['is_publicly_visible']);
-        $this->assertTrue($photos[2]['is_publicly_visible']);
-        $this->assertFalse($photos[3]['is_publicly_visible']);
-        $this->assertFalse($photos[4]['is_publicly_visible']);
+        $this->assertFalse($photos[1]['is_locked']);
+        $this->assertTrue($photos[2]['is_locked']);
+        $this->assertTrue($photos[3]['is_locked']);
+        $this->assertTrue($photos[4]['is_locked']);
 
         $this->assertNotNull($response->json('data.acting_video_url'));
         $this->assertFalse($response->json('data.is_acting_video_publicly_visible'));
@@ -442,10 +442,10 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->assertJsonCount(4, 'data.photos');
 
         $photos = collect($response->json('data.photos'))->keyBy('position');
-        $this->assertTrue($photos[1]['is_publicly_visible']);
-        $this->assertTrue($photos[2]['is_publicly_visible']);
-        $this->assertFalse($photos[3]['is_publicly_visible']);
-        $this->assertFalse($photos[4]['is_publicly_visible']);
+        $this->assertFalse($photos[1]['is_locked']);
+        $this->assertTrue($photos[2]['is_locked']);
+        $this->assertTrue($photos[3]['is_locked']);
+        $this->assertTrue($photos[4]['is_locked']);
 
         $this->assertNotNull($response->json('data.acting_video_url'));
         $this->assertFalse($response->json('data.is_acting_video_publicly_visible'));
@@ -467,10 +467,10 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->assertJsonCount(4, 'data.photos');
 
         $photos = collect($response->json('data.photos'))->keyBy('position');
-        $this->assertTrue($photos[1]['is_publicly_visible']);
-        $this->assertTrue($photos[2]['is_publicly_visible']);
-        $this->assertFalse($photos[3]['is_publicly_visible']);
-        $this->assertFalse($photos[4]['is_publicly_visible']);
+        $this->assertFalse($photos[1]['is_locked']);
+        $this->assertTrue($photos[2]['is_locked']);
+        $this->assertTrue($photos[3]['is_locked']);
+        $this->assertTrue($photos[4]['is_locked']);
 
         $this->assertNotNull($response->json('data.acting_video_url'));
         $this->assertFalse($response->json('data.is_acting_video_publicly_visible'));
@@ -488,10 +488,10 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->assertJsonCount(4, 'data.photos');
 
         $photos = collect($response->json('data.photos'))->keyBy('position');
-        $this->assertTrue($photos[1]['is_publicly_visible']);
-        $this->assertTrue($photos[2]['is_publicly_visible']);
-        $this->assertFalse($photos[3]['is_publicly_visible']);
-        $this->assertFalse($photos[4]['is_publicly_visible']);
+        $this->assertFalse($photos[1]['is_locked']);
+        $this->assertTrue($photos[2]['is_locked']);
+        $this->assertTrue($photos[3]['is_locked']);
+        $this->assertTrue($photos[4]['is_locked']);
 
         $this->assertNotNull($response->json('data.acting_video_url'));
         $this->assertFalse($response->json('data.is_acting_video_publicly_visible'));
@@ -509,7 +509,7 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->assertJsonCount(4, 'data.photos');
 
         foreach ($response->json('data.photos') as $photo) {
-            $this->assertTrue($photo['is_publicly_visible']);
+            $this->assertFalse($photo['is_locked']);
         }
 
         $this->assertNotNull($response->json('data.acting_video_url'));
@@ -528,10 +528,10 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->assertJsonCount(4, 'data.photos');
 
         $photos = collect($response->json('data.photos'))->keyBy('position');
-        $this->assertTrue($photos[1]['is_publicly_visible']);
-        $this->assertTrue($photos[2]['is_publicly_visible']);
-        $this->assertFalse($photos[3]['is_publicly_visible']);
-        $this->assertFalse($photos[4]['is_publicly_visible']);
+        $this->assertFalse($photos[1]['is_locked']);
+        $this->assertTrue($photos[2]['is_locked']);
+        $this->assertTrue($photos[3]['is_locked']);
+        $this->assertTrue($photos[4]['is_locked']);
 
         $this->assertNotNull($response->json('data.acting_video_url'));
         $this->assertFalse($response->json('data.is_acting_video_publicly_visible'));
@@ -549,10 +549,10 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->assertJsonCount(4, 'data.photos');
 
         $photos = collect($response->json('data.photos'))->keyBy('position');
-        $this->assertTrue($photos[1]['is_publicly_visible']);
-        $this->assertTrue($photos[2]['is_publicly_visible']);
-        $this->assertFalse($photos[3]['is_publicly_visible']);
-        $this->assertFalse($photos[4]['is_publicly_visible']);
+        $this->assertFalse($photos[1]['is_locked']);
+        $this->assertTrue($photos[2]['is_locked']);
+        $this->assertTrue($photos[3]['is_locked']);
+        $this->assertTrue($photos[4]['is_locked']);
 
         $this->assertNotNull($response->json('data.acting_video_url'));
         $this->assertFalse($response->json('data.is_acting_video_publicly_visible'));
@@ -570,10 +570,10 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
             ->assertJsonCount(4, 'data.photos');
 
         $photos = collect($response->json('data.photos'))->keyBy('position');
-        $this->assertTrue($photos[1]['is_publicly_visible']);
-        $this->assertTrue($photos[2]['is_publicly_visible']);
-        $this->assertFalse($photos[3]['is_publicly_visible']);
-        $this->assertFalse($photos[4]['is_publicly_visible']);
+        $this->assertFalse($photos[1]['is_locked']);
+        $this->assertTrue($photos[2]['is_locked']);
+        $this->assertTrue($photos[3]['is_locked']);
+        $this->assertTrue($photos[4]['is_locked']);
 
         $this->assertNotNull($response->json('data.acting_video_url'));
         $this->assertFalse($response->json('data.is_acting_video_publicly_visible'));

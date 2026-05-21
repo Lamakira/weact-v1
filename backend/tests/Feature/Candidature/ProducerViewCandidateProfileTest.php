@@ -207,7 +207,7 @@ class ProducerViewCandidateProfileTest extends TestCase
         );
 
         $response->assertOk()
-            ->assertJsonCount(2, 'data.photos')
+            ->assertJsonCount(1, 'data.photos')
             ->assertJsonStructure([
                 'data' => [
                     'photos' => [

@@ -67,12 +67,12 @@ class AddAlbumPhotoRequest extends FormRequest
                 /** @var Face $face */
                 $face = $user->userable;
                 $photoCount = $face->photos()->count();
-                $limit = app(FaceEntitlementService::class)->albumUploadLimit($face);
+                $limit = app(FaceEntitlementService::class)->capabilities($face)->maxAlbumPhotos;
 
                 if ($photoCount >= $limit) {
                     $validator->errors()->add(
                         'photo',
-                        'Quota de '.$limit.' photos atteint'
+                        'Quota de '.$limit.' '.($limit > 1 ? 'photos' : 'photo').' atteint'
                     );
                 }
             }

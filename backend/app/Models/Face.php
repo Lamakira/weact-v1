@@ -222,6 +222,8 @@ class Face extends Model
 
     /**
      * Get the album photos for this Face.
+     *
+     * @return HasMany<FacePhoto, $this>
      */
     public function photos(): HasMany
     {

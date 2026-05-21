@@ -7,6 +7,7 @@ namespace Tests\Unit\Services;
 use App\Exceptions\AlbumQuotaReachedException;
 use App\Models\Face;
 use App\Models\FacePhoto;
+use App\Models\FaceSubscription;
 use App\Services\PhotoAlbumService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -22,12 +23,10 @@ class PhotoAlbumServiceQuotaTest extends TestCase
         Storage::fake('public');
 
         $face = Face::factory()->create();
-        for ($i = 1; $i <= 2; $i++) {
-            FacePhoto::factory()->create([
-                'face_id' => $face->id,
-                'position' => $i,
-            ]);
-        }
+        FacePhoto::factory()->create([
+            'face_id' => $face->id,
+            'position' => 1,
+        ]);
 
         $service = app(PhotoAlbumService::class);
         $photo = UploadedFile::fake()->image('p.jpg', 500, 500);
@@ -36,13 +35,38 @@ class PhotoAlbumServiceQuotaTest extends TestCase
             $service->addPhoto($face, $photo);
             $this->fail('Expected AlbumQuotaReachedException to be thrown.');
         } catch (AlbumQuotaReachedException $e) {
-            $this->assertSame(2, $e->limit);
+            $this->assertSame(1, $e->limit);
         }
 
-        // No new face_photos row created (count stays at 2)
-        $this->assertSame(2, FacePhoto::where('face_id', $face->id)->count());
+        // No new face_photos row created (count stays at the Free limit of 1)
+        $this->assertSame(1, FacePhoto::where('face_id', $face->id)->count());
 
         // No file written for the rejected upload attempt under the album path
+        $files = Storage::disk('public')->files('avatars/faces/albums');
+        $this->assertSame([], $files, 'No file should be written when the quota is reached.');
+    }
+
+    public function test_throws_album_quota_reached_for_elite_face_at_limit(): void
+    {
+        Storage::fake('public');
+
+        $face = Face::factory()->create();
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $face->id]);
+        FacePhoto::factory()->createSequentialForFace($face, 6);
+
+        $service = app(PhotoAlbumService::class);
+        $photo = UploadedFile::fake()->image('p.jpg', 500, 500);
+
+        try {
+            $service->addPhoto($face, $photo);
+            $this->fail('Expected AlbumQuotaReachedException to be thrown.');
+        } catch (AlbumQuotaReachedException $e) {
+            $this->assertSame(6, $e->limit);
+        }
+
+        // No new face_photos row created (count stays at the Élite limit of 6)
+        $this->assertSame(6, FacePhoto::where('face_id', $face->id)->count());
+
         $files = Storage::disk('public')->files('avatars/faces/albums');
         $this->assertSame([], $files, 'No file should be written when the quota is reached.');
     }

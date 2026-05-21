@@ -28,9 +28,9 @@ class PublicFaceProfileResource extends JsonResource
     {
         $entitlement = app(FaceEntitlementService::class);
         $isPremium = $entitlement->isPremium($this->resource);
-        $publicLimit = $entitlement->publicAlbumPhotoLimit($this->resource);
+        $maxPhotos = $entitlement->capabilities($this->resource)->maxAlbumPhotos;
 
-        $visiblePhotos = $this->photos->filter(fn ($photo) => $photo->position <= $publicLimit)->values();
+        $visiblePhotos = $this->photos->filter(fn ($photo) => $photo->position <= $maxPhotos)->values();
         $albumPhotosCount = $visiblePhotos->count();
 
         /** @var User|null $user */

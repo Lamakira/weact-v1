@@ -26,7 +26,7 @@ class FaceResource extends JsonResource
 
         $entitlement = app(FaceEntitlementService::class);
         $isPremium = $entitlement->isPremium($this->resource);
-        $publicLimit = $entitlement->publicAlbumPhotoLimit($this->resource);
+        $capabilities = $entitlement->capabilities($this->resource);
         $viewer = $this->resolveViewerContext($request);
         $isPrivileged = $viewer === 'owner' || $viewer === 'admin';
 
@@ -81,16 +81,21 @@ class FaceResource extends JsonResource
             'experiences' => ExperienceResource::collection($this->whenLoaded('experiences')),
             'experiences_count' => $this->experiences_count,
             'photos' => $isPrivileged
-                ? $this->whenLoaded('photos', fn () => $this->photos->map(fn ($photo) => [
-                    'id' => $photo->uuid,
-                    'photo_url' => $photo->photo_url,
-                    'medium_url' => $photo->medium_url,
-                    'thumbnail_url' => $photo->thumbnail_url,
-                    'position' => $photo->position,
-                    'is_publicly_visible' => $photo->position <= $publicLimit,
-                ])->values())
+                ? $this->whenLoaded('photos', fn () => $this->photos->map(function ($photo) use ($capabilities) {
+                    $locked = $photo->position > $capabilities->maxAlbumPhotos;
+
+                    return [
+                        'id' => $photo->uuid,
+                        'photo_url' => $photo->photo_url,
+                        'medium_url' => $photo->medium_url,
+                        'thumbnail_url' => $photo->thumbnail_url,
+                        'position' => $photo->position,
+                        'is_locked' => $locked,
+                        'lock_reason' => $locked ? 'quota_exceeded' : null,
+                    ];
+                })->values()->all())
                 : $this->whenLoaded('photos', fn () => $this->photos
-                    ->filter(fn ($photo) => $photo->position <= $publicLimit)
+                    ->filter(fn ($photo) => $photo->position <= $capabilities->maxAlbumPhotos)
                     ->values()
                     ->map(fn ($photo) => [
                         'id' => $photo->uuid,
@@ -98,7 +103,7 @@ class FaceResource extends JsonResource
                         'medium_url' => $photo->medium_url,
                         'thumbnail_url' => $photo->thumbnail_url,
                         'position' => $photo->position,
-                    ])),
+                    ])->all()),
             'photos_count' => $this->photos_count,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),

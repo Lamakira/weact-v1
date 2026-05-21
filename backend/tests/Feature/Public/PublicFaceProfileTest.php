@@ -157,15 +157,15 @@ class PublicFaceProfileTest extends TestCase
             'userable_id' => $faceWithPhotos->id,
         ]);
 
-        // Add 3 album photos. Free Face exposes only first 2 publicly (free quota).
+        // Add 3 album photos. Free Face exposes only the first 1 publicly (free quota).
         FacePhoto::factory()->createSequentialForFace($faceWithPhotos, 3);
 
         $response = $this->getJson("/api/v1/public/faces/{$faceWithPhotos->username}");
 
         $response->assertOk();
         $this->assertTrue($response->json('data.has_album_photos'));
-        $this->assertEquals(2, $response->json('data.album_photos_count'));
-        $response->assertJsonCount(2, 'data.photos');
+        $this->assertEquals(1, $response->json('data.album_photos_count'));
+        $response->assertJsonCount(1, 'data.photos');
 
         // Face without photos
         $faceWithoutPhotos = Face::factory()->create(['is_available' => true]);
