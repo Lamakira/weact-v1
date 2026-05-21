@@ -10,6 +10,7 @@ enum FaceSubscriptionAdminAction: string
     case Extend = 'extend';
     case Cancel = 'cancel';
     case CorrectDates = 'correct_dates';
+    case ChangeTier = 'change_tier';
 
     /**
      * Get the display name in French for this admin action.
@@ -21,6 +22,7 @@ enum FaceSubscriptionAdminAction: string
             self::Extend => 'Prolongation',
             self::Cancel => 'Annulation',
             self::CorrectDates => 'Correction des dates',
+            self::ChangeTier => 'Changement de palier',
         };
     }
 

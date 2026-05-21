@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Subscription;
 
+use App\Enums\FaceSubscriptionPlan;
 use App\Enums\FaceSubscriptionStatus;
 use App\Events\FaceSubscriptionActivated;
 use App\Events\FaceSubscriptionCancelled;
@@ -143,6 +144,7 @@ class FaceSubscriptionLifecycleDispatchTest extends TestCase
             face: $face,
             admin: $admin,
             notes: 'Test activation',
+            plan: FaceSubscriptionPlan::Pro,
             startsAt: null,
             durationDays: 365,
         );

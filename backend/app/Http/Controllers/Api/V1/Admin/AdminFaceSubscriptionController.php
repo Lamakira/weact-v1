@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Enums\FaceSubscriptionPlan;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\ActivateFaceSubscriptionRequest;
 use App\Http\Requests\Admin\CancelFaceSubscriptionRequest;
+use App\Http\Requests\Admin\ChangeTierFaceSubscriptionRequest;
 use App\Http\Requests\Admin\CorrectFaceSubscriptionRequest;
 use App\Http\Requests\Admin\ExtendFaceSubscriptionRequest;
 use App\Http\Resources\AdminFaceSubscriptionResource;
@@ -47,6 +49,8 @@ class AdminFaceSubscriptionController extends Controller
         /** @var Admin $admin */
         $admin = $request->user();
 
+        $plan = FaceSubscriptionPlan::from((string) $request->validated('plan'));
+
         $startsAt = $request->filled('starts_at')
             ? Carbon::parse($request->validated('starts_at'))
             : null;
@@ -56,6 +60,7 @@ class AdminFaceSubscriptionController extends Controller
             face: $face,
             admin: $admin,
             notes: (string) $request->validated('notes'),
+            plan: $plan,
             startsAt: $startsAt,
             durationDays: $durationDays,
         );
@@ -138,6 +143,28 @@ class AdminFaceSubscriptionController extends Controller
         return response()->json([
             'data' => new AdminFaceSubscriptionResource($updated),
             'message' => 'Dates corrigées',
+        ]);
+    }
+
+    public function changeTier(
+        ChangeTierFaceSubscriptionRequest $request,
+        FaceSubscription $subscription,
+    ): JsonResponse {
+        /** @var Admin $admin */
+        $admin = $request->user();
+
+        $updated = $this->service->changeTier(
+            subscription: $subscription,
+            admin: $admin,
+            notes: (string) $request->validated('notes'),
+            newPlan: FaceSubscriptionPlan::from((string) $request->validated('new_plan')),
+        );
+
+        $updated->load(['audits.admin']);
+
+        return response()->json([
+            'data' => new AdminFaceSubscriptionResource($updated),
+            'message' => 'Palier modifié',
         ]);
     }
 }

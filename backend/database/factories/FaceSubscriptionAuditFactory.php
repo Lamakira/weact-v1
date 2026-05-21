@@ -30,7 +30,8 @@ class FaceSubscriptionAuditFactory extends Factory
             'notes' => fake()->sentence(8),
             'previous_state' => null,
             'new_state' => [
-                'plan' => 'annual_premium',
+                'plan' => 'pro',
+                'tier' => 'pro',
                 'status' => 'active',
                 'starts_at' => now()->toIso8601String(),
                 'expires_at' => now()->addYear()->toIso8601String(),

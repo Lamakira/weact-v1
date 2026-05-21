@@ -8,6 +8,9 @@ use App\Enums\AdminRole;
 use App\Enums\FaceSubscriptionAdminAction;
 use App\Enums\FaceSubscriptionPlan;
 use App\Enums\FaceSubscriptionStatus;
+use App\Events\FaceSubscriptionActivated;
+use App\Events\FaceSubscriptionCancelled;
+use App\Events\FaceSubscriptionExpired;
 use App\Models\Admin;
 use App\Models\Face;
 use App\Models\FaceSubscription;
@@ -18,6 +21,7 @@ use App\Services\FaceSubscriptionAdminService;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
 
 class AdminFaceSubscriptionControllerTest extends TestCase
@@ -127,10 +131,11 @@ class AdminFaceSubscriptionControllerTest extends TestCase
         $subscription = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
 
         $mutatingEndpoints = [
-            ['POST', "/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", ['notes' => 'Test notes 12345']],
+            ['POST', "/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", ['plan' => 'pro', 'notes' => 'Test notes 12345']],
             ['POST', "/api/v1/admin/face-subscriptions/{$subscription->uuid}/extend", ['notes' => 'Test notes 12345', 'additional_days' => 30]],
             ['POST', "/api/v1/admin/face-subscriptions/{$subscription->uuid}/cancel", ['notes' => 'Test notes 12345']],
             ['POST', "/api/v1/admin/face-subscriptions/{$subscription->uuid}/correct", ['notes' => 'Test notes 12345', 'expires_at' => now()->addYear()->toIso8601String()]],
+            ['POST', "/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", ['notes' => 'Test notes 12345', 'new_plan' => 'elite']],
         ];
 
         // (a) No token → 401
@@ -265,6 +270,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
         // AC #10, #11
         $response = $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
                 'notes' => 'Paiement reçu offline le 11/05/2026 par dépôt MTN',
             ]);
 
@@ -292,6 +298,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
         $this->assertSame('Paiement reçu offline le 11/05/2026 par dépôt MTN', $audit->notes);
         $this->assertNull($audit->previous_state);
         $this->assertSame('pro', $audit->new_state['plan']);
+        $this->assertSame('pro', $audit->new_state['tier']);
         $this->assertSame('active', $audit->new_state['status']);
         $this->assertNotNull($audit->new_state['starts_at']);
         $this->assertNotNull($audit->new_state['expires_at']);
@@ -307,6 +314,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
 
         $response = $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
                 'notes' => 'Backfill activation rétroactive sur 30 jours',
                 'starts_at' => $startsAt->toIso8601String(),
                 'duration_days' => 30,
@@ -325,6 +333,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
 
         $response = $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
                 'notes' => 'Tentative activation alors qu un abonnement actif existe',
             ]);
 
@@ -343,6 +352,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
 
         $response = $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
                 'notes' => 'Tentative activation alors qu un paiement est en attente',
             ]);
 
@@ -362,6 +372,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
 
         $response = $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
                 'notes' => 'Réactivation après terminal historique',
             ]);
 
@@ -374,6 +385,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
         // AC #15 — FP-1.1 defer mitigation
         $response = $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
                 'notes' => 'Tentative activation future',
                 'starts_at' => now()->addDay()->toIso8601String(),
             ]);
@@ -388,6 +400,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
         // AC #15
         $response = $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
                 'notes' => 'OK',
             ]);
 
@@ -398,7 +411,9 @@ class AdminFaceSubscriptionControllerTest extends TestCase
     {
         // AC #15
         $response = $this->withAdminApiToken($this->admin)
-            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", []);
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
+            ]);
 
         $response->assertStatus(422)->assertJsonValidationErrors(['notes']);
     }
@@ -408,12 +423,14 @@ class AdminFaceSubscriptionControllerTest extends TestCase
         // AC #15
         $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
                 'notes' => 'Durée invalide trop courte',
                 'duration_days' => 7,
             ])->assertStatus(422)->assertJsonValidationErrors(['duration_days']);
 
         $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
                 'notes' => 'Durée invalide trop longue',
                 'duration_days' => 4000,
             ])->assertStatus(422)->assertJsonValidationErrors(['duration_days']);
@@ -425,6 +442,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
         // that combined with a short duration_days produces an immediately-expired Active row.
         $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
                 'notes' => 'Backfill bien trop ancien pour être valide',
                 'starts_at' => now()->subDays(100)->toIso8601String(),
                 'duration_days' => 30,
@@ -435,6 +453,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
         // Boundary case — 89 days back must still succeed.
         $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
                 'notes' => 'Backfill récent dans la fenêtre autorisée',
                 'starts_at' => now()->subDays(89)->toIso8601String(),
                 'duration_days' => 365,
@@ -458,6 +477,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
 
         $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
                 'notes' => 'Activation déclenchant la séquence de verrous',
             ])
             ->assertStatus(201);
@@ -482,6 +502,78 @@ class AdminFaceSubscriptionControllerTest extends TestCase
             $facesLockIndex,
             'Face row lock must be acquired before scanning face_subscriptions',
         );
+    }
+
+    public function test_activate_persists_starter_subscription_when_plan_is_starter(): void
+    {
+        // AC #6
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'starter',
+                'notes' => 'Activation Starter offline',
+            ]);
+
+        $response->assertStatus(201)->assertJsonPath('data.plan', 'starter');
+
+        $sub = FaceSubscription::query()->where('face_id', $this->face->id)->first();
+        $this->assertSame(FaceSubscriptionPlan::Starter, $sub->plan);
+
+        $audit = FaceSubscriptionAudit::query()->where('face_subscription_id', $sub->id)->first();
+        $this->assertSame('starter', $audit->new_state['plan']);
+        $this->assertSame('starter', $audit->new_state['tier']);
+    }
+
+    public function test_activate_persists_elite_subscription_when_plan_is_elite(): void
+    {
+        // AC #6
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'elite',
+                'notes' => 'Activation Élite offline',
+            ]);
+
+        $response->assertStatus(201)->assertJsonPath('data.plan', 'elite');
+
+        $sub = FaceSubscription::query()->where('face_id', $this->face->id)->first();
+        $this->assertSame(FaceSubscriptionPlan::Elite, $sub->plan);
+
+        $audit = FaceSubscriptionAudit::query()->where('face_subscription_id', $sub->id)->first();
+        $this->assertSame('elite', $audit->new_state['plan']);
+        $this->assertSame('elite', $audit->new_state['tier']);
+    }
+
+    public function test_activate_rejects_missing_plan(): void
+    {
+        // AC #7
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'notes' => 'Notes valides sans plan fourni',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
+            ->assertJsonValidationErrors(['plan']);
+
+        $this->assertDatabaseCount('face_subscriptions', 0);
+        $this->assertDatabaseCount('face_subscription_audits', 0);
+    }
+
+    public function test_activate_rejects_unknown_or_free_plan(): void
+    {
+        // AC #8
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'platinum',
+                'notes' => 'Plan inconnu rejeté',
+            ])->assertStatus(422)->assertJsonValidationErrors(['plan']);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'free',
+                'notes' => 'Free n est pas un plan achetable',
+            ])->assertStatus(422)->assertJsonValidationErrors(['plan']);
+
+        $this->assertDatabaseCount('face_subscriptions', 0);
     }
 
     // ===================================================================
@@ -515,6 +607,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
 
         $audit = FaceSubscriptionAudit::query()->where('face_subscription_id', $subscription->id)->first();
         $this->assertSame(FaceSubscriptionAdminAction::Extend, $audit->action);
+        $this->assertSame('pro', $audit->new_state['tier']);
         $this->assertSame($originalExpiry->toIso8601String(), $audit->previous_state['expires_at']);
         $this->assertSame($subscription->expires_at->toIso8601String(), $audit->new_state['expires_at']);
 
@@ -623,6 +716,8 @@ class AdminFaceSubscriptionControllerTest extends TestCase
 
         $audit = FaceSubscriptionAudit::query()->where('face_subscription_id', $subscription->id)->first();
         $this->assertSame(FaceSubscriptionAdminAction::Cancel, $audit->action);
+        $this->assertSame('pro', $audit->previous_state['tier']);
+        $this->assertSame('pro', $audit->new_state['tier']);
         $this->assertSame('active', $audit->previous_state['status']);
         $this->assertSame('cancelled', $audit->new_state['status']);
         $this->assertNull($audit->previous_state['cancelled_at']);
@@ -703,6 +798,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
 
         $audit = FaceSubscriptionAudit::query()->where('face_subscription_id', $subscription->id)->first();
         $this->assertSame(FaceSubscriptionAdminAction::CorrectDates, $audit->action);
+        $this->assertSame('pro', $audit->new_state['tier']);
         $this->assertSame($originalStarts->toIso8601String(), $audit->previous_state['starts_at']);
         $this->assertSame($newStarts->toIso8601String(), $audit->new_state['starts_at']);
     }
@@ -890,6 +986,253 @@ class AdminFaceSubscriptionControllerTest extends TestCase
     }
 
     // ===================================================================
+    // Change tier (AC #10-#17)
+    // ===================================================================
+
+    public function test_change_tier_updates_plan_and_writes_audit_on_active_subscription(): void
+    {
+        // AC #10, #14, #18
+        $subscription = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+        $originalStarts = $subscription->starts_at->copy();
+        $originalExpires = $subscription->expires_at->copy();
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'Correction palier vers Élite',
+                'new_plan' => 'elite',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('message', 'Palier modifié')
+            ->assertJsonPath('data.plan', 'elite')
+            ->assertJsonPath('data.audits.0.action', 'change_tier')
+            ->assertJsonPath('data.audits.0.action_label', 'Changement de palier');
+
+        $subscription->refresh();
+        $this->assertSame(FaceSubscriptionPlan::Elite, $subscription->plan);
+        $this->assertTrue($subscription->starts_at->equalTo($originalStarts));
+        $this->assertTrue($subscription->expires_at->equalTo($originalExpires));
+
+        $this->assertDatabaseCount('face_subscription_audits', 1);
+        $audit = FaceSubscriptionAudit::query()->where('face_subscription_id', $subscription->id)->first();
+        $this->assertSame(FaceSubscriptionAdminAction::ChangeTier, $audit->action);
+        $this->assertSame('pro', $audit->previous_state['plan']);
+        $this->assertSame('pro', $audit->previous_state['tier']);
+        $this->assertSame('elite', $audit->new_state['plan']);
+        $this->assertSame('elite', $audit->new_state['tier']);
+    }
+
+    public function test_change_tier_succeeds_for_every_paid_tier_transition(): void
+    {
+        // AC #14
+        $transitions = [
+            [FaceSubscriptionPlan::Starter, FaceSubscriptionPlan::Pro],
+            [FaceSubscriptionPlan::Starter, FaceSubscriptionPlan::Elite],
+            [FaceSubscriptionPlan::Pro, FaceSubscriptionPlan::Starter],
+            [FaceSubscriptionPlan::Pro, FaceSubscriptionPlan::Elite],
+            [FaceSubscriptionPlan::Elite, FaceSubscriptionPlan::Starter],
+            [FaceSubscriptionPlan::Elite, FaceSubscriptionPlan::Pro],
+        ];
+
+        foreach ($transitions as [$from, $to]) {
+            $face = Face::factory()->create();
+            $sub = FaceSubscription::factory()->active()->create([
+                'face_id' => $face->id,
+                'plan' => $from,
+            ]);
+
+            $this->withAdminApiToken($this->admin)
+                ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/change-tier", [
+                    'notes' => "Transition {$from->value} vers {$to->value}",
+                    'new_plan' => $to->value,
+                ])
+                ->assertOk()
+                ->assertJsonPath('data.plan', $to->value);
+
+            $this->assertSame($to, $sub->fresh()->plan);
+        }
+    }
+
+    public function test_change_tier_dispatches_no_lifecycle_event(): void
+    {
+        // AC #17
+        Event::fake([
+            FaceSubscriptionActivated::class,
+            FaceSubscriptionCancelled::class,
+            FaceSubscriptionExpired::class,
+        ]);
+
+        $subscription = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'Changement de palier sans événement',
+                'new_plan' => 'elite',
+            ])
+            ->assertOk();
+
+        Event::assertNotDispatched(FaceSubscriptionActivated::class);
+        Event::assertNotDispatched(FaceSubscriptionCancelled::class);
+        Event::assertNotDispatched(FaceSubscriptionExpired::class);
+    }
+
+    public function test_change_tier_returns_409_same_tier_when_new_plan_equals_current(): void
+    {
+        // AC #12
+        $subscription = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'Tentative changement vers le même palier',
+                'new_plan' => 'pro',
+            ]);
+
+        $response->assertStatus(409)->assertJsonPath('error.code', 'SAME_TIER');
+
+        $this->assertSame(FaceSubscriptionPlan::Pro, $subscription->fresh()->plan);
+        $this->assertDatabaseCount('face_subscription_audits', 0);
+    }
+
+    public function test_change_tier_returns_409_not_tier_changeable_on_non_active_statuses(): void
+    {
+        // AC #11
+        $cases = [
+            'expired' => fn () => FaceSubscription::factory()->expired(),
+            'cancelled' => fn () => FaceSubscription::factory()->cancelled(),
+            'failed' => fn () => FaceSubscription::factory()->failed(),
+            'pendingPayment' => fn () => FaceSubscription::factory()->pendingPayment(),
+        ];
+
+        foreach ($cases as $state => $factoryFn) {
+            $face = Face::factory()->create();
+            $sub = $factoryFn()->create(['face_id' => $face->id]);
+
+            $this->withAdminApiToken($this->admin)
+                ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/change-tier", [
+                    'notes' => "Tentative changement palier {$state}",
+                    'new_plan' => 'elite',
+                ])
+                ->assertStatus(409)
+                ->assertJsonPath('error.code', 'NOT_TIER_CHANGEABLE');
+        }
+
+        $this->assertDatabaseCount('face_subscription_audits', 0);
+    }
+
+    public function test_change_tier_returns_409_not_tier_changeable_on_zombie_active(): void
+    {
+        // AC #11
+        $subscription = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+        FaceSubscription::query()->whereKey($subscription->id)->update([
+            'expires_at' => now()->subDay(),
+        ]);
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'Tentative changement palier sur zombie',
+                'new_plan' => 'elite',
+            ]);
+
+        $response->assertStatus(409)->assertJsonPath('error.code', 'NOT_TIER_CHANGEABLE');
+    }
+
+    public function test_change_tier_returns_409_not_tier_changeable_when_non_active_even_if_new_plan_equals_current(): void
+    {
+        // AC #11/#12 — the active/unexpired guard runs before the same-tier guard.
+        $subscription = FaceSubscription::factory()->expired()->create([
+            'face_id' => $this->face->id,
+            'plan' => FaceSubscriptionPlan::Pro,
+        ]);
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'Changement palier sur abonnement expiré, même plan',
+                'new_plan' => 'pro',
+            ]);
+
+        $response->assertStatus(409)->assertJsonPath('error.code', 'NOT_TIER_CHANGEABLE');
+
+        $this->assertDatabaseCount('face_subscription_audits', 0);
+    }
+
+    public function test_change_tier_rejects_missing_new_plan(): void
+    {
+        // AC #15
+        $subscription = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'Notes valides mais new_plan manquant',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['new_plan']);
+
+        $this->assertDatabaseCount('face_subscription_audits', 0);
+    }
+
+    public function test_change_tier_rejects_unknown_or_free_new_plan(): void
+    {
+        // AC #15
+        $subscription = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'new_plan inconnu rejeté',
+                'new_plan' => 'platinum',
+            ])->assertStatus(422)->assertJsonValidationErrors(['new_plan']);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'Free n est pas un palier achetable',
+                'new_plan' => 'free',
+            ])->assertStatus(422)->assertJsonValidationErrors(['new_plan']);
+    }
+
+    public function test_change_tier_rejects_invalid_notes(): void
+    {
+        // AC #15
+        $subscription = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'new_plan' => 'elite',
+            ])->assertStatus(422)->assertJsonValidationErrors(['notes']);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'OK',
+                'new_plan' => 'elite',
+            ])->assertStatus(422)->assertJsonValidationErrors(['notes']);
+    }
+
+    public function test_change_tier_returns_404_when_subscription_uuid_unknown(): void
+    {
+        // AC #16
+        $this->withAdminApiToken($this->admin)
+            ->postJson('/api/v1/admin/face-subscriptions/00000000-0000-0000-0000-000000000000/change-tier', [
+                'notes' => 'Changement palier sur UUID inexistant',
+                'new_plan' => 'elite',
+            ])
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 'NOT_FOUND')
+            ->assertJsonPath('error.message', 'Ressource introuvable.');
+    }
+
+    // ===================================================================
     // Audit invariants (AC #24, #25, #26, #27)
     // ===================================================================
 
@@ -953,6 +1296,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
         // AC #27
         $response = $this->withAdminApiToken($this->admin)
             ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
                 'notes' => 'Snapshot leak guard test',
             ]);
 
@@ -964,7 +1308,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
         // MySQL JSON columns do not preserve insertion order; compare the key set.
         $actualKeys = array_keys($audit->new_state);
         sort($actualKeys);
-        $expectedKeys = ['cancelled_at', 'currency', 'expires_at', 'paid_amount', 'plan', 'starts_at', 'status'];
+        $expectedKeys = ['cancelled_at', 'currency', 'expires_at', 'paid_amount', 'plan', 'starts_at', 'status', 'tier'];
         $this->assertSame($expectedKeys, $actualKeys);
     }
 

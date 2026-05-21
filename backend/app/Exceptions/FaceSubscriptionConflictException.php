@@ -58,6 +58,22 @@ class FaceSubscriptionConflictException extends HttpException
         );
     }
 
+    public static function notTierChangeable(): self
+    {
+        return new self(
+            errorCode: 'NOT_TIER_CHANGEABLE',
+            message: 'Seul un abonnement actif et non expiré peut changer de palier. Utilisez « Activer » pour redémarrer un abonnement terminé.',
+        );
+    }
+
+    public static function sameTier(): self
+    {
+        return new self(
+            errorCode: 'SAME_TIER',
+            message: 'Cet abonnement est déjà sur ce palier. Choisissez un palier différent.',
+        );
+    }
+
     public static function planUnavailable(): self
     {
         return new self(

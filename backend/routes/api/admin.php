@@ -150,6 +150,9 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'api.token', 'admin'])->g
         Route::post('/face-subscriptions/{subscription}/correct', [AdminFaceSubscriptionController::class, 'correct'])
             ->middleware('throttle:30,1')
             ->name('admin.face-subscriptions.correct');
+        Route::post('/face-subscriptions/{subscription}/change-tier', [AdminFaceSubscriptionController::class, 'changeTier'])
+            ->middleware('throttle:30,1')
+            ->name('admin.face-subscriptions.change-tier');
     });
 
     // SuperAdmin only

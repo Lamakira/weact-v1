@@ -24,10 +24,11 @@ class FaceSubscriptionAdminService
         Face $face,
         Admin $admin,
         string $notes,
+        FaceSubscriptionPlan $plan,
         ?CarbonInterface $startsAt,
         int $durationDays,
     ): FaceSubscription {
-        return DB::transaction(function () use ($face, $admin, $notes, $startsAt, $durationDays): FaceSubscription {
+        return DB::transaction(function () use ($face, $admin, $notes, $plan, $startsAt, $durationDays): FaceSubscription {
             // Serialize concurrent activations on the same Face — without this, the predicate
             // SELECT FOR UPDATE below can return zero rows and (under READ COMMITTED or with
             // an inadequate gap lock) let two parallel admins both insert an Active row.
@@ -60,7 +61,7 @@ class FaceSubscriptionAdminService
 
             $subscription = FaceSubscription::create([
                 'face_id' => $face->id,
-                'plan' => FaceSubscriptionPlan::Pro,
+                'plan' => $plan,
                 'status' => FaceSubscriptionStatus::Active,
                 'starts_at' => $resolvedStarts,
                 'expires_at' => $resolvedExpires,
@@ -192,6 +193,44 @@ class FaceSubscriptionAdminService
         });
     }
 
+    public function changeTier(
+        FaceSubscription $subscription,
+        Admin $admin,
+        string $notes,
+        FaceSubscriptionPlan $newPlan,
+    ): FaceSubscription {
+        return DB::transaction(function () use ($subscription, $admin, $notes, $newPlan): FaceSubscription {
+            /** @var FaceSubscription $locked */
+            $locked = FaceSubscription::lockForUpdate()->findOrFail($subscription->id);
+
+            if ($locked->status !== FaceSubscriptionStatus::Active
+                || $locked->expires_at === null
+                || ! $locked->expires_at->isFuture()
+            ) {
+                throw FaceSubscriptionConflictException::notTierChangeable();
+            }
+
+            if ($locked->plan === $newPlan) {
+                throw FaceSubscriptionConflictException::sameTier();
+            }
+
+            $previousState = $this->snapshot($locked);
+            $locked->plan = $newPlan;
+            $locked->save();
+
+            $this->writeAudit(
+                subscription: $locked,
+                admin: $admin,
+                action: FaceSubscriptionAdminAction::ChangeTier,
+                notes: $notes,
+                previousState: $previousState,
+                newState: $this->snapshot($locked->fresh()),
+            );
+
+            return $locked->fresh();
+        });
+    }
+
     /**
      * @param  array<string, mixed>|null  $previousState
      * @param  array<string, mixed>  $newState
@@ -221,6 +260,7 @@ class FaceSubscriptionAdminService
     {
         return [
             'plan' => $subscription->plan->value,
+            'tier' => $subscription->plan->tier()->value,
             'status' => $subscription->status->value,
             'starts_at' => $subscription->starts_at?->toIso8601String(),
             'expires_at' => $subscription->expires_at?->toIso8601String(),

@@ -8,7 +8,7 @@ use App\Enums\FaceSubscriptionPlan;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class ActivateFaceSubscriptionRequest extends FormRequest
+class ChangeTierFaceSubscriptionRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -28,10 +28,8 @@ class ActivateFaceSubscriptionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'plan' => ['required', Rule::enum(FaceSubscriptionPlan::class)],
             'notes' => ['required', 'string', 'min:5', 'max:1000'],
-            'starts_at' => ['sometimes', 'date', 'after_or_equal:-90 days', 'before_or_equal:now'],
-            'duration_days' => ['sometimes', 'integer', 'min:30', 'max:3650'],
+            'new_plan' => ['required', Rule::enum(FaceSubscriptionPlan::class)],
         ];
     }
 }
