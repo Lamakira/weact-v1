@@ -73,7 +73,7 @@ class FaceResource extends JsonResource
             'is_available' => $this->is_available,
             'is_featured' => $this->is_featured,
             ...($viewer === 'admin' ? [
-                'is_featured_by_subscription' => $entitlement->isFeaturedBySubscription($this->resource),
+                'subscription_tier' => $capabilities->tier->value,
             ] : []),
             'availability_badge' => $this->availability_badge,
             'availability_badge_color' => $this->availability_badge_color,

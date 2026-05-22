@@ -455,7 +455,7 @@ class AdminFaceCrudTest extends TestCase
 
     // ─── Subscription-driven Featured (FEATURE-FP-1.6) ────────────
 
-    public function test_admin_show_exposes_is_featured_by_subscription_true_for_active_subscriber(): void
+    public function test_admin_show_exposes_subscription_tier_for_active_subscriber(): void
     {
         $face = Face::factory()->create(['is_featured' => false]);
         FaceSubscription::factory()->active()->create(['face_id' => $face->id]);
@@ -465,10 +465,12 @@ class AdminFaceCrudTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.is_featured', false)
-            ->assertJsonPath('data.is_featured_by_subscription', true);
+            ->assertJsonPath('data.subscription_tier', 'pro');
+
+        $this->assertArrayNotHasKey('is_featured_by_subscription', $response->json('data'));
     }
 
-    public function test_admin_show_exposes_is_featured_by_subscription_false_when_no_active_subscription(): void
+    public function test_admin_show_exposes_free_subscription_tier_when_no_active_subscription(): void
     {
         $face = Face::factory()->create(['is_featured' => false]);
         FaceSubscription::factory()->expired()->create(['face_id' => $face->id]);
@@ -478,7 +480,7 @@ class AdminFaceCrudTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.is_featured', false)
-            ->assertJsonPath('data.is_featured_by_subscription', false);
+            ->assertJsonPath('data.subscription_tier', 'free');
     }
 
     public function test_admin_show_distinguishes_manual_featured_from_subscription_featured(): void
@@ -495,22 +497,22 @@ class AdminFaceCrudTest extends TestCase
             ->getJson("/api/v1/admin/faces/{$manualOnly->uuid}");
         $manualResponse->assertOk()
             ->assertJsonPath('data.is_featured', true)
-            ->assertJsonPath('data.is_featured_by_subscription', false);
+            ->assertJsonPath('data.subscription_tier', 'free');
 
         $subscriptionResponse = $this->withToken($this->adminToken)
             ->getJson("/api/v1/admin/faces/{$subscriptionOnly->uuid}");
         $subscriptionResponse->assertOk()
             ->assertJsonPath('data.is_featured', false)
-            ->assertJsonPath('data.is_featured_by_subscription', true);
+            ->assertJsonPath('data.subscription_tier', 'pro');
 
         $bothResponse = $this->withToken($this->adminToken)
             ->getJson("/api/v1/admin/faces/{$bothFlags->uuid}");
         $bothResponse->assertOk()
             ->assertJsonPath('data.is_featured', true)
-            ->assertJsonPath('data.is_featured_by_subscription', true);
+            ->assertJsonPath('data.subscription_tier', 'pro');
     }
 
-    public function test_admin_index_exposes_is_featured_by_subscription_for_each_face(): void
+    public function test_admin_index_exposes_subscription_tier_for_each_face(): void
     {
         $activeSubscriber = Face::factory()->create([
             'prenom' => 'Active Subscriber',
@@ -530,12 +532,12 @@ class AdminFaceCrudTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.0.id', $activeSubscriber->uuid)
-            ->assertJsonPath('data.0.is_featured_by_subscription', true)
+            ->assertJsonPath('data.0.subscription_tier', 'pro')
             ->assertJsonPath('data.1.id', $freeFace->uuid)
-            ->assertJsonPath('data.1.is_featured_by_subscription', false);
+            ->assertJsonPath('data.1.subscription_tier', 'free');
     }
 
-    public function test_producer_view_does_not_expose_is_featured_by_subscription(): void
+    public function test_producer_view_does_not_expose_subscription_tier(): void
     {
         $face = Face::factory()->create(['is_featured' => false]);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
@@ -555,9 +557,10 @@ class AdminFaceCrudTest extends TestCase
         $body = $response->json('data');
         $this->assertArrayHasKey('is_featured', $body);
         $this->assertArrayNotHasKey('is_featured_by_subscription', $body);
+        $this->assertArrayNotHasKey('subscription_tier', $body);
     }
 
-    public function test_face_owner_profile_does_not_expose_is_featured_by_subscription(): void
+    public function test_face_owner_profile_does_not_expose_subscription_tier(): void
     {
         $face = Face::factory()->create(['is_featured' => false]);
         FaceSubscription::factory()->active()->create(['face_id' => $face->id]);
@@ -575,5 +578,30 @@ class AdminFaceCrudTest extends TestCase
         $body = $response->json('data');
         $this->assertArrayHasKey('is_featured', $body);
         $this->assertArrayNotHasKey('is_featured_by_subscription', $body);
+        $this->assertArrayNotHasKey('subscription_tier', $body);
+    }
+
+    public function test_admin_show_exposes_starter_subscription_tier(): void
+    {
+        $face = Face::factory()->create(['is_featured' => false]);
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $face->id]);
+
+        $response = $this->withToken($this->adminToken)
+            ->getJson("/api/v1/admin/faces/{$face->uuid}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.subscription_tier', 'starter');
+    }
+
+    public function test_admin_show_exposes_elite_subscription_tier(): void
+    {
+        $face = Face::factory()->create(['is_featured' => false]);
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $face->id]);
+
+        $response = $this->withToken($this->adminToken)
+            ->getJson("/api/v1/admin/faces/{$face->uuid}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.subscription_tier', 'elite');
     }
 }
