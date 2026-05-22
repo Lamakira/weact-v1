@@ -53,20 +53,23 @@ class FaceSubscriptionPaymentService
     ) {}
 
     /**
-     * @return array{subscription: FaceSubscription, checkout_url: string}
+     * @return array{subscription: FaceSubscription, checkout_url: string, amount: int, currency: string, forfeited_days: int}
      *
      * @throws FaceSubscriptionConflictException
      * @throws FaceSubscriptionPaymentInitiationException
      * @throws ValidationException
      */
-    public function initiate(Face $face, User $faceUser): array
+    public function initiate(Face $face, User $faceUser, FaceSubscriptionPlan $plan): array
     {
-        $configuredAmount = (int) config('face_premium.annual_plan.amount');
-        $configuredCurrency = (string) config('face_premium.annual_plan.currency', 'XOF');
+        $configuredAmount = $plan->price();
+        $configuredCurrency = (string) config('face_subscription_tiers.currency', 'XOF');
+        $configuredProvider = (string) config('face_subscription_tiers.provider', 'fedapay');
 
         if ($configuredAmount <= 0) {
             throw FaceSubscriptionConflictException::planUnavailable();
         }
+
+        $forfeitedDays = $this->forfeitedDaysFor($face, $plan);
 
         // Patch B (code-review v2 2026-05-12): the cache lock now wraps the
         // entire flow (pending row creation + Fedapay call + finalize), mirroring
@@ -76,10 +79,10 @@ class FaceSubscriptionPaymentService
         $lock = Cache::lock("face_subscription_initiate_{$face->id}", self::INITIATE_LOCK_TTL_SECONDS);
 
         try {
-            return $lock->block(self::INITIATE_LOCK_WAIT_SECONDS, function () use ($face, $faceUser, $configuredAmount, $configuredCurrency): array {
+            return $lock->block(self::INITIATE_LOCK_WAIT_SECONDS, function () use ($face, $faceUser, $plan, $configuredAmount, $configuredCurrency, $configuredProvider, $forfeitedDays): array {
                 $idempotencyKey = Str::uuid()->toString();
 
-                $subscription = DB::transaction(function () use ($face, $configuredAmount, $configuredCurrency, $idempotencyKey): FaceSubscription {
+                $subscription = DB::transaction(function () use ($face, $plan, $configuredAmount, $configuredCurrency, $configuredProvider, $idempotencyKey): FaceSubscription {
                     Face::query()->lockForUpdate()->findOrFail($face->id);
 
                     $existingPending = FaceSubscription::query()
@@ -94,14 +97,14 @@ class FaceSubscriptionPaymentService
 
                     return FaceSubscription::create([
                         'face_id' => $face->id,
-                        'plan' => FaceSubscriptionPlan::Pro,
+                        'plan' => $plan,
                         'status' => FaceSubscriptionStatus::PendingPayment,
                         'starts_at' => null,
                         'expires_at' => null,
                         'cancelled_at' => null,
                         'paid_amount' => null,
                         'currency' => $configuredCurrency,
-                        'provider' => (string) config('face_premium.annual_plan.provider', 'fedapay'),
+                        'provider' => $configuredProvider,
                         'provider_reference' => null,
                         'metadata' => [
                             'quoted_amount' => $configuredAmount,
@@ -172,6 +175,9 @@ class FaceSubscriptionPaymentService
                 return [
                     'subscription' => $fresh,
                     'checkout_url' => $remote['checkout_url'],
+                    'amount' => $configuredAmount,
+                    'currency' => $configuredCurrency,
+                    'forfeited_days' => $forfeitedDays,
                 ];
             });
         } catch (LockTimeoutException) {
@@ -280,7 +286,16 @@ class FaceSubscriptionPaymentService
                 ->orderByDesc('id')
                 ->first();
 
-            $startsAt = $existingActive?->expires_at?->copy() ?? Carbon::now();
+            // FP-2.5: a tier change (upgrade or downgrade) is when the Face holds
+            // a live active subscription on a DIFFERENT plan than this row. No
+            // pro-rata — the 12-month window restarts now and the superseded row
+            // is cancelled. A same-plan renewal still chains from the current
+            // expiry so paid coverage time is never lost (FP-1.5 behavior).
+            $isTierChange = $existingActive !== null && $existingActive->plan !== $locked->plan;
+
+            $startsAt = $isTierChange
+                ? Carbon::now()
+                : ($existingActive?->expires_at?->copy() ?? Carbon::now());
             $expiresAt = $startsAt->copy()->addYear();
 
             $updates = [
@@ -301,6 +316,9 @@ class FaceSubscriptionPaymentService
                                 ?? data_get($rawWebhookPayload, 'data.status'),
                         ],
                     ],
+                    $isTierChange
+                        ? ['supersedes_subscription_id' => $existingActive->id]
+                        : [],
                 ),
             ];
 
@@ -311,6 +329,23 @@ class FaceSubscriptionPaymentService
             // constraint guards against any future collision.
             if ($providerReference !== null && $locked->provider_reference === null) {
                 $updates['provider_reference'] = $providerReference;
+            }
+
+            // FP-2.5: cancel the superseded active row in the SAME transaction so
+            // a replay can never observe two active rows for the Face.
+            if ($isTierChange) {
+                $existingActive->update([
+                    'status' => FaceSubscriptionStatus::Cancelled,
+                    'cancelled_at' => $startsAt,
+                    'metadata' => array_merge(
+                        is_array($existingActive->metadata) ? $existingActive->metadata : [],
+                        [
+                            'superseded_by_subscription_id' => $locked->id,
+                            'superseded_reason' => 'tier_change',
+                            'superseded_at' => $startsAt->toIso8601String(),
+                        ],
+                    ),
+                ]);
             }
 
             $locked->update($updates);
@@ -491,6 +526,34 @@ class FaceSubscriptionPaymentService
 
             $locked->update($updates);
         });
+    }
+
+    /**
+     * Whole days the Face forfeits by switching to $plan now: the remaining
+     * coverage of their current live active subscription when its tier differs
+     * from $plan. Zero for a first-time activation or a same-tier renewal — a
+     * renewal chains, so it forfeits nothing. This is an estimate computed at
+     * initiation; the authoritative cancellation happens in markAsPaid().
+     */
+    private function forfeitedDaysFor(Face $face, FaceSubscriptionPlan $plan): int
+    {
+        /** @var FaceSubscription|null $currentActive */
+        $currentActive = FaceSubscription::query()
+            ->where('face_id', $face->id)
+            ->where('status', FaceSubscriptionStatus::Active)
+            ->where('expires_at', '>', now())
+            ->orderByDesc('expires_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($currentActive === null
+            || $currentActive->plan === $plan
+            || $currentActive->expires_at === null
+        ) {
+            return 0;
+        }
+
+        return max(0, (int) ceil(Carbon::now()->diffInDays($currentActive->expires_at)));
     }
 
     private function expectedAmountFor(FaceSubscription $subscription): ?int

@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Face;
 
 use App\Enums\ErrorCodes;
+use App\Enums\FaceSubscriptionPlan;
 use App\Exceptions\FaceSubscriptionPaymentInitiationException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Face\InitiateFaceSubscriptionPaymentRequest;
 use App\Models\Face;
 use App\Services\FaceSubscriptionPaymentService;
 use Illuminate\Http\JsonResponse;
@@ -18,7 +20,7 @@ class SubscriptionPaymentController extends Controller
         private readonly FaceSubscriptionPaymentService $paymentService,
     ) {}
 
-    public function initiate(Request $request): JsonResponse
+    public function initiate(InitiateFaceSubscriptionPaymentRequest $request): JsonResponse
     {
         $user = $request->user();
 
@@ -43,16 +45,20 @@ class SubscriptionPaymentController extends Controller
             ], 403);
         }
 
+        $plan = FaceSubscriptionPlan::from((string) $request->validated('plan'));
+
         try {
-            $result = $this->paymentService->initiate($face, $user);
+            $result = $this->paymentService->initiate($face, $user, $plan);
 
             return response()->json([
                 'data' => [
                     'subscription_id' => $result['subscription']->uuid,
                     'status' => $result['subscription']->status->value,
+                    'plan' => $result['subscription']->plan->value,
                     'checkout_url' => $result['checkout_url'],
-                    'amount' => (int) config('face_premium.annual_plan.amount'),
-                    'currency' => (string) config('face_premium.annual_plan.currency', 'XOF'),
+                    'amount' => $result['amount'],
+                    'currency' => $result['currency'],
+                    'forfeited_days' => $result['forfeited_days'],
                 ],
                 'message' => 'Redirection vers le paiement...',
             ]);

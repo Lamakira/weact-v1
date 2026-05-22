@@ -122,9 +122,9 @@ class FedapayService
     ): array {
         /** @var Transaction $transaction */
         $transaction = Transaction::create([
-            'description' => "Abonnement Premium annuel — {$faceUser->email}",
-            'amount' => (int) config('face_premium.annual_plan.amount'),
-            'currency' => ['iso' => (string) config('face_premium.annual_plan.currency', 'XOF')],
+            'description' => "Abonnement {$subscription->plan->label()} annuel — {$faceUser->email}",
+            'amount' => $subscription->plan->price(),
+            'currency' => ['iso' => (string) config('face_subscription_tiers.currency', 'XOF')],
             'callback_url' => route('webhooks.fedapay'),
             'custom_metadata' => [
                 'face_subscription_id' => $subscription->id,

@@ -35,6 +35,15 @@ enum FaceSubscriptionPlan: string
     }
 
     /**
+     * Annual price for this paid plan in integer XOF, sourced from
+     * config/face_subscription_tiers.php (the single pricing source of truth).
+     */
+    public function price(): int
+    {
+        return (int) config('face_subscription_tiers.tiers.'.$this->value.'.price');
+    }
+
+    /**
      * Get all enum values as an array of strings.
      *
      * @return array<int, string>

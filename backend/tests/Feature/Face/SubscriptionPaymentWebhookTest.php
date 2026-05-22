@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Face;
 
+use App\Enums\FaceSubscriptionPlan;
 use App\Enums\FaceSubscriptionStatus;
 use App\Enums\FinancialEventType;
 use App\Enums\MissionPaymentStatus;
@@ -39,10 +40,6 @@ class SubscriptionPaymentWebhookTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        config(['face_premium.annual_plan.amount' => 50000]);
-        config(['face_premium.annual_plan.currency' => 'XOF']);
-        config(['face_premium.annual_plan.provider' => 'fedapay']);
 
         $this->face = Face::factory()->create();
         $this->faceUser = User::factory()->create([
@@ -598,5 +595,118 @@ class SubscriptionPaymentWebhookTest extends TestCase
         // Active row's expires_at is unchanged (idempotency at Active row level)
         $this->assertSame($resolvedExpiresAt, $orphan->fresh()->expires_at?->toIso8601String());
         $this->assertSame(FaceSubscriptionStatus::Active, $orphan->fresh()->status);
+    }
+
+    // -----------------------------------------------------------------------
+    // FP-2.5 — tier change via webhook (AC #19, #20, #21)
+    // -----------------------------------------------------------------------
+
+    public function test_webhook_approved_on_tier_change_cancels_old_active_and_activates_new(): void
+    {
+        $oldActive = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => 'tx_old_pro_wh',
+        ]);
+
+        $pendingElite = FaceSubscription::factory()->elite()->pendingPayment()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => '900100',
+            'paid_amount' => null,
+            'metadata' => ['quoted_amount' => 40000],
+        ]);
+
+        $webhookEvent = $this->dispatchWebhook('evt_tier_change_1', 'transaction.approved', [
+            'id' => 'evt_tier_change_1',
+            'name' => 'transaction.approved',
+            'entity' => [
+                'id' => 900100,
+                'reference' => 'fedapay-tier-change',
+                'amount' => 40000,
+            ],
+        ]);
+
+        $this->assertSame(FaceSubscriptionStatus::Active, $pendingElite->fresh()->status);
+        $this->assertSame(FaceSubscriptionStatus::Cancelled, $oldActive->fresh()->status);
+        $this->assertSame('processed', $webhookEvent->fresh()->status);
+    }
+
+    public function test_webhook_approved_replay_on_tier_change_is_no_op(): void
+    {
+        $oldActive = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => 'tx_old_pro_replay',
+        ]);
+
+        $pendingElite = FaceSubscription::factory()->elite()->pendingPayment()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => '900200',
+            'paid_amount' => null,
+            'metadata' => ['quoted_amount' => 40000],
+        ]);
+
+        $payload = [
+            'id' => 'evt_tier_replay_1',
+            'name' => 'transaction.approved',
+            'entity' => [
+                'id' => 900200,
+                'reference' => 'fedapay-tier-replay',
+                'amount' => 40000,
+            ],
+        ];
+
+        $this->dispatchWebhook('evt_tier_replay_1', 'transaction.approved', $payload);
+
+        $firstExpiresAt = $pendingElite->fresh()->expires_at?->toIso8601String();
+        $this->assertNotNull($firstExpiresAt);
+
+        // Replay with a distinct fedapay_event_id — row-level idempotency must hold.
+        $payload['id'] = 'evt_tier_replay_2';
+        $this->dispatchWebhook('evt_tier_replay_2', 'transaction.approved', $payload);
+
+        $this->assertSame($firstExpiresAt, $pendingElite->fresh()->expires_at?->toIso8601String());
+        $this->assertSame(FaceSubscriptionStatus::Active, $pendingElite->fresh()->status);
+        $this->assertSame(FaceSubscriptionStatus::Cancelled, $oldActive->fresh()->status);
+
+        $this->assertSame(
+            1,
+            FaceSubscription::query()
+                ->where('face_id', $this->face->id)
+                ->where('status', FaceSubscriptionStatus::Active)
+                ->count(),
+        );
+    }
+
+    public function test_webhook_declined_on_tier_change_leaves_current_active_intact(): void
+    {
+        $oldActive = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => 'tx_old_pro_declined',
+        ]);
+        $oldExpiresAt = $oldActive->expires_at?->toIso8601String();
+
+        $pendingElite = FaceSubscription::factory()->elite()->pendingPayment()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => '900300',
+            'paid_amount' => null,
+            'metadata' => ['quoted_amount' => 40000],
+        ]);
+
+        $this->dispatchWebhook('evt_tier_declined_1', 'transaction.declined', [
+            'id' => 'evt_tier_declined_1',
+            'name' => 'transaction.declined',
+            'entity' => [
+                'id' => 900300,
+                'reference' => 'fedapay-tier-declined',
+            ],
+        ]);
+
+        // The failed upgrade fails only its own pending row.
+        $this->assertSame(FaceSubscriptionStatus::Failed, $pendingElite->fresh()->status);
+
+        // The Face keeps their current subscription untouched.
+        $freshOld = $oldActive->fresh();
+        $this->assertSame(FaceSubscriptionStatus::Active, $freshOld->status);
+        $this->assertSame(FaceSubscriptionPlan::Pro, $freshOld->plan);
+        $this->assertSame($oldExpiresAt, $freshOld->expires_at?->toIso8601String());
     }
 }

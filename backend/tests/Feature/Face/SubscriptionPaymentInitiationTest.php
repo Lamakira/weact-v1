@@ -6,6 +6,9 @@ namespace Tests\Feature\Face;
 
 use App\Enums\FaceSubscriptionPlan;
 use App\Enums\FaceSubscriptionStatus;
+use App\Events\FaceSubscriptionActivated;
+use App\Events\FaceSubscriptionCancelled;
+use App\Events\FaceSubscriptionExpired;
 use App\Models\Face;
 use App\Models\FaceSubscription;
 use App\Models\Producer;
@@ -17,6 +20,7 @@ use FedaPay\Transaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
@@ -32,10 +36,6 @@ class SubscriptionPaymentInitiationTest extends TestCase
     {
         parent::setUp();
 
-        config(['face_premium.annual_plan.amount' => 50000]);
-        config(['face_premium.annual_plan.currency' => 'XOF']);
-        config(['face_premium.annual_plan.provider' => 'fedapay']);
-
         $this->face = Face::factory()->create();
         $this->faceUser = User::factory()->create([
             'userable_type' => Face::class,
@@ -49,7 +49,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
 
     public function test_unauthenticated_request_returns_401_with_envelope(): void
     {
-        $response = $this->postJson('/api/v1/face/subscription/initiate-payment');
+        $response = $this->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
 
         $response->assertUnauthorized()
             ->assertJsonPath('error.code', 'UNAUTHENTICATED')
@@ -66,7 +66,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
         ]);
 
         $response = $this->actingAs($producerUser)
-            ->postJson('/api/v1/face/subscription/initiate-payment');
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
 
         $response->assertForbidden()
             ->assertJsonPath('error.code', 'FORBIDDEN')
@@ -81,7 +81,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
         ]);
 
         $response = $this->actingAs($orphanUser)
-            ->postJson('/api/v1/face/subscription/initiate-payment');
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
 
         $response->assertForbidden()
             ->assertJsonPath('error.code', 'FORBIDDEN')
@@ -100,7 +100,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
         ]);
 
         $response = $this->actingAs($adminLikeUser)
-            ->postJson('/api/v1/face/subscription/initiate-payment');
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
 
         $response->assertForbidden()
             ->assertJsonPath('error.code', 'FORBIDDEN')
@@ -117,7 +117,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
         ]);
 
         $response = $this->actingAs($unverifiedFaceUser)
-            ->postJson('/api/v1/face/subscription/initiate-payment');
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
 
         $response->assertForbidden()
             ->assertJsonPath('error.code', 'EMAIL_NOT_VERIFIED')
@@ -143,13 +143,15 @@ class SubscriptionPaymentInitiationTest extends TestCase
         });
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson('/api/v1/face/subscription/initiate-payment');
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
 
         $response->assertOk()
             ->assertJsonPath('data.status', 'pending_payment')
+            ->assertJsonPath('data.plan', 'pro')
             ->assertJsonPath('data.checkout_url', 'https://checkout.fedapay.com/abc')
-            ->assertJsonPath('data.amount', 50000)
+            ->assertJsonPath('data.amount', 25000)
             ->assertJsonPath('data.currency', 'XOF')
+            ->assertJsonPath('data.forfeited_days', 0)
             ->assertJsonPath('message', 'Redirection vers le paiement...');
 
         $this->assertNotEmpty($response->json('data.subscription_id'));
@@ -170,7 +172,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
         $metadata = $row->metadata;
         $this->assertIsArray($metadata);
         $this->assertSame(123456, $metadata['fedapay_transaction_id']);
-        $this->assertSame(50000, $metadata['quoted_amount']);
+        $this->assertSame(25000, $metadata['quoted_amount']);
         $this->assertSame('XOF', $metadata['quoted_currency']);
         $this->assertIsString($metadata['idempotency_key']);
         // UUID v4 pattern check
@@ -200,7 +202,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
         });
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson('/api/v1/face/subscription/initiate-payment');
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
 
         $response->assertOk()
             ->assertJsonPath('data.status', 'pending_payment');
@@ -312,7 +314,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
 
     public function test_initiation_sets_provider_currency_from_config(): void
     {
-        config(['face_premium.annual_plan.currency' => 'EUR']);
+        config(['face_subscription_tiers.currency' => 'EUR']);
 
         $this->mock(FedapayService::class, function ($mock): void {
             $mock->shouldReceive('initiatePaymentForFaceSubscription')
@@ -324,7 +326,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
         });
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson('/api/v1/face/subscription/initiate-payment');
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
 
         $response->assertOk()
             ->assertJsonPath('data.currency', 'EUR');
@@ -350,7 +352,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
         });
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson('/api/v1/face/subscription/initiate-payment');
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
 
         $response->assertStatus(409)
             ->assertJsonPath('error.code', 'PENDING_PAYMENT_EXISTS')
@@ -383,7 +385,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
         });
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson('/api/v1/face/subscription/initiate-payment');
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
 
         $response->assertOk()
             ->assertJsonPath('data.status', 'pending_payment');
@@ -420,10 +422,10 @@ class SubscriptionPaymentInitiationTest extends TestCase
         });
 
         foreach ([0, -100] as $invalidAmount) {
-            config(['face_premium.annual_plan.amount' => $invalidAmount]);
+            config(['face_subscription_tiers.tiers.pro.price' => $invalidAmount]);
 
             $response = $this->actingAs($this->faceUser)
-                ->postJson('/api/v1/face/subscription/initiate-payment');
+                ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
 
             $response->assertStatus(422)
                 ->assertJsonPath('error.code', 'PLAN_UNAVAILABLE')
@@ -456,7 +458,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
         });
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson('/api/v1/face/subscription/initiate-payment');
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
 
         $response->assertStatus(502)
             ->assertJsonPath('error.code', 'PAYMENT_INITIATION_FAILED')
@@ -471,7 +473,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
         $preserved = FaceSubscription::query()->where('face_id', $this->face->id)->firstOrFail();
         $this->assertSame(FaceSubscriptionStatus::PendingPayment, $preserved->status);
         $this->assertNull($preserved->provider_reference);
-        $this->assertSame(50000, $preserved->metadata['quoted_amount']);
+        $this->assertSame(25000, $preserved->metadata['quoted_amount']);
 
         Log::shouldHaveReceived('error')
             ->withArgs(function (string $message, array $context): bool {
@@ -514,7 +516,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
         );
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson('/api/v1/face/subscription/initiate-payment');
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
 
         $response->assertStatus(502)
             ->assertJsonPath('error.code', 'PAYMENT_INITIATION_FAILED')
@@ -574,7 +576,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
         );
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson('/api/v1/face/subscription/initiate-payment');
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
 
         $response->assertOk()
             ->assertJsonPath('data.status', 'pending_payment')
@@ -633,7 +635,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
         );
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson('/api/v1/face/subscription/initiate-payment');
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
 
         $response->assertStatus(502)
             ->assertJsonPath('error.code', 'PAYMENT_INITIATION_FAILED');
@@ -656,7 +658,7 @@ class SubscriptionPaymentInitiationTest extends TestCase
 
         try {
             $response = $this->actingAs($this->faceUser)
-                ->postJson('/api/v1/face/subscription/initiate-payment');
+                ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
 
             $response->assertStatus(422)
                 ->assertJsonPath('error.code', 'VALIDATION_ERROR')
@@ -784,8 +786,6 @@ class SubscriptionPaymentInitiationTest extends TestCase
 
     public function test_mark_as_paid_validates_against_quoted_amount_not_current_config(): void
     {
-        config(['face_premium.annual_plan.amount' => 60000]);
-
         $pending = FaceSubscription::factory()->pendingPayment()->create([
             'face_id' => $this->face->id,
             'provider_reference' => 'tx_quoted_amount',
@@ -1171,5 +1171,322 @@ class SubscriptionPaymentInitiationTest extends TestCase
         $this->assertNull($reloaded->expires_at);
         $this->assertNull($reloaded->cancelled_at);
         $this->assertNull($reloaded->paid_amount);
+    }
+
+    // -----------------------------------------------------------------------
+    // FP-2.5 — tier selection on initiate-payment (AC #5, #6, #12, #14, #28)
+    // -----------------------------------------------------------------------
+
+    public function test_initiate_persists_starter_pending_row_with_starter_price(): void
+    {
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('initiatePaymentForFaceSubscription')
+                ->once()
+                ->andReturn([
+                    'fedapay_transaction_id' => 700100,
+                    'checkout_url' => 'https://checkout.fedapay.com/starter',
+                ]);
+        });
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'starter']);
+
+        $response->assertOk()
+            ->assertJsonPath('data.plan', 'starter')
+            ->assertJsonPath('data.amount', 12000)
+            ->assertJsonPath('data.status', 'pending_payment');
+
+        /** @var FaceSubscription $row */
+        $row = FaceSubscription::query()->where('face_id', $this->face->id)->firstOrFail();
+        $this->assertSame(FaceSubscriptionPlan::Starter, $row->plan);
+        $this->assertSame(12000, $row->metadata['quoted_amount']);
+    }
+
+    public function test_initiate_persists_elite_pending_row_with_elite_price(): void
+    {
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('initiatePaymentForFaceSubscription')
+                ->once()
+                ->andReturn([
+                    'fedapay_transaction_id' => 700110,
+                    'checkout_url' => 'https://checkout.fedapay.com/elite',
+                ]);
+        });
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'elite']);
+
+        $response->assertOk()
+            ->assertJsonPath('data.plan', 'elite')
+            ->assertJsonPath('data.amount', 40000)
+            ->assertJsonPath('data.status', 'pending_payment');
+
+        /** @var FaceSubscription $row */
+        $row = FaceSubscription::query()->where('face_id', $this->face->id)->firstOrFail();
+        $this->assertSame(FaceSubscriptionPlan::Elite, $row->plan);
+        $this->assertSame(40000, $row->metadata['quoted_amount']);
+    }
+
+    public function test_initiate_rejects_missing_plan(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/subscription/initiate-payment', []);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
+            ->assertJsonStructure(['error' => ['details' => ['plan']]]);
+
+        $this->assertSame(0, FaceSubscription::query()->where('face_id', $this->face->id)->count());
+    }
+
+    public function test_initiate_rejects_unknown_plan(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'platinum']);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
+            ->assertJsonStructure(['error' => ['details' => ['plan']]]);
+
+        $this->assertSame(0, FaceSubscription::query()->where('face_id', $this->face->id)->count());
+    }
+
+    public function test_initiate_rejects_free_plan(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'free']);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
+            ->assertJsonStructure(['error' => ['details' => ['plan']]]);
+
+        $this->assertSame(0, FaceSubscription::query()->where('face_id', $this->face->id)->count());
+    }
+
+    public function test_initiate_returns_zero_forfeited_days_for_face_with_no_subscription(): void
+    {
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('initiatePaymentForFaceSubscription')
+                ->once()
+                ->andReturn([
+                    'fedapay_transaction_id' => 700120,
+                    'checkout_url' => 'https://checkout.fedapay.com/none',
+                ]);
+        });
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'elite']);
+
+        $response->assertOk()
+            ->assertJsonPath('data.forfeited_days', 0);
+    }
+
+    public function test_initiate_returns_zero_forfeited_days_for_same_tier_renewal(): void
+    {
+        FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => 'tx_active_pro_renew',
+        ]);
+
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('initiatePaymentForFaceSubscription')
+                ->once()
+                ->andReturn([
+                    'fedapay_transaction_id' => 700130,
+                    'checkout_url' => 'https://checkout.fedapay.com/renew',
+                ]);
+        });
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'pro']);
+
+        $response->assertOk()
+            ->assertJsonPath('data.forfeited_days', 0);
+    }
+
+    public function test_initiate_returns_forfeited_days_for_tier_change(): void
+    {
+        Carbon::setTestNow('2026-05-22 12:00:00');
+
+        try {
+            FaceSubscription::factory()->pro()->create([
+                'face_id' => $this->face->id,
+                'status' => FaceSubscriptionStatus::Active,
+                'starts_at' => now()->subDays(100),
+                'expires_at' => now()->addDays(40),
+                'provider_reference' => 'tx_active_pro_upgrade',
+            ]);
+
+            $this->mock(FedapayService::class, function ($mock): void {
+                $mock->shouldReceive('initiatePaymentForFaceSubscription')
+                    ->once()
+                    ->andReturn([
+                        'fedapay_transaction_id' => 700140,
+                        'checkout_url' => 'https://checkout.fedapay.com/upgrade',
+                    ]);
+            });
+
+            $response = $this->actingAs($this->faceUser)
+                ->postJson('/api/v1/face/subscription/initiate-payment', ['plan' => 'elite']);
+
+            $response->assertOk()
+                ->assertJsonPath('data.forfeited_days', 40);
+        } finally {
+            Carbon::setTestNow(null);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // FP-2.5 — markAsPaid tier change: cancel old + restart (AC #15, #16, #17, #18)
+    // -----------------------------------------------------------------------
+
+    public function test_mark_as_paid_tier_change_cancels_old_active_and_restarts_twelve_months(): void
+    {
+        Carbon::setTestNow('2026-05-22 12:00:00');
+
+        try {
+            $oldActive = FaceSubscription::factory()->pro()->create([
+                'face_id' => $this->face->id,
+                'status' => FaceSubscriptionStatus::Active,
+                'starts_at' => now()->subDays(100),
+                'expires_at' => now()->addDays(40),
+                'provider_reference' => 'tx_old_pro',
+            ]);
+
+            $pendingElite = FaceSubscription::factory()->elite()->pendingPayment()->create([
+                'face_id' => $this->face->id,
+                'provider_reference' => 'tx_new_elite',
+                'paid_amount' => null,
+                'metadata' => ['quoted_amount' => 40000],
+            ]);
+
+            $result = app(FaceSubscriptionPaymentService::class)->markAsPaid(
+                $pendingElite,
+                'fedapay-ref-elite',
+                40000,
+            );
+
+            $this->assertSame(FaceSubscriptionStatus::Active, $result->status);
+            $this->assertSame('2026-05-22T12:00:00+00:00', $result->starts_at->toIso8601String());
+            $this->assertSame('2027-05-22T12:00:00+00:00', $result->expires_at->toIso8601String());
+
+            $freshOld = $oldActive->fresh();
+            $this->assertSame(FaceSubscriptionStatus::Cancelled, $freshOld->status);
+            $this->assertSame($result->starts_at->toIso8601String(), $freshOld->cancelled_at->toIso8601String());
+            // The superseded row's coverage window and plan are untouched.
+            $this->assertSame(FaceSubscriptionPlan::Pro, $freshOld->plan);
+            $this->assertSame('2026-02-11T12:00:00+00:00', $freshOld->starts_at->toIso8601String());
+            $this->assertSame('2026-07-01T12:00:00+00:00', $freshOld->expires_at->toIso8601String());
+        } finally {
+            Carbon::setTestNow(null);
+        }
+    }
+
+    public function test_mark_as_paid_tier_change_records_supersession_metadata(): void
+    {
+        $oldActive = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => 'tx_old_pro_meta',
+        ]);
+
+        $pendingElite = FaceSubscription::factory()->elite()->pendingPayment()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => 'tx_new_elite_meta',
+            'paid_amount' => null,
+            'metadata' => ['quoted_amount' => 40000],
+        ]);
+
+        $result = app(FaceSubscriptionPaymentService::class)->markAsPaid(
+            $pendingElite,
+            'fedapay-ref-elite-meta',
+            40000,
+        );
+
+        $this->assertSame($oldActive->id, $result->metadata['supersedes_subscription_id']);
+
+        $freshOld = $oldActive->fresh();
+        $this->assertSame($result->id, $freshOld->metadata['superseded_by_subscription_id']);
+        $this->assertSame('tier_change', $freshOld->metadata['superseded_reason']);
+        $this->assertArrayHasKey('superseded_at', $freshOld->metadata);
+    }
+
+    public function test_mark_as_paid_tier_change_dispatches_only_activated_event(): void
+    {
+        Event::fake([
+            FaceSubscriptionActivated::class,
+            FaceSubscriptionCancelled::class,
+            FaceSubscriptionExpired::class,
+        ]);
+
+        FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => 'tx_old_pro_event',
+        ]);
+
+        $pendingElite = FaceSubscription::factory()->elite()->pendingPayment()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => 'tx_new_elite_event',
+            'paid_amount' => null,
+            'metadata' => ['quoted_amount' => 40000],
+        ]);
+
+        app(FaceSubscriptionPaymentService::class)->markAsPaid(
+            $pendingElite,
+            'fedapay-ref-elite-event',
+            40000,
+        );
+
+        Event::assertDispatched(FaceSubscriptionActivated::class, 1);
+        Event::assertNotDispatched(FaceSubscriptionCancelled::class);
+        Event::assertNotDispatched(FaceSubscriptionExpired::class);
+    }
+
+    public function test_mark_as_paid_every_paid_tier_transition(): void
+    {
+        $transitions = [
+            [FaceSubscriptionPlan::Starter, FaceSubscriptionPlan::Pro],
+            [FaceSubscriptionPlan::Starter, FaceSubscriptionPlan::Elite],
+            [FaceSubscriptionPlan::Pro, FaceSubscriptionPlan::Starter],
+            [FaceSubscriptionPlan::Pro, FaceSubscriptionPlan::Elite],
+            [FaceSubscriptionPlan::Elite, FaceSubscriptionPlan::Starter],
+            [FaceSubscriptionPlan::Elite, FaceSubscriptionPlan::Pro],
+        ];
+
+        foreach ($transitions as [$from, $to]) {
+            $face = Face::factory()->create();
+            $active = FaceSubscription::factory()->active()->create([
+                'face_id' => $face->id,
+                'plan' => $from,
+            ]);
+            $pending = FaceSubscription::factory()->pendingPayment()->create([
+                'face_id' => $face->id,
+                'plan' => $to,
+                'paid_amount' => null,
+                'provider_reference' => "tx_{$from->value}_{$to->value}",
+                'metadata' => ['quoted_amount' => $to->price()],
+            ]);
+
+            app(FaceSubscriptionPaymentService::class)->markAsPaid(
+                $pending,
+                "ref_{$from->value}_{$to->value}",
+                $to->price(),
+            );
+
+            $this->assertSame(
+                FaceSubscriptionStatus::Active,
+                $pending->fresh()->status,
+                "Transition {$from->value} -> {$to->value} should activate the new row",
+            );
+            $this->assertSame(
+                FaceSubscriptionStatus::Cancelled,
+                $active->fresh()->status,
+                "Transition {$from->value} -> {$to->value} should cancel the old row",
+            );
+            $this->assertSame($to, $pending->fresh()->plan);
+            $this->assertSame(
+                $to->tier(),
+                app(FaceEntitlementService::class)->capabilities($face->fresh())->tier,
+            );
+        }
     }
 }
