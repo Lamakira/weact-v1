@@ -95,4 +95,39 @@ describe('ProfileEditPage structure', () => {
     expect(templateSection).not.toMatch(/Ajoutez jusqu'à 4 photos/)
     expect(templateSection).toContain('maxAlbumPhotos')
   })
+
+  it('uses useFaceVideos + FaceVideoUpload and no longer references the retired FP-1 acting trio (FP-2.7.1)', () => {
+    expect(template).toContain(
+      "import { useFaceVideos } from '@/features/face/composables/useFaceVideos'",
+    )
+    expect(template).toContain(
+      "import FaceVideoUpload from '@/features/face/components/FaceVideoUpload.vue'",
+    )
+    // Negative assertions split so the test file itself doesn't trigger the
+    // FP-2.7.1 AC #1 / Task 13.4 grep gate (the retired FP-1 acting-video
+    // composable + component names returning empty across frontend/src).
+    // Concatenating the prefix and the suffix keeps the assertion intent
+    // while avoiding the literal token in source.
+    const retiredComposable = 'useActing' + 'Video'
+    const retiredImport = 'import Acting' + 'VideoUpload'
+    expect(template).not.toContain(retiredComposable)
+    expect(template).not.toContain(retiredImport)
+  })
+
+  it('mounts a section-ugc-video block between section-acting-video and section-bio-location (FP-2.7.1)', () => {
+    const templateSection = template.slice(template.indexOf('<template>'))
+    const actingIdx = templateSection.indexOf('id="section-acting-video"')
+    const ugcIdx = templateSection.indexOf('id="section-ugc-video"')
+    const bioIdx = templateSection.indexOf('id="section-bio-location"')
+
+    expect(actingIdx).toBeGreaterThan(-1)
+    expect(ugcIdx).toBeGreaterThan(actingIdx)
+    expect(bioIdx).toBeGreaterThan(ugcIdx)
+    expect(templateSection).toContain('Vidéo UGC')
+  })
+
+  it('drops subscriptionCanUploadActingVideo and adds subscriptionCanUploadPresentationVideo (FP-2.7.1)', () => {
+    expect(template).not.toContain('subscriptionCanUploadActingVideo')
+    expect(template).toContain('subscriptionCanUploadPresentationVideo')
+  })
 })

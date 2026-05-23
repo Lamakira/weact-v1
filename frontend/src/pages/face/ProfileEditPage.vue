@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-vue-next'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
 import { usePhotoAlbum } from '@/features/face/composables/usePhotoAlbum'
 import { usePresentationVideo } from '@/features/face/composables/usePresentationVideo'
-import { useActingVideo } from '@/features/face/composables/useActingVideo'
+import { useFaceVideos } from '@/features/face/composables/useFaceVideos'
 import { useBioLocation } from '@/features/face/composables/useBioLocation'
 import { useLangues } from '@/features/face/composables/useLangues'
 import { usePersonalInfo } from '@/features/face/composables/usePersonalInfo'
@@ -21,7 +21,7 @@ import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vu
 import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
 import AlbumPhotoUpload from '@/features/face/components/AlbumPhotoUpload.vue'
 import PresentationVideoUpload from '@/features/face/components/PresentationVideoUpload.vue'
-import ActingVideoUpload from '@/features/face/components/ActingVideoUpload.vue'
+import FaceVideoUpload from '@/features/face/components/FaceVideoUpload.vue'
 import LanguesTagInput from '@/features/face/components/LanguesTagInput.vue'
 import PersonalInfoForm from '@/features/face/components/PersonalInfoForm.vue'
 import BioLocationForm from '@/features/face/components/BioLocationForm.vue'
@@ -78,17 +78,53 @@ const {
   deleteVideo,
 } = usePresentationVideo()
 
-// Acting video composable
+// Face videos composable (FP-2.7.1 — typed face_videos API, acting + ugc)
 const {
-  videoInfo: actingVideoInfo,
-  isUploading: isActingVideoUploading,
-  isDeleting: isActingVideoDeleting,
-  error: actingVideoError,
-  uploadProgress: actingUploadProgress,
-  fetchVideoInfo: fetchActingVideoInfo,
-  uploadVideo: uploadActingVideo,
-  deleteVideo: deleteActingVideo,
-} = useActingVideo()
+  videos: faceVideos,
+  actingVideos,
+  ugcVideos,
+  isUploading: isFaceVideoUploading,
+  uploadingType: faceVideoUploadingType,
+  isDeleting: isFaceVideoDeleting,
+  deletingType: faceVideoDeletingType,
+  error: faceVideoError,
+  errorType: faceVideoErrorType,
+  uploadProgress: faceVideoUploadProgress,
+  fetchVideos,
+  uploadVideo: uploadFaceVideo,
+  deleteVideo: deleteFaceVideo,
+} = useFaceVideos()
+
+// Per-type isolators so the two <FaceVideoUpload> instances only show their own
+// upload/delete activity (the composable singletons isUploading / isDeleting are
+// shared, but the per-type refs scope them to the active type).
+const isActingFaceVideoUploading = computed(
+  () => isFaceVideoUploading.value && faceVideoUploadingType.value === 'acting',
+)
+const isUgcFaceVideoUploading = computed(
+  () => isFaceVideoUploading.value && faceVideoUploadingType.value === 'ugc',
+)
+const isActingFaceVideoDeleting = computed(
+  () => isFaceVideoDeleting.value && faceVideoDeletingType.value === 'acting',
+)
+const isUgcFaceVideoDeleting = computed(
+  () => isFaceVideoDeleting.value && faceVideoDeletingType.value === 'ugc',
+)
+const actingFaceVideoUploadProgress = computed(() =>
+  faceVideoUploadingType.value === 'acting' ? faceVideoUploadProgress.value : null,
+)
+const ugcFaceVideoUploadProgress = computed(() =>
+  faceVideoUploadingType.value === 'ugc' ? faceVideoUploadProgress.value : null,
+)
+// Per-type error scoping (P2 — without this, a UGC upload failure renders the
+// red banner inside the Acting section too, since both <FaceVideoUpload> bind
+// to the same shared error.ref from the composable).
+const actingFaceVideoError = computed(() =>
+  faceVideoErrorType.value === 'acting' ? faceVideoError.value : null,
+)
+const ugcFaceVideoError = computed(() =>
+  faceVideoErrorType.value === 'ugc' ? faceVideoError.value : null,
+)
 
 // Bio and location composable
 const {
@@ -197,10 +233,11 @@ const {
   fetchStatus: fetchSubscriptionStatus,
 } = useSubscriptionStatus()
 
-// Decision #9 minimal video touch — re-derive the acting-video gate locally off
-// the FP-2 capability matrix (the FP-1 canUploadActingVideo computed is gone).
-const subscriptionCanUploadActingVideo = computed(
-  () => (capabilities.value?.max_acting_videos ?? 0) > 0,
+// FP-2.7.1 — the FaceVideoUpload component owns its own per-quota math from the
+// capabilities prop; we only gate the presentation video locally for the
+// pre-emptive Free-tier UI block.
+const subscriptionCanUploadPresentationVideo = computed(
+  () => (capabilities.value?.max_presentation_videos ?? 0) > 0,
 )
 
 // Entitlement-aware "album is full" predicate — fires at the tier's photo quota.
@@ -223,7 +260,7 @@ onMounted(async () => {
     fetchProfile(),
     fetchAlbumPhotos(),
     fetchVideoInfo(),
-    fetchActingVideoInfo(),
+    fetchVideos(),
     fetchBioLocation(),
     fetchLangues(),
     fetchPersonalInfo(),
@@ -351,33 +388,50 @@ async function handleVideoDelete(): Promise<void> {
 }
 
 /**
- * Handle acting video upload
+ * Handle face video upload (acting or ugc).
  */
-async function handleActingVideoUpload(file: File): Promise<void> {
-  if (!subscriptionCanUploadActingVideo.value) {
-    toast.warning('La vidéo d\'acting est réservée aux abonnés Premium.')
-    return
-  }
-
+async function handleAddFaceVideo(
+  type: 'acting' | 'ugc',
+  file: File,
+): Promise<void> {
   successMessage.value = null
-  const result = await uploadActingVideo(file)
+  const result = await uploadFaceVideo(type, file)
 
-  if (result.success && result.message) {
-    successMessage.value = result.message
-    await fetchCompletion() // Refresh completion after acting video upload
+  if (result.success) {
+    if (result.message) {
+      successMessage.value = result.message
+    }
+    if (type === 'acting') {
+      await fetchCompletion() // acting_video is a completion criterion
+    }
   }
 }
 
 /**
- * Handle acting video delete
+ * Handle face video delete (acting or ugc).
  */
-async function handleActingVideoDelete(): Promise<void> {
-  const result = await deleteActingVideo()
+async function handleDeleteFaceVideo(videoId: string): Promise<void> {
+  successMessage.value = null
+  // Capture the type before delete so we know whether to refresh completion.
+  const target = faceVideos.value.find((v) => v.id === videoId)
+  const wasActing = target?.type === 'acting'
 
+  const result = await deleteFaceVideo(videoId)
   if (result.success) {
-    toast.success(result.message || 'Vidéo supprimée avec succès')
-    await fetchCompletion() // Refresh completion after acting video delete
+    if (result.message) {
+      successMessage.value = result.message
+    }
+    if (wasActing) {
+      await fetchCompletion()
+    }
   }
+}
+
+/**
+ * Navigate to the /pricing page (FP-2.13.1 entry point for tier purchase).
+ */
+function onNavigatePricing(): void {
+  router.push({ name: 'pricing' })
 }
 
 /**
@@ -525,7 +579,7 @@ async function handleAvailabilityToggle(): Promise<void> {
 async function handleSubscriptionChanged(): Promise<void> {
   await Promise.all([
     fetchAlbumPhotos(),
-    fetchActingVideoInfo(),
+    fetchVideos(),
     fetchCompletion(),
   ])
 }
@@ -798,34 +852,52 @@ function handleCompletionItemClick(itemKey: string): void {
             :is-deleting="isVideoDeleting"
             :error="videoError"
             :upload-progress="uploadProgress"
+            :can-upload="subscriptionCanUploadPresentationVideo"
             @upload="handleVideoUpload"
             @delete="handleVideoDelete"
+            @navigate-pricing="onNavigatePricing"
           />
         </div>
 
         <!-- Acting video section -->
         <div id="section-acting-video" class="p-6 border-b border-gray-200">
           <h2 class="text-lg font-medium text-gray-900 mb-2">Vidéo d'acting</h2>
-          <p class="text-sm text-gray-500">
-            Ajoutez une vidéo démontrant votre talent d'acteur aux producteurs.
+          <p class="text-sm text-gray-500 mb-6">
+            Ajoutez une ou plusieurs vidéos démontrant votre talent d'acteur aux producteurs.
           </p>
-          <p
-            v-if="!subscriptionCanUploadActingVideo"
-            class="text-amber-700 text-xs mt-1 mb-6"
-          >
-            Fonctionnalité réservée aux abonnés Premium.
-          </p>
-          <div v-else class="mb-6"></div>
 
-          <ActingVideoUpload
-            :video-info="actingVideoInfo"
-            :is-uploading="isActingVideoUploading"
-            :is-deleting="isActingVideoDeleting"
-            :error="actingVideoError"
-            :upload-progress="actingUploadProgress"
-            :can-upload="subscriptionCanUploadActingVideo"
-            @upload="handleActingVideoUpload"
-            @delete="handleActingVideoDelete"
+          <FaceVideoUpload
+            type="acting"
+            :videos="actingVideos"
+            :max-for-type="capabilities?.max_acting_videos ?? 0"
+            :is-uploading="isActingFaceVideoUploading"
+            :is-deleting="isActingFaceVideoDeleting"
+            :error="actingFaceVideoError"
+            :upload-progress="actingFaceVideoUploadProgress"
+            @upload="(file) => handleAddFaceVideo('acting', file)"
+            @delete="handleDeleteFaceVideo"
+            @navigate-pricing="onNavigatePricing"
+          />
+        </div>
+
+        <!-- UGC video section (FP-2.7.1) -->
+        <div id="section-ugc-video" class="p-6 border-b border-gray-200">
+          <h2 class="text-lg font-medium text-gray-900 mb-2">Vidéo UGC</h2>
+          <p class="text-sm text-gray-500 mb-6">
+            Ajoutez une vidéo modèle UGC (User-Generated Content) pour démontrer votre style.
+          </p>
+
+          <FaceVideoUpload
+            type="ugc"
+            :videos="ugcVideos"
+            :max-for-type="capabilities?.max_ugc_videos ?? 0"
+            :is-uploading="isUgcFaceVideoUploading"
+            :is-deleting="isUgcFaceVideoDeleting"
+            :error="ugcFaceVideoError"
+            :upload-progress="ugcFaceVideoUploadProgress"
+            @upload="(file) => handleAddFaceVideo('ugc', file)"
+            @delete="handleDeleteFaceVideo"
+            @navigate-pricing="onNavigatePricing"
           />
         </div>
 

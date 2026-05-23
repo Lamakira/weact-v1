@@ -21,14 +21,15 @@ const mocks = vi.hoisted(() => ({
   },
   maxAlbumPhotos: { __v_isRef: true, value: 2 },
   addAlbumPhoto: vi.fn(),
-  uploadActingVideo: vi.fn(),
+  uploadFaceVideo: vi.fn(),
+  routerPush: vi.fn(),
   toastWarning: vi.fn(),
   resolved: vi.fn(() => Promise.resolve()),
 }))
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({ query: {}, path: '/face/profile' }),
-  useRouter: () => ({ replace: vi.fn() }),
+  useRouter: () => ({ push: mocks.routerPush, replace: vi.fn() }),
 }))
 
 vi.mock('@/stores/auth', () => ({
@@ -83,16 +84,24 @@ vi.mock('@/features/face/composables/usePresentationVideo', () => ({
   }),
 }))
 
-vi.mock('@/features/face/composables/useActingVideo', () => ({
-  useActingVideo: () => ({
-    videoInfo: { value: null },
+vi.mock('@/features/face/composables/useFaceVideos', () => ({
+  useFaceVideos: () => ({
+    videos: { value: [] },
+    actingVideos: { value: [] },
+    ugcVideos: { value: [] },
+    isLoading: { value: false },
     isUploading: { value: false },
+    uploadingType: { value: null },
     isDeleting: { value: false },
+    deletingType: { value: null },
     error: { value: null },
+    errorType: { value: null },
     uploadProgress: { value: null },
-    fetchVideoInfo: mocks.resolved,
-    uploadVideo: mocks.uploadActingVideo,
+    fetchVideos: mocks.resolved,
+    uploadVideo: mocks.uploadFaceVideo,
     deleteVideo: vi.fn(),
+    validateFile: () => ({ valid: true }),
+    validateDuration: () => Promise.resolve({ valid: true }),
   }),
 }))
 
@@ -221,8 +230,20 @@ function mountPage() {
         PhotoAlbumGrid: {
           template: '<button data-testid="grid-add" @click="$emit(\'add-click\')">add</button>',
         },
-        ActingVideoUpload: {
-          template: '<button data-testid="acting-upload" @click="$emit(\'upload\', {})">upload</button>',
+        FaceVideoUpload: {
+          props: ['type', 'videos', 'maxForType', 'isUploading', 'isDeleting', 'error', 'uploadProgress'],
+          template: `
+            <div :data-testid="\`face-video-section-\${type}\`">
+              <button
+                v-if="maxForType < 1"
+                data-testid="face-video-tier-locked-cta"
+                @click="$emit('navigate-pricing')">Choisir un abonnement</button>
+              <button
+                v-else
+                data-testid="face-video-upload"
+                @click="$emit('upload', new File([], 'x.mp4'))">upload</button>
+            </div>
+          `,
         },
       },
     },
@@ -239,6 +260,7 @@ describe('ProfileEditPage subscription guards', () => {
     mocks.canAddMore.value = true
     mocks.maxAlbumPhotos.value = 2
     mocks.capabilities.value.max_acting_videos = 0
+    mocks.capabilities.value.max_ugc_videos = 0
   })
 
   it('does not open the hidden album file input from grid shortcut when entitlement quota is reached', async () => {
@@ -269,14 +291,29 @@ describe('ProfileEditPage subscription guards', () => {
     expect(mocks.addAlbumPhoto).not.toHaveBeenCalled()
   })
 
-  it('does not forward acting-video upload when entitlement disallows it', async () => {
+  it('renders the acting tier-locked banner when capabilities.max_acting_videos === 0 (FP-2.7.1)', () => {
+    mocks.capabilities.value.max_acting_videos = 0
+
     const wrapper = mountPage()
 
-    await wrapper.find('[data-testid="acting-upload"]').trigger('click')
+    expect(
+      wrapper.find('[data-testid="face-video-section-acting"] [data-testid="face-video-tier-locked-cta"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="face-video-section-acting"] [data-testid="face-video-upload"]').exists(),
+    ).toBe(false)
+  })
 
-    expect(mocks.uploadActingVideo).not.toHaveBeenCalled()
-    expect(mocks.toastWarning).toHaveBeenCalledWith(
-      "La vidéo d'acting est réservée aux abonnés Premium.",
-    )
+  it('clicking the acting tier-locked CTA navigates to /pricing via router.push({ name: pricing }) (FP-2.7.1)', async () => {
+    mocks.capabilities.value.max_acting_videos = 0
+
+    const wrapper = mountPage()
+
+    await wrapper
+      .find('[data-testid="face-video-section-acting"] [data-testid="face-video-tier-locked-cta"]')
+      .trigger('click')
+
+    expect(mocks.routerPush).toHaveBeenCalledTimes(1)
+    expect(mocks.routerPush).toHaveBeenCalledWith({ name: 'pricing' })
   })
 })

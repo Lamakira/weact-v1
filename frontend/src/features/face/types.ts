@@ -85,22 +85,40 @@ export interface VideoUploadProgress {
   percentage: number
 }
 
-// Acting video info from API
-export interface ActingVideoInfo {
-  acting_video_url: string | null
-  acting_video_thumbnail_url: string | null
+// Face videos (FP-2.2.1 typed face_videos API)
+
+export type FaceVideoType = 'acting' | 'ugc'
+
+export interface FaceVideo {
+  id: string // uuid
+  type: FaceVideoType
+  video_url: string | null
+  thumbnail_url: string | null
+  position: number
 }
 
-// Acting video API response
-export interface ActingVideoResponse {
-  data: ActingVideoInfo
+export interface FaceVideosListResponse {
+  data: FaceVideo[]
+}
+
+export interface FaceVideoUploadResponse {
+  data: FaceVideo
   message?: string
 }
 
-// Acting video operation result
-export interface ActingVideoResult {
+export interface FaceVideoDeleteResponse {
+  message: string
+}
+
+export interface FaceVideoUploadResult {
   success: boolean
-  data?: ActingVideoInfo
+  data?: FaceVideo
+  errors?: Record<string, string[]>
+  message?: string
+}
+
+export interface FaceVideoDeleteResult {
+  success: boolean
   errors?: Record<string, string[]>
   message?: string
 }

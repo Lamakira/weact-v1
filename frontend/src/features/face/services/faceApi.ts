@@ -4,7 +4,10 @@ import type {
   FacePhotosResponse,
   FacePhotoResponse,
   PresentationVideoResponse,
-  ActingVideoResponse,
+  FaceVideoType,
+  FaceVideosListResponse,
+  FaceVideoUploadResponse,
+  FaceVideoDeleteResponse,
   VideoUploadProgress,
   BioLocationResponse,
   PhysicalCharacteristicsResponse,
@@ -167,28 +170,28 @@ export const faceApi = {
   },
 
   /**
-   * Get the current acting video info
+   * List the authenticated Face's portfolio videos (acting + ugc).
    */
-  async getActingVideo(): Promise<ActingVideoResponse> {
-    const response = await apiClient.get<ActingVideoResponse>('/face/acting-video')
+  async listFaceVideos(): Promise<FaceVideosListResponse> {
+    const response = await apiClient.get<FaceVideosListResponse>('/face/videos')
     return response.data
   },
 
   /**
-   * Upload an acting video
-   * @param video The video file to upload
-   * @param onProgress Optional callback for upload progress
+   * Upload a typed portfolio video (acting or ugc).
    */
-  async uploadActingVideo(
-    video: File,
+  async uploadFaceVideo(
+    type: FaceVideoType,
+    file: File,
     onProgress?: (progress: VideoUploadProgress) => void,
-  ): Promise<ActingVideoResponse> {
+  ): Promise<FaceVideoUploadResponse> {
     await getCsrfCookie()
 
     const formData = new FormData()
-    formData.append('video', video)
+    formData.append('type', type)
+    formData.append('video', file)
 
-    const response = await apiClient.post<ActingVideoResponse>('/face/acting-video', formData, {
+    const response = await apiClient.post<FaceVideoUploadResponse>('/face/videos', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -206,11 +209,11 @@ export const faceApi = {
   },
 
   /**
-   * Delete the acting video
+   * Delete one of the authenticated Face's portfolio videos by uuid.
    */
-  async deleteActingVideo(): Promise<{ message: string }> {
+  async deleteFaceVideo(uuid: string): Promise<FaceVideoDeleteResponse> {
     await getCsrfCookie()
-    const response = await apiClient.delete<{ message: string }>('/face/acting-video')
+    const response = await apiClient.delete<FaceVideoDeleteResponse>(`/face/videos/${uuid}`)
     return response.data
   },
 
