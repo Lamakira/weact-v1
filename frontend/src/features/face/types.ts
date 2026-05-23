@@ -389,8 +389,10 @@ export interface PersonalInfoResult {
   message?: string
 }
 
-// Subscription status (FP-1.7) — read contract from GET /api/v1/face/subscription-status
-export type SubscriptionStatus =
+// Subscription — FP-2.7 tier-aware contract (GET /api/v1/face/subscription-status, FP-2.3)
+export type FaceSubscriptionTier = 'free' | 'starter' | 'pro' | 'elite'
+export type FaceSubscriptionPlan = 'starter' | 'pro' | 'elite' // purchasable tiers only
+export type SubscriptionStatusValue =
   | 'free'
   | 'pending_payment'
   | 'active'
@@ -398,58 +400,69 @@ export type SubscriptionStatus =
   | 'cancelled'
   | 'failed'
 
-export interface SubscriptionEntitlements {
-  album_upload_limit: number
-  public_album_photo_limit: number
-  current_album_photo_count: number
-  public_album_photo_count: number
-  locked_album_photo_count: number
-  can_upload_acting_video: boolean
-  has_acting_video: boolean
-  is_acting_video_publicly_visible: boolean
+export interface TierCapabilities {
+  max_album_photos: number
+  max_presentation_videos: number
+  max_acting_videos: number
+  max_ugc_videos: number
+  ugc_access: boolean
+  commission_rate: number
+  sort_priority: number
+  has_elite_badge: boolean
 }
 
-export interface SubscriptionAnnualPlan {
-  amount: number
-  currency: string
-  provider: string
-  is_available: boolean
-}
-
-export interface SubscriptionStatusInfo {
-  status: SubscriptionStatus
-  plan: 'annual_premium' | null
+export interface SubscriptionCurrent {
+  tier: FaceSubscriptionTier
+  plan: FaceSubscriptionPlan | null
+  status: SubscriptionStatusValue
   starts_at: string | null
   expires_at: string | null
   cancelled_at: string | null
-  is_premium: boolean
-  is_featured_by_subscription: boolean
-  can_renew: boolean
-  subscription_id: string | null
-  entitlements: SubscriptionEntitlements
-  annual_plan: SubscriptionAnnualPlan
+  capabilities: TierCapabilities
+}
+
+export interface SubscriptionOffer {
+  tier: FaceSubscriptionTier
+  price: number
+  currency: string
+  capabilities: TierCapabilities
+}
+
+export interface SubscriptionCta {
+  upgrade_available: boolean
+  downgrade_available: boolean
+  renew_available: boolean
+}
+
+export interface SubscriptionStatusData {
+  current: SubscriptionCurrent
+  offers: SubscriptionOffer[]
+  cta: SubscriptionCta
 }
 
 export interface SubscriptionStatusResponse {
-  data: SubscriptionStatusInfo
+  data: SubscriptionStatusData
 }
 
-// Payment initiation (FP-1.5) — POST /api/v1/face/subscription/initiate-payment
+// Payment initiation (FP-2.5) — POST /api/v1/face/subscription/initiate-payment
 export interface SubscriptionInitiatePaymentResponse {
   data: {
     subscription_id: string
-    status: SubscriptionStatus
+    status: SubscriptionStatusValue
+    plan: FaceSubscriptionPlan
     checkout_url: string
     amount: number
     currency: string
+    forfeited_days: number
   }
   message?: string
 }
 
+// Payment verification (FP-2.5) — POST /api/v1/face/subscription/verify-payment
 export interface SubscriptionVerifyPaymentResponse {
   data: {
     subscription_id: string | null
-    status: SubscriptionStatus | 'free'
+    status: SubscriptionStatusValue
   }
 }
 

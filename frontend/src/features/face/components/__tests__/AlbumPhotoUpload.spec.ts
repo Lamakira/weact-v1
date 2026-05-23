@@ -194,4 +194,17 @@ describe('AlbumPhotoUpload', () => {
     expect(label.text()).toContain('Cliquez pour ajouter une photo')
     expect(label.text()).toContain('(1/2)')
   })
+
+  it('defaults the quota label to the Élite ceiling of 6 when no uploadLimit prop is passed', () => {
+    const wrapper = mount(AlbumPhotoUpload, {
+      props: {
+        currentCount: 1,
+        isFull: false,
+        lockedByQuota: false,
+      },
+    })
+
+    const label = wrapper.find('[data-testid="album-quota-label"]')
+    expect(label.text()).toContain('(1/6)')
+  })
 })

@@ -6,9 +6,20 @@ const mocks = vi.hoisted(() => ({
   ref: <T>(value: T) => ({ __v_isRef: true, value }),
   albumPhotos: { __v_isRef: true, value: [] as Array<{ id: number; position: number; photo_url: string; thumbnail_url: string }> },
   canAddMore: { __v_isRef: true, value: true },
-  subscriptionUploadLimit: { __v_isRef: true, value: 2 },
-  subscriptionPublicLimit: { __v_isRef: true, value: 2 },
-  subscriptionCanUploadActingVideo: { __v_isRef: true, value: false },
+  capabilities: {
+    __v_isRef: true,
+    value: {
+      max_album_photos: 2,
+      max_presentation_videos: 0,
+      max_acting_videos: 0,
+      max_ugc_videos: 0,
+      ugc_access: false,
+      commission_rate: 0.1,
+      sort_priority: 4,
+      has_elite_badge: false,
+    },
+  },
+  maxAlbumPhotos: { __v_isRef: true, value: 2 },
   addAlbumPhoto: vi.fn(),
   uploadActingVideo: vi.fn(),
   toastWarning: vi.fn(),
@@ -196,31 +207,9 @@ vi.mock('@/features/face/composables/useProfileCompletion', () => ({
 
 vi.mock('@/features/face/composables/useSubscriptionStatus', () => ({
   useSubscriptionStatus: () => ({
-    status: mocks.ref(null),
-    isLoading: mocks.ref(false),
-    isPremium: mocks.ref(false),
-    statusValue: mocks.ref('free'),
-    albumUploadLimit: mocks.subscriptionUploadLimit,
-    publicAlbumPhotoLimit: mocks.subscriptionPublicLimit,
-    lockedAlbumPhotoCount: mocks.ref(0),
-    canUploadActingVideo: mocks.subscriptionCanUploadActingVideo,
-    hasActingVideo: mocks.ref(false),
-    isActingVideoPubliclyVisible: mocks.ref(false),
-    canRenew: mocks.ref(true),
-    planIsAvailable: mocks.ref(true),
+    capabilities: mocks.capabilities,
+    maxAlbumPhotos: mocks.maxAlbumPhotos,
     fetchStatus: mocks.resolved,
-    refreshStatus: mocks.resolved,
-  }),
-}))
-
-vi.mock('@/features/face/composables/useSubscriptionPayment', () => ({
-  useSubscriptionPayment: () => ({
-    isInitiating: { value: false },
-    isPolling: { value: false },
-    paymentState: { value: 'idle' },
-    error: { value: null },
-    initiatePayment: vi.fn(),
-    reset: vi.fn(),
   }),
 }))
 
@@ -228,6 +217,7 @@ function mountPage() {
   return shallowMount(ProfileEditPage, {
     global: {
       stubs: {
+        SubscriptionPanel: true,
         PhotoAlbumGrid: {
           template: '<button data-testid="grid-add" @click="$emit(\'add-click\')">add</button>',
         },
@@ -247,9 +237,8 @@ describe('ProfileEditPage subscription guards', () => {
       { id: 2, position: 2, photo_url: '/2.jpg', thumbnail_url: '/2.jpg' },
     ]
     mocks.canAddMore.value = true
-    mocks.subscriptionUploadLimit.value = 2
-    mocks.subscriptionPublicLimit.value = 2
-    mocks.subscriptionCanUploadActingVideo.value = false
+    mocks.maxAlbumPhotos.value = 2
+    mocks.capabilities.value.max_acting_videos = 0
   })
 
   it('does not open the hidden album file input from grid shortcut when entitlement quota is reached', async () => {

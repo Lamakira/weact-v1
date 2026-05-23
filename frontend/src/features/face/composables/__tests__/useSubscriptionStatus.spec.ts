@@ -1,8 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useSubscriptionStatus } from '../useSubscriptionStatus'
+import { useSubscriptionStatus, FREE_CAPABILITIES } from '../useSubscriptionStatus'
 import { faceApi } from '../../services/faceApi'
 import { resetSharedCachedResourcesForTests } from '@/lib/createSharedCachedResource'
-import type { SubscriptionStatusInfo, SubscriptionStatusResponse } from '../../types'
+import type {
+  FaceSubscriptionTier,
+  SubscriptionCurrent,
+  SubscriptionCta,
+  SubscriptionOffer,
+  SubscriptionStatusData,
+  TierCapabilities,
+} from '../../types'
 
 vi.mock('../../services/faceApi', () => ({
   faceApi: {
@@ -14,183 +21,217 @@ vi.mock('@/features/auth/services/authApi', () => ({
   getApiErrorMessage: vi.fn(() => 'Une erreur est survenue'),
 }))
 
-function freeStatus(): SubscriptionStatusInfo {
+const CAPABILITIES: Record<FaceSubscriptionTier, TierCapabilities> = {
+  free: {
+    max_album_photos: 1,
+    max_presentation_videos: 0,
+    max_acting_videos: 0,
+    max_ugc_videos: 0,
+    ugc_access: false,
+    commission_rate: 0.1,
+    sort_priority: 4,
+    has_elite_badge: false,
+  },
+  starter: {
+    max_album_photos: 2,
+    max_presentation_videos: 1,
+    max_acting_videos: 0,
+    max_ugc_videos: 0,
+    ugc_access: true,
+    commission_rate: 0.1,
+    sort_priority: 3,
+    has_elite_badge: false,
+  },
+  pro: {
+    max_album_photos: 4,
+    max_presentation_videos: 1,
+    max_acting_videos: 1,
+    max_ugc_videos: 0,
+    ugc_access: true,
+    commission_rate: 0.1,
+    sort_priority: 2,
+    has_elite_badge: false,
+  },
+  elite: {
+    max_album_photos: 6,
+    max_presentation_videos: 1,
+    max_acting_videos: 2,
+    max_ugc_videos: 1,
+    ugc_access: true,
+    commission_rate: 0.05,
+    sort_priority: 1,
+    has_elite_badge: true,
+  },
+}
+
+const PRICES: Record<FaceSubscriptionTier, number> = {
+  free: 0,
+  starter: 12000,
+  pro: 25000,
+  elite: 40000,
+}
+
+function buildOffers(): SubscriptionOffer[] {
+  return (['free', 'starter', 'pro', 'elite'] as FaceSubscriptionTier[]).map((tier) => ({
+    tier,
+    price: PRICES[tier],
+    currency: 'XOF',
+    capabilities: CAPABILITIES[tier],
+  }))
+}
+
+function statusData(
+  currentOverrides: Partial<SubscriptionCurrent> = {},
+  ctaOverrides: Partial<SubscriptionCta> = {},
+): SubscriptionStatusData {
+  const tier = currentOverrides.tier ?? 'free'
   return {
-    status: 'free',
-    plan: null,
-    starts_at: null,
-    expires_at: null,
-    cancelled_at: null,
-    is_premium: false,
-    is_featured_by_subscription: false,
-    can_renew: true,
-    subscription_id: null,
-    entitlements: {
-      album_upload_limit: 2,
-      public_album_photo_limit: 2,
-      current_album_photo_count: 0,
-      public_album_photo_count: 0,
-      locked_album_photo_count: 0,
-      can_upload_acting_video: false,
-      has_acting_video: false,
-      is_acting_video_publicly_visible: false,
+    current: {
+      tier,
+      plan: currentOverrides.plan ?? null,
+      status: currentOverrides.status ?? 'free',
+      starts_at: currentOverrides.starts_at ?? null,
+      expires_at: currentOverrides.expires_at ?? null,
+      cancelled_at: currentOverrides.cancelled_at ?? null,
+      capabilities: currentOverrides.capabilities ?? CAPABILITIES[tier],
     },
-    annual_plan: {
-      amount: 50000,
-      currency: 'XOF',
-      provider: 'fedapay',
-      is_available: true,
+    offers: buildOffers(),
+    cta: {
+      upgrade_available: ctaOverrides.upgrade_available ?? true,
+      downgrade_available: ctaOverrides.downgrade_available ?? true,
+      renew_available: ctaOverrides.renew_available ?? true,
     },
   }
 }
 
-function activeStatus(): SubscriptionStatusInfo {
-  return {
-    ...freeStatus(),
-    status: 'active',
-    plan: 'annual_premium',
-    starts_at: '2026-05-14T10:00:00Z',
-    expires_at: '2027-05-14T10:00:00Z',
-    is_premium: true,
-    is_featured_by_subscription: true,
-    can_renew: false,
-    subscription_id: 'sub_123',
-    entitlements: {
-      album_upload_limit: 4,
-      public_album_photo_limit: 4,
-      current_album_photo_count: 2,
-      public_album_photo_count: 2,
-      locked_album_photo_count: 0,
-      can_upload_acting_video: true,
-      has_acting_video: true,
-      is_acting_video_publicly_visible: true,
-    },
-  }
-}
-
-function pendingStatus(): SubscriptionStatusInfo {
-  return {
-    ...freeStatus(),
-    status: 'pending_payment',
-    plan: 'annual_premium',
-    can_renew: false,
-    subscription_id: 'sub_pending',
-    annual_plan: {
-      amount: 50000,
-      currency: 'XOF',
-      provider: 'fedapay',
-      is_available: false,
-    },
-  }
-}
-
-describe('useSubscriptionStatus', () => {
+describe('useSubscriptionStatus (FP-2.7 tier-aware contract)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetSharedCachedResourcesForTests()
   })
 
-  it('fetchStatus calls faceApi.getSubscriptionStatus once and populates status ref', async () => {
-    const payload: SubscriptionStatusResponse = { data: freeStatus() }
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue(payload)
+  it('fetchStatus calls faceApi.getSubscriptionStatus once and populates data', async () => {
+    const payload = statusData({ tier: 'pro', plan: 'pro', status: 'active' })
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({ data: payload })
 
-    const { status, fetchStatus } = useSubscriptionStatus()
+    const { data, fetchStatus } = useSubscriptionStatus()
     await fetchStatus()
 
     expect(faceApi.getSubscriptionStatus).toHaveBeenCalledOnce()
-    expect(status.value).toEqual(payload.data)
+    expect(data.value).toEqual(payload)
   })
 
-  it('exposes safe free-tier defaults before any fetch resolves', () => {
-    const {
-      status,
-      isPremium,
-      albumUploadLimit,
-      publicAlbumPhotoLimit,
-      canUploadActingVideo,
-      canRenew,
-      planIsAvailable,
-    } = useSubscriptionStatus()
+  it('exposes safe free-tier fallbacks before any fetch resolves', () => {
+    const { data, tier, statusValue, capabilities, maxAlbumPhotos, currentPlan } =
+      useSubscriptionStatus()
 
-    expect(status.value).toBeNull()
-    expect(isPremium.value).toBe(false)
-    expect(albumUploadLimit.value).toBe(2)
-    expect(publicAlbumPhotoLimit.value).toBe(2)
-    expect(canUploadActingVideo.value).toBe(false)
-    expect(canRenew.value).toBe(true)
-    expect(planIsAvailable.value).toBe(false)
+    expect(data.value).toBeNull()
+    expect(tier.value).toBe('free')
+    expect(statusValue.value).toBe('free')
+    expect(capabilities.value).toEqual(FREE_CAPABILITIES)
+    expect(maxAlbumPhotos.value).toBe(1)
+    expect(currentPlan.value).toBeNull()
   })
 
-  it('reflects active premium state via computeds', async () => {
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({ data: activeStatus() })
+  it('reflects an active Pro subscription via the tier computeds', async () => {
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData({
+        tier: 'pro',
+        plan: 'pro',
+        status: 'active',
+        expires_at: '2027-05-22T10:00:00Z',
+      }),
+    })
 
-    const {
-      fetchStatus,
-      isPremium,
-      statusValue,
-      albumUploadLimit,
-      publicAlbumPhotoLimit,
-      canUploadActingVideo,
-    } = useSubscriptionStatus()
-
+    const { fetchStatus, tier, statusValue, maxAlbumPhotos, currentPlan } = useSubscriptionStatus()
     await fetchStatus()
 
+    expect(tier.value).toBe('pro')
     expect(statusValue.value).toBe('active')
-    expect(isPremium.value).toBe(true)
-    expect(albumUploadLimit.value).toBe(4)
-    expect(publicAlbumPhotoLimit.value).toBe(4)
-    expect(canUploadActingVideo.value).toBe(true)
+    expect(maxAlbumPhotos.value).toBe(4)
+    expect(currentPlan.value).toBe('pro')
   })
 
-  it('reflects pending_payment state via computeds', async () => {
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({ data: pendingStatus() })
+  it('reflects an expired Pro subscription — entitlement drops to free, plan retained', async () => {
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData({
+        tier: 'free',
+        plan: 'pro',
+        status: 'expired',
+        expires_at: '2026-01-10T10:00:00Z',
+        capabilities: CAPABILITIES.free,
+      }),
+    })
 
-    const {
-      fetchStatus,
-      statusValue,
-      canRenew,
-      planIsAvailable,
-      albumUploadLimit,
-    } = useSubscriptionStatus()
-
+    const { fetchStatus, tier, statusValue, currentPlan, maxAlbumPhotos } = useSubscriptionStatus()
     await fetchStatus()
 
-    expect(statusValue.value).toBe('pending_payment')
-    expect(canRenew.value).toBe(false)
-    expect(planIsAvailable.value).toBe(false)
-    expect(albumUploadLimit.value).toBe(2)
+    expect(tier.value).toBe('free')
+    expect(statusValue.value).toBe('expired')
+    expect(currentPlan.value).toBe('pro')
+    expect(maxAlbumPhotos.value).toBe(1)
   })
 
-  it('shares the same status ref across consumers (singleton)', async () => {
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({ data: activeStatus() })
+  it('exposes the four tier offers in ascending order', async () => {
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({ data: statusData() })
+
+    const { fetchStatus, offers } = useSubscriptionStatus()
+    await fetchStatus()
+
+    expect(offers.value.map((o) => o.tier)).toEqual(['free', 'starter', 'pro', 'elite'])
+    expect(offers.value[2].price).toBe(25000)
+  })
+
+  it('passes the cta block through unchanged', async () => {
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData({}, { upgrade_available: false, downgrade_available: false, renew_available: false }),
+    })
+
+    const { fetchStatus, cta } = useSubscriptionStatus()
+    await fetchStatus()
+
+    expect(cta.value).toEqual({
+      upgrade_available: false,
+      downgrade_available: false,
+      renew_available: false,
+    })
+  })
+
+  it('shares one underlying data ref across consumers (singleton per key)', async () => {
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData({ tier: 'elite', plan: 'elite', status: 'active' }),
+    })
 
     const first = useSubscriptionStatus()
     await first.fetchStatus()
     const second = useSubscriptionStatus()
 
-    expect(second.status).toBe(first.status)
-    expect(second.status.value?.status).toBe('active')
+    expect(second.data).toBe(first.data)
+    expect(second.tier.value).toBe('elite')
     expect(faceApi.getSubscriptionStatus).toHaveBeenCalledTimes(1)
   })
 
-  it('invalidateStatus + fetchStatus triggers a fresh API call', async () => {
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({ data: freeStatus() })
+  it('invalidateStatus + refreshStatus triggers a fresh API call', async () => {
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({ data: statusData() })
 
-    const { fetchStatus, invalidateStatus } = useSubscriptionStatus()
+    const { fetchStatus, refreshStatus, invalidateStatus } = useSubscriptionStatus()
     await fetchStatus()
+    expect(faceApi.getSubscriptionStatus).toHaveBeenCalledTimes(1)
 
     invalidateStatus()
-    await fetchStatus()
+    await refreshStatus()
 
     expect(faceApi.getSubscriptionStatus).toHaveBeenCalledTimes(2)
   })
 
-  it('sets error.value when getSubscriptionStatus rejects', async () => {
+  it('sets error and falls back to the free tier when the request rejects', async () => {
     vi.mocked(faceApi.getSubscriptionStatus).mockRejectedValue(new Error('boom'))
 
-    const { fetchStatus, error } = useSubscriptionStatus()
+    const { fetchStatus, error, tier, capabilities } = useSubscriptionStatus()
     await fetchStatus()
 
     expect(error.value).toBe('Une erreur est survenue')
+    expect(tier.value).toBe('free')
+    expect(capabilities.value).toEqual(FREE_CAPABILITIES)
   })
 })

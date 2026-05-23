@@ -8,14 +8,14 @@ interface Props {
   isLoading?: boolean
   isDeleting?: boolean
   canAddMore?: boolean
-  publicPhotoLimit?: number
+  maxAlbumPhotos?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isLoading: false,
   isDeleting: false,
   canAddMore: true,
-  publicPhotoLimit: 2,
+  maxAlbumPhotos: 1,
 })
 
 const emit = defineEmits<{
@@ -24,24 +24,24 @@ const emit = defineEmits<{
   'add-click': []
 }>()
 
-// Create slots array (always show 4 slots)
+// Slot count: enough to render every stored photo (so an ex-Élite Face's 5-6
+// photos still show after a downgrade) and at least the current tier quota,
+// capped at the absolute album maximum of 6.
 const slots = computed(() => {
   const result: (FacePhoto | null)[] = []
-  for (let i = 0; i < 4; i++) {
-    result.push(props.photos[i] || null)
+  const total = Math.min(6, Math.max(props.photos.length, props.maxAlbumPhotos ?? 1))
+  for (let i = 0; i < total; i++) {
+    result.push(props.photos[i] ?? null)
   }
   return result
 })
 
 const isProcessing = computed(() => props.isLoading || props.isDeleting)
 
-function isPhotoLockedForPublic(photo: FacePhoto): boolean {
-  return photo.position > (props.publicPhotoLimit ?? 2)
-}
-
-// Empty slots are index-based because there is no persisted photo position yet.
-function isSlotLockedForPublic(slotIndex: number): boolean {
-  return slotIndex + 1 > (props.publicPhotoLimit ?? 2)
+// A stored photo whose position exceeds the tier quota is masked publicly
+// (only happens after a downgrade — e.g. 6 photos as Élite, then dropped to Pro=4).
+function isPhotoOverQuota(photo: FacePhoto): boolean {
+  return photo.position > (props.maxAlbumPhotos ?? 1)
 }
 
 /**
@@ -74,7 +74,7 @@ function handleAddClick(): void {
 
 <template>
   <div class="photo-album-grid relative" data-testid="photo-album-grid">
-    <!-- Grid of 4 slots -->
+    <!-- Album slots -->
     <div class="grid grid-cols-2 gap-3">
       <div
         v-for="(slot, index) in slots"
@@ -95,9 +95,9 @@ function handleAddClick(): void {
             :data-testid="`album-photo-${slot.id}`"
           />
 
-          <!-- Locked-for-public badge (positions > publicPhotoLimit) -->
+          <!-- Over-quota badge (positions > maxAlbumPhotos) -->
           <div
-            v-if="isPhotoLockedForPublic(slot)"
+            v-if="isPhotoOverQuota(slot)"
             class="absolute top-2 right-2 inline-flex items-center gap-1 bg-amber-500 text-white rounded-md px-2 py-1 text-xs font-medium shadow-sm pointer-events-none"
             :data-testid="`album-locked-badge-${slot.id}`"
           >
@@ -180,13 +180,6 @@ function handleAddClick(): void {
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
             <span class="text-xs mt-1">Ajouter</span>
-            <span
-              v-if="isSlotLockedForPublic(index)"
-              class="text-[10px] italic text-gray-400 mt-1 block"
-              :data-testid="`album-slot-premium-hint-${index}`"
-            >
-              Premium requis pour publier
-            </span>
           </button>
 
           <!-- Disabled placeholder when full or processing -->

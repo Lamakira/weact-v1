@@ -53,23 +53,20 @@ describe('ProfileEditPage structure', () => {
     expect(templateSection).not.toContain('Photo de profil')
   })
 
-  it('SubscriptionCard is imported and placed before BasicInfoSection (FP-1.7)', () => {
+  it('SubscriptionPanel is imported and placed before BasicInfoSection (FP-2.7)', () => {
     expect(template).toContain(
-      "import SubscriptionCard from '@/features/face/components/SubscriptionCard.vue'",
+      "import SubscriptionPanel from '@/features/face/components/SubscriptionPanel.vue'",
     )
     expect(template).toContain(
       "import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'",
     )
-    expect(template).toContain(
-      "import { useSubscriptionPayment } from '@/features/face/composables/useSubscriptionPayment'",
-    )
 
     const templateSection = template.slice(template.indexOf('<template>'))
-    const cardIndex = templateSection.indexOf('<SubscriptionCard')
+    const panelIndex = templateSection.indexOf('<SubscriptionPanel')
     const basicIndex = templateSection.indexOf('<BasicInfoSection')
-    expect(cardIndex).toBeGreaterThan(-1)
+    expect(panelIndex).toBeGreaterThan(-1)
     expect(basicIndex).toBeGreaterThan(-1)
-    expect(cardIndex).toBeLessThan(basicIndex)
+    expect(panelIndex).toBeLessThan(basicIndex)
   })
 
   it('album add-click handler guards against entitlement-resolved quota (FP-1.7)', () => {
@@ -91,11 +88,11 @@ describe('ProfileEditPage structure', () => {
     expect(hiddenInputBlock.slice(0, 600)).toContain('isFullByEntitlement')
   })
 
-  it('album quota text is reactive to subscriptionUploadLimit (FP-1.7)', () => {
+  it('album quota text is reactive to maxAlbumPhotos (FP-2.7)', () => {
     const templateSection = template.slice(template.indexOf('<template>'))
     // The hardcoded "jusqu'à 4 photos" must be gone — replaced by a dynamic
-    // {{ subscriptionUploadLimit }} expression.
+    // {{ maxAlbumPhotos }} expression.
     expect(templateSection).not.toMatch(/Ajoutez jusqu'à 4 photos/)
-    expect(templateSection).toContain('subscriptionUploadLimit')
+    expect(templateSection).toContain('maxAlbumPhotos')
   })
 })

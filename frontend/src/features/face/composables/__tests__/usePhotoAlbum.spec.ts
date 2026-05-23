@@ -336,43 +336,56 @@ describe('usePhotoAlbum', () => {
       expect(photoCount.value).toBe(2)
     })
 
-    it('canAddMore returns true when under limit', async () => {
-      vi.mocked(faceApi.getAlbumPhotos).mockResolvedValue(mockPhotosResponse)
-
-      const { canAddMore, fetchPhotos } = usePhotoAlbum()
-
-      await fetchPhotos()
-
-      expect(canAddMore.value).toBe(true)
-    })
-
-    it('canAddMore returns false when at limit', () => {
+    it('canAddMore returns true one photo under the absolute ceiling of 6', () => {
       const { photos, canAddMore } = usePhotoAlbum()
       photos.value = [
         { ...mockPhoto1, id: 1, position: 1 },
         { ...mockPhoto1, id: 2, position: 2 },
         { ...mockPhoto1, id: 3, position: 3 },
         { ...mockPhoto1, id: 4, position: 4 },
+        { ...mockPhoto1, id: 5, position: 5 },
+      ]
+
+      expect(canAddMore.value).toBe(true)
+    })
+
+    it('canAddMore returns false at the absolute ceiling of 6', () => {
+      const { photos, canAddMore } = usePhotoAlbum()
+      photos.value = [
+        { ...mockPhoto1, id: 1, position: 1 },
+        { ...mockPhoto1, id: 2, position: 2 },
+        { ...mockPhoto1, id: 3, position: 3 },
+        { ...mockPhoto1, id: 4, position: 4 },
+        { ...mockPhoto1, id: 5, position: 5 },
+        { ...mockPhoto1, id: 6, position: 6 },
       ]
 
       expect(canAddMore.value).toBe(false)
     })
 
-    it('isFull returns true when at limit', () => {
+    it('isFull returns true at the absolute ceiling of 6', () => {
       const { photos, isFull } = usePhotoAlbum()
       photos.value = [
         { ...mockPhoto1, id: 1, position: 1 },
         { ...mockPhoto1, id: 2, position: 2 },
         { ...mockPhoto1, id: 3, position: 3 },
         { ...mockPhoto1, id: 4, position: 4 },
+        { ...mockPhoto1, id: 5, position: 5 },
+        { ...mockPhoto1, id: 6, position: 6 },
       ]
 
       expect(isFull.value).toBe(true)
     })
 
-    it('isFull returns false when under limit', () => {
+    it('isFull returns false one photo under the absolute ceiling of 6', () => {
       const { photos, isFull } = usePhotoAlbum()
-      photos.value = [mockPhoto1, mockPhoto2]
+      photos.value = [
+        { ...mockPhoto1, id: 1, position: 1 },
+        { ...mockPhoto1, id: 2, position: 2 },
+        { ...mockPhoto1, id: 3, position: 3 },
+        { ...mockPhoto1, id: 4, position: 4 },
+        { ...mockPhoto1, id: 5, position: 5 },
+      ]
 
       expect(isFull.value).toBe(false)
     })

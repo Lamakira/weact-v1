@@ -14,7 +14,7 @@ const props = withDefaults(defineProps<Props>(), {
   isFull: false,
   isUploading: false,
   error: null,
-  uploadLimit: 4,
+  uploadLimit: 6,
   currentCount: 0,
   lockedByQuota: false,
 })

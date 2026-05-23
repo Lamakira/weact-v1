@@ -16,9 +16,7 @@ import { useTarifs } from '@/features/face/composables/useTarifs'
 import { useAvailability } from '@/features/face/composables/useAvailability'
 import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
 import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'
-import { useSubscriptionPayment } from '@/features/face/composables/useSubscriptionPayment'
 import { useToast } from '@/composables/useToast'
-import { useAuthStore } from '@/stores/auth'
 import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vue'
 import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
 import AlbumPhotoUpload from '@/features/face/components/AlbumPhotoUpload.vue'
@@ -35,7 +33,7 @@ import AvailabilityToggle from '@/features/face/components/AvailabilityToggle.vu
 import ProfileCompletionIndicator from '@/features/face/components/ProfileCompletionIndicator.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import BasicInfoSection from '@/features/face/components/BasicInfoSection.vue'
-import SubscriptionCard from '@/features/face/components/SubscriptionCard.vue'
+import SubscriptionPanel from '@/features/face/components/SubscriptionPanel.vue'
 import EmailChangeForm from '@/features/auth/components/EmailChangeForm.vue'
 import PasswordChangeForm from '@/features/auth/components/PasswordChangeForm.vue'
 import DataPrivacySection from '@/components/account/DataPrivacySection.vue'
@@ -43,7 +41,6 @@ import type { ExperienceFormData, TarifsFormData } from '@/features/face/types'
 
 const route = useRoute()
 const router = useRouter()
-const authStore = useAuthStore()
 
 const {
   profile,
@@ -191,40 +188,24 @@ const {
   fetchCompletion,
 } = useProfileCompletion()
 
-// Subscription status composable (FP-1.7)
+// Subscription status composable (FP-2.7) — the SubscriptionPanel owns offers,
+// cta and the payment flow; ProfileEditPage only needs the capability matrix
+// for the tier-aware album section.
 const {
-  status: subscriptionStatus,
-  isLoading: isSubscriptionStatusLoading,
-  isPremium: subscriptionIsPremium,
-  statusValue: subscriptionStatusValue,
-  albumUploadLimit: subscriptionUploadLimit,
-  publicAlbumPhotoLimit: subscriptionPublicLimit,
-  lockedAlbumPhotoCount: subscriptionLockedCount,
-  canUploadActingVideo: subscriptionCanUploadActingVideo,
-  hasActingVideo: subscriptionHasActingVideo,
-  isActingVideoPubliclyVisible: subscriptionIsActingVideoPubliclyVisible,
-  canRenew: subscriptionCanRenew,
-  planIsAvailable: subscriptionPlanIsAvailable,
+  capabilities,
+  maxAlbumPhotos,
   fetchStatus: fetchSubscriptionStatus,
-  refreshStatus: refreshSubscriptionStatus,
 } = useSubscriptionStatus()
 
-// Subscription payment composable (FP-1.7)
-const {
-  isInitiating: isSubscriptionInitiating,
-  isPolling: isSubscriptionPolling,
-  paymentState: subscriptionPaymentState,
-  error: subscriptionPaymentError,
-  initiatePayment: initiateSubscriptionPayment,
-  verifyPayment: verifySubscriptionPayment,
-  reset: resetSubscriptionPayment,
-} = useSubscriptionPayment()
+// Decision #9 minimal video touch — re-derive the acting-video gate locally off
+// the FP-2 capability matrix (the FP-1 canUploadActingVideo computed is gone).
+const subscriptionCanUploadActingVideo = computed(
+  () => (capabilities.value?.max_acting_videos ?? 0) > 0,
+)
 
-// Entitlement-aware "album is full" predicate.
-// Distinct from `isFull` (absolute UI ceiling = 4): this one fires at the
-// subscription-resolved upload limit (2 free / 4 premium).
+// Entitlement-aware "album is full" predicate — fires at the tier's photo quota.
 const isFullByEntitlement = computed(
-  () => albumPhotos.value.length >= subscriptionUploadLimit.value,
+  () => albumPhotos.value.length >= maxAlbumPhotos.value,
 )
 
 // Ref to ExperiencesList component for resetting form states
@@ -534,34 +515,19 @@ async function handleAvailabilityToggle(): Promise<void> {
 }
 
 /**
- * Handle subscription card CTA (FP-1.7)
+ * Refresh profile completion after the subscription panel confirms a payment.
+ * Album / acting video refetches catch the case where an upgrade unlocks media
+ * previously masked by the lower tier — `maxAlbumPhotos` updates reactively but
+ * the photo array itself stays cached until forced. The toast belongs on the
+ * page that initiates the payment; for resume-pending confirms triggered from
+ * here, the visual feedback comes from the panel state flip.
  */
-async function handleSubscriptionInitiatePayment(): Promise<void> {
-  const initiated = await initiateSubscriptionPayment()
-  if (initiated) {
-    toast.success('Redirection vers le paiement Fedapay…')
-  } else {
-    toast.error(subscriptionPaymentError.value ?? 'Le paiement n\'a pas pu être initialisé.')
-  }
-}
-
-async function handleSubscriptionRefreshStatus(): Promise<void> {
-  const confirmed = await verifySubscriptionPayment()
-  if (confirmed) {
-    toast.success('Paiement confirmé. Votre abonnement Premium est actif.')
-    await Promise.all([
-      fetchAlbumPhotos(),
-      fetchActingVideoInfo(),
-      fetchCompletion(),
-    ])
-    return
-  }
-
-  await refreshSubscriptionStatus()
-}
-
-function handleSubscriptionDismissError(): void {
-  resetSubscriptionPayment()
+async function handleSubscriptionChanged(): Promise<void> {
+  await Promise.all([
+    fetchAlbumPhotos(),
+    fetchActingVideoInfo(),
+    fetchCompletion(),
+  ])
 }
 
 /**
@@ -729,33 +695,9 @@ function handleCompletionItemClick(itemKey: string): void {
           </div>
         </div>
 
-        <!-- Subscription card (FP-1.7) -->
+        <!-- Subscription panel (FP-2.7) -->
         <div class="mb-6">
-          <SubscriptionCard
-            :status="subscriptionStatusValue"
-            :is-premium="subscriptionIsPremium"
-            :expires-at="subscriptionStatus?.expires_at ?? null"
-            :album-upload-limit="subscriptionUploadLimit"
-            :public-album-photo-limit="subscriptionPublicLimit"
-            :current-album-photo-count="albumPhotos.length"
-            :locked-album-photo-count="subscriptionLockedCount"
-            :has-acting-video="subscriptionHasActingVideo"
-            :can-upload-acting-video="subscriptionCanUploadActingVideo"
-            :is-acting-video-publicly-visible="subscriptionIsActingVideoPubliclyVisible"
-            :can-renew="subscriptionCanRenew"
-            :plan-amount="subscriptionStatus?.annual_plan.amount ?? 0"
-            :plan-currency="subscriptionStatus?.annual_plan.currency ?? 'XOF'"
-            :plan-is-available="subscriptionPlanIsAvailable"
-            :is-loading="isSubscriptionStatusLoading"
-            :is-initiating="isSubscriptionInitiating"
-            :is-polling="isSubscriptionPolling"
-            :payment-state="subscriptionPaymentState"
-            :payment-error="subscriptionPaymentError"
-            :can-initiate-payment="authStore.isEmailVerified"
-            @initiate-payment="handleSubscriptionInitiatePayment"
-            @refresh-status="handleSubscriptionRefreshStatus"
-            @dismiss-error="handleSubscriptionDismissError"
-          />
+          <SubscriptionPanel @subscription-changed="handleSubscriptionChanged" />
         </div>
 
         <!-- Basic info section (name/username) -->
@@ -800,7 +742,7 @@ function handleCompletionItemClick(itemKey: string): void {
         <div class="p-6 border-b border-gray-200">
           <h2 class="text-lg font-medium text-gray-900 mb-2">Album photos</h2>
           <p class="text-sm text-gray-500 mb-6">
-            Ajoutez jusqu'à {{ subscriptionUploadLimit }} photo{{ subscriptionUploadLimit > 1 ? 's' : '' }}
+            Ajoutez jusqu'à {{ maxAlbumPhotos }} photo{{ maxAlbumPhotos > 1 ? 's' : '' }}
             pour montrer votre polyvalence aux producteurs.
           </p>
 
@@ -810,7 +752,7 @@ function handleCompletionItemClick(itemKey: string): void {
             :is-loading="isAlbumLoading"
             :is-deleting="isAlbumDeleting"
             :can-add-more="canAddMore && !isFullByEntitlement"
-            :public-photo-limit="subscriptionPublicLimit"
+            :max-album-photos="maxAlbumPhotos"
             @delete="handleAlbumDelete"
             @add-click="handleAlbumAddClick"
           />
@@ -821,7 +763,7 @@ function handleCompletionItemClick(itemKey: string): void {
               :is-full="isFullByEntitlement"
               :is-uploading="isAlbumUploading"
               :error="albumError"
-              :upload-limit="subscriptionUploadLimit"
+              :upload-limit="maxAlbumPhotos"
               :current-count="albumPhotos.length"
               :locked-by-quota="isFullByEntitlement"
               @upload="handleAlbumUpload"
@@ -882,7 +824,6 @@ function handleCompletionItemClick(itemKey: string): void {
             :error="actingVideoError"
             :upload-progress="actingUploadProgress"
             :can-upload="subscriptionCanUploadActingVideo"
-            :is-publicly-visible="subscriptionIsActingVideoPubliclyVisible"
             @upload="handleActingVideoUpload"
             @delete="handleActingVideoDelete"
           />

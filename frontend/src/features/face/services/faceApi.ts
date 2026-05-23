@@ -24,6 +24,7 @@ import type {
   BasicInfoFormData,
   PersonalInfoResponse,
   PersonalInfoFormData,
+  FaceSubscriptionPlan,
   SubscriptionStatusResponse,
   SubscriptionInitiatePaymentResponse,
   SubscriptionVerifyPaymentResponse,
@@ -445,7 +446,7 @@ export const faceApi = {
   },
 
   /**
-   * Get the Face's current subscription status (FP-1.3 contract)
+   * Get the Face's current subscription status (FP-2.3 tier-aware contract)
    */
   async getSubscriptionStatus(): Promise<SubscriptionStatusResponse> {
     const response = await apiClient.get<SubscriptionStatusResponse>('/face/subscription-status')
@@ -453,19 +454,21 @@ export const faceApi = {
   },
 
   /**
-   * Initiate annual premium payment via Fedapay hosted checkout (FP-1.5 contract)
+   * Initiate a tiered annual payment via Fedapay hosted checkout (FP-2.5 contract)
    */
-  async initiateSubscriptionPayment(): Promise<SubscriptionInitiatePaymentResponse> {
+  async initiateSubscriptionPayment(
+    plan: FaceSubscriptionPlan,
+  ): Promise<SubscriptionInitiatePaymentResponse> {
     await getCsrfCookie()
     const response = await apiClient.post<SubscriptionInitiatePaymentResponse>(
       '/face/subscription/initiate-payment',
+      { plan },
     )
     return response.data
   },
 
   /**
-   * Ask the backend to poll Fedapay for the current pending subscription.
-   * This reconciles paid transactions when the webhook is delayed or absent.
+   * Verify a pending subscription payment (FP-2.5 polling fallback)
    */
   async verifySubscriptionPayment(): Promise<SubscriptionVerifyPaymentResponse> {
     await getCsrfCookie()

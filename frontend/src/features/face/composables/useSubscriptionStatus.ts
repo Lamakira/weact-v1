@@ -1,12 +1,40 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
 import { faceApi } from '../services/faceApi'
-import type { SubscriptionStatusInfo } from '../types'
+import type {
+  FaceSubscriptionPlan,
+  FaceSubscriptionTier,
+  SubscriptionCta,
+  SubscriptionCurrent,
+  SubscriptionOffer,
+  SubscriptionStatusData,
+  SubscriptionStatusValue,
+  TierCapabilities,
+} from '../types'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
 import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
 
 const SUBSCRIPTION_STATUS_CACHE_TTL_MS = 60 * 1000
 
-const subscriptionStatusResource = createSharedCachedResource<SubscriptionStatusInfo | null>({
+// Free-tier capability matrix — the fallback before the status endpoint has loaded
+// (mirrors config/face_subscription_tiers.php → tiers.free.capabilities).
+export const FREE_CAPABILITIES: TierCapabilities = {
+  max_album_photos: 1,
+  max_presentation_videos: 0,
+  max_acting_videos: 0,
+  max_ugc_videos: 0,
+  ugc_access: false,
+  commission_rate: 0.1,
+  sort_priority: 4,
+  has_elite_badge: false,
+}
+
+const EMPTY_CTA: SubscriptionCta = {
+  upgrade_available: false,
+  downgrade_available: false,
+  renew_available: false,
+}
+
+const subscriptionStatusResource = createSharedCachedResource<SubscriptionStatusData | null>({
   key: 'face-subscription-status',
   initialValue: null,
   ttlMs: SUBSCRIPTION_STATUS_CACHE_TTL_MS,
@@ -18,41 +46,43 @@ const subscriptionStatusResource = createSharedCachedResource<SubscriptionStatus
 })
 
 interface UseSubscriptionStatusReturn {
-  status: Ref<SubscriptionStatusInfo | null>
+  data: Ref<SubscriptionStatusData | null>
   isLoading: Ref<boolean>
   error: Ref<string | null>
-  isPremium: ComputedRef<boolean>
-  statusValue: ComputedRef<'free' | 'pending_payment' | 'active' | 'expired' | 'cancelled' | 'failed'>
-  albumUploadLimit: ComputedRef<number>
-  publicAlbumPhotoLimit: ComputedRef<number>
-  lockedAlbumPhotoCount: ComputedRef<number>
-  canUploadActingVideo: ComputedRef<boolean>
-  hasActingVideo: ComputedRef<boolean>
-  isActingVideoPubliclyVisible: ComputedRef<boolean>
-  canRenew: ComputedRef<boolean>
-  planIsAvailable: ComputedRef<boolean>
+  current: ComputedRef<SubscriptionCurrent | null>
+  offers: ComputedRef<SubscriptionOffer[]>
+  cta: ComputedRef<SubscriptionCta>
+  tier: ComputedRef<FaceSubscriptionTier>
+  statusValue: ComputedRef<SubscriptionStatusValue>
+  currentPlan: ComputedRef<FaceSubscriptionPlan | null>
+  capabilities: ComputedRef<TierCapabilities>
+  maxAlbumPhotos: ComputedRef<number>
+  expiresAt: ComputedRef<string | null>
+  startsAt: ComputedRef<string | null>
+  cancelledAt: ComputedRef<string | null>
   fetchStatus: () => Promise<void>
   refreshStatus: () => Promise<void>
   invalidateStatus: () => void
 }
 
 export function useSubscriptionStatus(): UseSubscriptionStatusReturn {
-  const status = subscriptionStatusResource.data
+  const data = subscriptionStatusResource.data
   const isLoading = subscriptionStatusResource.isLoading
   const error = subscriptionStatusResource.error
 
-  const isPremium = computed(() => status.value?.is_premium ?? false)
-  const statusValue = computed(() => status.value?.status ?? 'free')
-  const albumUploadLimit = computed(() => status.value?.entitlements.album_upload_limit ?? 2)
-  const publicAlbumPhotoLimit = computed(() => status.value?.entitlements.public_album_photo_limit ?? 2)
-  const lockedAlbumPhotoCount = computed(() => status.value?.entitlements.locked_album_photo_count ?? 0)
-  const canUploadActingVideo = computed(() => status.value?.entitlements.can_upload_acting_video ?? false)
-  const hasActingVideo = computed(() => status.value?.entitlements.has_acting_video ?? false)
-  const isActingVideoPubliclyVisible = computed(
-    () => status.value?.entitlements.is_acting_video_publicly_visible ?? false,
+  const current = computed(() => data.value?.current ?? null)
+  const offers = computed(() => data.value?.offers ?? [])
+  const cta = computed(() => data.value?.cta ?? EMPTY_CTA)
+  const tier = computed<FaceSubscriptionTier>(() => current.value?.tier ?? 'free')
+  const statusValue = computed<SubscriptionStatusValue>(() => current.value?.status ?? 'free')
+  const currentPlan = computed<FaceSubscriptionPlan | null>(() => current.value?.plan ?? null)
+  const capabilities = computed<TierCapabilities>(
+    () => current.value?.capabilities ?? FREE_CAPABILITIES,
   )
-  const canRenew = computed(() => status.value?.can_renew ?? true)
-  const planIsAvailable = computed(() => status.value?.annual_plan.is_available ?? false)
+  const maxAlbumPhotos = computed(() => capabilities.value.max_album_photos)
+  const expiresAt = computed(() => current.value?.expires_at ?? null)
+  const startsAt = computed(() => current.value?.starts_at ?? null)
+  const cancelledAt = computed(() => current.value?.cancelled_at ?? null)
 
   async function fetchStatus(): Promise<void> {
     await subscriptionStatusResource.fetch()
@@ -67,19 +97,20 @@ export function useSubscriptionStatus(): UseSubscriptionStatusReturn {
   }
 
   return {
-    status,
+    data,
     isLoading,
     error,
-    isPremium,
+    current,
+    offers,
+    cta,
+    tier,
     statusValue,
-    albumUploadLimit,
-    publicAlbumPhotoLimit,
-    lockedAlbumPhotoCount,
-    canUploadActingVideo,
-    hasActingVideo,
-    isActingVideoPubliclyVisible,
-    canRenew,
-    planIsAvailable,
+    currentPlan,
+    capabilities,
+    maxAlbumPhotos,
+    expiresAt,
+    startsAt,
+    cancelledAt,
     fetchStatus,
     refreshStatus,
     invalidateStatus,
