@@ -1,7 +1,105 @@
-import { describe, it, expect } from 'vitest'
-import { mount, RouterLinkStub } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount, RouterLinkStub, flushPromises } from '@vue/test-utils'
+import { ref } from 'vue'
 import { Check, Crown, Minus } from 'lucide-vue-next'
 import PricingView from '../PricingView.vue'
+import type {
+  FaceSubscriptionTier,
+  SubscriptionCurrent,
+  SubscriptionOffer,
+  SubscriptionStatusValue,
+  TierCapabilities,
+} from '@/features/face/types'
+
+// =============================================================
+// Shared mock context (FP-2.13.1 auth-aware behavior)
+// Default state = unauth, so the existing 14+ FP-2.13 tests
+// keep passing unchanged (isFace === false → RouterLink fallback).
+// =============================================================
+const ctx = vi.hoisted(() => ({
+  status: {
+    current: { value: null },
+    cta: {
+      value: { upgrade_available: false, downgrade_available: false, renew_available: false },
+    },
+    tier: { value: 'free' },
+    statusValue: { value: 'free' },
+    currentPlan: { value: null },
+    expiresAt: { value: null },
+    offers: { value: [] },
+    isLoading: { value: false },
+    fetchStatus: vi.fn().mockResolvedValue(undefined),
+  } as Record<string, unknown>,
+  payment: {
+    isInitiating: { value: false },
+    isPolling: { value: false },
+    isVerifying: { value: false },
+    pendingCheckoutAvailable: { value: false },
+    paymentState: { value: 'idle' },
+    error: { value: null },
+    initiatePayment: vi.fn().mockResolvedValue(true),
+    resumePayment: vi.fn().mockResolvedValue(true),
+    verifyPayment: vi.fn().mockResolvedValue(undefined),
+    dismissPaymentError: vi.fn(),
+  } as Record<string, unknown>,
+  authStore: {
+    isAuthenticated: false,
+    user: null as { id: number; userable_type: 'Face' | 'Producer'; email_verified: boolean } | null,
+    isEmailVerified: false,
+  },
+  route: { query: {} as Record<string, string> },
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn(),
+    clear: vi.fn(),
+    toast: vi.fn(),
+  },
+}))
+
+vi.mock('@/features/face/composables/useSubscriptionStatus', () => ({
+  useSubscriptionStatus: () => ctx.status,
+}))
+vi.mock('@/features/face/composables/useSubscriptionPayment', () => ({
+  useSubscriptionPayment: () => ctx.payment,
+}))
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ctx.authStore,
+}))
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => ctx.toast,
+}))
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-router')>()
+  return {
+    ...actual,
+    useRoute: () => ctx.route,
+  }
+})
+
+// Replace the `vi.hoisted` placeholders with real refs now that `ref` is
+// imported. PricingView calls `watch(paymentState, ...)` which requires a
+// ref source — without this swap Vue logs an "Invalid watch source" warning
+// on every mount in the existing FP-2.13 tests.
+ctx.status.current = ref(null)
+ctx.status.cta = ref({
+  upgrade_available: false,
+  downgrade_available: false,
+  renew_available: false,
+})
+ctx.status.tier = ref('free')
+ctx.status.statusValue = ref('free')
+ctx.status.currentPlan = ref(null)
+ctx.status.expiresAt = ref(null)
+ctx.status.offers = ref([])
+ctx.status.isLoading = ref(false)
+ctx.payment.isInitiating = ref(false)
+ctx.payment.isPolling = ref(false)
+ctx.payment.isVerifying = ref(false)
+ctx.payment.pendingCheckoutAvailable = ref(false)
+ctx.payment.paymentState = ref('idle')
+ctx.payment.error = ref(null)
 
 const mountPricing = () =>
   mount(PricingView, {
@@ -265,5 +363,447 @@ describe('PricingView (public /pricing — FP-2.13)', () => {
       expect(wrapper.get('[data-testid="tier-card-pro"]').text()).toContain('25 000')
       expect(wrapper.get('[data-testid="tier-card-elite"]').text()).toContain('40 000')
     })
+  })
+})
+
+// =============================================================
+// FP-2.13.1 — auth-aware behavior
+// =============================================================
+
+const CAPABILITIES: Record<FaceSubscriptionTier, TierCapabilities> = {
+  free: {
+    max_album_photos: 1,
+    max_presentation_videos: 0,
+    max_acting_videos: 0,
+    max_ugc_videos: 0,
+    ugc_access: false,
+    commission_rate: 0.1,
+    sort_priority: 4,
+    has_elite_badge: false,
+  },
+  starter: {
+    max_album_photos: 2,
+    max_presentation_videos: 1,
+    max_acting_videos: 0,
+    max_ugc_videos: 0,
+    ugc_access: true,
+    commission_rate: 0.1,
+    sort_priority: 3,
+    has_elite_badge: false,
+  },
+  pro: {
+    max_album_photos: 4,
+    max_presentation_videos: 1,
+    max_acting_videos: 1,
+    max_ugc_videos: 0,
+    ugc_access: true,
+    commission_rate: 0.1,
+    sort_priority: 2,
+    has_elite_badge: false,
+  },
+  elite: {
+    max_album_photos: 6,
+    max_presentation_videos: 1,
+    max_acting_videos: 2,
+    max_ugc_videos: 1,
+    ugc_access: true,
+    commission_rate: 0.05,
+    sort_priority: 1,
+    has_elite_badge: true,
+  },
+}
+
+function makeCurrent(
+  tier: FaceSubscriptionTier,
+  status: SubscriptionStatusValue,
+  overrides: Partial<SubscriptionCurrent> = {},
+): SubscriptionCurrent {
+  return {
+    tier,
+    plan: tier === 'free' ? null : tier,
+    status,
+    starts_at: null,
+    expires_at: null,
+    cancelled_at: null,
+    capabilities: CAPABILITIES[tier],
+    ...overrides,
+  }
+}
+
+function makeOffers(): SubscriptionOffer[] {
+  return (['starter', 'pro', 'elite'] as const).map((t) => ({
+    tier: t,
+    price: t === 'starter' ? 12000 : t === 'pro' ? 25000 : 40000,
+    currency: 'FCFA',
+    capabilities: CAPABILITIES[t],
+  }))
+}
+
+interface StatusSetup {
+  tier?: FaceSubscriptionTier
+  status?: SubscriptionStatusValue
+  expiresAt?: string | null
+  cta?: { upgrade_available: boolean; downgrade_available: boolean; renew_available: boolean }
+  isLoading?: boolean
+  currentOverride?: SubscriptionCurrent | null
+  offers?: SubscriptionOffer[]
+}
+
+function setupStatus(opts: StatusSetup = {}): void {
+  const tier = opts.tier ?? 'free'
+  const status = opts.status ?? 'free'
+  const current =
+    opts.currentOverride === undefined
+      ? makeCurrent(tier, status, { expires_at: opts.expiresAt ?? null })
+      : opts.currentOverride
+  ctx.status.current = ref(current)
+  ctx.status.cta = ref(
+    opts.cta ??
+      (status === 'active'
+        ? { upgrade_available: true, downgrade_available: true, renew_available: true }
+        : status === 'free'
+          ? { upgrade_available: true, downgrade_available: false, renew_available: false }
+          : { upgrade_available: false, downgrade_available: false, renew_available: false }),
+  )
+  ctx.status.tier = ref(tier)
+  ctx.status.statusValue = ref(status)
+  ctx.status.currentPlan = ref(current?.plan ?? null)
+  ctx.status.expiresAt = ref(opts.expiresAt ?? null)
+  ctx.status.offers = ref(opts.offers ?? makeOffers())
+  ctx.status.isLoading = ref(opts.isLoading ?? false)
+  ctx.status.fetchStatus = vi.fn().mockResolvedValue(undefined)
+}
+
+interface PaymentSetup {
+  paymentState?: 'idle' | 'waiting' | 'confirmed' | 'failed'
+  pendingCheckoutAvailable?: boolean
+  isInitiating?: boolean
+  isPolling?: boolean
+  isVerifying?: boolean
+  paymentError?: string | null
+}
+
+function setupPayment(opts: PaymentSetup = {}): void {
+  ctx.payment.isInitiating = ref(opts.isInitiating ?? false)
+  ctx.payment.isPolling = ref(opts.isPolling ?? false)
+  ctx.payment.isVerifying = ref(opts.isVerifying ?? false)
+  ctx.payment.pendingCheckoutAvailable = ref(opts.pendingCheckoutAvailable ?? false)
+  ctx.payment.paymentState = ref(opts.paymentState ?? 'idle')
+  ctx.payment.error = ref(opts.paymentError ?? null)
+  ctx.payment.initiatePayment = vi.fn().mockResolvedValue(true)
+  ctx.payment.resumePayment = vi.fn().mockResolvedValue(true)
+  ctx.payment.verifyPayment = vi.fn().mockResolvedValue(undefined)
+  ctx.payment.dismissPaymentError = vi.fn()
+}
+
+const TierChangeModalStub = {
+  name: 'TierChangeModal',
+  props: ['open', 'mode', 'targetOffer', 'currentTierLabel', 'forfeitedDays', 'isSubmitting'],
+  emits: ['confirm', 'cancel'],
+  template: `
+    <div data-testid="tier-change-modal"
+         :data-mode="mode"
+         :data-target-tier="targetOffer?.tier"
+         :data-open="open">
+      <button data-testid="modal-confirm" @click="$emit('confirm')">Confirm</button>
+      <button data-testid="modal-cancel" @click="$emit('cancel')">Cancel</button>
+    </div>
+  `,
+}
+
+function mountAuth() {
+  return mount(PricingView, {
+    global: {
+      stubs: {
+        RouterLink: RouterLinkStub,
+        TierChangeModal: TierChangeModalStub,
+      },
+    },
+  })
+}
+
+describe('auth-aware behavior (FP-2.13.1)', () => {
+  beforeEach(() => {
+    ctx.authStore.isAuthenticated = true
+    ctx.authStore.user = { id: 42, userable_type: 'Face', email_verified: true }
+    ctx.authStore.isEmailVerified = true
+    ctx.route.query = {}
+    setupStatus({ tier: 'pro', status: 'active', expiresAt: '2027-05-23T00:00:00Z' })
+    setupPayment()
+  })
+
+  afterEach(() => {
+    ctx.authStore.isAuthenticated = false
+    ctx.authStore.user = null
+    ctx.authStore.isEmailVerified = false
+    ctx.route.query = {}
+    ctx.status.current = { value: null }
+    ctx.status.cta = {
+      value: { upgrade_available: false, downgrade_available: false, renew_available: false },
+    }
+    ctx.status.tier = { value: 'free' }
+    ctx.status.statusValue = { value: 'free' }
+    ctx.status.currentPlan = { value: null }
+    ctx.status.expiresAt = { value: null }
+    ctx.status.offers = { value: [] }
+    ctx.status.isLoading = { value: false }
+    ctx.payment.paymentState = { value: 'idle' }
+    ctx.payment.pendingCheckoutAvailable = { value: false }
+    ctx.payment.error = { value: null }
+    ctx.payment.isInitiating = { value: false }
+    ctx.payment.isPolling = { value: false }
+    ctx.payment.isVerifying = { value: false }
+    vi.clearAllMocks()
+  })
+
+  it('preserves the unauth render — no banners, RouterLink CTAs only', async () => {
+    ctx.authStore.isAuthenticated = false
+    ctx.authStore.user = null
+    ctx.authStore.isEmailVerified = false
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="pricing-banners"]').exists()).toBe(false)
+    for (const k of ['decouverte', 'starter', 'pro', 'elite'] as const) {
+      const cta = wrapper.findComponent(`[data-testid="cta-tier-${k}"]` as never)
+      expect(cta.exists()).toBe(true)
+      expect(cta.props('to')).toBeDefined()
+    }
+  })
+
+  it('treats Producer logged-in as unauth (no banners, no fetchStatus)', async () => {
+    ctx.authStore.user = { id: 99, userable_type: 'Producer', email_verified: true }
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="pricing-banners"]').exists()).toBe(false)
+    expect(ctx.status.fetchStatus).not.toHaveBeenCalled()
+  })
+
+  it('triggers fetchStatus on mount when a Face is logged in', async () => {
+    mountAuth()
+    await flushPromises()
+    expect(ctx.status.fetchStatus).toHaveBeenCalled()
+  })
+
+  it('highlights the current-tier card with the teal ring (Face on Pro)', async () => {
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    const proCard = wrapper.get('[data-testid="tier-card-pro"]')
+    expect(proCard.classes()).toContain('ring-2')
+    expect(proCard.classes()).toContain('ring-[#198496]')
+
+    for (const k of ['decouverte', 'starter', 'elite'] as const) {
+      const card = wrapper.get(`[data-testid="tier-card-${k}"]`)
+      expect(card.classes()).not.toContain('ring-2')
+    }
+  })
+
+  it('renders "Passer à Élite" button on the Élite card (Face on Pro)', async () => {
+    const wrapper = mountAuth()
+    await flushPromises()
+    const eliteBtn = wrapper.get('[data-testid="cta-tier-elite"]')
+    expect(eliteBtn.element.tagName).toBe('BUTTON')
+    expect(eliteBtn.text()).toBe('Passer à Élite')
+  })
+
+  it('renders "Revenir à Starter" button on the Starter card (Face on Pro)', async () => {
+    const wrapper = mountAuth()
+    await flushPromises()
+    const starterBtn = wrapper.get('[data-testid="cta-tier-starter"]')
+    expect(starterBtn.element.tagName).toBe('BUTTON')
+    expect(starterBtn.text()).toBe('Revenir à Starter')
+  })
+
+  it('renders "Renouveler Pro" button when renew_available is true', async () => {
+    setupStatus({
+      tier: 'pro',
+      status: 'active',
+      expiresAt: '2027-05-23T00:00:00Z',
+      cta: { upgrade_available: true, downgrade_available: true, renew_available: true },
+    })
+    const wrapper = mountAuth()
+    await flushPromises()
+    const proBtn = wrapper.get('[data-testid="cta-tier-pro"]')
+    expect(proBtn.element.tagName).toBe('BUTTON')
+    expect(proBtn.text()).toBe('Renouveler Pro')
+  })
+
+  it('renders "Palier actuel" marker when renew_available is false', async () => {
+    setupStatus({
+      tier: 'pro',
+      status: 'active',
+      expiresAt: '2027-05-23T00:00:00Z',
+      cta: { upgrade_available: true, downgrade_available: true, renew_available: false },
+    })
+    const wrapper = mountAuth()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="cta-tier-pro"]').exists()).toBe(false)
+    const marker = wrapper.get('[data-testid="cta-tier-pro-marker"]')
+    expect(marker.text()).toBe('Palier actuel')
+    expect(marker.element.tagName).toBe('P')
+  })
+
+  it('renders "Non disponible" marker on the Découverte card when user is on a paid tier', async () => {
+    const wrapper = mountAuth()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="cta-tier-decouverte"]').exists()).toBe(false)
+    const marker = wrapper.get('[data-testid="cta-tier-decouverte-marker"]')
+    expect(marker.text()).toBe('Non disponible')
+  })
+
+  it('renders Free-user CTAs as "Passer à {Name}" with "Palier actuel" on Découverte', async () => {
+    setupStatus({
+      tier: 'free',
+      status: 'free',
+      cta: { upgrade_available: true, downgrade_available: false, renew_available: false },
+    })
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    const decouverteMarker = wrapper.get('[data-testid="cta-tier-decouverte-marker"]')
+    expect(decouverteMarker.text()).toBe('Palier actuel')
+
+    expect(wrapper.get('[data-testid="cta-tier-starter"]').text()).toBe('Passer à Starter')
+    expect(wrapper.get('[data-testid="cta-tier-pro"]').text()).toBe('Passer à Pro')
+    expect(wrapper.get('[data-testid="cta-tier-elite"]').text()).toBe('Passer à Élite')
+  })
+
+  it('opens TierChangeModal in upgrade mode when clicking the Élite CTA (Face on Pro)', async () => {
+    const wrapper = mountAuth()
+    await flushPromises()
+    await wrapper.get('[data-testid="cta-tier-elite"]').trigger('click')
+    await flushPromises()
+
+    const modal = wrapper.get('[data-testid="tier-change-modal"]')
+    expect(modal.attributes('data-mode')).toBe('upgrade')
+    expect(modal.attributes('data-target-tier')).toBe('elite')
+  })
+
+  it('calls initiatePayment with the targeted plan when the modal confirms', async () => {
+    const wrapper = mountAuth()
+    await flushPromises()
+    await wrapper.get('[data-testid="cta-tier-elite"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="modal-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(ctx.payment.initiatePayment).toHaveBeenCalledWith('elite')
+    expect(ctx.payment.initiatePayment).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables all tier CTAs and shows the email-not-verified note when email is unverified', async () => {
+    ctx.authStore.isEmailVerified = false
+    if (ctx.authStore.user) ctx.authStore.user.email_verified = false
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="pricing-email-note"]').exists()).toBe(true)
+    for (const k of ['starter', 'elite'] as const) {
+      const btn = wrapper.get(`[data-testid="cta-tier-${k}"]`)
+      expect(btn.attributes('disabled')).toBeDefined()
+    }
+  })
+
+  it('renders BOTH "Continuer le paiement" and "Vérifier maintenant" when a stash exists during pending', async () => {
+    setupStatus({
+      tier: 'pro',
+      status: 'pending_payment',
+      cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
+    })
+    setupPayment({ pendingCheckoutAvailable: true })
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="pricing-banner-pending"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="pricing-banner-resume"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="pricing-banner-verify"]').exists()).toBe(true)
+  })
+
+  it('renders only "Vérifier maintenant" (no resume button) when there is no stash during pending', async () => {
+    setupStatus({
+      tier: 'pro',
+      status: 'pending_payment',
+      cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
+    })
+    setupPayment({ pendingCheckoutAvailable: false })
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="pricing-banner-pending"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="pricing-banner-resume"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="pricing-banner-verify"]').exists()).toBe(true)
+  })
+
+  it('shows the waiting banner with precedence over the pending banner', async () => {
+    setupStatus({
+      tier: 'pro',
+      status: 'pending_payment',
+      cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
+    })
+    setupPayment({ paymentState: 'waiting' })
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="pricing-banner-waiting"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="pricing-banner-pending"]').exists()).toBe(false)
+  })
+
+  it('auto-opens the modal for ?plan=pro when a Face on Starter lands on /pricing', async () => {
+    setupStatus({ tier: 'starter', status: 'active', expiresAt: '2027-05-23T00:00:00Z' })
+    ctx.route.query = { plan: 'pro' }
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    const modal = wrapper.get('[data-testid="tier-change-modal"]')
+    expect(modal.attributes('data-target-tier')).toBe('pro')
+    expect(modal.attributes('data-mode')).toBe('upgrade')
+  })
+
+  it("skips deep-link auto-open when ?plan= matches the user's current tier", async () => {
+    ctx.route.query = { plan: 'pro' } // Face on Pro from beforeEach
+    const wrapper = mountAuth()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="tier-change-modal"]').exists()).toBe(false)
+  })
+
+  it('silently ignores an invalid ?plan= value (no modal opens)', async () => {
+    ctx.route.query = { plan: 'invalid' }
+    const wrapper = mountAuth()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="tier-change-modal"]').exists()).toBe(false)
+  })
+
+  it('emits a success toast and closes the modal when paymentState becomes "confirmed"', async () => {
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="cta-tier-elite"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="tier-change-modal"]').exists()).toBe(true)
+
+    ;(ctx.payment.paymentState as { value: string }).value = 'confirmed'
+    await flushPromises()
+
+    expect(ctx.toast.success).toHaveBeenCalledWith(
+      'Paiement confirmé — votre abonnement est actif.',
+    )
+    expect(wrapper.find('[data-testid="tier-change-modal"]').exists()).toBe(false)
+  })
+
+  it('closes the modal and clears modalTarget when the user cancels (AC #9)', async () => {
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="cta-tier-elite"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="tier-change-modal"]').exists()).toBe(true)
+
+    await wrapper.get('[data-testid="modal-cancel"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="tier-change-modal"]').exists()).toBe(false)
+    expect(ctx.payment.initiatePayment).not.toHaveBeenCalled()
   })
 })

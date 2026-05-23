@@ -1,7 +1,14 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { RouterLink } from 'vue-router'
-import { Check, ChevronDown, Crown, Minus } from 'lucide-vue-next'
+import { computed, ref, watch, watchEffect } from 'vue'
+import { RouterLink, useRoute } from 'vue-router'
+import { Check, ChevronDown, Crown, Loader2, Minus } from 'lucide-vue-next'
+import { useAuthStore } from '@/stores/auth'
+import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'
+import { useSubscriptionPayment } from '@/features/face/composables/useSubscriptionPayment'
+import { TIER_PRESENTATION } from '@/features/face/tierPresentation'
+import TierChangeModal from '@/features/face/components/TierChangeModal.vue'
+import { useToast } from '@/composables/useToast'
+import type { FaceSubscriptionPlan, FaceSubscriptionTier, SubscriptionOffer } from '@/features/face/types'
 
 // =============================================================
 // Types
@@ -251,10 +258,301 @@ const tierPrices: Record<string, string> = {
   pro: '25 000',
   elite: '40 000',
 }
+
+// =============================================================
+// Auth-aware payment layer (FP-2.13.1)
+// =============================================================
+const authStore = useAuthStore()
+const route = useRoute()
+const toast = useToast()
+
+const isFace = computed(
+  () => authStore.isAuthenticated && authStore.user?.userable_type === 'Face',
+)
+const isEmailVerified = computed(() => authStore.isEmailVerified)
+
+const {
+  current,
+  cta,
+  tier,
+  statusValue,
+  currentPlan,
+  expiresAt,
+  offers,
+  isLoading,
+  fetchStatus,
+} = useSubscriptionStatus()
+
+const {
+  isInitiating,
+  isPolling,
+  isVerifying,
+  pendingCheckoutAvailable,
+  paymentState,
+  error: paymentError,
+  initiatePayment,
+  resumePayment,
+  verifyPayment,
+  dismissPaymentError,
+} = useSubscriptionPayment()
+
+watchEffect(() => {
+  if (isFace.value) {
+    fetchStatus().catch(() => {
+      // Error surfaces via the composable's error ref.
+    })
+  }
+})
+
+type HandoffTierKey = 'decouverte' | 'starter' | 'pro' | 'elite'
+
+const TIER_KEY_TO_API: Record<HandoffTierKey, FaceSubscriptionTier> = {
+  decouverte: 'free',
+  starter: 'starter',
+  pro: 'pro',
+  elite: 'elite',
+}
+
+const hasPendingPayment = computed(() => {
+  if (!current.value) return false
+  const c = cta.value
+  return !c.upgrade_available && !c.downgrade_available && !c.renew_available
+})
+
+const currentSortPriority = computed(() => current.value?.capabilities.sort_priority ?? 4)
+
+type TierRelation = 'current' | 'upgrade' | 'downgrade' | 'unavailable'
+
+function relationFor(handoffKey: HandoffTierKey): TierRelation {
+  const apiKey = TIER_KEY_TO_API[handoffKey]
+  if (apiKey === tier.value) return 'current'
+  if (apiKey === 'free') return 'unavailable'
+  const offer = offers.value.find((o) => o.tier === apiKey)
+  if (!offer) return 'unavailable'
+  if (offer.capabilities.sort_priority < currentSortPriority.value) return 'upgrade'
+  return 'downgrade'
+}
+
+type CtaVariant = 'button' | 'palier-actuel-marker' | 'non-disponible-marker'
+
+function ctaVariantFor(handoffKey: HandoffTierKey): CtaVariant {
+  const relation = relationFor(handoffKey)
+  if (relation === 'unavailable') return 'non-disponible-marker'
+  if (relation === 'current' && !cta.value.renew_available) return 'palier-actuel-marker'
+  return 'button'
+}
+
+function isCurrentTier(handoffKey: HandoffTierKey): boolean {
+  return relationFor(handoffKey) === 'current'
+}
+
+function ctaEnabledFor(handoffKey: HandoffTierKey): boolean {
+  if (!isEmailVerified.value) return false
+  if (isLoading.value || isInitiating.value || isPolling.value || isVerifying.value) return false
+  if (hasPendingPayment.value) return false
+  const relation = relationFor(handoffKey)
+  if (relation === 'current') return cta.value.renew_available
+  if (relation === 'upgrade') return cta.value.upgrade_available
+  if (relation === 'downgrade') return cta.value.downgrade_available
+  return false
+}
+
+function ctaLabelFor(handoffKey: HandoffTierKey): string {
+  const apiKey = TIER_KEY_TO_API[handoffKey]
+  const name = TIER_PRESENTATION[apiKey].name
+  const relation = relationFor(handoffKey)
+  if (relation === 'current') return `Renouveler ${name}`
+  if (relation === 'upgrade') return `Passer à ${name}`
+  if (relation === 'downgrade') return `Revenir à ${name}`
+  return ''
+}
+
+// === Modal state ===
+const modalTarget = ref<SubscriptionOffer | null>(null)
+const modalOpen = ref(false)
+
+const modalMode = computed<'activate' | 'renew' | 'upgrade' | 'downgrade'>(() => {
+  const offer = modalTarget.value
+  if (!offer) return 'activate'
+  if (offer.tier === tier.value) return 'renew'
+  if (tier.value === 'free') {
+    return offer.tier === currentPlan.value ? 'renew' : 'activate'
+  }
+  const handoffKey = (Object.entries(TIER_KEY_TO_API).find(
+    ([, api]) => api === offer.tier,
+  )?.[0] ?? 'starter') as HandoffTierKey
+  return relationFor(handoffKey) === 'upgrade' ? 'upgrade' : 'downgrade'
+})
+
+const forfeitedDays = computed(() => {
+  const offer = modalTarget.value
+  if (!offer || statusValue.value !== 'active' || !expiresAt.value) return 0
+  if (offer.tier === tier.value) return 0
+  const ms = new Date(expiresAt.value).getTime() - Date.now()
+  return Number.isNaN(ms) ? 0 : Math.max(0, Math.ceil(ms / 86_400_000))
+})
+
+const currentTierLabel = computed(() => TIER_PRESENTATION[tier.value].name)
+
+function onTierClick(handoffKey: HandoffTierKey): void {
+  if (ctaVariantFor(handoffKey) !== 'button') return
+  if (!ctaEnabledFor(handoffKey)) return
+  const apiKey = TIER_KEY_TO_API[handoffKey]
+  if (apiKey === 'free') return
+  const offer = offers.value.find((o) => o.tier === apiKey)
+  if (!offer) return
+  modalTarget.value = offer
+  modalOpen.value = true
+}
+
+async function onConfirm(): Promise<void> {
+  const offer = modalTarget.value
+  if (!offer || offer.tier === 'free') return
+  const ok = await initiatePayment(offer.tier as FaceSubscriptionPlan)
+  if (ok) {
+    modalOpen.value = false
+  }
+}
+
+function onCancelModal(): void {
+  if (isInitiating.value) return
+  modalOpen.value = false
+  modalTarget.value = null
+}
+
+function onResumeClick(): void {
+  void resumePayment()
+}
+
+watch(paymentState, (state) => {
+  if (state === 'confirmed') {
+    modalOpen.value = false
+    modalTarget.value = null
+    toast.success('Paiement confirmé — votre abonnement est actif.')
+  }
+})
+
+// === ?plan= deep-link (one-shot, post-status-load) ===
+// Gates parity with manual click path: email-verified, no pending, no in-flight.
+const deepLinkConsumed = ref(false)
+watchEffect(() => {
+  if (deepLinkConsumed.value) return
+  if (!isFace.value || isLoading.value || !current.value) return
+  const queryPlan = route.query.plan
+  if (typeof queryPlan !== 'string') return
+  if (!['starter', 'pro', 'elite'].includes(queryPlan)) return
+  if (queryPlan === tier.value) {
+    deepLinkConsumed.value = true
+    return
+  }
+  if (!isEmailVerified.value) {
+    deepLinkConsumed.value = true
+    return
+  }
+  if (hasPendingPayment.value) {
+    deepLinkConsumed.value = true
+    return
+  }
+  if (isInitiating.value || isPolling.value || isVerifying.value) {
+    deepLinkConsumed.value = true
+    return
+  }
+  const offer = offers.value.find((o) => o.tier === queryPlan)
+  if (!offer) {
+    deepLinkConsumed.value = true
+    return
+  }
+  modalTarget.value = offer
+  modalOpen.value = true
+  deepLinkConsumed.value = true
+})
 </script>
 
 <template>
   <div>
+    <!-- ============================================================ -->
+    <!-- Auth-aware banners (FP-2.13.1) — only for logged-in Faces     -->
+    <!-- ============================================================ -->
+    <div v-if="isFace" class="max-w-5xl mx-auto px-6 pt-4" data-testid="pricing-banners">
+      <!-- Email-not-verified note -->
+      <div
+        v-if="!isEmailVerified"
+        class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+        data-testid="pricing-email-note"
+      >
+        Vérifiez votre adresse email pour souscrire un abonnement.
+      </div>
+
+      <!-- Banner cascade: waiting > failed > pending (mutually exclusive) -->
+      <div
+        v-if="paymentState === 'waiting'"
+        class="mb-3 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800"
+        data-testid="pricing-banner-waiting"
+      >
+        <Loader2 class="mt-0.5 h-4 w-4 flex-shrink-0 animate-spin" />
+        <span>
+          Finalisez le paiement dans l'onglet Fedapay. La confirmation s'affichera ici
+          automatiquement.
+        </span>
+      </div>
+      <div
+        v-else-if="paymentState === 'failed' && paymentError"
+        class="mb-3 flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+        data-testid="pricing-banner-failed"
+      >
+        <span>{{ paymentError }}</span>
+        <button
+          type="button"
+          class="flex-shrink-0 text-xs font-semibold text-red-700 underline hover:text-red-900"
+          data-testid="pricing-banner-failed-dismiss"
+          @click="dismissPaymentError"
+        >
+          Fermer
+        </button>
+      </div>
+      <div
+        v-else-if="hasPendingPayment"
+        class="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800"
+        data-testid="pricing-banner-pending"
+      >
+        <div class="flex items-start gap-2">
+          <Loader2 class="mt-0.5 h-4 w-4 flex-shrink-0 animate-spin" />
+          <span>
+            Votre paiement est en cours de confirmation. Cette page se mettra à jour
+            automatiquement dès que Fedapay aura confirmé la transaction.
+          </span>
+        </div>
+        <div class="mt-3 flex flex-col gap-2 sm:flex-row">
+          <button
+            v-if="pendingCheckoutAvailable"
+            type="button"
+            class="text-sm font-semibold px-4 py-2 rounded-md bg-[#198496] text-white hover:bg-[#146c7a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            :disabled="isInitiating || isPolling || isVerifying"
+            data-testid="pricing-banner-resume"
+            @click="onResumeClick"
+          >
+            Continuer le paiement
+          </button>
+          <button
+            type="button"
+            class="text-sm font-semibold px-4 py-2 rounded-md border border-[#198496] text-[#198496] hover:bg-[#198496]/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            :disabled="isInitiating || isPolling || isVerifying"
+            data-testid="pricing-banner-verify"
+            @click="verifyPayment({ manual: true })"
+          >
+            Vérifier maintenant
+          </button>
+        </div>
+        <p
+          v-if="paymentError && paymentState !== 'failed'"
+          class="mt-3 text-xs text-red-700"
+          data-testid="pricing-banner-pending-error"
+        >
+          {{ paymentError }}
+        </p>
+      </div>
+    </div>
+
     <!-- ============================================================ -->
     <!-- Hero                                                          -->
     <!-- ============================================================ -->
@@ -289,6 +587,9 @@ const tierPrices: Record<string, string> = {
             'border lg:border-0 border-gray-200',
             tier.key === 'elite' ? 'bg-[#0F1419] text-white' : '',
             idx < tiers.length - 1 && tier.key !== 'elite' ? 'lg:border-r lg:border-gray-200' : '',
+            isFace && current && isCurrentTier(tier.key)
+              ? 'ring-2 ring-[#198496] ring-offset-2'
+              : '',
           ]"
         >
           <!-- Ladder indicator -->
@@ -369,8 +670,49 @@ const tierPrices: Record<string, string> = {
             </div>
           </div>
 
-          <!-- CTA -->
+          <!-- CTA — auth-aware (FP-2.13.1) -->
+          <template v-if="isFace && current">
+            <button
+              v-if="ctaVariantFor(tier.key) === 'button'"
+              type="button"
+              :disabled="!ctaEnabledFor(tier.key)"
+              :class="[
+                'w-full text-center text-sm font-semibold py-2.5 px-4 rounded-md transition-colors mb-7',
+                'disabled:opacity-50 disabled:cursor-not-allowed',
+                tier.key === 'elite'
+                  ? 'bg-white text-[#0F1419] hover:bg-gray-100'
+                  : tier.key === 'pro'
+                    ? 'bg-[#198496] text-white hover:bg-[#146c7a]'
+                    : 'text-[#198496] border border-[#198496] hover:bg-[#198496]/5',
+              ]"
+              :data-testid="`cta-tier-${tier.key}`"
+              @click="onTierClick(tier.key)"
+            >
+              {{ ctaLabelFor(tier.key) }}
+            </button>
+            <p
+              v-else-if="ctaVariantFor(tier.key) === 'palier-actuel-marker'"
+              :class="[
+                'w-full text-center text-sm font-semibold py-2.5 px-4 mb-7',
+                tier.key === 'elite' ? 'text-gray-300' : 'text-gray-600',
+              ]"
+              :data-testid="`cta-tier-${tier.key}-marker`"
+            >
+              Palier actuel
+            </p>
+            <p
+              v-else
+              :class="[
+                'w-full text-center text-sm font-medium py-2.5 px-4 mb-7',
+                tier.key === 'elite' ? 'text-gray-500' : 'text-gray-400',
+              ]"
+              :data-testid="`cta-tier-${tier.key}-marker`"
+            >
+              Non disponible
+            </p>
+          </template>
           <RouterLink
+            v-else
             :to="tier.ctaTo"
             :data-testid="`cta-tier-${tier.key}`"
             :class="[
@@ -663,5 +1005,21 @@ const tierPrices: Record<string, string> = {
         </div>
       </div>
     </section>
+
+    <!-- ============================================================ -->
+    <!-- Tier change modal (FP-2.13.1) — only mounted for logged-in    -->
+    <!-- Faces with a selected target tier                             -->
+    <!-- ============================================================ -->
+    <TierChangeModal
+      v-if="isFace && modalTarget"
+      :open="modalOpen"
+      :mode="modalMode"
+      :target-offer="modalTarget"
+      :current-tier-label="currentTierLabel"
+      :forfeited-days="forfeitedDays"
+      :is-submitting="isInitiating"
+      @confirm="onConfirm"
+      @cancel="onCancelModal"
+    />
   </div>
 </template>
