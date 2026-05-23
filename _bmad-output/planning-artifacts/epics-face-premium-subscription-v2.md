@@ -4,7 +4,7 @@ status: 'draft'
 draftedAt: '2026-05-20'
 supersedes: 'epics-face-premium-subscription.md (FEATURE-FP-1, all 11 stories done, NEVER deployed to production)'
 totalEpics: 1
-totalStories: 15
+totalStories: 16
 project_name: 'WEACT - Tiered Face Premium Subscriptions Sprint 15'
 user_name: 'Amakira'
 date: '2026-05-20'
@@ -139,7 +139,8 @@ The operating model remains **annual-only** (no monthly recurring) and **prepaid
 | FEATURE-FP-2.4 | Admin subscription operations with tier param + extended audit | FEAT-FP2-FR6, FEAT-FP2-FR10 | High |
 | FEATURE-FP-2.5 | Annual payment flow with tier selection + upgrade/downgrade without pro-rata | FEAT-FP2-FR5, FEAT-FP2-NFR2 | High |
 | FEATURE-FP-2.6 | Producer-facing search ordering by tier priority (4 buckets) | FEAT-FP2-FR11 | High |
-| FEATURE-FP-2.7 | Face UI: 4 tier cards + upgrade/downgrade flow + per-type locked states | FEAT-FP2-FR7, FEAT-FP2-FR9 | High |
+| FEATURE-FP-2.7 | Face UI: 4 tier cards + upgrade/downgrade flow + photo locked states | FEAT-FP2-FR7, FEAT-FP2-FR9 | High |
+| FEATURE-FP-2.7.1 | Face video portfolio UI: acting + UGC upload on the typed videos API + per-type video locked states | FEAT-FP2-FR3, FEAT-FP2-FR4, FEAT-FP2-FR7 | High |
 | FEATURE-FP-2.8 | Expiration command: drop any tier back to Free | FEAT-FP2-FR8 | High |
 | FEATURE-FP-2.9 | Renewal reminders + lifecycle notifications with per-tier copy | FEAT-FP2-FR8 | Medium |
 | FEATURE-FP-2.10 | Admin UI: tier selector in subscription section + extended audit display | FEAT-FP2-FR6, FEAT-FP2-FR10 | Medium |
@@ -157,14 +158,15 @@ The operating model remains **annual-only** (no monthly recurring) and **prepaid
 5. **FEATURE-FP-2.4** — admin fallback with tier param; useful before payment flow is wired.
 6. **FEATURE-FP-2.5** — annual payment with tier selection and upgrade/downgrade; chained-renewal preserved.
 7. **FEATURE-FP-2.6** — wire featured search ordering to 4-bucket tier priority.
-8. **FEATURE-FP-2.7** — Face-facing tier UI and locked states UX (consumes the FP-2.13 design system).
-9. **FEATURE-FP-2.8** — expiration automation (drop any tier to Free).
-10. **FEATURE-FP-2.14** — 90-day retention window + purge command (depends on FP-2.8 expiration + FP-2.2 / FP-2.2.1 quota model).
-11. **FEATURE-FP-2.9** — reminders and lifecycle notifications with per-tier copy.
-12. **FEATURE-FP-2.10** — admin UI tier selector.
-13. **FEATURE-FP-2.12** — public Élite badge (small frontend-only story, late delivery is safe).
-14. **FEATURE-FP-2.13** — public `/pricing` page refonte (frontend-only, near drop-in; can be delivered any time after FP-2 pricing is final).
-15. **FEATURE-FP-2.11** — final regression sweep, runbook update, and 4-tier × 6-state matrix.
+8. **FEATURE-FP-2.7** — Face-facing tier-cards UI + upgrade/downgrade flow + photo locked states (consumes the FP-2.13 design system).
+9. **FEATURE-FP-2.7.1** — Face video portfolio UI: acting + UGC upload on the typed `face_videos` API + per-type locked states.
+10. **FEATURE-FP-2.8** — expiration automation (drop any tier to Free).
+11. **FEATURE-FP-2.14** — 90-day retention window + purge command (depends on FP-2.8 expiration + FP-2.2 / FP-2.2.1 quota model).
+12. **FEATURE-FP-2.9** — reminders and lifecycle notifications with per-tier copy.
+13. **FEATURE-FP-2.10** — admin UI tier selector.
+14. **FEATURE-FP-2.12** — public Élite badge (small frontend-only story, late delivery is safe).
+15. **FEATURE-FP-2.13** — public `/pricing` page refonte (frontend-only, near drop-in; can be delivered any time after FP-2 pricing is final).
+16. **FEATURE-FP-2.11** — final regression sweep, runbook update, and 4-tier × 6-state matrix.
 
 ---
 
@@ -265,19 +267,43 @@ The operating model remains **annual-only** (no monthly recurring) and **prepaid
 
 ---
 
-#### FEATURE-FP-2.7: Face UI: 4 tier cards + upgrade/downgrade flow + per-type locked states
+#### FEATURE-FP-2.7: Face Profile UI — Minimalist Subscription Card + Resume-Pending + Redirect to /pricing
 
-**Description:** Refactor FP-1.7 SubscriptionCard. Display 4 tier cards with prices + benefits comparison. Active tier highlighted. Upgrade CTA → loss-of-days confirmation modal → payment flow. Downgrade CTA same. Cancel CTA → confirmation. Locked album/video states differentiated by media type (photo beyond the tier quota, acting video for Free/Starter, UGC video for non-Élite).
+**Description:** Frontend-only refactor of the Face profile page (`/face/profile`) subscription surface. Replace the FP-1.7 SubscriptionCard with a minimalist current-subscription card (Gemini MCP for visual design, reusing FP-2.13 hi-fi tokens for visual consistency) showing the active tier + expiry + status indicator. Adds a primary CTA "Changer de plan" that redirects to `/pricing` (FP-2.13 / FP-2.13.1) for tier comparison + payment flow. Adds a "Continuer le paiement" button to the pending-payment banner that reopens the Fedapay checkout URL stashed in `sessionStorage` at initiate time — closes the UX gap where an interrupted payment (tab closed, refresh, navigation, popup blocked) leaves the Face stuck. Composables (`useSubscriptionStatus`, `useSubscriptionPayment`), types, `tierPresentation`, `TierCard`, `TierChangeModal`, and the photo album tier-aware work are preserved in `frontend/src/features/face/...` for shared consumption by both this minimalist profile panel AND FP-2.13.1's `/pricing` page.
 
-**Design contract:** This in-app surface MUST reuse the design system from the FP-2.13 Claude Design handoff (`docs/design/Weact Subs Design/design_handoff_pricing/README.md`) — same tokens (teal `#198496`, dark `#0F1419`), same card anatomy (ladder indicator, Élite dark card, "Populaire" badge on Pro), same comparison-table structure — so the public `/pricing` page and the in-app tier UI stay visually consistent. The story file must embed the design tokens verbatim. No Gemini MCP needed: the design system is already specified in the handoff README.
+**Design contract:** the minimalist profile card uses Gemini MCP for visual design, reusing the FP-2.13 hi-fi tokens (teal `#198496`, dark `#0F1419`) so the in-app surface and the public `/pricing` page stay visually consistent.
 
 **Acceptance Criteria (draft):**
 - Frontend-only story (zero backend changes).
-- 4 tier cards rendered from `offers` array returned by FP-2.3 status endpoint, styled per the FP-2.13 design system.
-- Upgrade/downgrade modal shows remaining-days loss + new tier capabilities (no pro-rata — full price, period restarts).
-- Lock indicators per media type (photo / presentation / acting / UGC) with explanatory tooltip.
+- `SubscriptionPanel.vue` rewritten as a minimalist current-subscription card (no tier cards, no change modal in profile).
+- CTA "Changer de plan" → `router.push('/pricing')` (target page delivered by FP-2.13 + FP-2.13.1).
+- Pending-payment banner gains a "Continuer le paiement" button reading sessionStorage (key `weact:pending-checkout:{subscription_id}`), reopens Fedapay tab + starts polling.
+- Photo album tier-aware preserved (locked states, `max_album_photos` from capabilities).
 - All copy in correct French with proper accents.
-- ≥ 30 frontend tests (Vitest + Vue Test Utils) covering each tier display, modal flows, locked-state assertions.
+- ≥ 10 new/updated frontend tests covering the minimalist card render, the CTA route navigation, the resume-pending flow.
+
+**Split note (2026-05-22 correct-course):** the per-type **video** locked states and the video upload UI were split out to **FEATURE-FP-2.7.1** — the FP-2.2.1 `face_videos` restructure made the video portion a full UI rebuild.
+
+**Split note (2026-05-23 correct-course):** the 4 tier cards + upgrade/downgrade flow + Fedapay flow originally placed in `/face/profile` (FP-2.7 v1, implemented + reviewed on 2026-05-22 with 11 code-review patches) are split out to **FEATURE-FP-2.13.1** — the public `/pricing` page is the natural authoritative home for plan selection + payment, not the profile editor. FP-2.7 v2 keeps only the in-profile minimalist surface + the redirect CTA + the resume-pending mechanic. The previous FP-2.7 implementation code (composables, types, TierCard, TierChangeModal, tierPresentation, photo album work) is preserved on disk and consumed by FP-2.13.1. See `planning-artifacts/sprint-change-proposal-2026-05-23.md`.
+
+---
+
+#### FEATURE-FP-2.7.1: Face Video Portfolio UI — Acting + UGC Upload and Per-Type Locked States
+
+**Description:** Frontend-only story split out of FEATURE-FP-2.7 (2026-05-22 correct-course). Rebuilds the Face video portfolio UI onto the typed `face_videos` API introduced by FP-2.2.1. The current `ActingVideoUpload.vue` + `useActingVideo` consume the retired `/api/v1/face/acting-video` endpoint (HTTP 404 against the FP-2.2.1 backend), and no UGC video UI exists. This story migrates the Face video upload/list/delete UI to `GET|POST|DELETE /api/v1/face/videos` (typed `acting` | `ugc`, positioned, multi-row), adds a UGC video surface, enforces the per-tier per-type video quotas in the UI, and renders the per-type locked states (presentation / acting / UGC) from the `FaceResource` `is_locked` / `lock_reason` fields (`tier_below_required` | `quota_exceeded`). The retired-endpoint acting-video files are retired.
+
+**Context — why this is a separate story:** the epic (drafted 2026-05-20) folded the Face video locked-states UI into FP-2.7. FP-2.2.1 — created 2026-05-21 via correct-course, after the epic draft — restructured video from the single `faces.acting_video` column into a typed `face_videos` table and retired `ActingVideoController`. That made FP-2.7's video portion a full UI rebuild, too large to carry alongside the tier-cards + payment surface. FP-2.7 was scoped to subscription panel + photo locked states; this story is its video sibling — the same split pattern as FP-2.2 → FP-2.2 / FP-2.2.1.
+
+**Acceptance Criteria (draft):**
+- Frontend-only story (zero backend changes — the FP-2.2.1 `/api/v1/face/videos` API + the `FaceResource` video masking are consumed as-is).
+- The Face video upload/list/delete UI consumes `GET|POST|DELETE /api/v1/face/videos`; `ActingVideoUpload.vue` / `useActingVideo` / the `faceApi` `acting-video` methods (on the retired endpoint) are retired.
+- A UGC video upload surface is added; acting supports multi-row (Élite = 2 acting videos); the presentation video stays on its existing scalar endpoint.
+- Per-tier per-type video quotas are enforced in the UI (presentation 0/1/1/1, acting 0/0/1/2, ugc 0/0/0/1 for Free/Starter/Pro/Élite); over-quota or tier-locked videos render a locked state with an explanatory tooltip, differentiated by type.
+- The `ProfileEditPage` video sections are rewired; the FP-2.7 minimal build-green touch on the acting-video section is superseded by the real wiring.
+- All copy in correct French with proper accents.
+- ≥ 25 frontend tests (Vitest + Vue Test Utils).
+
+**Depends on:** FEATURE-FP-2.2.1 (backend `face_videos` API + masking) and FEATURE-FP-2.7 (the `useSubscriptionStatus` rewrite + the `capabilities` matrix the video quotas read).
 
 ---
 
@@ -290,6 +316,56 @@ The operating model remains **annual-only** (no monthly recurring) and **prepaid
 - Each paid tier handled identically: row status `active → expired`, no audit row written, no email (FP-2.9 owns notifications).
 - Logged per-row transition with tier info.
 - ≥ 12 feature tests covering each tier's expiration, boundary second, idempotence on repeat invocation.
+
+---
+
+#### FEATURE-FP-2.8.1: Stale Pending Cleanup + User-Initiated Cancel
+
+**Description:** Backend hardening to resolve stuck `pending_payment` rows that block legitimate user re-attempts. Without this story, a Face whose Fedapay payment got interrupted (tab closed, network drop, popup blocked, session expired beyond 24h) is left with an indefinite `pending_payment` row — any new `initiatePayment` attempt returns `409 PENDING_PAYMENT_EXISTS` until an admin manually intervenes (cf. `deferred-work.md` D3 partial defer surfaced by FP-2.7 v2 code review). FP-2.7 v2's frontend-only sessionStorage "Continuer le paiement" mechanic covers the happy case (same browser session, within ~24h) but cannot help cross-session / cross-device / post-Fedapay-session-expiry. This story adds the backend safety net.
+
+**Two complementary mechanisms:**
+
+1. **Hourly cron `subscriptions:fail-stale-pending`** — automatic safety net:
+   - Query : `FaceSubscription::where('status', PendingPayment)->where('created_at', '<', now()->subHours($maxHours))`.
+   - For each match : `update(['status' => Failed, 'metadata' => array_merge([...existing], ['stale_pending_at' => now()->toIso8601String(), 'stale_pending_reason' => 'auto_failed_by_cron'])])`.
+   - TTL configurable : `config('face_subscription_tiers.stale_pending_max_hours', 48)` — 48h is conservative (Fedapay sessions expire at ~24h, 48h gives a 2× buffer for webhook delivery edge cases).
+   - Idempotent : re-running the cron on already-Failed rows is a no-op (filter excludes them).
+   - Logged per-row with `face_subscription_id`, `face_id`, `created_at`, `tier`.
+   - Registered in `routes/console.php` as `app(Schedule::class)->command(FailStalePendingFaceSubscriptionsCommand::class)->hourly()`.
+
+2. **User-initiated cancel endpoint `POST /api/v1/face/subscription/cancel-pending`** — immediate control:
+   - Auth : `auth:sanctum` + `api.token` + `face_role` (same middleware stack as other `/face/subscription/*` routes).
+   - Body : empty (the FP-2.5 invariant guarantees a Face has at most one `pending_payment` row at a time).
+   - Service : `FaceSubscriptionPaymentService::cancelOwnPending(Face $face): FaceSubscription`.
+     - `lockForUpdate` on the row.
+     - If no `pending_payment` row → throw `FaceSubscriptionConflictException::noPendingPayment()` → `404 NO_PENDING_PAYMENT`.
+     - If pending found → `update(['status' => Failed, 'metadata' => array_merge([...existing], ['cancelled_by_user_at' => now()->toIso8601String(), 'cancellation_source' => 'user_self_cancel'])])`. No refund (the row was pending — never paid).
+   - Response 200 : `{ "data": { "subscription_id": "<uuid>", "status": "failed" }, "message": "Paiement annulé." }`.
+   - Response 404 : `{ "error": { "code": "NO_PENDING_PAYMENT", "message": "Aucun paiement en attente à annuler." } }`.
+
+**Resolved design decision — race between user cancel and Fedapay webhook:** the `lockForUpdate` inside `cancelOwnPending` serializes against `HandleFedapayWebhook::markAsPaid` / failure handler. If the webhook wins the race → row becomes `Active`, the user cancel sees `status != PendingPayment` and returns 404. If the user wins → row becomes `Failed`, the webhook arrival sees non-pending and routes through the existing "ignoring failure for non-pending face subscription" branch (`FaceSubscriptionPaymentService.php:376-385`). No double-update. Edge case rare (~ms window) and the user accepts the consequence by clicking.
+
+**Acceptance Criteria (draft):**
+- Backend-only story (zero frontend changes — frontend wiring deferred to FP-2.13.1 OR a follow-up FP-2.7 v2.1 patch).
+- Cron `subscriptions:fail-stale-pending` registered hourly ; respects `config('face_subscription_tiers.stale_pending_max_hours', 48)` ; auto-fails pending rows with full metadata audit ; logs per-row.
+- Endpoint `POST /api/v1/face/subscription/cancel-pending` ships with route + controller + form-request + service method ; respects Face role + email_verified gating ; returns 200/404 envelopes per the spec.
+- New `FaceSubscriptionConflictException::noPendingPayment()` factory (`409` → adapted to `404` at the controller layer since it's a "not-found" semantic, not a conflict — to be confirmed during dev).
+- `FaceSubscriptionStatus::Failed` enum already exists (no new status).
+- Metadata fields added on Failed transitions : `stale_pending_at` (cron path), `cancelled_by_user_at` + `cancellation_source` (user path).
+- ≥ 8 backend tests for the cron (no-rows, 1-row-fresh-skipped, 1-row-old-failed, multiple-rows-mixed-ages, idempotence, config TTL boundary, ≠pending statuses untouched, metadata correctness).
+- ≥ 6 backend tests for the endpoint (success, no-pending 404, race-condition simulation, auth-required, face-only role, webhook-already-failed no-double-update).
+- Zero regressions on the FP-2.5/2.7 backend tests (full backend suite passes).
+- Pint + PHPStan level 5 clean on all touched files.
+
+**Non-scope:**
+- No frontend wiring (the "Annuler ce paiement" button on the pending banner lives in FP-2.13.1 once `/pricing` auth flow ships, or a follow-up surgical edit to FP-2.7 v2).
+- No `regenerate-checkout-url` endpoint (refresh a Fedapay session for a stuck pending — deferred further, requires Fedapay API integration + idempotency work, only useful if the cron TTL is felt too long).
+- No notification/email on auto-fail (the user discovers the failed state when they re-visit `/face/profile`).
+- No retroactive backfill of metadata on pre-existing stuck rows (the cron only catches new pendings created post-deployment).
+
+**Depends on:** FEATURE-FP-2.5 (payment service is the integration point — both `initiate` for `created_at`/`metadata.initiated_at` and the webhook for the race-condition contract).
+
+**Closes (partially) :** `deferred-work.md` D3 entry (popup-blocked dangling row). The cron resolves the "stuck forever" symptom ; the user-cancel endpoint adds immediate control. Full robustness (cross-device persistence, URL regeneration) still requires FP-2.8.2 or equivalent if/when product asks for it.
 
 ---
 
@@ -365,7 +441,29 @@ The operating model remains **annual-only** (no monthly recurring) and **prepaid
 - FAQ accordion `aria-expanded` wired; first item open by default.
 - ≥ 12 frontend tests (Vitest + Vue Test Utils): tier card rendering, FAQ toggle, comparison table cell rendering (boolean / string), CTA route targets, responsive class assertions.
 
-**Non-scope:** This page is static marketing copy — it does NOT consume the FP-2.3 status API. The in-app authenticated tier UI is FP-2.7, a separate component. The "block Postuler UGC for Free" note in the handoff README is a cross-module concern (out of FP-2, see below).
+**Non-scope:** This page is static marketing copy — it does NOT consume the FP-2.3 status API. The "block Postuler UGC for Free" note in the handoff README is a cross-module concern (out of FP-2, see below).
+
+**Split note (2026-05-23 correct-course):** the authenticated payment flow on `/pricing` (tier selection for logged-in Faces, payment initiation, modal interaction) is split out to **FEATURE-FP-2.13.1**. FP-2.13 stays as the static visual base — pre-auth marketing copy with register CTAs. FP-2.13.1 adds the auth-aware layer on top.
+
+---
+
+#### FEATURE-FP-2.13.1: /pricing Page Authenticated Payment Flow
+
+**Description:** Frontend-only story split out of FEATURE-FP-2.13 (2026-05-23 correct-course). Extends the static `/pricing` page (delivered by FP-2.13) with auth-aware behavior: for unauthenticated visitors the page renders register CTAs (FP-2.13 default), for authenticated Faces the page renders tier-selection CTAs that open `TierChangeModal` and drive `useSubscriptionPayment.initiatePayment(plan)`. Reuses `TierCard.vue` / `TierChangeModal.vue` / `tierPresentation.ts` / `useSubscriptionStatus` / `useSubscriptionPayment` (all delivered by FP-2.7 v1 and preserved through the 2026-05-23 split). Handles the `?plan=` query param for deep-link preselection.
+
+**Context — why this is a separate story:** the original FP-2.7 placed the tier cards + change modal + payment flow in `/face/profile`. Sprint change 2026-05-23 moved this surface to the public `/pricing` page so the profile page can be minimalist + uncluttered. FP-2.13 stays static (the visual base); FP-2.13.1 is the auth-aware layer. Same split pattern as FP-2.2 → FP-2.2 + FP-2.2.1 and FP-2.7 → FP-2.7 + FP-2.7.1.
+
+**Acceptance Criteria (draft):**
+- Frontend-only story (zero backend changes — consumes FP-2.3 status + FP-2.5 payment + the static `/pricing` from FP-2.13).
+- Unauthenticated visitors: register CTAs (FP-2.13 default behavior).
+- Authenticated Face: replaces register CTAs with tier-selection openers; consumes `useSubscriptionStatus`; current tier highlighted via `ring-2 ring-[#198496]`; relations (current / upgrade / downgrade / unavailable / activate / renew) computed per the FP-2.7 v1 logic.
+- Click → mounts existing `TierChangeModal.vue` with appropriate mode + forfeitedDays.
+- Confirm → `useSubscriptionPayment.initiatePayment(plan)` opens Fedapay + polls; the panel banners (waiting / payment-failed) mirror the FP-2.7 v1 flow.
+- `?plan=starter|pro|elite` query param preselects the card (opens modal if logged in, scrolls to card if not).
+- All previous code-review patches P1-P11 from FP-2.7 v1 review apply here (P6 Free guard + P9 Escape guard migrate naturally since the modal lives here now).
+- ≥ 15 new frontend tests (Vitest + Vue Test Utils).
+
+**Depends on:** FEATURE-FP-2.13 (static page) + FEATURE-FP-2.7 v2 (composables + TierCard/TierChangeModal preserved on disk).
 
 ---
 
