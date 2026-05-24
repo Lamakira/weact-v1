@@ -152,6 +152,8 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
         ->middleware('throttle:30,1');
     Route::post('/subscription/verify-payment', [SubscriptionPaymentController::class, 'verify'])
         ->middleware('throttle:30,1');
+    Route::post('/subscription/cancel-pending', [SubscriptionPaymentController::class, 'cancelPending'])
+        ->middleware('throttle:30,1');
 
     // Mission routes - browse available missions (Face only)
     Route::get('/missions', [MissionController::class, 'index'])

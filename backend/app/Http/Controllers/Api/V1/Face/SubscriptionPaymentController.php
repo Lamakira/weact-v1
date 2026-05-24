@@ -105,4 +105,31 @@ class SubscriptionPaymentController extends Controller
             ],
         ]);
     }
+
+    public function cancelPending(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->userable_type !== Face::class) {
+            return response()->json([
+                'error' => [
+                    'code' => 'FORBIDDEN',
+                    'message' => 'Accès réservé aux Faces',
+                ],
+            ], 403);
+        }
+
+        /** @var Face $face */
+        $face = Face::query()->findOrFail($user->userable_id);
+
+        $subscription = $this->paymentService->cancelOwnPending($face);
+
+        return response()->json([
+            'data' => [
+                'subscription_id' => $subscription->uuid,
+                'status' => $subscription->status->value,
+            ],
+            'message' => 'Paiement annulé.',
+        ]);
+    }
 }

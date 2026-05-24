@@ -13,6 +13,7 @@ declare(strict_types=1);
 return [
     'currency' => 'XOF',
     'provider' => 'fedapay',
+    'stale_pending_max_hours' => 48,
 
     'tiers' => [
         'free' => [

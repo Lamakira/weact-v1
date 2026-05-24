@@ -597,6 +597,145 @@ class SubscriptionPaymentWebhookTest extends TestCase
         $this->assertSame(FaceSubscriptionStatus::Active, $orphan->fresh()->status);
     }
 
+    public function test_webhook_approved_after_local_failed_fallback_marks_manual_review(): void
+    {
+        Log::spy();
+
+        $failedByUser = FaceSubscription::factory()->pro()->failed()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => null,
+            'paid_amount' => null,
+            'metadata' => [
+                'quoted_amount' => 25000,
+                'quoted_currency' => 'XOF',
+                'idempotency_key' => 'late-local-failure-key',
+                'cancellation_source' => 'user_self_cancel',
+                'cancelled_by_user_at' => now()->subMinute()->toIso8601String(),
+            ],
+        ]);
+
+        $webhookEvent = $this->dispatchWebhook('evt_late_local_failure', 'transaction.approved', [
+            'id' => 'evt_late_local_failure',
+            'name' => 'transaction.approved',
+            'entity' => [
+                'id' => 700006,
+                'reference' => 'fedapay-late-local-failure',
+                'amount' => 25000,
+                'custom_metadata' => [
+                    'face_subscription_id' => $failedByUser->id,
+                    'type' => 'face_subscription',
+                    'idempotency_key' => 'late-local-failure-key',
+                ],
+            ],
+        ]);
+
+        $reloaded = $failedByUser->fresh();
+        $this->assertSame(FaceSubscriptionStatus::Failed, $reloaded->status);
+        $this->assertNull($reloaded->starts_at);
+        $this->assertNull($reloaded->expires_at);
+        $this->assertSame('700006', $reloaded->provider_reference);
+        $this->assertSame('manual_review_required', $reloaded->metadata['late_approved_after_local_failure_reason']);
+        $this->assertSame('fedapay-late-local-failure', $reloaded->metadata['late_approved_fedapay_reference']);
+        $this->assertSame('700006', $reloaded->metadata['late_approved_provider_reference']);
+        $this->assertSame(25000, $reloaded->metadata['late_approved_paid_amount']);
+        $this->assertSame('processed', $webhookEvent->fresh()->status);
+
+        Log::shouldHaveReceived('critical')
+            ->withArgs(function (string $message, array $context) use ($failedByUser): bool {
+                return $message === 'Fedapay webhook: approved payment arrived after local face subscription failure — manual review required'
+                    && ($context['face_subscription_id'] ?? null) === $failedByUser->id
+                    && ($context['fedapay_reference'] ?? null) === 'fedapay-late-local-failure'
+                    && ($context['provider_reference'] ?? null) === '700006'
+                    && ($context['local_failure_source'] ?? null) === 'user_self_cancel';
+            })
+            ->once();
+    }
+
+    public function test_webhook_approved_after_local_failed_fallback_is_idempotent_on_duplicate(): void
+    {
+        Log::spy();
+
+        $failedByUser = FaceSubscription::factory()->pro()->failed()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => null,
+            'paid_amount' => null,
+            'metadata' => [
+                'quoted_amount' => 25000,
+                'quoted_currency' => 'XOF',
+                'idempotency_key' => 'late-local-failure-dup-key',
+                'cancellation_source' => 'user_self_cancel',
+                'cancelled_by_user_at' => now()->subMinute()->toIso8601String(),
+            ],
+        ]);
+
+        $payloadFirst = [
+            'id' => 'evt_late_dup_1',
+            'name' => 'transaction.approved',
+            'entity' => [
+                'id' => 700100,
+                'reference' => 'fedapay-late-dup-first',
+                'amount' => 25000,
+                'custom_metadata' => [
+                    'face_subscription_id' => $failedByUser->id,
+                    'type' => 'face_subscription',
+                    'idempotency_key' => 'late-local-failure-dup-key',
+                ],
+            ],
+        ];
+
+        $this->dispatchWebhook('evt_late_dup_1', 'transaction.approved', $payloadFirst);
+
+        $afterFirst = $failedByUser->fresh();
+        $this->assertSame('fedapay-late-dup-first', $afterFirst->metadata['late_approved_fedapay_reference']);
+        $firstAuditTimestamp = $afterFirst->metadata['late_approved_after_local_failure_at'];
+
+        // Second webhook for the same Fedapay transaction (provider-side retry
+        // after queue timeout, admin replay, or load-balancer double-delivery).
+        // Different event_id + different reference + different amount to prove
+        // the duplicate path does not overwrite the first audit.
+        $payloadDuplicate = [
+            'id' => 'evt_late_dup_2',
+            'name' => 'transaction.approved',
+            'entity' => [
+                'id' => 700100,
+                'reference' => 'fedapay-late-dup-second',
+                'amount' => 25000,
+                'custom_metadata' => [
+                    'face_subscription_id' => $failedByUser->id,
+                    'type' => 'face_subscription',
+                    'idempotency_key' => 'late-local-failure-dup-key',
+                ],
+            ],
+        ];
+
+        $this->dispatchWebhook('evt_late_dup_2', 'transaction.approved', $payloadDuplicate);
+
+        $afterSecond = $failedByUser->fresh();
+
+        // First-occurrence audit preserved verbatim.
+        $this->assertSame(FaceSubscriptionStatus::Failed, $afterSecond->status);
+        $this->assertSame('fedapay-late-dup-first', $afterSecond->metadata['late_approved_fedapay_reference']);
+        $this->assertSame('700100', $afterSecond->metadata['late_approved_provider_reference']);
+        $this->assertSame(25000, $afterSecond->metadata['late_approved_paid_amount']);
+        $this->assertSame($firstAuditTimestamp, $afterSecond->metadata['late_approved_after_local_failure_at']);
+        $this->assertSame('evt_late_dup_1', $afterSecond->metadata['late_approved_event_payload_summary']['event_id']);
+
+        // Log::critical fires once (first hit) — not twice.
+        Log::shouldHaveReceived('critical')
+            ->withArgs(fn (string $message): bool => $message === 'Fedapay webhook: approved payment arrived after local face subscription failure — manual review required')
+            ->once();
+
+        // Duplicate replay emits a warning, not another critical.
+        Log::shouldHaveReceived('warning')
+            ->withArgs(function (string $message, array $context) use ($failedByUser, $firstAuditTimestamp): bool {
+                return $message === 'Fedapay webhook: duplicate late-approval webhook ignored — first late-approval audit preserved'
+                    && ($context['face_subscription_id'] ?? null) === $failedByUser->id
+                    && ($context['fedapay_reference'] ?? null) === 'fedapay-late-dup-second'
+                    && ($context['first_late_approved_at'] ?? null) === $firstAuditTimestamp;
+            })
+            ->once();
+    }
+
     // -----------------------------------------------------------------------
     // FP-2.5 — tier change via webhook (AC #19, #20, #21)
     // -----------------------------------------------------------------------

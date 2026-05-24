@@ -42,6 +42,15 @@ class FaceSubscriptionConflictException extends HttpException
         );
     }
 
+    public static function noPendingPayment(): self
+    {
+        return new self(
+            errorCode: 'NO_PENDING_PAYMENT',
+            message: 'Aucun paiement en attente à annuler.',
+            statusCode: 404,
+        );
+    }
+
     public static function notExtendable(): self
     {
         return new self(

@@ -254,8 +254,11 @@ class HandleFedapayWebhook implements ShouldQueue
         $fallback = FaceSubscription::query()
             ->whereKey((int) $faceSubscriptionId)
             ->whereNull('provider_reference')
-            ->where('status', FaceSubscriptionStatus::PendingPayment)
             ->first();
+
+        if ($fallback && ! $this->canResolveFaceSubscriptionFallback($fallback)) {
+            return null;
+        }
 
         if ($fallback) {
             $rowMetadata = is_array($fallback->metadata) ? $fallback->metadata : [];
@@ -282,6 +285,22 @@ class HandleFedapayWebhook implements ShouldQueue
         }
 
         return $fallback;
+    }
+
+    private function canResolveFaceSubscriptionFallback(FaceSubscription $subscription): bool
+    {
+        if ($subscription->status === FaceSubscriptionStatus::PendingPayment) {
+            return true;
+        }
+
+        if ($subscription->status !== FaceSubscriptionStatus::Failed || $this->eventName !== 'transaction.approved') {
+            return false;
+        }
+
+        $metadata = is_array($subscription->metadata) ? $subscription->metadata : [];
+
+        return ($metadata['cancellation_source'] ?? null) === 'user_self_cancel'
+            || ($metadata['stale_pending_reason'] ?? null) === 'auto_failed_by_cron';
     }
 
     /**

@@ -207,6 +207,69 @@ class FaceSubscriptionPaymentService
                 return $locked;
             }
 
+            if ($this->isLocallyFailedPendingCleanup($locked)) {
+                $metadata = is_array($locked->metadata) ? $locked->metadata : [];
+
+                // Idempotence: a duplicate late-approval webhook (Fedapay retry,
+                // admin replay, distinct event resolving to the same row) must
+                // not overwrite the first-occurrence audit or re-fire the
+                // manual-review critical alert. The first hit is the load-bearing
+                // record for operator triage.
+                if (isset($metadata['late_approved_after_local_failure_at'])) {
+                    Log::warning('Fedapay webhook: duplicate late-approval webhook ignored — first late-approval audit preserved', [
+                        'face_subscription_id' => $locked->id,
+                        'face_id' => $locked->face_id,
+                        'fedapay_reference' => $fedapayRef,
+                        'provider_reference' => $providerReference,
+                        'paid_amount' => $paidAmount,
+                        'first_late_approved_at' => $metadata['late_approved_after_local_failure_at'],
+                    ]);
+
+                    return $locked;
+                }
+
+                $now = now()->toIso8601String();
+                $updates = [
+                    'metadata' => array_merge(
+                        $metadata,
+                        [
+                            'late_approved_after_local_failure_at' => $now,
+                            'late_approved_after_local_failure_reason' => 'manual_review_required',
+                            'late_approved_fedapay_reference' => $fedapayRef,
+                            'late_approved_provider_reference' => $providerReference,
+                            'late_approved_paid_amount' => $paidAmount,
+                            'late_approved_event_payload_summary' => [
+                                'event_id' => $rawWebhookPayload['id'] ?? null,
+                                'event_name' => $rawWebhookPayload['name'] ?? null,
+                                'transaction_status' => data_get($rawWebhookPayload, 'entity.status')
+                                    ?? data_get($rawWebhookPayload, 'data.status'),
+                            ],
+                        ],
+                    ),
+                ];
+
+                if ($providerReference !== null && $locked->provider_reference === null) {
+                    $updates['provider_reference'] = $providerReference;
+                }
+
+                $locked->update($updates);
+
+                Log::critical('Fedapay webhook: approved payment arrived after local face subscription failure — manual review required', [
+                    'face_subscription_id' => $locked->id,
+                    'face_id' => $locked->face_id,
+                    'current_status' => $locked->status->value,
+                    'fedapay_reference' => $fedapayRef,
+                    'provider_reference' => $providerReference,
+                    'paid_amount' => $paidAmount,
+                    'local_failure_source' => $this->localFailureSource($locked),
+                ]);
+
+                /** @var FaceSubscription $fresh */
+                $fresh = $locked->fresh();
+
+                return $fresh;
+            }
+
             if ($locked->status !== FaceSubscriptionStatus::PendingPayment) {
                 Log::warning('Fedapay webhook: ignoring approval for non-pending face subscription', [
                     'face_subscription_id' => $locked->id,
@@ -406,6 +469,53 @@ class FaceSubscriptionPaymentService
 
             /** @var FaceSubscription $fresh */
             $fresh = $locked->fresh();
+
+            return $fresh;
+        });
+    }
+
+    /**
+     * Flip the Face's pending_payment row to Failed on user request, unblocking
+     * the FP-2.5 one-pending-row guard so the Face can immediately re-initiate.
+     *
+     * Race contract: lockForUpdate serializes against HandleFedapayWebhook's
+     * markAsPaid / markAsFailed. If the webhook wins (status becomes Active or
+     * Failed before we lock), this method throws noPendingPayment() → 404 ; if
+     * we win (row becomes Failed before the webhook lands), the webhook hits
+     * the existing non-pending guard in markAsPaid (after the
+     * isLocallyFailedPendingCleanup branch) or markAsFailed (after the Failed
+     * short-circuit) and early-returns with a Log::warning, leaving our Failed
+     * row intact. No double-update.
+     *
+     * @throws FaceSubscriptionConflictException Via factory `noPendingPayment()` (404, errorCode `NO_PENDING_PAYMENT`) when the Face has no pending row.
+     */
+    public function cancelOwnPending(Face $face): FaceSubscription
+    {
+        return DB::transaction(function () use ($face): FaceSubscription {
+            /** @var FaceSubscription|null $pending */
+            $pending = FaceSubscription::query()
+                ->where('face_id', $face->id)
+                ->where('status', FaceSubscriptionStatus::PendingPayment)
+                ->lockForUpdate()
+                ->first();
+
+            if ($pending === null) {
+                throw FaceSubscriptionConflictException::noPendingPayment();
+            }
+
+            $pending->update([
+                'status' => FaceSubscriptionStatus::Failed,
+                'metadata' => array_merge(
+                    is_array($pending->metadata) ? $pending->metadata : [],
+                    [
+                        'cancelled_by_user_at' => now()->toIso8601String(),
+                        'cancellation_source' => 'user_self_cancel',
+                    ],
+                ),
+            ]);
+
+            /** @var FaceSubscription $fresh */
+            $fresh = $pending->fresh();
 
             return $fresh;
         });
@@ -646,5 +756,26 @@ class FaceSubscriptionPaymentService
             'error_class' => $exception::class,
             'error_message' => $exception->getMessage(),
         ]);
+    }
+
+    private function isLocallyFailedPendingCleanup(FaceSubscription $subscription): bool
+    {
+        return $subscription->status === FaceSubscriptionStatus::Failed
+            && $this->localFailureSource($subscription) !== null;
+    }
+
+    private function localFailureSource(FaceSubscription $subscription): ?string
+    {
+        $metadata = is_array($subscription->metadata) ? $subscription->metadata : [];
+
+        if (($metadata['cancellation_source'] ?? null) === 'user_self_cancel') {
+            return 'user_self_cancel';
+        }
+
+        if (($metadata['stale_pending_reason'] ?? null) === 'auto_failed_by_cron') {
+            return 'auto_failed_by_cron';
+        }
+
+        return null;
     }
 }
