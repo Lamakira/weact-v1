@@ -1,5 +1,9 @@
 # Deferred Work
 
+## Deferred from: code review of feature-fp-2-8-expiration-command-drop-to-free (2026-05-24)
+
+- **Race window in `dispatch($subscription->fresh())`.** Between the in-transaction `FaceSubscription::lockForUpdate()->update(['status' => Expired])` and the post-transaction `FaceSubscriptionExpired::dispatch($subscription->fresh())` (`backend/app/Console/Commands/ExpireFaceSubscriptionsCommand.php:67`), another worker, admin action, or concurrent cron run could mutate the row ; the listener payload then doesn't match what the command logged. FP-2.8 inherits this pattern byte-identically from the FP-1.8 baseline and the spec explicitly preserves it — fixing it requires moving the event dispatch inside the transaction (or capturing the post-update snapshot in-memory rather than re-reading), which is a cross-FP-1/FP-2 behavioral change and warrants its own story.
+
 ## Deferred from: code review of feature-fp-2-7-1-face-video-ui-and-locked-states (2026-05-23)
 
 - **D1 — Singleton cache leak across users on shared browser** : the new `useFaceVideos` composable creates a module-level singleton on key `'face-videos'` via `createSharedCachedResource`, inheriting the same trade-off as `useSubscriptionStatus` (FP-2.7 v2 Round 2 W1), `usePresentationVideo`, `usePhotoAlbum`. On a shared device, user-A's cached video list survives user-A logout and bleeds to user-B until the 5-min TTL expires. No invalidation hook on logout. Severity critical in shared-device contexts ; cross-cutting infra story to wire logout → `resetSharedCachedResourcesForTests` (or equivalent prod hook) across all `createSharedCachedResource` callers.
