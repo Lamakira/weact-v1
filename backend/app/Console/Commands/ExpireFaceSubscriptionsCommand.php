@@ -62,9 +62,10 @@ class ExpireFaceSubscriptionsCommand extends Command
                     Log::info('Face subscription expired by scheduled command', [
                         'face_subscription_id' => $subscription->id,
                         'face_id' => $subscription->face_id,
+                        'plan' => $subscription->plan->value,
                         'previous_expires_at' => $subscription->expires_at?->toIso8601String(),
                     ]);
-                    $this->info("Expired face subscription #{$subscription->id} (face #{$subscription->face_id})");
+                    $this->info("Expired face subscription #{$subscription->id} (face #{$subscription->face_id}, plan: {$subscription->plan->value})");
                     FaceSubscriptionExpired::dispatch($subscription->fresh());
                     $expired++;
                 } else {
@@ -74,6 +75,7 @@ class ExpireFaceSubscriptionsCommand extends Command
                 Log::error('Face subscription expiration failed', [
                     'face_subscription_id' => $subscription->id,
                     'face_id' => $subscription->face_id,
+                    'plan' => $subscription->plan->value,
                     'error_class' => $e::class,
                     'error_message' => $e->getMessage(),
                 ]);

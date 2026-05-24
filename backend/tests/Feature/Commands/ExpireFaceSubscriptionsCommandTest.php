@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Commands;
 
+use App\Enums\FaceSubscriptionPlan;
 use App\Enums\FaceSubscriptionStatus;
+use App\Enums\FaceSubscriptionTier;
+use App\Events\FaceSubscriptionExpired;
 use App\Models\Face;
 use App\Models\FacePhoto;
 use App\Models\FaceSubscription;
@@ -14,6 +17,8 @@ use App\Models\User;
 use App\Services\FaceEntitlementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -38,7 +43,7 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
 
         $this->artisan('subscriptions:expire-faces')
             ->expectsOutputToContain('Found 1 subscription(s) to expire.')
-            ->expectsOutputToContain("Expired face subscription #{$subscription->id}")
+            ->expectsOutputToContain("Expired face subscription #{$subscription->id} (face #{$face->id}, plan: pro)")
             ->expectsOutputToContain('Done. Expired: 1, Skipped: 0, Failed: 0.')
             ->assertExitCode(0);
 
@@ -164,22 +169,22 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
             $faces[$label] = $face;
         }
 
-        $pending = FaceSubscription::factory()->pendingPayment()->create([
+        $pending = FaceSubscription::factory()->starter()->pendingPayment()->create([
             'face_id' => $faces['pending']->id,
             'starts_at' => now()->subDays(60),
             'expires_at' => now()->subDay(),
         ]);
-        $cancelled = FaceSubscription::factory()->cancelled()->create([
+        $cancelled = FaceSubscription::factory()->pro()->cancelled()->create([
             'face_id' => $faces['cancelled']->id,
             'starts_at' => now()->subDays(60),
             'expires_at' => now()->subDay(),
         ]);
-        $failed = FaceSubscription::factory()->failed()->create([
+        $failed = FaceSubscription::factory()->elite()->failed()->create([
             'face_id' => $faces['failed']->id,
             'starts_at' => now()->subDays(60),
             'expires_at' => now()->subDay(),
         ]);
-        $alreadyExpired = FaceSubscription::factory()->expired()->create([
+        $alreadyExpired = FaceSubscription::factory()->starter()->expired()->create([
             'face_id' => $faces['expired']->id,
         ]);
 
@@ -193,6 +198,12 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
         $this->assertSame(FaceSubscriptionStatus::Failed, $failed->fresh()->status);
         $this->assertSame(FaceSubscriptionStatus::Expired, $alreadyExpired->fresh()->status);
         $this->assertNotNull($cancelled->fresh()->cancelled_at);
+
+        // Plan column not mutated — the filter is status-only, tier-blind.
+        $this->assertSame(FaceSubscriptionPlan::Starter, $pending->fresh()->plan);
+        $this->assertSame(FaceSubscriptionPlan::Pro, $cancelled->fresh()->plan);
+        $this->assertSame(FaceSubscriptionPlan::Elite, $failed->fresh()->plan);
+        $this->assertSame(FaceSubscriptionPlan::Starter, $alreadyExpired->fresh()->plan);
     }
 
     public function test_command_does_not_delete_album_photos_or_videos_on_disk(): void
@@ -202,7 +213,7 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
         $face = Face::factory()->create();
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
 
-        FacePhoto::factory()->createSequentialForFace($face, 4);
+        FacePhoto::factory()->createSequentialForFace($face, 6);
 
         $face->update([
             'presentation_video' => 'presentation.mp4',
@@ -213,16 +224,23 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
             'filename' => 'acting.mp4',
             'thumbnail' => 'acting-thumb.jpg',
         ]);
+        FaceVideo::factory()->ugc()->create([
+            'face_id' => $face->id,
+            'filename' => 'ugc.mp4',
+            'thumbnail' => 'ugc-thumb.jpg',
+        ]);
 
         foreach ($face->fresh()->photos as $photo) {
             Storage::disk('public')->put('avatars/faces/albums/'.$photo->filename, 'photo content');
         }
         Storage::disk('public')->put('videos/faces/acting/acting.mp4', 'acting content');
         Storage::disk('public')->put('videos/faces/acting/acting-thumb.jpg', 'acting thumb');
+        Storage::disk('public')->put('videos/faces/ugc/ugc.mp4', 'ugc content');
+        Storage::disk('public')->put('videos/faces/ugc/ugc-thumb.jpg', 'ugc thumb');
         Storage::disk('public')->put('videos/faces/presentation/presentation.mp4', 'presentation content');
         Storage::disk('public')->put('videos/faces/presentation/presentation-thumb.jpg', 'presentation thumb');
 
-        FaceSubscription::factory()->active()->create([
+        FaceSubscription::factory()->elite()->active()->create([
             'face_id' => $face->id,
             'starts_at' => now()->subDays(366),
             'expires_at' => now()->subDay(),
@@ -235,11 +253,13 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
         }
         Storage::disk('public')->assertExists('videos/faces/acting/acting.mp4');
         Storage::disk('public')->assertExists('videos/faces/acting/acting-thumb.jpg');
+        Storage::disk('public')->assertExists('videos/faces/ugc/ugc.mp4');
+        Storage::disk('public')->assertExists('videos/faces/ugc/ugc-thumb.jpg');
         Storage::disk('public')->assertExists('videos/faces/presentation/presentation.mp4');
         Storage::disk('public')->assertExists('videos/faces/presentation/presentation-thumb.jpg');
 
-        $this->assertSame(4, FacePhoto::where('face_id', $face->id)->count());
-        $this->assertSame(1, FaceVideo::where('face_id', $face->id)->count());
+        $this->assertSame(6, FacePhoto::where('face_id', $face->id)->count());
+        $this->assertSame(2, FaceVideo::where('face_id', $face->id)->count());
         $this->assertSame('presentation.mp4', $face->fresh()->presentation_video);
     }
 
@@ -281,24 +301,24 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
         $face = Face::factory()->create(['prenom' => 'Chained Renewal']);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
 
-        $oldRow = FaceSubscription::factory()->active()->create([
+        $oldRow = FaceSubscription::factory()->starter()->active()->create([
             'face_id' => $face->id,
             'starts_at' => now()->subDays(366),
             'expires_at' => now()->subDay(),
-            'paid_amount' => 50000,
+            'paid_amount' => FaceSubscriptionPlan::Starter->price(),
             'currency' => 'XOF',
             'provider' => 'fedapay',
-            'provider_reference' => 'fp_old_'.now()->format('YmdHis'),
+            'provider_reference' => 'fp_old_starter_'.now()->format('YmdHis'),
         ]);
 
-        $newRow = FaceSubscription::factory()->active()->create([
+        $newRow = FaceSubscription::factory()->pro()->active()->create([
             'face_id' => $face->id,
             'starts_at' => $oldRow->expires_at,
             'expires_at' => $oldRow->expires_at->copy()->addYear(),
-            'paid_amount' => 50000,
+            'paid_amount' => FaceSubscriptionPlan::Pro->price(),
             'currency' => 'XOF',
             'provider' => 'fedapay',
-            'provider_reference' => 'fp_new_'.now()->format('YmdHis'),
+            'provider_reference' => 'fp_new_pro_'.now()->format('YmdHis'),
         ]);
 
         $this->artisan('subscriptions:expire-faces')
@@ -313,6 +333,12 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
         $this->assertNotNull($face->activeSubscription);
         $this->assertSame($newRow->id, $face->activeSubscription->id);
         $this->assertTrue(app(FaceEntitlementService::class)->isPremium($face->fresh()));
+
+        // Plan column not mutated by the expiration command — old stays Starter, new stays Pro.
+        $this->assertSame(FaceSubscriptionPlan::Starter, $oldRow->fresh()->plan);
+        $this->assertSame(FaceSubscriptionPlan::Pro, $newRow->fresh()->plan);
+        // The Face's resolved tier is Pro (new row wins the activeSubscription read).
+        $this->assertSame(FaceSubscriptionTier::Pro, app(FaceEntitlementService::class)->capabilities($face->fresh())->tier);
     }
 
     public function test_expired_face_no_longer_shown_in_public_listing_bucket_zero(): void
@@ -401,14 +427,14 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
         // FP-1.9 introduces FaceSubscriptionExpired listeners (in-app + email). The command itself
         // still does no I/O — it only dispatches the event. Faking the event proves the command's
         // own surface stays mail-free and notification-free.
-        \Illuminate\Support\Facades\Event::fake([\App\Events\FaceSubscriptionExpired::class]);
+        Event::fake([FaceSubscriptionExpired::class]);
         Mail::fake();
         Notification::fake();
 
         $face = Face::factory()->create();
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
 
-        FaceSubscription::factory()->active()->create([
+        $subscription = FaceSubscription::factory()->active()->create([
             'face_id' => $face->id,
             'expires_at' => now()->subDay(),
         ]);
@@ -418,5 +444,194 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
         Mail::assertNothingSent();
         Mail::assertNothingQueued();
         Notification::assertNothingSent();
+
+        // Positive event-dispatch assertion: the FaceSubscriptionExpired event IS fired with
+        // the correct payload (FP-2.9 listeners will consume $event->subscription->plan).
+        Event::assertDispatched(FaceSubscriptionExpired::class, function (FaceSubscriptionExpired $e) use ($subscription): bool {
+            return $e->subscription->id === $subscription->id
+                && $e->subscription->status === FaceSubscriptionStatus::Expired
+                && $e->subscription->plan === FaceSubscriptionPlan::Pro;
+        });
+        Event::assertDispatchedTimes(FaceSubscriptionExpired::class, 1);
+    }
+
+    public function test_command_expires_starter_active_subscription(): void
+    {
+        Event::fake([FaceSubscriptionExpired::class]);
+
+        $face = Face::factory()->create(['prenom' => 'Stale Starter']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+
+        $subscription = FaceSubscription::factory()->starter()->active()->create([
+            'face_id' => $face->id,
+            'starts_at' => now()->subDays(366),
+            'expires_at' => now()->subDay(),
+        ]);
+
+        $this->assertSame(FaceSubscriptionStatus::Active, $subscription->fresh()->status);
+        $this->assertSame(FaceSubscriptionPlan::Starter, $subscription->fresh()->plan);
+
+        $this->artisan('subscriptions:expire-faces')
+            ->expectsOutputToContain('Found 1 subscription(s) to expire.')
+            ->expectsOutputToContain("Expired face subscription #{$subscription->id} (face #{$face->id}, plan: starter)")
+            ->expectsOutputToContain('Done. Expired: 1, Skipped: 0, Failed: 0.')
+            ->assertExitCode(0);
+
+        $this->assertSame(FaceSubscriptionStatus::Expired, $subscription->fresh()->status);
+        $this->assertSame(FaceSubscriptionPlan::Starter, $subscription->fresh()->plan);
+
+        Event::assertDispatched(FaceSubscriptionExpired::class, function (FaceSubscriptionExpired $e) use ($subscription): bool {
+            return $e->subscription->id === $subscription->id
+                && $e->subscription->plan === FaceSubscriptionPlan::Starter
+                && $e->subscription->status === FaceSubscriptionStatus::Expired;
+        });
+    }
+
+    public function test_command_expires_elite_active_subscription(): void
+    {
+        Event::fake([FaceSubscriptionExpired::class]);
+
+        $face = Face::factory()->create(['prenom' => 'Stale Élite']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+
+        $subscription = FaceSubscription::factory()->elite()->active()->create([
+            'face_id' => $face->id,
+            'starts_at' => now()->subDays(366),
+            'expires_at' => now()->subDay(),
+        ]);
+
+        $this->artisan('subscriptions:expire-faces')
+            ->expectsOutputToContain("Expired face subscription #{$subscription->id} (face #{$face->id}, plan: elite)")
+            ->expectsOutputToContain('Done. Expired: 1, Skipped: 0, Failed: 0.')
+            ->assertExitCode(0);
+
+        $this->assertSame(FaceSubscriptionStatus::Expired, $subscription->fresh()->status);
+        $this->assertSame(FaceSubscriptionPlan::Elite, $subscription->fresh()->plan);
+
+        Event::assertDispatched(FaceSubscriptionExpired::class, function (FaceSubscriptionExpired $e) use ($subscription): bool {
+            return $e->subscription->id === $subscription->id
+                && $e->subscription->plan === FaceSubscriptionPlan::Elite;
+        });
+    }
+
+    public function test_command_expires_all_three_paid_tiers_in_single_run_with_correct_plan_logging(): void
+    {
+        Event::fake([FaceSubscriptionExpired::class]);
+
+        $faceStarter = Face::factory()->create(['prenom' => 'Tier Starter']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $faceStarter->id]);
+        $subStarter = FaceSubscription::factory()->starter()->active()->create([
+            'face_id' => $faceStarter->id,
+            'starts_at' => now()->subDays(366),
+            'expires_at' => now()->subDay(),
+        ]);
+
+        $facePro = Face::factory()->create(['prenom' => 'Tier Pro']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $facePro->id]);
+        $subPro = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $facePro->id,
+            'starts_at' => now()->subDays(366),
+            'expires_at' => now()->subDay(),
+        ]);
+
+        $faceElite = Face::factory()->create(['prenom' => 'Tier Élite']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $faceElite->id]);
+        $subElite = FaceSubscription::factory()->elite()->active()->create([
+            'face_id' => $faceElite->id,
+            'starts_at' => now()->subDays(366),
+            'expires_at' => now()->subDay(),
+        ]);
+
+        $this->artisan('subscriptions:expire-faces')
+            ->expectsOutputToContain('Found 3 subscription(s) to expire.')
+            ->expectsOutputToContain('plan: starter')
+            ->expectsOutputToContain('plan: pro')
+            ->expectsOutputToContain('plan: elite')
+            ->expectsOutputToContain('Done. Expired: 3, Skipped: 0, Failed: 0.')
+            ->assertExitCode(0);
+
+        $this->assertSame(FaceSubscriptionStatus::Expired, $subStarter->fresh()->status);
+        $this->assertSame(FaceSubscriptionStatus::Expired, $subPro->fresh()->status);
+        $this->assertSame(FaceSubscriptionStatus::Expired, $subElite->fresh()->status);
+
+        Event::assertDispatchedTimes(FaceSubscriptionExpired::class, 3);
+        Event::assertDispatched(FaceSubscriptionExpired::class, fn (FaceSubscriptionExpired $e): bool => $e->subscription->plan === FaceSubscriptionPlan::Starter);
+        Event::assertDispatched(FaceSubscriptionExpired::class, fn (FaceSubscriptionExpired $e): bool => $e->subscription->plan === FaceSubscriptionPlan::Pro);
+        Event::assertDispatched(FaceSubscriptionExpired::class, fn (FaceSubscriptionExpired $e): bool => $e->subscription->plan === FaceSubscriptionPlan::Elite);
+    }
+
+    public function test_log_payload_contains_plan_key_for_expired_subscription(): void
+    {
+        Event::fake([FaceSubscriptionExpired::class]);
+        Mail::fake();
+        Notification::fake();
+
+        $face = Face::factory()->create();
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+
+        $subscription = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $face->id,
+            'starts_at' => now()->subDays(366),
+            'expires_at' => now()->subDay(),
+        ]);
+
+        Log::shouldReceive('info')
+            ->once()
+            ->withArgs(function (string $message, array $context) use ($subscription): bool {
+                return $message === 'Face subscription expired by scheduled command'
+                    && ($context['face_subscription_id'] ?? null) === $subscription->id
+                    && ($context['face_id'] ?? null) === $subscription->face_id
+                    && ($context['plan'] ?? null) === 'pro'
+                    && array_key_exists('previous_expires_at', $context);
+            });
+
+        $this->artisan('subscriptions:expire-faces')->assertExitCode(0);
+    }
+
+    public function test_log_error_payload_contains_plan_key_when_transaction_throws(): void
+    {
+        $face = Face::factory()->create();
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+
+        $subscription = FaceSubscription::factory()->elite()->active()->create([
+            'face_id' => $face->id,
+            'starts_at' => now()->subDays(366),
+            'expires_at' => now()->subDay(),
+        ]);
+
+        // Force the inner UPDATE to throw — fires only on the command's status-flip attempt
+        // (factory creates above use INSERT → 'creating', not 'updating'), so test isolation is clean.
+        $shouldThrow = true;
+        FaceSubscription::updating(function (FaceSubscription $row) use (&$shouldThrow): void {
+            if (! $shouldThrow) {
+                return;
+            }
+
+            if ($row->status === FaceSubscriptionStatus::Expired) {
+                $shouldThrow = false;
+                throw new \RuntimeException('Forced failure for test');
+            }
+        });
+
+        Log::shouldReceive('error')
+            ->once()
+            ->withArgs(function (string $message, array $context) use ($subscription): bool {
+                return $message === 'Face subscription expiration failed'
+                    && ($context['face_subscription_id'] ?? null) === $subscription->id
+                    && ($context['face_id'] ?? null) === $subscription->face_id
+                    && ($context['plan'] ?? null) === 'elite'
+                    && array_key_exists('error_class', $context)
+                    && array_key_exists('error_message', $context);
+            });
+
+        $this->artisan('subscriptions:expire-faces')
+            ->expectsOutputToContain('Found 1 subscription(s) to expire.')
+            ->expectsOutputToContain("Failed to expire face subscription #{$subscription->id}")
+            ->expectsOutputToContain('Done. Expired: 0, Skipped: 0, Failed: 1.')
+            ->assertExitCode(0);
+
+        // Row stayed Active because the UPDATE threw and the transaction rolled back.
+        $this->assertSame(FaceSubscriptionStatus::Active, $subscription->fresh()->status);
+        $this->assertSame(FaceSubscriptionPlan::Elite, $subscription->fresh()->plan);
     }
 }
