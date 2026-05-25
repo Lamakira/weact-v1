@@ -25,7 +25,7 @@ class NotifyFaceOnSubscriptionCancelledListenerTest extends TestCase
             'userable_type' => Face::class,
             'userable_id' => $face->id,
         ]);
-        $subscription = FaceSubscription::factory()->active()->cancelled()->create([
+        $subscription = FaceSubscription::factory()->active()->cancelled()->pro()->create([
             'face_id' => $face->id,
             'cancelled_at' => now(),
         ]);
@@ -39,9 +39,13 @@ class NotifyFaceOnSubscriptionCancelledListenerTest extends TestCase
         $this->assertSame($subscription->id, $notification->data['face_subscription_id']);
         $this->assertNotNull($notification->data['cancelled_at']);
         $this->assertSame('/face/profile', $notification->data['url']);
+        $this->assertStringContainsString('Pro', $notification->data['message']);
         $this->assertStringContainsString('annulé', $notification->data['message']);
-        $this->assertStringContainsString('photos 3-4', $notification->data['message']);
+        $this->assertStringContainsString('photos 2 à 4 d\'album', $notification->data['message']);
+        $this->assertStringContainsString('redeviennent privées immédiatement', $notification->data['message']);
         $this->assertStringContainsString('support', $notification->data['message']);
+        $this->assertStringNotContainsString('Premium annuel', $notification->data['message']);
+        $this->assertStringNotContainsString('photos 3-4', $notification->data['message']);
     }
 
     public function test_listener_skips_when_face_user_is_missing(): void
@@ -103,7 +107,7 @@ class NotifyFaceOnSubscriptionCancelledListenerTest extends TestCase
             'userable_type' => Face::class,
             'userable_id' => $face->id,
         ]);
-        $subscription = FaceSubscription::factory()->cancelled()->create([
+        $subscription = FaceSubscription::factory()->cancelled()->starter()->create([
             'face_id' => $face->id,
             'starts_at' => null,
             'expires_at' => null,
@@ -119,8 +123,61 @@ class NotifyFaceOnSubscriptionCancelledListenerTest extends TestCase
         $this->assertSame($subscription->id, $notification->data['face_subscription_id']);
         $this->assertNotNull($notification->data['cancelled_at']);
         $this->assertSame('/face/profile', $notification->data['url']);
+        $this->assertStringContainsString('Starter', $notification->data['message']);
         $this->assertStringContainsString('annulée avant activation', $notification->data['message']);
         $this->assertStringContainsString('Aucun avantage Premium', $notification->data['message']);
         $this->assertStringNotContainsString('redeviennent privées immédiatement', $notification->data['message']);
+        $this->assertStringNotContainsString('2ème photo', $notification->data['message']);
+    }
+
+    public function test_listener_creates_starter_specific_message_for_cancelled_starter_active_subscription(): void
+    {
+        $face = Face::factory()->create(['prenom' => 'Cancelled Starter']);
+        $user = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+        $subscription = FaceSubscription::factory()->active()->cancelled()->starter()->create([
+            'face_id' => $face->id,
+            'cancelled_at' => now(),
+        ]);
+
+        (new NotifyFaceOnSubscriptionCancelled)->handle(new FaceSubscriptionCancelled($subscription));
+
+        $notification = Notification::where('user_id', $user->id)
+            ->where('type', 'face_subscription_cancelled')
+            ->firstOrFail();
+
+        $this->assertStringContainsString('Starter', $notification->data['message']);
+        $this->assertStringContainsString('2ème photo d\'album', $notification->data['message']);
+        $this->assertStringContainsString('redeviennent privées immédiatement', $notification->data['message']);
+        $this->assertStringNotContainsString('photos 2 à 4', $notification->data['message']);
+        $this->assertStringNotContainsString('vidéo UGC', $notification->data['message']);
+    }
+
+    public function test_listener_creates_elite_specific_message_for_cancelled_elite_active_subscription(): void
+    {
+        $face = Face::factory()->create(['prenom' => 'Cancelled Elite']);
+        $user = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+        $subscription = FaceSubscription::factory()->active()->cancelled()->elite()->create([
+            'face_id' => $face->id,
+            'cancelled_at' => now(),
+        ]);
+
+        (new NotifyFaceOnSubscriptionCancelled)->handle(new FaceSubscriptionCancelled($subscription));
+
+        $notification = Notification::where('user_id', $user->id)
+            ->where('type', 'face_subscription_cancelled')
+            ->firstOrFail();
+
+        $this->assertStringContainsString('Élite', $notification->data['message']);
+        $this->assertStringContainsString('photos 2 à 6 d\'album', $notification->data['message']);
+        $this->assertStringContainsString('vidéo UGC', $notification->data['message']);
+        $this->assertStringContainsString('redeviennent privées immédiatement', $notification->data['message']);
+        $this->assertStringNotContainsString('photos 2 à 4', $notification->data['message']);
+        $this->assertStringNotContainsString('2ème photo', $notification->data['message']);
     }
 }

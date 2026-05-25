@@ -18,7 +18,7 @@ final class FaceSubscriptionExpiredMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return 'Votre abonnement Premium annuel a expiré';
+        return "Votre abonnement {$this->subscription->plan->label()} a expiré";
     }
 
     public function content(): Content
@@ -29,6 +29,9 @@ final class FaceSubscriptionExpiredMail extends BaseMail
                 'faceFirstName' => $this->resolveFaceFirstName(),
                 'expiredOnLabel' => $this->formatExpiredOn(),
                 'profileUrl' => $this->buildProfileUrl(),
+                'plan' => $this->subscription->plan,
+                'planLabel' => $this->subscription->plan->label(),
+                'premiumMediaSummary' => $this->subscription->plan->premiumMediaSummary(),
             ],
         );
     }

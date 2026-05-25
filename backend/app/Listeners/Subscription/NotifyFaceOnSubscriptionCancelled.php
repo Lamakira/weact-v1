@@ -29,9 +29,10 @@ final class NotifyFaceOnSubscriptionCancelled
             }
 
             $hadCoverage = $subscription->starts_at !== null && $subscription->expires_at !== null;
+            $planLabel = $subscription->plan->label();
             $message = $hadCoverage
-                ? "Votre abonnement Premium annuel a été annulé. Vos photos 3-4 et votre vidéo de jeu redeviennent privées immédiatement. Contactez le support si vous pensez qu'il s'agit d'une erreur."
-                : "Votre demande d'abonnement Premium annuel a été annulée avant activation. Aucun avantage Premium n'a été activé. Contactez le support si vous pensez qu'il s'agit d'une erreur.";
+                ? "Votre abonnement {$planLabel} a été annulé. ".ucfirst($subscription->plan->premiumMediaSummary())." redeviennent privées immédiatement. Contactez le support si vous pensez qu'il s'agit d'une erreur."
+                : "Votre demande d'abonnement {$planLabel} a été annulée avant activation. Aucun avantage Premium n'a été activé. Contactez le support si vous pensez qu'il s'agit d'une erreur.";
 
             Notification::create([
                 'user_id' => $faceUser->id,

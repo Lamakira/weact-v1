@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Subscription;
 
+use App\Enums\FaceSubscriptionPlan;
 use App\Events\FaceSubscriptionActivated;
 use App\Listeners\Subscription\SendFaceSubscriptionActivatedEmail;
 use App\Mail\FaceSubscriptionActivatedMail;
@@ -29,7 +30,7 @@ class SendFaceSubscriptionActivatedEmailListenerTest extends TestCase
             'userable_id' => $face->id,
             'email' => 'activate@example.test',
         ]);
-        $subscription = FaceSubscription::factory()->active()->create([
+        $subscription = FaceSubscription::factory()->active()->pro()->create([
             'face_id' => $face->id,
             'paid_amount' => 50000,
         ]);
@@ -41,7 +42,8 @@ class SendFaceSubscriptionActivatedEmailListenerTest extends TestCase
             FaceSubscriptionActivatedMail::class,
             fn (FaceSubscriptionActivatedMail $mail): bool => $mail->hasTo('activate@example.test')
                 && $mail->face->id === $face->id
-                && $mail->subscription->id === $subscription->id,
+                && $mail->subscription->id === $subscription->id
+                && $mail->subscription->plan === FaceSubscriptionPlan::Pro,
         );
     }
 
@@ -126,5 +128,51 @@ class SendFaceSubscriptionActivatedEmailListenerTest extends TestCase
         Mail::shouldReceive('to')->andReturn($pendingMail);
 
         (new SendFaceSubscriptionActivatedEmail)->handle(new FaceSubscriptionActivated($subscription));
+    }
+
+    public function test_listener_queues_starter_mail_with_starter_plan(): void
+    {
+        Mail::fake();
+
+        $face = Face::factory()->create(['prenom' => 'Starter Activate']);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+            'email' => 'starter-activate@example.test',
+        ]);
+        $subscription = FaceSubscription::factory()->active()->starter()->create([
+            'face_id' => $face->id,
+        ]);
+
+        (new SendFaceSubscriptionActivatedEmail)->handle(new FaceSubscriptionActivated($subscription));
+
+        Mail::assertQueued(
+            FaceSubscriptionActivatedMail::class,
+            fn (FaceSubscriptionActivatedMail $mail): bool => $mail->subscription->id === $subscription->id
+                && $mail->subscription->plan === FaceSubscriptionPlan::Starter,
+        );
+    }
+
+    public function test_listener_queues_elite_mail_with_elite_plan(): void
+    {
+        Mail::fake();
+
+        $face = Face::factory()->create(['prenom' => 'Elite Activate']);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+            'email' => 'elite-activate@example.test',
+        ]);
+        $subscription = FaceSubscription::factory()->active()->elite()->create([
+            'face_id' => $face->id,
+        ]);
+
+        (new SendFaceSubscriptionActivatedEmail)->handle(new FaceSubscriptionActivated($subscription));
+
+        Mail::assertQueued(
+            FaceSubscriptionActivatedMail::class,
+            fn (FaceSubscriptionActivatedMail $mail): bool => $mail->subscription->id === $subscription->id
+                && $mail->subscription->plan === FaceSubscriptionPlan::Elite,
+        );
     }
 }

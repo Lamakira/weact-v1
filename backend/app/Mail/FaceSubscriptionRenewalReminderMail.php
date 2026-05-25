@@ -19,7 +19,7 @@ final class FaceSubscriptionRenewalReminderMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return "Votre abonnement Premium expire dans {$this->daysRemaining} jours";
+        return "Votre abonnement {$this->subscription->plan->label()} expire dans {$this->daysRemaining} jours";
     }
 
     public function content(): Content
@@ -31,6 +31,9 @@ final class FaceSubscriptionRenewalReminderMail extends BaseMail
                 'daysRemaining' => $this->daysRemaining,
                 'expiresLabel' => $this->formatExpiresAt(),
                 'profileUrl' => $this->buildProfileUrl(),
+                'plan' => $this->subscription->plan,
+                'planLabel' => $this->subscription->plan->label(),
+                'premiumMediaSummary' => $this->subscription->plan->premiumMediaSummary(),
             ],
         );
     }

@@ -18,7 +18,7 @@ final class FaceSubscriptionActivatedMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return 'Votre abonnement Premium annuel est activé';
+        return "Votre abonnement {$this->subscription->plan->label()} est activé";
     }
 
     public function content(): Content
@@ -31,6 +31,9 @@ final class FaceSubscriptionActivatedMail extends BaseMail
                 'paidAmount' => $this->subscription->paid_amount,
                 'formattedPaidAmount' => $this->formatPaidAmount(),
                 'profileUrl' => $this->buildProfileUrl(),
+                'plan' => $this->subscription->plan,
+                'planLabel' => $this->subscription->plan->label(),
+                'premiumMediaSummary' => $this->subscription->plan->premiumMediaSummary(),
             ],
         );
     }

@@ -28,11 +28,14 @@ final class NotifyFaceOnSubscriptionExpired
                 return;
             }
 
+            $planLabel = $subscription->plan->label();
+            $mediaSummary = ucfirst($subscription->plan->premiumMediaSummary());
+
             Notification::create([
                 'user_id' => $faceUser->id,
                 'type' => 'face_subscription_expired',
                 'data' => [
-                    'message' => 'Votre abonnement Premium annuel a expiré. Vos photos 3-4 et votre vidéo de jeu sont à nouveau cachées au public. Renouvelez pour les rendre visibles à nouveau.',
+                    'message' => "Votre abonnement {$planLabel} a expiré. {$mediaSummary} sont à nouveau cachées au public. Renouvelez pour les rendre visibles à nouveau.",
                     'face_subscription_id' => $subscription->id,
                     'expired_at' => $subscription->expires_at?->toIso8601String(),
                     'url' => '/face/profile',

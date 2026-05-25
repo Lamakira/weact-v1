@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Subscription;
 
+use App\Enums\FaceSubscriptionPlan;
 use App\Events\FaceSubscriptionExpired;
 use App\Listeners\Subscription\SendFaceSubscriptionExpiredEmail;
 use App\Mail\FaceSubscriptionExpiredMail;
@@ -29,7 +30,7 @@ class SendFaceSubscriptionExpiredEmailListenerTest extends TestCase
             'userable_id' => $face->id,
             'email' => 'expired@example.test',
         ]);
-        $subscription = FaceSubscription::factory()->expired()->create([
+        $subscription = FaceSubscription::factory()->expired()->pro()->create([
             'face_id' => $face->id,
         ]);
 
@@ -40,7 +41,8 @@ class SendFaceSubscriptionExpiredEmailListenerTest extends TestCase
             FaceSubscriptionExpiredMail::class,
             fn (FaceSubscriptionExpiredMail $mail): bool => $mail->hasTo('expired@example.test')
                 && $mail->face->id === $face->id
-                && $mail->subscription->id === $subscription->id,
+                && $mail->subscription->id === $subscription->id
+                && $mail->subscription->plan === FaceSubscriptionPlan::Pro,
         );
     }
 
@@ -125,5 +127,51 @@ class SendFaceSubscriptionExpiredEmailListenerTest extends TestCase
         Mail::shouldReceive('to')->andReturn($pendingMail);
 
         (new SendFaceSubscriptionExpiredEmail)->handle(new FaceSubscriptionExpired($subscription));
+    }
+
+    public function test_listener_queues_starter_mail_with_starter_plan(): void
+    {
+        Mail::fake();
+
+        $face = Face::factory()->create(['prenom' => 'Starter Expired']);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+            'email' => 'starter-expired@example.test',
+        ]);
+        $subscription = FaceSubscription::factory()->expired()->starter()->create([
+            'face_id' => $face->id,
+        ]);
+
+        (new SendFaceSubscriptionExpiredEmail)->handle(new FaceSubscriptionExpired($subscription));
+
+        Mail::assertQueued(
+            FaceSubscriptionExpiredMail::class,
+            fn (FaceSubscriptionExpiredMail $mail): bool => $mail->subscription->id === $subscription->id
+                && $mail->subscription->plan === FaceSubscriptionPlan::Starter,
+        );
+    }
+
+    public function test_listener_queues_elite_mail_with_elite_plan(): void
+    {
+        Mail::fake();
+
+        $face = Face::factory()->create(['prenom' => 'Elite Expired']);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+            'email' => 'elite-expired@example.test',
+        ]);
+        $subscription = FaceSubscription::factory()->expired()->elite()->create([
+            'face_id' => $face->id,
+        ]);
+
+        (new SendFaceSubscriptionExpiredEmail)->handle(new FaceSubscriptionExpired($subscription));
+
+        Mail::assertQueued(
+            FaceSubscriptionExpiredMail::class,
+            fn (FaceSubscriptionExpiredMail $mail): bool => $mail->subscription->id === $subscription->id
+                && $mail->subscription->plan === FaceSubscriptionPlan::Elite,
+        );
     }
 }
