@@ -1,6 +1,6 @@
 import adminApiClient from './adminApiClient'
 
-export type AdminSubscriptionPlan = 'annual_premium'
+export type AdminSubscriptionPlan = 'starter' | 'pro' | 'elite'
 
 export type AdminSubscriptionStatus =
   | 'pending_payment'
@@ -14,6 +14,7 @@ export type AdminSubscriptionAuditAction =
   | 'extend'
   | 'cancel'
   | 'correct_dates'
+  | 'change_tier'
 
 export interface AdminFaceSubscriptionAudit {
   id: string
@@ -59,6 +60,7 @@ export interface AdminFaceSubscriptionMutationResponse {
 }
 
 export interface ActivatePayload {
+  plan: AdminSubscriptionPlan
   notes: string
   starts_at?: string
   duration_days?: number
@@ -77,6 +79,11 @@ export interface CorrectPayload {
   notes: string
   starts_at?: string
   expires_at?: string
+}
+
+export interface ChangeTierPayload {
+  notes: string
+  new_plan: AdminSubscriptionPlan
 }
 
 interface RequestOptions {
@@ -141,6 +148,19 @@ export const adminFaceSubscriptionsApi = {
   ): Promise<AdminFaceSubscriptionMutationResponse> {
     const response = await adminApiClient.post<AdminFaceSubscriptionMutationResponse>(
       `/admin/face-subscriptions/${encodeURIComponent(subscriptionId)}/correct`,
+      payload,
+      { signal: options.signal },
+    )
+    return response.data
+  },
+
+  async changeTier(
+    subscriptionId: string,
+    payload: ChangeTierPayload,
+    options: RequestOptions = {},
+  ): Promise<AdminFaceSubscriptionMutationResponse> {
+    const response = await adminApiClient.post<AdminFaceSubscriptionMutationResponse>(
+      `/admin/face-subscriptions/${encodeURIComponent(subscriptionId)}/change-tier`,
       payload,
       { signal: options.signal },
     )

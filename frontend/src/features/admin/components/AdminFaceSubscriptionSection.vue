@@ -14,10 +14,42 @@ import {
   type AdminSubscriptionActionResult,
 } from '../composables/useAdminFaceSubscriptions'
 import type {
+  ActivatePayload,
   AdminFaceSubscription,
   AdminSubscriptionStatus,
+  ChangeTierPayload,
 } from '../services/adminFaceSubscriptionsApi'
 import { useToast } from '@/composables/useToast'
+
+type TierKey = 'free' | 'starter' | 'pro' | 'elite'
+
+const TIER_LABEL = {
+  free: 'Découverte',
+  starter: 'Starter',
+  pro: 'Pro',
+  elite: 'Élite',
+} as const satisfies Record<TierKey, string>
+
+const PAID_PLANS = ['starter', 'pro', 'elite'] as const satisfies readonly TierKey[]
+type PaidPlan = (typeof PAID_PLANS)[number]
+
+const objectHasOwn: (object: object, propertyKey: PropertyKey) => boolean =
+  (Object as ObjectConstructor & { hasOwn?: (object: object, propertyKey: PropertyKey) => boolean }).hasOwn ??
+  ((object, propertyKey) => Object.prototype.hasOwnProperty.call(object, propertyKey))
+
+function isTierKey(value: string): value is TierKey {
+  return objectHasOwn(TIER_LABEL, value)
+}
+
+function isPaidPlan(value: unknown): value is PaidPlan {
+  return typeof value === 'string' && PAID_PLANS.includes(value as PaidPlan)
+}
+
+function formatTier(state: Record<string, unknown> | null | undefined): TierKey | null {
+  if (!state) return null
+  const tier = state.tier
+  return typeof tier === 'string' && isTierKey(tier) ? tier : null
+}
 
 interface Props {
   faceId: string
@@ -30,6 +62,7 @@ const activateModalRef = ref<HTMLDivElement | null>(null)
 const extendModalRef = ref<HTMLDivElement | null>(null)
 const cancelModalRef = ref<HTMLDivElement | null>(null)
 const correctModalRef = ref<HTMLDivElement | null>(null)
+const changeTierModalRef = ref<HTMLDivElement | null>(null)
 
 const {
   subscriptions,
@@ -41,6 +74,7 @@ const {
   extend,
   cancel,
   correct,
+  changeTier,
 } = useAdminFaceSubscriptions()
 
 async function loadSubscriptions(): Promise<void> {
@@ -190,13 +224,12 @@ function restoreFocus(): void {
   lastFocusedElement.value = null
 }
 
-function trapModalFocus(event: KeyboardEvent, modalRef: typeof activateModalRef): void {
-  const root = modalRef.value
+function trapModalFocus(event: KeyboardEvent, root: HTMLDivElement | null): void {
   if (!root) return
 
   const focusable = Array.from(
     root.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), textarea:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      'button:not([disabled]), select:not([disabled]), textarea:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
     ),
   ).filter((element) => element.offsetParent !== null)
 
@@ -204,6 +237,7 @@ function trapModalFocus(event: KeyboardEvent, modalRef: typeof activateModalRef)
 
   const first = focusable[0]
   const last = focusable[focusable.length - 1]
+  if (!first || !last) return
 
   if (event.shiftKey && document.activeElement === first) {
     event.preventDefault()
@@ -230,6 +264,7 @@ function toggleAuditDiff(auditId: string): void {
 // ---------- Activate modal ----------
 
 const activateOpen = ref(false)
+const activatePlan = ref<PaidPlan>('starter')
 const activateNotes = ref('')
 const activateStartsAt = ref('')
 const activateDurationDays = ref<string>('')
@@ -238,6 +273,7 @@ const activateConflictMessage = ref<string | null>(null)
 const activateErrors = ref<Record<string, string[]>>({})
 
 async function openActivate(): Promise<void> {
+  activatePlan.value = 'starter'
   activateNotes.value = ''
   activateStartsAt.value = ''
   activateDurationDays.value = ''
@@ -260,7 +296,8 @@ async function submitActivate(): Promise<void> {
   activateConflictMessage.value = null
   activateErrors.value = {}
 
-  const payload: { notes: string; starts_at?: string; duration_days?: number } = {
+  const payload: ActivatePayload = {
+    plan: activatePlan.value,
     notes: activateNotes.value.trim(),
   }
   if (activateStartsAt.value) payload.starts_at = activateStartsAt.value
@@ -524,13 +561,112 @@ async function submitCorrect(): Promise<void> {
   }
 }
 
+// ---------- Change tier modal (FEATURE-FP-2.10) ----------
+
+const changeTierTarget = ref<AdminFaceSubscription | null>(null)
+const changeTierNewPlan = ref<PaidPlan>('starter')
+const changeTierNotes = ref('')
+const changeTierSubmitting = ref(false)
+const changeTierConflictMessage = ref<string | null>(null)
+const changeTierErrors = ref<Record<string, string[]>>({})
+
+const changeTierCurrentLabel = computed(() => {
+  const plan = changeTierTarget.value?.plan
+  return isPaidPlan(plan) ? TIER_LABEL[plan] : '—'
+})
+
+const changeTierOptions = computed<PaidPlan[]>(() => {
+  const current = changeTierTarget.value?.plan
+  if (!isPaidPlan(current)) return []
+  return PAID_PLANS.filter((plan) => plan !== current)
+})
+
+function resetChangeTierState(): void {
+  changeTierTarget.value = null
+  changeTierNewPlan.value = 'starter'
+  changeTierNotes.value = ''
+  changeTierConflictMessage.value = null
+  changeTierErrors.value = {}
+}
+
+async function openChangeTier(sub: AdminFaceSubscription): Promise<void> {
+  if (!isPaidPlan(sub.plan)) {
+    toast.error('Impossible de changer le palier : le palier actuel est inconnu.')
+    return
+  }
+
+  changeTierTarget.value = sub
+  changeTierNewPlan.value = changeTierOptions.value[0] ?? 'starter'
+  changeTierNotes.value = ''
+  changeTierConflictMessage.value = null
+  changeTierErrors.value = {}
+  await prepareModalFocus(changeTierModalRef)
+}
+
+function closeChangeTier(): void {
+  if (changeTierSubmitting.value) return
+  resetChangeTierState()
+  restoreFocus()
+}
+
+async function submitChangeTier(): Promise<void> {
+  if (changeTierSubmitting.value) return
+  if (!changeTierTarget.value) return
+  changeTierSubmitting.value = true
+  changeTierConflictMessage.value = null
+  changeTierErrors.value = {}
+
+  const payload: ChangeTierPayload = {
+    notes: changeTierNotes.value.trim(),
+    new_plan: changeTierNewPlan.value,
+  }
+
+  let result: AdminSubscriptionActionResult
+  try {
+    result = await changeTier(changeTierTarget.value.id, payload)
+  } catch {
+    changeTierSubmitting.value = false
+    return
+  }
+
+  if (result.success) {
+    changeTierSubmitting.value = false
+    resetChangeTierState()
+    toast.success(result.message ?? 'Palier modifié')
+    await loadSubscriptions()
+    return
+  }
+
+  changeTierSubmitting.value = false
+
+  if (result.code === 'VALIDATION_ERROR') {
+    changeTierErrors.value = result.errors ?? {}
+    changeTierConflictMessage.value = result.message ?? null
+  } else {
+    changeTierErrors.value = {}
+    changeTierConflictMessage.value = result.message ?? 'Une erreur est survenue'
+    const targetId = changeTierTarget.value?.id
+    await loadSubscriptions()
+    const refreshedTarget = subscriptions.value.find((sub) => sub.id === targetId)
+    if (refreshedTarget && isExtendable(refreshedTarget) && isPaidPlan(refreshedTarget.plan)) {
+      changeTierTarget.value = refreshedTarget
+      changeTierNewPlan.value = changeTierOptions.value[0] ?? 'starter'
+    } else {
+      resetChangeTierState()
+      restoreFocus()
+      toast.error("Cet abonnement n'est plus modifiable.")
+    }
+  }
+}
+
 function closeAllModals(force = false): void {
   if (
     !force &&
     (activateSubmitting.value ||
       extendSubmitting.value ||
       cancelSubmitting.value ||
-      correctSubmitting.value)
+      correctSubmitting.value ||
+      changeTierSubmitting.value)
   ) {
     return
   }
@@ -539,10 +675,12 @@ function closeAllModals(force = false): void {
   extendTarget.value = null
   cancelTarget.value = null
   correctTarget.value = null
+  resetChangeTierState()
   activateSubmitting.value = false
   extendSubmitting.value = false
   cancelSubmitting.value = false
   correctSubmitting.value = false
+  changeTierSubmitting.value = false
   restoreFocus()
 }
 
@@ -658,6 +796,16 @@ const isEmpty = computed(() => !isLoading.value && subscriptions.value.length ==
               Étendre
             </button>
             <button
+              v-if="isExtendable(sub) && isPaidPlan(sub.plan)"
+              type="button"
+              class="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+              data-testid="change-tier-button"
+              :data-subscription-id="sub.id"
+              @click="openChangeTier(sub)"
+            >
+              Changer de palier
+            </button>
+            <button
               v-if="isCancellable(sub)"
               type="button"
               class="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors"
@@ -728,6 +876,22 @@ const isEmpty = computed(() => !isLoading.value && subscriptions.value.length ==
                 <span class="text-gray-400">·</span>
                 <span class="text-gray-500">{{ formatDateTime(audit.created_at) }}</span>
               </div>
+              <span
+                v-if="audit.action === 'change_tier' && formatTier(audit.previous_state) && formatTier(audit.new_state)"
+                class="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-700"
+                :data-testid="`audit-tier-transition-${audit.id}`"
+              >
+                {{ TIER_LABEL[formatTier(audit.previous_state)!] }}
+                <span aria-hidden="true">→</span>
+                {{ TIER_LABEL[formatTier(audit.new_state)!] }}
+              </span>
+              <span
+                v-else-if="audit.action === 'manual_activate' && formatTier(audit.new_state)"
+                class="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-700"
+                :data-testid="`audit-tier-new-${audit.id}`"
+              >
+                Palier : {{ TIER_LABEL[formatTier(audit.new_state)!] }}
+              </span>
               <p class="text-gray-700 whitespace-pre-wrap break-words">{{ audit.notes }}</p>
               <button
                 type="button"
@@ -814,6 +978,34 @@ const isEmpty = computed(() => !isLoading.value && subscriptions.value.length ==
                 data-testid="admin-face-subscription-activate-error"
               >
                 {{ activateConflictMessage }}
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-gray-700" for="activate-plan">
+                  Palier <span class="text-red-500">*</span>
+                </label>
+                <select
+                  id="activate-plan"
+                  v-model="activatePlan"
+                  required
+                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  data-testid="activate-plan"
+                >
+                  <option v-for="plan in PAID_PLANS" :key="plan" :value="plan">
+                    {{ TIER_LABEL[plan] }}
+                  </option>
+                </select>
+                <p class="text-xs text-gray-500">
+                  Le palier choisi est enregistré sur la nouvelle souscription ; le palier
+                  Free n'est pas activable manuellement.
+                </p>
+                <p
+                  v-if="activateErrors.plan?.length"
+                  class="text-xs text-red-600"
+                  data-testid="admin-face-subscription-activate-field-error-plan"
+                >
+                  {{ activateErrors.plan[0] }}
+                </p>
               </div>
 
               <div class="space-y-2">
@@ -1282,6 +1474,147 @@ const isEmpty = computed(() => !isLoading.value && subscriptions.value.length ==
               >
                 <Loader2 v-if="correctSubmitting" class="h-4 w-4 animate-spin" />
                 Corriger
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ============ Change Tier Modal (FEATURE-FP-2.10) ============ -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition duration-150 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="changeTierTarget"
+          ref="changeTierModalRef"
+          class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          data-testid="admin-face-subscription-change-tier-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="change-tier-subscription-title"
+          tabindex="-1"
+          @click.self="closeChangeTier"
+          @keydown.esc="closeChangeTier"
+          @keydown.tab="trapModalFocus($event, changeTierModalRef)"
+        >
+          <div class="w-full max-w-lg rounded-2xl bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div class="border-b border-gray-100 px-6 py-4 flex items-start justify-between">
+              <div>
+                <h3
+                  id="change-tier-subscription-title"
+                  class="text-lg font-semibold text-gray-900"
+                >
+                  Changer le palier de l'abonnement
+                </h3>
+                <p class="mt-1 text-sm text-gray-500">
+                  Mutation du palier uniquement. Les dates de la période en cours restent
+                  inchangées (utilisez « Prolonger » pour étendre la couverture, ou
+                  « Corriger les dates » pour les ajuster).
+                </p>
+              </div>
+              <button
+                type="button"
+                class="text-gray-400 hover:text-gray-600"
+                aria-label="Fermer"
+                @click="closeChangeTier"
+              >
+                <X class="h-5 w-5" />
+              </button>
+            </div>
+
+            <div class="space-y-4 px-6 py-5">
+              <div
+                v-if="changeTierConflictMessage"
+                class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                data-testid="admin-face-subscription-change-tier-error"
+              >
+                {{ changeTierConflictMessage }}
+              </div>
+
+              <dl class="grid grid-cols-1 gap-1 text-sm">
+                <dt class="text-gray-500">Palier actuel</dt>
+                <dd
+                  class="font-medium text-gray-900"
+                  data-testid="change-tier-current"
+                >
+                  {{ changeTierCurrentLabel }}
+                </dd>
+              </dl>
+
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-gray-700" for="change-tier-new-plan">
+                  Nouveau palier <span class="text-red-500">*</span>
+                </label>
+                <select
+                  id="change-tier-new-plan"
+                  v-model="changeTierNewPlan"
+                  required
+                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  data-testid="change-tier-new-plan"
+                >
+                  <option
+                    v-for="plan in changeTierOptions"
+                    :key="plan"
+                    :value="plan"
+                  >
+                    {{ TIER_LABEL[plan] }}
+                  </option>
+                </select>
+                <p
+                  v-if="changeTierErrors.new_plan?.length"
+                  class="text-xs text-red-600"
+                  data-testid="admin-face-subscription-change-tier-field-error-new_plan"
+                >
+                  {{ changeTierErrors.new_plan[0] }}
+                </p>
+              </div>
+
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-gray-700" for="change-tier-notes">
+                  Notes <span class="text-red-500">*</span>
+                </label>
+                <textarea
+                  id="change-tier-notes"
+                  v-model="changeTierNotes"
+                  rows="3"
+                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Raison du changement de palier (5 à 1000 caractères)..."
+                  data-testid="change-tier-notes"
+                />
+                <p
+                  v-if="changeTierErrors.notes?.length"
+                  class="text-xs text-red-600"
+                  data-testid="admin-face-subscription-change-tier-field-error-notes"
+                >
+                  {{ changeTierErrors.notes[0] }}
+                </p>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+              <button
+                type="button"
+                class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+                @click="closeChangeTier"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                :disabled="changeTierSubmitting"
+                data-testid="change-tier-submit"
+                @click="submitChangeTier"
+              >
+                <Loader2 v-if="changeTierSubmitting" class="h-4 w-4 animate-spin" />
+                Confirmer le changement
               </button>
             </div>
           </div>

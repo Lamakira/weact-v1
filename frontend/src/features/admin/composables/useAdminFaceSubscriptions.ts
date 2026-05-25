@@ -6,12 +6,15 @@ import {
   type ExtendPayload,
   type CancelPayload,
   type CorrectPayload,
+  type ChangeTierPayload,
 } from '../services/adminFaceSubscriptionsApi'
 import {
   getApiErrorCode,
+} from '@/services/errorFormatter'
+import {
   getApiErrorDetails,
   getApiErrorMessage,
-} from '@/services/errorFormatter'
+} from '../services/adminAuthApi'
 
 export interface AdminSubscriptionActionResult {
   success: boolean
@@ -192,6 +195,23 @@ export function useAdminFaceSubscriptions() {
     }
   }
 
+  async function changeTier(
+    subscriptionId: string,
+    payload: ChangeTierPayload,
+  ): Promise<AdminSubscriptionActionResult> {
+    const controller = createController()
+    try {
+      const response = await adminFaceSubscriptionsApi.changeTier(subscriptionId, payload, {
+        signal: controller.signal,
+      })
+      return { success: true, message: response.message }
+    } catch (err) {
+      return toFailureResult(err)
+    } finally {
+      releaseController(controller)
+    }
+  }
+
   return {
     subscriptions,
     faceDisplay,
@@ -203,5 +223,6 @@ export function useAdminFaceSubscriptions() {
     extend,
     cancel,
     correct,
+    changeTier,
   }
 }

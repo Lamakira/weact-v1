@@ -6,6 +6,7 @@ const mockActivate = vi.fn()
 const mockExtend = vi.fn()
 const mockCancel = vi.fn()
 const mockCorrect = vi.fn()
+const mockChangeTier = vi.fn()
 
 vi.mock('../../services/adminFaceSubscriptionsApi', () => ({
   adminFaceSubscriptionsApi: {
@@ -14,10 +15,11 @@ vi.mock('../../services/adminFaceSubscriptionsApi', () => ({
     extend: (...args: unknown[]) => mockExtend(...args),
     cancel: (...args: unknown[]) => mockCancel(...args),
     correct: (...args: unknown[]) => mockCorrect(...args),
+    changeTier: (...args: unknown[]) => mockChangeTier(...args),
   },
 }))
 
-vi.mock('@/services/errorFormatter', () => ({
+vi.mock('../../services/adminAuthApi', () => ({
   getApiErrorMessage: vi.fn(
     (err: { response?: { data?: { error?: { message?: string } } } } | undefined) => {
       return err?.response?.data?.error?.message ?? 'Une erreur est survenue'
@@ -32,6 +34,9 @@ vi.mock('@/services/errorFormatter', () => ({
       return err?.response?.data?.error?.details ?? {}
     },
   ),
+}))
+
+vi.mock('@/services/errorFormatter', () => ({
   getApiErrorCode: vi.fn(
     (err: { response?: { data?: { error?: { code?: string } } } } | undefined) => {
       return err?.response?.data?.error?.code ?? null
@@ -55,8 +60,8 @@ function expectRequestOptions(value: unknown): void {
 function makeSubscription(overrides: Record<string, unknown> = {}) {
   return {
     id: 'sub-uuid-1',
-    plan: 'annual_premium',
-    plan_label: 'Premium annuel',
+    plan: 'pro',
+    plan_label: 'Pro',
     status: 'active',
     status_label: 'Active',
     starts_at: '2026-01-01T00:00:00+00:00',
@@ -222,11 +227,11 @@ describe('useAdminFaceSubscriptions - activate', () => {
     })
 
     const { activate } = useAdminFaceSubscriptions()
-    const result = await activate(faceId, { notes: 'Manual activation' })
+    const result = await activate(faceId, { plan: 'pro', notes: 'Manual activation' })
 
     expect(mockActivate).toHaveBeenCalledWith(
       faceId,
-      { notes: 'Manual activation' },
+      { plan: 'pro', notes: 'Manual activation' },
       expect.any(Object),
     )
     expectRequestOptions(mockActivate.mock.calls[0][2])
@@ -248,7 +253,7 @@ describe('useAdminFaceSubscriptions - activate', () => {
     })
 
     const { activate } = useAdminFaceSubscriptions()
-    const result = await activate(faceId, { notes: 'abc' })
+    const result = await activate(faceId, { plan: 'pro', notes: 'abc' })
 
     expect(result.success).toBe(false)
     expect(result.code).toBe('VALIDATION_ERROR')
@@ -270,7 +275,7 @@ describe('useAdminFaceSubscriptions - activate', () => {
     })
 
     const { activate } = useAdminFaceSubscriptions()
-    const result = await activate(faceId, { notes: 'duplicate activation attempt' })
+    const result = await activate(faceId, { plan: 'pro', notes: 'duplicate activation attempt' })
 
     expect(result.success).toBe(false)
     expect(result.code).toBe('ALREADY_ACTIVE')
@@ -291,7 +296,7 @@ describe('useAdminFaceSubscriptions - activate', () => {
     })
 
     const { activate } = useAdminFaceSubscriptions()
-    const result = await activate(faceId, { notes: 'manual activation while payment pending' })
+    const result = await activate(faceId, { plan: 'pro', notes: 'manual activation while payment pending' })
 
     expect(result.success).toBe(false)
     expect(result.code).toBe('PENDING_PAYMENT_EXISTS')
@@ -469,5 +474,119 @@ describe('useAdminFaceSubscriptions - correct', () => {
     expect(result.success).toBe(false)
     expect(result.code).toBe('VALIDATION_ERROR')
     expect(result.errors?.expires_at?.[0]).toBe('expires_at doit être postérieure à starts_at.')
+  })
+})
+
+describe('useAdminFaceSubscriptions - changeTier', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    localStorage.clear()
+  })
+
+  it('returns success: true with message on 200', async () => {
+    mockChangeTier.mockResolvedValue({
+      data: makeSubscription({ plan: 'elite', plan_label: 'Élite' }),
+      message: 'Palier modifié',
+    })
+
+    const { changeTier } = useAdminFaceSubscriptions()
+    const result = await changeTier(subscriptionId, {
+      notes: 'Test notes pour changement',
+      new_plan: 'elite',
+    })
+
+    expect(mockChangeTier).toHaveBeenCalledWith(
+      subscriptionId,
+      { notes: 'Test notes pour changement', new_plan: 'elite' },
+      expect.any(Object),
+    )
+    expectRequestOptions(mockChangeTier.mock.calls[0][2])
+    expect(result.success).toBe(true)
+    expect(result.message).toBe('Palier modifié')
+  })
+
+  it('returns success: false with errors map on 422', async () => {
+    mockChangeTier.mockRejectedValue({
+      response: {
+        status: 422,
+        data: {
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Les données fournies ne sont pas valides',
+            details: { new_plan: ['Le champ palier sélectionné est invalide.'] },
+          },
+        },
+      },
+    })
+
+    const { changeTier } = useAdminFaceSubscriptions()
+    const result = await changeTier(subscriptionId, {
+      notes: 'Test notes',
+      new_plan: 'elite',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.code).toBe('VALIDATION_ERROR')
+    expect(result.errors?.new_plan?.[0]).toBe('Le champ palier sélectionné est invalide.')
+    expect(result.message).toBe('Les données fournies ne sont pas valides')
+  })
+
+  it('returns success: false with code: NOT_TIER_CHANGEABLE on 409', async () => {
+    mockChangeTier.mockRejectedValue({
+      response: {
+        status: 409,
+        data: {
+          error: {
+            code: 'NOT_TIER_CHANGEABLE',
+            message:
+              'Seul un abonnement actif et non expiré peut changer de palier. Utilisez « Activer » pour redémarrer un abonnement terminé.',
+          },
+        },
+      },
+    })
+
+    const { changeTier } = useAdminFaceSubscriptions()
+    const result = await changeTier(subscriptionId, {
+      notes: 'Test notes',
+      new_plan: 'elite',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.code).toBe('NOT_TIER_CHANGEABLE')
+    expect(result.message).toContain('peut changer de palier')
+  })
+
+  it('returns success: false with code: SAME_TIER on 409', async () => {
+    mockChangeTier.mockRejectedValue({
+      response: {
+        status: 409,
+        data: {
+          error: {
+            code: 'SAME_TIER',
+            message: 'Cet abonnement est déjà sur ce palier. Choisissez un palier différent.',
+          },
+        },
+      },
+    })
+
+    const { changeTier } = useAdminFaceSubscriptions()
+    const result = await changeTier(subscriptionId, {
+      notes: 'Test notes',
+      new_plan: 'pro',
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.code).toBe('SAME_TIER')
+    expect(result.message).toContain('déjà sur ce palier')
+  })
+
+  it('rethrows abort errors so the caller can ignore them silently', async () => {
+    mockChangeTier.mockRejectedValue({ name: 'CanceledError' })
+
+    const { changeTier } = useAdminFaceSubscriptions()
+    await expect(
+      changeTier(subscriptionId, { notes: 'x', new_plan: 'elite' }),
+    ).rejects.toMatchObject({ name: 'CanceledError' })
   })
 })
