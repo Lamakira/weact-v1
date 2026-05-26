@@ -75,6 +75,7 @@ class PublicFaceProfileResource extends JsonResource
             'has_album_photos' => $albumPhotosCount > 0,
             'album_photos_count' => $albumPhotosCount,
             'has_presentation_video' => $presentationVisible && $this->presentation_video !== null,
+            'has_elite_badge' => $capabilities->hasEliteBadge,
             'photos' => FacePhotoResource::collection($visiblePhotos),
             'videos' => FaceVideoResource::collection($visibleVideos),
             'experiences' => ExperienceResource::collection($this->whenLoaded('experiences')),

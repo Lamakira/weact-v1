@@ -72,6 +72,7 @@ class FaceResource extends JsonResource
             'formatted_tarif_journalier' => $this->formatted_tarif_journalier,
             'is_available' => $this->is_available,
             'is_featured' => $this->is_featured,
+            'has_elite_badge' => $capabilities->hasEliteBadge,
             ...($viewer === 'admin' ? [
                 'subscription_tier' => $capabilities->tier->value,
             ] : []),

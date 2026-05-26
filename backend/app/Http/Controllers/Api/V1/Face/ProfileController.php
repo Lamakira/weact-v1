@@ -25,7 +25,7 @@ class ProfileController extends Controller
         $user = $request->user();
         /** @var \App\Models\Face $face */
         $face = $user->userable;
-        $face->load(['photos', 'videos']);
+        $face->load(['photos', 'videos', 'activeSubscription']);
 
         return response()->json([
             'data' => new FaceResource($face),

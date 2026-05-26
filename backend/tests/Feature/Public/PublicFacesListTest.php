@@ -42,6 +42,7 @@ class PublicFacesListTest extends TestCase
                         'is_available',
                         'profile_photo_thumbnail_url',
                         'average_rating',
+                        'has_elite_badge',
                     ],
                 ],
                 'meta' => [
@@ -1391,5 +1392,66 @@ class PublicFacesListTest extends TestCase
         $this->expectException(\RuntimeException::class);
 
         $this->getJson('/api/v1/public/faces');
+    }
+
+    // ===================================================================
+    // FP-2.12.1 — has_elite_badge in public faces listing
+    // ===================================================================
+
+    public function test_public_list_emits_has_elite_badge_true_for_active_elite_face(): void
+    {
+        $face = Face::factory()->create();
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $face->id]);
+
+        $this->getJson('/api/v1/public/faces')
+            ->assertOk()
+            ->assertJsonPath('data.0.has_elite_badge', true);
+    }
+
+    public function test_public_list_emits_has_elite_badge_false_for_non_elite_tiers(): void
+    {
+        // Free (no subscription)
+        $free = Face::factory()->create();
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $free->id]);
+
+        // Starter active
+        $starter = Face::factory()->create();
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $starter->id]);
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $starter->id]);
+
+        // Pro active
+        $pro = Face::factory()->create();
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $pro->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $pro->id]);
+
+        $response = $this->getJson('/api/v1/public/faces')->assertOk();
+
+        // Élite-bucket is empty so the 3 returned rows are all non-Élite.
+        $this->assertCount(3, $response->json('data'));
+        foreach ($response->json('data') as $row) {
+            $this->assertFalse($row['has_elite_badge'], "Face {$row['username']} should not have elite badge");
+        }
+    }
+
+    public function test_public_list_emits_has_elite_badge_false_for_expired_and_cancelled_elite(): void
+    {
+        $expired = Face::factory()->create();
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $expired->id]);
+        FaceSubscription::factory()->elite()->expired()->create(['face_id' => $expired->id]);
+
+        $cancelled = Face::factory()->create();
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $cancelled->id]);
+        FaceSubscription::factory()->elite()->cancelled()->create(['face_id' => $cancelled->id]);
+
+        $response = $this->getJson('/api/v1/public/faces')->assertOk();
+
+        $this->assertCount(2, $response->json('data'));
+        foreach ($response->json('data') as $row) {
+            $this->assertFalse($row['has_elite_badge'], "Non-Active Élite face {$row['username']} must not earn the badge");
+        }
     }
 }

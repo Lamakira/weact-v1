@@ -332,4 +332,84 @@ class PremiumAlbumMaskingTest extends TestCase
             Storage::disk('public')->assertExists('avatars/faces/albums/'.$photo->filename);
         }
     }
+
+    // ===================================================================
+    // FP-2.12 has_elite_badge per lens
+    // ===================================================================
+
+    public function test_public_lens_has_elite_badge_is_true_for_elite_face(): void
+    {
+        ['face' => $face] = $this->makeFace(6, 'elite');
+
+        $this->getJson("/api/v1/public/faces/{$face->username}")
+            ->assertOk()
+            ->assertJsonPath('data.has_elite_badge', true);
+    }
+
+    public function test_public_lens_has_elite_badge_is_false_for_non_elite_tiers(): void
+    {
+        foreach ([null, 'starter', 'pro'] as $tier) {
+            ['face' => $face] = $this->makeFace(6, $tier);
+
+            $this->getJson("/api/v1/public/faces/{$face->username}")
+                ->assertOk()
+                ->assertJsonPath('data.has_elite_badge', false);
+        }
+    }
+
+    public function test_producer_lens_has_elite_badge_is_true_for_elite_face(): void
+    {
+        ['face' => $face] = $this->makeFace(6, 'elite');
+        $producer = $this->actingProducer();
+
+        $this->actingAs($producer)
+            ->getJson("/api/v1/producer/candidates/{$face->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.has_elite_badge', true);
+    }
+
+    public function test_owner_lens_has_elite_badge_is_true_for_elite_face(): void
+    {
+        ['face' => $face, 'user' => $user] = $this->makeFace(6, 'elite');
+
+        $this->actingAs($user)
+            ->getJson('/api/v1/face/profile')
+            ->assertOk()
+            ->assertJsonPath('data.has_elite_badge', true);
+    }
+
+    public function test_admin_lens_emits_has_elite_badge_alongside_subscription_tier_for_elite_face(): void
+    {
+        ['face' => $face] = $this->makeFace(6, 'elite');
+        $token = $this->adminToken();
+
+        $this->withToken($token)
+            ->getJson("/api/v1/admin/faces/{$face->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.has_elite_badge', true)
+            ->assertJsonPath('data.subscription_tier', 'elite');
+    }
+
+    public function test_chained_renewal_expired_elite_plus_active_pro_resolves_has_elite_badge_to_false(): void
+    {
+        ['face' => $face] = $this->makeFace(6); // Free baseline (no subscription created by makeFace)
+        FaceSubscription::factory()->elite()->expired()->create(['face_id' => $face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $face->id]);
+
+        $this->getJson("/api/v1/public/faces/{$face->username}")
+            ->assertOk()
+            ->assertJsonPath('data.has_elite_badge', false);
+    }
+
+    // AC #11 — Cancelled Élite avec `expires_at` futur : la souscription reste
+    // visible (grace period) mais n'est plus Active, donc le badge doit tomber.
+    public function test_cancelled_elite_with_future_expiry_resolves_has_elite_badge_to_false(): void
+    {
+        ['face' => $face] = $this->makeFace(6); // Free baseline
+        FaceSubscription::factory()->elite()->cancelled()->create(['face_id' => $face->id]);
+
+        $this->getJson("/api/v1/public/faces/{$face->username}")
+            ->assertOk()
+            ->assertJsonPath('data.has_elite_badge', false);
+    }
 }

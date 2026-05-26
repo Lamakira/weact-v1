@@ -28,7 +28,7 @@ class FaceController extends Controller
         }
 
         // Load relationships for full profile
-        $face->load(['photos', 'experiences', 'videos']);
+        $face->load(['photos', 'experiences', 'videos', 'activeSubscription']);
 
         return new FaceResource($face);
     }

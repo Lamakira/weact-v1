@@ -45,6 +45,7 @@ class FaceController extends Controller
 
         $faces = Face::query()
             ->whereHas('user', fn ($q) => $q->where('is_active', true))
+            ->with('activeSubscription')
             ->withAvg('ratingsReceived', 'score')
             ->when($request->validated('categorie'), fn ($q, $cat) => $q->whereJsonContains('categories', $cat))
             ->when($request->validated('niche'), fn ($q, $niche) => $q->whereJsonContains('niches', $niche))
@@ -172,7 +173,7 @@ class FaceController extends Controller
         $face = Face::query()
             ->where('username', $username)
             ->whereHas('user', fn ($q) => $q->where('is_active', true))
-            ->with(['photos', 'videos', 'experiences', 'user'])
+            ->with(['photos', 'videos', 'experiences', 'user', 'activeSubscription'])
             ->first();
 
         if (! $face) {

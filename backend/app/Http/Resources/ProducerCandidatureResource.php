@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Services\FaceEntitlementService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
@@ -44,6 +45,9 @@ class ProducerCandidatureResource extends JsonResource
                 'city' => $this->face->ville,
                 'tarif_horaire' => $this->face->tarif_horaire,
                 'tarif_journalier' => $this->face->tarif_journalier,
+                'has_elite_badge' => $this->face
+                    ? app(FaceEntitlementService::class)->capabilities($this->face)->hasEliteBadge
+                    : false,
             ]),
         ];
     }
