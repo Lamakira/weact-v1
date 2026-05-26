@@ -73,4 +73,20 @@ class ScheduleWiringTest extends TestCase
         $this->assertNotNull($event, 'FailStalePendingFaceSubscriptionsCommand is not scheduled.');
         $this->assertSame('0 * * * *', $event->expression, 'Schedule must be hourly.');
     }
+
+    public function test_purge_expired_media_is_scheduled_daily_at_03_utc(): void
+    {
+        $schedule = $this->app->make(Schedule::class);
+        $events = collect($schedule->events());
+
+        $event = $events->first(
+            fn ($e) => str_contains($e->command ?? '', 'faces:purge-expired-media'),
+        );
+
+        $this->assertNotNull($event, 'PurgeExpiredMediaCommand is not scheduled.');
+        $this->assertSame('0 3 * * *', $event->expression, 'Schedule must be daily at 03:00 UTC.');
+        $this->assertSame('UTC', $event->timezone, 'Schedule timezone must be UTC (destructive cron contract).');
+        $this->assertTrue($event->withoutOverlapping, 'Schedule must have withoutOverlapping() — destructive cron concurrency guard.');
+        $this->assertTrue($event->onOneServer, 'Schedule must have onOneServer() — destructive cron single-server guard.');
+    }
 }

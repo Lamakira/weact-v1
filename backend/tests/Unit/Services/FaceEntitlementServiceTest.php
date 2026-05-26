@@ -230,6 +230,26 @@ class FaceEntitlementServiceTest extends TestCase
         $this->assertCount(0, $queries);
     }
 
+    public function test_capabilities_memo_does_not_leak_between_destroyed_face_objects(): void
+    {
+        $eliteFaces = Face::factory()->count(120)->create();
+        foreach ($eliteFaces as $face) {
+            FaceSubscription::factory()->elite()->active()->create(['face_id' => $face->id]);
+            $this->assertSame(FaceSubscriptionTier::Elite, $this->service->capabilities($face)->tier);
+        }
+
+        unset($face, $eliteFaces);
+        gc_collect_cycles();
+
+        $freeFace = Face::factory()->create();
+
+        $this->assertSame(
+            FaceSubscriptionTier::Free,
+            $this->service->capabilities($freeFace)->tier,
+            'A long-lived service must not reuse a stale memo entry when PHP reuses an object id.',
+        );
+    }
+
     public function test_capabilities_is_eager_load_aware_with_no_n_plus_one(): void
     {
         $faces = Face::factory()->count(5)->create();
