@@ -8,6 +8,7 @@ use App\Enums\FaceSubscriptionTier;
 use App\Models\Face;
 use App\Models\FaceSubscription;
 use App\ValueObjects\TierCapabilities;
+use WeakMap;
 
 /**
  * Single source of truth for Face subscription entitlements.
@@ -25,9 +26,9 @@ use App\ValueObjects\TierCapabilities;
  *
  * Resolution prefers an eager-loaded `activeSubscription` relation when
  * present; otherwise it issues a single targeted query. Results are memoized
- * per Face object (keyed by spl_object_id) on this instance. The service is
- * intentionally NOT a container singleton: each resolution gets a fresh,
- * short-lived instance, so there is no cross-request staleness.
+ * per Face object on this instance via WeakMap so long-running commands do
+ * not retain stale entries when PHP reuses object ids after model objects
+ * are destroyed. The service is intentionally NOT a container singleton.
  */
 class FaceEntitlementService
 {
@@ -39,24 +40,27 @@ class FaceEntitlementService
 
     public const PREMIUM_PUBLIC_ALBUM_LIMIT = 4;
 
-    /** @var array<int, TierCapabilities> */
-    private array $capabilitiesMemo = [];
+    /** @var WeakMap<Face, TierCapabilities> */
+    private WeakMap $capabilitiesMemo;
+
+    public function __construct()
+    {
+        $this->capabilitiesMemo = new WeakMap;
+    }
 
     /**
      * Canonical entitlement matrix for this Face's current tier.
      */
     public function capabilities(Face $face): TierCapabilities
     {
-        $key = spl_object_id($face);
-
-        if (isset($this->capabilitiesMemo[$key])) {
-            return $this->capabilitiesMemo[$key];
+        if (isset($this->capabilitiesMemo[$face])) {
+            return $this->capabilitiesMemo[$face];
         }
 
         $subscription = $this->resolveActiveSubscription($face);
         $tier = $subscription?->plan->tier() ?? FaceSubscriptionTier::Free;
 
-        return $this->capabilitiesMemo[$key] = $this->buildCapabilities($tier);
+        return $this->capabilitiesMemo[$face] = $this->buildCapabilities($tier);
     }
 
     /**

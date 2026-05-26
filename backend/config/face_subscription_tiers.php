@@ -14,6 +14,7 @@ return [
     'currency' => 'XOF',
     'provider' => 'fedapay',
     'stale_pending_max_hours' => 48,
+    'media_retention_days' => 90,
 
     'tiers' => [
         'free' => [
