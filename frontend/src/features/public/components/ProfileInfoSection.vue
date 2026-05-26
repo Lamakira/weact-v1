@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { MapPin, Star, Wallet } from 'lucide-vue-next'
+import WBadge from '@/components/ui/WBadge.vue'
 
 interface Props {
   prenom: string
@@ -11,11 +12,13 @@ interface Props {
   ratingsCount: number
   tarifHoraire?: string | null
   tarifJournalier?: string | null
+  hasEliteBadge?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   tarifHoraire: null,
   tarifJournalier: null,
+  hasEliteBadge: false,
 })
 
 const hasPricing = computed(() => !!props.tarifHoraire || !!props.tarifJournalier)
@@ -25,12 +28,15 @@ const hasPricing = computed(() => !!props.tarifHoraire || !!props.tarifJournalie
   <div class="flex flex-col gap-6" data-testid="profile-info-section">
     <!-- Header Section -->
     <div class="space-y-1">
-      <h1
-        class="text-3xl font-bold text-gray-900 tracking-tight"
-        data-testid="face-prenom"
-      >
-        {{ prenom }}
-      </h1>
+      <div class="flex items-center gap-2 flex-wrap">
+        <h1
+          class="text-3xl font-bold text-gray-900 tracking-tight"
+          data-testid="face-prenom"
+        >
+          {{ prenom }}
+        </h1>
+        <WBadge v-if="hasEliteBadge" tier="elite" :size="22" />
+      </div>
       <div
         v-if="ville"
         class="flex items-center text-gray-500 text-sm"

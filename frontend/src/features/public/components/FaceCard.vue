@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { User } from 'lucide-vue-next'
 import type { PublicFace } from '../services/publicFacesApi'
+import WBadge from '@/components/ui/WBadge.vue'
 
 interface Props {
   face: PublicFace
@@ -70,6 +71,14 @@ const profileUrl = computed(() => {
     <!-- Gradient Overlay -->
     <div
       class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 to-transparent"
+    />
+
+    <!-- Élite Badge Overlay (top-left, halo blanc pour contraste sur n'importe quelle photo) -->
+    <WBadge
+      v-if="face.has_elite_badge"
+      tier="elite"
+      :size="22"
+      class="absolute top-3 left-3 drop-shadow-[0_0_3px_rgba(255,255,255,0.95)]"
     />
 
     <!-- Availability Indicator -->

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import FaceCard from '../FaceCard.vue'
+import WBadge from '@/components/ui/WBadge.vue'
 import type { PublicFace } from '../../services/publicFacesApi'
 
 // Mock router
@@ -24,6 +25,7 @@ const mockFace: PublicFace = {
   is_available: true,
   profile_photo_thumbnail_url: 'https://example.com/photo.jpg',
   average_rating: 4.5,
+  has_elite_badge: false,
 }
 
 describe('FaceCard', () => {
@@ -151,6 +153,26 @@ describe('FaceCard', () => {
       const wrapper = mountCard()
       expect(wrapper.classes()).toContain('focus-visible:outline-none')
       expect(wrapper.classes()).toContain('focus-visible:ring-2')
+    })
+  })
+
+  describe('FP-2.12.1 — Élite badge (WBadge V13, overlay top-left)', () => {
+    it('renders WBadge in elite tier at 22px with halo when face.has_elite_badge is true', () => {
+      const wrapper = mountCard({ has_elite_badge: true })
+      const badge = wrapper.findComponent(WBadge)
+      expect(badge.exists()).toBe(true)
+      expect(badge.props('tier')).toBe('elite')
+      expect(badge.props('size')).toBe(22)
+      // Top-left overlay placement (not bottom-inline with name) for visibility on dark photos
+      expect(badge.classes()).toContain('top-3')
+      expect(badge.classes()).toContain('left-3')
+      // White drop-shadow halo for contrast on any background photo
+      expect(badge.classes()).toContain('drop-shadow-[0_0_3px_rgba(255,255,255,0.95)]')
+    })
+
+    it('does not render WBadge when face.has_elite_badge is false', () => {
+      const wrapper = mountCard({ has_elite_badge: false })
+      expect(wrapper.findComponent(WBadge).exists()).toBe(false)
     })
   })
 

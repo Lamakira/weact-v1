@@ -167,6 +167,7 @@ const displayProfile = computed((): CandidateFullProfile | null => {
       average_rating: f.average_rating,
       ratings_count: fa.ratings_count ?? 0,
       experiences: fa.experiences ?? [],
+      has_elite_badge: f.has_elite_badge,
       photos: fa.photos ?? [],
     }
   }
@@ -424,6 +425,7 @@ async function handleRetry(): Promise<void> {
               :ratings-count="face.ratings_count"
               :tarif-horaire="null"
               :tarif-journalier="null"
+              :has-elite-badge="face.has_elite_badge"
             />
 
             <!-- Resume Summary (all visitors) -->

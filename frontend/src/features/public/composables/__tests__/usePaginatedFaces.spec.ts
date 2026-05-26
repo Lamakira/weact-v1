@@ -36,6 +36,7 @@ const mockFaces: PublicFace[] = [
     is_available: true,
     profile_photo_thumbnail_url: 'https://example.com/photo1.jpg',
     average_rating: 4.5,
+    has_elite_badge: false,
   },
   {
     id: 2,
@@ -47,6 +48,7 @@ const mockFaces: PublicFace[] = [
     is_available: false,
     profile_photo_thumbnail_url: null,
     average_rating: null,
+    has_elite_badge: false,
   },
 ]
 

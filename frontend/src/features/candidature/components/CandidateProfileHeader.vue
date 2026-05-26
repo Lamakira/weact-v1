@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { MapPin, User, X } from 'lucide-vue-next'
 import type { CandidateFullProfile } from '../types'
+import WBadge from '@/components/ui/WBadge.vue'
 
 /**
  * Props
@@ -81,9 +82,12 @@ const availabilityBadgeClass = computed((): string => {
       <div class="flex-1 text-center sm:text-left">
         <!-- Name and Availability -->
         <div class="flex flex-col items-center gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <h1 class="text-2xl font-bold text-foreground sm:text-3xl">
-            {{ displayName }}
-          </h1>
+          <div class="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
+            <h1 class="text-2xl font-bold text-foreground sm:text-3xl">
+              {{ displayName }}
+            </h1>
+            <WBadge v-if="candidate.has_elite_badge" tier="elite" :size="22" />
+          </div>
           <span
             class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium"
             :class="availabilityBadgeClass"

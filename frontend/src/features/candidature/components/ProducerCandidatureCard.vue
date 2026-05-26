@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, X, Loader2, CheckSquare, Square } from 'lucide-vue-next'
 import type { ProducerCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
+import WBadge from '@/components/ui/WBadge.vue'
 
 /**
  * Props
@@ -231,15 +232,18 @@ const categoryLabel = computed(() => {
       </RouterLink>
 
       <div class="min-w-0 flex-1">
-        <RouterLink
-          :to="{ name: 'producer-candidate-profile', params: { id: candidature.face.id } }"
-          class="inline-flex items-center gap-1 text-base font-semibold text-foreground transition-colors hover:text-primary sm:text-lg"
-        >
-          <span class="truncate">{{ candidature.face.display_name }}</span>
-          <ArrowUpRight
-            class="h-4 w-4 shrink-0 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100"
-          />
-        </RouterLink>
+        <div class="flex items-center gap-2 flex-wrap">
+          <RouterLink
+            :to="{ name: 'producer-candidate-profile', params: { id: candidature.face.id } }"
+            class="inline-flex items-center gap-1 text-base font-semibold text-foreground transition-colors hover:text-primary sm:text-lg"
+          >
+            <span class="truncate">{{ candidature.face.display_name }}</span>
+            <ArrowUpRight
+              class="h-4 w-4 shrink-0 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:opacity-100"
+            />
+          </RouterLink>
+          <WBadge v-if="candidature.face.has_elite_badge" tier="elite" :size="14" />
+        </div>
 
         <div
           class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground"

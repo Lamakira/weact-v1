@@ -27,6 +27,7 @@ export interface PublicFace {
   profile_photo_medium_url: string | null
   profile_photo_thumbnail_url: string | null
   average_rating: number | null
+  has_elite_badge: boolean
 }
 
 /**
@@ -55,6 +56,7 @@ export interface PublicFaceProfile extends PublicFace {
   album_photos_count: number
   has_presentation_video: boolean
   has_acting_video: boolean
+  has_elite_badge: boolean
   photos: FacePhoto[]
   experiences: FaceExperience[]
 }

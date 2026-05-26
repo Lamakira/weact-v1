@@ -125,6 +125,7 @@ export interface FaceSummary {
   city: string | null
   tarif_horaire: number | null
   tarif_journalier: number | null
+  has_elite_badge: boolean
 }
 
 // Producer candidature for list view (includes face summary)
@@ -211,6 +212,7 @@ export interface CandidateFullProfile {
   average_rating: number | null
   ratings_count: number
   experiences: FaceExperience[]
+  has_elite_badge: boolean
   photos: FacePhoto[]
 }
 
