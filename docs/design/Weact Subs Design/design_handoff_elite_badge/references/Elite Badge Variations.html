@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<title>WeAct — Badge Élite VIP · variations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; -webkit-font-smoothing: antialiased; color: #111827; }
+  body { background: #F3F4F6; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="badges.jsx"></script>
+
+<script type="text/babel">
+function App() {
+  return (
+    <DesignCanvas title="Badge Élite VIP — 8 directions" subtitle="Recherche d'une signature visuelle plus raffinée pour les profils Élite. Tous montrés en contexte (en-tête de profil).">
+      <DCSection id="outlined" title="Outlined & légers">
+        <DCArtboard id="v1" label="V1 — Outlined teal + couronne" width={760} height={180}>
+          <BadgeV1 />
+        </DCArtboard>
+        <DCArtboard id="v3" label="V3 — Champagne / gold accent" width={760} height={180}>
+          <BadgeV3 />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="filled" title="Pleins & sombres">
+        <DCArtboard id="v2" label="V2 — Dark fill + sparkle" width={760} height={180}>
+          <BadgeV2 />
+        </DCArtboard>
+        <DCArtboard id="v7" label="V7 — Bichrome dark + dot teal" width={760} height={180}>
+          <BadgeV7 />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="minimal" title="Minimalistes (mark inline)">
+        <DCArtboard id="v4" label="V4 — Cercle teal + sparkle" width={760} height={180}>
+          <BadgeV4 />
+        </DCArtboard>
+        <DCArtboard id="v6" label="V6 — Diamant teal solo" width={760} height={180}>
+          <BadgeV6 />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="layout" title="Au-delà du badge inline">
+        <DCArtboard id="v5" label="V5 — Eyebrow au-dessus du nom" width={760} height={180}>
+          <BadgeV5 />
+        </DCArtboard>
+        <DCArtboard id="v8" label="V8 — Badge sur l'avatar" width={760} height={180}>
+          <BadgeV8 />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="social" title="Inspirés des grands réseaux (burst / verified)">
+        <DCArtboard id="v9" label="V9 — Burst scalloped teal (IG / TikTok)" width={760} height={180}>
+          <BadgeV9 />
+        </DCArtboard>
+        <DCArtboard id="v10" label="V10 — Burst noir + couronne" width={760} height={180}>
+          <BadgeV10 />
+        </DCArtboard>
+        <DCArtboard id="v11" label="V11 — Burst 12 pointes doré (X Premium)" width={760} height={180}>
+          <BadgeV11 />
+        </DCArtboard>
+        <DCArtboard id="v15" label="V15 — Burst doux 16 pointes" width={760} height={180}>
+          <BadgeV15 />
+        </DCArtboard>
+        <DCArtboard id="v14" label="V14 — Check gris discret (YouTube)" width={760} height={180}>
+          <BadgeV14 />
+        </DCArtboard>
+        <DCArtboard id="v13" label="V13 — Monogramme W (signature WeAct)" width={760} height={180}>
+          <BadgeV13 />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="systems" title="Systèmes multi-tiers (Pro + Élite)">
+        <DCArtboard id="v12" label="V12 — Hiérarchie Pro/Élite" width={760} height={240}>
+          <BadgeV12 />
+        </DCArtboard>
+        <DCArtboard id="v16" label="V16 — Vérifié + Élite (pattern X)" width={760} height={180}>
+          <BadgeV16 />
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<title>WeAct — Badge V13 · système complet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; -webkit-font-smoothing: antialiased; color: #111827; }
+  body { background: #F3F4F6; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="badge-v13-system.jsx"></script>
+
+<script type="text/babel">
+function App() {
+  return (
+    <DesignCanvas title="Badge V13 — Système monogramme W" subtitle="Échelle, contextes d'usage, déclinaison Pro/Élite. Test de lisibilité de 14px à 80px.">
+      <DCSection id="scale" title="Échelle">
+        <DCArtboard id="sizes" label="Tailles 14 → 80px · Élite + Pro" width={880} height={360}>
+          <SizeScale />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="profile" title="En contexte — En-tête de profil">
+        <DCArtboard id="header" label="Profile header (cas d'usage initial)" width={880} height={280}>
+          <ProfileHeader />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="listings" title="En contexte — Listings & recherche">
+        <DCArtboard id="cards" label="Cartes de talents (recherche producteur)" width={880} height={500}>
+          <TalentCards />
+        </DCArtboard>
+        <DCArtboard id="results" label="Liste compacte (résultats de recherche)" width={880} height={420}>
+          <SearchResults />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="avatar" title="En contexte — Messages / commentaires">
+        <DCArtboard id="msg" label="Badge attaché à l'avatar" width={880} height={340}>
+          <AvatarOverlay />
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
