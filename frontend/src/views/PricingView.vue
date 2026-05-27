@@ -80,7 +80,7 @@ const tiers: PricingTier[] = [
     isFree: false,
     description: 'Pour les talents prêts à se lancer dans les missions UGC rémunérées.',
     cta: 'Choisir Starter',
-    ctaTo: '/register/face?plan=starter',
+    ctaTo: '/login?redirect=/pricing?plan=starter',
     badge: null,
     features: [
       { text: 'Photo de profil', included: true },
@@ -98,7 +98,7 @@ const tiers: PricingTier[] = [
     isFree: false,
     description: "Pour les talents qui font du cinéma, de l'acting et de l'UGC.",
     cta: 'Choisir Pro',
-    ctaTo: '/register/face?plan=pro',
+    ctaTo: '/login?redirect=/pricing?plan=pro',
     badge: 'Populaire',
     features: [
       { text: 'Photo de profil', included: true },
@@ -118,7 +118,7 @@ const tiers: PricingTier[] = [
     description:
       'Pour les professionnels qui veulent une visibilité maximale et une commission réduite.',
     cta: 'Passer Élite',
-    ctaTo: '/register/face?plan=elite',
+    ctaTo: '/login?redirect=/pricing?plan=elite',
     badge: 'VIP',
     features: [
       { text: 'Portfolio complet : 6 photos', included: true },
@@ -860,7 +860,7 @@ watchEffect(() => {
                     :to="
                       k === 'decouverte'
                         ? '/register/face'
-                        : `/register/face?plan=${k}`
+                        : `/login?redirect=/pricing?plan=${k}`
                     "
                     :data-testid="`cta-comparison-${k}`"
                     :class="[
@@ -923,7 +923,7 @@ watchEffect(() => {
     <!-- ============================================================ -->
     <!-- FAQ                                                           -->
     <!-- ============================================================ -->
-    <section class="max-w-3xl mx-auto px-6 py-8">
+    <section class="max-w-3xl mx-auto sm:px-6 py-8">
       <div class="text-center mb-5">
         <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight mb-2">
           Questions fréquentes
@@ -975,7 +975,7 @@ watchEffect(() => {
     <!-- Footer CTA                                                    -->
     <!-- ============================================================ -->
     <section class="bg-[#FAFAFA] pb-8">
-      <div class="max-w-3xl mx-auto px-6">
+      <div class="max-w-3xl mx-auto sm:px-6">
         <div
           class="border border-gray-200 rounded-2xl p-10 text-center shadow-sm"
         >

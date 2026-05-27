@@ -7,7 +7,7 @@
  */
 import { onMounted, ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { LayoutDashboard, FileText, MessageCircle, User, Briefcase, CalendarCheck, Wallet } from 'lucide-vue-next'
+import { LayoutDashboard, FileText, MessageCircle, User, Briefcase, CalendarCheck, Wallet, CreditCard } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { DashboardLayout, type SidebarItem } from '@/components/layout'
@@ -35,6 +35,7 @@ const sidebarItems: SidebarItem[] = [
   { label: 'Mes bookings', icon: CalendarCheck, to: '/face/bookings' },
   { label: 'Messages', icon: MessageCircle, to: '/face/messages' },
   { label: 'Portefeuille', icon: Wallet, to: '/face/wallet' },
+  { label: 'Tarifs', icon: CreditCard, to: '/pricing' },
   { label: 'Mon profil', icon: User, to: '/face/profile' },
 ]
 

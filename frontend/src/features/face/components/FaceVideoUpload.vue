@@ -51,7 +51,7 @@ const isProcessing = computed(() => props.isUploading || props.isDeleting)
 
 const tierBannerCopy = computed(() =>
   props.type === 'acting'
-    ? "L'ajout d'une vidéo Acting est réservé aux abonnés payants."
+    ? "L'ajout d'une vidéo Acting nécessite un abonnement Pro ou Élite."
     : "L'ajout d'une vidéo UGC est réservé aux abonnés Élite.",
 )
 
