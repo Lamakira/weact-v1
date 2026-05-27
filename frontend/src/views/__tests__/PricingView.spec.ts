@@ -305,9 +305,9 @@ describe('PricingView (public /pricing — FP-2.13)', () => {
   describe('CTA routes', () => {
     const tierExpected: Record<string, string> = {
       decouverte: '/register/face',
-      starter: '/register/face?plan=starter',
-      pro: '/register/face?plan=pro',
-      elite: '/register/face?plan=elite',
+      starter: '/login?redirect=/pricing?plan=starter',
+      pro: '/login?redirect=/pricing?plan=pro',
+      elite: '/login?redirect=/pricing?plan=elite',
     }
 
     it('routes each tier card primary CTA to /register/face with the right ?plan= query (AC #12)', () => {

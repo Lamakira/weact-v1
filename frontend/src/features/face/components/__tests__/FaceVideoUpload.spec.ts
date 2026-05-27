@@ -37,7 +37,9 @@ describe.each([
 
     const banner = wrapper.find('[data-testid="face-video-tier-locked-banner"]')
     if (type === 'acting') {
-      expect(banner.text()).toContain("L'ajout d'une vidéo Acting est réservé aux abonnés payants.")
+      expect(banner.text()).toContain(
+        "L'ajout d'une vidéo Acting nécessite un abonnement Pro ou Élite.",
+      )
     } else {
       expect(banner.text()).toContain("L'ajout d'une vidéo UGC est réservé aux abonnés Élite.")
     }
