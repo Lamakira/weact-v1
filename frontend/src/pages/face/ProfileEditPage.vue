@@ -584,6 +584,10 @@ async function handleSubscriptionChanged(): Promise<void> {
   ])
 }
 
+function handlePaymentCancelled(): void {
+  toast.success('Paiement annulé.')
+}
+
 /**
  * Handle click on missing item in completion indicator
  * Scrolls to the appropriate section
@@ -751,7 +755,10 @@ function handleCompletionItemClick(itemKey: string): void {
 
         <!-- Subscription panel (FP-2.7) -->
         <div class="mb-6">
-          <SubscriptionPanel @subscription-changed="handleSubscriptionChanged" />
+          <SubscriptionPanel
+            @subscription-changed="handleSubscriptionChanged"
+            @payment-cancelled="handlePaymentCancelled"
+          />
         </div>
 
         <!-- Basic info section (name/username) -->

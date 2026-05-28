@@ -484,5 +484,14 @@ export interface SubscriptionVerifyPaymentResponse {
   }
 }
 
+// Payment cancellation (FP-2.8.1 backend, FP-2.15.1 frontend) — POST /api/v1/face/subscription/cancel-pending
+export interface SubscriptionCancelPendingResponse {
+  data: {
+    subscription_id: string
+    status: SubscriptionStatusValue
+  }
+  message?: string
+}
+
 // UI-only ephemeral state for the payment flow
 export type SubscriptionPaymentState = 'idle' | 'waiting' | 'confirmed' | 'failed'

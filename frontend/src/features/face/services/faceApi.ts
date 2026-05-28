@@ -31,6 +31,7 @@ import type {
   SubscriptionStatusResponse,
   SubscriptionInitiatePaymentResponse,
   SubscriptionVerifyPaymentResponse,
+  SubscriptionCancelPendingResponse,
 } from '../types'
 
 /**
@@ -477,6 +478,18 @@ export const faceApi = {
     await getCsrfCookie()
     const response = await apiClient.post<SubscriptionVerifyPaymentResponse>(
       '/face/subscription/verify-payment',
+    )
+    return response.data
+  },
+
+  /**
+   * Cancel the Face's own pending subscription payment (FP-2.8.1 contract,
+   * surfaced to UI by FP-2.15.1)
+   */
+  async cancelPendingSubscription(): Promise<SubscriptionCancelPendingResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<SubscriptionCancelPendingResponse>(
+      '/face/subscription/cancel-pending',
     )
     return response.data
   },

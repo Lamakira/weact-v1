@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Crown, Loader2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -7,8 +7,9 @@ import { useSubscriptionStatus } from '@/features/face/composables/useSubscripti
 import { useSubscriptionPayment } from '@/features/face/composables/useSubscriptionPayment'
 import { useAuthStore } from '@/stores/auth'
 import { TIER_PRESENTATION } from '@/features/face/tierPresentation'
+import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 
-const emit = defineEmits<{ 'subscription-changed': [] }>()
+const emit = defineEmits<{ 'subscription-changed': []; 'payment-cancelled': [] }>()
 
 const router = useRouter()
 
@@ -29,11 +30,13 @@ const {
   isInitiating,
   isPolling,
   isVerifying,
+  isCancelling,
   pendingCheckoutAvailable,
   paymentState,
   error: paymentError,
   verifyPayment,
   resumePayment,
+  cancelPending,
   dismissPaymentError,
 } = useSubscriptionPayment()
 
@@ -144,6 +147,26 @@ function onDismissPaymentError(): void {
   dismissPaymentError()
 }
 
+const cancelConfirmOpen = ref(false)
+
+function openCancelConfirm(): void {
+  cancelConfirmOpen.value = true
+}
+
+async function onCancelConfirm(): Promise<void> {
+  // Close the modal before awaiting — the network round-trip is ~100-500 ms and
+  // keeping the modal open during the await produces a visible mid-confirm lag.
+  cancelConfirmOpen.value = false
+  const ok = await cancelPending()
+  if (ok) {
+    emit('payment-cancelled')
+  }
+}
+
+function onCancelDismiss(): void {
+  cancelConfirmOpen.value = false
+}
+
 // Notify the host page (ProfileEditPage) when a resume-pending payment confirms
 // so it can refresh profile-completion / dependent state.
 watch(paymentState, (state) => {
@@ -233,17 +256,35 @@ watch(paymentState, (state) => {
            because backend status remains 'pending_payment' until the FP-2.8.1
            stale-pending cron lands. -->
 
-      <!-- Payment-waiting banner — session-local feedback, highest priority -->
+      <!-- Payment-waiting banner — session-local feedback, highest priority.
+           FP-2.15.1 L2 — exposes the cancel button here too so a Face who closed
+           the Fedapay tab without paying can abort immediately instead of waiting
+           for the 120 s polling timeout. The composable's cancelPending aborts
+           polling and flips paymentState back to 'idle' before the backend round-trip. -->
       <div
         v-if="paymentState === 'waiting'"
-        class="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800"
+        class="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800"
         data-testid="subscription-panel-waiting"
       >
-        <Loader2 class="mt-0.5 h-4 w-4 flex-shrink-0 animate-spin" />
-        <span>
-          Finalisez le paiement dans l'onglet Fedapay. La confirmation s'affichera ici
-          automatiquement.
-        </span>
+        <div class="flex items-start gap-2">
+          <Loader2 class="mt-0.5 h-4 w-4 flex-shrink-0 animate-spin" />
+          <span>
+            Finalisez le paiement dans l'onglet Fedapay. La confirmation s'affichera ici
+            automatiquement.
+          </span>
+        </div>
+        <div class="mt-3">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            :disabled="isInitiating || isVerifying || isCancelling"
+            data-testid="subscription-panel-waiting-cancel"
+            @click="openCancelConfirm"
+          >
+            Annuler le paiement
+          </Button>
+        </div>
       </div>
 
       <!-- Payment-failed banner — dismissible, suppresses the pending banner so
@@ -285,7 +326,7 @@ watch(paymentState, (state) => {
             type="button"
             variant="default"
             size="sm"
-            :disabled="isInitiating || isPolling || isVerifying"
+            :disabled="isInitiating || isPolling || isVerifying || isCancelling"
             data-testid="subscription-panel-resume"
             @click="onResumeClick"
           >
@@ -295,11 +336,21 @@ watch(paymentState, (state) => {
             type="button"
             variant="outline"
             size="sm"
-            :disabled="isInitiating || isPolling || isVerifying"
+            :disabled="isInitiating || isPolling || isVerifying || isCancelling"
             data-testid="subscription-panel-verify"
             @click="verifyPayment({ manual: true })"
           >
             Vérifier maintenant
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            :disabled="isInitiating || isPolling || isVerifying || isCancelling"
+            data-testid="subscription-panel-cancel"
+            @click="openCancelConfirm"
+          >
+            Annuler le paiement
           </Button>
         </div>
         <!-- Findings #2 + Round 2 P10 — surface inline errors from both manual
@@ -331,4 +382,15 @@ watch(paymentState, (state) => {
       </Button>
     </template>
   </section>
+
+  <ConfirmModal
+    :is-open="cancelConfirmOpen"
+    title="Annuler le paiement en cours ?"
+    message="Cette action annule l'initiation du paiement. Tu pourras en relancer un nouveau depuis la page Tarifs."
+    confirm-text="Oui, annuler"
+    cancel-text="Continuer le paiement"
+    variant="warning"
+    @confirm="onCancelConfirm"
+    @cancel="onCancelDismiss"
+  />
 </template>

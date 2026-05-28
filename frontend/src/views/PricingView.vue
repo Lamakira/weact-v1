@@ -7,6 +7,7 @@ import { useSubscriptionStatus } from '@/features/face/composables/useSubscripti
 import { useSubscriptionPayment } from '@/features/face/composables/useSubscriptionPayment'
 import { TIER_PRESENTATION } from '@/features/face/tierPresentation'
 import TierChangeModal from '@/features/face/components/TierChangeModal.vue'
+import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
 import type { FaceSubscriptionPlan, FaceSubscriptionTier, SubscriptionOffer } from '@/features/face/types'
 
@@ -287,12 +288,14 @@ const {
   isInitiating,
   isPolling,
   isVerifying,
+  isCancelling,
   pendingCheckoutAvailable,
   paymentState,
   error: paymentError,
   initiatePayment,
   resumePayment,
   verifyPayment,
+  cancelPending,
   dismissPaymentError,
 } = useSubscriptionPayment()
 
@@ -424,6 +427,24 @@ function onResumeClick(): void {
   void resumePayment()
 }
 
+const cancelConfirmOpen = ref(false)
+
+function openCancelConfirm(): void {
+  cancelConfirmOpen.value = true
+}
+
+async function onCancelConfirm(): Promise<void> {
+  cancelConfirmOpen.value = false
+  const ok = await cancelPending()
+  if (ok) {
+    toast.success('Paiement annulé.')
+  }
+}
+
+function onCancelDismiss(): void {
+  cancelConfirmOpen.value = false
+}
+
 watch(paymentState, (state) => {
   if (state === 'confirmed') {
     modalOpen.value = false
@@ -483,17 +504,33 @@ watchEffect(() => {
         Vérifiez votre adresse email pour souscrire un abonnement.
       </div>
 
-      <!-- Banner cascade: waiting > failed > pending (mutually exclusive) -->
+      <!-- Banner cascade: waiting > failed > pending (mutually exclusive).
+           FP-2.15.1 L2 — waiting banner exposes the cancel button so a Face
+           closing the Fedapay tab without paying can abort immediately instead
+           of waiting for the 120 s polling timeout. -->
       <div
         v-if="paymentState === 'waiting'"
-        class="mb-3 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800"
+        class="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800"
         data-testid="pricing-banner-waiting"
       >
-        <Loader2 class="mt-0.5 h-4 w-4 flex-shrink-0 animate-spin" />
-        <span>
-          Finalisez le paiement dans l'onglet Fedapay. La confirmation s'affichera ici
-          automatiquement.
-        </span>
+        <div class="flex items-start gap-2">
+          <Loader2 class="mt-0.5 h-4 w-4 flex-shrink-0 animate-spin" />
+          <span>
+            Finalisez le paiement dans l'onglet Fedapay. La confirmation s'affichera ici
+            automatiquement.
+          </span>
+        </div>
+        <div class="mt-3">
+          <button
+            type="button"
+            class="text-sm font-semibold px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            :disabled="isInitiating || isVerifying || isCancelling"
+            data-testid="pricing-banner-waiting-cancel"
+            @click="openCancelConfirm"
+          >
+            Annuler le paiement
+          </button>
+        </div>
       </div>
       <div
         v-else-if="paymentState === 'failed' && paymentError"
@@ -527,7 +564,7 @@ watchEffect(() => {
             v-if="pendingCheckoutAvailable"
             type="button"
             class="text-sm font-semibold px-4 py-2 rounded-md bg-[#198496] text-white hover:bg-[#146c7a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            :disabled="isInitiating || isPolling || isVerifying"
+            :disabled="isInitiating || isPolling || isVerifying || isCancelling"
             data-testid="pricing-banner-resume"
             @click="onResumeClick"
           >
@@ -536,11 +573,20 @@ watchEffect(() => {
           <button
             type="button"
             class="text-sm font-semibold px-4 py-2 rounded-md border border-[#198496] text-[#198496] hover:bg-[#198496]/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            :disabled="isInitiating || isPolling || isVerifying"
+            :disabled="isInitiating || isPolling || isVerifying || isCancelling"
             data-testid="pricing-banner-verify"
             @click="verifyPayment({ manual: true })"
           >
             Vérifier maintenant
+          </button>
+          <button
+            type="button"
+            class="text-sm font-semibold px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            :disabled="isInitiating || isPolling || isVerifying || isCancelling"
+            data-testid="pricing-banner-cancel"
+            @click="openCancelConfirm"
+          >
+            Annuler le paiement
           </button>
         </div>
         <p
@@ -1020,6 +1066,17 @@ watchEffect(() => {
       :is-submitting="isInitiating"
       @confirm="onConfirm"
       @cancel="onCancelModal"
+    />
+
+    <ConfirmModal
+      :is-open="cancelConfirmOpen"
+      title="Annuler le paiement en cours ?"
+      message="Cette action annule l'initiation du paiement. Tu pourras en relancer un nouveau depuis la page Tarifs."
+      confirm-text="Oui, annuler"
+      cancel-text="Continuer le paiement"
+      variant="warning"
+      @confirm="onCancelConfirm"
+      @cancel="onCancelDismiss"
     />
   </div>
 </template>
