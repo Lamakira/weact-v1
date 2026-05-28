@@ -35,7 +35,6 @@ const ctx = vi.hoisted(() => ({
     isPolling: { value: false },
     isVerifying: { value: false },
     isCancelling: { value: false },
-    pendingCheckoutAvailable: { value: false },
     paymentState: { value: 'idle' },
     error: { value: null },
     initiatePayment: vi.fn().mockResolvedValue(true),
@@ -100,7 +99,6 @@ ctx.payment.isInitiating = ref(false)
 ctx.payment.isPolling = ref(false)
 ctx.payment.isVerifying = ref(false)
 ctx.payment.isCancelling = ref(false)
-ctx.payment.pendingCheckoutAvailable = ref(false)
 ctx.payment.paymentState = ref('idle')
 ctx.payment.error = ref(null)
 
@@ -479,7 +477,6 @@ function setupStatus(opts: StatusSetup = {}): void {
 
 interface PaymentSetup {
   paymentState?: 'idle' | 'waiting' | 'confirmed' | 'failed'
-  pendingCheckoutAvailable?: boolean
   isInitiating?: boolean
   isPolling?: boolean
   isVerifying?: boolean
@@ -493,7 +490,6 @@ function setupPayment(opts: PaymentSetup = {}): void {
   ctx.payment.isPolling = ref(opts.isPolling ?? false)
   ctx.payment.isVerifying = ref(opts.isVerifying ?? false)
   ctx.payment.isCancelling = ref(opts.isCancelling ?? false)
-  ctx.payment.pendingCheckoutAvailable = ref(opts.pendingCheckoutAvailable ?? false)
   ctx.payment.paymentState = ref(opts.paymentState ?? 'idle')
   ctx.payment.error = ref(opts.paymentError ?? null)
   ctx.payment.initiatePayment = vi.fn().mockResolvedValue(true)
@@ -555,7 +551,6 @@ describe('auth-aware behavior (FP-2.13.1)', () => {
     ctx.status.offers = { value: [] }
     ctx.status.isLoading = { value: false }
     ctx.payment.paymentState = { value: 'idle' }
-    ctx.payment.pendingCheckoutAvailable = { value: false }
     ctx.payment.error = { value: null }
     ctx.payment.isInitiating = { value: false }
     ctx.payment.isPolling = { value: false }
@@ -713,33 +708,18 @@ describe('auth-aware behavior (FP-2.13.1)', () => {
     }
   })
 
-  it('renders BOTH "Continuer le paiement" and "Vérifier maintenant" when a stash exists during pending', async () => {
+  it('renders BOTH "Continuer le paiement" and "Vérifier maintenant" when the pending banner is visible', async () => {
     setupStatus({
       tier: 'pro',
       status: 'pending_payment',
       cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
     })
-    setupPayment({ pendingCheckoutAvailable: true })
+    setupPayment()
     const wrapper = mountAuth()
     await flushPromises()
 
     expect(wrapper.find('[data-testid="pricing-banner-pending"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="pricing-banner-resume"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="pricing-banner-verify"]').exists()).toBe(true)
-  })
-
-  it('renders only "Vérifier maintenant" (no resume button) when there is no stash during pending', async () => {
-    setupStatus({
-      tier: 'pro',
-      status: 'pending_payment',
-      cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
-    })
-    setupPayment({ pendingCheckoutAvailable: false })
-    const wrapper = mountAuth()
-    await flushPromises()
-
-    expect(wrapper.find('[data-testid="pricing-banner-pending"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="pricing-banner-resume"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="pricing-banner-verify"]').exists()).toBe(true)
   })
 
@@ -827,7 +807,7 @@ describe('Cancel-pending action (FP-2.15.1)', () => {
       expiresAt: '2027-05-23T00:00:00Z',
       cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
     })
-    setupPayment({ pendingCheckoutAvailable: true })
+    setupPayment()
   })
 
   afterEach(() => {
@@ -883,7 +863,6 @@ describe('Cancel-pending action (FP-2.15.1)', () => {
 
   it('T4 — confirming when cancelPending returns false does NOT toast success', async () => {
     setupPayment({
-      pendingCheckoutAvailable: true,
       paymentError: 'Aucun paiement en cours à annuler.',
       cancelPendingResult: false,
     })
@@ -928,5 +907,28 @@ describe('Cancel-pending action (FP-2.15.1)', () => {
     await flushPromises()
 
     expect(wrapper.findComponent(ConfirmModal).props('isOpen')).toBe(true)
+  })
+
+  it('T6 — resume button is visible inside the pending banner without any local stash predicate (FP-2.15.2)', async () => {
+    // Pending banner visible → resume button visible (no stash predicate gates it).
+    const wrapperPending = mountAuth()
+    await flushPromises()
+
+    expect(wrapperPending.find('[data-testid="pricing-banner-pending"]').exists()).toBe(true)
+    expect(wrapperPending.find('[data-testid="pricing-banner-resume"]').exists()).toBe(true)
+
+    // Pending banner NOT visible (active + cta enabled) → resume button NOT rendered.
+    setupStatus({
+      tier: 'pro',
+      status: 'active',
+      expiresAt: '2027-05-23T00:00:00Z',
+      cta: { upgrade_available: true, downgrade_available: false, renew_available: true },
+    })
+    setupPayment()
+    const wrapperActive = mountAuth()
+    await flushPromises()
+
+    expect(wrapperActive.find('[data-testid="pricing-banner-pending"]').exists()).toBe(false)
+    expect(wrapperActive.find('[data-testid="pricing-banner-resume"]').exists()).toBe(false)
   })
 })

@@ -21,18 +21,13 @@ vi.mock('../../services/faceApi', () => ({
     initiateSubscriptionPayment: vi.fn(),
     verifySubscriptionPayment: vi.fn(),
     cancelPendingSubscription: vi.fn(),
+    resumePendingSubscription: vi.fn(),
   },
 }))
 
 vi.mock('@/features/auth/services/authApi', () => ({
   getApiErrorMessage: vi.fn(() => 'Un paiement est déjà en cours pour cet abonnement.'),
 }))
-
-vi.mock('@/stores/auth', () => ({
-  useAuthStore: vi.fn(() => ({ user: { id: 42 } })),
-}))
-
-const STASH_KEY = 'weact:pending-checkout:user-42'
 
 const CAPS: TierCapabilities = {
   max_album_photos: 4,
@@ -427,124 +422,6 @@ describe('useSubscriptionPayment (FP-2.7 tier-aware contract)', () => {
     unmount()
   })
 
-  it('stashes the Fedapay checkout URL in sessionStorage on initiatePayment success (v2 resume mechanic)', async () => {
-    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
-      data: statusData('free', 'pending_payment', null),
-    })
-    const setItemSpy = vi.spyOn(window.sessionStorage, 'setItem')
-
-    const { api, unmount } = mountWithComposable()
-    await api.initiatePayment('pro')
-
-    expect(setItemSpy).toHaveBeenCalledWith(
-      STASH_KEY,
-      expect.stringContaining('"url":"https://checkout.fedapay.test/sess_abc"'),
-    )
-    const stored = JSON.parse(sessionStorage.getItem(STASH_KEY) ?? '{}')
-    expect(stored.url).toBe('https://checkout.fedapay.test/sess_abc')
-    expect(stored.plan).toBe('pro')
-    expect(typeof stored.storedAt).toBe('number')
-    expect(api.pendingCheckoutAvailable.value).toBe(true)
-
-    unmount()
-  })
-
-  it('resumePayment() reads the stash and reopens the Fedapay checkout', async () => {
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
-      data: statusData('free', 'pending_payment', null),
-    })
-    sessionStorage.setItem(
-      STASH_KEY,
-      JSON.stringify({
-        url: 'https://checkout.fedapay.test/sess_resumed',
-        plan: 'pro',
-        storedAt: Date.now(),
-      }),
-    )
-
-    const { api, unmount } = mountWithComposable()
-    expect(api.pendingCheckoutAvailable.value).toBe(true)
-
-    const result = await api.resumePayment()
-    expect(result).toBe(true)
-    expect(openSpy).toHaveBeenCalledWith(
-      'https://checkout.fedapay.test/sess_resumed',
-      '_blank',
-      'noopener,noreferrer',
-    )
-    expect(api.paymentState.value).toBe('waiting')
-    expect(api.isPolling.value).toBe(true)
-
-    unmount()
-  })
-
-  it('resumePayment() returns false with a French error when no stash exists', async () => {
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
-      data: statusData('free', 'pending_payment', null),
-    })
-    // No setItem — stash is empty.
-
-    const { api, unmount } = mountWithComposable()
-    expect(api.pendingCheckoutAvailable.value).toBe(false)
-
-    const result = await api.resumePayment()
-    expect(result).toBe(false)
-    expect(api.error.value).toContain('Aucun paiement à reprendre')
-    expect(api.pendingCheckoutAvailable.value).toBe(false)
-    expect(openSpy).not.toHaveBeenCalled()
-
-    unmount()
-  })
-
-  it('readPendingCheckoutStash deletes entries older than 24h (TTL)', async () => {
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
-      data: statusData('free', 'pending_payment', null),
-    })
-    // Stash entry > 24h old.
-    const oldStoredAt = Date.now() - 25 * 60 * 60 * 1000
-    sessionStorage.setItem(
-      STASH_KEY,
-      JSON.stringify({
-        url: 'https://checkout.fedapay.test/sess_stale',
-        plan: 'pro',
-        storedAt: oldStoredAt,
-      }),
-    )
-    const removeItemSpy = vi.spyOn(window.sessionStorage, 'removeItem')
-
-    const { api, unmount } = mountWithComposable()
-    // On mount, pendingCheckoutAvailable is initialized via readPendingCheckoutStash —
-    // the stale entry is deleted and the ref is false.
-    expect(api.pendingCheckoutAvailable.value).toBe(false)
-    expect(removeItemSpy).toHaveBeenCalledWith(STASH_KEY)
-    expect(sessionStorage.getItem(STASH_KEY)).toBeNull()
-
-    unmount()
-  })
-
-  it('clears the stash when a payment is confirmed via polling', async () => {
-    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
-    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('active'))
-    vi.mocked(faceApi.getSubscriptionStatus)
-      .mockResolvedValueOnce({ data: statusData('free', 'pending_payment', null) })
-      .mockResolvedValueOnce({ data: statusData('pro', 'active', '2027-01-01T00:00:00Z') })
-
-    const { api, unmount } = mountWithComposable()
-    await api.initiatePayment('pro')
-    expect(api.pendingCheckoutAvailable.value).toBe(true)
-    expect(sessionStorage.getItem(STASH_KEY)).not.toBeNull()
-
-    // First poll tick → verifyPayment → refresh returns active+pro → confirmed.
-    await vi.advanceTimersByTimeAsync(5_000)
-
-    expect(api.paymentState.value).toBe('confirmed')
-    expect(api.pendingCheckoutAvailable.value).toBe(false)
-    expect(sessionStorage.getItem(STASH_KEY)).toBeNull()
-
-    unmount()
-  })
-
   it('does NOT confirm a manual verify when no payment was armed in this session (Findings #1 armed-snapshot guard)', async () => {
     // User is already on active Pro from a previous session. A separate pending
     // Élite row exists (initiated from another device). On this device, the
@@ -566,92 +443,6 @@ describe('useSubscriptionPayment (FP-2.7 tier-aware contract)', () => {
 
     // Without arming, the verify must NOT flip paymentState — it just refreshes.
     expect(api.paymentState.value).toBe('idle')
-    expect(api.pendingCheckoutAvailable.value).toBe(false)
-
-    unmount()
-  })
-
-  it('rejects resumePayment while a manual verify is already in flight (Findings #4 race guard)', async () => {
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
-      data: statusData('free', 'pending_payment', null),
-    })
-    sessionStorage.setItem(
-      STASH_KEY,
-      JSON.stringify({
-        url: 'https://checkout.fedapay.test/sess_resumed',
-        plan: 'pro',
-        storedAt: Date.now(),
-      }),
-    )
-
-    // Hang the verify so resume tries to run while isVerifying is true.
-    let resolveVerify!: (response: SubscriptionVerifyPaymentResponse) => void
-    vi.mocked(faceApi.verifySubscriptionPayment).mockImplementationOnce(
-      () =>
-        new Promise<SubscriptionVerifyPaymentResponse>((resolve) => {
-          resolveVerify = resolve
-        }),
-    )
-
-    const { api, unmount } = mountWithComposable()
-    void api.verifyPayment({ manual: true })
-    await flushPromises()
-    expect(api.isVerifying.value).toBe(true)
-
-    const result = await api.resumePayment()
-    expect(result).toBe(false)
-    expect(openSpy).not.toHaveBeenCalled()
-
-    resolveVerify(verifyResponse('pending_payment'))
-    await flushPromises()
-
-    unmount()
-  })
-
-  it('does NOT set pendingCheckoutAvailable when sessionStorage.setItem fails (Findings #6 stash-failure honesty)', async () => {
-    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
-      data: statusData('free', 'pending_payment', null),
-    })
-    // Simulate Safari private mode / quota exceeded — setItem throws.
-    const setItemSpy = vi.spyOn(window.sessionStorage, 'setItem').mockImplementation(() => {
-      throw new Error('QuotaExceededError')
-    })
-
-    const { api, unmount } = mountWithComposable()
-    const result = await api.initiatePayment('pro')
-
-    expect(result).toBe(true) // payment still initiates — sessionStorage failure is non-fatal
-    expect(api.paymentState.value).toBe('waiting')
-    // pendingCheckoutAvailable must reflect the stash truth, not optimism.
-    expect(api.pendingCheckoutAvailable.value).toBe(false)
-
-    setItemSpy.mockRestore()
-    unmount()
-  })
-
-  // Round 2 P1 — resumePayment wraps the body in try/catch/finally so a throw
-  // (e.g. from window.open in a sandboxed iframe) cannot strand paymentState
-  // in 'waiting' forever.
-  it('resumePayment catches a throw from window.open and surfaces a failed state (Round 2 P1)', async () => {
-    sessionStorage.setItem(
-      STASH_KEY,
-      JSON.stringify({ url: 'https://checkout.fedapay.test/sess_xyz', plan: 'pro', storedAt: Date.now() }),
-    )
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
-      data: statusData('free', 'pending_payment', null),
-    })
-    openSpy.mockImplementationOnce(() => {
-      throw new Error('Window.open is not allowed in this sandbox')
-    })
-
-    const { api, unmount } = mountWithComposable()
-    const result = await api.resumePayment()
-
-    expect(result).toBe(false)
-    expect(api.paymentState.value).toBe('failed')
-    expect(api.isInitiating.value).toBe(false)
-    expect(api.error.value).not.toBeNull()
 
     unmount()
   })
@@ -711,34 +502,6 @@ describe('useSubscriptionPayment (FP-2.7 tier-aware contract)', () => {
     expect(api.paymentState.value).toBe('confirmed')
     unmount()
   })
-
-  // Round 2 P6 — dismissPaymentError clears the error + paymentState but PRESERVES
-  // the sessionStorage stash so "Continuer le paiement" stays available after a
-  // timeout (spec Resolved decision #5).
-  it('dismissPaymentError clears the error WITHOUT clearing the stash (Round 2 P6)', async () => {
-    sessionStorage.setItem(
-      STASH_KEY,
-      JSON.stringify({ url: 'https://checkout.fedapay.test/sess_xyz', plan: 'pro', storedAt: Date.now() }),
-    )
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
-      data: statusData('free', 'pending_payment', null),
-    })
-
-    const { api, unmount } = mountWithComposable()
-    // Simulate a failed state with a stashed checkout.
-    api.paymentState.value = 'failed'
-    api.error.value = 'Le délai de confirmation a expiré.'
-
-    api.dismissPaymentError()
-
-    expect(api.error.value).toBeNull()
-    expect(api.paymentState.value).toBe('idle')
-    // The crucial invariant — the stash survives dismiss so the resume button
-    // stays clickable. reset() (legacy behavior) WOULD have cleared it.
-    expect(sessionStorage.getItem(STASH_KEY)).not.toBeNull()
-
-    unmount()
-  })
 })
 
 describe('cancelPending + visibility-aware auto-verify (FP-2.15.1)', () => {
@@ -762,7 +525,7 @@ describe('cancelPending + visibility-aware auto-verify (FP-2.15.1)', () => {
     openSpy.mockRestore()
   })
 
-  it('T1 — cancelPending() POSTs cancel-pending, refreshes status, flips paymentState to idle and clears the stash', async () => {
+  it('T1 — cancelPending() POSTs cancel-pending, refreshes status, flips paymentState to idle', async () => {
     // Real-world entry point for the cancel button: the user returned to /face/profile,
     // the pending banner is visible (paymentState='idle' so banner v-else-if cascade
     // shows pending — see SubscriptionPanel.vue lines 230-319). Polling is not active.
@@ -774,20 +537,11 @@ describe('cancelPending + visibility-aware auto-verify (FP-2.15.1)', () => {
       .mockResolvedValueOnce({ data: statusData('free', 'pending_payment', null) }) // initial seed
       .mockResolvedValueOnce({ data: statusData('free', 'failed', null) }) // post-cancel refresh
 
-    sessionStorage.setItem(
-      STASH_KEY,
-      JSON.stringify({
-        url: 'https://checkout.fedapay.test/sess_xyz',
-        plan: 'pro',
-        storedAt: Date.now(),
-      }),
-    )
     // Seed singleton so the Round 2 D3 watch arms hasArmedPayment on mount.
     await useSubscriptionStatus().fetchStatus()
 
     const { api, unmount } = mountWithComposable()
     await flushPromises()
-    expect(api.pendingCheckoutAvailable.value).toBe(true)
 
     const ok = await api.cancelPending()
 
@@ -795,8 +549,6 @@ describe('cancelPending + visibility-aware auto-verify (FP-2.15.1)', () => {
     expect(faceApi.cancelPendingSubscription).toHaveBeenCalledOnce()
     expect(api.paymentState.value).toBe('idle')
     expect(api.isPolling.value).toBe(false)
-    expect(api.pendingCheckoutAvailable.value).toBe(false)
-    expect(sessionStorage.getItem(STASH_KEY)).toBeNull()
     expect(api.error.value).toBeNull()
     expect(api.isCancelling.value).toBe(false)
 
@@ -850,14 +602,6 @@ describe('cancelPending + visibility-aware auto-verify (FP-2.15.1)', () => {
     vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
       data: statusData('free', 'pending_payment', null),
     })
-    sessionStorage.setItem(
-      STASH_KEY,
-      JSON.stringify({
-        url: 'https://checkout.fedapay.test/sess_xyz',
-        plan: 'pro',
-        storedAt: Date.now(),
-      }),
-    )
 
     const { api, unmount } = mountWithComposable()
     const cancelPromise = api.cancelPending()
@@ -870,6 +614,7 @@ describe('cancelPending + visibility-aware auto-verify (FP-2.15.1)', () => {
 
     const resumeResult = await api.resumePayment()
     expect(resumeResult).toBe(false)
+    expect(faceApi.resumePendingSubscription).not.toHaveBeenCalled()
 
     await api.verifyPayment({ manual: true })
     expect(faceApi.verifySubscriptionPayment).not.toHaveBeenCalled()
@@ -929,7 +674,6 @@ describe('cancelPending + visibility-aware auto-verify (FP-2.15.1)', () => {
     expect(faceApi.cancelPendingSubscription).toHaveBeenCalledOnce()
     expect(api.isPolling.value).toBe(false)
     expect(api.paymentState.value).toBe('idle')
-    expect(api.pendingCheckoutAvailable.value).toBe(false)
 
     // Polling is dead — no further verify calls fire after cancel.
     await vi.advanceTimersByTimeAsync(10_000)
@@ -1080,6 +824,261 @@ describe('cancelPending + visibility-aware auto-verify (FP-2.15.1)', () => {
       verifyCallsBefore + 1,
     )
     expect(api.paymentState.value).toBe('confirmed')
+
+    unmount()
+  })
+})
+
+describe('resumePayment via backend (FP-2.15.2)', () => {
+  let openSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetSharedCachedResourcesForTests()
+    sessionStorage.clear()
+    vi.useFakeTimers()
+    openSpy = vi.spyOn(window, 'open').mockImplementation(() => ({}) as Window)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    openSpy.mockRestore()
+  })
+
+  it('R1 — resumePayment() POSTs resume-payment, opens window with returned URL, starts polling, returns true', async () => {
+    vi.mocked(faceApi.resumePendingSubscription).mockResolvedValue({
+      data: {
+        subscription_id: 'sub_x',
+        status: 'pending_payment',
+        checkout_url: 'https://checkout.fedapay.test/sess_resumed',
+        amount: 25000,
+        currency: 'XOF',
+      },
+      message: 'Reprise du paiement…',
+    })
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'pending_payment', null),
+    })
+
+    const { api, unmount } = mountWithComposable()
+    const result = await api.resumePayment()
+
+    expect(result).toBe(true)
+    expect(faceApi.resumePendingSubscription).toHaveBeenCalledOnce()
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://checkout.fedapay.test/sess_resumed',
+      '_blank',
+      'noopener,noreferrer',
+    )
+    expect(api.paymentState.value).toBe('waiting')
+    expect(api.isPolling.value).toBe(true)
+
+    unmount()
+  })
+
+  it("R2 — resumePayment() with status='active' from backend (Fedapay-approved race) sets paymentState=confirmed, no window.open, returns true", async () => {
+    vi.mocked(faceApi.resumePendingSubscription).mockResolvedValue({
+      data: {
+        subscription_id: 'sub_x',
+        status: 'active',
+        checkout_url: null,
+        amount: 25000,
+        currency: 'XOF',
+      },
+      message: 'Le paiement a déjà été confirmé.',
+    })
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('pro', 'active', '2027-05-23T00:00:00Z'),
+    })
+
+    const { api, unmount } = mountWithComposable()
+    const result = await api.resumePayment()
+
+    expect(result).toBe(true)
+    expect(openSpy).not.toHaveBeenCalled()
+    expect(api.paymentState.value).toBe('confirmed')
+    expect(api.isPolling.value).toBe(false)
+    expect(faceApi.getSubscriptionStatus).toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it("R3 — resumePayment() with checkout_url=null and status='pending_payment' (defensive) surfaces error and returns false", async () => {
+    vi.mocked(faceApi.resumePendingSubscription).mockResolvedValue({
+      data: {
+        subscription_id: 'sub_x',
+        status: 'pending_payment',
+        checkout_url: null,
+        amount: 25000,
+        currency: 'XOF',
+      },
+    })
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'pending_payment', null),
+    })
+
+    const { api, unmount } = mountWithComposable()
+    const result = await api.resumePayment()
+
+    expect(result).toBe(false)
+    expect(api.paymentState.value).toBe('failed')
+    expect(api.error.value).toContain('Aucune URL')
+    expect(openSpy).not.toHaveBeenCalled()
+    expect(api.isPolling.value).toBe(false)
+
+    unmount()
+  })
+
+  it('R4 — resumePayment() catches a 410 RESUME_NOT_AVAILABLE response, sets error.value, calls refreshStatus, returns false', async () => {
+    vi.mocked(faceApi.resumePendingSubscription).mockRejectedValue(
+      new Error('Request failed with status code 410'),
+    )
+    // Backend has flipped the row to Failed during resume; refresh reflects that.
+    vi.mocked(faceApi.getSubscriptionStatus)
+      .mockResolvedValueOnce({ data: statusData('free', 'pending_payment', null) })
+      .mockResolvedValueOnce({ data: statusData('free', 'failed', null) })
+
+    const { api, unmount } = mountWithComposable()
+    const result = await api.resumePayment()
+
+    expect(result).toBe(false)
+    expect(api.paymentState.value).toBe('failed')
+    expect(api.error.value).toBe('Un paiement est déjà en cours pour cet abonnement.')
+    expect(openSpy).not.toHaveBeenCalled()
+    // refreshStatus was called (best-effort) so the pending banner can unmount.
+    expect(faceApi.getSubscriptionStatus).toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it('R5 — resumePayment() catches a 404 NO_PENDING_PAYMENT response (webhook race), sets error.value, returns false', async () => {
+    vi.mocked(faceApi.resumePendingSubscription).mockRejectedValue(
+      new Error('Request failed with status code 404'),
+    )
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'pending_payment', null),
+    })
+
+    const { api, unmount } = mountWithComposable()
+    const result = await api.resumePayment()
+
+    expect(result).toBe(false)
+    expect(api.paymentState.value).toBe('failed')
+    expect(api.error.value).not.toBeNull()
+    expect(openSpy).not.toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it('R6 — resumePayment() catches a network error, sets error.value, returns false', async () => {
+    vi.mocked(faceApi.resumePendingSubscription).mockRejectedValue(new Error('Network Error'))
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'pending_payment', null),
+    })
+
+    const { api, unmount } = mountWithComposable()
+    const result = await api.resumePayment()
+
+    expect(result).toBe(false)
+    expect(api.paymentState.value).toBe('failed')
+    expect(api.error.value).not.toBeNull()
+    expect(openSpy).not.toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it('rejects resumePayment while a manual verify is already in flight (Findings #4 race guard)', async () => {
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'pending_payment', null),
+    })
+
+    // Hang the verify so resume tries to run while isVerifying is true.
+    let resolveVerify!: (response: SubscriptionVerifyPaymentResponse) => void
+    vi.mocked(faceApi.verifySubscriptionPayment).mockImplementationOnce(
+      () =>
+        new Promise<SubscriptionVerifyPaymentResponse>((resolve) => {
+          resolveVerify = resolve
+        }),
+    )
+
+    const { api, unmount } = mountWithComposable()
+    void api.verifyPayment({ manual: true })
+    await flushPromises()
+    expect(api.isVerifying.value).toBe(true)
+
+    const result = await api.resumePayment()
+    expect(result).toBe(false)
+    expect(faceApi.resumePendingSubscription).not.toHaveBeenCalled()
+    expect(openSpy).not.toHaveBeenCalled()
+
+    resolveVerify(verifyResponse('pending_payment'))
+    await flushPromises()
+
+    unmount()
+  })
+
+  // Symmetric to initiatePayment's catch of a window.open throw (Round 2 P1):
+  // the resume flow wraps the body in try/catch so a sandbox iframe throw cannot
+  // strand paymentState in 'waiting' forever. With the backend-driven resume,
+  // the API call succeeds first; window.open then throws and is caught.
+  it('resumePayment catches a throw from window.open and surfaces a failed state', async () => {
+    vi.mocked(faceApi.resumePendingSubscription).mockResolvedValue({
+      data: {
+        subscription_id: 'sub_x',
+        status: 'pending_payment',
+        checkout_url: 'https://checkout.fedapay.test/sess_xyz',
+        amount: 25000,
+        currency: 'XOF',
+      },
+    })
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'pending_payment', null),
+    })
+    openSpy.mockImplementationOnce(() => {
+      throw new Error('Window.open is not allowed in this sandbox')
+    })
+
+    const { api, unmount } = mountWithComposable()
+    const result = await api.resumePayment()
+
+    expect(result).toBe(false)
+    expect(api.paymentState.value).toBe('failed')
+    expect(api.isInitiating.value).toBe(false)
+    expect(api.error.value).not.toBeNull()
+
+    unmount()
+  })
+
+  it('R7 — resumePayment() bails out when isInitiating / isPolling / isVerifying / isCancelling is true', async () => {
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'pending_payment', null),
+    })
+
+    // Case 1 — isInitiating in flight
+    let resolveInitiate: (v: SubscriptionInitiatePaymentResponse) => void = () => undefined
+    vi.mocked(faceApi.initiateSubscriptionPayment).mockReturnValueOnce(
+      new Promise<SubscriptionInitiatePaymentResponse>((r) => {
+        resolveInitiate = r
+      }),
+    )
+
+    const { api, unmount } = mountWithComposable()
+    const initiatePromise = api.initiatePayment('pro')
+    await flushPromises()
+    expect(api.isInitiating.value).toBe(true)
+
+    let result = await api.resumePayment()
+    expect(result).toBe(false)
+    expect(faceApi.resumePendingSubscription).not.toHaveBeenCalled()
+
+    resolveInitiate(initiateResponse('pro'))
+    await initiatePromise
+    expect(api.isPolling.value).toBe(true)
+
+    // Case 2 — isPolling already true (after initiate completes, polling is active)
+    result = await api.resumePayment()
+    expect(result).toBe(false)
+    expect(faceApi.resumePendingSubscription).not.toHaveBeenCalled()
 
     unmount()
   })

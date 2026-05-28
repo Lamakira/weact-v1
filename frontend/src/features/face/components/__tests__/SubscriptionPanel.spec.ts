@@ -125,7 +125,6 @@ function setupStatus(opts: {
 
 function setupPayment(opts: {
   paymentState?: 'idle' | 'waiting' | 'confirmed' | 'failed'
-  pendingCheckoutAvailable?: boolean
   isInitiating?: boolean
   isPolling?: boolean
   isVerifying?: boolean
@@ -136,7 +135,6 @@ function setupPayment(opts: {
   ctx.payment.isPolling = ref(opts.isPolling ?? false)
   ctx.payment.isVerifying = ref(opts.isVerifying ?? false)
   ctx.payment.isCancelling = ref(opts.isCancelling ?? false)
-  ctx.payment.pendingCheckoutAvailable = ref(opts.pendingCheckoutAvailable ?? false)
   ctx.payment.paymentState = ref(opts.paymentState ?? 'idle')
   ctx.payment.error = ref(opts.paymentError ?? null)
   ctx.payment.verifyPayment = vi.fn().mockResolvedValue(undefined)
@@ -280,13 +278,12 @@ describe('SubscriptionPanel (FP-2.7 v2 — minimalist + resume-pending + redirec
     expect(ctx.routerPush).not.toHaveBeenCalled()
   })
 
-  it('renders BOTH "Continuer le paiement" and "Vérifier maintenant" when a stash exists during pending', async () => {
+  it('renders BOTH "Continuer le paiement" and "Vérifier maintenant" when the pending banner is visible', async () => {
     setupStatus({
       tier: 'pro',
       status: 'pending_payment',
       cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
     })
-    setupPayment({ pendingCheckoutAvailable: true })
     const wrapper = mount(SubscriptionPanel)
     await flushPromises()
 
@@ -296,20 +293,6 @@ describe('SubscriptionPanel (FP-2.7 v2 — minimalist + resume-pending + redirec
 
     await wrapper.find('[data-testid="subscription-panel-resume"]').trigger('click')
     expect(ctx.payment.resumePayment).toHaveBeenCalledTimes(1)
-  })
-
-  it('renders ONLY "Vérifier maintenant" when no stash exists during pending', async () => {
-    setupStatus({
-      tier: 'pro',
-      status: 'pending_payment',
-      cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
-    })
-    setupPayment({ pendingCheckoutAvailable: false })
-    const wrapper = mount(SubscriptionPanel)
-    await flushPromises()
-
-    expect(wrapper.find('[data-testid="subscription-panel-resume"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="subscription-panel-verify"]').exists()).toBe(true)
   })
 
   it('shows the email-not-verified note and disables the CTA when email is unverified', async () => {
@@ -444,7 +427,7 @@ describe('SubscriptionPanel (FP-2.7 v2 — minimalist + resume-pending + redirec
       status: 'pending_payment',
       cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
     })
-    setupPayment({ pendingCheckoutAvailable: true, isVerifying: true })
+    setupPayment({ isVerifying: true })
     const wrapper = mount(SubscriptionPanel)
     await flushPromises()
 
@@ -458,7 +441,7 @@ describe('SubscriptionPanel (FP-2.7 v2 — minimalist + resume-pending + redirec
       status: 'pending_payment',
       cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
     })
-    setupPayment({ pendingCheckoutAvailable: true, isInitiating: true })
+    setupPayment({ isInitiating: true })
     const wrapper = mount(SubscriptionPanel)
     await flushPromises()
 
@@ -565,7 +548,6 @@ describe('Cancel-pending action (FP-2.15.1)', () => {
 
   it('T1 — renders "Annuler le paiement" button alongside Continuer / Vérifier when hasPendingPayment is true', async () => {
     pendingBannerSetup()
-    setupPayment({ paymentState: 'idle', pendingCheckoutAvailable: true })
     const wrapper = mount(SubscriptionPanel)
     await flushPromises()
 
@@ -576,6 +558,30 @@ describe('Cancel-pending action (FP-2.15.1)', () => {
     expect(wrapper.get('[data-testid="subscription-panel-cancel"]').text()).toBe(
       'Annuler le paiement',
     )
+  })
+
+  it('T7 — resume button is visible inside the pending banner without any local stash predicate (FP-2.15.2)', async () => {
+    // Pending banner visible → resume button visible (no stash predicate gates it).
+    pendingBannerSetup()
+    const wrapperPending = mount(SubscriptionPanel)
+    await flushPromises()
+
+    expect(wrapperPending.find('[data-testid="subscription-panel-pending"]').exists()).toBe(true)
+    expect(wrapperPending.find('[data-testid="subscription-panel-resume"]').exists()).toBe(true)
+
+    // Pending banner NOT visible (active + cta enabled) → resume button NOT rendered.
+    setupStatus({
+      tier: 'pro',
+      status: 'active',
+      expiresAt: '2027-05-23T00:00:00Z',
+      cta: { upgrade_available: true, downgrade_available: false, renew_available: true },
+    })
+    setupPayment({ paymentState: 'idle' })
+    const wrapperActive = mount(SubscriptionPanel)
+    await flushPromises()
+
+    expect(wrapperActive.find('[data-testid="subscription-panel-pending"]').exists()).toBe(false)
+    expect(wrapperActive.find('[data-testid="subscription-panel-resume"]').exists()).toBe(false)
   })
 
   it('T2 — does NOT render "Annuler le paiement" button when there is no pending banner (e.g., active state)', async () => {
