@@ -71,7 +71,7 @@ class CancelPendingFaceSubscriptionTest extends TestCase
 
         $response->assertStatus(404)
             ->assertJsonPath('error.code', 'NO_PENDING_PAYMENT')
-            ->assertJsonPath('error.message', 'Aucun paiement en attente à annuler.');
+            ->assertJsonPath('error.message', 'Aucun paiement en attente.');
     }
 
     public function test_face_with_only_terminal_history_returns_404_no_pending_payment(): void
