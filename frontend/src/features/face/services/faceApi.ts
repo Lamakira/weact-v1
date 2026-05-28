@@ -32,6 +32,7 @@ import type {
   SubscriptionInitiatePaymentResponse,
   SubscriptionVerifyPaymentResponse,
   SubscriptionCancelPendingResponse,
+  SubscriptionResumePaymentResponse,
 } from '../types'
 
 /**
@@ -490,6 +491,19 @@ export const faceApi = {
     await getCsrfCookie()
     const response = await apiClient.post<SubscriptionCancelPendingResponse>(
       '/face/subscription/cancel-pending',
+    )
+    return response.data
+  },
+
+  /**
+   * Resume the Face's existing pending payment by asking the backend to
+   * regenerate a fresh Fedapay checkout URL (and auto-reconcile if Fedapay
+   * has already approved / declined / canceled / expired the transaction).
+   */
+  async resumePendingSubscription(): Promise<SubscriptionResumePaymentResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<SubscriptionResumePaymentResponse>(
+      '/face/subscription/resume-payment',
     )
     return response.data
   },

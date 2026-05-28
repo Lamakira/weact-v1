@@ -3,11 +3,9 @@ import { faceApi } from '../services/faceApi'
 import type { FaceSubscriptionPlan, FaceSubscriptionTier, SubscriptionPaymentState } from '../types'
 import { useSubscriptionStatus } from './useSubscriptionStatus'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
-import { useAuthStore } from '@/stores/auth'
 
 const POLL_INTERVAL_MS = 5000
 const POLL_TIMEOUT_MS = 120000
-const STASH_TTL_MS = 24 * 60 * 60 * 1000
 
 interface PaymentSnapshot {
   tier: FaceSubscriptionTier
@@ -18,18 +16,11 @@ interface VerifyPaymentOptions {
   manual?: boolean
 }
 
-interface PendingCheckoutStash {
-  url: string
-  plan: string
-  storedAt: number
-}
-
 interface UseSubscriptionPaymentReturn {
   isInitiating: Ref<boolean>
   isPolling: Ref<boolean>
   isVerifying: Ref<boolean>
   isCancelling: Ref<boolean>
-  pendingCheckoutAvailable: Ref<boolean>
   paymentState: Ref<SubscriptionPaymentState>
   error: Ref<string | null>
   initiatePayment: (plan: FaceSubscriptionPlan) => Promise<boolean>
@@ -41,55 +32,6 @@ interface UseSubscriptionPaymentReturn {
   reset: () => void
 }
 
-// Stash key is scoped to the authenticated user so one Face's pending checkout
-// cannot leak to another on a shared browser. user.id is always present when
-// isAuthenticated; the 'guest' fallback is defensive (no payment can be initiated
-// unauthenticated — backend rejects 401).
-function getStashKey(): string {
-  const userId = useAuthStore().user?.id ?? 'guest'
-  return `weact:pending-checkout:user-${userId}`
-}
-
-function readPendingCheckoutStash(): PendingCheckoutStash | null {
-  try {
-    const raw = sessionStorage.getItem(getStashKey())
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as Partial<PendingCheckoutStash>
-    if (!parsed.url || !parsed.plan || typeof parsed.storedAt !== 'number') return null
-    // TTL: Fedapay checkout URLs typically expire after ~24h.
-    if (Date.now() - parsed.storedAt > STASH_TTL_MS) {
-      clearPendingCheckoutStash()
-      return null
-    }
-    return parsed as PendingCheckoutStash
-  } catch {
-    return null
-  }
-}
-
-// Returns true if the stash was successfully written, false on quota/private-mode
-// failures. Callers use the return value to gate `pendingCheckoutAvailable` so the
-// UI never advertises a resume button for a stash that was silently dropped.
-function stashPendingCheckout(url: string, plan: string): boolean {
-  try {
-    sessionStorage.setItem(
-      getStashKey(),
-      JSON.stringify({ url, plan, storedAt: Date.now() } satisfies PendingCheckoutStash),
-    )
-    return true
-  } catch {
-    return false
-  }
-}
-
-function clearPendingCheckoutStash(): void {
-  try {
-    sessionStorage.removeItem(getStashKey())
-  } catch {
-    // no-op
-  }
-}
-
 export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
   const isInitiating = ref(false)
   const isPolling = ref(false)
@@ -97,7 +39,6 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
   const isCancelling = ref(false)
   const paymentState = ref<SubscriptionPaymentState>('idle')
   const error = ref<string | null>(null)
-  const pendingCheckoutAvailable = ref<boolean>(readPendingCheckoutStash() !== null)
 
   // Armed iff a payment attempt was actually initiated or resumed in THIS composable
   // instance. Without this flag, `verifyPayment({ manual: true })` would falsely
@@ -218,8 +159,6 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
 
       if (isConfirmed()) {
         stopPolling()
-        clearPendingCheckoutStash()
-        pendingCheckoutAvailable.value = false
         hasArmedPayment.value = false
         paymentState.value = 'confirmed'
       } else if (current.value?.status === 'failed') {
@@ -268,13 +207,6 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
         return false
       }
 
-      // Findings #6 — only flip pendingCheckoutAvailable when the stash actually
-      // landed in sessionStorage. Otherwise (Safari private mode, quota-restricted
-      // storage), the resume button would be advertised for a stash that doesn't
-      // exist, leading to a confusing "Aucun paiement à reprendre" on click.
-      const stashed = stashPendingCheckout(response.data.checkout_url, plan)
-      pendingCheckoutAvailable.value = stashed
-
       // Arm the payment attempt — see hasArmedPayment doc above.
       hasArmedPayment.value = true
 
@@ -300,18 +232,9 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
   }
 
   async function resumePayment(): Promise<boolean> {
-    // Findings #4 — block resume while a manual verify is in flight, otherwise
-    // the in-flight verify can resolve concurrently with the resume's polling
-    // cycle and mutate paymentState unpredictably.
-    if (isInitiating.value || isPolling.value || isVerifying.value || isCancelling.value) return false
-
-    const stash = readPendingCheckoutStash()
-    if (!stash) {
-      error.value = 'Aucun paiement à reprendre. Initiez un nouveau paiement depuis la page Tarifs.'
-      pendingCheckoutAvailable.value = false
+    if (isInitiating.value || isPolling.value || isVerifying.value || isCancelling.value) {
       return false
     }
-
     isInitiating.value = true
     error.value = null
     paymentState.value = 'idle'
@@ -319,34 +242,50 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
       tier: current.value?.tier ?? 'free',
       expiresAt: current.value?.expires_at ?? null,
     }
-
     try {
-      const checkoutWindow = window.open(stash.url, '_blank', 'noopener,noreferrer')
+      const response = await faceApi.resumePendingSubscription()
+      // Backend already reconciled to Active (Fedapay approved during resume race).
+      if (response.data.status === 'active') {
+        paymentState.value = 'confirmed'
+        hasArmedPayment.value = false
+        await refreshStatus()
+        return true
+      }
+      const checkoutUrl = response.data.checkout_url
+      if (!checkoutUrl) {
+        // Defensive — backend returned pending_payment without a URL.
+        error.value =
+          'Aucune URL de paiement disponible. Veuillez initier un nouveau paiement depuis la page Tarifs.'
+        paymentState.value = 'failed'
+        return false
+      }
+      const checkoutWindow = window.open(checkoutUrl, '_blank', 'noopener,noreferrer')
       if (!checkoutWindow) {
         error.value =
           'La fenêtre de paiement a été bloquée. Autorisez les popups puis réessayez.'
         paymentState.value = 'failed'
         return false
       }
-
-      // Arm the payment attempt — see hasArmedPayment doc above.
       hasArmedPayment.value = true
-
       paymentState.value = 'waiting'
-
       try {
         await refreshStatus()
       } catch {
-        // P3 tolerance — polling will refresh on first tick.
+        // P3 tolerance — polling will refresh.
       }
       startPolling()
       return true
     } catch (err) {
-      // Round 2 P1 — symmetric catch with initiatePayment. Any throw from
-      // window.open (sandbox iframe), startPolling (setInterval unavailable),
-      // or refreshStatus would otherwise leave paymentState in 'waiting' forever.
       error.value = getApiErrorMessage(err)
       paymentState.value = 'failed'
+      // Refresh status so the UI reflects the backend reconciliation
+      // (the resume endpoint flips the row to Failed on declined / canceled / expired,
+      // so the pending banner unmounts as soon as the refresh lands).
+      try {
+        await refreshStatus()
+      } catch {
+        // Swallow — the user can manually verify / refresh.
+      }
       return false
     } finally {
       isInitiating.value = false
@@ -373,8 +312,6 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
     }
     try {
       await faceApi.cancelPendingSubscription()
-      clearPendingCheckoutStash()
-      pendingCheckoutAvailable.value = false
       hasArmedPayment.value = false
       paymentState.value = 'idle'
       await refreshStatus()
@@ -395,14 +332,8 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
     hasArmedPayment.value = false
     paymentState.value = 'idle'
     error.value = null
-    clearPendingCheckoutStash()
-    pendingCheckoutAvailable.value = false
   }
 
-  // Round 2 P6 — surgical dismiss for the failed-banner "Fermer" action: clears
-  // the displayed error and resets paymentState, but PRESERVES the sessionStorage
-  // stash so the user can still click "Continuer le paiement" after a timeout or
-  // transient failure (per spec Resolved decision #5: "NOT cleared on failed").
   function dismissPaymentError(): void {
     error.value = null
     paymentState.value = 'idle'
@@ -441,7 +372,6 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
     isPolling,
     isVerifying,
     isCancelling,
-    pendingCheckoutAvailable,
     paymentState,
     error,
     initiatePayment,

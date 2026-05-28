@@ -493,5 +493,17 @@ export interface SubscriptionCancelPendingResponse {
   message?: string
 }
 
+// Payment resume (FP-2.15.2) — POST /api/v1/face/subscription/resume-payment
+export interface SubscriptionResumePaymentResponse {
+  data: {
+    subscription_id: string
+    status: SubscriptionStatusValue
+    checkout_url: string | null
+    amount: number | null
+    currency: string | null
+  }
+  message?: string
+}
+
 // UI-only ephemeral state for the payment flow
 export type SubscriptionPaymentState = 'idle' | 'waiting' | 'confirmed' | 'failed'

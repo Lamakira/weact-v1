@@ -289,7 +289,6 @@ const {
   isPolling,
   isVerifying,
   isCancelling,
-  pendingCheckoutAvailable,
   paymentState,
   error: paymentError,
   initiatePayment,
@@ -561,7 +560,6 @@ watchEffect(() => {
         </div>
         <div class="mt-3 flex flex-col gap-2 sm:flex-row">
           <button
-            v-if="pendingCheckoutAvailable"
             type="button"
             class="text-sm font-semibold px-4 py-2 rounded-md bg-[#198496] text-white hover:bg-[#146c7a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             :disabled="isInitiating || isPolling || isVerifying || isCancelling"

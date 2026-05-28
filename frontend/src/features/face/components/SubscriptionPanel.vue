@@ -31,7 +31,6 @@ const {
   isPolling,
   isVerifying,
   isCancelling,
-  pendingCheckoutAvailable,
   paymentState,
   error: paymentError,
   verifyPayment,
@@ -138,11 +137,8 @@ function onResumeClick(): void {
   void resumePayment()
 }
 
-// Round 2 P6 — dismissing the failed banner must NOT call reset(): reset()
-// clears the sessionStorage stash (per Decision #5 of the spec, the stash should
-// stay for 24h so the user can retry "Continuer le paiement" after a transient
-// failure or timeout). Use the surgical dismiss that only clears the error +
-// resets paymentState back to 'idle'.
+// Surgical dismiss : only clears the error + resets paymentState to 'idle',
+// without touching the pending row or its server-side state.
 function onDismissPaymentError(): void {
   dismissPaymentError()
 }
@@ -322,7 +318,6 @@ watch(paymentState, (state) => {
                (initiating / polling / verifying) so resume and verify cannot
                race against each other. -->
           <Button
-            v-if="pendingCheckoutAvailable"
             type="button"
             variant="default"
             size="sm"
