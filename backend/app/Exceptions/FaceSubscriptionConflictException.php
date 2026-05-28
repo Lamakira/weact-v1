@@ -46,7 +46,7 @@ class FaceSubscriptionConflictException extends HttpException
     {
         return new self(
             errorCode: 'NO_PENDING_PAYMENT',
-            message: 'Aucun paiement en attente à annuler.',
+            message: 'Aucun paiement en attente.',
             statusCode: 404,
         );
     }
@@ -89,6 +89,33 @@ class FaceSubscriptionConflictException extends HttpException
             errorCode: 'PLAN_UNAVAILABLE',
             message: 'L\'abonnement annuel n\'est pas disponible pour le moment. Veuillez réessayer plus tard ou contacter le support.',
             statusCode: 422,
+        );
+    }
+
+    public static function resumeNotAvailable(string $fedapayStatus): self
+    {
+        return new self(
+            errorCode: 'RESUME_NOT_AVAILABLE',
+            message: 'Ce paiement ne peut plus être repris. Veuillez en initier un nouveau depuis la page Tarifs.',
+            statusCode: 410,
+        );
+    }
+
+    public static function cannotResume(): self
+    {
+        return new self(
+            errorCode: 'CANNOT_RESUME_WITHOUT_PROVIDER_REFERENCE',
+            message: 'Ce paiement ne peut pas être repris automatiquement. Veuillez en initier un nouveau depuis la page Tarifs.',
+            statusCode: 409,
+        );
+    }
+
+    public static function paymentUnderManualReview(): self
+    {
+        return new self(
+            errorCode: 'PAYMENT_UNDER_MANUAL_REVIEW',
+            message: 'Paiement reçu mais en attente de validation manuelle. Notre équipe vous contactera prochainement.',
+            statusCode: 409,
         );
     }
 

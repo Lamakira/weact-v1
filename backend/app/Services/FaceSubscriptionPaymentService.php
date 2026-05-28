@@ -522,6 +522,195 @@ class FaceSubscriptionPaymentService
     }
 
     /**
+     * Resume the Face's existing pending subscription by retrieving the current
+     * Fedapay transaction state and either regenerating a fresh checkout URL
+     * (status=pending) or reconciling the local row to Active (approved) /
+     * Failed (declined / canceled / expired).
+     *
+     * Throws noPendingPayment() (404) if no pending row exists.
+     * Throws cannotResume() (409) if the pending row has no provider_reference.
+     * Throws resumeNotAvailable($status) (410) on Fedapay declined / canceled / expired.
+     * Throws FaceSubscriptionPaymentInitiationException (502) on Fedapay HTTP error
+     * or unknown status.
+     *
+     * @return array{
+     *   subscription: FaceSubscription,
+     *   status: string,
+     *   checkout_url: ?string,
+     *   amount: ?int,
+     *   currency: ?string,
+     * }
+     *
+     * @throws FaceSubscriptionConflictException
+     * @throws FaceSubscriptionPaymentInitiationException
+     */
+    public function resumePending(Face $face): array
+    {
+        /** @var FaceSubscription|null $pending */
+        $pending = FaceSubscription::query()
+            ->where('face_id', $face->id)
+            ->where('status', FaceSubscriptionStatus::PendingPayment)
+            ->latest('id')
+            ->first();
+
+        if ($pending === null) {
+            throw FaceSubscriptionConflictException::noPendingPayment();
+        }
+
+        if ($pending->provider_reference === null) {
+            Log::warning('Face subscription resume: pending row has no provider_reference (transient finalize_local failure ?)', [
+                'face_subscription_id' => $pending->id,
+                'face_id' => $face->id,
+            ]);
+            throw FaceSubscriptionConflictException::cannotResume();
+        }
+
+        try {
+            $transaction = $this->fedapayService->retrieveTransaction((int) $pending->provider_reference);
+        } catch (\Throwable $e) {
+            $this->logResumeFailure($pending, 'retrieve_transaction', $e);
+            throw new FaceSubscriptionPaymentInitiationException(
+                'Le paiement ne peut pas être repris pour le moment. Veuillez réessayer.',
+                previous: $e,
+            );
+        }
+
+        $fedapayStatus = (string) ($transaction->status ?? '');
+        $fedapayRef = (string) ($transaction->reference ?? $pending->provider_reference);
+        $providerReference = (string) $pending->provider_reference;
+
+        if ($fedapayStatus === 'approved') {
+            $active = $this->markAsPaid(
+                $pending,
+                $fedapayRef,
+                $this->extractPaidAmountFromTransaction($transaction),
+                $this->transactionPayload($transaction),
+                $providerReference,
+            );
+
+            // markAsPaid refuses activation on amount / currency mismatch and on
+            // late-approval-after-local-failure (FP-2.5) — the row stays
+            // PendingPayment or Failed and ops gets paged via the critical log.
+            // Surface a clearer message than the defensive "Aucune URL" the
+            // frontend would otherwise show on $checkout_url === null.
+            if ($active->status !== FaceSubscriptionStatus::Active) {
+                throw FaceSubscriptionConflictException::paymentUnderManualReview();
+            }
+
+            return [
+                'subscription' => $active,
+                'status' => $active->status->value,
+                'checkout_url' => null,
+                'amount' => $active->plan->price(),
+                'currency' => (string) $active->currency,
+            ];
+        }
+
+        // Fedapay `expired` semantics match `declined`/`canceled`: the user must
+        // re-initiate, so we flip Failed locally and surface 410 RESUME_NOT_AVAILABLE.
+        if (in_array($fedapayStatus, ['declined', 'canceled', 'expired'], true)) {
+            $this->markAsFailed(
+                $pending,
+                $fedapayRef,
+                "Payment transaction.{$fedapayStatus}",
+                $providerReference,
+            );
+
+            throw FaceSubscriptionConflictException::resumeNotAvailable($fedapayStatus);
+        }
+
+        if ($fedapayStatus !== 'pending') {
+            Log::warning('Face subscription resume: unknown Fedapay status', [
+                'face_subscription_id' => $pending->id,
+                'fedapay_transaction_id' => $providerReference,
+                'fedapay_status' => $fedapayStatus,
+            ]);
+
+            throw new FaceSubscriptionPaymentInitiationException(
+                'Le paiement ne peut pas être repris pour le moment. Veuillez réessayer.',
+            );
+        }
+
+        try {
+            $remote = $this->fedapayService->regenerateTokenFromTransaction($transaction);
+        } catch (\Throwable $e) {
+            $this->logResumeFailure($pending, 'regenerate_token', $e);
+            throw new FaceSubscriptionPaymentInitiationException(
+                'Le paiement ne peut pas être repris pour le moment. Veuillez réessayer.',
+                previous: $e,
+            );
+        }
+
+        return DB::transaction(function () use ($pending, $remote): array {
+            /** @var FaceSubscription $locked */
+            $locked = FaceSubscription::query()
+                ->lockForUpdate()
+                ->findOrFail($pending->id);
+
+            if ($locked->status === FaceSubscriptionStatus::Active) {
+                return [
+                    'subscription' => $locked,
+                    'status' => $locked->status->value,
+                    'checkout_url' => null,
+                    'amount' => $locked->plan->price(),
+                    'currency' => (string) $locked->currency,
+                ];
+            }
+
+            if ($locked->status === FaceSubscriptionStatus::Failed) {
+                throw FaceSubscriptionConflictException::resumeNotAvailable('local_failed');
+            }
+
+            if ($locked->status !== FaceSubscriptionStatus::PendingPayment) {
+                Log::warning('Face subscription resume: local row changed before resume metadata update', [
+                    'face_subscription_id' => $locked->id,
+                    'face_id' => $locked->face_id,
+                    'local_status' => $locked->status->value,
+                ]);
+
+                throw new FaceSubscriptionPaymentInitiationException(
+                    'Le paiement ne peut pas être repris pour le moment. Veuillez réessayer.',
+                );
+            }
+
+            $metadata = is_array($locked->metadata) ? $locked->metadata : [];
+
+            $locked->update([
+                'metadata' => array_merge(
+                    $metadata,
+                    [
+                        'last_resumed_at' => now()->toIso8601String(),
+                        'resume_count' => (int) data_get($metadata, 'resume_count', 0) + 1,
+                    ],
+                ),
+            ]);
+
+            /** @var FaceSubscription $fresh */
+            $fresh = $locked->fresh();
+
+            return [
+                'subscription' => $fresh,
+                'status' => $fresh->status->value,
+                'checkout_url' => $remote['checkout_url'],
+                'amount' => $fresh->plan->price(),
+                'currency' => (string) $fresh->currency,
+            ];
+        });
+    }
+
+    private function logResumeFailure(FaceSubscription $subscription, string $phase, \Throwable $e): void
+    {
+        Log::warning('Face subscription resume: phase failed', [
+            'face_subscription_id' => $subscription->id,
+            'face_id' => $subscription->face_id,
+            'provider_reference' => $subscription->provider_reference,
+            'phase' => $phase,
+            'exception_class' => get_class($e),
+            'exception_message' => $e->getMessage(),
+        ]);
+    }
+
+    /**
      * Poll Fedapay for the current pending subscription and reconcile local
      * state when the webhook has not landed yet.
      */

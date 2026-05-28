@@ -172,6 +172,39 @@ class FedapayService
     }
 
     /**
+     * Regenerate a fresh checkout URL for an existing Fedapay transaction.
+     * Combines retrieve + generateToken in one call so callers that only need
+     * a refreshed URL (no status branching) can do it with a single roundtrip.
+     *
+     * @return array{checkout_url: string, fedapay_status: string}
+     */
+    public function regenerateTokenForTransaction(int $fedapayTransactionId): array
+    {
+        /** @var Transaction $transaction */
+        $transaction = Transaction::retrieve($fedapayTransactionId);
+
+        return $this->regenerateTokenFromTransaction($transaction);
+    }
+
+    /**
+     * Companion of regenerateTokenForTransaction for the case where the caller
+     * already holds a Transaction object (e.g., after branching on its status).
+     * Avoids a second HTTP roundtrip to Fedapay.
+     *
+     * @return array{checkout_url: string, fedapay_status: string}
+     */
+    public function regenerateTokenFromTransaction(Transaction $transaction): array
+    {
+        /** @var object{url:string} $tokenObj */
+        $tokenObj = $transaction->generateToken();
+
+        return [
+            'checkout_url' => (string) $tokenObj->url,
+            'fedapay_status' => (string) ($transaction->status ?? ''),
+        ];
+    }
+
+    /**
      * Retrieve a summary of the current FedaPay account balances.
      *
      * @return array{

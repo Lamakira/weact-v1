@@ -132,4 +132,52 @@ class SubscriptionPaymentController extends Controller
             'message' => 'Paiement annulé.',
         ]);
     }
+
+    public function resumePayment(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->userable_type !== Face::class) {
+            return response()->json([
+                'error' => [
+                    'code' => 'FORBIDDEN',
+                    'message' => 'Accès réservé aux Faces',
+                ],
+            ], 403);
+        }
+
+        // No hasVerifiedEmail() guard — the pending row was created when initiate
+        // passed that check, and resuming the SAME payment does not re-create the
+        // precondition. Mirrors cancelPending, not initiate.
+        /** @var Face $face */
+        $face = Face::query()->findOrFail($user->userable_id);
+
+        try {
+            $result = $this->paymentService->resumePending($face);
+
+            return response()->json([
+                'data' => [
+                    'subscription_id' => $result['subscription']->uuid,
+                    'status' => $result['status'],
+                    'checkout_url' => $result['checkout_url'],
+                    'amount' => $result['amount'],
+                    'currency' => $result['currency'],
+                ],
+                'message' => $result['checkout_url'] !== null
+                    ? 'Reprise du paiement…'
+                    : 'Le paiement a déjà été confirmé.',
+            ]);
+        } catch (FaceSubscriptionPaymentInitiationException) {
+            return response()->json(
+                ErrorCodes::PaymentInitiationFailed->envelope(
+                    'Le paiement ne peut pas être repris pour le moment. Veuillez réessayer.'
+                ),
+                502,
+            );
+        }
+        // FaceSubscriptionConflictException (NO_PENDING_PAYMENT 404,
+        // CANNOT_RESUME_WITHOUT_PROVIDER_REFERENCE 409, RESUME_NOT_AVAILABLE 410)
+        // renders itself via Laravel 12's renderViaCallbacks() — see
+        // backend/app/Exceptions/FaceSubscriptionConflictException.php.
+    }
 }
