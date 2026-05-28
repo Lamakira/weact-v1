@@ -129,16 +129,19 @@ function setupPayment(opts: {
   isInitiating?: boolean
   isPolling?: boolean
   isVerifying?: boolean
+  isCancelling?: boolean
   paymentError?: string | null
 } = {}): void {
   ctx.payment.isInitiating = ref(opts.isInitiating ?? false)
   ctx.payment.isPolling = ref(opts.isPolling ?? false)
   ctx.payment.isVerifying = ref(opts.isVerifying ?? false)
+  ctx.payment.isCancelling = ref(opts.isCancelling ?? false)
   ctx.payment.pendingCheckoutAvailable = ref(opts.pendingCheckoutAvailable ?? false)
   ctx.payment.paymentState = ref(opts.paymentState ?? 'idle')
   ctx.payment.error = ref(opts.paymentError ?? null)
   ctx.payment.verifyPayment = vi.fn().mockResolvedValue(undefined)
   ctx.payment.resumePayment = vi.fn().mockResolvedValue(true)
+  ctx.payment.cancelPending = vi.fn().mockResolvedValue(true)
   ctx.payment.reset = vi.fn()
   ctx.payment.dismissPaymentError = vi.fn()
 }
@@ -537,5 +540,132 @@ describe('SubscriptionPanel (FP-2.7 v2 — minimalist + resume-pending + redirec
     const line = wrapper.get('[data-testid="subscription-panel-status-line"]').text()
     expect(line).toBe('Expiré')
     expect(line).not.toContain('Invalid Date')
+  })
+})
+
+describe('Cancel-pending action (FP-2.15.1)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ctx.authStore.isEmailVerified = true
+    setupStatus({})
+    setupPayment()
+  })
+
+  function pendingBannerSetup(): void {
+    // Active Pro with CTA all-false simulates a pending tier-change → pending banner
+    // visible. Also covers free → paid pending (statusValue='pending_payment') for the
+    // purpose of asserting cancel-button visibility — the banner predicate is the same.
+    setupStatus({
+      tier: 'pro',
+      status: 'active',
+      cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
+    })
+    setupPayment({ paymentState: 'idle' })
+  }
+
+  it('T1 — renders "Annuler le paiement" button alongside Continuer / Vérifier when hasPendingPayment is true', async () => {
+    pendingBannerSetup()
+    setupPayment({ paymentState: 'idle', pendingCheckoutAvailable: true })
+    const wrapper = mount(SubscriptionPanel)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="subscription-panel-pending"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="subscription-panel-resume"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="subscription-panel-verify"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="subscription-panel-cancel"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="subscription-panel-cancel"]').text()).toBe(
+      'Annuler le paiement',
+    )
+  })
+
+  it('T2 — does NOT render "Annuler le paiement" button when there is no pending banner (e.g., active state)', async () => {
+    setupStatus({
+      tier: 'pro',
+      status: 'active',
+      cta: { upgrade_available: true, downgrade_available: false, renew_available: true },
+    })
+    setupPayment({ paymentState: 'idle' })
+    const wrapper = mount(SubscriptionPanel)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="subscription-panel-pending"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="subscription-panel-cancel"]').exists()).toBe(false)
+  })
+
+  it('T3 — clicking "Annuler le paiement" opens the ConfirmModal (isOpen=true)', async () => {
+    pendingBannerSetup()
+    const wrapper = mount(SubscriptionPanel)
+    await flushPromises()
+
+    const { default: ConfirmModal } = await import('@/components/ui/ConfirmModal.vue')
+    const modalBefore = wrapper.findComponent(ConfirmModal)
+    expect(modalBefore.props('isOpen')).toBe(false)
+
+    await wrapper.find('[data-testid="subscription-panel-cancel"]').trigger('click')
+
+    const modalAfter = wrapper.findComponent(ConfirmModal)
+    expect(modalAfter.props('isOpen')).toBe(true)
+    expect(modalAfter.props('title')).toBe('Annuler le paiement en cours ?')
+    expect(modalAfter.props('variant')).toBe('warning')
+  })
+
+  it('T4 — confirming the modal calls cancelPending, emits "payment-cancelled" on success, closes the modal', async () => {
+    pendingBannerSetup()
+    const wrapper = mount(SubscriptionPanel)
+    await flushPromises()
+
+    await wrapper.find('[data-testid="subscription-panel-cancel"]').trigger('click')
+
+    const { default: ConfirmModal } = await import('@/components/ui/ConfirmModal.vue')
+    const modal = wrapper.findComponent(ConfirmModal)
+    modal.vm.$emit('confirm')
+    await flushPromises()
+
+    expect(ctx.payment.cancelPending).toHaveBeenCalledOnce()
+    expect(wrapper.emitted('payment-cancelled')).toHaveLength(1)
+    expect(wrapper.findComponent(ConfirmModal).props('isOpen')).toBe(false)
+  })
+
+  it('T5 — clicking the modal cancel does NOT call cancelPending', async () => {
+    pendingBannerSetup()
+    const wrapper = mount(SubscriptionPanel)
+    await flushPromises()
+
+    await wrapper.find('[data-testid="subscription-panel-cancel"]').trigger('click')
+
+    const { default: ConfirmModal } = await import('@/components/ui/ConfirmModal.vue')
+    const modal = wrapper.findComponent(ConfirmModal)
+    modal.vm.$emit('cancel')
+    await flushPromises()
+
+    expect(ctx.payment.cancelPending).not.toHaveBeenCalled()
+    expect(wrapper.emitted('payment-cancelled')).toBeUndefined()
+    expect(wrapper.findComponent(ConfirmModal).props('isOpen')).toBe(false)
+  })
+
+  it('T6 — waiting banner renders "Annuler le paiement" button and clicking it opens the ConfirmModal (FP-2.15.1 L2)', async () => {
+    setupStatus({
+      tier: 'free',
+      status: 'pending_payment',
+      cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
+    })
+    setupPayment({ paymentState: 'waiting' })
+    const wrapper = mount(SubscriptionPanel)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="subscription-panel-waiting"]').exists()).toBe(true)
+    // Pending banner is suppressed by the cascade while waiting takes precedence.
+    expect(wrapper.find('[data-testid="subscription-panel-pending"]').exists()).toBe(false)
+
+    const cancelBtn = wrapper.find('[data-testid="subscription-panel-waiting-cancel"]')
+    expect(cancelBtn.exists()).toBe(true)
+    expect(cancelBtn.text()).toBe('Annuler le paiement')
+
+    const { default: ConfirmModal } = await import('@/components/ui/ConfirmModal.vue')
+    expect(wrapper.findComponent(ConfirmModal).props('isOpen')).toBe(false)
+
+    await cancelBtn.trigger('click')
+
+    expect(wrapper.findComponent(ConfirmModal).props('isOpen')).toBe(true)
   })
 })

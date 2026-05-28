@@ -34,12 +34,14 @@ const ctx = vi.hoisted(() => ({
     isInitiating: { value: false },
     isPolling: { value: false },
     isVerifying: { value: false },
+    isCancelling: { value: false },
     pendingCheckoutAvailable: { value: false },
     paymentState: { value: 'idle' },
     error: { value: null },
     initiatePayment: vi.fn().mockResolvedValue(true),
     resumePayment: vi.fn().mockResolvedValue(true),
     verifyPayment: vi.fn().mockResolvedValue(undefined),
+    cancelPending: vi.fn().mockResolvedValue(true),
     dismissPaymentError: vi.fn(),
   } as Record<string, unknown>,
   authStore: {
@@ -97,6 +99,7 @@ ctx.status.isLoading = ref(false)
 ctx.payment.isInitiating = ref(false)
 ctx.payment.isPolling = ref(false)
 ctx.payment.isVerifying = ref(false)
+ctx.payment.isCancelling = ref(false)
 ctx.payment.pendingCheckoutAvailable = ref(false)
 ctx.payment.paymentState = ref('idle')
 ctx.payment.error = ref(null)
@@ -480,19 +483,23 @@ interface PaymentSetup {
   isInitiating?: boolean
   isPolling?: boolean
   isVerifying?: boolean
+  isCancelling?: boolean
   paymentError?: string | null
+  cancelPendingResult?: boolean
 }
 
 function setupPayment(opts: PaymentSetup = {}): void {
   ctx.payment.isInitiating = ref(opts.isInitiating ?? false)
   ctx.payment.isPolling = ref(opts.isPolling ?? false)
   ctx.payment.isVerifying = ref(opts.isVerifying ?? false)
+  ctx.payment.isCancelling = ref(opts.isCancelling ?? false)
   ctx.payment.pendingCheckoutAvailable = ref(opts.pendingCheckoutAvailable ?? false)
   ctx.payment.paymentState = ref(opts.paymentState ?? 'idle')
   ctx.payment.error = ref(opts.paymentError ?? null)
   ctx.payment.initiatePayment = vi.fn().mockResolvedValue(true)
   ctx.payment.resumePayment = vi.fn().mockResolvedValue(true)
   ctx.payment.verifyPayment = vi.fn().mockResolvedValue(undefined)
+  ctx.payment.cancelPending = vi.fn().mockResolvedValue(opts.cancelPendingResult ?? true)
   ctx.payment.dismissPaymentError = vi.fn()
 }
 
@@ -805,5 +812,121 @@ describe('auth-aware behavior (FP-2.13.1)', () => {
 
     expect(wrapper.find('[data-testid="tier-change-modal"]').exists()).toBe(false)
     expect(ctx.payment.initiatePayment).not.toHaveBeenCalled()
+  })
+})
+
+describe('Cancel-pending action (FP-2.15.1)', () => {
+  beforeEach(() => {
+    ctx.authStore.isAuthenticated = true
+    ctx.authStore.user = { id: 42, userable_type: 'Face', email_verified: true }
+    ctx.authStore.isEmailVerified = true
+    ctx.route.query = {}
+    setupStatus({
+      tier: 'pro',
+      status: 'active',
+      expiresAt: '2027-05-23T00:00:00Z',
+      cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
+    })
+    setupPayment({ pendingCheckoutAvailable: true })
+  })
+
+  afterEach(() => {
+    ctx.authStore.isAuthenticated = false
+    ctx.authStore.user = null
+    ctx.authStore.isEmailVerified = false
+    vi.clearAllMocks()
+  })
+
+  it('T1 — renders "Annuler le paiement" button (testid pricing-banner-cancel) when hasPendingPayment is true', async () => {
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="pricing-banner-pending"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="pricing-banner-resume"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="pricing-banner-verify"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="pricing-banner-cancel"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="pricing-banner-cancel"]').text()).toBe('Annuler le paiement')
+  })
+
+  it('T2 — clicking "Annuler le paiement" opens the ConfirmModal', async () => {
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    const { default: ConfirmModal } = await import('@/components/ui/ConfirmModal.vue')
+    expect(wrapper.findComponent(ConfirmModal).props('isOpen')).toBe(false)
+
+    await wrapper.find('[data-testid="pricing-banner-cancel"]').trigger('click')
+    await flushPromises()
+
+    const modal = wrapper.findComponent(ConfirmModal)
+    expect(modal.props('isOpen')).toBe(true)
+    expect(modal.props('title')).toBe('Annuler le paiement en cours ?')
+    expect(modal.props('variant')).toBe('warning')
+  })
+
+  it('T3 — confirming the modal calls cancelPending and toasts "Paiement annulé." on success', async () => {
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="pricing-banner-cancel"]').trigger('click')
+    await flushPromises()
+
+    const { default: ConfirmModal } = await import('@/components/ui/ConfirmModal.vue')
+    const modal = wrapper.findComponent(ConfirmModal)
+    modal.vm.$emit('confirm')
+    await flushPromises()
+
+    expect(ctx.payment.cancelPending).toHaveBeenCalledOnce()
+    expect(ctx.toast.success).toHaveBeenCalledWith('Paiement annulé.')
+    expect(wrapper.findComponent(ConfirmModal).props('isOpen')).toBe(false)
+  })
+
+  it('T4 — confirming when cancelPending returns false does NOT toast success', async () => {
+    setupPayment({
+      pendingCheckoutAvailable: true,
+      paymentError: 'Aucun paiement en cours à annuler.',
+      cancelPendingResult: false,
+    })
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="pricing-banner-cancel"]').trigger('click')
+    await flushPromises()
+
+    const { default: ConfirmModal } = await import('@/components/ui/ConfirmModal.vue')
+    const modal = wrapper.findComponent(ConfirmModal)
+    modal.vm.$emit('confirm')
+    await flushPromises()
+
+    expect(ctx.payment.cancelPending).toHaveBeenCalledOnce()
+    expect(ctx.toast.success).not.toHaveBeenCalledWith('Paiement annulé.')
+    expect(
+      wrapper.find('[data-testid="pricing-banner-pending-error"]').exists(),
+    ).toBe(true)
+    expect(
+      wrapper.get('[data-testid="pricing-banner-pending-error"]').text(),
+    ).toContain('Aucun paiement en cours')
+  })
+
+  it('T5 — waiting banner renders "Annuler le paiement" button and clicking it opens the ConfirmModal (FP-2.15.1 L2)', async () => {
+    setupPayment({ paymentState: 'waiting' })
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="pricing-banner-waiting"]').exists()).toBe(true)
+    // Pending banner is suppressed by the cascade while waiting takes precedence.
+    expect(wrapper.find('[data-testid="pricing-banner-pending"]').exists()).toBe(false)
+
+    const cancelBtn = wrapper.find('[data-testid="pricing-banner-waiting-cancel"]')
+    expect(cancelBtn.exists()).toBe(true)
+    expect(cancelBtn.text()).toBe('Annuler le paiement')
+
+    const { default: ConfirmModal } = await import('@/components/ui/ConfirmModal.vue')
+    expect(wrapper.findComponent(ConfirmModal).props('isOpen')).toBe(false)
+
+    await cancelBtn.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findComponent(ConfirmModal).props('isOpen')).toBe(true)
   })
 })

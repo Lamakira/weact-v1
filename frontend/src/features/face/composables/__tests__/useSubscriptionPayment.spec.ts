@@ -20,6 +20,7 @@ vi.mock('../../services/faceApi', () => ({
     getSubscriptionStatus: vi.fn(),
     initiateSubscriptionPayment: vi.fn(),
     verifySubscriptionPayment: vi.fn(),
+    cancelPendingSubscription: vi.fn(),
   },
 }))
 
@@ -735,6 +736,350 @@ describe('useSubscriptionPayment (FP-2.7 tier-aware contract)', () => {
     // The crucial invariant — the stash survives dismiss so the resume button
     // stays clickable. reset() (legacy behavior) WOULD have cleared it.
     expect(sessionStorage.getItem(STASH_KEY)).not.toBeNull()
+
+    unmount()
+  })
+})
+
+describe('cancelPending + visibility-aware auto-verify (FP-2.15.1)', () => {
+  let openSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetSharedCachedResourcesForTests()
+    sessionStorage.clear()
+    vi.useFakeTimers()
+    openSpy = vi.spyOn(window, 'open').mockImplementation(() => ({}) as Window)
+    // Default JSDOM document.visibilityState to 'visible' for cleanliness across tests.
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'visible',
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    openSpy.mockRestore()
+  })
+
+  it('T1 — cancelPending() POSTs cancel-pending, refreshes status, flips paymentState to idle and clears the stash', async () => {
+    // Real-world entry point for the cancel button: the user returned to /face/profile,
+    // the pending banner is visible (paymentState='idle' so banner v-else-if cascade
+    // shows pending — see SubscriptionPanel.vue lines 230-319). Polling is not active.
+    vi.mocked(faceApi.cancelPendingSubscription).mockResolvedValue({
+      data: { subscription_id: 'sub_pending', status: 'failed' as SubscriptionStatusValue },
+      message: 'Paiement annulé.',
+    })
+    vi.mocked(faceApi.getSubscriptionStatus)
+      .mockResolvedValueOnce({ data: statusData('free', 'pending_payment', null) }) // initial seed
+      .mockResolvedValueOnce({ data: statusData('free', 'failed', null) }) // post-cancel refresh
+
+    sessionStorage.setItem(
+      STASH_KEY,
+      JSON.stringify({
+        url: 'https://checkout.fedapay.test/sess_xyz',
+        plan: 'pro',
+        storedAt: Date.now(),
+      }),
+    )
+    // Seed singleton so the Round 2 D3 watch arms hasArmedPayment on mount.
+    await useSubscriptionStatus().fetchStatus()
+
+    const { api, unmount } = mountWithComposable()
+    await flushPromises()
+    expect(api.pendingCheckoutAvailable.value).toBe(true)
+
+    const ok = await api.cancelPending()
+
+    expect(ok).toBe(true)
+    expect(faceApi.cancelPendingSubscription).toHaveBeenCalledOnce()
+    expect(api.paymentState.value).toBe('idle')
+    expect(api.isPolling.value).toBe(false)
+    expect(api.pendingCheckoutAvailable.value).toBe(false)
+    expect(sessionStorage.getItem(STASH_KEY)).toBeNull()
+    expect(api.error.value).toBeNull()
+    expect(api.isCancelling.value).toBe(false)
+
+    unmount()
+  })
+
+  it('T2 — cancelPending() returns false and sets error.value on a 404 NO_PENDING_PAYMENT response', async () => {
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'pending_payment', null),
+    })
+    vi.mocked(faceApi.cancelPendingSubscription).mockRejectedValue(
+      new Error('Request failed with status code 404'),
+    )
+
+    const { api, unmount } = mountWithComposable()
+    const ok = await api.cancelPending()
+
+    expect(ok).toBe(false)
+    expect(api.error.value).toBe('Un paiement est déjà en cours pour cet abonnement.')
+    expect(api.isCancelling.value).toBe(false)
+
+    unmount()
+  })
+
+  it('T3 — cancelPending() returns false and sets error.value on a network error', async () => {
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'pending_payment', null),
+    })
+    vi.mocked(faceApi.cancelPendingSubscription).mockRejectedValue(new Error('Network Error'))
+
+    const { api, unmount } = mountWithComposable()
+    const ok = await api.cancelPending()
+
+    expect(ok).toBe(false)
+    expect(api.error.value).not.toBeNull()
+    expect(api.isCancelling.value).toBe(false)
+
+    unmount()
+  })
+
+  it('T4 — verifyPayment() / initiatePayment() / resumePayment() bail out when isCancelling is true', async () => {
+    let resolveCancel: (value: {
+      data: { subscription_id: string; status: SubscriptionStatusValue }
+      message?: string
+    }) => void = () => undefined
+    vi.mocked(faceApi.cancelPendingSubscription).mockReturnValue(
+      new Promise((resolve) => {
+        resolveCancel = resolve
+      }),
+    )
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'pending_payment', null),
+    })
+    sessionStorage.setItem(
+      STASH_KEY,
+      JSON.stringify({
+        url: 'https://checkout.fedapay.test/sess_xyz',
+        plan: 'pro',
+        storedAt: Date.now(),
+      }),
+    )
+
+    const { api, unmount } = mountWithComposable()
+    const cancelPromise = api.cancelPending()
+    await flushPromises()
+    expect(api.isCancelling.value).toBe(true)
+
+    const initiateResult = await api.initiatePayment('pro')
+    expect(initiateResult).toBe(false)
+    expect(faceApi.initiateSubscriptionPayment).not.toHaveBeenCalled()
+
+    const resumeResult = await api.resumePayment()
+    expect(resumeResult).toBe(false)
+
+    await api.verifyPayment({ manual: true })
+    expect(faceApi.verifySubscriptionPayment).not.toHaveBeenCalled()
+
+    resolveCancel({ data: { subscription_id: 'sub_pending', status: 'failed' }, message: 'OK' })
+    await cancelPromise
+
+    unmount()
+  })
+
+  it('T5 — cancelPending() bails out (returns false) when isInitiating is true (FP-2.15.1 L2: isPolling intentionally no longer in the guard)', async () => {
+    let resolveInitiate: (value: SubscriptionInitiatePaymentResponse) => void = () => undefined
+    vi.mocked(faceApi.initiateSubscriptionPayment).mockReturnValue(
+      new Promise<SubscriptionInitiatePaymentResponse>((resolve) => {
+        resolveInitiate = resolve
+      }),
+    )
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'pending_payment', null),
+    })
+
+    const { api, unmount } = mountWithComposable()
+    const initiatePromise = api.initiatePayment('pro')
+    await flushPromises()
+    expect(api.isInitiating.value).toBe(true)
+
+    const cancelResult = await api.cancelPending()
+    expect(cancelResult).toBe(false)
+    expect(faceApi.cancelPendingSubscription).not.toHaveBeenCalled()
+
+    resolveInitiate(initiateResponse('pro'))
+    await initiatePromise
+    unmount()
+  })
+
+  it('T10 — cancelPending() called during paymentState=waiting stops polling, flips to idle, and reaches the backend (FP-2.15.1 L2)', async () => {
+    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
+    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('pending_payment'))
+    vi.mocked(faceApi.cancelPendingSubscription).mockResolvedValue({
+      data: { subscription_id: 'sub_pending', status: 'failed' as SubscriptionStatusValue },
+      message: 'Paiement annulé.',
+    })
+    vi.mocked(faceApi.getSubscriptionStatus)
+      .mockResolvedValueOnce({ data: statusData('free', 'pending_payment', null) })
+      .mockResolvedValueOnce({ data: statusData('free', 'failed', null) })
+
+    const { api, unmount } = mountWithComposable()
+    await api.initiatePayment('pro')
+    expect(api.isPolling.value).toBe(true)
+    expect(api.paymentState.value).toBe('waiting')
+
+    const verifyCallsBefore = vi.mocked(faceApi.verifySubscriptionPayment).mock.calls.length
+
+    const ok = await api.cancelPending()
+
+    expect(ok).toBe(true)
+    expect(faceApi.cancelPendingSubscription).toHaveBeenCalledOnce()
+    expect(api.isPolling.value).toBe(false)
+    expect(api.paymentState.value).toBe('idle')
+    expect(api.pendingCheckoutAvailable.value).toBe(false)
+
+    // Polling is dead — no further verify calls fire after cancel.
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(vi.mocked(faceApi.verifySubscriptionPayment).mock.calls.length).toBe(verifyCallsBefore)
+
+    unmount()
+  })
+
+  it('T6 — visibilitychange auto-fires verifyPayment after the 120s polling timeout when document becomes visible and the pending-banner predicate is true', async () => {
+    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
+    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('pending_payment'))
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'pending_payment', null),
+    })
+
+    const { api, unmount } = mountWithComposable()
+    await api.initiatePayment('pro')
+    await vi.advanceTimersByTimeAsync(120_000)
+
+    expect(api.paymentState.value).toBe('failed')
+    expect(api.isPolling.value).toBe(false)
+
+    // Re-mock for the visibility-triggered verify — backend has now confirmed.
+    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('active'))
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('pro', 'active', '2027-05-23T00:00:00Z'),
+    })
+
+    const verifyCallsBefore = vi.mocked(faceApi.verifySubscriptionPayment).mock.calls.length
+    document.dispatchEvent(new Event('visibilitychange'))
+    await flushPromises()
+
+    expect(vi.mocked(faceApi.verifySubscriptionPayment).mock.calls.length).toBe(
+      verifyCallsBefore + 1,
+    )
+    expect(api.paymentState.value).toBe('confirmed')
+
+    unmount()
+  })
+
+  it('T7 — visibilitychange does NOT fire verifyPayment when document becomes hidden', async () => {
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'pending_payment', null),
+    })
+    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('pending_payment'))
+
+    // Seed the singleton so the Round 2 D3 watch arms hasArmedPayment on mount.
+    await useSubscriptionStatus().fetchStatus()
+
+    const { unmount } = mountWithComposable()
+    await flushPromises()
+
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => 'hidden',
+    })
+    document.dispatchEvent(new Event('visibilitychange'))
+    await flushPromises()
+
+    expect(faceApi.verifySubscriptionPayment).not.toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it('T8 — visibilitychange does NOT fire verifyPayment when statusValue is active and CTA is not all-false (no pending banner / false-positive guard)', async () => {
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: {
+        current: {
+          tier: 'pro',
+          plan: 'pro',
+          status: 'active',
+          starts_at: null,
+          expires_at: '2026-06-30T00:00:00Z',
+          cancelled_at: null,
+          capabilities: CAPS,
+        },
+        offers: [],
+        cta: { upgrade_available: true, downgrade_available: false, renew_available: true },
+      },
+    })
+    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('active'))
+
+    await useSubscriptionStatus().fetchStatus()
+
+    const { api, unmount } = mountWithComposable()
+    await flushPromises()
+
+    document.dispatchEvent(new Event('visibilitychange'))
+    await flushPromises()
+
+    expect(faceApi.verifySubscriptionPayment).not.toHaveBeenCalled()
+    expect(api.paymentState.value).toBe('idle')
+
+    unmount()
+  })
+
+  it('T9 — visibilitychange auto-fires verifyPayment when statusValue is active but CTA is all-false (active + pending tier-change)', async () => {
+    // Active Pro with a pending Élite tier change → representative statusValue stays
+    // 'active' but FP-2.3 forces CTA all-false because a pending row exists.
+    const activeProCtaForced = {
+      current: {
+        tier: 'pro' as FaceSubscriptionTier,
+        plan: 'pro' as FaceSubscriptionPlan,
+        status: 'active' as SubscriptionStatusValue,
+        starts_at: null,
+        expires_at: '2027-01-01T00:00:00Z',
+        cancelled_at: null,
+        capabilities: CAPS,
+      },
+      offers: [],
+      cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
+    }
+
+    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('elite'))
+    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('pending_payment'))
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({ data: activeProCtaForced })
+
+    await useSubscriptionStatus().fetchStatus()
+
+    const { api, unmount } = mountWithComposable()
+    await api.initiatePayment('elite')
+    expect(api.isPolling.value).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(api.paymentState.value).toBe('failed')
+
+    const activeEliteConfirmed = {
+      current: {
+        tier: 'elite' as FaceSubscriptionTier,
+        plan: 'elite' as FaceSubscriptionPlan,
+        status: 'active' as SubscriptionStatusValue,
+        starts_at: null,
+        expires_at: '2027-05-23T00:00:00Z',
+        cancelled_at: null,
+        capabilities: { ...CAPS, sort_priority: 1 },
+      },
+      offers: [],
+      cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
+    }
+    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('active'))
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({ data: activeEliteConfirmed })
+
+    const verifyCallsBefore = vi.mocked(faceApi.verifySubscriptionPayment).mock.calls.length
+    document.dispatchEvent(new Event('visibilitychange'))
+    await flushPromises()
+
+    expect(vi.mocked(faceApi.verifySubscriptionPayment).mock.calls.length).toBe(
+      verifyCallsBefore + 1,
+    )
+    expect(api.paymentState.value).toBe('confirmed')
 
     unmount()
   })
