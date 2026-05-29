@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Loader2 } from 'lucide-vue-next'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
@@ -227,10 +227,22 @@ const {
 // in the dedicated Facturation tab (FaceBillingPage). ProfileEditPage only needs
 // the capability matrix for the tier-aware album / video sections.
 const {
+  tier: subscriptionTier,
   capabilities,
   maxAlbumPhotos,
   fetchStatus: fetchSubscriptionStatus,
 } = useSubscriptionStatus()
+
+// Album/video lock state + completion % are computed server-side per tier. When the
+// subscription tier changes mid-session — e.g. the dashboard reconciler just confirmed
+// a payment — refetch them so newly unlocked media stops rendering as locked without a
+// manual reload. (Navigating INTO the page is already covered by the onMounted fetch.)
+watch(subscriptionTier, (newTier, oldTier) => {
+  if (newTier === oldTier) return
+  void Promise.all([fetchAlbumPhotos(), fetchVideos(), fetchCompletion()]).catch(() => {
+    // Non-blocking — capability-driven gating already updated reactively.
+  })
+})
 
 // FP-2.7.1 — the FaceVideoUpload component owns its own per-quota math from the
 // capabilities prop; we only gate the presentation video locally for the

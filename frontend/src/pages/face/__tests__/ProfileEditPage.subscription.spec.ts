@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { shallowMount } from '@vue/test-utils'
+import { shallowMount, flushPromises } from '@vue/test-utils'
+import { ref } from 'vue'
 import ProfileEditPage from '../ProfileEditPage.vue'
 
 const mocks = vi.hoisted(() => ({
@@ -20,6 +21,8 @@ const mocks = vi.hoisted(() => ({
     },
   },
   maxAlbumPhotos: { __v_isRef: true, value: 2 },
+  // Real ref assigned in beforeEach so the ProfileEditPage tier watcher is reactive.
+  tier: { __v_isRef: true, value: 'free' } as { __v_isRef: true; value: string },
   addAlbumPhoto: vi.fn(),
   uploadFaceVideo: vi.fn(),
   routerPush: vi.fn(),
@@ -216,6 +219,7 @@ vi.mock('@/features/face/composables/useProfileCompletion', () => ({
 
 vi.mock('@/features/face/composables/useSubscriptionStatus', () => ({
   useSubscriptionStatus: () => ({
+    tier: mocks.tier,
     capabilities: mocks.capabilities,
     maxAlbumPhotos: mocks.maxAlbumPhotos,
     fetchStatus: mocks.resolved,
@@ -260,6 +264,7 @@ describe('ProfileEditPage subscription guards', () => {
     mocks.maxAlbumPhotos.value = 2
     mocks.capabilities.value.max_acting_videos = 0
     mocks.capabilities.value.max_ugc_videos = 0
+    mocks.tier = ref('free')
   })
 
   it('does not open the hidden album file input from grid shortcut when entitlement quota is reached', async () => {
@@ -314,5 +319,18 @@ describe('ProfileEditPage subscription guards', () => {
 
     expect(mocks.routerPush).toHaveBeenCalledTimes(1)
     expect(mocks.routerPush).toHaveBeenCalledWith({ name: 'pricing' })
+  })
+
+  it('refetches tier-masked media + completion when the subscription tier changes mid-session', async () => {
+    mountPage()
+    await flushPromises()
+    const before = mocks.resolved.mock.calls.length
+
+    // e.g. the dashboard reconciler just confirmed a payment → free upgrades to pro.
+    mocks.tier.value = 'pro'
+    await flushPromises()
+
+    // album photos + videos + completion all refetched (each resolves via mocks.resolved).
+    expect(mocks.resolved.mock.calls.length).toBe(before + 3)
   })
 })
