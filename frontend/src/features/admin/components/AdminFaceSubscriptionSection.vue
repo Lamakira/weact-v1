@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   AlertCircle,
   Calendar,
+  ChevronDown,
   CreditCard,
   Crown,
   Loader2,
@@ -16,6 +17,7 @@ import {
 import type {
   ActivatePayload,
   AdminFaceSubscription,
+  AdminFaceSubscriptionAudit,
   AdminSubscriptionStatus,
   ChangeTierPayload,
 } from '../services/adminFaceSubscriptionsApi'
@@ -105,6 +107,7 @@ watch(
     if (newId !== oldId) {
       abortRequests()
       closeAllModals(true)
+      expandedRows.value = {}
       expandedAudits.value = {}
       expandedAuditDiffs.value = {}
       void loadSubscriptions()
@@ -250,8 +253,13 @@ function trapModalFocus(event: KeyboardEvent, root: HTMLDivElement | null): void
 
 // ---------- Audit disclosure state ----------
 
+const expandedRows = ref<Record<string, boolean>>({})
 const expandedAudits = ref<Record<string, boolean>>({})
 const expandedAuditDiffs = ref<Record<string, boolean>>({})
+
+function toggleRow(subId: string): void {
+  expandedRows.value[subId] = !expandedRows.value[subId]
+}
 
 function toggleAudits(subId: string): void {
   expandedAudits.value[subId] = !expandedAudits.value[subId]
@@ -259,6 +267,13 @@ function toggleAudits(subId: string): void {
 
 function toggleAuditDiff(auditId: string): void {
   expandedAuditDiffs.value[auditId] = !expandedAuditDiffs.value[auditId]
+}
+
+// Subscriptions and their audits both arrive newest-first from the API
+// (controller orderByDesc + FaceSubscription::audits() orderByDesc), so
+// audits[0] is the latest operation surfaced in the "Dernière opération" cell.
+function latestAudit(sub: AdminFaceSubscription): AdminFaceSubscriptionAudit | null {
+  return sub.audits?.[0] ?? null
 }
 
 // ---------- Activate modal ----------
@@ -764,168 +779,215 @@ const isEmpty = computed(() => !isLoading.value && subscriptions.value.length ==
     </div>
 
     <!-- Populated -->
-    <div v-else class="space-y-3" data-testid="admin-face-subscription-list">
-      <article
-        v-for="sub in subscriptions"
-        :key="sub.id"
-        class="rounded-lg border border-gray-200 p-4 space-y-3"
-        :data-testid="`subscription-card-${sub.id}`"
-      >
-        <div class="flex flex-wrap items-center justify-between gap-2">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-sm font-semibold text-gray-900">
-              {{ sub.plan_label ?? 'Plan inconnu' }}
-            </span>
-            <span
-              class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-              :class="statusBadgeClass(sub.status)"
-              :data-testid="`subscription-status-${sub.id}`"
+    <div v-else class="overflow-x-auto" data-testid="admin-face-subscription-list">
+      <table class="w-full min-w-[720px] text-sm">
+        <thead>
+          <tr class="border-b border-gray-50 bg-gray-50/60 text-left">
+            <th scope="col" class="px-6 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Palier</th>
+            <th scope="col" class="px-6 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Statut</th>
+            <th scope="col" class="px-6 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Début</th>
+            <th scope="col" class="px-6 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Expiration</th>
+            <th scope="col" class="px-6 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Dernière opération</th>
+            <th scope="col" class="px-6 py-3 text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
+            <th scope="col" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Détails</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template v-for="sub in subscriptions" :key="sub.id">
+            <tr
+              class="border-b border-gray-50"
+              :data-testid="`subscription-row-${sub.id}`"
             >
-              {{ sub.status_label ?? '—' }}
-            </span>
-          </div>
-          <div class="flex items-center gap-2">
-            <button
-              v-if="isExtendable(sub)"
-              type="button"
-              class="rounded-lg border border-green-300 bg-green-50 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-100 transition-colors"
-              data-testid="extend-button"
-              :data-subscription-id="sub.id"
-              @click="openExtend(sub)"
-            >
-              Étendre
-            </button>
-            <button
-              v-if="isExtendable(sub) && isPaidPlan(sub.plan)"
-              type="button"
-              class="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
-              data-testid="change-tier-button"
-              :data-subscription-id="sub.id"
-              @click="openChangeTier(sub)"
-            >
-              Changer de palier
-            </button>
-            <button
-              v-if="isCancellable(sub)"
-              type="button"
-              class="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors"
-              data-testid="cancel-button"
-              :data-subscription-id="sub.id"
-              @click="openCancel(sub)"
-            >
-              Annuler
-            </button>
-            <button
-              type="button"
-              class="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-              :data-testid="`correct-button-${sub.id}`"
-              @click="openCorrect(sub)"
-            >
-              Corriger les dates
-            </button>
-          </div>
-        </div>
-
-        <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
-          <div>
-            <dt class="text-gray-500">Début</dt>
-            <dd class="font-medium text-gray-900">{{ formatDate(sub.starts_at) }}</dd>
-          </div>
-          <div>
-            <dt class="text-gray-500">Expiration</dt>
-            <dd class="font-medium text-gray-900">{{ formatDate(sub.expires_at) }}</dd>
-          </div>
-          <div v-if="sub.cancelled_at">
-            <dt class="text-gray-500">Annulé le</dt>
-            <dd class="font-medium text-gray-900">{{ formatDate(sub.cancelled_at) }}</dd>
-          </div>
-          <div v-if="sub.paid_amount !== null">
-            <dt class="text-gray-500">Montant payé</dt>
-            <dd class="font-medium text-gray-900">
-              {{ formatAmount(sub.paid_amount, sub.currency) }}
-            </dd>
-          </div>
-        </dl>
-
-        <div>
-          <button
-            v-if="sub.audits && sub.audits.length > 0"
-            type="button"
-            class="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
-            :data-testid="`audits-toggle-${sub.id}`"
-            @click="toggleAudits(sub.id)"
-          >
-            {{ expandedAudits[sub.id] ? 'Masquer' : 'Afficher' }}
-            {{ sub.audits.length }} opération{{ sub.audits.length > 1 ? 's' : '' }}
-          </button>
-
-          <ul
-            v-if="expandedAudits[sub.id]"
-            class="mt-2 space-y-2 border-l-2 border-indigo-100 pl-3"
-            :data-testid="`audits-list-${sub.id}`"
-          >
-            <li
-              v-for="audit in sub.audits"
-              :key="audit.id"
-              class="text-xs space-y-1"
-              :data-testid="`audit-row-${audit.id}`"
-            >
-              <div class="flex items-center gap-2">
-                <span class="font-medium text-gray-900">{{ audit.action_label }}</span>
-                <span class="text-gray-500">par {{ audit.admin?.name || 'Admin supprimé' }}</span>
-                <span class="text-gray-400">·</span>
-                <span class="text-gray-500">{{ formatDateTime(audit.created_at) }}</span>
-              </div>
-              <span
-                v-if="audit.action === 'change_tier' && formatTier(audit.previous_state) && formatTier(audit.new_state)"
-                class="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-700"
-                :data-testid="`audit-tier-transition-${audit.id}`"
+              <td class="px-6 py-3 align-top text-sm font-medium text-gray-900">
+                {{ sub.plan_label ?? 'Plan inconnu' }}
+              </td>
+              <td class="px-6 py-3 align-top">
+                <span
+                  class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                  :class="statusBadgeClass(sub.status)"
+                  :data-testid="`subscription-status-${sub.id}`"
+                >
+                  {{ sub.status_label ?? '—' }}
+                </span>
+              </td>
+              <td class="px-6 py-3 align-top text-gray-700">{{ formatDate(sub.starts_at) }}</td>
+              <td class="px-6 py-3 align-top text-gray-700">{{ formatDate(sub.expires_at) }}</td>
+              <td
+                class="px-6 py-3 align-top text-gray-700"
+                :data-testid="`subscription-last-op-${sub.id}`"
               >
-                {{ TIER_LABEL[formatTier(audit.previous_state)!] }}
-                <span aria-hidden="true">→</span>
-                {{ TIER_LABEL[formatTier(audit.new_state)!] }}
-              </span>
-              <span
-                v-else-if="audit.action === 'manual_activate' && formatTier(audit.new_state)"
-                class="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-700"
-                :data-testid="`audit-tier-new-${audit.id}`"
-              >
-                Palier : {{ TIER_LABEL[formatTier(audit.new_state)!] }}
-              </span>
-              <p class="text-gray-700 whitespace-pre-wrap break-words">{{ audit.notes }}</p>
-              <button
-                type="button"
-                class="text-[11px] text-gray-500 hover:text-gray-700 underline"
-                :data-testid="`audit-diff-toggle-${audit.id}`"
-                @click="toggleAuditDiff(audit.id)"
-              >
-                {{ expandedAuditDiffs[audit.id] ? 'Masquer le diff JSON' : 'Voir le diff JSON' }}
-              </button>
-              <div
-                v-if="expandedAuditDiffs[audit.id]"
-                class="grid grid-cols-1 lg:grid-cols-2 gap-2 mt-1"
-                :data-testid="`audit-diff-${audit.id}`"
-              >
-                <div>
-                  <p class="text-[10px] uppercase tracking-wide text-gray-400 mb-1">État précédent</p>
-                  <pre class="bg-gray-50 rounded p-2 text-[11px] overflow-x-auto">{{ safeStringify(audit.previous_state) }}</pre>
+                <template v-if="latestAudit(sub)"
+                  >{{ latestAudit(sub)!.action_label }} ·
+                  {{ latestAudit(sub)!.admin?.name || 'Admin supprimé' }}</template
+                >
+                <template v-else>—</template>
+              </td>
+              <td class="px-6 py-3 align-top">
+                <div class="flex flex-wrap items-center gap-1">
+                  <button
+                    v-if="isExtendable(sub)"
+                    type="button"
+                    class="rounded-lg border border-green-300 bg-green-50 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-100 transition-colors"
+                    data-testid="extend-button"
+                    :data-subscription-id="sub.id"
+                    @click="openExtend(sub)"
+                  >
+                    Étendre
+                  </button>
+                  <button
+                    v-if="isExtendable(sub) && isPaidPlan(sub.plan)"
+                    type="button"
+                    class="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors"
+                    data-testid="change-tier-button"
+                    :data-subscription-id="sub.id"
+                    @click="openChangeTier(sub)"
+                  >
+                    Changer de palier
+                  </button>
+                  <button
+                    v-if="isCancellable(sub)"
+                    type="button"
+                    class="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors"
+                    data-testid="cancel-button"
+                    :data-subscription-id="sub.id"
+                    @click="openCancel(sub)"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    :data-testid="`correct-button-${sub.id}`"
+                    @click="openCorrect(sub)"
+                  >
+                    Corriger les dates
+                  </button>
                 </div>
+              </td>
+              <td class="px-6 py-3 align-top text-right">
+                <button
+                  type="button"
+                  class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
+                  :data-testid="`subscription-expand-${sub.id}`"
+                  :aria-expanded="!!expandedRows[sub.id]"
+                  :aria-controls="`subscription-detail-${sub.id}`"
+                  @click="toggleRow(sub.id)"
+                >
+                  {{ expandedRows[sub.id] ? 'Masquer' : 'Détails' }}
+                  <ChevronDown
+                    class="h-3.5 w-3.5 transition-transform"
+                    :class="{ 'rotate-180': expandedRows[sub.id] }"
+                  />
+                </button>
+              </td>
+            </tr>
+
+            <tr
+              v-if="expandedRows[sub.id]"
+              :id="`subscription-detail-${sub.id}`"
+              class="border-b border-gray-50 bg-gray-50/40"
+              :data-testid="`subscription-detail-${sub.id}`"
+            >
+              <td :colspan="7" class="px-6 py-4 space-y-3">
+                <dl
+                  v-if="sub.paid_amount !== null || sub.cancelled_at"
+                  class="grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:max-w-md"
+                >
+                  <div v-if="sub.paid_amount !== null">
+                    <dt class="text-gray-500">Montant payé</dt>
+                    <dd class="font-medium text-gray-900">
+                      {{ formatAmount(sub.paid_amount, sub.currency) }}
+                    </dd>
+                  </div>
+                  <div v-if="sub.cancelled_at">
+                    <dt class="text-gray-500">Annulé le</dt>
+                    <dd class="font-medium text-gray-900">{{ formatDate(sub.cancelled_at) }}</dd>
+                  </div>
+                </dl>
+
                 <div>
-                  <p class="text-[10px] uppercase tracking-wide text-gray-400 mb-1">Nouvel état</p>
-                  <pre class="bg-gray-50 rounded p-2 text-[11px] overflow-x-auto">{{ safeStringify(audit.new_state) }}</pre>
+                  <button
+                    v-if="sub.audits && sub.audits.length > 0"
+                    type="button"
+                    class="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
+                    :data-testid="`audits-toggle-${sub.id}`"
+                    @click="toggleAudits(sub.id)"
+                  >
+                    {{ expandedAudits[sub.id] ? 'Masquer' : 'Afficher' }}
+                    {{ sub.audits.length }} opération{{ sub.audits.length > 1 ? 's' : '' }}
+                  </button>
+
+                  <ul
+                    v-if="expandedAudits[sub.id]"
+                    class="mt-2 space-y-2 border-l-2 border-indigo-100 pl-3"
+                    :data-testid="`audits-list-${sub.id}`"
+                  >
+                    <li
+                      v-for="audit in sub.audits"
+                      :key="audit.id"
+                      class="text-xs space-y-1"
+                      :data-testid="`audit-row-${audit.id}`"
+                    >
+                      <div class="flex items-center gap-2">
+                        <span class="font-medium text-gray-900">{{ audit.action_label }}</span>
+                        <span class="text-gray-500">par {{ audit.admin?.name || 'Admin supprimé' }}</span>
+                        <span class="text-gray-400">·</span>
+                        <span class="text-gray-500">{{ formatDateTime(audit.created_at) }}</span>
+                      </div>
+                      <span
+                        v-if="audit.action === 'change_tier' && formatTier(audit.previous_state) && formatTier(audit.new_state)"
+                        class="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-700"
+                        :data-testid="`audit-tier-transition-${audit.id}`"
+                      >
+                        {{ TIER_LABEL[formatTier(audit.previous_state)!] }}
+                        <span aria-hidden="true">→</span>
+                        {{ TIER_LABEL[formatTier(audit.new_state)!] }}
+                      </span>
+                      <span
+                        v-else-if="audit.action === 'manual_activate' && formatTier(audit.new_state)"
+                        class="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-700"
+                        :data-testid="`audit-tier-new-${audit.id}`"
+                      >
+                        Palier : {{ TIER_LABEL[formatTier(audit.new_state)!] }}
+                      </span>
+                      <p class="text-gray-700 whitespace-pre-wrap break-words">{{ audit.notes }}</p>
+                      <button
+                        type="button"
+                        class="text-[11px] text-gray-500 hover:text-gray-700 underline"
+                        :data-testid="`audit-diff-toggle-${audit.id}`"
+                        @click="toggleAuditDiff(audit.id)"
+                      >
+                        {{ expandedAuditDiffs[audit.id] ? 'Masquer le diff JSON' : 'Voir le diff JSON' }}
+                      </button>
+                      <div
+                        v-if="expandedAuditDiffs[audit.id]"
+                        class="grid grid-cols-1 lg:grid-cols-2 gap-2 mt-1"
+                        :data-testid="`audit-diff-${audit.id}`"
+                      >
+                        <div>
+                          <p class="text-[10px] uppercase tracking-wide text-gray-400 mb-1">État précédent</p>
+                          <pre class="bg-gray-50 rounded p-2 text-[11px] overflow-x-auto">{{ safeStringify(audit.previous_state) }}</pre>
+                        </div>
+                        <div>
+                          <p class="text-[10px] uppercase tracking-wide text-gray-400 mb-1">Nouvel état</p>
+                          <pre class="bg-gray-50 rounded p-2 text-[11px] overflow-x-auto">{{ safeStringify(audit.new_state) }}</pre>
+                        </div>
+                      </div>
+                    </li>
+                  </ul>
+                  <p
+                    v-else
+                    class="text-xs text-gray-400"
+                    :data-testid="`audit-count-${sub.id}`"
+                  >
+                    0 opération
+                  </p>
                 </div>
-              </div>
-            </li>
-          </ul>
-          <p
-            v-else
-            class="text-xs text-gray-400"
-            :data-testid="`audit-count-${sub.id}`"
-          >
-            0 opération
-          </p>
-        </div>
-      </article>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
     </div>
 
     <!-- ============ Activate Modal ============ -->
