@@ -2,12 +2,13 @@
 /**
  * WBadge — Badge de tier WeAct
  *
- * Burst scalloped (8 ou 6 pointes selon taille) avec monogramme W blanc.
- * - tier="elite" → fond noir #0F1419
- * - tier="pro"   → fond teal #198496
+ * Burst scalloped (8 ou 6 pointes selon taille) sur fond vert WeAct (#198496, la
+ * couleur principale du site), avec le « W » du logo (le favicon) en blanc au centre.
  *
- * Le SVG conserve un viewBox fixe 24×24 : `fontSize` et `path` sont en unités
- * viewBox, le navigateur scale proportionnellement via width/height.
+ * Le SVG conserve un viewBox fixe 24×24 : la pointe et le glyphe W sont en unités
+ * viewBox, le navigateur scale proportionnellement via width/height. Le glyphe W est
+ * le tracé vectoriel du favicon (`public/favicons/favicon-*.svg`), imbriqué via un
+ * `<svg>` interne pour réutiliser son viewBox d'origine sans recalculer les chemins.
  *
  * Usage :
  *   <WBadge tier="elite" :size="22" title="Membre Élite" />
@@ -17,7 +18,7 @@
 import { computed } from 'vue'
 
 interface Props {
-  /** 'elite' (noir) ou 'pro' (teal). Défaut : 'elite' */
+  /** 'elite' ou 'pro' — n'affecte que le libellé accessible (le fond reste le vert WeAct). Défaut : 'elite' */
   tier?: 'elite' | 'pro'
   /** Taille en pixels (largeur = hauteur). Défaut : 20 */
   size?: number
@@ -52,7 +53,16 @@ const BURST_6 = burstPath(12, 12, 11.5, 10.2, 6)
 
 // Use simpler 6-point burst under 18px for legibility
 const path = computed(() => (props.size < 18 ? BURST_6 : BURST_8))
-const fill = computed(() => (props.tier === 'elite' ? '#0F1419' : '#198496'))
+
+// Fond = vert principal du site (WEACT primary, --color-weact).
+const BG = '#198496'
+
+// "W" du logo (favicon) — deux tracés dans le viewBox d'origine 220 220 640 640.
+const LOGO_W_PATHS = [
+  'M520.22,370.63c2.53-14.9-8.95-28.5-24.07-28.5h-212.94c-16.57,0-28.33,16.16-23.23,31.93l112.3,346.92c3.26,10.07,12.64,16.9,23.23,16.9h91.45c17.8,0,29.62-18.44,22.18-34.62l-30.03-65.29c-2.05-4.46-2.71-9.45-1.89-14.29l42.99-253.05Z',
+  'M594.88,342.13h-19.31c-11.91,0-22.07,8.59-24.07,20.32l-26.44,155.58-17.95,105.64c-.82,4.85-.16,9.83,1.89,14.3l16.06,34.91,23.36,50.78c3.98,8.66,12.65,14.21,22.18,14.21h113.91c10.59,0,19.97-6.82,23.23-16.9l112.29-346.92c5.1-15.77-6.65-31.93-23.23-31.93h-201.91Z',
+]
+
 const ariaLabel = computed(
   () => props.title ?? (props.tier === 'elite' ? 'Membre Élite' : 'Membre Pro'),
 )
@@ -68,17 +78,11 @@ const ariaLabel = computed(
     class="weact-badge"
   >
     <title>{{ ariaLabel }}</title>
-    <path :d="path" :fill="fill" />
-    <text
-      x="12"
-      y="16"
-      text-anchor="middle"
-      font-size="11"
-      font-weight="800"
-      fill="#fff"
-      font-family="Inter, system-ui, sans-serif"
-      style="letter-spacing: -0.04em"
-    >W</text>
+    <path :d="path" :fill="BG" />
+    <!-- "W" du logo (favicon), centré dans la pointe via le viewBox d'origine -->
+    <svg x="4" y="4" width="16" height="16" viewBox="220 220 640 640">
+      <path v-for="(d, i) in LOGO_W_PATHS" :key="i" :d="d" fill="#fff" />
+    </svg>
   </svg>
 </template>
 
