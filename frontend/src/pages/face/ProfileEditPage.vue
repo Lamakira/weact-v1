@@ -33,7 +33,6 @@ import AvailabilityToggle from '@/features/face/components/AvailabilityToggle.vu
 import ProfileCompletionIndicator from '@/features/face/components/ProfileCompletionIndicator.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import BasicInfoSection from '@/features/face/components/BasicInfoSection.vue'
-import SubscriptionPanel from '@/features/face/components/SubscriptionPanel.vue'
 import EmailChangeForm from '@/features/auth/components/EmailChangeForm.vue'
 import PasswordChangeForm from '@/features/auth/components/PasswordChangeForm.vue'
 import DataPrivacySection from '@/components/account/DataPrivacySection.vue'
@@ -224,9 +223,9 @@ const {
   fetchCompletion,
 } = useProfileCompletion()
 
-// Subscription status composable (FP-2.7) — the SubscriptionPanel owns offers,
-// cta and the payment flow; ProfileEditPage only needs the capability matrix
-// for the tier-aware album section.
+// Subscription status composable (FP-2.7) — the subscription/payment UI now lives
+// in the dedicated Facturation tab (FaceBillingPage). ProfileEditPage only needs
+// the capability matrix for the tier-aware album / video sections.
 const {
   capabilities,
   maxAlbumPhotos,
@@ -569,26 +568,6 @@ async function handleAvailabilityToggle(): Promise<void> {
 }
 
 /**
- * Refresh profile completion after the subscription panel confirms a payment.
- * Album / acting video refetches catch the case where an upgrade unlocks media
- * previously masked by the lower tier — `maxAlbumPhotos` updates reactively but
- * the photo array itself stays cached until forced. The toast belongs on the
- * page that initiates the payment; for resume-pending confirms triggered from
- * here, the visual feedback comes from the panel state flip.
- */
-async function handleSubscriptionChanged(): Promise<void> {
-  await Promise.all([
-    fetchAlbumPhotos(),
-    fetchVideos(),
-    fetchCompletion(),
-  ])
-}
-
-function handlePaymentCancelled(): void {
-  toast.success('Paiement annulé.')
-}
-
-/**
  * Handle click on missing item in completion indicator
  * Scrolls to the appropriate section
  */
@@ -751,14 +730,6 @@ function handleCompletionItemClick(itemKey: string): void {
             </svg>
             <p class="text-sm text-green-700">{{ successMessage }}</p>
           </div>
-        </div>
-
-        <!-- Subscription panel (FP-2.7) -->
-        <div class="mb-6">
-          <SubscriptionPanel
-            @subscription-changed="handleSubscriptionChanged"
-            @payment-cancelled="handlePaymentCancelled"
-          />
         </div>
 
         <!-- Basic info section (name/username) -->

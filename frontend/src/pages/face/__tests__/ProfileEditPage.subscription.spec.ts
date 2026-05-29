@@ -226,7 +226,6 @@ function mountPage() {
   return shallowMount(ProfileEditPage, {
     global: {
       stubs: {
-        SubscriptionPanel: true,
         PhotoAlbumGrid: {
           template: '<button data-testid="grid-add" @click="$emit(\'add-click\')">add</button>',
         },

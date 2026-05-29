@@ -16,6 +16,7 @@ import { usePersonalInfo } from '@/features/face/composables/usePersonalInfo'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 import TarifsMissingBanner from '@/components/TarifsMissingBanner.vue'
 import WhatsappMissingBanner from '@/components/WhatsappMissingBanner.vue'
+import PendingSubscriptionPaymentBanner from '@/components/PendingSubscriptionPaymentBanner.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -35,6 +36,7 @@ const sidebarItems: SidebarItem[] = [
   { label: 'Mes bookings', icon: CalendarCheck, to: '/face/bookings' },
   { label: 'Messages', icon: MessageCircle, to: '/face/messages' },
   { label: 'Portefeuille', icon: Wallet, to: '/face/wallet' },
+  { label: 'Facturation', icon: CreditCard, to: '/face/billing' },
   { label: 'Tarifs', icon: CreditCard, to: '/pricing' },
   { label: 'Mon profil', icon: User, to: '/face/profile' },
 ]
@@ -89,6 +91,11 @@ async function handleLogout(): Promise<void> {
     :is-logging-out="isLoading"
     @logout="handleLogout"
   >
+    <!-- Pending subscription payment nudge — shown on every Face page (except the
+         Facturation tab itself, which carries the full resume controls) so a Face
+         with an abandoned/unconfirmed payment is always guided to resume it. -->
+    <PendingSubscriptionPaymentBanner v-if="route.name !== 'face-billing'" />
+
     <!-- Email verification banner (shown if email not verified) -->
     <EmailVerificationBanner
       v-if="!authStore.isEmailVerified"

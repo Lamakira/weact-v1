@@ -53,20 +53,19 @@ describe('ProfileEditPage structure', () => {
     expect(templateSection).not.toContain('Photo de profil')
   })
 
-  it('SubscriptionPanel is imported and placed before BasicInfoSection (FP-2.7)', () => {
-    expect(template).toContain(
+  it('no longer renders SubscriptionPanel (moved to the Facturation tab) but keeps useSubscriptionStatus for capability gating', () => {
+    // The subscription / payment UI now lives in the dedicated billing tab
+    // (FaceBillingPage). The profile page must not import or render the panel.
+    expect(template).not.toContain(
       "import SubscriptionPanel from '@/features/face/components/SubscriptionPanel.vue'",
     )
+    const templateSection = template.slice(template.indexOf('<template>'))
+    expect(templateSection).not.toContain('<SubscriptionPanel')
+
+    // But it still needs the capability matrix for the tier-aware album / video sections.
     expect(template).toContain(
       "import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'",
     )
-
-    const templateSection = template.slice(template.indexOf('<template>'))
-    const panelIndex = templateSection.indexOf('<SubscriptionPanel')
-    const basicIndex = templateSection.indexOf('<BasicInfoSection')
-    expect(panelIndex).toBeGreaterThan(-1)
-    expect(basicIndex).toBeGreaterThan(-1)
-    expect(panelIndex).toBeLessThan(basicIndex)
   })
 
   it('album add-click handler guards against entitlement-resolved quota (FP-1.7)', () => {

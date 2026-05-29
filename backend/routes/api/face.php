@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\Face\PresentationVideoController;
 use App\Http\Controllers\Api\V1\Face\ProfileCompletionController;
 use App\Http\Controllers\Api\V1\Face\ProfileController;
 use App\Http\Controllers\Api\V1\Face\RatingController;
+use App\Http\Controllers\Api\V1\Face\SubscriptionHistoryController;
 use App\Http\Controllers\Api\V1\Face\SubscriptionPaymentController;
 use App\Http\Controllers\Api\V1\Face\SubscriptionStatusController;
 use App\Http\Controllers\Api\V1\Face\TarifsController;
@@ -145,6 +146,10 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
 
     // Subscription status route (Face only — premium entitlements + plan CTA)
     Route::get('/subscription-status', [SubscriptionStatusController::class, 'show'])
+        ->middleware('throttle:ui-read');
+
+    // Subscription history (Face only — read-only, backs the billing tab)
+    Route::get('/subscriptions/history', [SubscriptionHistoryController::class, 'index'])
         ->middleware('throttle:ui-read');
 
     // Subscription payment initiation (Face only — Fedapay hosted checkout)

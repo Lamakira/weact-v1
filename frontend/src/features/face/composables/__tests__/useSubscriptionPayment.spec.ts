@@ -526,9 +526,9 @@ describe('cancelPending + visibility-aware auto-verify (FP-2.15.1)', () => {
   })
 
   it('T1 — cancelPending() POSTs cancel-pending, refreshes status, flips paymentState to idle', async () => {
-    // Real-world entry point for the cancel button: the user returned to /face/profile,
-    // the pending banner is visible (paymentState='idle' so banner v-else-if cascade
-    // shows pending — see SubscriptionPanel.vue lines 230-319). Polling is not active.
+    // Real-world entry point for the cancel button: the user is on a surface that
+    // hosts the pending banner (the Facturation tab / pricing page), paymentState='idle'
+    // so the banner v-else-if cascade shows the pending state. Polling is not active.
     vi.mocked(faceApi.cancelPendingSubscription).mockResolvedValue({
       data: { subscription_id: 'sub_pending', status: 'failed' as SubscriptionStatusValue },
       message: 'Paiement annulé.',
