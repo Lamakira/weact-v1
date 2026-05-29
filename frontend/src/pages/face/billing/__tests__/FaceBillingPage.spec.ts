@@ -199,6 +199,46 @@ describe('FaceBillingPage', () => {
     expect(card).toContain('Annulé le')
     expect(card).not.toContain("Accès jusqu'au")
     expect(card).not.toContain('Temps restant sur la période')
+    // The lapsed plan's price must not read as an ongoing charge — Montant tile hidden.
+    expect(card).not.toContain('Montant')
+    expect(card).not.toContain('FCFA')
+  })
+
+  it('renders a cancelled-pending / failed payment as free Découverte — no attempted-plan name or price (reported bug)', async () => {
+    // A Découverte user who cancelled a pending Starter purchase: cancelOwnPending
+    // sets status=failed, plan=starter, tier=free. The card must NOT claim "Starter".
+    setupStatus({ current: makeCurrent({ tier: 'free', status: 'failed', plan: 'starter' }), cta: ALL_CTA })
+    const wrapper = mount(FaceBillingPage)
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="current-tier-name"]').text()).toBe('Découverte')
+    expect(wrapper.get('[data-testid="current-status-pill"]').text()).toContain('Découverte')
+
+    const card = wrapper.get('[data-testid="current-subscription"]').text()
+    expect(card).not.toContain('Starter')
+    expect(card).not.toContain('FCFA')
+    expect(card).toContain('Gratuit')
+  })
+
+  it('hides the Montant tile for an expired plan (keeps the lapsed plan name, drops the misleading price)', async () => {
+    setupStatus({
+      current: makeCurrent({
+        tier: 'free',
+        status: 'expired',
+        plan: 'pro',
+        starts_at: daysFromNowISO(-400),
+        expires_at: daysFromNowISO(-30),
+      }),
+    })
+    const wrapper = mount(FaceBillingPage)
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="current-tier-name"]').text()).toBe('Pro')
+    expect(wrapper.get('[data-testid="current-status-pill"]').text()).toContain('Expiré')
+    const card = wrapper.get('[data-testid="current-subscription"]').text()
+    expect(card).not.toContain('Montant')
+    expect(card).not.toContain('FCFA')
+    expect(card).toContain('Expiré le')
   })
 
   it('renders the free state with "Découverte" pill and "Choisir un abonnement" CTA', async () => {

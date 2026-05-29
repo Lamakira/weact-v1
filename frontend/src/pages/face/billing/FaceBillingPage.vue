@@ -168,7 +168,12 @@ function onCancelDismiss(): void {
 const displayTier = computed<DisplayTier>(() => {
   const c = current.value
   if (!c) return 'decouverte'
-  if ((c.status === 'cancelled' || c.status === 'expired' || c.status === 'failed') && c.plan) {
+  // cancelled / expired surface the lapsed plan the Face actually HELD (paired with
+  // an "Annulé"/"Expiré" pill, so the name + pill agree). `failed` is excluded on
+  // purpose: it is a payment that NEVER activated (e.g. a Découverte user who
+  // cancelled a pending Starter purchase → cancelOwnPending sets status=failed),
+  // so the attempted plan name would contradict the free entitlement.
+  if ((c.status === 'cancelled' || c.status === 'expired') && c.plan) {
     return c.plan
   }
   return c.tier === 'free' ? 'decouverte' : c.tier
@@ -208,6 +213,11 @@ const cardState = computed<CardState>(() => {
 // — pinned by FaceSubscriptionRegressionMatrixTest). So a cancelled/expired plan
 // has NO remaining access period: no "access until" date, no countdown bar.
 const showTimeBar = computed(() => cardState.value === 'active' || cardState.value === 'expiring')
+
+// Montant reflects the CURRENT charge: the plan price while active, "Gratuit" once
+// free. For a cancelled/expired plan the title still shows the lapsed plan name, so
+// surfacing its price would read as an ongoing charge — hide the tile instead.
+const showAmount = computed(() => cardState.value !== 'cancelled' && cardState.value !== 'expired')
 
 const subscribedTile = computed(() => (startDate.value ? fmtDate(startDate.value) : null))
 const endTile = computed<{ label: string; value: string } | null>(() => {
@@ -518,7 +528,7 @@ function toggleHistory(id: string): void {
         <div class="px-6 sm:px-8 py-6 sm:py-7">
           <!-- Price + dates -->
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            <div class="flex items-center gap-3 p-4 rounded-xl bg-gray-50/60">
+            <div v-if="showAmount" class="flex items-center gap-3 p-4 rounded-xl bg-gray-50/60">
               <div class="w-10 h-10 rounded-lg bg-[#198496]/10 flex items-center justify-center text-[#198496]">
                 <CreditCard :size="18" />
               </div>
