@@ -106,7 +106,7 @@ describe('AdminFaceSubscriptionSection', () => {
     expect(mockFetchSubscriptions).toHaveBeenCalledWith(FACE_ID)
   })
 
-  it('renders one card per subscription, ordered as returned by the API', async () => {
+  it('renders one row per subscription, ordered as returned by the API', async () => {
     const subs: AdminFaceSubscription[] = [
       makeSubscription({ id: 'sub-1', status: 'active', status_label: 'Active' }),
       makeSubscription({ id: 'sub-2', status: 'expired', status_label: 'Expirée' }),
@@ -114,14 +114,18 @@ describe('AdminFaceSubscriptionSection', () => {
     ]
     const wrapper = await mountSection(subs)
 
-    expect(wrapper.find('[data-testid="subscription-card-sub-1"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="subscription-card-sub-2"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="subscription-card-sub-3"]').exists()).toBe(true)
-    expect(wrapper.findAll('[data-testid^="subscription-card-"]')).toHaveLength(3)
+    expect(wrapper.find('[data-testid="subscription-row-sub-1"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="subscription-row-sub-2"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="subscription-row-sub-3"]').exists()).toBe(true)
+    expect(wrapper.findAll('[data-testid^="subscription-row-"]')).toHaveLength(3)
   })
 
   it('renders a zero audit count for subscriptions without audits', async () => {
     const wrapper = await mountSection([makeSubscription({ id: 'sub-no-audit', audits: [] })])
+
+    // The audit count lives in the row drill-down panel (FP-2.16).
+    await wrapper.find('[data-testid="subscription-expand-sub-no-audit"]').trigger('click')
+    await flushPromises()
 
     expect(wrapper.find('[data-testid="audit-count-sub-no-audit"]').text()).toBe('0 opération')
   })
@@ -131,10 +135,14 @@ describe('AdminFaceSubscriptionSection', () => {
       makeSubscription({ id: 'sub-bad-currency', paid_amount: 50000, currency: 'FCFA' }),
     ])
 
-    expect(wrapper.find('[data-testid="subscription-card-sub-bad-currency"]').text()).toContain(
+    // The paid amount lives in the row drill-down panel (FP-2.16).
+    await wrapper.find('[data-testid="subscription-expand-sub-bad-currency"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="subscription-detail-sub-bad-currency"]').text()).toContain(
       'FCFA',
     )
-    expect(wrapper.find('[data-testid="subscription-card-sub-bad-currency"]').text()).toContain(
+    expect(wrapper.find('[data-testid="subscription-detail-sub-bad-currency"]').text()).toContain(
       '50',
     )
   })
@@ -1032,6 +1040,8 @@ describe('AdminFaceSubscriptionSection — FP-2.10 tier selector + change-tier f
       })
       const wrapper = await mountSection([sub])
 
+      await wrapper.find('[data-testid="subscription-expand-sub-changed"]').trigger('click')
+      await flushPromises()
       await wrapper.find('[data-testid="audits-toggle-sub-changed"]').trigger('click')
       await flushPromises()
 
@@ -1062,6 +1072,8 @@ describe('AdminFaceSubscriptionSection — FP-2.10 tier selector + change-tier f
       })
       const wrapper = await mountSection([sub])
 
+      await wrapper.find('[data-testid="subscription-expand-sub-activated"]').trigger('click')
+      await flushPromises()
       await wrapper.find('[data-testid="audits-toggle-sub-activated"]').trigger('click')
       await flushPromises()
 
@@ -1109,10 +1121,144 @@ describe('AdminFaceSubscriptionSection — FP-2.10 tier selector + change-tier f
       })
       const wrapper = await mountSection([sub])
 
+      await wrapper.find('[data-testid="subscription-expand-sub-noisy"]').trigger('click')
+      await flushPromises()
       await wrapper.find('[data-testid="audits-toggle-sub-noisy"]').trigger('click')
       await flushPromises()
 
       expect(wrapper.findAll('[data-testid^="audit-tier-"]')).toHaveLength(0)
     })
+  })
+})
+
+describe('AdminFaceSubscriptionSection — FP-2.16 compact table + row drill-down', () => {
+  beforeEach(() => {
+    subscriptionsRef = ref<AdminFaceSubscription[]>([])
+    faceDisplayRef = ref<{ id: string; display_name: string } | null>(null)
+    isLoadingRef = ref(false)
+    errorRef = ref<string | null>(null)
+    vi.clearAllMocks()
+    document.body.innerHTML = ''
+  })
+
+  it('renders a table with one row per subscription and the summary column headers', async () => {
+    const subs: AdminFaceSubscription[] = [
+      makeSubscription({ id: 'sub-1' }),
+      makeSubscription({ id: 'sub-2', status: 'expired', status_label: 'Expirée' }),
+      makeSubscription({ id: 'sub-3', status: 'cancelled', status_label: 'Annulée' }),
+    ]
+    const wrapper = await mountSection(subs)
+
+    expect(wrapper.find('[data-testid="admin-face-subscription-list"]').exists()).toBe(true)
+    expect(wrapper.findAll('[data-testid^="subscription-row-"]')).toHaveLength(3)
+
+    const head = wrapper.find('thead').text()
+    expect(head).toContain('Palier')
+    expect(head).toContain('Statut')
+    expect(head).toContain('Début')
+    expect(head).toContain('Expiration')
+    expect(head).toContain('Dernière opération')
+  })
+
+  it('shows the latest audit (audits[0]) in the Dernière opération cell', async () => {
+    const sub = makeSubscription({
+      id: 'sub-lastop',
+      audits: [
+        {
+          id: 'a-new',
+          action: 'extend',
+          action_label: 'Prolongation',
+          notes: 'extended',
+          previous_state: { tier: 'pro' },
+          new_state: { tier: 'pro' },
+          admin: { id: 'admin-2', name: 'Bob', role: 'admin' },
+          created_at: '2026-05-22T10:00:00+00:00',
+        },
+        {
+          id: 'a-old',
+          action: 'manual_activate',
+          action_label: 'Activation manuelle',
+          notes: 'activated',
+          previous_state: null,
+          new_state: { tier: 'pro' },
+          admin: { id: 'admin-1', name: 'Alice', role: 'admin' },
+          created_at: '2026-05-20T10:00:00+00:00',
+        },
+      ],
+    })
+    const wrapper = await mountSection([sub])
+
+    const cell = wrapper.find('[data-testid="subscription-last-op-sub-lastop"]')
+    expect(cell.exists()).toBe(true)
+    expect(cell.text()).toContain('Prolongation')
+    expect(cell.text()).toContain('Bob')
+    expect(cell.text()).not.toContain('Activation manuelle')
+  })
+
+  it('shows an em dash in the Dernière opération cell when there are no audits', async () => {
+    const wrapper = await mountSection([makeSubscription({ id: 'sub-noaudit', audits: [] })])
+
+    expect(wrapper.find('[data-testid="subscription-last-op-sub-noaudit"]').text()).toBe('—')
+  })
+
+  it('keeps the detail panel collapsed by default and reveals paid amount + audit trail on expand', async () => {
+    const sub = makeSubscription({
+      id: 'sub-drill',
+      paid_amount: 50000,
+      currency: 'XOF',
+      audits: [],
+    })
+    const wrapper = await mountSection([sub])
+
+    const toggle = wrapper.find('[data-testid="subscription-expand-sub-drill"]')
+    expect(wrapper.find('[data-testid="subscription-detail-sub-drill"]').exists()).toBe(false)
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+
+    await toggle.trigger('click')
+    await flushPromises()
+
+    const panel = wrapper.find('[data-testid="subscription-detail-sub-drill"]')
+    expect(panel.exists()).toBe(true)
+    // a11y (FP-2.16 review patch): the toggle's aria-controls must resolve to the panel's real id
+    expect(panel.attributes('id')).toBe('subscription-detail-sub-drill')
+    expect(
+      wrapper.find('[data-testid="subscription-expand-sub-drill"]').attributes('aria-controls'),
+    ).toBe('subscription-detail-sub-drill')
+    expect(panel.text()).toContain('50')
+    expect(panel.find('[data-testid="audit-count-sub-drill"]').exists()).toBe(true)
+    expect(
+      wrapper.find('[data-testid="subscription-expand-sub-drill"]').attributes('aria-expanded'),
+    ).toBe('true')
+
+    await wrapper.find('[data-testid="subscription-expand-sub-drill"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="subscription-detail-sub-drill"]').exists()).toBe(false)
+  })
+
+  it('expands rows independently — opening one does not open its sibling', async () => {
+    const subs: AdminFaceSubscription[] = [
+      makeSubscription({ id: 'sub-a' }),
+      makeSubscription({ id: 'sub-b' }),
+    ]
+    const wrapper = await mountSection(subs)
+
+    await wrapper.find('[data-testid="subscription-expand-sub-a"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="subscription-detail-sub-a"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="subscription-detail-sub-b"]').exists()).toBe(false)
+  })
+
+  it('collapses expanded rows when the faceId prop changes', async () => {
+    const wrapper = await mountSection([makeSubscription({ id: 'sub-reset' })])
+
+    await wrapper.find('[data-testid="subscription-expand-sub-reset"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="subscription-detail-sub-reset"]').exists()).toBe(true)
+
+    await wrapper.setProps({ faceId: 'face-uuid-2' })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="subscription-detail-sub-reset"]').exists()).toBe(false)
   })
 })
