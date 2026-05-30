@@ -13,15 +13,16 @@ describe('ProfileEditPage structure', () => {
     'utf-8',
   )
 
-  it('DataPrivacySection is NOT inside the account security section', () => {
-    // The account security section starts with "Account security section" comment
-    // and ends with its closing </div>
-    const securityStart = template.indexOf('Account security section')
-    const securityBlock = template.slice(securityStart, securityStart + 500)
-
-    expect(securityBlock).toContain('EmailChangeForm')
-    expect(securityBlock).toContain('PasswordChangeForm')
-    expect(securityBlock).not.toContain('DataPrivacySection')
+  it('Compte → Sécurité panel renders Email + Password, not DataPrivacySection', () => {
+    const tpl = template.slice(template.indexOf('<template>'))
+    const start = tpl.indexOf('data-testid="panel-securite"')
+    expect(start).toBeGreaterThan(-1)
+    // Bound the block to the securité panel only (up to the next panel).
+    const next = tpl.indexOf('data-testid="panel-', start + 1)
+    const block = tpl.slice(start, next === -1 ? start + 400 : next)
+    expect(block).toContain('EmailChangeForm')
+    expect(block).toContain('PasswordChangeForm')
+    expect(block).not.toContain('DataPrivacySection')
   })
 
   it('DataPrivacySection appears AFTER the main form sections', () => {
@@ -31,15 +32,12 @@ describe('ProfileEditPage structure', () => {
     expect(dataPrivacyIndex).toBeGreaterThan(experiencesIndex)
   })
 
-  it('DataPrivacySection is wrapped in its own card', () => {
-    // Find DataPrivacySection in template (the one in the template, not in imports)
-    const templateSection = template.slice(template.indexOf('<template>'))
-    const dpIndex = templateSection.indexOf('<DataPrivacySection')
-
-    // Look backwards from DataPrivacySection for the wrapping card div
-    const precedingBlock = templateSection.slice(Math.max(0, dpIndex - 200), dpIndex)
-    expect(precedingBlock).toContain('rounded-2xl')
-    expect(precedingBlock).toContain('border-gray-100')
+  it('DataPrivacySection lives in the Compte → Mes données panel', () => {
+    const tpl = template.slice(template.indexOf('<template>'))
+    const start = tpl.indexOf('data-testid="panel-donnees"')
+    expect(start).toBeGreaterThan(-1)
+    const block = tpl.slice(start, start + 300)
+    expect(block).toContain('<DataPrivacySection')
   })
 
   it('DataPrivacySection is still imported', () => {
@@ -113,16 +111,53 @@ describe('ProfileEditPage structure', () => {
     expect(template).not.toContain(retiredImport)
   })
 
-  it('mounts a section-ugc-video block between section-acting-video and section-bio-location (FP-2.7.1)', () => {
-    const templateSection = template.slice(template.indexOf('<template>'))
-    const actingIdx = templateSection.indexOf('id="section-acting-video"')
-    const ugcIdx = templateSection.indexOf('id="section-ugc-video"')
-    const bioIdx = templateSection.indexOf('id="section-bio-location"')
+  it('Portfolio keeps album + 3 distinct video panels (presentation / acting / UGC)', () => {
+    const tpl = template.slice(template.indexOf('<template>'))
+    for (const id of ['panel-album', 'panel-video-pres', 'panel-video-acting', 'panel-video-ugc']) {
+      expect(tpl).toContain(`data-testid="${id}"`)
+    }
+    expect(tpl).toContain('Vidéo UGC')
+  })
 
-    expect(actingIdx).toBeGreaterThan(-1)
-    expect(ugcIdx).toBeGreaterThan(actingIdx)
-    expect(bioIdx).toBeGreaterThan(ugcIdx)
-    expect(templateSection).toContain('Vidéo UGC')
+  // -------------------------------------------------------------------
+  // Tabbed structure (Profile Tabs refonte)
+  // -------------------------------------------------------------------
+
+  it('renders the four family tabs (Profil / Portfolio / Carrière / Compte)', () => {
+    const tpl = template.slice(template.indexOf('<template>'))
+    expect(tpl).toContain('data-testid="profile-family-tabs"')
+    // testid is bound dynamically; the four families are declared in FAMILIES.
+    expect(tpl).toContain('family-tab-${f.id}')
+    for (const id of ['profil', 'portfolio', 'carriere', 'compte']) {
+      expect(template).toContain(`id: '${id}'`)
+    }
+  })
+
+  it('moves the editable Tarif into the Carrière → Tarif panel; the sidebar shows it read-only', () => {
+    const tpl = template.slice(template.indexOf('<template>'))
+    const tarifPanel = tpl.indexOf('data-testid="panel-tarif"')
+    expect(tarifPanel).toBeGreaterThan(-1)
+    // Editable TarifsForm sits inside the tarif panel...
+    expect(tpl.slice(tarifPanel, tarifPanel + 400)).toContain('<TarifsForm')
+    // ...and the sidebar surfaces a read-only value (no second TarifsForm).
+    expect(tpl).toContain('data-testid="sidebar-tarif-value"')
+    expect(tpl.split('<TarifsForm').length - 1).toBe(1)
+  })
+
+  it('keeps the Complétion card and adds the Statut + Résumé sidebar cards', () => {
+    const tpl = template.slice(template.indexOf('<template>'))
+    expect(tpl).toContain('ProfileCompletionIndicator')
+    expect(tpl).toContain('data-testid="status-card"')
+    expect(tpl).toContain('data-testid="resume-card"')
+  })
+
+  it('completion clicks open tabs (COMPLETION_TO_TAB) instead of scrollIntoView', () => {
+    expect(template).toContain('COMPLETION_TO_TAB')
+    expect(template).toContain('navigateTab')
+    // handleCompletionItemClick no longer scrolls to #section-… anchors.
+    const handlerStart = template.indexOf('function handleCompletionItemClick')
+    const handlerBlock = template.slice(handlerStart, handlerStart + 400)
+    expect(handlerBlock).not.toContain('scrollIntoView')
   })
 
   it('drops subscriptionCanUploadActingVideo and adds subscriptionCanUploadPresentationVideo (FP-2.7.1)', () => {

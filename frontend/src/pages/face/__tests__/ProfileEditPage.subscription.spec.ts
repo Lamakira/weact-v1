@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { shallowMount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import ProfileEditPage from '../ProfileEditPage.vue'
+import ProfileCompletionIndicator from '@/features/face/components/ProfileCompletionIndicator.vue'
 
 const mocks = vi.hoisted(() => ({
   ref: <T>(value: T) => ({ __v_isRef: true, value }),
@@ -332,5 +333,115 @@ describe('ProfileEditPage subscription guards', () => {
 
     // album photos + videos + completion all refetched (each resolves via mocks.resolved).
     expect(mocks.resolved.mock.calls.length).toBe(before + 3)
+  })
+})
+
+describe('ProfileEditPage tabs (Profile Tabs refonte)', () => {
+  // v-show sets inline `display: none`; assert against that (isVisible() is unreliable here).
+  function hidden(wrapper: ReturnType<typeof mountPage>, testid: string): boolean {
+    return (wrapper.find(`[data-testid="${testid}"]`).attributes('style') ?? '').includes(
+      'display: none',
+    )
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.albumPhotos.value = []
+    mocks.canAddMore.value = true
+    mocks.maxAlbumPhotos.value = 2
+    mocks.capabilities.value.max_acting_videos = 0
+    mocks.capabilities.value.max_ugc_videos = 0
+    mocks.tier = ref('free')
+  })
+
+  it('defaults to Profil → Infos perso and keeps the other panels hidden (v-show)', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(hidden(wrapper, 'panel-infos')).toBe(false)
+    expect(hidden(wrapper, 'panel-album')).toBe(true)
+    expect(hidden(wrapper, 'panel-donnees')).toBe(true)
+  })
+
+  it('clicking the Portfolio family tab switches the visible panel and pushes the URL', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="family-tab-portfolio"]').trigger('click')
+
+    expect(hidden(wrapper, 'panel-album')).toBe(false)
+    expect(hidden(wrapper, 'panel-infos')).toBe(true)
+    expect(mocks.routerPush).toHaveBeenCalledWith(
+      expect.objectContaining({ query: expect.objectContaining({ tab: 'portfolio', section: 'album' }) }),
+    )
+  })
+
+  it('selecting a section in the side nav reveals that section', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="section-nav-bio"]').trigger('click')
+
+    expect(hidden(wrapper, 'panel-bio')).toBe(false)
+    expect(hidden(wrapper, 'panel-infos')).toBe(true)
+  })
+
+  it('a completion missing-item click opens the matching tab (backend key "categories" → Carrière)', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    // The backend emits the key "categories" (plural) for "Sélectionnez votre catégorie".
+    wrapper.findComponent(ProfileCompletionIndicator).vm.$emit('click-item', 'categories')
+    await flushPromises()
+
+    expect(hidden(wrapper, 'panel-categorie')).toBe(false)
+  })
+
+  it('the editable Tarif lives in the Carrière → Tarif panel (moved out of the sidebar)', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="family-tab-carriere"]').trigger('click')
+    await wrapper.find('[data-testid="section-nav-tarif"]').trigger('click')
+
+    expect(hidden(wrapper, 'panel-tarif')).toBe(false)
+    // The sidebar shows the tarif read-only — no editable form there.
+    expect(wrapper.find('[data-testid="sidebar-tarif-value"]').exists()).toBe(true)
+  })
+
+  it('on the stacked (mobile) layout, a completion click scrolls the panel into view', async () => {
+    const original = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { value: 500, configurable: true })
+    const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    wrapper.findComponent(ProfileCompletionIndicator).vm.$emit('click-item', 'bio')
+    await flushPromises()
+
+    expect(hidden(wrapper, 'panel-bio')).toBe(false)
+    expect(scrollSpy).toHaveBeenCalled()
+
+    scrollSpy.mockRestore()
+    Object.defineProperty(window, 'innerWidth', { value: original, configurable: true })
+  })
+
+  it('on desktop (side-by-side), a completion click does not force a scroll', async () => {
+    const original = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true })
+    const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    wrapper.findComponent(ProfileCompletionIndicator).vm.$emit('click-item', 'bio')
+    await flushPromises()
+
+    expect(hidden(wrapper, 'panel-bio')).toBe(false)
+    expect(scrollSpy).not.toHaveBeenCalled()
+
+    scrollSpy.mockRestore()
+    Object.defineProperty(window, 'innerWidth', { value: original, configurable: true })
   })
 })

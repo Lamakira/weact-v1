@@ -290,4 +290,21 @@ describe('BasicInfoSection', () => {
     expect(successMessage.exists()).toBe(true)
     expect(successMessage.text()).toContain('Informations mises à jour avec succès')
   })
+
+  describe('flat variant', () => {
+    it('renders its own card by default', () => {
+      const wrapper = mount(BasicInfoSection)
+      expect(wrapper.classes()).toContain('bg-white')
+      expect(wrapper.classes()).toContain('rounded-2xl')
+    })
+
+    it('drops the card chrome (bg/border/rounded) when flat', () => {
+      const wrapper = mount(BasicInfoSection, { props: { flat: true } })
+      expect(wrapper.classes()).not.toContain('bg-white')
+      expect(wrapper.classes()).not.toContain('rounded-2xl')
+      expect(wrapper.classes()).not.toContain('border')
+      // Content is still rendered (the form is present).
+      expect(wrapper.find('form').exists()).toBe(true)
+    })
+  })
 })

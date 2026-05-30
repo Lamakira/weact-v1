@@ -5,6 +5,11 @@ import type { BasicInfoFormData } from '../types'
 import { FloatingField } from '@/components/ui/form'
 import { User, AtSign } from 'lucide-vue-next'
 
+// `flat` drops the component's own card chrome + internal padding so it can be
+// embedded inside a host card (e.g. the profile tabs master/detail panel) without
+// nesting a card inside a card. Default keeps the standalone card (unchanged).
+withDefaults(defineProps<{ flat?: boolean }>(), { flat: false })
+
 const { basicInfo, isLoading, isSaving, error, fetchBasicInfo, updateBasicInfo, clearError } =
   useBasicInfo()
 
@@ -61,15 +66,15 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+  <div :class="flat ? '' : 'bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'">
     <!-- Header -->
-    <div class="px-6 py-4 border-b border-gray-100">
+    <div :class="flat ? 'mb-6' : 'px-6 py-4 border-b border-gray-100'">
       <h2 class="text-lg font-semibold text-gray-900">Informations personnelles</h2>
       <p class="text-sm text-gray-500 mt-1">Modifiez votre nom et nom d'utilisateur</p>
     </div>
 
     <!-- Content -->
-    <div class="p-6">
+    <div :class="flat ? '' : 'p-6'">
       <!-- Loading State -->
       <div
         v-if="isLoading"
