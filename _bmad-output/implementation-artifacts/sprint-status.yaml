@@ -641,12 +641,12 @@ development_status:
   epic-feature-fp-3: in-progress
   feature-fp-3-1a-tier-aware-commission-config-and-booking: done             # config free 0.10→0.15 + BookingPricing/BookingService consomment capabilities()->commissionRate ; producteur reste 10% ; tests money [backend] — impl + code-review patches 2026-05-31, 9 fichiers + review hardening ; 2e revue 2026-05-31 (garde commission [0,1) rejette 1.0, assertDatabaseHas Élite, doc hygiène) targeted FP-3.1a suite green 93/555 ; full suite vert sauf 1 flaky date pré-existant (FaceDashboardChartStatsTest subMonth fin-de-mois)
   feature-fp-3-1b-tier-aware-commission-mission-per-face: done          # commission Face par-Face dans la boucle MissionPaymentService:158-166 ; commission_faces_total=somme ; fin du montantParFace uniforme ; tests paliers mixtes + rounding odd-budget [backend, dépend 1a] — code-review patches 2026-05-31, suite 535/2303
-  feature-fp-3-2-dashboard-current-plan-card: backlog                        # carte "Plan actuel" sous le portefeuille → /face/billing + lien "Comparer les plans" → /pricing (useSubscriptionStatus) [frontend]
+  feature-fp-3-2-dashboard-current-plan-card: done                            # carte "Plan actuel" sous le portefeuille → /face/billing + lien "Comparer les plans" → /pricing (useSubscriptionStatus) [frontend] — code-review 2026-05-31: 4 patches appliqués (error-state guard+retry, AC7 route-name asserts, direct-placement assert, narrow-column overflow), suite 2321/2321
   feature-fp-3-3-profile-quota-dynamic-upsell-copy: backlog                  # texte quota dynamique album+3 vidéos "Passez au plan {supérieur}…" ; Élite sans incitation [frontend]
   feature-fp-3-4-pricing-table-decouverte-corrections: backlog              # PricingView : Découverte Missions rémunérées=Oui + Commission=15% + maj spec [frontend, petit]
   feature-fp-3-5-post-registration-upsell-page: backlog                      # page upsell post-inscription Face (au lieu de redirect dashboard) ; respecte vérification email useAuth [frontend]
 
-last_updated: "2026-05-31T19:01:08+01:00"
+last_updated: "2026-05-31T22:55:00+01:00"
 last_code_review: "2026-05-31"
 last_story_created: "2026-05-31"
 last_story_completed: "2026-05-31"
