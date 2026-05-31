@@ -41,6 +41,7 @@ class MissionPaymentService
     public function __construct(
         private readonly FedapayService $fedapayService,
         private readonly WalletService $walletService,
+        private readonly FaceEntitlementService $faceEntitlementService,
     ) {}
 
     /**
@@ -112,6 +113,7 @@ class MissionPaymentService
 
             $candidatures = Candidature::whereIn('uuid', $requestedUuids)
                 ->where('mission_id', $mission->id)
+                ->with('face.activeSubscription')
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('uuid');
@@ -141,6 +143,31 @@ class MissionPaymentService
 
             $pricing = new MissionPricing($mission->budget, $selectedCandidatures->count());
 
+            // FP-3.1b — resolve each selected Face's commission rate by HER tier and
+            // compute her individual net amount. The producer side stays global
+            // (pricing); the Face side is the sum of per-Face commissions, never a
+            // uniform split.
+            $commissionFacesTotal = 0;
+            $montantTotalFaces = 0;
+            $entriesData = [];
+
+            foreach ($selectedCandidatures as $candidature) {
+                /** @var Face $face */
+                $face = $candidature->face;
+                $faceRate = $this->faceEntitlementService->capabilities($face)->commissionRate;
+                $faceCommission = (int) round($pricing->budgetParFace * $faceRate);
+                $montantFaceRecoit = $pricing->budgetParFace - $faceCommission;
+
+                $commissionFacesTotal += $faceCommission;
+                $montantTotalFaces += $montantFaceRecoit;
+
+                $entriesData[] = [
+                    'candidature_id' => $candidature->id,
+                    'face_id' => $candidature->face_id,
+                    'montant_face_recoit' => $montantFaceRecoit,
+                ];
+            }
+
             /** @var MissionPayment $payment */
             $payment = MissionPayment::create([
                 'mission_id' => $mission->id,
@@ -150,17 +177,17 @@ class MissionPaymentService
                 'montant_sous_total' => $pricing->sousTotal,
                 'commission_producteur' => $pricing->commissionProducteur,
                 'montant_total_producteur' => $pricing->montantTotalProducteur,
-                'commission_faces_total' => $pricing->commissionFacesTotal,
-                'montant_total_faces' => $pricing->montantTotalFaces,
+                'commission_faces_total' => $commissionFacesTotal,
+                'montant_total_faces' => $montantTotalFaces,
                 'status' => MissionPaymentStatus::Pending,
             ]);
 
-            foreach ($selectedCandidatures as $candidature) {
+            foreach ($entriesData as $entryData) {
                 MissionPaymentCandidature::create([
                     'mission_payment_id' => $payment->id,
-                    'candidature_id' => $candidature->id,
-                    'face_id' => $candidature->face_id,
-                    'montant_face_recoit' => $pricing->montantParFace,
+                    'candidature_id' => $entryData['candidature_id'],
+                    'face_id' => $entryData['face_id'],
+                    'montant_face_recoit' => $entryData['montant_face_recoit'],
                     'escrow_status' => EscrowStatus::Pending,
                 ]);
             }
