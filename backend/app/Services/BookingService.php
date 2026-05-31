@@ -35,6 +35,7 @@ class BookingService
         private readonly FedapayService $fedapayService,
         private readonly EscrowService $escrowService,
         private readonly WalletService $walletService,
+        private readonly FaceEntitlementService $faceEntitlementService,
     ) {}
 
     /**
@@ -76,7 +77,10 @@ class BookingService
             ]);
         }
 
-        $pricing = new BookingPricing($tarifBase);
+        // FP-3.1a: Face-side commission is tier-driven (Découverte 15 % / Starter-Pro 10 % / Élite 5 %),
+        // locked in at booking creation. Producer side stays a flat 10 % (BookingPricing constant).
+        $faceCommissionRate = $this->faceEntitlementService->capabilities($face)->commissionRate;
+        $pricing = new BookingPricing($tarifBase, $faceCommissionRate);
 
         $booking = Booking::create([
             'face_id' => $faceUser->id,

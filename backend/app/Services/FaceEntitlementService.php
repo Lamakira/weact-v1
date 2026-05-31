@@ -167,6 +167,17 @@ class FaceEntitlementService
             );
         }
 
+        $commissionRate = $caps['commission_rate'];
+        $commissionRateValue = is_numeric($commissionRate) ? (float) $commissionRate : null;
+
+        if ($commissionRateValue === null || ! is_finite($commissionRateValue) || $commissionRateValue < 0 || $commissionRateValue >= 1) {
+            throw new \RuntimeException(
+                "Invalid commission_rate for tier '{$tier->value}' — "
+                .'expected a numeric rate in [0, 1) (0 inclusive, 1 exclusive) in config/face_subscription_tiers.php; '
+                .'a rate of 1 (100 %) would leave the Face with zero earnings.'
+            );
+        }
+
         return new TierCapabilities(
             tier: $tier,
             maxAlbumPhotos: (int) $caps['max_album_photos'],
@@ -174,7 +185,7 @@ class FaceEntitlementService
             maxActingVideos: (int) $caps['max_acting_videos'],
             maxUgcVideos: (int) $caps['max_ugc_videos'],
             ugcAccess: (bool) $caps['ugc_access'],
-            commissionRate: (float) $caps['commission_rate'],
+            commissionRate: $commissionRateValue,
             sortPriority: (int) $caps['sort_priority'],
             hasEliteBadge: (bool) $caps['has_elite_badge'],
         );

@@ -40,7 +40,7 @@ class FaceEntitlementServiceTest extends TestCase
         $this->assertSame(0, $caps->maxActingVideos);
         $this->assertSame(0, $caps->maxUgcVideos);
         $this->assertFalse($caps->ugcAccess);
-        $this->assertSame(0.10, $caps->commissionRate);
+        $this->assertSame(0.15, $caps->commissionRate); // FP-3.1a: Découverte commission raised 0.10 → 0.15
         $this->assertSame(4, $caps->sortPriority);
         $this->assertFalse($caps->hasEliteBadge);
     }
@@ -97,6 +97,33 @@ class FaceEntitlementServiceTest extends TestCase
         $this->assertSame(0.05, $caps->commissionRate);
         $this->assertSame(1, $caps->sortPriority);
         $this->assertTrue($caps->hasEliteBadge);
+    }
+
+    public function test_capabilities_rejects_invalid_commission_rate_config(): void
+    {
+        $configKey = 'face_subscription_tiers.tiers.free.capabilities.commission_rate';
+        $originalRate = config($configKey);
+
+        try {
+            // 1.0 (100 %) is rejected: it would zero out the Face's earnings.
+            foreach ([15, 1.0, -0.05, NAN, INF, -INF, 'not-a-rate'] as $invalidRate) {
+                config()->set($configKey, $invalidRate);
+
+                try {
+                    (new FaceEntitlementService)->capabilitiesForTier(FaceSubscriptionTier::Free);
+                    $this->fail('Invalid commission_rate ['.var_export($invalidRate, true).'] should fail loudly.');
+                } catch (\RuntimeException $exception) {
+                    $this->assertStringContainsString('Invalid commission_rate', $exception->getMessage());
+                }
+            }
+
+            // 0.0 (no commission) stays valid — the lower bound is inclusive.
+            config()->set($configKey, 0.0);
+            $caps = (new FaceEntitlementService)->capabilitiesForTier(FaceSubscriptionTier::Free);
+            $this->assertSame(0.0, $caps->commissionRate);
+        } finally {
+            config()->set($configKey, $originalRate);
+        }
     }
 
     // ===================================================================
@@ -331,7 +358,7 @@ class FaceEntitlementServiceTest extends TestCase
     public function test_capabilities_for_tier_returns_correct_matrix_for_every_tier(): void
     {
         $cases = [
-            [FaceSubscriptionTier::Free, 1, 0, 0, 0, false, 0.10, 4, false],
+            [FaceSubscriptionTier::Free, 1, 0, 0, 0, false, 0.15, 4, false], // FP-3.1a: Découverte 0.10 → 0.15
             [FaceSubscriptionTier::Starter, 2, 1, 0, 0, true, 0.10, 3, false],
             [FaceSubscriptionTier::Pro, 4, 1, 1, 0, true, 0.10, 2, false],
             [FaceSubscriptionTier::Elite, 6, 1, 2, 1, true, 0.05, 1, true],
