@@ -208,6 +208,33 @@ describe('PricingView (public /pricing — FP-2.13)', () => {
       expect(ugcRow!.findAllComponents(Check).length).toBe(1)
       expect(ugcRow!.findAllComponents(Minus).length).toBe(3)
     })
+
+    it('shows Découverte as included in the "Missions rémunérées" row (FP-3.4 — AC #1)', () => {
+      const wrapper = mountPricing()
+      const rows = wrapper.findAll('table tbody tr')
+      const row = rows.find((tr) => tr.find('td')?.text() === 'Missions rémunérées')
+      expect(row).toBeTruthy()
+      const cells = row!.findAll('td')
+      // [name, decouverte, starter, pro, elite] — Découverte is now "Oui" (Check), not a Minus
+      expect(cells[1].findComponent(Check).exists()).toBe(true)
+      expect(cells[1].findComponent(Minus).exists()).toBe(false)
+      // Whole row: all four tiers true → 4 Check, 0 Minus
+      expect(row!.findAllComponents(Check).length).toBe(4)
+      expect(row!.findAllComponents(Minus).length).toBe(0)
+    })
+
+    it('shows the Découverte platform commission at 15 % (FP-3.4 — AC #2/#3)', () => {
+      const wrapper = mountPricing()
+      const rows = wrapper.findAll('table tbody tr')
+      const row = rows.find((tr) => tr.find('td')?.text() === 'Commission plateforme')
+      expect(row).toBeTruthy()
+      const cells = row!.findAll('td')
+      // [name, decouverte, starter, pro, elite]
+      expect(cells[1].text()).toBe('15 %') // Découverte (was '—')
+      expect(cells[2].text()).toBe('10 %') // Starter — unchanged
+      expect(cells[3].text()).toBe('10 %') // Pro — unchanged
+      expect(cells[4].text()).toBe('5 %') // Élite — unchanged
+    })
   })
 
   // ---------------------------------------------------------------

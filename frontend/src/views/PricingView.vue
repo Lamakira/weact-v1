@@ -159,10 +159,10 @@ const comparisonGroups: ComparisonGroup[] = [
         elite: true,
       },
       { name: 'Dotation produit', decouverte: false, starter: true, pro: true, elite: true },
-      { name: 'Missions rémunérées', decouverte: false, starter: true, pro: true, elite: true },
+      { name: 'Missions rémunérées', decouverte: true, starter: true, pro: true, elite: true },
       {
         name: 'Commission plateforme',
-        decouverte: '—',
+        decouverte: '15 %',
         starter: '10 %',
         pro: '10 %',
         elite: '5 %',
