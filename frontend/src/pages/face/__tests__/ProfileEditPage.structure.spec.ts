@@ -119,6 +119,16 @@ describe('ProfileEditPage structure', () => {
     expect(tpl).toContain('Vidéo UGC')
   })
 
+  it('mounts MediaQuotaUpsell in each of the four Portfolio media panels (FP-3.3)', () => {
+    expect(template).toContain(
+      "import MediaQuotaUpsell from '@/features/face/components/MediaQuotaUpsell.vue'",
+    )
+    const tpl = template.slice(template.indexOf('<template>'))
+    for (const key of ['max_album_photos', 'max_presentation_videos', 'max_acting_videos', 'max_ugc_videos']) {
+      expect(tpl).toContain(`media-key="${key}"`)
+    }
+  })
+
   // -------------------------------------------------------------------
   // Tabbed structure (Profile Tabs refonte)
   // -------------------------------------------------------------------

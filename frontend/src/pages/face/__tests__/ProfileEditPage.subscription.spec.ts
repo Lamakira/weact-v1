@@ -3,6 +3,7 @@ import { shallowMount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import ProfileEditPage from '../ProfileEditPage.vue'
 import ProfileCompletionIndicator from '@/features/face/components/ProfileCompletionIndicator.vue'
+import MediaQuotaUpsell from '@/features/face/components/MediaQuotaUpsell.vue'
 
 const mocks = vi.hoisted(() => ({
   ref: <T>(value: T) => ({ __v_isRef: true, value }),
@@ -223,6 +224,7 @@ vi.mock('@/features/face/composables/useSubscriptionStatus', () => ({
     tier: mocks.tier,
     capabilities: mocks.capabilities,
     maxAlbumPhotos: mocks.maxAlbumPhotos,
+    offers: mocks.ref([]),
     fetchStatus: mocks.resolved,
   }),
 }))
@@ -333,6 +335,11 @@ describe('ProfileEditPage subscription guards', () => {
 
     // album photos + videos + completion all refetched (each resolves via mocks.resolved).
     expect(mocks.resolved.mock.calls.length).toBe(before + 3)
+  })
+
+  it('mounts a MediaQuotaUpsell in each of the four Portfolio media sections (FP-3.3)', () => {
+    const wrapper = mountPage()
+    expect(wrapper.findAllComponents(MediaQuotaUpsell)).toHaveLength(4)
   })
 })
 

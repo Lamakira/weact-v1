@@ -40,6 +40,7 @@ import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
 import AlbumPhotoUpload from '@/features/face/components/AlbumPhotoUpload.vue'
 import PresentationVideoUpload from '@/features/face/components/PresentationVideoUpload.vue'
 import FaceVideoUpload from '@/features/face/components/FaceVideoUpload.vue'
+import MediaQuotaUpsell from '@/features/face/components/MediaQuotaUpsell.vue'
 import LanguesTagInput from '@/features/face/components/LanguesTagInput.vue'
 import PersonalInfoForm from '@/features/face/components/PersonalInfoForm.vue'
 import BioLocationForm from '@/features/face/components/BioLocationForm.vue'
@@ -247,6 +248,7 @@ const {
 const {
   tier: subscriptionTier,
   capabilities,
+  offers,
   maxAlbumPhotos,
   fetchStatus: fetchSubscriptionStatus,
 } = useSubscriptionStatus()
@@ -1068,10 +1070,13 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
               <!-- PORTFOLIO -->
               <div v-show="isActiveSection('portfolio', 'album')" class="p-6 md:p-7" data-testid="panel-album">
                 <h2 class="text-lg font-semibold text-slate-900">Album photos</h2>
-                <p class="mt-1 mb-6 text-sm text-slate-500">
-                  Ajoutez jusqu'à {{ maxAlbumPhotos }} photo{{ maxAlbumPhotos > 1 ? 's' : '' }}
-                  pour montrer votre polyvalence aux producteurs.
-                </p>
+                <MediaQuotaUpsell
+                  media-key="max_album_photos"
+                  description="Montrez votre polyvalence aux producteurs avec votre album photos."
+                  :capabilities="capabilities"
+                  :current-tier="subscriptionTier"
+                  :offers="offers"
+                />
                 <PhotoAlbumGrid
                   :photos="albumPhotos"
                   :is-loading="isAlbumLoading"
@@ -1109,9 +1114,13 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 
               <div v-show="isActiveSection('portfolio', 'video-pres')" class="p-6 md:p-7" data-testid="panel-video-pres">
                 <h2 class="text-lg font-semibold text-slate-900">Vidéo de présentation</h2>
-                <p class="mt-1 mb-6 text-sm text-slate-500">
-                  Ajoutez une courte vidéo pour vous présenter aux producteurs.
-                </p>
+                <MediaQuotaUpsell
+                  media-key="max_presentation_videos"
+                  description="Présentez-vous en vidéo pour faire une première impression aux producteurs."
+                  :capabilities="capabilities"
+                  :current-tier="subscriptionTier"
+                  :offers="offers"
+                />
                 <PresentationVideoUpload
                   :video-info="videoInfo"
                   :is-uploading="isVideoUploading"
@@ -1127,9 +1136,13 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 
               <div v-show="isActiveSection('portfolio', 'video-acting')" class="p-6 md:p-7" data-testid="panel-video-acting">
                 <h2 class="text-lg font-semibold text-slate-900">Vidéo d'acting</h2>
-                <p class="mt-1 mb-6 text-sm text-slate-500">
-                  Ajoutez une ou plusieurs vidéos démontrant votre talent d'acteur aux producteurs.
-                </p>
+                <MediaQuotaUpsell
+                  media-key="max_acting_videos"
+                  description="Démontrez votre talent d'acteur en vidéo aux producteurs."
+                  :capabilities="capabilities"
+                  :current-tier="subscriptionTier"
+                  :offers="offers"
+                />
                 <FaceVideoUpload
                   type="acting"
                   :videos="actingVideos"
@@ -1146,9 +1159,13 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 
               <div v-show="isActiveSection('portfolio', 'video-ugc')" class="p-6 md:p-7" data-testid="panel-video-ugc">
                 <h2 class="text-lg font-semibold text-slate-900">Vidéo UGC</h2>
-                <p class="mt-1 mb-6 text-sm text-slate-500">
-                  Ajoutez une vidéo modèle UGC (User-Generated Content) pour démontrer votre style.
-                </p>
+                <MediaQuotaUpsell
+                  media-key="max_ugc_videos"
+                  description="Montrez votre style avec une vidéo modèle UGC (User-Generated Content)."
+                  :capabilities="capabilities"
+                  :current-tier="subscriptionTier"
+                  :offers="offers"
+                />
                 <FaceVideoUpload
                   type="ugc"
                   :videos="ugcVideos"
