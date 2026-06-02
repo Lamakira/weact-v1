@@ -35,7 +35,8 @@ function handleSuccess() {
     { timeout: 8000 }
   )
   // Redirect post-registration: honor ?redirect= bounce-back from /login (FP-2.15),
-  // else default to Face dashboard.
+  // else default to the post-registration upsell page (FP-3.5). A valid ?redirect=
+  // still wins so a Face sent here from a protected deep-link returns there.
   // Defensive guard (FP-2.15 review P3): startsWith('/') && !startsWith('//')
   // rejects protocol-relative (//evil.com) and absolute URLs that would otherwise
   // crash pushState with a SecurityError.
@@ -44,7 +45,7 @@ function handleSuccess() {
     redirectQuery && redirectQuery.startsWith('/') && !redirectQuery.startsWith('//')
       ? redirectQuery
       : null
-  router.push(redirectPath ?? '/face/dashboard')
+  router.push(redirectPath ?? { name: 'face-upsell' })
 }
 </script>
 

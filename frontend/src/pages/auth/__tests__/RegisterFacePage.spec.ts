@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createTestingPinia } from '@pinia/testing'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import RegisterFacePage from '../RegisterFacePage.vue'
+import FaceRegistrationForm from '@/features/auth/components/FaceRegistrationForm.vue'
 
 vi.mock('@/features/auth/services/authApi', () => ({
   authApi: {
@@ -48,6 +49,8 @@ describe('RegisterFacePage', () => {
         { path: '/login', name: 'login', component: { template: '<div>Login</div>' } },
         { path: '/face/dashboard', name: 'face-dashboard', component: { template: '<div>Face Dashboard</div>' } },
         { path: '/producer/dashboard', name: 'producer-dashboard', component: { template: '<div>Producer Dashboard</div>' } },
+        { path: '/bienvenue', name: 'face-upsell', component: { template: '<div>Upsell</div>' } },
+        { path: '/face/missions/:id', name: 'face-mission-detail', component: { template: '<div>Mission</div>' } },
       ],
     })
   })
@@ -76,5 +79,45 @@ describe('RegisterFacePage', () => {
 
     expect(wrapper.find('[data-testid="face-registration-form"]').exists()).toBe(true)
     expect(wrapper.text()).not.toContain('Les inscriptions sont temporairement suspendues.')
+  })
+
+  it('redirects to the upsell page after successful registration (no ?redirect=)', async () => {
+    vi.mocked(authApi.getRegistrationStatus).mockResolvedValueOnce({ data: { enabled: true } } as never)
+
+    const wrapper = await mountComponent()
+    await flushPromises()
+
+    // Guard against a false-green: prove we start away from the upsell route, so
+    // the assertion below can only pass if handleSuccess actually navigated.
+    expect(router.currentRoute.value.name).toBe('register-face')
+
+    wrapper.findComponent(FaceRegistrationForm).vm.$emit('success')
+    await flushPromises()
+
+    expect(router.currentRoute.value.name).toBe('face-upsell')
+    // AC#6: the email-verification reminder toast still fires before navigation.
+    expect(mockToast.info).toHaveBeenCalled()
+  })
+
+  it('honors a valid ?redirect= bounce-back over the upsell page', async () => {
+    vi.mocked(authApi.getRegistrationStatus).mockResolvedValueOnce({ data: { enabled: true } } as never)
+
+    await router.push('/register/face?redirect=/face/missions/5')
+    await router.isReady()
+    const wrapper = mount(RegisterFacePage, {
+      global: {
+        plugins: [createTestingPinia(), router],
+      },
+    })
+    await flushPromises()
+
+    expect(router.currentRoute.value.name).toBe('register-face')
+
+    wrapper.findComponent(FaceRegistrationForm).vm.$emit('success')
+    await flushPromises()
+
+    expect(router.currentRoute.value.fullPath).toBe('/face/missions/5')
+    // AC#6: the reminder toast fires even on the bounce-back path.
+    expect(mockToast.info).toHaveBeenCalled()
   })
 })

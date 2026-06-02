@@ -204,6 +204,15 @@ const router = createRouter({
         },
       ],
     },
+    // Post-registration upsell page (FP-3.5) — standalone full-page (NOT under
+    // FaceLayout). Reached only from RegisterFacePage.handleSuccess default;
+    // requiresAuth + role:'Face' is satisfied by the just-stored post-register auth.
+    {
+      path: '/bienvenue',
+      name: 'face-upsell',
+      component: () => import('../pages/auth/FaceUpsellPage.vue'),
+      meta: { requiresAuth: true, role: 'Face', title: 'Bienvenue sur WEACT' },
+    },
     {
       path: '/dashboard/face',
       redirect: { name: 'face-dashboard' },

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, watchEffect } from 'vue'
+import { computed, nextTick, ref, watch, watchEffect } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { Check, ChevronDown, Crown, Loader2, Minus } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
@@ -452,6 +452,19 @@ watch(paymentState, (state) => {
   }
 })
 
+// FP-3.5 review (D1-C): when a ?plan= deep-link is swallowed because the email
+// isn't verified, don't no-op silently — scroll the verify-email note into view
+// and pulse a highlight so the user understands why the payment modal didn't open
+// (the FaceUpsellPage CTAs send unverified Faces here via /pricing?plan=).
+const emailNoteRef = ref<HTMLElement | null>(null)
+const emailNoteHighlighted = ref(false)
+function emphasizeEmailNote(): void {
+  void nextTick(() => {
+    emailNoteRef.value?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+    emailNoteHighlighted.value = true
+  })
+}
+
 // === ?plan= deep-link (one-shot, post-status-load) ===
 // Gates parity with manual click path: email-verified, no pending, no in-flight.
 const deepLinkConsumed = ref(false)
@@ -466,6 +479,7 @@ watchEffect(() => {
     return
   }
   if (!isEmailVerified.value) {
+    emphasizeEmailNote()
     deepLinkConsumed.value = true
     return
   }
@@ -494,10 +508,13 @@ watchEffect(() => {
     <!-- Auth-aware banners (FP-2.13.1) — only for logged-in Faces     -->
     <!-- ============================================================ -->
     <div v-if="isFace" class="max-w-5xl mx-auto px-6 pt-4" data-testid="pricing-banners">
-      <!-- Email-not-verified note -->
+      <!-- Email-not-verified note. Gets scrolled-to + highlighted when a ?plan=
+           deep-link is swallowed for an unverified Face (FP-3.5 review D1-C). -->
       <div
         v-if="!isEmailVerified"
-        class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+        ref="emailNoteRef"
+        class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 transition-shadow"
+        :class="{ 'ring-2 ring-amber-400 ring-offset-1': emailNoteHighlighted }"
         data-testid="pricing-email-note"
       >
         Vérifiez votre adresse email pour souscrire un abonnement.

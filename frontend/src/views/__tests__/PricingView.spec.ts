@@ -789,6 +789,27 @@ describe('auth-aware behavior (FP-2.13.1)', () => {
     expect(wrapper.find('[data-testid="tier-change-modal"]').exists()).toBe(false)
   })
 
+  it('scrolls to + highlights the email note when a ?plan= deep-link is swallowed for an unverified Face (FP-3.5 review D1-C)', async () => {
+    const scrollIntoViewMock = vi.fn()
+    // jsdom does not implement scrollIntoView — provide it so the call is observable.
+    Element.prototype.scrollIntoView = scrollIntoViewMock as never
+
+    setupStatus({ tier: 'starter', status: 'active', expiresAt: '2027-05-23T00:00:00Z' })
+    ctx.authStore.isEmailVerified = false
+    if (ctx.authStore.user) ctx.authStore.user.email_verified = false
+    ctx.route.query = { plan: 'pro' }
+
+    const wrapper = mountAuth()
+    await flushPromises()
+
+    // The modal stays closed (payment gated), but the reason is surfaced — not a silent no-op.
+    expect(wrapper.find('[data-testid="tier-change-modal"]').exists()).toBe(false)
+    const note = wrapper.get('[data-testid="pricing-email-note"]')
+    expect(note.classes()).toContain('ring-2')
+    expect(note.classes()).toContain('ring-amber-400')
+    expect(scrollIntoViewMock).toHaveBeenCalled()
+  })
+
   it('emits a success toast and closes the modal when paymentState becomes "confirmed"', async () => {
     const wrapper = mountAuth()
     await flushPromises()
