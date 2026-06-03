@@ -298,60 +298,6 @@ class FaceEntitlementServiceTest extends TestCase
     }
 
     // ===================================================================
-    // Transitional legacy shims — must preserve exact FP-1 behavior
-    // ===================================================================
-
-    public function test_is_premium_shim_true_for_paid_false_for_free(): void
-    {
-        $free = Face::factory()->create();
-        $paid = Face::factory()->create();
-        FaceSubscription::factory()->active()->create(['face_id' => $paid->id]);
-
-        $this->assertFalse($this->service->isPremium($free));
-        $this->assertTrue($this->service->isPremium($paid));
-    }
-
-    public function test_album_upload_limit_shim_preserves_fp1_values(): void
-    {
-        $free = Face::factory()->create();
-        $paid = Face::factory()->create();
-        FaceSubscription::factory()->active()->create(['face_id' => $paid->id]);
-
-        $this->assertSame(2, $this->service->albumUploadLimit($free));
-        $this->assertSame(4, $this->service->albumUploadLimit($paid));
-    }
-
-    public function test_public_album_photo_limit_shim_preserves_fp1_values(): void
-    {
-        $free = Face::factory()->create();
-        $paid = Face::factory()->create();
-        FaceSubscription::factory()->active()->create(['face_id' => $paid->id]);
-
-        $this->assertSame(2, $this->service->publicAlbumPhotoLimit($free));
-        $this->assertSame(4, $this->service->publicAlbumPhotoLimit($paid));
-    }
-
-    public function test_can_upload_acting_video_shim_mirrors_is_premium(): void
-    {
-        $free = Face::factory()->create();
-        $paid = Face::factory()->create();
-        FaceSubscription::factory()->active()->create(['face_id' => $paid->id]);
-
-        $this->assertFalse($this->service->canUploadActingVideo($free));
-        $this->assertTrue($this->service->canUploadActingVideo($paid));
-    }
-
-    public function test_is_featured_by_subscription_shim_mirrors_is_premium(): void
-    {
-        $free = Face::factory()->create();
-        $paid = Face::factory()->create();
-        FaceSubscription::factory()->active()->create(['face_id' => $paid->id]);
-
-        $this->assertFalse($this->service->isFeaturedBySubscription($free));
-        $this->assertTrue($this->service->isFeaturedBySubscription($paid));
-    }
-
-    // ===================================================================
     // capabilitiesForTier() — explicit per-tier matrix lookup (FP-2.3)
     // ===================================================================
 

@@ -332,7 +332,6 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
         $face->load('activeSubscription');
         $this->assertNotNull($face->activeSubscription);
         $this->assertSame($newRow->id, $face->activeSubscription->id);
-        $this->assertTrue(app(FaceEntitlementService::class)->isPremium($face->fresh()));
 
         // Plan column not mutated by the expiration command — old stays Starter, new stays Pro.
         $this->assertSame(FaceSubscriptionPlan::Starter, $oldRow->fresh()->plan);
@@ -382,8 +381,7 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
         $faceBIndex = array_search($faceB->uuid, $ids, true);
         $this->assertGreaterThan($faceBIndex, $faceAIndex);
 
-        $this->assertFalse(app(FaceEntitlementService::class)->isPremium($faceA->fresh()));
-        $this->assertFalse(app(FaceEntitlementService::class)->isFeaturedBySubscription($faceA->fresh()));
+        $this->assertSame(FaceSubscriptionTier::Free, app(FaceEntitlementService::class)->capabilities($faceA->fresh())->tier);
     }
 
     public function test_expired_face_album_photos_and_acting_video_are_masked_publicly(): void

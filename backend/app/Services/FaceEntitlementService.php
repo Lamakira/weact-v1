@@ -18,12 +18,6 @@ use WeakMap;
  * entirely by config/face_subscription_tiers.php. A Face with no active paid
  * subscription resolves to the Free tier.
  *
- * The legacy isPremium()/albumUploadLimit()/publicAlbumPhotoLimit()/
- * canUploadActingVideo()/isFeaturedBySubscription() methods are TRANSITIONAL
- * shims kept so FP-1.2..FP-1.11 surfaces keep working unchanged; downstream
- * FP-2 stories migrate their consumers to capabilities() and the final
- * consumer story removes the orphaned shims.
- *
  * Resolution prefers an eager-loaded `activeSubscription` relation when
  * present; otherwise it issues a single targeted query. Results are memoized
  * per Face object on this instance via WeakMap so long-running commands do
@@ -32,14 +26,6 @@ use WeakMap;
  */
 class FaceEntitlementService
 {
-    public const FREE_ALBUM_UPLOAD_LIMIT = 2;
-
-    public const FREE_PUBLIC_ALBUM_LIMIT = 2;
-
-    public const PREMIUM_ALBUM_UPLOAD_LIMIT = 4;
-
-    public const PREMIUM_PUBLIC_ALBUM_LIMIT = 4;
-
     /** @var WeakMap<Face, TierCapabilities> */
     private WeakMap $capabilitiesMemo;
 
@@ -71,50 +57,6 @@ class FaceEntitlementService
     public function capabilitiesForTier(FaceSubscriptionTier $tier): TierCapabilities
     {
         return $this->buildCapabilities($tier);
-    }
-
-    /**
-     * TRANSITIONAL SHIM — true when the Face holds any active paid subscription.
-     */
-    public function isPremium(Face $face): bool
-    {
-        return $this->capabilities($face)->tier !== FaceSubscriptionTier::Free;
-    }
-
-    /**
-     * TRANSITIONAL SHIM — FP-1 album upload limit (free 2 / premium 4).
-     */
-    public function albumUploadLimit(Face $face): int
-    {
-        return $this->isPremium($face)
-            ? self::PREMIUM_ALBUM_UPLOAD_LIMIT
-            : self::FREE_ALBUM_UPLOAD_LIMIT;
-    }
-
-    /**
-     * TRANSITIONAL SHIM — FP-1 public album limit (free 2 / premium 4).
-     */
-    public function publicAlbumPhotoLimit(Face $face): int
-    {
-        return $this->isPremium($face)
-            ? self::PREMIUM_PUBLIC_ALBUM_LIMIT
-            : self::FREE_PUBLIC_ALBUM_LIMIT;
-    }
-
-    /**
-     * TRANSITIONAL SHIM — FP-1 acting-video upload gate.
-     */
-    public function canUploadActingVideo(Face $face): bool
-    {
-        return $this->isPremium($face);
-    }
-
-    /**
-     * TRANSITIONAL SHIM — FP-1 subscription-driven featured placement.
-     */
-    public function isFeaturedBySubscription(Face $face): bool
-    {
-        return $this->isPremium($face);
     }
 
     /**

@@ -6,6 +6,7 @@ namespace Tests\Feature\Face;
 
 use App\Enums\FaceSubscriptionPlan;
 use App\Enums\FaceSubscriptionStatus;
+use App\Enums\FaceSubscriptionTier;
 use App\Events\FaceSubscriptionActivated;
 use App\Events\FaceSubscriptionCancelled;
 use App\Events\FaceSubscriptionExpired;
@@ -777,8 +778,8 @@ class SubscriptionPaymentInitiationTest extends TestCase
                 abs($freshExisting->expires_at->diffInSeconds($existingActive->expires_at, false))
             );
 
-            // Premium continuously preserved across the renewal
-            $this->assertTrue(app(FaceEntitlementService::class)->isPremium($this->face->fresh()));
+            // Premium continuously preserved across the renewal (Pro tier per the renewing fixture)
+            $this->assertSame(FaceSubscriptionTier::Pro, app(FaceEntitlementService::class)->capabilities($this->face->fresh())->tier);
         } finally {
             Carbon::setTestNow(null);
         }
