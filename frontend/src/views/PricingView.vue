@@ -216,7 +216,7 @@ const faqs: FAQItem[] = [
   {
     question: 'Comment fonctionne la commission réduite Élite ?',
     answer:
-      'Sur toutes les missions rémunérées en argent, la plateforme prélève 10 % de frais. Avec l\'abonnement Élite, ce taux passe à 5 % - soit la moitié. Sur 100 000 FCFA de cachet, tu encaisses 95 000 FCFA au lieu de 90 000 FCFA.',
+      'Sur toutes les missions rémunérées en argent, la plateforme prélève une commission qui dépend de ton palier : 15 % en Découverte (gratuit), 10 % en Starter et Pro, et seulement 5 % avec l\'abonnement Élite. Sur 100 000 FCFA de cachet, tu encaisses 95 000 FCFA en Élite, contre 85 000 FCFA en Découverte.',
   },
   {
     question: 'Quels moyens de paiement acceptez-vous ?',

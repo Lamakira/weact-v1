@@ -23,7 +23,7 @@ export const FREE_CAPABILITIES: TierCapabilities = {
   max_acting_videos: 0,
   max_ugc_videos: 0,
   ugc_access: false,
-  commission_rate: 0.1,
+  commission_rate: 0.15,
   sort_priority: 4,
   has_elite_badge: false,
 }

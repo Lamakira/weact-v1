@@ -325,6 +325,15 @@ describe('PricingView (public /pricing — FP-2.13)', () => {
       const wrapper = mountPricing()
       expect(wrapper.text()).toContain('90 jours')
     })
+
+    it('commission FAQ states the Découverte 15 % baseline alongside the Élite 5 % rate (FP-3.7)', () => {
+      const wrapper = mountPricing()
+      const text = wrapper.text()
+      // '15 % en Découverte' is unique to the rewritten FAQ answer — the comparison
+      // table renders '15 %' and 'Découverte' in separate cells, never as this phrase.
+      expect(text).toContain('15 % en Découverte')
+      expect(text).toContain('5 % avec l\'abonnement Élite')
+    })
   })
 
   // ---------------------------------------------------------------
