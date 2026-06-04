@@ -401,6 +401,12 @@ const router = createRouter({
           meta: { title: 'Détail Mission - WEACT' },
         },
         {
+          path: 'engagements',
+          name: 'admin-engagements',
+          component: () => import('../pages/admin/AdminFaceContactsPage.vue'),
+          meta: { title: 'Faces à contacter - WEACT' },
+        },
+        {
           path: 'finance',
           name: 'admin-finance',
           component: () => import('../pages/admin/AdminFinancePage.vue'),

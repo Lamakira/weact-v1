@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\Admin\AdminAttendanceDisputeController;
 use App\Http\Controllers\Api\V1\Admin\AdminController;
 use App\Http\Controllers\Api\V1\Admin\AdminDashboardController;
+use App\Http\Controllers\Api\V1\Admin\AdminEngagementController;
 use App\Http\Controllers\Api\V1\Admin\AdminFaceSubscriptionController;
 use App\Http\Controllers\Api\V1\Admin\AdminFinanceController;
 use App\Http\Controllers\Api\V1\Admin\AdminForgotPasswordController;
@@ -108,6 +109,11 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'api.token', 'admin'])->g
         // Mission management routes (read-only)
         Route::get('/missions', [MissionController::class, 'index'])->name('admin.missions.index');
         Route::get('/missions/{mission}', [MissionController::class, 'show'])->name('admin.missions.show');
+
+        // Engagements — unified "Faces à contacter" monitoring (read-only)
+        Route::get('/engagements', [AdminEngagementController::class, 'index'])
+            ->middleware('throttle:30,1')
+            ->name('admin.engagements.index');
 
         // Finance routes (read-only)
         Route::get('/finance/overview', [AdminFinanceController::class, 'overview'])

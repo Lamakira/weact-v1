@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property-read \App\Models\Face|null $face
  * @property-read \App\Models\Mission|null $mission
  * @property-read \App\Models\Conversation|null $conversation
+ * @property-read \App\Models\MissionPaymentCandidature|null $paymentEntry
  */
 class Candidature extends Model
 {
@@ -77,6 +78,19 @@ class Candidature extends Model
     public function mission(): BelongsTo
     {
         return $this->belongsTo(Mission::class);
+    }
+
+    /**
+     * Get the paid escrow entry (per-Face amount) for this candidature.
+     *
+     * Created together with the candidature acceptance inside
+     * MissionPaymentService::markAsPaid(), so it is reliably present for
+     * accepted/confirmed/in_progress candidatures. Read-only helper used by
+     * the admin engagements view to surface montant_face_recoit.
+     */
+    public function paymentEntry(): HasOne
+    {
+        return $this->hasOne(MissionPaymentCandidature::class, 'candidature_id');
     }
 
     /**
