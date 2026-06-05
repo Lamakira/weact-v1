@@ -8,3 +8,4 @@ export { default as BookingPricingBreakdown } from './BookingPricingBreakdown.vu
 export { default as BookingChat } from './BookingChat.vue'
 export { default as CancellationDialog } from './CancellationDialog.vue'
 export { default as BookingRatingForm } from './BookingRatingForm.vue'
+export { default as UgcBookingFields } from './UgcBookingFields.vue'

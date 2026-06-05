@@ -1,5 +1,8 @@
 import { z } from 'zod'
 
+/** True only when the value is a real, finite number (not '', NaN or undefined). */
+const isFilledNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
+
 /**
  * Booking form validation schema
  * Mirrors backend validation rules in CreateBookingRequest
@@ -37,6 +40,16 @@ export const bookingSchema = z
       .max(1000, 'Le message ne peut pas dépasser 1000 caractères')
       .optional()
       .or(z.literal('')),
+
+    // --- Champs UGC (optionnels au niveau objet ; requis conditionnellement via refines) ---
+    type_compensation: z.string().optional(),
+    nom_produit: z
+      .string()
+      .optional()
+      .or(z.literal('')),
+    valeur_produit: z.union([z.number(), z.nan(), z.literal(''), z.undefined()]),
+    nombre_videos: z.union([z.number(), z.nan(), z.literal(''), z.undefined()]),
+    montant_remuneration: z.union([z.number(), z.nan(), z.literal(''), z.undefined()]),
   })
   .refine(
     (data) => {
@@ -75,5 +88,61 @@ export const bookingSchema = z
     {
       message: 'La durée sélectionnée dépasse le maximum autorisé pour cette plage de dates',
       path: ['duree_heures'],
+    },
+  )
+  // --- Refines UGC (gardés par type_contenu === 'UGC') ---
+  .refine(
+    (d) => d.type_contenu !== 'UGC' || d.type_compensation === 'product' || d.type_compensation === 'hybrid',
+    {
+      message: 'Le type de compensation est obligatoire',
+      path: ['type_compensation'],
+    },
+  )
+  .refine(
+    (d) => d.type_contenu !== 'UGC' || (typeof d.nom_produit === 'string' && d.nom_produit.trim().length > 0),
+    {
+      message: 'Le nom du produit est obligatoire',
+      path: ['nom_produit'],
+    },
+  )
+  .refine(
+    (d) => d.type_contenu !== 'UGC' || typeof d.nom_produit !== 'string' || d.nom_produit.length <= 255,
+    {
+      message: 'Le nom du produit ne peut pas dépasser 255 caractères',
+      path: ['nom_produit'],
+    },
+  )
+  .refine(
+    (d) =>
+      d.type_contenu !== 'UGC' ||
+      (isFilledNumber(d.valeur_produit) && Number.isInteger(d.valeur_produit) && d.valeur_produit >= 1),
+    {
+      message: 'La valeur du produit doit être un entier supérieur ou égal à 1',
+      path: ['valeur_produit'],
+    },
+  )
+  .refine(
+    (d) =>
+      d.type_contenu !== 'UGC' ||
+      d.type_compensation !== 'hybrid' ||
+      (isFilledNumber(d.nombre_videos) &&
+        Number.isInteger(d.nombre_videos) &&
+        d.nombre_videos >= 1 &&
+        d.nombre_videos <= 20),
+    {
+      message: 'Le nombre de vidéos doit être un entier entre 1 et 20',
+      path: ['nombre_videos'],
+    },
+  )
+  .refine(
+    (d) =>
+      d.type_contenu !== 'UGC' ||
+      d.type_compensation !== 'hybrid' ||
+      (isFilledNumber(d.montant_remuneration) &&
+        Number.isInteger(d.montant_remuneration) &&
+        d.montant_remuneration >= 1),
+    {
+      message: 'Le montant de la rémunération doit être un entier supérieur ou égal à 1',
+      path: ['montant_remuneration'],
     },
   )

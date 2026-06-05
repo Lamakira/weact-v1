@@ -1,12 +1,16 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
 import BookingFormSheet from '../BookingFormSheet.vue'
 import { calculatePricingPreview } from '@/features/booking/types'
 
+// Hoisted so the UGC submission tests can drive the resolved value.
+// The 3 existing describe blocks never call createBooking, so this is inert for them.
+const { createBookingMock } = vi.hoisted(() => ({ createBookingMock: vi.fn() }))
+
 vi.mock('../../composables/useBookingCreate', () => ({
   useBookingCreate: () => ({
-    createBooking: vi.fn(),
+    createBooking: createBookingMock,
     isSubmitting: ref(false),
     error: ref(null),
     validationErrors: ref(null),
@@ -102,5 +106,176 @@ describe('BookingFormSheet — shooting location', () => {
     expect(select.attributes('required')).toBeDefined()
     expect(options.some((option) => option.text().includes('Cotonou'))).toBe(true)
     expect(options.some((option) => option.text().includes('Porto-Novo'))).toBe(true)
+  })
+})
+
+describe('BookingFormSheet — UGC', () => {
+  // bookingSchema requires face_id to be a UUID — the default mountForm '1' would
+  // silently fail validation (no rendered error field) and block submission.
+  const FACE_UUID = '550e8400-e29b-41d4-a716-446655440000'
+
+  const iso = (daysAhead: number): string => {
+    const d = new Date()
+    d.setDate(d.getDate() + daysAhead)
+    return d.toISOString().slice(0, 10)
+  }
+
+  // vee-validate submit validation needs a macrotask tick, not just microtask flushes.
+  const waitForValidation = async () => {
+    await flushPromises()
+    await nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await flushPromises()
+  }
+
+  /** Selects UGC + fills a valid form, ready to submit. */
+  const fillValidUgcForm = async (
+    wrapper: ReturnType<typeof mountForm>,
+    { hybrid = false }: { hybrid?: boolean } = {},
+  ) => {
+    await wrapper.find('select#type_contenu').setValue('UGC')
+    await flushPromises()
+
+    await wrapper.find('#date_debut').setValue(iso(7))
+    await wrapper.find('#date_fin').setValue(iso(8))
+    await wrapper.find('select#lieu').setValue('Cotonou')
+    await wrapper.find('#nom_produit').setValue('Tenue Shade Fit M')
+    await wrapper.find('#valeur_produit').setValue('45000')
+
+    if (hybrid) {
+      await wrapper.find('[data-testid="compensation-hybrid"]').trigger('click')
+      await flushPromises()
+      await wrapper.find('#nombre_videos').setValue('3')
+      await wrapper.find('#montant_remuneration').setValue('15000')
+    }
+    await flushPromises()
+  }
+
+  beforeEach(() => {
+    createBookingMock.mockReset()
+  })
+
+  it('reveals the UGC block and hides the cash pricing preview when UGC is selected', async () => {
+    const wrapper = mountForm()
+
+    await wrapper.find('select#type_contenu').setValue('UGC')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="ugc-booking-fields"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="compensation-product"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="commission-breakdown"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="pricing-preview"]').exists()).toBe(false)
+  })
+
+  it('shows the "Payer la commission" CTA in UGC mode', async () => {
+    const wrapper = mountForm()
+
+    await wrapper.find('select#type_contenu').setValue('UGC')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="submit-booking"]').text()).toContain('Payer la commission')
+  })
+
+  it('toggles the video count + Face remuneration fields with the compensation type', async () => {
+    const wrapper = mountForm()
+
+    await wrapper.find('select#type_contenu').setValue('UGC')
+    await flushPromises()
+
+    // product (default): locked "2 vidéos", no remuneration field
+    expect(wrapper.text()).toContain('2 vidéos')
+    expect(wrapper.find('#nombre_videos').exists()).toBe(false)
+    expect(wrapper.find('#montant_remuneration').exists()).toBe(false)
+
+    // hybrid: editable video count + remuneration field
+    await wrapper.find('[data-testid="compensation-hybrid"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('#nombre_videos').exists()).toBe(true)
+    expect(wrapper.find('#montant_remuneration').exists()).toBe(true)
+  })
+
+  it('keeps the cash flow unchanged for a non-UGC booking', () => {
+    const wrapper = mountForm()
+
+    expect(wrapper.find('[data-testid="ugc-booking-fields"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="commission-breakdown"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="pricing-preview"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="submit-booking"]').text()).toContain('Envoyer la demande')
+  })
+
+  it('submits a product-only UGC payload without video/remuneration fields', async () => {
+    createBookingMock.mockResolvedValue({ success: true, data: { id: 'abc' } })
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await fillValidUgcForm(wrapper)
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(createBookingMock).toHaveBeenCalledTimes(1)
+    const payload = createBookingMock.mock.calls[0][0]
+    expect(payload).toMatchObject({
+      type_contenu: 'UGC',
+      type_compensation: 'product',
+      nom_produit: 'Tenue Shade Fit M',
+      valeur_produit: 45000,
+    })
+    expect(payload).not.toHaveProperty('nombre_videos')
+    expect(payload).not.toHaveProperty('montant_remuneration')
+    expect(wrapper.emitted('success')).toBeTruthy()
+    expect(wrapper.emitted('close')).toBeTruthy()
+  })
+
+  it('submits hybrid UGC payload including video count + remuneration', async () => {
+    createBookingMock.mockResolvedValue({ success: true, data: { id: 'abc' } })
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await fillValidUgcForm(wrapper, { hybrid: true })
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(createBookingMock).toHaveBeenCalledTimes(1)
+    expect(createBookingMock.mock.calls[0][0]).toMatchObject({
+      type_contenu: 'UGC',
+      type_compensation: 'hybrid',
+      valeur_produit: 45000,
+      nombre_videos: 3,
+      montant_remuneration: 15000,
+    })
+  })
+
+  it('does not submit and shows an inline error when a required UGC field is invalid', async () => {
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await wrapper.find('select#type_contenu').setValue('UGC')
+    await flushPromises()
+
+    // Fill everything valid EXCEPT valeur_produit (left empty → fails the Zod refine).
+    await wrapper.find('#date_debut').setValue(iso(7))
+    await wrapper.find('#date_fin').setValue(iso(8))
+    await wrapper.find('select#lieu').setValue('Cotonou')
+    await wrapper.find('#nom_produit').setValue('Tenue Shade Fit M')
+
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(createBookingMock).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="valeur_produit-error"]').exists()).toBe(true)
+  })
+
+  it('maps a 422 server error onto the matching UGC field', async () => {
+    createBookingMock.mockResolvedValue({
+      success: false,
+      errors: { valeur_produit: ['Valeur produit invalide côté serveur'] },
+    })
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await fillValidUgcForm(wrapper)
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(wrapper.find('[data-testid="valeur_produit-error"]').text()).toContain(
+      'Valeur produit invalide côté serveur',
+    )
   })
 })

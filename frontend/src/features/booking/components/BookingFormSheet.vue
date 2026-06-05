@@ -6,6 +6,8 @@ import { bookingSchema } from '../schemas/booking'
 import { useBookingCreate } from '../composables/useBookingCreate'
 import { calculatePricingPreview, type CreateBookingData, type Booking } from '../types'
 import BookingPricingBreakdown from './BookingPricingBreakdown.vue'
+import UgcBookingFields from './UgcBookingFields.vue'
+import { CommissionBreakdown, computeUgcCommission, type UgcCompensationType } from '@/components/ugc'
 import { FloatingField, FloatingDateField, FloatingSelect } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
 import { BENIN_CITY_OPTIONS } from '@/shared/constants/beninCities'
@@ -21,6 +23,7 @@ import {
   AlertCircle,
   Receipt,
   Info,
+  ShieldCheck,
 } from 'lucide-vue-next'
 
 const props = defineProps<{
@@ -69,19 +72,28 @@ const contentTypeOptions = [
   { value: 'Court-métrage', label: 'Court-métrage' },
   { value: 'Shooting photo', label: 'Shooting photo' },
   { value: 'Contenu réseaux sociaux', label: 'Contenu réseaux sociaux' },
+  { value: 'UGC', label: 'UGC' },
   { value: 'Autre', label: 'Autre' },
 ]
 
+// Single source of truth for form defaults (factory so face_id is re-read on each reset).
+const makeDefaultValues = () => ({
+  face_id: props.faceId,
+  date_debut: '',
+  date_fin: '',
+  duree_heures: 4,
+  type_contenu: 'Publicité',
+  lieu: '',
+  type_compensation: 'product',
+  nom_produit: '',
+  valeur_produit: undefined,
+  nombre_videos: undefined,
+  montant_remuneration: undefined,
+})
+
 const { handleSubmit, setFieldError, resetForm } = useForm({
   validationSchema: toTypedSchema(bookingSchema),
-  initialValues: {
-    face_id: props.faceId,
-    date_debut: '',
-    date_fin: '',
-    duree_heures: 4,
-    type_contenu: 'Publicité',
-    lieu: '',
-  },
+  initialValues: makeDefaultValues(),
 })
 
 const { value: date_debut, errorMessage: dateDebutError } = useField<string>('date_debut')
@@ -89,6 +101,21 @@ const { value: date_fin, errorMessage: dateFinError } = useField<string>('date_f
 const { value: duree_heures, errorMessage: dureeError } = useField<number>('duree_heures')
 const { value: type_contenu, errorMessage: typeContenuError } = useField<string>('type_contenu')
 const { value: lieu, errorMessage: lieuError } = useField<string>('lieu')
+
+// UGC fields (validated conditionally when type_contenu === 'UGC')
+const { value: type_compensation } = useField<UgcCompensationType>('type_compensation')
+const { value: nom_produit, errorMessage: nomProduitError } = useField<string>('nom_produit')
+const { value: valeur_produit, errorMessage: valeurProduitError } = useField<number | string | undefined>('valeur_produit')
+const { value: nombre_videos, errorMessage: nombreVideosError } = useField<number | string | undefined>('nombre_videos')
+const { value: montant_remuneration, errorMessage: montantRemunerationError } = useField<number | string | undefined>('montant_remuneration')
+
+const isUgc = computed(() => type_contenu.value === 'UGC')
+const ugcCommission = computed(() => computeUgcCommission(Number(valeur_produit.value) || 0))
+const submitLabel = computed(() => {
+  if (isSubmitting.value) return isUgc.value ? 'Création...' : 'Envoi en cours...'
+  if (isUgc.value) return `Payer la commission · ${ugcCommission.value.toLocaleString('fr-FR')} FCFA`
+  return 'Envoyer la demande'
+})
 
 // Sync duration preset / custom days → duree_heures field
 watch([selectedPreset, customDays], () => {
@@ -125,16 +152,7 @@ watch(
       selectedPreset.value = '4'
       customDays.value = 6
       customDaysError.value = ''
-      resetForm({
-        values: {
-          face_id: props.faceId,
-          date_debut: '',
-          date_fin: '',
-          duree_heures: 4,
-          type_contenu: 'Publicité',
-          lieu: '',
-        },
-      })
+      resetForm({ values: makeDefaultValues() })
       nextTick(() => {
         const firstInput = dialogRef.value?.querySelector<HTMLElement>('input, select, textarea')
         firstInput?.focus()
@@ -185,10 +203,20 @@ const onSubmit = handleSubmit(async (values) => {
     lieu: values.lieu,
   }
 
+  if (values.type_contenu === 'UGC') {
+    data.type_compensation = values.type_compensation as 'product' | 'hybrid'
+    data.nom_produit = values.nom_produit?.trim()
+    data.valeur_produit = Number(values.valeur_produit)
+    if (values.type_compensation === 'hybrid') {
+      data.nombre_videos = Number(values.nombre_videos)
+      data.montant_remuneration = Number(values.montant_remuneration)
+    }
+  }
+
   const result = await createBooking(data)
 
   if (result.success && result.data) {
-    toast.success('Demande de booking envoyée !')
+    toast.success(isUgc.value ? 'Booking UGC créé.' : 'Demande de booking envoyée !')
     emit('success', result.data)
     emit('close')
   } else if (result.errors) {
@@ -199,6 +227,11 @@ const onSubmit = handleSubmit(async (values) => {
       'duree_heures',
       'type_contenu',
       'lieu',
+      'type_compensation',
+      'nom_produit',
+      'valeur_produit',
+      'nombre_videos',
+      'montant_remuneration',
     ] as const
     type ValidField = (typeof validFields)[number]
 
@@ -348,9 +381,32 @@ const onSubmit = handleSubmit(async (values) => {
                 data-testid="lieu-select"
               />
 
-              <!-- Pricing Preview -->
+              <!-- UGC dynamic fields -->
+              <template v-if="isUgc">
+                <UgcBookingFields
+                  v-model:compensation-type="type_compensation"
+                  v-model:nom-produit="nom_produit"
+                  v-model:valeur-produit="valeur_produit"
+                  v-model:nombre-videos="nombre_videos"
+                  v-model:montant-remuneration="montant_remuneration"
+                  :nom-produit-error="nomProduitError"
+                  :valeur-produit-error="valeurProduitError"
+                  :nombre-videos-error="nombreVideosError"
+                  :montant-remuneration-error="montantRemunerationError"
+                />
+                <CommissionBreakdown
+                  :product-value="Number(valeur_produit) || 0"
+                  :pay-amount="type_compensation === 'hybrid' ? (Number(montant_remuneration) || 0) : 0"
+                />
+                <div class="flex items-center gap-1.5 text-[11px] text-gray-500">
+                  <ShieldCheck :size="12" class="shrink-0 text-weact" />
+                  <span>Paiement WeAct sécurisé · Remboursé si refus</span>
+                </div>
+              </template>
+
+              <!-- Pricing Preview (cash bookings only) -->
               <div
-                v-if="pricingPreview"
+                v-if="pricingPreview && !isUgc"
                 class="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3"
                 data-testid="pricing-preview"
               >
@@ -371,7 +427,7 @@ const onSubmit = handleSubmit(async (values) => {
                 >
                   <Loader2 v-if="isSubmitting" :size="18" class="animate-spin mr-2" />
                   <Send v-else :size="18" class="mr-2" />
-                  {{ isSubmitting ? 'Envoi en cours...' : 'Envoyer la demande' }}
+                  {{ submitLabel }}
                 </Button>
               </div>
             </form>

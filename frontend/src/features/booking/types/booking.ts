@@ -135,6 +135,14 @@ export interface Booking {
   date_fin: string
   duree_heures: number
   type_contenu: string
+  // UGC fields (null for non-UGC bookings) — mirrors BookingResource (story 1.1)
+  type_compensation: string | null
+  type_compensation_label: string | null
+  nom_produit: string | null
+  valeur_produit: number | null
+  nombre_videos: number | null
+  montant_remuneration: number | null
+  commission_ugc: number | null
   lieu: string | null
   message: string | null
   tarif_base: number
@@ -165,6 +173,12 @@ export interface CreateBookingData {
   type_contenu: string
   lieu: string
   message?: string
+  // UGC fields (sent only when type_contenu === 'UGC')
+  type_compensation?: 'product' | 'hybrid'
+  nom_produit?: string
+  valeur_produit?: number
+  nombre_videos?: number
+  montant_remuneration?: number
 }
 
 // Booking API response
