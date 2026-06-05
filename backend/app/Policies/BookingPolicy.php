@@ -96,7 +96,8 @@ class BookingPolicy
     public function pay(User $user, Booking $booking): bool
     {
         return $user->id === $booking->producer_id
-            && $booking->status === BookingStatus::Accepted;
+            && $booking->status === BookingStatus::Accepted
+            && $booking->type_contenu !== 'UGC';
     }
 
     /**

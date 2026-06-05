@@ -5,16 +5,20 @@ declare(strict_types=1);
 namespace App\Http\Requests\Booking;
 
 use App\Enums\BookingStatus;
+use App\Enums\CompensationType;
 use App\Models\Booking;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class CreateBookingRequest extends FormRequest
 {
+    private const MAX_UNSIGNED_INTEGER = 4294967295;
+
     public function authorize(): bool
     {
         $user = $this->user();
@@ -27,7 +31,7 @@ class CreateBookingRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
+        $rules = [
             'face_id' => [
                 'required',
                 'string',
@@ -54,6 +58,21 @@ class CreateBookingRequest extends FormRequest
             'lieu' => ['required', 'string', 'max:100'],
             'message' => ['nullable', 'string', 'max:1000'],
         ];
+
+        // UGC : compensation produit seul ou hybride. Champs de base inchangés (AC5).
+        if ($this->input('type_contenu') === 'UGC') {
+            $rules['type_compensation'] = ['required', Rule::in(CompensationType::values())];
+            $rules['nom_produit'] = ['required', 'string', 'max:255'];
+            $rules['valeur_produit'] = ['required', 'integer', 'min:1', 'max:'.self::MAX_UNSIGNED_INTEGER];
+
+            if ($this->input('type_compensation') === CompensationType::Hybrid->value) {
+                $rules['nombre_videos'] = ['required', 'integer', 'min:1', 'max:20'];
+                $rules['montant_remuneration'] = ['required', 'integer', 'min:1', 'max:'.self::MAX_UNSIGNED_INTEGER];
+            }
+            // Produit seul : nombre_videos forcé serveur à 2 (BookingService), montant_remuneration ignoré.
+        }
+
+        return $rules;
     }
 
     /**
@@ -76,6 +95,22 @@ class CreateBookingRequest extends FormRequest
             'lieu.required' => 'Le lieu de tournage est obligatoire.',
             'lieu.max' => 'Le lieu ne peut pas depasser :max caracteres.',
             'message.max' => 'Le message ne peut pas depasser :max caracteres.',
+            'type_compensation.required' => 'Le type de compensation est obligatoire.',
+            'type_compensation.in' => 'Le type de compensation est invalide.',
+            'nom_produit.required' => 'Le nom du produit est obligatoire.',
+            'nom_produit.max' => 'Le nom du produit ne peut pas dépasser :max caractères.',
+            'valeur_produit.required' => 'La valeur du produit est obligatoire.',
+            'valeur_produit.integer' => 'La valeur du produit doit être un nombre entier.',
+            'valeur_produit.min' => 'La valeur du produit doit être supérieure ou égale à :min.',
+            'valeur_produit.max' => 'La valeur du produit est trop élevée.',
+            'nombre_videos.required' => 'Le nombre de vidéos est obligatoire.',
+            'nombre_videos.integer' => 'Le nombre de vidéos doit être un nombre entier.',
+            'nombre_videos.min' => 'Le nombre de vidéos doit être au moins de :min.',
+            'nombre_videos.max' => 'Le nombre de vidéos ne peut pas dépasser :max.',
+            'montant_remuneration.required' => 'Le montant de la rémunération est obligatoire.',
+            'montant_remuneration.integer' => 'Le montant de la rémunération doit être un nombre entier.',
+            'montant_remuneration.min' => 'Le montant de la rémunération doit être supérieur ou égal à :min.',
+            'montant_remuneration.max' => 'Le montant de la rémunération est trop élevé.',
         ];
     }
 
@@ -135,6 +170,43 @@ class CreateBookingRequest extends FormRequest
                     'Cette Face a deja un booking actif sur cette plage de dates.'
                 );
             }
+
+            $this->validateUgcTotalFitsStorage($validator);
         });
+    }
+
+    private function validateUgcTotalFitsStorage(Validator $validator): void
+    {
+        if ($this->input('type_contenu') !== 'UGC') {
+            return;
+        }
+
+        if (
+            $validator->errors()->has('type_compensation')
+            || $validator->errors()->has('valeur_produit')
+            || $validator->errors()->has('montant_remuneration')
+        ) {
+            return;
+        }
+
+        $valeurProduit = $this->integer('valeur_produit');
+        if ($valeurProduit <= 0) {
+            return;
+        }
+
+        $rate = (float) config('ugc.commission_rate');
+        $floor = (int) config('ugc.commission_floor');
+        $commission = max($floor, (int) round($valeurProduit * $rate));
+
+        $montantRemuneration = $this->input('type_compensation') === CompensationType::Hybrid->value
+            ? $this->integer('montant_remuneration')
+            : 0;
+
+        if ($commission + $montantRemuneration > self::MAX_UNSIGNED_INTEGER) {
+            $validator->errors()->add(
+                'montant_remuneration',
+                'Le montant total du booking UGC est trop élevé.'
+            );
+        }
     }
 }

@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Concerns\HasRouteUuid;
 use App\Enums\BookingStatus;
+use App\Enums\CompensationType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -25,6 +26,12 @@ use Illuminate\Support\Facades\Auth;
  * @property int $producer_id
  * @property int $duree_heures
  * @property string $type_contenu
+ * @property \App\Enums\CompensationType|null $type_compensation
+ * @property string|null $nom_produit
+ * @property int|null $valeur_produit
+ * @property int|null $nombre_videos
+ * @property int|null $montant_remuneration
+ * @property int|null $commission_ugc
  * @property string|null $lieu
  * @property string|null $message
  * @property int $tarif_base
@@ -70,6 +77,12 @@ class Booking extends Model
         'date_fin',
         'duree_heures',
         'type_contenu',
+        'type_compensation',
+        'nom_produit',
+        'valeur_produit',
+        'nombre_videos',
+        'montant_remuneration',
+        'commission_ugc',
         'lieu',
         'message',
         'tarif_base',
@@ -96,6 +109,11 @@ class Booking extends Model
             'date_debut' => 'datetime',
             'date_fin' => 'datetime',
             'duree_heures' => 'integer',
+            'type_compensation' => CompensationType::class,
+            'valeur_produit' => 'integer',
+            'nombre_videos' => 'integer',
+            'montant_remuneration' => 'integer',
+            'commission_ugc' => 'integer',
             'tarif_base' => 'integer',
             'montant_total_producteur' => 'integer',
             'montant_face_recoit' => 'integer',

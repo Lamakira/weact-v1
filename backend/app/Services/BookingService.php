@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Concerns\RecordsFinancialEvent;
 use App\Enums\BookingCancellationReason;
 use App\Enums\BookingStatus;
+use App\Enums\CompensationType;
 use App\Enums\FinancialEventType;
 use App\Events\BookingAccepted;
 use App\Events\BookingCancelled;
@@ -20,6 +21,7 @@ use App\Events\BookingRefused;
 use App\Models\Booking;
 use App\Models\Face;
 use App\Models\User;
+use App\Services\Ugc\UgcCommissionService;
 use App\ValueObjects\BookingPricing;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +38,7 @@ class BookingService
         private readonly EscrowService $escrowService,
         private readonly WalletService $walletService,
         private readonly FaceEntitlementService $faceEntitlementService,
+        private readonly UgcCommissionService $ugcCommissionService,
     ) {}
 
     /**
@@ -68,6 +71,24 @@ class BookingService
             ]);
         }
 
+        // UGC (story 1.1): compensation produit/hybride — commission sur la valeur produit,
+        // pas de tarif horaire ni de garde tarif. Le chemin cash reste strictement inchangé.
+        $booking = ($data['type_contenu'] ?? null) === 'UGC'
+            ? $this->createUgcBooking($data, $producer, $faceUser)
+            : $this->createCashBooking($data, $producer, $faceUser, $face);
+
+        BookingCreated::dispatch($booking);
+
+        return $booking;
+    }
+
+    /**
+     * Cash booking path (existing behavior, unchanged) — server-side pricing via BookingPricing VO.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function createCashBooking(array $data, User $producer, User $faceUser, Face $face): Booking
+    {
         // FR4: Calculate pricing via BookingPricing VO (server-side recalculation)
         $tarifBase = $this->calculateTarifBase($face, (int) $data['duree_heures']);
 
@@ -82,7 +103,7 @@ class BookingService
         $faceCommissionRate = $this->faceEntitlementService->capabilities($face)->commissionRate;
         $pricing = new BookingPricing($tarifBase, $faceCommissionRate);
 
-        $booking = Booking::create([
+        return Booking::create([
             'face_id' => $faceUser->id,
             'producer_id' => $producer->id,
             'status' => BookingStatus::Pending,
@@ -90,16 +111,52 @@ class BookingService
             'date_fin' => $data['date_fin'],
             'duree_heures' => $data['duree_heures'],
             'type_contenu' => $data['type_contenu'],
-            'lieu' => !empty($data['lieu']) ? $data['lieu'] : null,
+            'lieu' => ! empty($data['lieu']) ? $data['lieu'] : null,
             'message' => $data['message'] ?? null,
             'tarif_base' => $pricing->baseTarif,
             'montant_total_producteur' => $pricing->totalProducerPays,
             'montant_face_recoit' => $pricing->faceReceives,
         ]);
+    }
 
-        BookingCreated::dispatch($booking);
+    /**
+     * UGC booking path (story 1.1, D-1.1.b): bypass de la garde tarif.
+     * tarif_base=0 ; commission assise sur la valeur produit uniquement ;
+     * montant_face_recoit=montant_remuneration (0 si produit seul) ;
+     * montant_total_producteur=commission_ugc + montant_remuneration.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function createUgcBooking(array $data, User $producer, User $faceUser): Booking
+    {
+        $compensation = $data['type_compensation'];
+        $valeurProduit = (int) $data['valeur_produit'];
+        $commission = $this->ugcCommissionService->compute($valeurProduit);
 
-        return $booking;
+        $isHybrid = $compensation === CompensationType::Hybrid->value;
+        $nombreVideos = $isHybrid ? (int) $data['nombre_videos'] : (int) config('ugc.product_only_video_count');
+        $montantRemuneration = $isHybrid ? (int) $data['montant_remuneration'] : 0;
+
+        return Booking::create([
+            'face_id' => $faceUser->id,
+            'producer_id' => $producer->id,
+            'status' => BookingStatus::Pending,
+            'date_debut' => $data['date_debut'],
+            'date_fin' => $data['date_fin'],
+            'duree_heures' => $data['duree_heures'],
+            'type_contenu' => 'UGC',
+            'lieu' => ! empty($data['lieu']) ? $data['lieu'] : null,
+            'message' => $data['message'] ?? null,
+            'tarif_base' => 0,                                    // D-1.1.b : pas de tarif horaire
+            'montant_face_recoit' => $montantRemuneration,        // 0 si produit seul
+            'montant_total_producteur' => $commission + $montantRemuneration,
+            'type_compensation' => $compensation,
+            'nom_produit' => $data['nom_produit'],
+            'valeur_produit' => $valeurProduit,
+            'nombre_videos' => $nombreVideos,
+            'montant_remuneration' => $isHybrid ? $montantRemuneration : null,
+            'commission_ugc' => $commission,
+        ]);
     }
 
     /**
@@ -322,7 +379,7 @@ class BookingService
                 $lockedBooking->producer_id,
                 $lockedBooking->montant_total_producteur,
                 $lockedBooking,
-                "Booking : remboursement absence Face (100%)",
+                'Booking : remboursement absence Face (100%)',
             );
 
             // Record financial event for audit trail
@@ -393,6 +450,8 @@ class BookingService
                         'status' => ['Ce booking ne peut pas être payé dans son état actuel.'],
                     ]);
                 }
+
+                $this->ensureBookingPaymentIsSupported($lockedBooking);
 
                 if ($lockedBooking->fedapay_transaction_id !== null) {
                     return [
@@ -792,5 +851,16 @@ class BookingService
         }
 
         return 0;
+    }
+
+    private function ensureBookingPaymentIsSupported(Booking $booking): void
+    {
+        if ($booking->type_contenu !== 'UGC') {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'type_contenu' => ['Le paiement des bookings UGC sera disponible dans une prochaine version.'],
+        ]);
     }
 }
