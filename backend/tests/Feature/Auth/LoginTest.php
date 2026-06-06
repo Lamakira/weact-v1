@@ -497,4 +497,21 @@ class LoginTest extends TestCase
         $this->withHeader('Authorization', "Bearer {$token}")
             ->getJson('/api/v1/user')->assertStatus(401);
     }
+
+    public function test_expired_token_is_rejected_even_when_stale_session_exists(): void
+    {
+        $token = $this->postJson('/api/v1/auth/login', [
+            'email' => 'face@example.com',
+            'password' => $this->password,
+        ])->json('data.token');
+
+        $staleSessionUser = User::where('email', 'producer@example.com')->firstOrFail();
+
+        $this->travel(31)->days();
+
+        $this->actingAs($staleSessionUser)
+            ->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/v1/user')
+            ->assertStatus(401);
+    }
 }
