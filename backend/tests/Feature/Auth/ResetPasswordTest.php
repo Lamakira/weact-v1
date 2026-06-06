@@ -45,6 +45,25 @@ class ResetPasswordTest extends TestCase
         $this->assertTrue(Hash::check('NewPassword1', $user->password));
     }
 
+    public function test_reset_password_rate_limiting(): void
+    {
+        $payload = [
+            'token' => 'fake-token',
+            'email' => 'ratelimit@example.com',
+            'password' => 'NewPassword1',
+            'password_confirmation' => 'NewPassword1',
+        ];
+
+        // The route throttle counts every request (regardless of payload).
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/v1/auth/reset-password', $payload);
+        }
+
+        // 6th request is rate limited (parity with forgot-password).
+        $this->postJson('/api/v1/auth/reset-password', $payload)
+            ->assertStatus(429);
+    }
+
     /**
      * Test reset password with expired token returns 422.
      */

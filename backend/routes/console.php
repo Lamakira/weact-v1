@@ -39,3 +39,11 @@ app(Schedule::class)->command(PurgeExpiredMediaCommand::class)
     ->timezone('UTC')
     ->withoutOverlapping()
     ->onOneServer();
+
+// Sanctum token hygiene: drop tokens expired (created_at + sanctum.expiration) for
+// more than 24h, so abandoned/non-expiring sessions don't accumulate forever.
+app(Schedule::class)->command('sanctum:prune-expired', ['--hours' => 24])
+    ->dailyAt('03:30')
+    ->timezone('UTC')
+    ->withoutOverlapping()
+    ->onOneServer();

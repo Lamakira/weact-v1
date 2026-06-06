@@ -26,7 +26,10 @@ class LoginController extends Controller
     {
         $email = $request->validated('email');
         $password = $request->validated('password');
-        $throttleKey = 'login:'.Str::lower(trim($email));
+        // Throttle key = email + IP (Laravel default). Email-only keying let an
+        // attacker lock a victim's account from any IP (targeted DoS); the IP
+        // component scopes the per-account lockout to the attacker's own IP.
+        $throttleKey = 'login:'.Str::lower(trim($email)).'|'.$request->ip();
 
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             Log::warning('auth.login.throttled', [

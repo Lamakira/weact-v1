@@ -53,6 +53,9 @@ Route::prefix('v1')->group(function (): void {
             ->name('auth.register.producer');
 
         Route::post('/login', LoginController::class)
+            // Coarse per-IP backstop vs password spraying (30/min, decay 1 min,
+            // tunable). The per-account limit (5/min) lives in LoginController.
+            ->middleware('throttle:30,1')
             ->name('auth.login');
 
         Route::post('/forgot-password', ForgotPasswordController::class)
@@ -60,6 +63,7 @@ Route::prefix('v1')->group(function (): void {
             ->name('auth.forgot-password');
 
         Route::post('/reset-password', ResetPasswordController::class)
+            ->middleware('throttle:5,1') // parity with forgot-password: bound reset attempts per IP
             ->name('auth.reset-password');
 
         // Email verification (public - signature validation handled in controller)

@@ -89,4 +89,20 @@ class ScheduleWiringTest extends TestCase
         $this->assertTrue($event->withoutOverlapping, 'Schedule must have withoutOverlapping() — destructive cron concurrency guard.');
         $this->assertTrue($event->onOneServer, 'Schedule must have onOneServer() — destructive cron single-server guard.');
     }
+
+    public function test_prune_expired_sanctum_tokens_is_scheduled_daily(): void
+    {
+        $schedule = $this->app->make(Schedule::class);
+        $events = collect($schedule->events());
+
+        $event = $events->first(
+            fn ($e) => str_contains($e->command ?? '', 'sanctum:prune-expired'),
+        );
+
+        $this->assertNotNull($event, 'sanctum:prune-expired is not scheduled.');
+        $this->assertSame('30 3 * * *', $event->expression, 'Schedule must be daily at 03:30.');
+        $this->assertSame('UTC', $event->timezone, 'Schedule timezone must be UTC.');
+        $this->assertTrue($event->withoutOverlapping, 'Schedule must have withoutOverlapping().');
+        $this->assertTrue($event->onOneServer, 'Schedule must have onOneServer().');
+    }
 }

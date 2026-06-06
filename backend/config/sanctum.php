@@ -47,7 +47,7 @@ return [
     |
     */
 
-    'expiration' => null,
+    'expiration' => 60 * 24 * 30, // 30 jours (en minutes) — borne la fenêtre d'un token volé ; les tokens expirés sont purgés via sanctum:prune-expired (routes/console.php).
 
     /*
     |--------------------------------------------------------------------------
