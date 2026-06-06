@@ -6,13 +6,16 @@ namespace App\Services;
 
 use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
+use App\Enums\CompensationType;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
+use App\Enums\MissionType;
 use App\Models\Candidature;
 use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\Ugc\UgcCommissionService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -20,16 +23,25 @@ class MissionService
 {
     public function __construct(
         private readonly MissionPaymentService $missionPaymentService,
+        private readonly UgcCommissionService $ugcCommissionService,
     ) {}
 
     /**
      * Create a new published mission for a Producer.
+     *
+     * UGC missions diverge: they are created in `pending_payment` (publish-gate)
+     * with a server-recalculated commission, while standard missions are still
+     * published directly.
      *
      * @param  array<string, mixed>  $data
      * @return Mission The newly created mission
      */
     public function createMission(Producer $producer, array $data): Mission
     {
+        if (($data['type_mission'] ?? null) === MissionType::Ugc->value) {
+            return $this->createUgcMission($producer, $data);
+        }
+
         /** @var Mission $mission */
         $mission = $producer->missions()->create([
             'titre' => $data['titre'],
@@ -45,6 +57,53 @@ class MissionService
             'lieu' => $data['lieu'],
             'duree' => $data['duree'],
             'status' => MissionStatus::Published,
+        ]);
+
+        return $mission;
+    }
+
+    /**
+     * Create a UGC mission (appel à projets) in `pending_payment`.
+     *
+     * The WeAct commission is recomputed server-side from the product value only
+     * (never the cash), the video count is forced to 2 for product-only, and the
+     * cash `budget` is derived from `montant_remuneration` (0 for product-only) —
+     * D-1.3.b / D-1.3.d. The mission stays unpublished until the commission is
+     * paid (story 1.5).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function createUgcMission(Producer $producer, array $data): Mission
+    {
+        $compensation = $data['type_compensation'];
+        $valeurProduit = (int) $data['valeur_produit'];
+        $commission = $this->ugcCommissionService->compute($valeurProduit);
+
+        $isHybrid = $compensation === CompensationType::Hybrid->value;
+        $nombreVideos = $isHybrid ? (int) $data['nombre_videos'] : (int) config('ugc.product_only_video_count', 2);
+        $montantRemuneration = $isHybrid ? (int) $data['montant_remuneration'] : 0;
+
+        /** @var Mission $mission */
+        $mission = $producer->missions()->create([
+            'titre' => $data['titre'],
+            'description' => $data['description'],
+            'date_tournage' => $data['date_tournage'],
+            'profil_recherche' => $data['profil_recherche'],
+            'budget' => $montantRemuneration,                     // D-1.3.b : dérivé (0 si produit seul)
+            'date_limite_candidature' => $data['date_limite_candidature'],
+            'nombre_faces_voulu' => $data['nombre_faces_voulu'] ?? 1,
+            'type_mission' => MissionType::Ugc->value,
+            'type_mission_autre' => null,
+            'genre_voulu' => $data['genre_voulu'],
+            'lieu' => $data['lieu'],
+            'duree' => $data['duree'],
+            'status' => MissionStatus::PendingPayment,            // D-1.3.d : PAS Published
+            'type_compensation' => $compensation,
+            'nom_produit' => $data['nom_produit'],
+            'valeur_produit' => $valeurProduit,
+            'nombre_videos' => $nombreVideos,
+            'montant_remuneration' => $isHybrid ? $montantRemuneration : null,
+            'commission_ugc' => $commission,
         ]);
 
         return $mission;

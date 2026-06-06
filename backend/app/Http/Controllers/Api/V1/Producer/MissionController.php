@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Producer;
 
+use App\Enums\MissionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Mission\CloseMissionRequest;
 use App\Http\Requests\Mission\CompleteMissionRequest;
@@ -90,9 +91,13 @@ class MissionController extends Controller
             $request->validated()
         );
 
+        $message = $mission->status === MissionStatus::PendingPayment
+            ? 'Mission UGC créée. Réglez la commission pour la publier.'
+            : 'Mission publiée avec succès';
+
         return response()->json([
             'data' => new MissionResource($mission),
-            'message' => 'Mission publiée avec succès',
+            'message' => $message,
         ], 201);
     }
 

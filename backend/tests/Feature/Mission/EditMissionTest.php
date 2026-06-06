@@ -261,6 +261,27 @@ class EditMissionTest extends TestCase
             ->assertJsonPath('errors.type_mission.0', 'Le type de mission sélectionné est invalide.');
     }
 
+    public function test_cannot_update_standard_mission_to_ugc_type(): void
+    {
+        $data = $this->getValidUpdateData();
+        $data['type_mission'] = 'ugc';
+
+        $response = $this->actingAs($this->producerUser)
+            ->putJson("/api/v1/producer/missions/{$this->mission->uuid}", $data);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['type_mission'])
+            ->assertJsonPath('errors.type_mission.0', 'Le type UGC ne peut pas être utilisé pour modifier une mission existante.');
+
+        $this->assertDatabaseHas('missions', [
+            'id' => $this->mission->id,
+            'type_mission' => MissionType::Publicite->value,
+            'status' => MissionStatus::Published->value,
+            'type_compensation' => null,
+            'commission_ugc' => null,
+        ]);
+    }
+
     public function test_validation_error_for_invalid_genre_voulu(): void
     {
         $data = $this->getValidUpdateData();

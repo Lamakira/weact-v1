@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Concerns\HasRouteUuid;
+use App\Enums\CompensationType;
 use App\Enums\MissionGender;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
@@ -33,6 +34,12 @@ use Illuminate\Support\Str;
  * @property \App\Enums\MissionStatus $status
  * @property \App\Enums\MissionType|null $type_mission
  * @property \App\Enums\MissionGender|null $genre_voulu
+ * @property \App\Enums\CompensationType|null $type_compensation
+ * @property string|null $nom_produit
+ * @property int|null $valeur_produit
+ * @property int|null $nombre_videos
+ * @property int|null $montant_remuneration
+ * @property int|null $commission_ugc
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property int|null $candidatures_count
@@ -124,6 +131,12 @@ class Mission extends Model
         'lieu',
         'duree',
         'status',
+        'type_compensation',
+        'nom_produit',
+        'valeur_produit',
+        'nombre_videos',
+        'montant_remuneration',
+        'commission_ugc',
     ];
 
     /**
@@ -142,6 +155,11 @@ class Mission extends Model
             'status' => MissionStatus::class,
             'type_mission' => MissionType::class,
             'genre_voulu' => MissionGender::class,
+            'type_compensation' => CompensationType::class,
+            'valeur_produit' => 'integer',
+            'nombre_videos' => 'integer',
+            'montant_remuneration' => 'integer',
+            'commission_ugc' => 'integer',
         ];
     }
 

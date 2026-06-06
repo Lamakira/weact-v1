@@ -12,6 +12,7 @@ enum MissionType: string
     case ClipMusical = 'clip_musical';
     case ShootingPhoto = 'shooting_photo';
     case Autre = 'autre';
+    case Ugc = 'ugc';
 
     /**
      * Get the display name in French for this mission type.
@@ -25,6 +26,7 @@ enum MissionType: string
             self::ClipMusical => 'Clip musical',
             self::ShootingPhoto => 'Shooting photo',
             self::Autre => 'Autre',
+            self::Ugc => 'UGC',
         };
     }
 

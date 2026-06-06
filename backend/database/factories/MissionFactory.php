@@ -41,7 +41,10 @@ class MissionFactory extends Factory
             'budget' => fake()->numberBetween(50000, 500000), // XOF
             'date_limite_candidature' => $dateLimiteCandidature,
             'nombre_faces_voulu' => fake()->numberBetween(1, 10),
-            'type_mission' => fake()->randomElement(MissionType::cases()),
+            'type_mission' => fake()->randomElement(array_filter(
+                MissionType::cases(),
+                fn (MissionType $type): bool => $type !== MissionType::Ugc,
+            )),
             'genre_voulu' => fake()->randomElement(MissionGender::cases()),
             'lieu' => fake()->randomElement([
                 'Cotonou',

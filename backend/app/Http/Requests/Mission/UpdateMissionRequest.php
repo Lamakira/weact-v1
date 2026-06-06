@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Mission;
 
 use App\Enums\MissionStatus;
+use App\Enums\MissionType;
 use App\Models\Mission;
 use App\Models\Producer;
 use Illuminate\Foundation\Http\FormRequest;
@@ -51,6 +52,13 @@ class UpdateMissionRequest extends FormRequest
         $validator->after(function ($validator) {
             /** @var Mission $mission */
             $mission = $this->route('mission');
+
+            if ($this->input('type_mission') === MissionType::Ugc->value) {
+                $validator->errors()->add(
+                    'type_mission',
+                    'Le type UGC ne peut pas être utilisé pour modifier une mission existante.'
+                );
+            }
 
             if ($mission->status === MissionStatus::PendingPayment) {
                 $validator->errors()->add(
