@@ -6,15 +6,18 @@ namespace App\Jobs;
 
 use App\Enums\FaceSubscriptionStatus;
 use App\Enums\FinancialEventType;
+use App\Enums\MissionType;
 use App\Models\Booking;
 use App\Models\FaceSubscription;
 use App\Models\FedapayWebhookEvent;
 use App\Models\FinancialEvent;
+use App\Models\Mission;
 use App\Models\MissionPayment;
 use App\Models\WalletTransaction;
 use App\Services\BookingService;
 use App\Services\FaceSubscriptionPaymentService;
 use App\Services\MissionPaymentService;
+use App\Services\Ugc\UgcCommissionPaymentService;
 use App\Services\WalletService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -34,8 +37,14 @@ class HandleFedapayWebhook implements ShouldQueue
         public readonly array $payload,
     ) {}
 
-    public function handle(BookingService $bookingService, MissionPaymentService $missionPaymentService, WalletService $walletService, FaceSubscriptionPaymentService $facePaymentService): void
+    public function handle(BookingService $bookingService, MissionPaymentService $missionPaymentService, WalletService $walletService, FaceSubscriptionPaymentService $facePaymentService, ?UgcCommissionPaymentService $ugcPaymentService = null): void
     {
+        // Resolved here rather than as a required signature param so existing
+        // direct-call tests (BookingPaymentTest, MissionPaymentInitiationTest,
+        // SubscriptionCancelReactivationTest) that pass 4 args keep working. Real
+        // queue dispatch still injects the concrete service via method injection.
+        $ugcPaymentService ??= app(UgcCommissionPaymentService::class);
+
         $webhookEvent = FedapayWebhookEvent::find($this->webhookEventId);
 
         if (! $webhookEvent || $webhookEvent->status === 'processed') {
@@ -60,15 +69,28 @@ class HandleFedapayWebhook implements ShouldQueue
         $booking = Booking::where('fedapay_transaction_id', $transactionId)->first();
 
         if ($booking) {
-            match ($this->eventName) {
-                'transaction.approved' => $bookingService->markAsPaid($booking, $fedapayRef),
-                'transaction.declined', 'transaction.canceled' => $bookingService->markPaymentFailed(
-                    $booking,
-                    $fedapayRef,
-                    "Payment {$this->eventName}"
-                ),
-                default => Log::info('Fedapay webhook: unhandled event', ['event' => $this->eventName]),
-            };
+            if ($booking->type_contenu === 'UGC') {
+                // UGC commission settlement — dedicated path, no escrow (D-1.5.b).
+                match ($this->eventName) {
+                    'transaction.approved' => $ugcPaymentService->markBookingCommissionPaid($booking, $fedapayRef),
+                    'transaction.declined', 'transaction.canceled' => $ugcPaymentService->markBookingCommissionFailed(
+                        $booking,
+                        $fedapayRef,
+                        "Payment {$this->eventName}"
+                    ),
+                    default => Log::info('Fedapay webhook: unhandled UGC booking event', ['event' => $this->eventName]),
+                };
+            } else {
+                match ($this->eventName) {
+                    'transaction.approved' => $bookingService->markAsPaid($booking, $fedapayRef),
+                    'transaction.declined', 'transaction.canceled' => $bookingService->markPaymentFailed(
+                        $booking,
+                        $fedapayRef,
+                        "Payment {$this->eventName}"
+                    ),
+                    default => Log::info('Fedapay webhook: unhandled event', ['event' => $this->eventName]),
+                };
+            }
 
             $this->markProcessed($webhookEvent);
 
@@ -98,6 +120,31 @@ class HandleFedapayWebhook implements ShouldQueue
         }
 
         if (str_starts_with($this->eventName, 'transaction.')) {
+            // Try to find a UGC mission (publication commission). Disjoint from the
+            // MissionPayment lookup above: a UGC mission has no MissionPayment row,
+            // and a standard mission has no missions.fedapay_transaction_id (D-1.5.d).
+            // Kept inside the transaction.* guard so a payout.* event cannot match a
+            // mission by id collision (payouts fall through to the withdrawal lookup).
+            $ugcMission = Mission::where('fedapay_transaction_id', $transactionId)
+                ->where('type_mission', MissionType::Ugc)
+                ->first();
+
+            if ($ugcMission) {
+                match ($this->eventName) {
+                    'transaction.approved' => $ugcPaymentService->markMissionCommissionPaid($ugcMission, $fedapayRef),
+                    'transaction.declined', 'transaction.canceled' => $ugcPaymentService->markMissionCommissionFailed(
+                        $ugcMission,
+                        $fedapayRef,
+                        "Payment {$this->eventName}"
+                    ),
+                    default => Log::info('Fedapay webhook: unhandled UGC mission event', ['event' => $this->eventName]),
+                };
+
+                $this->markProcessed($webhookEvent);
+
+                return;
+            }
+
             // Try to find a FaceSubscription (annual premium payment).
             // resolveFaceSubscription() does a two-step lookup: primary by
             // provider_reference (happy path), fallback by

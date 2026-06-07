@@ -86,6 +86,14 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
     Route::get('/missions/{mission}/payment-status', [MissionPaymentController::class, 'paymentStatus'])
         ->middleware('throttle:polling');
 
+    // UGC mission commission payment (publication fee — no escrow, no MissionPayment)
+    Route::post('/missions/{mission}/pay-commission', [MissionPaymentController::class, 'payUgcCommission'])
+        ->middleware(['verified', 'throttle:60,1'])
+        ->name('producer.missions.pay-commission');
+    Route::get('/missions/{mission}/commission-status', [MissionPaymentController::class, 'ugcCommissionStatus'])
+        ->middleware('throttle:polling')
+        ->name('producer.missions.commission-status');
+
     // Candidature routes (nested under missions)
     Route::get('/missions/{mission}/candidatures', [CandidatureController::class, 'index'])
         ->middleware('throttle:ui-read');

@@ -577,6 +577,14 @@ class BookingService
      */
     public function markAsPaid(Booking $booking, string $fedapayRef): Booking
     {
+        // Defense-in-depth (resolves deferred-work.md:572): UGC bookings never go
+        // through the cash escrow settlement. Even if a UGC fedapay_transaction_id
+        // reached this path, it is a no-op here — UGC is settled by
+        // UgcCommissionPaymentService (D-1.5.b).
+        if ($booking->type_contenu === 'UGC') {
+            return $booking;
+        }
+
         return DB::transaction(function () use ($booking, $fedapayRef) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 

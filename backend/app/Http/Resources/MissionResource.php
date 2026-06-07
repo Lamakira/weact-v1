@@ -45,6 +45,7 @@ class MissionResource extends JsonResource
             'nombre_videos' => $this->nombre_videos,
             'montant_remuneration' => $this->montant_remuneration,
             'commission_ugc' => $this->commission_ugc,
+            'commission_paid_at' => $this->commission_paid_at?->toIso8601String(),
             'is_accepting_candidatures' => $this->isAcceptingCandidatures(),
             'has_paid_payment' => \App\Models\MissionPayment::where('mission_id', $this->id)->where('status', 'paid')->exists(),
             'candidatures_count' => $this->candidatures_count ?? ($this->whenLoaded('candidatures') ? $this->candidatures->count() : 0),

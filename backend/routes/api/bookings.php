@@ -37,6 +37,15 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'api.token'])->group(function (
         ->middleware('throttle:60,1')
         ->name('bookings.pay');
 
+    // UGC commission payment (dedicated path — no escrow, charges commission only)
+    Route::post('/bookings/{booking}/pay-commission', [BookingController::class, 'payCommission'])
+        ->middleware('throttle:60,1')
+        ->name('bookings.pay-commission');
+
+    Route::get('/bookings/{booking}/commission-status', [BookingController::class, 'commissionStatus'])
+        ->middleware('throttle:polling')
+        ->name('bookings.commission-status');
+
     Route::post('/bookings/{booking}/confirm', [BookingController::class, 'confirm'])
         ->middleware('throttle:60,1')
         ->name('bookings.confirm');

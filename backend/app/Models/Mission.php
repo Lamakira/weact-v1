@@ -40,6 +40,9 @@ use Illuminate\Support\Str;
  * @property int|null $nombre_videos
  * @property int|null $montant_remuneration
  * @property int|null $commission_ugc
+ * @property int|null $fedapay_transaction_id
+ * @property string|null $payment_initiation_key
+ * @property \Carbon\CarbonInterface|null $commission_paid_at
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property int|null $candidatures_count
@@ -137,6 +140,9 @@ class Mission extends Model
         'nombre_videos',
         'montant_remuneration',
         'commission_ugc',
+        'fedapay_transaction_id',
+        'payment_initiation_key',
+        'commission_paid_at',
     ];
 
     /**
@@ -160,6 +166,8 @@ class Mission extends Model
             'nombre_videos' => 'integer',
             'montant_remuneration' => 'integer',
             'commission_ugc' => 'integer',
+            'fedapay_transaction_id' => 'integer',
+            'commission_paid_at' => 'datetime',
         ];
     }
 

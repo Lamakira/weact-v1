@@ -101,6 +101,17 @@ class BookingPolicy
     }
 
     /**
+     * Determine if the user can pay the WeAct commission of a UGC booking.
+     * Only the owning Producer, on a pending UGC booking (dedicated UGC path).
+     */
+    public function payCommission(User $user, Booking $booking): bool
+    {
+        return $user->id === $booking->producer_id
+            && $booking->type_contenu === 'UGC'
+            && $booking->status === BookingStatus::Pending;
+    }
+
+    /**
      * Determine if the user can report a Face no-show.
      * Only the Producer can report, and only when status is paid.
      */

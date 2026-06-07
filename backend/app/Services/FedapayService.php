@@ -147,6 +147,79 @@ class FedapayService
     }
 
     /**
+     * Initiate a hosted checkout for a UGC booking commission.
+     * Charges the WeAct commission ONLY (`commission_ugc`) — never the product
+     * value or the (out-of-WeAct) remuneration. See D-1.5.a.
+     *
+     * @return array{fedapay_transaction_id: int, checkout_url: string}
+     */
+    public function initiatePaymentForUgcBooking(Booking $booking, string $idempotencyKey): array
+    {
+        $producer = $booking->producer;
+        if (! $producer instanceof User) {
+            throw new \RuntimeException('Le producteur du booking est introuvable.');
+        }
+
+        return $this->createUgcCommissionCheckout(
+            amount: (int) $booking->commission_ugc,
+            description: "Commission UGC — Booking #{$booking->id}",
+            metadata: ['type' => 'ugc_booking', 'booking_id' => $booking->id, 'idempotency_key' => $idempotencyKey],
+            payer: $producer,
+        );
+    }
+
+    /**
+     * Initiate a hosted checkout for a UGC mission publication commission.
+     * Charges `commission_ugc` ONLY (publication fee). See D-1.5.a / D-1.5.d.
+     *
+     * @return array{fedapay_transaction_id: int, checkout_url: string}
+     */
+    public function initiatePaymentForUgcMission(Mission $mission, string $idempotencyKey): array
+    {
+        /** @var User $producerUser */
+        $producerUser = User::query()->where('userable_type', Producer::class)
+            ->where('userable_id', $mission->producer_id)
+            ->firstOrFail();
+
+        return $this->createUgcCommissionCheckout(
+            amount: (int) $mission->commission_ugc,
+            description: "Commission UGC — Mission #{$mission->id} — {$mission->titre}",
+            metadata: ['type' => 'ugc_mission', 'mission_id' => $mission->id, 'idempotency_key' => $idempotencyKey],
+            payer: $producerUser,
+        );
+    }
+
+    /**
+     * Shared FedaPay transaction builder for UGC commission checkouts (booking + mission).
+     *
+     * @param  array<string, mixed>  $metadata
+     * @return array{fedapay_transaction_id: int, checkout_url: string}
+     */
+    private function createUgcCommissionCheckout(int $amount, string $description, array $metadata, User $payer): array
+    {
+        /** @var Transaction $transaction */
+        $transaction = Transaction::create([
+            'description' => $description,
+            'amount' => $amount,
+            'currency' => ['iso' => 'XOF'],
+            'callback_url' => route('webhooks.fedapay'),
+            'custom_metadata' => $metadata,
+            'customer' => [
+                'firstname' => $this->resolveCustomerName($payer),
+                'email' => $payer->email,
+            ],
+        ]);
+
+        /** @var object{url:string} $tokenObj */
+        $tokenObj = $transaction->generateToken();
+
+        return [
+            'fedapay_transaction_id' => (int) $transaction->id,
+            'checkout_url' => $tokenObj->url,
+        ];
+    }
+
+    /**
      * Verify a Fedapay webhook signature and return the event.
      *
      * @throws \FedaPay\Error\SignatureVerification

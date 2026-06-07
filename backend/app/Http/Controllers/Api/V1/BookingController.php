@@ -11,10 +11,12 @@ use App\Http\Requests\Booking\CancelBookingRequest;
 use App\Http\Requests\Booking\ConfirmBookingRequest;
 use App\Http\Requests\Booking\CreateBookingRequest;
 use App\Http\Requests\Booking\PayBookingRequest;
+use App\Http\Requests\Booking\PayUgcCommissionRequest;
 use App\Http\Requests\Booking\RefuseBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Services\BookingService;
+use App\Services\Ugc\UgcCommissionPaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -32,6 +34,7 @@ class BookingController extends Controller
         'active' => [
             BookingStatus::Accepted,
             BookingStatus::Paid,
+            BookingStatus::CommissionPaid,
             BookingStatus::ConfirmedByFace,
             BookingStatus::ConfirmedByProducer,
         ],
@@ -47,6 +50,7 @@ class BookingController extends Controller
 
     public function __construct(
         private readonly BookingService $bookingService,
+        private readonly UgcCommissionPaymentService $ugcCommissionPaymentService,
     ) {}
 
     /**
@@ -230,6 +234,36 @@ class BookingController extends Controller
         Gate::authorize('view', $booking);
 
         $booking = $this->bookingService->checkAndProcessPayment($booking);
+
+        return response()->json([
+            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+        ]);
+    }
+
+    /**
+     * Initiate payment of the WeAct commission for a pending UGC booking (Producer only).
+     * Charges `commission_ugc` only — no escrow (D-1.5.a/b).
+     */
+    public function payCommission(PayUgcCommissionRequest $request, Booking $booking): JsonResponse
+    {
+        $result = $this->ugcCommissionPaymentService->initiateForBooking($booking);
+
+        return response()->json([
+            'data' => new BookingResource($result['booking']->load(['face.userable', 'producer.userable'])),
+            'checkout_url' => $result['checkout_url'],
+            'message' => 'Paiement de la commission initié',
+        ]);
+    }
+
+    /**
+     * Poll Fedapay and settle the UGC commission if approved (fallback when the
+     * webhook is delayed). Idempotent.
+     */
+    public function commissionStatus(Request $request, Booking $booking): JsonResponse
+    {
+        Gate::authorize('view', $booking);
+
+        $booking = $this->ugcCommissionPaymentService->checkAndProcessBooking($booking);
 
         return response()->json([
             'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
