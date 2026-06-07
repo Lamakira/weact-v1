@@ -95,6 +95,14 @@ export interface Mission {
   type_mission: MissionTypeType
   type_mission_label: string
   type_mission_autre: string | null
+  // UGC fields (null pour les missions non-UGC) — mirrors MissionResource (story 1.3)
+  type_compensation: string | null
+  type_compensation_label: string | null
+  nom_produit: string | null
+  valeur_produit: number | null
+  nombre_videos: number | null
+  montant_remuneration: number | null
+  commission_ugc: number | null
   genre_voulu: MissionGenderType
   genre_voulu_label: string
   lieu: string
@@ -115,14 +123,20 @@ export interface CreateMissionData {
   description: string
   date_tournage: string
   profil_recherche: string
-  budget: number
+  budget?: number // optionnel : dérivé serveur pour l'UGC (D-1.4.d) ; requis pour les types standard
   date_limite_candidature: string
   nombre_faces_voulu?: number
-  type_mission: MissionTypeType
+  type_mission: MissionTypeType | 'ugc' // 'ugc' n'est PAS ajouté à l'enum/labels partagés (D-1.4.b)
   type_mission_autre?: string
   genre_voulu: MissionGenderType
   lieu: string
   duree: string
+  // UGC dotation (envoyés uniquement quand type_mission === 'ugc')
+  type_compensation?: 'product' | 'hybrid'
+  nom_produit?: string
+  valeur_produit?: number
+  nombre_videos?: number
+  montant_remuneration?: number
 }
 
 // Candidature data (minimal version for mission detail response)

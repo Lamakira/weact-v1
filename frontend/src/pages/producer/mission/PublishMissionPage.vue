@@ -9,14 +9,19 @@ import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { MissionForm } from '@/features/mission/components'
 import EmailVerificationRequired from '@/components/EmailVerificationRequired.vue'
-import type { Mission } from '@/features/mission/types'
+import { MissionStatus, type Mission } from '@/features/mission/types'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const { success } = useToast()
 
-function handleSuccess(_mission: Mission): void {
-  success('Mission publiée avec succès!')
+function handleSuccess(mission: Mission): void {
+  // Une mission UGC reste `pending_payment` (non publiée) tant que la commission n'est pas réglée (D-1.4.e).
+  if (mission.status === MissionStatus.PENDING_PAYMENT) {
+    success('Mission UGC créée. Réglez la commission pour la publier.')
+  } else {
+    success('Mission publiée avec succès!')
+  }
   router.push({ name: 'producer-missions' })
 }
 

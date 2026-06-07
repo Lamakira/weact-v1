@@ -20,6 +20,8 @@ import {
 } from '../types'
 import { Button } from '@/components/ui/button'
 import { FloatingField, FloatingTextarea, FloatingSelect } from '@/components/ui/form'
+import UgcDotationFields from './UgcDotationFields.vue'
+import { CommissionBreakdown, computeUgcCommission, type UgcCompensationType } from '@/components/ugc'
 import {
   Film,
   Users,
@@ -87,7 +89,10 @@ async function handleResendVerification(): Promise<void> {
   }
 }
 
-const missionTypeOptions = getMissionTypeOptions()
+const missionTypeOptions =
+  props.mode === 'create'
+    ? [...getMissionTypeOptions(), { value: 'ugc', label: 'UGC' }]
+    : getMissionTypeOptions()
 const genderOptions = getMissionGenderOptions()
 
 // Duration preset state
@@ -114,6 +119,11 @@ const { handleSubmit, setFieldError } = useForm({
     genre_voulu: props.initialValues?.genre_voulu ?? MissionGender.TOUS,
     lieu: props.initialValues?.lieu ?? '',
     duree: props.initialValues?.duree ?? MISSION_DURATION_PRESETS[0]!.value,
+    type_compensation: props.initialValues?.type_compensation ?? 'product',
+    nom_produit: props.initialValues?.nom_produit ?? '',
+    valeur_produit: props.initialValues?.valeur_produit ?? undefined,
+    nombre_videos: props.initialValues?.nombre_videos ?? undefined,
+    montant_remuneration: props.initialValues?.montant_remuneration ?? undefined,
   },
 })
 
@@ -132,6 +142,26 @@ const { value: nombre_faces_voulu, errorMessage: nombreFacesError } =
 const { value: date_limite_candidature, errorMessage: dateLimiteError } =
   useField<string>('date_limite_candidature')
 const { value: date_tournage, errorMessage: dateTournageError } = useField<string>('date_tournage')
+
+// UGC dotation fields (rendus uniquement quand type_mission === 'ugc')
+const { value: type_compensation, errorMessage: typeCompensationError } =
+  useField<UgcCompensationType>('type_compensation')
+const { value: nom_produit, errorMessage: nomProduitError } = useField<string>('nom_produit')
+const { value: valeur_produit, errorMessage: valeurProduitError } =
+  useField<number | string | undefined>('valeur_produit')
+const { value: nombre_videos, errorMessage: nombreVideosError } =
+  useField<number | string | undefined>('nombre_videos')
+const { value: montant_remuneration, errorMessage: montantRemunerationError } =
+  useField<number | string | undefined>('montant_remuneration')
+
+const isUgc = computed(() => type_mission.value === 'ugc')
+const ugcCommission = computed(() => computeUgcCommission(Number(valeur_produit.value) || 0))
+const submitLabel = computed(() => {
+  if (props.mode === 'edit') return 'Enregistrer les modifications'
+  return isUgc.value
+    ? `Payer la commission · ${ugcCommission.value.toLocaleString('fr-FR')} FCFA`
+    : 'Publier la mission'
+})
 
 // Sync duration preset / custom days → duree field
 watch([selectedDureePreset, customDureeJours], () => {
@@ -180,12 +210,12 @@ const pricingHint = computed(() => {
 })
 
 const onSubmit = handleSubmit(async (values) => {
+  // Base payload WITHOUT budget (added conditionally below — budget is server-derived for UGC, D-1.4.d)
   const data: CreateMissionData = {
     titre: values.titre,
     description: values.description,
     date_tournage: values.date_tournage,
     profil_recherche: values.profil_recherche,
-    budget: values.budget as number, // Validated by schema before submit
     date_limite_candidature: values.date_limite_candidature,
     nombre_faces_voulu: values.nombre_faces_voulu,
     type_mission: values.type_mission as CreateMissionData['type_mission'],
@@ -193,6 +223,18 @@ const onSubmit = handleSubmit(async (values) => {
     genre_voulu: values.genre_voulu as CreateMissionData['genre_voulu'],
     lieu: values.lieu,
     duree: values.duree,
+  }
+
+  if (values.type_mission === 'ugc') {
+    data.type_compensation = values.type_compensation as 'product' | 'hybrid'
+    data.nom_produit = values.nom_produit?.trim()
+    data.valeur_produit = Number(values.valeur_produit)
+    if (values.type_compensation === 'hybrid') {
+      data.nombre_videos = Number(values.nombre_videos)
+      data.montant_remuneration = Number(values.montant_remuneration)
+    }
+  } else {
+    data.budget = values.budget as number // Validated by schema before submit
   }
 
   // In edit mode, emit the data to parent for handling
@@ -220,6 +262,11 @@ const onSubmit = handleSubmit(async (values) => {
       'genre_voulu',
       'lieu',
       'duree',
+      'type_compensation',
+      'nom_produit',
+      'valeur_produit',
+      'nombre_videos',
+      'montant_remuneration',
     ] as const
     type ValidField = (typeof validFields)[number]
 
@@ -328,8 +375,9 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
           data-testid="type-mission-autre-input"
         />
 
-        <!-- Rémunération + Nombre de profils -->
+        <!-- Rémunération + Nombre de profils (rémunération masquée pour l'UGC — D-1.4.d) -->
         <FloatingField
+          v-if="!isUgc"
           id="budget"
           v-model="budget"
           type="number"
@@ -352,9 +400,10 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
           data-testid="nombre-faces-input"
         />
 
-        <!-- Hint tarifaire réactif -->
+        <!-- Hint tarifaire réactif (masqué pour l'UGC) -->
         <div
-          v-if="pricingHint"
+          v-if="pricingHint && !isUgc"
+          data-testid="pricing-hint"
           class="md:col-span-2 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm"
         >
           <Wallet class="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -379,6 +428,26 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
             required
             :rows="4"
             data-testid="description-input"
+          />
+        </div>
+
+        <!-- Bloc Dotation UGC (création + type UGC) -->
+        <div v-if="isUgc" class="md:col-span-2 space-y-4">
+          <UgcDotationFields
+            v-model:compensation-type="type_compensation"
+            v-model:nom-produit="nom_produit"
+            v-model:valeur-produit="valeur_produit"
+            v-model:nombre-videos="nombre_videos"
+            v-model:montant-remuneration="montant_remuneration"
+            :compensation-type-error="typeCompensationError"
+            :nom-produit-error="nomProduitError"
+            :valeur-produit-error="valeurProduitError"
+            :nombre-videos-error="nombreVideosError"
+            :montant-remuneration-error="montantRemunerationError"
+          />
+          <CommissionBreakdown
+            :product-value="Number(valeur_produit) || 0"
+            :pay-amount="type_compensation === 'hybrid' ? (Number(montant_remuneration) || 0) : 0"
           />
         </div>
       </div>
@@ -532,7 +601,7 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
         </template>
         <template v-else>
           <component :is="props.mode === 'edit' ? Save : Send" class="w-4 h-4 mr-2" />
-          {{ props.mode === 'edit' ? 'Enregistrer les modifications' : 'Publier la mission' }}
+          {{ submitLabel }}
         </template>
       </Button>
     </div>
