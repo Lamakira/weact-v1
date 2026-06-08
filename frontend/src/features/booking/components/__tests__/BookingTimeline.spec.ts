@@ -22,6 +22,19 @@ describe('BookingTimeline', () => {
     expect(text).not.toContain('Terminé')
   })
 
+  it('marks earlier steps complete for a UGC commission_paid booking (not all future — review F2)', () => {
+    const wrapper = mount(BookingTimeline, {
+      props: {
+        status: BookingStatus.COMMISSION_PAID,
+      },
+    })
+
+    // commission_paid maps to the paid step (index 2): without the mapping the booking would
+    // fall to currentStepIndex -1 and every step would render as 'future' (text-gray-400 only).
+    expect(wrapper.html()).toContain('text-emerald-700') // at least one completed step present
+    expect(wrapper.text()).toContain('Paiement')
+  })
+
   it('keeps the standard completion flow for non no-show statuses', () => {
     const wrapper = mount(BookingTimeline, {
       props: {

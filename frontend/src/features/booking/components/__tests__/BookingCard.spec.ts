@@ -125,4 +125,30 @@ describe('BookingCard', () => {
 
     expect(wrapper.text()).not.toContain('Porto-Novo')
   })
+
+  it('renders a UGC booking with no shoot date / duration without crashing', () => {
+    const wrapper = mount(BookingCard, {
+      props: {
+        booking: makeBooking({
+          type_contenu: 'UGC',
+          date_debut: null,
+          date_fin: null,
+          duree_heures: null,
+          lieu: null,
+        }),
+      },
+      global: {
+        stubs: {
+          RouterLink: {
+            template: '<a><slot /></a>',
+          },
+        },
+      },
+    })
+
+    // No "Invalid Date", no date-range / duration rows for a UGC dotation.
+    expect(wrapper.text()).not.toContain('Invalid Date')
+    expect(wrapper.text()).not.toContain('max')
+    expect(wrapper.text()).toContain('En attente') // the card still renders
+  })
 })

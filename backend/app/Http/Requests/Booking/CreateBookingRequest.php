@@ -59,8 +59,15 @@ class CreateBookingRequest extends FormRequest
             'message' => ['nullable', 'string', 'max:1000'],
         ];
 
-        // UGC : compensation produit seul ou hybride. Champs de base inchangés (AC5).
+        // UGC : compensation produit seul ou hybride.
         if ($this->input('type_contenu') === 'UGC') {
+            // Une dotation UGC n'a ni lieu, ni dates, ni durée de tournage (la Face filme
+            // chez elle, à son rythme) → on relâche ces champs cash en nullable pour l'UGC.
+            $rules['date_debut'] = ['nullable', 'date', 'after:today'];
+            $rules['date_fin'] = ['nullable', 'date', 'after_or_equal:date_debut'];
+            $rules['duree_heures'] = ['nullable', 'integer', 'min:4', 'max:720'];
+            $rules['lieu'] = ['nullable', 'string', 'max:100'];
+
             $rules['type_compensation'] = ['required', Rule::in(CompensationType::values())];
             $rules['nom_produit'] = ['required', 'string', 'max:255'];
             $rules['valeur_produit'] = ['required', 'integer', 'min:1', 'max:'.self::MAX_UNSIGNED_INTEGER];

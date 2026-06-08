@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { AlertCircle, RefreshCw, ClipboardList, Inbox, ArrowRight, Plus } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useMissionsList, useDeleteMission, useCloseMission, useReopenMission, useCompleteMission } from '@/features/mission/composables'
 import { MissionCard, DeleteMissionDialog, CloseMissionDialog, ReopenMissionDialog, CompleteMissionDialog, MissionStatusFilter } from '@/features/mission/components'
+import { UgcPaymentOverlay } from '@/components/ugc'
 import type { MissionStatusType } from '@/features/mission/types'
 import type { Mission } from '@/features/mission/types'
 
 /**
  * LOGIC & STATE MANAGEMENT
  */
+const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const { success, error: toastError } = useToast()
@@ -47,11 +49,21 @@ const isReopenDialogOpen = ref(false)
 const isCompleteDialogOpen = ref(false)
 const selectedMission = ref<Mission | null>(null)
 
+// UGC commission payment tunnel state
+const payingMission = ref<Mission | null>(null)
+const isUgcPayOpen = ref(false)
+
 /**
  * ACTIONS
  */
-onMounted(() => {
-  fetchMissions()
+onMounted(async () => {
+  await fetchMissions()
+
+  // Auto-open the commission tunnel when arriving from UGC mission creation (?pay={id}).
+  const payId = route.query.pay
+  if (typeof payId === 'string' && payId) {
+    handlePayCommission(payId)
+  }
 })
 
 function navigateToPublish(): void {
@@ -68,6 +80,20 @@ function handleViewCandidatures(id: string): void {
 
 function handleViewAttendance(id: string): void {
   router.push({ name: 'producer-mission-attendance', params: { id } })
+}
+
+function handlePayCommission(id: string): void {
+  const mission = missions.value.find((m) => m.id === id)
+  if (mission) {
+    payingMission.value = mission
+    isUgcPayOpen.value = true
+  }
+}
+
+function handleCommissionSettled(): void {
+  isUgcPayOpen.value = false
+  success('Commission payée. Votre mission est publiée.')
+  void refreshMissions()
 }
 
 function handleDeleteClick(id: string): void {
@@ -351,6 +377,7 @@ async function confirmComplete(): Promise<void> {
             @complete="handleCompleteClick"
             @view-candidatures="handleViewCandidatures"
             @view-attendance="handleViewAttendance"
+            @pay-commission="handlePayCommission"
           />
         </TransitionGroup>
       </div>
@@ -390,6 +417,17 @@ async function confirmComplete(): Promise<void> {
       :is-loading="isCompleting"
       @cancel="closeCompleteDialog"
       @confirm="confirmComplete"
+    />
+
+    <!-- UGC commission payment tunnel -->
+    <UgcPaymentOverlay
+      v-if="payingMission"
+      v-model="isUgcPayOpen"
+      kind="mission"
+      :owner-id="payingMission.id"
+      :commission="payingMission.commission_ugc ?? 0"
+      :reference="payingMission.id"
+      @settled="handleCommissionSettled"
     />
   </div>
 </template>

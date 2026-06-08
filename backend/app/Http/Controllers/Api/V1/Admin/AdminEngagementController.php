@@ -159,7 +159,7 @@ class AdminEngagementController extends Controller
             ],
             'objet' => [
                 'label' => $booking->type_contenu,
-                'date' => $booking->date_debut->toISOString(),
+                'date' => $booking->date_debut?->toISOString(),
                 'detail_id' => null,
             ],
         ];

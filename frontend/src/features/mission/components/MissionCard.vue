@@ -18,11 +18,28 @@ const emit = defineEmits<{
   complete: [id: string]
   viewCandidatures: [id: string]
   viewAttendance: [id: string]
+  payCommission: [id: string]
 }>()
 
+// A UGC mission always carries a `commission_ugc` (null for standard missions).
+const isUgcMission = computed<boolean>(() => props.mission.commission_ugc !== null)
+
 // Computed: Only show actions for editable statuses
-// Note: When email is not verified, only delete is allowed
-const canEdit = computed<boolean>(() => props.emailVerified && ['draft', 'published'].includes(props.mission.status))
+// Note: When email is not verified, only delete is allowed.
+// UGC missions are never editable (backend `UpdateMissionRequest` rejects type_mission='ugc'),
+// so editing a published UGC mission must not be offered (dead-end fix, deferred-work § ugc-1-4).
+const canEdit = computed<boolean>(
+  () => props.emailVerified && ['draft', 'published'].includes(props.mission.status) && !isUgcMission.value,
+)
+
+// A UGC mission stays `pending_payment` until its commission is settled; offer the payment CTA there.
+// Guard on `isUgcMission`: a STANDARD mission also sits in `pending_payment` during its escrow
+// checkout (MissionPaymentService sets it), so `pending_payment` alone is NOT a UGC discriminator
+// — without `&& isUgcMission` the CTA would surface on standard missions with `commission_ugc = 0`
+// FCFA and 403 server-side (review finding F1).
+const canPayCommission = computed<boolean>(
+  () => props.emailVerified && props.mission.status === 'pending_payment' && isUgcMission.value,
+)
 const canDelete = computed<boolean>(() => ['draft', 'published'].includes(props.mission.status))
 const canClose = computed<boolean>(() => props.emailVerified && props.mission.status === 'published')
 const canReopen = computed<boolean>(() => props.emailVerified && props.mission.status === 'closed' && !props.mission.has_paid_payment)
@@ -145,6 +162,17 @@ const candidaturesCount = computed<number>(() => props.mission.candidatures_coun
         >
           <Pencil :size="16" />
           <span>Modifier</span>
+        </button>
+
+        <button
+          v-if="canPayCommission"
+          type="button"
+          data-testid="pay-commission-button"
+          class="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-weact text-white rounded-lg font-medium transition-all hover:bg-weact/90 active:scale-95 focus:ring-2 focus:ring-weact/20"
+          @click.stop="emit('payCommission', mission.id)"
+        >
+          <Wallet :size="16" />
+          <span>Régler la commission</span>
         </button>
 
         <button

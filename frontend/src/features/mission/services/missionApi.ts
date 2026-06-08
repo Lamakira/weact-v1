@@ -184,4 +184,28 @@ export const missionApi = {
     )
     return response.data
   },
+
+  /**
+   * Initiate the WeAct commission payment to publish a UGC mission (Producer only).
+   * Charges `commission_ugc` only. Returns the mission + FedaPay checkout URL.
+   */
+  async payCommission(missionId: string): Promise<MissionResponse & { checkout_url: string }> {
+    await getCsrfCookie()
+
+    const response = await apiClient.post<MissionResponse & { checkout_url: string }>(
+      `/producer/missions/${missionId}/pay-commission`,
+    )
+    return response.data
+  },
+
+  /**
+   * Poll FedaPay and publish the UGC mission if the commission is approved
+   * (fallback when the webhook is delayed). Idempotent. Mission settles to `published`.
+   */
+  async getCommissionStatus(missionId: string): Promise<MissionResponse> {
+    const response = await apiClient.get<MissionResponse>(
+      `/producer/missions/${missionId}/commission-status`,
+    )
+    return response.data
+  },
 }

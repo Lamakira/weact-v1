@@ -8,6 +8,7 @@ export const BookingStatus = {
   ACCEPTED: 'accepted',
   REFUSED: 'refused',
   PAID: 'paid',
+  COMMISSION_PAID: 'commission_paid',
   IN_PROGRESS: 'in_progress',
   CONFIRMED_BY_FACE: 'confirmed_by_face',
   CONFIRMED_BY_PRODUCER: 'confirmed_by_producer',
@@ -26,6 +27,7 @@ export const BookingStatusLabel: Record<BookingStatusType, string> = {
   [BookingStatus.ACCEPTED]: 'Acceptée',
   [BookingStatus.REFUSED]: 'Refusée',
   [BookingStatus.PAID]: 'Payée',
+  [BookingStatus.COMMISSION_PAID]: 'Commission payée',
   [BookingStatus.IN_PROGRESS]: 'En cours',
   [BookingStatus.CONFIRMED_BY_FACE]: 'Confirmée par la Face',
   [BookingStatus.CONFIRMED_BY_PRODUCER]: 'Confirmée par le Producteur',
@@ -131,9 +133,10 @@ export interface Booking {
   producer_id: number
   status: BookingStatusType
   status_label: string
-  date_debut: string
-  date_fin: string
-  duree_heures: number
+  // null for UGC dotations (no shoot date / duration — the Face films at home)
+  date_debut: string | null
+  date_fin: string | null
+  duree_heures: number | null
   type_contenu: string
   // UGC fields (null for non-UGC bookings) — mirrors BookingResource (story 1.1)
   type_compensation: string | null
@@ -167,11 +170,12 @@ export interface Booking {
 // Data for creating a new booking
 export interface CreateBookingData {
   face_id: string
-  date_debut: string
-  date_fin: string
-  duree_heures: number
+  // Shoot fields are omitted for UGC dotations (sent only for cash bookings)
+  date_debut?: string
+  date_fin?: string
+  duree_heures?: number
   type_contenu: string
-  lieu: string
+  lieu?: string
   message?: string
   // UGC fields (sent only when type_contenu === 'UGC')
   type_compensation?: 'product' | 'hybrid'

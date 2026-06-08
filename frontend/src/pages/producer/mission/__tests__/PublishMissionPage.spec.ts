@@ -45,14 +45,14 @@ describe('PublishMissionPage — toast honnête', () => {
     pushSpy.mockClear()
   })
 
-  it('1. mission pending_payment → toast UGC honnête + navigation', async () => {
+  it('1. mission pending_payment → toast UGC honnête + navigation avec ?pay pour ouvrir le tunnel', async () => {
     const wrapper = mountPage()
 
-    wrapper.findComponent(MissionFormStub).vm.$emit('success', { status: 'pending_payment' })
+    wrapper.findComponent(MissionFormStub).vm.$emit('success', { status: 'pending_payment', id: 'm-1' })
     await nextTick()
 
     expect(successSpy).toHaveBeenCalledWith('Mission UGC créée. Réglez la commission pour la publier.')
-    expect(pushSpy).toHaveBeenCalledWith({ name: 'producer-missions' })
+    expect(pushSpy).toHaveBeenCalledWith({ name: 'producer-missions', query: { pay: 'm-1' } })
   })
 
   it('2. mission published → toast standard + navigation', async () => {

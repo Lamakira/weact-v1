@@ -40,6 +40,9 @@ const statusToStepIndex: Record<string, number> = {
   [BookingStatus.PENDING]: 0,
   [BookingStatus.ACCEPTED]: 1,
   [BookingStatus.PAID]: 2,
+  // UGC commission settled — analog of `paid` (review finding F2): without this entry a
+  // `commission_paid` booking falls to currentStepIndex -1 and the whole timeline renders 'future'.
+  [BookingStatus.COMMISSION_PAID]: 2,
   [BookingStatus.IN_PROGRESS]: 2,
   [BookingStatus.CONFIRMED_BY_FACE]: 3,
   [BookingStatus.CONFIRMED_BY_PRODUCER]: 4,

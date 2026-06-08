@@ -15,6 +15,8 @@ import {
   CheckCircle,
   XCircle,
   Star,
+  Package,
+  Gift,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useBookingDetail, useBookingActions } from '@/features/booking/composables'
@@ -38,6 +40,7 @@ import {
   type BookingRating,
 } from '@/features/booking/types'
 import RatingDisplay from '@/components/RatingDisplay.vue'
+import { UgcPaymentOverlay, CommissionBreakdown } from '@/components/ugc'
 import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
@@ -66,6 +69,15 @@ const {
 
 // Payment overlay state
 const showPaymentOverlay = ref(false)
+
+// UGC commission payment tunnel (Producer view of a pending UGC booking).
+const showUgcPaymentOverlay = ref(false)
+const canPayUgcCommission = computed<boolean>(
+  () =>
+    !isFace.value
+    && booking.value?.type_contenu === 'UGC'
+    && booking.value?.status === BookingStatus.PENDING,
+)
 
 // Refuse dialog state
 const showRefuseDialog = ref(false)
@@ -142,6 +154,7 @@ const canReportNoShow = computed(() => {
   if (!booking.value) return false
   if (isFace.value) return false
   if (booking.value.status !== BookingStatus.PAID) return false
+  if (!booking.value.date_debut) return false
   return new Date(booking.value.date_debut).getTime() < nowTimestamp.value
 })
 
@@ -188,7 +201,7 @@ const formattedPaymentDeadline = computed<string>(() => {
 /**
  * FORMAT HELPERS
  */
-function formatDate(dateString: string): string {
+function formatDate(dateString: string | null): string {
   if (!dateString) return ''
   return new Intl.DateTimeFormat('fr-FR', {
     day: 'numeric',
@@ -304,6 +317,14 @@ async function handlePaymentSuccess(): Promise<void> {
   }
 }
 
+async function handleUgcCommissionSettled(): Promise<void> {
+  showUgcPaymentOverlay.value = false
+  if (bookingId.value) {
+    await fetchBooking(bookingId.value)
+    toast.success('Commission payée. La Face va recevoir votre demande.')
+  }
+}
+
 interface EchoChannel {
   listen: (event: string, callback: () => void) => EchoChannel
   stopListening: (event: string) => EchoChannel
@@ -360,6 +381,11 @@ watch(
 onMounted(async () => {
   if (bookingId.value) {
     await fetchBooking(bookingId.value)
+  }
+
+  // Auto-open the commission tunnel when arriving from UGC booking creation (?pay=1).
+  if (route.query.pay === '1' && canPayUgcCommission.value) {
+    showUgcPaymentOverlay.value = true
   }
 
   countdownTicker = setInterval(() => {
@@ -460,21 +486,21 @@ onUnmounted(() => {
           <div class="bg-white rounded-xl border border-gray-200 p-5">
             <h2 class="text-sm font-semibold text-gray-700 mb-3">Détails</h2>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="flex items-center gap-2.5">
+              <div v-if="booking.date_debut" class="flex items-center gap-2.5">
                 <Calendar class="w-4 h-4 text-gray-400 shrink-0" />
                 <div>
                   <p class="text-xs text-gray-500">Date de début</p>
                   <p class="text-sm font-medium text-gray-900">{{ formatDate(booking.date_debut) }}</p>
                 </div>
               </div>
-              <div class="flex items-center gap-2.5">
+              <div v-if="booking.date_fin" class="flex items-center gap-2.5">
                 <Calendar class="w-4 h-4 text-gray-400 shrink-0" />
                 <div>
                   <p class="text-xs text-gray-500">Date de fin</p>
                   <p class="text-sm font-medium text-gray-900">{{ formatDate(booking.date_fin) }}</p>
                 </div>
               </div>
-              <div class="flex items-center gap-2.5">
+              <div v-if="booking.duree_heures" class="flex items-center gap-2.5">
                 <Clock class="w-4 h-4 text-gray-400 shrink-0" />
                 <div>
                   <p class="text-xs text-gray-500">Durée</p>
@@ -509,8 +535,40 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Financial section -->
-          <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <!-- UGC dotation summary (replaces the cash finances card for UGC bookings) -->
+          <div v-if="booking.type_contenu === 'UGC'" class="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 class="text-sm font-semibold text-gray-700 mb-3">Dotation UGC</h2>
+            <div class="space-y-3 mb-4">
+              <div v-if="booking.nom_produit" class="flex items-center gap-2.5">
+                <Package class="w-4 h-4 text-gray-400 shrink-0" />
+                <div>
+                  <p class="text-xs text-gray-500">Produit</p>
+                  <p class="text-sm font-medium text-gray-900">{{ booking.nom_produit }}</p>
+                </div>
+              </div>
+              <div v-if="booking.type_compensation_label" class="flex items-center gap-2.5">
+                <Gift class="w-4 h-4 text-gray-400 shrink-0" />
+                <div>
+                  <p class="text-xs text-gray-500">Type de compensation</p>
+                  <p class="text-sm font-medium text-gray-900">{{ booking.type_compensation_label }}</p>
+                </div>
+              </div>
+              <div v-if="booking.nombre_videos" class="flex items-center gap-2.5">
+                <Film class="w-4 h-4 text-gray-400 shrink-0" />
+                <div>
+                  <p class="text-xs text-gray-500">Vidéos attendues</p>
+                  <p class="text-sm font-medium text-gray-900">{{ booking.nombre_videos }}</p>
+                </div>
+              </div>
+            </div>
+            <CommissionBreakdown
+              :product-value="booking.valeur_produit ?? 0"
+              :pay-amount="booking.montant_remuneration ?? 0"
+            />
+          </div>
+
+          <!-- Financial section (cash bookings only) -->
+          <div v-if="booking.type_contenu !== 'UGC'" class="bg-white rounded-xl border border-gray-200 p-5">
             <h2 class="text-sm font-semibold text-gray-700 mb-3">Finances</h2>
             <BookingPricingBreakdown
               :tarif-base="booking.tarif_base"
@@ -619,6 +677,17 @@ onUnmounted(() => {
             </button>
           </div>
 
+          <!-- UGC commission payment (Producer only — pending UGC booking) -->
+          <div v-if="canPayUgcCommission" class="flex gap-3" data-testid="ugc-pay-commission-cta">
+            <button
+              class="flex-1 flex items-center justify-center gap-2 rounded-lg bg-weact px-4 py-3 text-sm font-semibold text-white hover:bg-weact/90 transition-colors"
+              @click="showUgcPaymentOverlay = true"
+            >
+              <Wallet class="w-4 h-4" />
+              Payer la commission · {{ new Intl.NumberFormat('fr-FR').format(booking.commission_ugc ?? 0) }} FCFA
+            </button>
+          </div>
+
           <!-- Rating section (completed only) -->
           <div
             v-if="booking.status === BookingStatus.COMPLETED"
@@ -678,6 +747,17 @@ onUnmounted(() => {
       v-model="showPaymentOverlay"
       :booking="booking"
       @payment-success="handlePaymentSuccess"
+    />
+
+    <!-- UGC commission payment tunnel -->
+    <UgcPaymentOverlay
+      v-if="booking && canPayUgcCommission"
+      v-model="showUgcPaymentOverlay"
+      kind="booking"
+      :owner-id="booking.id"
+      :commission="booking.commission_ugc ?? 0"
+      :reference="booking.id"
+      @settled="handleUgcCommissionSettled"
     />
 
     <CancellationDialog

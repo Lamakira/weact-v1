@@ -16,6 +16,7 @@ import ReviewsList from '@/components/ReviewsList.vue'
 import { publicApi } from '@/features/public/services/publicApi'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BookingFormSheet } from '@/features/booking/components'
+import type { Booking } from '@/features/booking/types'
 import type { Review } from '@/features/rating/types'
 import type { CandidateFullProfile } from '@/features/candidature/types'
 import { useScrollReveal } from '@/composables/useScrollReveal'
@@ -199,9 +200,18 @@ function handleBookingClick(): void {
   }
 }
 
-function handleBookingSuccess(): void {
+function handleBookingSuccess(booking: Booking): void {
   isBookingSheetOpen.value = false
-  // TODO: redirect to booking detail page when story b1-3 implements the route
+  // UGC booking: route to its detail page where the commission payment tunnel
+  // lives (auto-opens via ?pay=1). Cash bookings keep the existing behaviour.
+  if (booking.type_contenu === 'UGC') {
+    router.push({
+      name: 'producer-booking-detail',
+      params: { id: booking.id },
+      query: { pay: '1' },
+    })
+    return
+  }
   router.push('/producer')
 }
 

@@ -136,9 +136,7 @@ describe('BookingFormSheet — UGC', () => {
     await wrapper.find('select#type_contenu').setValue('UGC')
     await flushPromises()
 
-    await wrapper.find('#date_debut').setValue(iso(7))
-    await wrapper.find('#date_fin').setValue(iso(8))
-    await wrapper.find('select#lieu').setValue('Cotonou')
+    // UGC dotations have no shoot date/duration/location — those fields are hidden.
     await wrapper.find('#nom_produit').setValue('Tenue Shade Fit M')
     await wrapper.find('#valeur_produit').setValue('45000')
 
@@ -165,6 +163,24 @@ describe('BookingFormSheet — UGC', () => {
     expect(wrapper.find('[data-testid="compensation-product"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="commission-breakdown"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="pricing-preview"]').exists()).toBe(false)
+  })
+
+  it('hides the shoot date / duration / location fields in UGC mode', async () => {
+    const wrapper = mountForm()
+
+    // Visible for a cash booking…
+    expect(wrapper.find('#date_debut').exists()).toBe(true)
+    expect(wrapper.find('#duree_preset').exists()).toBe(true)
+    expect(wrapper.find('select#lieu').exists()).toBe(true)
+
+    await wrapper.find('select#type_contenu').setValue('UGC')
+    await flushPromises()
+
+    // …gone for a UGC dotation (the Face films at home, on her own schedule).
+    expect(wrapper.find('#date_debut').exists()).toBe(false)
+    expect(wrapper.find('#date_fin').exists()).toBe(false)
+    expect(wrapper.find('#duree_preset').exists()).toBe(false)
+    expect(wrapper.find('select#lieu').exists()).toBe(false)
   })
 
   it('shows the "Payer la commission" CTA in UGC mode', async () => {
@@ -222,6 +238,11 @@ describe('BookingFormSheet — UGC', () => {
     })
     expect(payload).not.toHaveProperty('nombre_videos')
     expect(payload).not.toHaveProperty('montant_remuneration')
+    // UGC dotations carry no shoot fields in the payload.
+    expect(payload).not.toHaveProperty('date_debut')
+    expect(payload).not.toHaveProperty('date_fin')
+    expect(payload).not.toHaveProperty('duree_heures')
+    expect(payload).not.toHaveProperty('lieu')
     expect(wrapper.emitted('success')).toBeTruthy()
     expect(wrapper.emitted('close')).toBeTruthy()
   })
@@ -251,9 +272,7 @@ describe('BookingFormSheet — UGC', () => {
     await flushPromises()
 
     // Fill everything valid EXCEPT valeur_produit (left empty → fails the Zod refine).
-    await wrapper.find('#date_debut').setValue(iso(7))
-    await wrapper.find('#date_fin').setValue(iso(8))
-    await wrapper.find('select#lieu').setValue('Cotonou')
+    // (UGC has no shoot date/location fields to fill.)
     await wrapper.find('#nom_produit').setValue('Tenue Shade Fit M')
 
     await wrapper.find('form').trigger('submit')

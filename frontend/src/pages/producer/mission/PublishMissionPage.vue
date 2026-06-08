@@ -17,12 +17,14 @@ const { success } = useToast()
 
 function handleSuccess(mission: Mission): void {
   // Une mission UGC reste `pending_payment` (non publiée) tant que la commission n'est pas réglée (D-1.4.e).
+  // On redirige vers la liste avec ?pay={id} pour ouvrir automatiquement le tunnel de paiement.
   if (mission.status === MissionStatus.PENDING_PAYMENT) {
     success('Mission UGC créée. Réglez la commission pour la publier.')
+    router.push({ name: 'producer-missions', query: { pay: mission.id } })
   } else {
     success('Mission publiée avec succès!')
+    router.push({ name: 'producer-missions' })
   }
-  router.push({ name: 'producer-missions' })
 }
 
 function handleCancel(): void {

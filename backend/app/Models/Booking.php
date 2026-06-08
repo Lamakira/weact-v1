@@ -20,11 +20,11 @@ use Illuminate\Support\Facades\Auth;
  * @property \App\Enums\BookingStatus $status
  * @property \Carbon\CarbonInterface|null $accepted_at
  * @property \Carbon\CarbonInterface|null $payment_reminder_sent_at
- * @property \Carbon\CarbonInterface $date_debut
- * @property \Carbon\CarbonInterface $date_fin
+ * @property \Carbon\CarbonInterface|null $date_debut
+ * @property \Carbon\CarbonInterface|null $date_fin
  * @property int $face_id
  * @property int $producer_id
- * @property int $duree_heures
+ * @property int|null $duree_heures
  * @property string $type_contenu
  * @property \App\Enums\CompensationType|null $type_compensation
  * @property string|null $nom_produit

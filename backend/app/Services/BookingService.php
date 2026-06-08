@@ -64,8 +64,8 @@ class BookingService
             ]);
         }
 
-        // FR10: Validate minimum 4h duration
-        if ($data['duree_heures'] < 4) {
+        // FR10: Validate minimum 4h duration (cash bookings only — a UGC dotation has no shoot duration).
+        if (($data['type_contenu'] ?? null) !== 'UGC' && ($data['duree_heures'] ?? 0) < 4) {
             throw ValidationException::withMessages([
                 'duree_heures' => ['La duree minimale est de 4 heures.'],
             ]);
@@ -141,11 +141,13 @@ class BookingService
             'face_id' => $faceUser->id,
             'producer_id' => $producer->id,
             'status' => BookingStatus::Pending,
-            'date_debut' => $data['date_debut'],
-            'date_fin' => $data['date_fin'],
-            'duree_heures' => $data['duree_heures'],
+            // UGC dotations have no shoot date/duration/location — never persist them, even
+            // if a client sends them (the form omits them; this enforces the invariant server-side).
+            'date_debut' => null,
+            'date_fin' => null,
+            'duree_heures' => null,
             'type_contenu' => 'UGC',
-            'lieu' => ! empty($data['lieu']) ? $data['lieu'] : null,
+            'lieu' => null,
             'message' => $data['message'] ?? null,
             'tarif_base' => 0,                                    // D-1.1.b : pas de tarif horaire
             'montant_face_recoit' => $montantRemuneration,        // 0 si produit seul
@@ -357,7 +359,7 @@ class BookingService
                 ]);
             }
 
-            if ($lockedBooking->date_debut->isFuture()) {
+            if ($lockedBooking->date_debut?->isFuture() ?? false) {
                 throw ValidationException::withMessages([
                     'date_debut' => ['Le signalement d\'absence n\'est possible qu\'après la date de tournage.'],
                 ]);
@@ -680,7 +682,7 @@ class BookingService
         return DB::transaction(function () use ($booking, $confirmer) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
-            if ($booking->date_debut->isFuture()) {
+            if ($booking->date_debut?->isFuture() ?? false) {
                 throw ValidationException::withMessages([
                     'date_debut' => ['La confirmation n\'est possible qu\'à partir du jour du tournage.'],
                 ]);
@@ -811,7 +813,9 @@ class BookingService
                 return;
             }
 
-            if ($booking->date_debut->isFuture()) {
+            // A null date_debut (UGC dotation — no shoot date) must never be expired by this
+            // shoot-date path; treat null as "future" so the booking is left untouched.
+            if ($booking->date_debut?->isFuture() ?? true) {
                 return;
             }
 

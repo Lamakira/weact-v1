@@ -103,6 +103,7 @@ export interface Mission {
   nombre_videos: number | null
   montant_remuneration: number | null
   commission_ugc: number | null
+  commission_paid_at: string | null
   genre_voulu: MissionGenderType
   genre_voulu_label: string
   lieu: string

@@ -128,4 +128,25 @@ export const bookingApi = {
     )
     return response.data
   },
+
+  /**
+   * Initiate the WeAct commission payment for a pending UGC booking (Producer only).
+   * Charges `commission_ugc` only — no escrow. Returns the booking + FedaPay checkout URL.
+   */
+  async payCommission(bookingId: string): Promise<BookingResponse & { checkout_url: string }> {
+    await getCsrfCookie()
+    const response = await apiClient.post<BookingResponse & { checkout_url: string }>(
+      `/bookings/${bookingId}/pay-commission`,
+    )
+    return response.data
+  },
+
+  /**
+   * Poll FedaPay and settle the UGC commission if approved (fallback when the
+   * webhook is delayed). Idempotent server-side. Booking settles to `commission_paid`.
+   */
+  async checkCommissionStatus(bookingId: string): Promise<BookingResponse> {
+    const response = await apiClient.get<BookingResponse>(`/bookings/${bookingId}/commission-status`)
+    return response.data
+  },
 }

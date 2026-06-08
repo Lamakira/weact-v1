@@ -58,6 +58,20 @@ describe('bookingSchema — cash (non-UGC) bookings ignore UGC rules', () => {
     expect(paths).toContain('type_contenu')
     expect(paths).toContain('lieu')
   })
+
+  it('requires the shoot date / fin / location for a cash booking', () => {
+    const paths = errorPaths({
+      face_id: FACE_UUID,
+      duree_heures: 4,
+      type_contenu: 'Publicité',
+      date_debut: '',
+      date_fin: '',
+      lieu: '',
+    })
+    expect(paths).toContain('date_debut')
+    expect(paths).toContain('date_fin')
+    expect(paths).toContain('lieu')
+  })
 })
 
 describe('bookingSchema — UGC product mode', () => {
@@ -71,6 +85,21 @@ describe('bookingSchema — UGC product mode', () => {
 
   it('accepts a valid product-only UGC booking (no video/remuneration needed)', () => {
     expect(bookingSchema.safeParse(ugcProduct()).success).toBe(true)
+  })
+
+  it('accepts a UGC booking with blank shoot date / location (a UGC dotation has no shoot)', () => {
+    const result = bookingSchema.safeParse({
+      face_id: FACE_UUID,
+      date_debut: '',
+      date_fin: '',
+      duree_heures: 4, // form keeps its default; omitted from the UGC payload at submit time
+      lieu: '',
+      type_contenu: 'UGC',
+      type_compensation: 'product',
+      nom_produit: 'Tenue Shade Fit M',
+      valeur_produit: 45000,
+    })
+    expect(result.success).toBe(true)
   })
 
   it('does NOT require nombre_videos / montant_remuneration in product mode', () => {

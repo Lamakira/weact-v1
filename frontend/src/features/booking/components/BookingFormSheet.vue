@@ -196,14 +196,11 @@ function handleKeydown(e: KeyboardEvent): void {
 const onSubmit = handleSubmit(async (values) => {
   const data: CreateBookingData = {
     face_id: props.faceId,
-    date_debut: values.date_debut,
-    date_fin: values.date_fin,
-    duree_heures: values.duree_heures,
     type_contenu: values.type_contenu,
-    lieu: values.lieu,
   }
 
   if (values.type_contenu === 'UGC') {
+    // UGC dotation: no shoot date / duration / location — only the compensation fields.
     data.type_compensation = values.type_compensation as 'product' | 'hybrid'
     data.nom_produit = values.nom_produit?.trim()
     data.valeur_produit = Number(values.valeur_produit)
@@ -211,6 +208,11 @@ const onSubmit = handleSubmit(async (values) => {
       data.nombre_videos = Number(values.nombre_videos)
       data.montant_remuneration = Number(values.montant_remuneration)
     }
+  } else {
+    data.date_debut = values.date_debut
+    data.date_fin = values.date_fin
+    data.duree_heures = values.duree_heures
+    data.lieu = values.lieu
   }
 
   const result = await createBooking(data)
@@ -312,6 +314,8 @@ const onSubmit = handleSubmit(async (values) => {
                 <span>{{ error }}</span>
               </div>
 
+              <!-- Shoot details — cash bookings only (a UGC dotation has no shoot date/duration/location) -->
+              <template v-if="!isUgc">
               <!-- Dates row -->
               <div class="grid grid-cols-2 gap-4">
                 <FloatingDateField
@@ -358,7 +362,9 @@ const onSubmit = handleSubmit(async (values) => {
                 </div>
               </template>
 
-              <!-- Content type -->
+              </template>
+
+              <!-- Content type (always shown — this is where UGC is selected) -->
               <FloatingSelect
                 id="type_contenu"
                 v-model="type_contenu"
@@ -369,8 +375,9 @@ const onSubmit = handleSubmit(async (values) => {
                 required
               />
 
-              <!-- Shooting location -->
+              <!-- Shooting location — cash bookings only -->
               <FloatingSelect
+                v-if="!isUgc"
                 id="lieu"
                 v-model="lieu"
                 label="Lieu du tournage"

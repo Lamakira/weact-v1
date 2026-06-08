@@ -11,6 +11,7 @@ use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class CreateUgcBookingTest extends TestCase
@@ -332,6 +333,82 @@ class CreateUgcBookingTest extends TestCase
             'face_id' => $faceUserNoTarif->id,
             'type_contenu' => 'UGC',
             'commission_ugc' => 2500,
+        ]);
+    }
+
+    public function test_ugc_booking_can_be_created_without_shoot_fields_and_stores_null(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        // A UGC dotation has no shoot date / duration / location — the form omits them.
+        $data = $this->getValidUgcProductData();
+        unset($data['date_debut'], $data['date_fin'], $data['duree_heures'], $data['lieu']);
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.type_contenu', 'UGC')
+            ->assertJsonPath('data.date_debut', null)
+            ->assertJsonPath('data.date_fin', null)
+            ->assertJsonPath('data.duree_heures', null)
+            ->assertJsonPath('data.lieu', null)
+            ->assertJsonPath('data.commission_ugc', 2500);
+
+        $this->assertDatabaseHas('bookings', [
+            'type_contenu' => 'UGC',
+            'date_debut' => null,
+            'date_fin' => null,
+            'duree_heures' => null,
+            'lieu' => null,
+        ]);
+    }
+
+    public function test_ugc_booking_never_persists_shoot_fields_even_when_client_sends_them(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        // The full helper includes shoot fields; the server must drop them for UGC (invariant).
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $this->getValidUgcProductData());
+
+        $response->assertCreated()
+            ->assertJsonPath('data.date_debut', null)
+            ->assertJsonPath('data.date_fin', null)
+            ->assertJsonPath('data.duree_heures', null)
+            ->assertJsonPath('data.lieu', null);
+    }
+
+    public function test_cash_booking_still_requires_shoot_fields(): void
+    {
+        // Non-regression: the cash path keeps date/duration/location required.
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', [
+                'face_id' => $this->face->uuid,
+                'type_contenu' => 'Shooting photo',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['date_debut', 'date_fin', 'duree_heures', 'lieu']);
+    }
+
+    public function test_ugc_booking_creation_notifies_face_without_a_shoot_date(): void
+    {
+        Mail::fake(); // let the listeners run, without sending a real email
+
+        // Do NOT fake BookingCreated → exercises NotifyFaceOnBookingReceived with a null shoot date.
+        $data = $this->getValidUgcProductData();
+        unset($data['date_debut'], $data['date_fin'], $data['duree_heures'], $data['lieu']);
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data);
+
+        $response->assertCreated();
+
+        // The in-app notification is created → the listener ran past the date formatting without fataling.
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->faceUser->id,
+            'type' => 'booking_received',
         ]);
     }
 }

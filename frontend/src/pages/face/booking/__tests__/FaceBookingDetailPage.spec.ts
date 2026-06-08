@@ -85,7 +85,10 @@ function makeBooking(overrides: Record<string, unknown> = {}): Record<string, un
   }
 }
 
-async function mountPage(booking: Record<string, unknown> | null = null) {
+async function mountPage(
+  booking: Record<string, unknown> | null = null,
+  query: Record<string, string> = {},
+) {
   mockBooking.value = booking
   mockIsLoading.value = false
   mockError.value = null
@@ -98,7 +101,7 @@ async function mountPage(booking: Record<string, unknown> | null = null) {
     ],
   })
 
-  await router.push('/face/bookings/booking-uuid-1')
+  await router.push({ path: '/face/bookings/booking-uuid-1', query })
   await router.isReady()
 
   const wrapper = mount(FaceBookingDetailPage, {
@@ -108,6 +111,10 @@ async function mountPage(booking: Record<string, unknown> | null = null) {
         BookingTimeline: { template: '<div/>' },
         BookingStatusBadge: { template: '<div/>' },
         PaymentOverlay: { template: '<div/>' },
+        UgcPaymentOverlay: {
+          props: ['modelValue'],
+          template: '<div data-testid="ugc-overlay-stub" :data-open="String(modelValue)"/>',
+        },
         BookingPricingBreakdown: { template: '<div/>' },
         BookingChat: { template: '<div/>' },
         CancellationDialog: { template: '<div/>' },
@@ -307,5 +314,106 @@ describe('FaceBookingDetailPage — no-show report button', () => {
 
     expect(wrapper.text()).toContain('Désaccord sur le prix')
     expect(wrapper.text()).not.toContain('price_disagreement')
+  })
+})
+
+describe('FaceBookingDetailPage — UGC commission CTA (story 1.6)', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockIsLoading.value = false
+    mockError.value = null
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    mockFetchBooking.mockReset()
+    mockRefreshBooking.mockReset()
+  })
+
+  it('shows the "Payer la commission" CTA for a Producer viewing a pending UGC booking', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', type_contenu: 'UGC', commission_ugc: 2500, producer_id: 2 }),
+    )
+
+    const cta = wrapper.find('[data-testid="ugc-pay-commission-cta"]')
+    expect(cta.exists()).toBe(true)
+    expect(cta.text()).toContain('Payer la commission')
+  })
+
+  it('hides the UGC commission CTA from the Face', async () => {
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', type_contenu: 'UGC', commission_ugc: 2500 }),
+    )
+
+    expect(wrapper.find('[data-testid="ugc-pay-commission-cta"]').exists()).toBe(false)
+  })
+
+  it('hides the UGC commission CTA on a non-UGC (cash) booking', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', type_contenu: 'Shooting photo', producer_id: 2 }),
+    )
+
+    expect(wrapper.find('[data-testid="ugc-pay-commission-cta"]').exists()).toBe(false)
+  })
+
+  it('opens the UgcPaymentOverlay when the Producer clicks the commission CTA', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', type_contenu: 'UGC', commission_ugc: 2500, producer_id: 2 }),
+    )
+
+    const overlay = wrapper.find('[data-testid="ugc-overlay-stub"]')
+    expect(overlay.exists()).toBe(true)
+    expect(overlay.attributes('data-open')).toBe('false')
+
+    await wrapper.find('[data-testid="ugc-pay-commission-cta"] button').trigger('click')
+
+    expect(wrapper.find('[data-testid="ugc-overlay-stub"]').attributes('data-open')).toBe('true')
+  })
+
+  it('auto-opens the UgcPaymentOverlay on arrival with ?pay=1 for an eligible Producer', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', type_contenu: 'UGC', commission_ugc: 2500, producer_id: 2 }),
+      { pay: '1' },
+    )
+    await flushPromises()
+
+    const overlay = wrapper.find('[data-testid="ugc-overlay-stub"]')
+    expect(overlay.exists()).toBe(true)
+    expect(overlay.attributes('data-open')).toBe('true')
+  })
+
+  it('shows the UGC dotation summary and hides the shoot fields + cash finances for a UGC booking', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const wrapper = await mountPage(
+      makeBooking({
+        status: 'commission_paid',
+        type_contenu: 'UGC',
+        commission_ugc: 2500,
+        nom_produit: 'Tenue Shade Fit',
+        valeur_produit: 45000,
+        type_compensation_label: 'Produit seul',
+        date_debut: null,
+        date_fin: null,
+        duree_heures: null,
+        lieu: null,
+        producer_id: 2,
+      }),
+    )
+
+    const text = wrapper.text()
+    expect(text).toContain('Dotation UGC')
+    expect(text).toContain('Tenue Shade Fit')
+    expect(text).not.toContain('Date de début')
+    expect(text).not.toContain('Invalid Date')
+    expect(text).not.toContain('Finances') // cash finances card hidden for UGC
   })
 })
