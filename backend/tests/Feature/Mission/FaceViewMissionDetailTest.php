@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Tests\Feature\Mission;
 
 use App\Enums\MissionStatus;
+use App\Models\Candidature;
 use App\Models\Face;
+use App\Models\FaceSubscription;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
@@ -348,5 +350,80 @@ class FaceViewMissionDetailTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonPath('data.producer.average_rating', null)
             ->assertJsonPath('data.producer.ratings_count', 0);
+    }
+
+    // ===================================================================
+    // Gate UGC sur le détail (FR5, UGC 2.1)
+    // ===================================================================
+
+    /**
+     * La factory Mission ne tire jamais `ugc` — attributs explicites obligatoires.
+     */
+    private function makePublishedUgcMission(): Mission
+    {
+        return $this->producer->missions()->create([
+            'titre' => 'Appel UGC — Unboxing',
+            'description' => 'desc',
+            'date_tournage' => now()->addMonth(),
+            'profil_recherche' => 'Créatrices',
+            'budget' => 0,
+            'date_limite_candidature' => now()->addWeeks(2),
+            'nombre_faces_voulu' => 3,
+            'type_mission' => 'ugc',
+            'genre_voulu' => 'tous',
+            'lieu' => 'Cotonou',
+            'duree' => 'Livrables vidéo',
+            'status' => MissionStatus::Published,
+            'commission_paid_at' => now(),
+            'type_compensation' => 'product',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'montant_remuneration' => null,
+            'commission_ugc' => 2500,
+        ]);
+    }
+
+    public function test_free_face_cannot_view_ugc_mission_detail(): void
+    {
+        $mission = $this->makePublishedUgcMission();
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/missions/{$mission->uuid}");
+
+        $response->assertStatus(403)
+            ->assertJsonPath('error.code', 'UGC_SUBSCRIPTION_REQUIRED');
+        $this->assertNull($response->json('data'));
+    }
+
+    public function test_subscribed_face_can_view_ugc_mission_detail(): void
+    {
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        $mission = $this->makePublishedUgcMission();
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/missions/{$mission->uuid}")
+            ->assertStatus(200)
+            ->assertJsonPath('data.id', $mission->uuid)
+            ->assertJsonPath('data.type_mission', 'ugc');
+
+        // Internals de facturation Producer : masqués pour les Faces, même abonnées
+        $this->assertArrayNotHasKey('commission_ugc', $response->json('data'));
+        $this->assertArrayNotHasKey('commission_paid_at', $response->json('data'));
+    }
+
+    public function test_free_face_with_existing_candidature_can_view_ugc_mission_detail(): void
+    {
+        $mission = $this->makePublishedUgcMission();
+        Candidature::create([
+            'face_id' => $this->face->id,
+            'mission_id' => $mission->id,
+            'message_motivation' => 'Très motivée',
+        ]);
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/missions/{$mission->uuid}")
+            ->assertStatus(200)
+            ->assertJsonPath('data.id', $mission->uuid);
     }
 }

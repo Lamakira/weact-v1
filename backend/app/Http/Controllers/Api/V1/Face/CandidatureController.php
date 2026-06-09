@@ -9,6 +9,7 @@ use App\Enums\ErrorCodes;
 use App\Enums\MissionGender;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
+use App\Enums\MissionType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Face\StoreCandidatureRequest;
 use App\Http\Resources\CandidatureResource;
@@ -20,6 +21,7 @@ use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\FaceEntitlementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -28,6 +30,10 @@ use Illuminate\Support\Facades\Mail;
 
 class CandidatureController extends Controller
 {
+    public function __construct(
+        private readonly FaceEntitlementService $entitlement,
+    ) {}
+
     /**
      * List all candidatures for the authenticated Face.
      *
@@ -90,6 +96,19 @@ class CandidatureController extends Controller
                     'message' => 'Vous avez déjà postulé à cette mission',
                 ],
             ], 422);
+        }
+
+        // Gate UGC (FR5) : seules les Faces abonnées Starter+ postulent aux missions UGC.
+        // Après le check duplicate : une Face détentrice d'une candidature reçoit
+        // ALREADY_APPLIED, pas le paywall (cohérent avec l'exception candidature de show()).
+        if ($mission->type_mission === MissionType::Ugc
+            && ! $this->entitlement->canAccessUgc($face)) {
+            return response()->json(
+                ErrorCodes::UgcSubscriptionRequired->envelope(
+                    "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus)."
+                ),
+                403
+            );
         }
 
         // Check gender compatibility

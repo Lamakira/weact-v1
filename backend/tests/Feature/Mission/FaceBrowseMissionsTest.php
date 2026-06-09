@@ -691,4 +691,63 @@ class FaceBrowseMissionsTest extends TestCase
         // Check average rating value
         $this->assertEquals(5.0, $response->json('data.0.producer.average_rating'));
     }
+
+    // ===================================================================
+    // Exclusion des missions UGC de la liste standard (FR5, UGC 2.1)
+    // ===================================================================
+
+    /**
+     * La factory Mission ne tire jamais `ugc` — attributs explicites obligatoires.
+     */
+    private function makePublishedUgcMission(): Mission
+    {
+        return $this->producer->missions()->create([
+            'titre' => 'Appel UGC — Unboxing',
+            'description' => 'desc',
+            'date_tournage' => now()->addMonth(),
+            'profil_recherche' => 'Créatrices',
+            'budget' => 0,
+            'date_limite_candidature' => now()->addWeeks(2),
+            'nombre_faces_voulu' => 3,
+            'type_mission' => 'ugc',
+            'genre_voulu' => 'tous',
+            'lieu' => 'Cotonou',
+            'duree' => 'Livrables vidéo',
+            'status' => MissionStatus::Published,
+            'commission_paid_at' => now(),
+            'type_compensation' => 'product',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'montant_remuneration' => null,
+            'commission_ugc' => 2500,
+        ]);
+    }
+
+    public function test_ugc_missions_are_excluded_from_standard_listing(): void
+    {
+        $this->makePublishedUgcMission();
+        $standard = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Published,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/missions');
+
+        $response->assertStatus(200)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $standard->uuid);
+    }
+
+    public function test_type_mission_ugc_filter_returns_empty_list(): void
+    {
+        $this->makePublishedUgcMission();
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/missions?type_mission=ugc');
+
+        $response->assertStatus(200)
+            ->assertJsonCount(0, 'data');
+    }
 }

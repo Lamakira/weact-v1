@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Models\Face;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -19,6 +20,10 @@ class MissionResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        // Internals de facturation Producer (commission plateforme) : jamais
+        // exposés aux Faces (UGC 2.1 review) — surfaces Producer/Admin inchangées.
+        $requesterIsFace = $request->user()?->userable instanceof Face;
+
         return [
             'id' => $this->uuid,
             'titre' => $this->titre,
@@ -44,8 +49,8 @@ class MissionResource extends JsonResource
             'valeur_produit' => $this->valeur_produit,
             'nombre_videos' => $this->nombre_videos,
             'montant_remuneration' => $this->montant_remuneration,
-            'commission_ugc' => $this->commission_ugc,
-            'commission_paid_at' => $this->commission_paid_at?->toIso8601String(),
+            'commission_ugc' => $this->when(! $requesterIsFace, $this->commission_ugc),
+            'commission_paid_at' => $this->when(! $requesterIsFace, fn () => $this->commission_paid_at?->toIso8601String()),
             'is_accepting_candidatures' => $this->isAcceptingCandidatures(),
             'has_paid_payment' => \App\Models\MissionPayment::where('mission_id', $this->id)->where('status', 'paid')->exists(),
             'candidatures_count' => $this->candidatures_count ?? ($this->whenLoaded('candidatures') ? $this->candidatures->count() : 0),

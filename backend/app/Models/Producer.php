@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Concerns\HasRouteUuid;
 use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
+use App\Enums\MissionType;
 use App\Enums\ProducerType;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -258,12 +259,16 @@ class Producer extends Model
      * Get the count of published missions for this producer.
      *
      * Only counts missions with MissionStatus::Published status.
-     * Excludes draft, closed, and completed missions.
+     * Excludes draft, closed, and completed missions, as well as UGC missions
+     * (invisible from all public surfaces since UGC 2.1 — FR5).
      */
     protected function publishedMissionsCount(): Attribute
     {
         return Attribute::make(
-            get: fn (): int => $this->missions()->where('status', MissionStatus::Published)->count(),
+            get: fn (): int => $this->missions()
+                ->where('status', MissionStatus::Published)
+                ->where('type_mission', '!=', MissionType::Ugc->value)
+                ->count(),
         );
     }
 

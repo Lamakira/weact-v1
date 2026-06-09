@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\V1\Face\SubscriptionHistoryController;
 use App\Http\Controllers\Api\V1\Face\SubscriptionPaymentController;
 use App\Http\Controllers\Api\V1\Face\SubscriptionStatusController;
 use App\Http\Controllers\Api\V1\Face\TarifsController;
+use App\Http\Controllers\Api\V1\Face\UgcMissionDiscoveryController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -166,6 +167,10 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
     Route::get('/missions', [MissionController::class, 'index'])
         ->middleware(['face', 'throttle:60,1']);
     Route::get('/missions/{mission}', [MissionController::class, 'show'])
+        ->middleware(['face', 'throttle:60,1']);
+
+    // UGC mission discovery - gated by subscription tier (FR5, UGC 2.1)
+    Route::get('/ugc/missions', [UgcMissionDiscoveryController::class, 'index'])
         ->middleware(['face', 'throttle:60,1']);
 
     // Candidature routes - apply to missions (Face only, verified email required)

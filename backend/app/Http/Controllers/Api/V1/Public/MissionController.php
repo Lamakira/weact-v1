@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Public;
 
 use App\Enums\MissionStatus;
+use App\Enums\MissionType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Public\ListPublicMissionsRequest;
 use App\Http\Resources\PublicMissionResource;
@@ -22,6 +23,7 @@ class MissionController extends Controller
     {
         return Mission::query()
             ->where('status', MissionStatus::Published)
+            ->where('type_mission', '!=', MissionType::Ugc->value)
             ->whereHas('producer', fn ($q) => $q
                 ->whereHas('user', fn ($u) => $u->where('is_active', true))
             )

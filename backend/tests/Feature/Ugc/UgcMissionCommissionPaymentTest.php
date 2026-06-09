@@ -73,21 +73,28 @@ class UgcMissionCommissionPaymentTest extends TestCase
         $this->assertNotNull($fresh->commission_paid_at);
     }
 
-    public function test_published_ugc_mission_is_publicly_visible(): void
+    public function test_published_ugc_mission_is_not_publicly_visible(): void
     {
+        // Depuis UGC 2.1 (FR5), les missions UGC sont exclues des surfaces
+        // publiques même une fois publiées — elles ne vivent que dans
+        // l'endpoint gated /api/v1/face/ugc/missions.
         $mission = $this->makePendingPaymentUgcMission();
         $mission->update(['fedapay_transaction_id' => 712]);
 
-        // Témoin inverse : invisible tant qu'elle est pending_payment.
-        $this->getJson('/api/v1/public/missions')
-            ->assertOk()
-            ->assertJsonMissing(['id' => $mission->uuid]);
+        // Témoin positif : une mission standard publiée reste visible — prouve que
+        // l'absence de l'UGC vient bien de l'exclusion FR5, pas d'une liste cassée.
+        $standardMission = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Published,
+        ]);
 
         $this->dispatchWebhook('transaction.approved', 712, 'ref_ok');
 
+        $this->assertSame(MissionStatus::Published, $mission->fresh()->status);
         $this->getJson('/api/v1/public/missions')
             ->assertOk()
-            ->assertJsonFragment(['id' => $mission->uuid]);
+            ->assertJsonFragment(['id' => $standardMission->uuid])
+            ->assertJsonMissing(['id' => $mission->uuid]);
     }
 
     public function test_webhook_declined_keeps_mission_pending_payment(): void

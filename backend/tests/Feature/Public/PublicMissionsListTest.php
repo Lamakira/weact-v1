@@ -392,4 +392,41 @@ class PublicMissionsListTest extends TestCase
         $response->assertOk();
         $this->assertEquals('Missions retrieved successfully', $response->json('message'));
     }
+
+    // ─── Exclusion des missions UGC (FR5, UGC 2.1) ───────────────────
+
+    public function test_ugc_missions_are_excluded_from_public_list(): void
+    {
+        $producer = $this->createProducerWithUser();
+        $this->createPublishedMission(['producer' => $producer, 'titre' => 'Mission standard']);
+        // La factory Mission ne tire jamais `ugc` — attributs explicites obligatoires.
+        $producer->missions()->create([
+            'titre' => 'Appel UGC — Unboxing',
+            'description' => 'desc',
+            'date_tournage' => now()->addMonth(),
+            'profil_recherche' => 'Créatrices',
+            'budget' => 0,
+            'date_limite_candidature' => now()->addWeeks(2),
+            'nombre_faces_voulu' => 3,
+            'type_mission' => 'ugc',
+            'genre_voulu' => 'tous',
+            'lieu' => 'Cotonou',
+            'duree' => 'Livrables vidéo',
+            'status' => 'published',
+            'commission_paid_at' => now(),
+            'type_compensation' => 'product',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'montant_remuneration' => null,
+            'commission_ugc' => 2500,
+        ]);
+
+        $response = $this->getJson('/api/v1/public/missions');
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.titre', 'Mission standard')
+            ->assertJsonPath('meta.total', 1);
+    }
 }

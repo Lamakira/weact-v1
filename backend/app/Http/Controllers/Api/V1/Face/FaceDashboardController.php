@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1\Face;
 use App\Enums\BookingStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
+use App\Enums\MissionType;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ChartStatsResource;
 use App\Http\Resources\FaceDashboardStatsResource;
@@ -331,6 +332,7 @@ class FaceDashboardController extends Controller
 
         // Count available missions (published, candidature deadline not passed)
         $count = Mission::where('status', MissionStatus::Published)
+            ->where('type_mission', '!=', MissionType::Ugc->value)
             ->where('date_limite_candidature', '>=', Carbon::today())
             ->count();
 

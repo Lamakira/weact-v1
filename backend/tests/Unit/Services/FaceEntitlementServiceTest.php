@@ -298,6 +298,97 @@ class FaceEntitlementServiceTest extends TestCase
     }
 
     // ===================================================================
+    // canAccessUgc() — UGC gating (FR5, UGC story 2.1)
+    // ===================================================================
+
+    public function test_can_access_ugc_is_false_for_free_tier(): void
+    {
+        $face = Face::factory()->create();
+
+        $this->assertFalse($this->service->canAccessUgc($face));
+    }
+
+    public function test_can_access_ugc_is_true_for_starter_pro_elite_active(): void
+    {
+        foreach (['starter', 'pro', 'elite'] as $tierState) {
+            $face = Face::factory()->create();
+            FaceSubscription::factory()->{$tierState}()->active()->create(['face_id' => $face->id]);
+
+            $this->assertTrue(
+                $this->service->canAccessUgc($face),
+                "An active {$tierState} subscription must grant UGC access."
+            );
+        }
+    }
+
+    public function test_can_access_ugc_is_false_for_expired_subscription(): void
+    {
+        $face = Face::factory()->create();
+        FaceSubscription::factory()->starter()->expired()->create(['face_id' => $face->id]);
+
+        $this->assertFalse($this->service->canAccessUgc($face));
+    }
+
+    public function test_can_access_ugc_is_false_for_pending_payment_subscription(): void
+    {
+        $face = Face::factory()->create();
+        FaceSubscription::factory()->pendingPayment()->create(['face_id' => $face->id]);
+
+        $this->assertFalse($this->service->canAccessUgc($face));
+    }
+
+    public function test_can_access_ugc_is_false_for_cancelled_subscription(): void
+    {
+        $face = Face::factory()->create();
+        FaceSubscription::factory()->starter()->cancelled()->create(['face_id' => $face->id]);
+
+        $this->assertFalse($this->service->canAccessUgc($face));
+    }
+
+    public function test_can_access_ugc_is_false_for_failed_subscription(): void
+    {
+        $face = Face::factory()->create();
+        FaceSubscription::factory()->starter()->failed()->create(['face_id' => $face->id]);
+
+        $this->assertFalse($this->service->canAccessUgc($face));
+    }
+
+    public function test_can_access_ugc_is_false_for_active_status_with_past_expiry(): void
+    {
+        $face = Face::factory()->create();
+        FaceSubscription::factory()->elite()->active()->create([
+            'face_id' => $face->id,
+            'expires_at' => now()->subDay(),
+        ]);
+
+        $this->assertFalse($this->service->canAccessUgc($face));
+    }
+
+    public function test_can_access_ugc_is_false_when_suspended_even_if_subscribed(): void
+    {
+        $face = Face::factory()->create();
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $face->id]);
+
+        $suspendedService = new class extends FaceEntitlementService
+        {
+            public function isUgcSuspended(Face $face): bool
+            {
+                return true;
+            }
+        };
+
+        $this->assertTrue($this->service->canAccessUgc($face));
+        $this->assertFalse($suspendedService->canAccessUgc($face));
+    }
+
+    public function test_is_ugc_suspended_defaults_to_false(): void
+    {
+        $face = Face::factory()->create();
+
+        $this->assertFalse($this->service->isUgcSuspended($face));
+    }
+
+    // ===================================================================
     // capabilitiesForTier() — explicit per-tier matrix lookup (FP-2.3)
     // ===================================================================
 

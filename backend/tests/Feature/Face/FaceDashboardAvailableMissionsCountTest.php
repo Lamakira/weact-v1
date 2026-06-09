@@ -216,4 +216,46 @@ class FaceDashboardAvailableMissionsCountTest extends TestCase
                 'data' => ['count' => 3], // All producers' missions
             ]);
     }
+
+    // ─── Exclusion des missions UGC (FR5, UGC 2.1) ───────────────────
+
+    public function test_ugc_missions_are_excluded_from_available_count(): void
+    {
+        Mission::factory()
+            ->for($this->producer)
+            ->create([
+                'status' => MissionStatus::Published,
+                'date_limite_candidature' => Carbon::today()->addDays(7),
+            ]);
+        // La factory Mission ne tire jamais `ugc` — attributs explicites obligatoires.
+        $this->producer->missions()->create([
+            'titre' => 'Appel UGC — Unboxing',
+            'description' => 'desc',
+            'date_tournage' => now()->addMonth(),
+            'profil_recherche' => 'Créatrices',
+            'budget' => 0,
+            'date_limite_candidature' => Carbon::today()->addDays(7),
+            'nombre_faces_voulu' => 3,
+            'type_mission' => 'ugc',
+            'genre_voulu' => 'tous',
+            'lieu' => 'Cotonou',
+            'duree' => 'Livrables vidéo',
+            'status' => MissionStatus::Published,
+            'commission_paid_at' => now(),
+            'type_compensation' => 'product',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'montant_remuneration' => null,
+            'commission_ugc' => 2500,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/dashboard/available-missions-count');
+
+        $response->assertOk()
+            ->assertJson([
+                'data' => ['count' => 1], // La mission UGC n'est pas comptée
+            ]);
+    }
 }

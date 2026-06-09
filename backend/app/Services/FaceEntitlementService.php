@@ -60,6 +60,25 @@ class FaceEntitlementService
     }
 
     /**
+     * FR5/AR10 — gate des opportunités UGC : souscription active Starter+ requise,
+     * et Face non suspendue.
+     */
+    public function canAccessUgc(Face $face): bool
+    {
+        return $this->capabilities($face)->ugcAccess
+            && ! $this->isUgcSuspended($face);
+    }
+
+    /**
+     * Point d'extension épic 5 (table `ugc_suspensions`, story 5.1) : la
+     * suspension douce UGC n'existe pas encore — toujours false dans ce slice.
+     */
+    public function isUgcSuspended(Face $face): bool
+    {
+        return false;
+    }
+
+    /**
      * Resolve the Face's active, unexpired subscription — preferring the
      * eager-loaded `activeSubscription` relation, re-validated defensively.
      *
