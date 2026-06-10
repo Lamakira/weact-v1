@@ -1,5 +1,10 @@
 import apiClient from '@/services/apiClient'
-import type { MissionFilters, MissionResponse, PaginatedMissionsResponse } from '../types'
+import type {
+  MissionFilters,
+  MissionResponse,
+  PaginatedMissionsResponse,
+  PaginatedUgcMissionsResponse,
+} from '../types'
 
 /**
  * Face Mission API service
@@ -40,6 +45,17 @@ export const faceMissionApi = {
    */
   async getMissionDetail(id: string): Promise<MissionResponse> {
     const response = await apiClient.get<MissionResponse>(`/face/missions/${id}`)
+    return response.data
+  },
+
+  /**
+   * Découverte gated des missions UGC (story 2.2, écran 6A).
+   * Face éligible → MissionResource[] complet ; free → teasers + meta.paywall.
+   */
+  async getUgcMissions(page: number = 1): Promise<PaginatedUgcMissionsResponse> {
+    const response = await apiClient.get<PaginatedUgcMissionsResponse>('/face/ugc/missions', {
+      params: { page },
+    })
     return response.data
   },
 }

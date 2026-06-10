@@ -212,6 +212,48 @@ export interface PaginatedMissionsResponse {
   message?: string
 }
 
+// ─── Découverte UGC (story 2.2) ───────────────────────────────────────────
+// Miroir strict de UgcMissionTeaserResource (backend 2.1, D-2.1.c — 10 clés).
+export interface UgcMissionTeaser {
+  id: string
+  titre: string
+  type_compensation: 'product' | 'hybrid' | null
+  type_compensation_label: string | null
+  nom_produit: string | null
+  valeur_produit: number | null
+  nombre_videos: number | null
+  lieu: string
+  date_limite_candidature: string | null
+  created_at: string | null
+}
+
+export interface UgcPaywallMeta {
+  code: string
+  message: string
+  pricing_url: string
+}
+
+// Un item de découverte : MissionResource complet (Face éligible) ou teaser (free).
+export type UgcDiscoveryItem = Mission | UgcMissionTeaser
+
+export interface PaginatedUgcMissionsResponse {
+  data: UgcDiscoveryItem[]
+  links: {
+    first: string | null
+    last: string | null
+    prev: string | null
+    next: string | null
+  }
+  meta: {
+    current_page: number
+    last_page: number
+    per_page: number
+    total: number
+    can_access_ugc: boolean
+    paywall?: UgcPaywallMeta
+  }
+}
+
 // Mission type option for select inputs
 interface MissionTypeOption {
   value: MissionTypeType

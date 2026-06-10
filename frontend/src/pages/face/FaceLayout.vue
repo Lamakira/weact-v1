@@ -7,7 +7,7 @@
  */
 import { onMounted, ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { LayoutDashboard, FileText, MessageCircle, User, Briefcase, CalendarCheck, Wallet, CreditCard } from 'lucide-vue-next'
+import { LayoutDashboard, FileText, MessageCircle, User, Briefcase, CalendarCheck, Wallet, CreditCard, Video } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { DashboardLayout, type SidebarItem } from '@/components/layout'
@@ -32,6 +32,7 @@ const hasWhatsapp = computed(() => !!personalInfo.value?.whatsapp_number)
 const sidebarItems: SidebarItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/face/dashboard' },
   { label: 'Voir les missions', icon: Briefcase, to: '/face/missions' },
+  { label: 'Missions UGC', icon: Video, to: '/face/ugc-missions' },
   { label: 'Mes candidatures', icon: FileText, to: '/face/candidatures' },
   { label: 'Mes bookings', icon: CalendarCheck, to: '/face/bookings' },
   { label: 'Messages', icon: MessageCircle, to: '/face/messages' },

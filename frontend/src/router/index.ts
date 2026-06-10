@@ -166,6 +166,12 @@ const router = createRouter({
           component: () => import('../pages/face/mission/FaceMissionDetailPage.vue'),
         },
         {
+          path: 'ugc-missions',
+          name: 'face-ugc-missions',
+          component: () => import('../pages/face/mission/FaceUgcMissionsListPage.vue'),
+          meta: { title: 'Missions UGC - WEACT' },
+        },
+        {
           path: 'candidatures',
           name: 'face-candidatures',
           component: () => import('../pages/face/candidature/FaceCandidaturesPage.vue'),

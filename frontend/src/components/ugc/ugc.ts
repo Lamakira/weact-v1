@@ -16,3 +16,15 @@ export type UgcCompensationType = 'product' | 'hybrid'
 export function computeUgcCommission(productValue: number): number {
   return Math.max(UGC_COMMISSION_FLOOR, Math.round((productValue || 0) * UGC_COMMISSION_RATE))
 }
+
+/** Kinds de la primitive StatusPill (UX-DR3) — états du tunnel booking UGC. */
+export type StatusPillKind =
+  | 'pending'
+  | 'paid'
+  | 'accepted'
+  | 'shipped'
+  | 'received'
+  | 'delivered'
+  | 'completed'
+  | 'overdue'
+  | 'suspended'
