@@ -281,3 +281,13 @@ export function getMissionGenderOptions(): MissionGenderOption[] {
     label,
   }))
 }
+
+/**
+ * Discriminant UGC côté Face (D-2.3.b) : `type_compensation` est requis à la
+ * création d'une mission UGC et structurellement null sur les standard.
+ * Ne JAMAIS discriminer par `type_mission === 'ugc'` (hors MissionTypeType,
+ * D-1.4.b) ni par `commission_ugc` (masqué pour les requesters Face, 2.1).
+ */
+export function isUgcMission(mission: Mission): boolean {
+  return mission.type_compensation != null
+}

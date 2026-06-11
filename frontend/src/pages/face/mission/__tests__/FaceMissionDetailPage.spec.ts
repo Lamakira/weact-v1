@@ -4,17 +4,19 @@ import { createTestingPinia } from '@pinia/testing'
 import { ref } from 'vue'
 import FaceMissionDetailPage from '../FaceMissionDetailPage.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
+import { ChronoRing } from '@/components/ugc'
 import type { Mission, MissionProducer } from '@/features/mission/types'
 import { useAuthStore } from '@/stores/auth'
 
-// Mock useToast
+// Mock useToast — instance hoistée unique pour pouvoir asserter les appels
+const mockToast = vi.hoisted(() => ({
+  success: vi.fn(),
+  error: vi.fn(),
+  warning: vi.fn(),
+  info: vi.fn(),
+}))
 vi.mock('@/composables/useToast', () => ({
-  useToast: () => ({
-    success: vi.fn(),
-    error: vi.fn(),
-    warning: vi.fn(),
-    info: vi.fn(),
-  }),
+  useToast: () => mockToast,
 }))
 
 // Mock authApi
@@ -31,6 +33,7 @@ const mockRoute = {
 const mockRouter = {
   push: vi.fn(),
   back: vi.fn(),
+  replace: vi.fn(),
 }
 vi.mock('vue-router', () => ({
   useRoute: () => mockRoute,
@@ -43,6 +46,8 @@ const mockCandidature = ref(null)
 const mockIsLoading = ref(false)
 const mockError = ref<string | null>(null)
 const mockNotFound = ref(false)
+const mockUgcPaywall = ref(false)
+const mockUgcPaywallMessage = ref<string | null>(null)
 const mockFetchMission = vi.fn()
 const mockSetCandidature = vi.fn()
 
@@ -53,6 +58,8 @@ vi.mock('@/features/mission/composables', () => ({
     isLoading: mockIsLoading,
     error: mockError,
     notFound: mockNotFound,
+    ugcPaywall: mockUgcPaywall,
+    ugcPaywallMessage: mockUgcPaywallMessage,
     fetchMission: mockFetchMission,
     setCandidature: mockSetCandidature,
   }),
@@ -71,6 +78,15 @@ function createMission(overrides: Partial<Mission> = {}): Mission {
     nombre_faces_voulu: 3,
     type_mission: 'publicite',
     type_mission_label: 'Publicité',
+    type_mission_autre: null,
+    type_compensation: null,
+    type_compensation_label: null,
+    nom_produit: null,
+    valeur_produit: null,
+    nombre_videos: null,
+    montant_remuneration: null,
+    commission_ugc: null,
+    commission_paid_at: null,
     genre_voulu: 'femme',
     genre_voulu_label: 'Femme',
     lieu: 'Cotonou',
@@ -78,11 +94,30 @@ function createMission(overrides: Partial<Mission> = {}): Mission {
     status: 'published',
     status_label: 'Publiée',
     is_accepting_candidatures: true,
+    has_paid_payment: false,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     producer: createProducer(),
     ...overrides,
   }
+}
+
+// Mission UGC hybride (la réponse Face réelle ne contient pas commission_ugc/
+// commission_paid_at — la factory les laisse à null, aucun test ne doit les lire)
+function createUgcMission(overrides: Partial<Mission> = {}): Mission {
+  return createMission({
+    titre: 'Sneakers running · Unbox + review',
+    type_mission: 'autre' as Mission['type_mission'], // jamais lu par le code UGC (D-2.3.b)
+    type_mission_label: 'UGC',
+    budget: 20000, // dérivé serveur (= montant_remuneration) — ne doit PAS être rendu
+    type_compensation: 'hybrid',
+    type_compensation_label: 'Produit + Argent',
+    nom_produit: 'Sneakers Shade Fit',
+    valeur_produit: 35000,
+    nombre_videos: 3,
+    montant_remuneration: 20000,
+    ...overrides,
+  })
 }
 
 function createProducer(overrides: Partial<MissionProducer> = {}): MissionProducer {
@@ -114,10 +149,17 @@ describe('FaceMissionDetailPage', () => {
     mockIsLoading.value = false
     mockError.value = null
     mockNotFound.value = false
+    mockUgcPaywall.value = false
+    mockUgcPaywallMessage.value = null
     mockFetchMission.mockClear()
     mockSetCandidature.mockClear()
     mockRouter.push.mockClear()
     mockRouter.back.mockClear()
+    mockRouter.replace.mockClear()
+    mockToast.success.mockClear()
+    mockToast.error.mockClear()
+    mockToast.warning.mockClear()
+    mockToast.info.mockClear()
   })
 
   describe('producer rating display', () => {
@@ -651,6 +693,140 @@ describe('FaceMissionDetailPage', () => {
       await flushPromises()
 
       expect(wrapper.text()).toContain('2 journées (max 16h)')
+    })
+  })
+
+  describe('UGC mission detail', () => {
+    function mountPage() {
+      return mount(FaceMissionDetailPage, {
+        global: {
+          plugins: [createTestingPinia()],
+          stubs: {
+            ApplyToMissionModal: true,
+            RatingDisplay: true,
+            ConfirmModal: true,
+            RouterLink: {
+              template: '<a><slot /></a>',
+              props: ['to'],
+            },
+          },
+        },
+      })
+    }
+
+    it('renders the 3-cell stats grid for a hybrid UGC mission', async () => {
+      mockMission.value = createUgcMission()
+
+      const wrapper = mountPage()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="ugc-mission-stats"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="ugc-stat-cash"]').exists()).toBe(true)
+      expect(wrapper.text().replace(/\s/g, ' ')).toContain('35 000 FCFA')
+    })
+
+    it('omits the Cash cell for a product-only UGC mission', async () => {
+      mockMission.value = createUgcMission({
+        type_compensation: 'product',
+        type_compensation_label: 'Produit seul',
+        montant_remuneration: null,
+        nombre_videos: 2,
+        budget: 0,
+      })
+
+      const wrapper = mountPage()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="ugc-mission-stats"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="ugc-stat-cash"]').exists()).toBe(false)
+    })
+
+    it('hides the budget cell for UGC and keeps it for standard missions', async () => {
+      mockMission.value = createUgcMission()
+
+      const ugcWrapper = mountPage()
+      await flushPromises()
+      expect(ugcWrapper.text()).not.toContain('Rémunération proposée')
+
+      mockMission.value = createMission()
+      const standardWrapper = mountPage()
+      await flushPromises()
+      expect(standardWrapper.text()).toContain('Rémunération proposée')
+    })
+
+    it('renders the deliverables block with two ChronoRing at progress 0', async () => {
+      mockMission.value = createUgcMission()
+
+      const wrapper = mountPage()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="ugc-deliverables-preview"]').exists()).toBe(true)
+      const rings = wrapper.findAllComponents(ChronoRing)
+      expect(rings).toHaveLength(2)
+      expect(rings[0]!.props('progress')).toBe(0)
+      expect(rings[1]!.props('progress')).toBe(0)
+    })
+
+    it('shows the verified producer line for UGC and hides it for standard', async () => {
+      mockMission.value = createUgcMission()
+
+      const ugcWrapper = mountPage()
+      await flushPromises()
+      const verified = ugcWrapper.find('[data-testid="ugc-verified-producer"]')
+      expect(verified.exists()).toBe(true)
+      expect(verified.text()).toContain('Producteur vérifié')
+
+      mockMission.value = createMission()
+      const standardWrapper = mountPage()
+      await flushPromises()
+      expect(standardWrapper.find('[data-testid="ugc-verified-producer"]').exists()).toBe(false)
+    })
+
+    it('titles the description section "Brief" for UGC missions', async () => {
+      mockMission.value = createUgcMission()
+
+      const wrapper = mountPage()
+      await flushPromises()
+
+      // Assertion ciblée sur les headings de section — pas sur le texte global de la page
+      const headings = wrapper.findAll('h2').map((h) => h.text())
+      expect(headings).toContain('Brief')
+      expect(headings).not.toContain('Description')
+    })
+
+    it('renders the compensation tag next to the type badge', async () => {
+      mockMission.value = createUgcMission()
+
+      const wrapper = mountPage()
+      await flushPromises()
+
+      const tag = wrapper.find('[data-testid="ugc-compensation-tag"]')
+      expect(tag.exists()).toBe(true)
+      expect(tag.text()).toBe('Produit + Argent')
+    })
+  })
+
+  describe('UGC paywall redirect', () => {
+    it('redirects to pricing with an info toast when the paywall flag is set', async () => {
+      mockUgcPaywall.value = true
+      mockUgcPaywallMessage.value = "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus)."
+
+      mount(FaceMissionDetailPage, {
+        global: {
+          plugins: [createTestingPinia()],
+          stubs: {
+            ApplyToMissionModal: true,
+            RatingDisplay: true,
+            ConfirmModal: true,
+          },
+        },
+      })
+      await flushPromises()
+
+      expect(mockToast.info).toHaveBeenCalledWith(
+        "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus).",
+      )
+      expect(mockRouter.replace).toHaveBeenCalledWith({ name: 'pricing' })
     })
   })
 })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -14,11 +14,14 @@ import {
   Loader2,
   CheckCircle,
   ShieldAlert,
+  ShieldCheck,
   Mail,
   XCircle,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useMissionDetail } from '@/features/mission/composables'
+import { isUgcMission } from '@/features/mission/types'
+import { UgcMissionStats, UgcDeliverablesPreview } from '@/features/mission/components'
 import { formatMissionDurationForDisplay } from '@/features/mission/constants/missionDuration'
 import { ApplyToMissionModal } from '@/features/candidature/components'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
@@ -36,7 +39,25 @@ const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
 
-const { mission, candidature, isLoading, error, notFound, fetchMission, setCandidature } = useMissionDetail()
+const { mission, candidature, isLoading, error, notFound, ugcPaywall, ugcPaywallMessage, fetchMission, setCandidature } =
+  useMissionDetail()
+
+const isUgc = computed(() => mission.value !== null && isUgcMission(mission.value))
+
+// FR5 : Face non éligible → paywall /pricing (D-2.3.c ; replace = pas de boucle back)
+watch(
+  ugcPaywall,
+  (blocked) => {
+    if (blocked) {
+      // `||` (pas `??`) : un message backend vide ne doit pas produire un toast vide
+      toast.info(
+        ugcPaywallMessage.value || "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus).",
+      )
+      router.replace({ name: 'pricing' })
+    }
+  },
+  { immediate: true },
+)
 
 // Modal state
 const isApplyModalOpen = ref(false)
@@ -344,11 +365,18 @@ onMounted(() => {
     <!-- Mission Detail Content -->
     <div v-else-if="mission" class="max-w-4xl">
       <!-- Mission Type Badge -->
-      <div class="mb-4">
+      <div class="mb-4 flex flex-wrap items-center gap-2">
         <span
           class="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs min-[376px]:text-sm font-medium text-primary"
         >
           {{ mission.type_mission === 'autre' && mission.type_mission_autre ? `Autre : ${mission.type_mission_autre}` : mission.type_mission_label }}
+        </span>
+        <span
+          v-if="isUgc && mission.type_compensation_label"
+          class="inline-flex items-center rounded-full bg-muted px-3 py-1 text-xs min-[376px]:text-sm font-medium text-muted-foreground"
+          data-testid="ugc-compensation-tag"
+        >
+          {{ mission.type_compensation_label }}
         </span>
       </div>
 
@@ -357,13 +385,25 @@ onMounted(() => {
         {{ mission.titre }}
       </h1>
 
+      <!-- UGC Stats (produit / cash / vidéos) -->
+      <UgcMissionStats
+        v-if="isUgc"
+        class="mb-6"
+        :valeur-produit="mission.valeur_produit"
+        :montant-remuneration="mission.montant_remuneration"
+        :nombre-videos="mission.nombre_videos"
+      />
+
       <!-- Mission Description -->
       <div class="mb-8 rounded-lg border border-border bg-card p-4 min-[376px]:p-6">
-        <h2 class="text-base min-[376px]:text-lg font-semibold text-foreground mb-3">Description</h2>
+        <h2 class="text-base min-[376px]:text-lg font-semibold text-foreground mb-3">{{ isUgc ? 'Brief' : 'Description' }}</h2>
         <p class="text-xs min-[376px]:text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
           {{ mission.description }}
         </p>
       </div>
+
+      <!-- UGC Deliverables Preview -->
+      <UgcDeliverablesPreview v-if="isUgc" class="mb-8" :nombre-videos="mission.nombre_videos" />
 
       <!-- Mission Details Grid -->
       <div class="mb-8 rounded-lg border border-border bg-card p-4 min-[376px]:p-6">
@@ -391,8 +431,8 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- Budget -->
-          <div class="flex items-start gap-3 p-2 min-[376px]:p-3 rounded-lg bg-muted/50">
+          <!-- Budget (masqué pour l'UGC : dérivé serveur, la grille stats est la source canonique) -->
+          <div v-if="!isUgc" class="flex items-start gap-3 p-2 min-[376px]:p-3 rounded-lg bg-muted/50">
             <div class="flex-shrink-0 p-1.5 min-[376px]:p-2 rounded-lg bg-primary/10">
               <Wallet class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-primary" />
             </div>
@@ -482,6 +522,10 @@ onMounted(() => {
           <div class="flex flex-col gap-0.5 min-[376px]:gap-1">
             <p class="text-base min-[376px]:text-lg font-semibold text-foreground">{{ producerName }}</p>
             <p class="text-xs min-[376px]:text-sm text-muted-foreground">{{ producerTypeLabel }}</p>
+            <p v-if="isUgc" class="flex items-center gap-1 text-xs font-medium text-primary" data-testid="ugc-verified-producer">
+              <ShieldCheck class="h-3.5 w-3.5" aria-hidden="true" />
+              Producteur vérifié — dotation réglée via WeAct
+            </p>
             <RatingDisplay
               :average-rating="producerRating"
               :review-count="producerRatingsCount"
@@ -497,6 +541,10 @@ onMounted(() => {
           <div class="flex flex-col gap-0.5 min-[376px]:gap-1">
             <p class="text-base min-[376px]:text-lg font-semibold text-foreground">{{ producerName }}</p>
             <p class="text-xs min-[376px]:text-sm text-muted-foreground">{{ producerTypeLabel }}</p>
+            <p v-if="isUgc" class="flex items-center gap-1 text-xs font-medium text-primary" data-testid="ugc-verified-producer">
+              <ShieldCheck class="h-3.5 w-3.5" aria-hidden="true" />
+              Producteur vérifié — dotation réglée via WeAct
+            </p>
             <RatingDisplay
               :average-rating="producerRating"
               :review-count="producerRatingsCount"
