@@ -284,11 +284,15 @@ class Producer extends Model
 
     /**
      * Get the count of in-progress missions (with confirmed/in_progress candidatures).
+     *
+     * Excludes UGC missions (invisible from all public surfaces since UGC 2.1 — FR5) :
+     * since 2.4 a UGC acceptance lands the candidature directly in `confirmed`.
      */
     protected function inProgressMissionsCount(): Attribute
     {
         return Attribute::make(
             get: fn (): int => $this->missions()
+                ->where('type_mission', '!=', MissionType::Ugc->value)
                 ->whereHas('candidatures', function ($query) {
                     $query->whereIn('status', [
                         CandidatureStatus::Confirmed->value,

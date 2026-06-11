@@ -1,4 +1,5 @@
 import { ref, type Ref } from 'vue'
+import { isAxiosError } from 'axios'
 import { bookingApi } from '../services/bookingApi'
 import type { Booking, CancellationReasonValue } from '../types'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
@@ -10,6 +11,7 @@ interface UseBookingActionsReturn {
   isCancelling: Ref<boolean>
   isReportingNoShow: Ref<boolean>
   error: Ref<string | null>
+  errorCode: Ref<string | null>
   accept: (bookingId: string) => Promise<Booking | null>
   refuse: (bookingId: string, reason?: string) => Promise<Booking | null>
   confirm: (bookingId: string) => Promise<Booking | null>
@@ -25,20 +27,32 @@ export function useBookingActions(): UseBookingActionsReturn {
   const isCancelling = ref(false)
   const isReportingNoShow = ref(false)
   const error = ref<string | null>(null)
+  // Code de l'envelope backend (2.4) — permet de router les erreurs par code
+  // (ex. UGC_SUBSCRIPTION_REQUIRED → /pricing) sans parser le message.
+  const errorCode = ref<string | null>(null)
 
   function clearError(): void {
     error.value = null
+    errorCode.value = null
+  }
+
+  function extractErrorCode(err: unknown): string | null {
+    return isAxiosError(err)
+      ? (((err.response?.data as { error?: { code?: string } } | undefined)?.error?.code) ?? null)
+      : null
   }
 
   async function accept(bookingId: string): Promise<Booking | null> {
     isAccepting.value = true
     error.value = null
+    errorCode.value = null
 
     try {
       const response = await bookingApi.acceptBooking(bookingId)
       return response.data
     } catch (err) {
       error.value = getApiErrorMessage(err)
+      errorCode.value = extractErrorCode(err)
       return null
     } finally {
       isAccepting.value = false
@@ -48,12 +62,14 @@ export function useBookingActions(): UseBookingActionsReturn {
   async function refuse(bookingId: string, reason?: string): Promise<Booking | null> {
     isRefusing.value = true
     error.value = null
+    errorCode.value = null
 
     try {
       const response = await bookingApi.refuseBooking(bookingId, reason)
       return response.data
     } catch (err) {
       error.value = getApiErrorMessage(err)
+      errorCode.value = extractErrorCode(err)
       return null
     } finally {
       isRefusing.value = false
@@ -63,12 +79,14 @@ export function useBookingActions(): UseBookingActionsReturn {
   async function confirm(bookingId: string): Promise<Booking | null> {
     isConfirming.value = true
     error.value = null
+    errorCode.value = null
 
     try {
       const response = await bookingApi.confirmBooking(bookingId)
       return response.data
     } catch (err) {
       error.value = getApiErrorMessage(err)
+      errorCode.value = extractErrorCode(err)
       return null
     } finally {
       isConfirming.value = false
@@ -82,12 +100,14 @@ export function useBookingActions(): UseBookingActionsReturn {
   ): Promise<Booking | null> {
     isCancelling.value = true
     error.value = null
+    errorCode.value = null
 
     try {
       const response = await bookingApi.cancelBooking(bookingId, reason, customReason)
       return response.data
     } catch (err) {
       error.value = getApiErrorMessage(err)
+      errorCode.value = extractErrorCode(err)
       return null
     } finally {
       isCancelling.value = false
@@ -97,12 +117,14 @@ export function useBookingActions(): UseBookingActionsReturn {
   async function reportNoShow(bookingId: string): Promise<Booking | null> {
     isReportingNoShow.value = true
     error.value = null
+    errorCode.value = null
 
     try {
       const response = await bookingApi.reportNoShow(bookingId)
       return response.data
     } catch (err) {
       error.value = getApiErrorMessage(err)
+      errorCode.value = extractErrorCode(err)
       return null
     } finally {
       isReportingNoShow.value = false
@@ -116,6 +138,7 @@ export function useBookingActions(): UseBookingActionsReturn {
     isCancelling,
     isReportingNoShow,
     error,
+    errorCode,
     accept,
     refuse,
     confirm,

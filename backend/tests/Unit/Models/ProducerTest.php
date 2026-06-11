@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Models;
 
+use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
 use App\Enums\ProducerType;
+use App\Models\Candidature;
+use App\Models\Face;
 use App\Models\Mission;
 use App\Models\Producer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -120,6 +123,39 @@ class ProducerTest extends TestCase
 
         $this->assertEquals(2, $producer1->published_missions_count);
         $this->assertEquals(3, $producer2->published_missions_count);
+    }
+
+    public function test_in_progress_missions_count_excludes_ugc_missions(): void
+    {
+        // UGC 2.4 : une acceptation UGC pose la candidature directement `confirmed` —
+        // le compteur public (PublicProducerResource) ne doit pas la refléter (FR5/2.1 :
+        // l'UGC est invisible de toutes les surfaces publiques, parité publishedMissionsCount).
+        $producer = Producer::factory()->create();
+
+        $cashMission = Mission::factory()->published()->create(['producer_id' => $producer->id]);
+        $ugcMission = Mission::factory()->published()->create([
+            'producer_id' => $producer->id,
+            'type_mission' => 'ugc',
+            'type_compensation' => 'product',
+            'nom_produit' => 'Sneakers Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'commission_ugc' => 2500,
+            'commission_paid_at' => now(),
+        ]);
+
+        Candidature::factory()->create([
+            'mission_id' => $cashMission->id,
+            'face_id' => Face::factory()->create()->id,
+            'status' => CandidatureStatus::Confirmed,
+        ]);
+        Candidature::factory()->create([
+            'mission_id' => $ugcMission->id,
+            'face_id' => Face::factory()->create()->id,
+            'status' => CandidatureStatus::Confirmed,
+        ]);
+
+        $this->assertEquals(1, $producer->in_progress_missions_count);
     }
 
     public function test_it_generates_a_slug_from_the_producer_identity(): void

@@ -40,22 +40,38 @@ class BookingPolicy
 
     /**
      * Determine if the user can accept the booking.
-     * Only the Face can accept, and only when status is pending.
+     * Only the Face can accept. Cash: from pending. UGC: only once the
+     * commission is settled (2.4, bloqueur #12 — FR6 étape 2).
      */
     public function accept(User $user, Booking $booking): bool
     {
-        return $user->id === $booking->face_id
-            && $booking->status === BookingStatus::Pending;
+        if ($user->id !== $booking->face_id) {
+            return false;
+        }
+
+        if ($booking->type_contenu === 'UGC') {
+            return $booking->status === BookingStatus::CommissionPaid;
+        }
+
+        return $booking->status === BookingStatus::Pending;
     }
 
     /**
      * Determine if the user can refuse the booking.
-     * Only the Face can refuse, and only when status is pending.
+     * Only the Face can refuse. Cash: from pending. UGC: before payment
+     * (évite un paiement pour rien) et après (refund = story 2.5).
      */
     public function refuse(User $user, Booking $booking): bool
     {
-        return $user->id === $booking->face_id
-            && $booking->status === BookingStatus::Pending;
+        if ($user->id !== $booking->face_id) {
+            return false;
+        }
+
+        if ($booking->type_contenu === 'UGC') {
+            return in_array($booking->status, [BookingStatus::Pending, BookingStatus::CommissionPaid], true);
+        }
+
+        return $booking->status === BookingStatus::Pending;
     }
 
     /**

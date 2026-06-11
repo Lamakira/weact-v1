@@ -55,6 +55,8 @@ enum ErrorCodes: string
     case MissionClosed = 'MISSION_CLOSED';
     case UgcSubscriptionRequired = 'UGC_SUBSCRIPTION_REQUIRED';
     case AlreadyApplied = 'ALREADY_APPLIED';
+    case MissionFull = 'MISSION_FULL';
+    case AlreadyAccepted = 'ALREADY_ACCEPTED';
     case GenderMismatch = 'gender_mismatch';
     case PaymentNotConfirmed = 'PAYMENT_NOT_CONFIRMED';
     case NotInFinalSelection = 'NOT_IN_FINAL_SELECTION';

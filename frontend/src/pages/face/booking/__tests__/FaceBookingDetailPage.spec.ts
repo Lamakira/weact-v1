@@ -9,7 +9,9 @@ const mockIsLoading = ref(false)
 const mockError = ref<string | null>(null)
 const mockIsConfirming = ref(false)
 const mockActionError = ref<string | null>(null)
+const mockActionErrorCode = ref<string | null>(null)
 const mockIsReportingNoShow = ref(false)
+const mockAccept = vi.fn()
 const mockReportNoShow = vi.fn()
 const mockFetchBooking = vi.fn()
 const mockRefreshBooking = vi.fn()
@@ -32,8 +34,9 @@ vi.mock('@/features/booking/composables', () => ({
     isCancelling: ref(false),
     isReportingNoShow: mockIsReportingNoShow,
     error: mockActionError,
+    errorCode: mockActionErrorCode,
     confirm: vi.fn(),
-    accept: vi.fn(),
+    accept: mockAccept,
     refuse: vi.fn(),
     cancel: vi.fn(),
     reportNoShow: mockReportNoShow,
@@ -98,6 +101,7 @@ async function mountPage(
     routes: [
       { path: '/face/bookings', name: 'face-bookings', component: { template: '<div/>' } },
       { path: '/face/bookings/:id', name: 'face-booking-detail', component: FaceBookingDetailPage },
+      { path: '/pricing', name: 'pricing', component: { template: '<div/>' } },
     ],
   })
 
@@ -114,6 +118,12 @@ async function mountPage(
         UgcPaymentOverlay: {
           props: ['modelValue'],
           template: '<div data-testid="ugc-overlay-stub" :data-open="String(modelValue)"/>',
+        },
+        UgcEngagementModal: {
+          name: 'UgcEngagementModal',
+          props: ['isOpen', 'nombreVideos', 'nomProduit', 'isSubmitting'],
+          emits: ['confirm', 'cancel'],
+          template: '<div data-testid="ugc-engagement-modal-stub" :data-open="String(isOpen)"/>',
         },
         BookingPricingBreakdown: { template: '<div/>' },
         BookingChat: { template: '<div/>' },
@@ -322,10 +332,13 @@ describe('FaceBookingDetailPage — UGC commission CTA (story 1.6)', () => {
     mockBooking.value = null
     mockIsLoading.value = false
     mockError.value = null
+    mockActionError.value = null
+    mockActionErrorCode.value = null
     mockUserableType.value = 'Face'
     mockUserId.value = 1
     mockFetchBooking.mockReset()
     mockRefreshBooking.mockReset()
+    mockAccept.mockReset()
   })
 
   it('shows the "Payer la commission" CTA for a Producer viewing a pending UGC booking', async () => {
@@ -388,6 +401,114 @@ describe('FaceBookingDetailPage — UGC commission CTA (story 1.6)', () => {
     const overlay = wrapper.find('[data-testid="ugc-overlay-stub"]')
     expect(overlay.exists()).toBe(true)
     expect(overlay.attributes('data-open')).toBe('true')
+  })
+
+  it('opens the engagement modal on Accepter for a UGC booking without calling accept (story 2.4)', async () => {
+    const wrapper = await mountPage(
+      makeBooking({
+        status: 'commission_paid',
+        type_contenu: 'UGC',
+        can_accept: true,
+        can_refuse: true,
+        nombre_videos: 2,
+        nom_produit: 'Tenue Shade Fit',
+        commission_ugc: 2500,
+        accepted_at: null,
+      }),
+    )
+
+    const modal = wrapper.find('[data-testid="ugc-engagement-modal-stub"]')
+    expect(modal.attributes('data-open')).toBe('false')
+
+    const acceptButton = wrapper.findAll('button').find((b) => b.text() === 'Accepter')
+    expect(acceptButton).toBeDefined()
+    await acceptButton!.trigger('click')
+
+    expect(wrapper.find('[data-testid="ugc-engagement-modal-stub"]').attributes('data-open')).toBe('true')
+    expect(mockAccept).not.toHaveBeenCalled()
+  })
+
+  it('calls accept when the engagement modal is confirmed (story 2.4)', async () => {
+    mockAccept.mockResolvedValueOnce(
+      makeBooking({ status: 'accepted', type_contenu: 'UGC', can_accept: false }),
+    )
+    const wrapper = await mountPage(
+      makeBooking({
+        status: 'commission_paid',
+        type_contenu: 'UGC',
+        can_accept: true,
+        nombre_videos: 2,
+        nom_produit: 'Tenue Shade Fit',
+        accepted_at: null,
+      }),
+    )
+
+    const stub = wrapper.findComponent({ name: 'UgcEngagementModal' })
+    stub.vm.$emit('confirm')
+    await flushPromises()
+
+    expect(mockAccept).toHaveBeenCalledWith('booking-uuid-1')
+  })
+
+  it('accepts a cash booking directly without opening the engagement modal (story 2.4 witness)', async () => {
+    mockAccept.mockResolvedValueOnce(makeBooking({ status: 'accepted' }))
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', can_accept: true, accepted_at: null }),
+    )
+
+    const acceptButton = wrapper.findAll('button').find((b) => b.text() === 'Accepter')
+    expect(acceptButton).toBeDefined()
+    await acceptButton!.trigger('click')
+    await flushPromises()
+
+    expect(mockAccept).toHaveBeenCalledWith('booking-uuid-1')
+    expect(wrapper.find('[data-testid="ugc-engagement-modal-stub"]').attributes('data-open')).toBe('false')
+  })
+
+  it('hides the 24h payment deadline for an accepted UGC booking and keeps it for cash (story 2.4)', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+
+    const ugcWrapper = await mountPage(
+      makeBooking({
+        status: 'accepted',
+        type_contenu: 'UGC',
+        producer_id: 2,
+        accepted_at: new Date().toISOString(),
+      }),
+    )
+    expect(ugcWrapper.text()).not.toContain('Paiement requis avant')
+
+    const cashWrapper = await mountPage(
+      makeBooking({
+        status: 'accepted',
+        producer_id: 2,
+        accepted_at: new Date().toISOString(),
+      }),
+    )
+    expect(cashWrapper.text()).toContain('Paiement requis avant')
+  })
+
+  it('routes to pricing on a UGC_SUBSCRIPTION_REQUIRED accept failure (story 2.4)', async () => {
+    mockAccept.mockImplementationOnce(async () => {
+      mockActionError.value = "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus)."
+      mockActionErrorCode.value = 'UGC_SUBSCRIPTION_REQUIRED'
+      return null
+    })
+    const wrapper = await mountPage(
+      makeBooking({
+        status: 'commission_paid',
+        type_contenu: 'UGC',
+        can_accept: true,
+        accepted_at: null,
+      }),
+    )
+
+    const stub = wrapper.findComponent({ name: 'UgcEngagementModal' })
+    stub.vm.$emit('confirm')
+    await flushPromises()
+
+    expect(wrapper.vm.$router.currentRoute.value.name).toBe('pricing')
   })
 
   it('shows the UGC dotation summary and hides the shoot fields + cash finances for a UGC booking', async () => {

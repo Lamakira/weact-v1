@@ -64,6 +64,55 @@ class BookingExpiryTest extends TestCase
         Event::assertDispatched(BookingExpired::class, fn (BookingExpired $event): bool => $event->booking->id === $booking->id);
     }
 
+    public function test_command_skips_accepted_ugc_booking_older_than_24h(): void
+    {
+        // UGC 2.4 : aucun paiement cash après acceptation — le cron expire
+        // ne doit pas tuer le tunnel UGC 24h après l'acceptation.
+        Event::fake([BookingExpired::class]);
+
+        $booking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'accepted_at' => now()->subHours(25),
+            'type_contenu' => 'UGC',
+            'tarif_base' => 0,
+            'type_compensation' => 'product',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'commission_ugc' => 2500,
+        ]);
+
+        $this->artisan('bookings:expire-unpaid')
+            ->expectsOutput('Found 0 booking(s) to expire.')
+            ->expectsOutput('Done. Expired: 0, Failed: 0.')
+            ->assertExitCode(Command::SUCCESS);
+
+        $booking->refresh();
+        $this->assertEquals(BookingStatus::Accepted, $booking->status);
+        Event::assertNotDispatched(BookingExpired::class);
+    }
+
+    public function test_command_still_expires_cash_booking_with_lowercase_ugc_type(): void
+    {
+        // type_contenu est un champ libre : « ugc » minuscule n'est PAS un booking UGC
+        // (le PHP compare `=== 'UGC'`) — la collation _ci ne doit pas l'exclure du cron (BINARY).
+        Event::fake([BookingExpired::class]);
+
+        $booking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'accepted_at' => now()->subHours(25),
+            'type_contenu' => 'ugc',
+        ]);
+
+        $this->artisan('bookings:expire-unpaid')
+            ->expectsOutput('Found 1 booking(s) to expire.')
+            ->assertExitCode(Command::SUCCESS);
+
+        $this->assertEquals(BookingStatus::Expired, $booking->fresh()->status);
+    }
+
     public function test_command_skips_accepted_booking_younger_than_24h(): void
     {
         Event::fake([BookingExpired::class]);

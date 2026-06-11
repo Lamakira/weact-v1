@@ -37,6 +37,7 @@ class ExpireUnpaidBookingsCommand extends Command
         // Warn about accepted bookings with no accepted_at timestamp (pre-migration data).
         // SQL NULL comparisons are false, so these are excluded from the expiry query.
         $nullCount = Booking::where('status', BookingStatus::Accepted->value)
+            ->whereRaw("BINARY type_contenu != 'UGC'")
             ->whereNull('accepted_at')
             ->count();
 
@@ -44,7 +45,11 @@ class ExpireUnpaidBookingsCommand extends Command
             $this->warn("{$nullCount} accepted booking(s) have no accepted_at timestamp and will not be expired. Backfill accepted_at to fix.");
         }
 
+        // UGC (2.4) : aucun paiement cash n'est attendu après acceptation — le tunnel UGC ne doit pas expirer.
+        // BINARY : aligne la comparaison SQL (collation _ci) sur le PHP `=== 'UGC'` — un type_contenu
+        // libre « ugc » est un booking cash et doit rester couvert par le cron.
         $bookings = Booking::where('status', BookingStatus::Accepted->value)
+            ->whereRaw("BINARY type_contenu != 'UGC'")
             ->whereNotNull('accepted_at')
             ->where('accepted_at', '<=', $cutoff)
             ->get();

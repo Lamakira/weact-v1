@@ -31,6 +31,19 @@ export const candidatureApi = {
   },
 
   /**
+   * Accept a UGC mission directly (Face only — UGC 2.4)
+   * The candidature lands "confirmed" (created or transitioned from "pending")
+   * @param missionId The UGC mission ID to accept
+   * @returns Candidature data with success message
+   */
+  async acceptUgcMission(missionId: string): Promise<CandidatureResponse> {
+    const response = await apiClient.post<CandidatureResponse>(
+      `/face/missions/${missionId}/accept`,
+    )
+    return response.data
+  },
+
+  /**
    * Get paginated list of Face's candidatures
    * @param page Page number (default 1)
    * @param status Optional status filter

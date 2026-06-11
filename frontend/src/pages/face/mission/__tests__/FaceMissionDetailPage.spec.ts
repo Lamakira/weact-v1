@@ -5,7 +5,7 @@ import { ref } from 'vue'
 import FaceMissionDetailPage from '../FaceMissionDetailPage.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import { ChronoRing } from '@/components/ugc'
-import type { Mission, MissionProducer } from '@/features/mission/types'
+import type { Mission, MissionCandidature, MissionProducer } from '@/features/mission/types'
 import { useAuthStore } from '@/stores/auth'
 
 // Mock useToast — instance hoistée unique pour pouvoir asserter les appels
@@ -42,7 +42,7 @@ vi.mock('vue-router', () => ({
 
 // Mock the composable
 const mockMission = ref<Mission | null>(null)
-const mockCandidature = ref(null)
+const mockCandidature = ref<MissionCandidature | null>(null)
 const mockIsLoading = ref(false)
 const mockError = ref<string | null>(null)
 const mockNotFound = ref(false)
@@ -62,6 +62,34 @@ vi.mock('@/features/mission/composables', () => ({
     ugcPaywallMessage: mockUgcPaywallMessage,
     fetchMission: mockFetchMission,
     setCandidature: mockSetCandidature,
+  }),
+}))
+
+// Mock du barrel candidature (2.4) — le mock remplace TOUT le module, donc il
+// doit fournir useCancelCandidature (importé par la page) EN PLUS de useAcceptUgcDeal.
+const mockIsAcceptingUgc = ref(false)
+const mockAcceptError = ref<string | null>(null)
+const mockAcceptErrorCode = ref<string | null>(null)
+const mockAcceptUgcMission = vi.fn()
+const mockIsCancelling = ref(false)
+const mockCancelError = ref<string | null>(null)
+const mockCancelSuccessMessage = ref<string | null>(null)
+const mockCancelCandidature = vi.fn()
+const mockResetCancel = vi.fn()
+
+vi.mock('@/features/candidature/composables', () => ({
+  useAcceptUgcDeal: () => ({
+    isAccepting: mockIsAcceptingUgc,
+    error: mockAcceptError,
+    errorCode: mockAcceptErrorCode,
+    acceptUgcMission: mockAcceptUgcMission,
+  }),
+  useCancelCandidature: () => ({
+    isCancelling: mockIsCancelling,
+    error: mockCancelError,
+    successMessage: mockCancelSuccessMessage,
+    cancelCandidature: mockCancelCandidature,
+    reset: mockResetCancel,
   }),
 }))
 
@@ -153,6 +181,15 @@ describe('FaceMissionDetailPage', () => {
     mockUgcPaywallMessage.value = null
     mockFetchMission.mockClear()
     mockSetCandidature.mockClear()
+    mockIsAcceptingUgc.value = false
+    mockAcceptError.value = null
+    mockAcceptErrorCode.value = null
+    mockAcceptUgcMission.mockReset()
+    mockIsCancelling.value = false
+    mockCancelError.value = null
+    mockCancelSuccessMessage.value = null
+    mockCancelCandidature.mockClear()
+    mockResetCancel.mockClear()
     mockRouter.push.mockClear()
     mockRouter.back.mockClear()
     mockRouter.replace.mockClear()
@@ -803,6 +840,163 @@ describe('FaceMissionDetailPage', () => {
       const tag = wrapper.find('[data-testid="ugc-compensation-tag"]')
       expect(tag.exists()).toBe(true)
       expect(tag.text()).toBe('Produit + Argent')
+    })
+  })
+
+  describe('UGC acceptance', () => {
+    const UgcEngagementModalStub = {
+      name: 'UgcEngagementModal',
+      template: '<div data-testid="ugc-engagement-modal-stub"></div>',
+      props: ['isOpen', 'nombreVideos', 'nomProduit', 'isSubmitting'],
+      emits: ['confirm', 'cancel'],
+    }
+
+    function makeCandidature(overrides: Partial<MissionCandidature> = {}): MissionCandidature {
+      return {
+        id: 'candidature-1',
+        mission_id: 'mission-uuid-1',
+        face_id: 'face-1',
+        status: 'pending',
+        status_label: 'En attente',
+        message_motivation: null,
+        created_at: '2026-06-11T10:00:00Z',
+        updated_at: '2026-06-11T10:00:00Z',
+        ...overrides,
+      }
+    }
+
+    function mountEligiblePage() {
+      return mount(FaceMissionDetailPage, {
+        global: {
+          plugins: [
+            createTestingPinia({
+              initialState: {
+                auth: {
+                  user: {
+                    id: 1,
+                    email: 'face@test.com',
+                    email_verified: true,
+                    email_verified_at: '2026-01-01',
+                    userable_type: 'Face',
+                    userable: { sexe: 'femme' },
+                  },
+                  token: 'fake-token',
+                },
+              },
+              stubActions: false,
+            }),
+          ],
+          stubs: {
+            ApplyToMissionModal: true,
+            UgcEngagementModal: UgcEngagementModalStub,
+            RatingDisplay: true,
+            ConfirmModal: true,
+            RouterLink: {
+              template: '<a><slot /></a>',
+              props: ['to'],
+            },
+          },
+        },
+      })
+    }
+
+    it('shows the sticky accept CTA and never the apply button for an eligible UGC mission', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+
+      const wrapper = mountEligiblePage()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="ugc-accept-sticky"]').exists()).toBe(true)
+      expect(wrapper.text()).toContain('Accepter cette mission')
+      expect(wrapper.text()).not.toContain('Postuler à cette mission')
+    })
+
+    it('keeps the apply flow for standard missions without sticky CTA', async () => {
+      mockMission.value = createMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+
+      const wrapper = mountEligiblePage()
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Postuler à cette mission')
+      expect(wrapper.find('[data-testid="ugc-accept-sticky"]').exists()).toBe(false)
+    })
+
+    it('opens the engagement modal when the sticky CTA is clicked', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+
+      const wrapper = mountEligiblePage()
+      await flushPromises()
+
+      const modal = wrapper.findComponent(UgcEngagementModalStub)
+      expect(modal.props('isOpen')).toBe(false)
+
+      await wrapper.find('[data-testid="ugc-accept-sticky"] button').trigger('click')
+      expect(modal.props('isOpen')).toBe(true)
+    })
+
+    it('calls acceptUgcMission on confirm and renders the engaged banner after setCandidature', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+      const confirmed = makeCandidature({ status: 'confirmed', status_label: 'Confirmée' })
+      mockAcceptUgcMission.mockResolvedValueOnce(confirmed)
+      mockSetCandidature.mockImplementationOnce((candidature: MissionCandidature) => {
+        mockCandidature.value = candidature
+      })
+
+      const wrapper = mountEligiblePage()
+      await flushPromises()
+
+      wrapper.findComponent(UgcEngagementModalStub).vm.$emit('confirm')
+      await flushPromises()
+
+      expect(mockAcceptUgcMission).toHaveBeenCalledWith('1')
+      expect(mockSetCandidature).toHaveBeenCalledWith(confirmed)
+      expect(mockToast.success).toHaveBeenCalledWith('Mission acceptée — votre engagement est enregistré')
+
+      const banner = wrapper.find('[data-testid="ugc-engaged-banner"]')
+      expect(banner.exists()).toBe(true)
+      expect(banner.text()).toContain('Mission acceptée')
+    })
+
+    it('renders the engaged banner without CTA nor cancel for a confirmed candidature', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+      mockCandidature.value = makeCandidature({ status: 'confirmed', status_label: 'Confirmée' })
+
+      const wrapper = mountEligiblePage()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="ugc-engaged-banner"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="ugc-accept-sticky"]').exists()).toBe(false)
+      expect(wrapper.text()).not.toContain('Annuler ma candidature')
+    })
+
+    it('keeps the sticky CTA for a pending UGC candidature', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+      mockCandidature.value = makeCandidature({ status: 'pending', status_label: 'En attente' })
+
+      const wrapper = mountEligiblePage()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="ugc-accept-sticky"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="ugc-engaged-banner"]').exists()).toBe(false)
+    })
+
+    it('shows an error toast and refetches the mission on MISSION_FULL', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+      mockAcceptUgcMission.mockImplementationOnce(async () => {
+        mockAcceptError.value = 'Toutes les places de cette mission sont déjà pourvues.'
+        mockAcceptErrorCode.value = 'MISSION_FULL'
+        return null
+      })
+
+      const wrapper = mountEligiblePage()
+      await flushPromises()
+      mockFetchMission.mockClear()
+
+      wrapper.findComponent(UgcEngagementModalStub).vm.$emit('confirm')
+      await flushPromises()
+
+      expect(mockToast.error).toHaveBeenCalledWith('Toutes les places de cette mission sont déjà pourvues.')
+      expect(mockFetchMission).toHaveBeenCalledWith('1')
     })
   })
 

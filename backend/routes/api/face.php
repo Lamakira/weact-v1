@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\V1\Face\SubscriptionHistoryController;
 use App\Http\Controllers\Api\V1\Face\SubscriptionPaymentController;
 use App\Http\Controllers\Api\V1\Face\SubscriptionStatusController;
 use App\Http\Controllers\Api\V1\Face\TarifsController;
+use App\Http\Controllers\Api\V1\Face\UgcEngagementController;
 use App\Http\Controllers\Api\V1\Face\UgcMissionDiscoveryController;
 use Illuminate\Support\Facades\Route;
 
@@ -175,6 +176,10 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
 
     // Candidature routes - apply to missions (Face only, verified email required)
     Route::post('/missions/{mission}/apply', [CandidatureController::class, 'store'])
+        ->middleware(['face', 'verified', 'throttle:30,1']);
+
+    // UGC direct acceptance - Face accepts the deal, candidature lands confirmed (FR6, UGC 2.4)
+    Route::post('/missions/{mission}/accept', [UgcEngagementController::class, 'accept'])
         ->middleware(['face', 'verified', 'throttle:30,1']);
 
     // Mission attendance dispute - Face contests being marked absent

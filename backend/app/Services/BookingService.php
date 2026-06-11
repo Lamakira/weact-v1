@@ -171,7 +171,12 @@ class BookingService
         return DB::transaction(function () use ($booking) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
-            if ($booking->status !== BookingStatus::Pending) {
+            // UGC (2.4) : l'acceptation n'ouvre qu'une fois la commission réglée.
+            $expectedStatus = $booking->type_contenu === 'UGC'
+                ? BookingStatus::CommissionPaid
+                : BookingStatus::Pending;
+
+            if ($booking->status !== $expectedStatus) {
                 throw ValidationException::withMessages([
                     'status' => ['Ce booking ne peut pas être accepté dans son état actuel.'],
                 ]);
@@ -199,7 +204,12 @@ class BookingService
         return DB::transaction(function () use ($booking, $reason) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
-            if ($booking->status !== BookingStatus::Pending) {
+            // UGC (2.4) : refus possible avant paiement et après (refund = story 2.5).
+            $refusableStatuses = $booking->type_contenu === 'UGC'
+                ? [BookingStatus::Pending, BookingStatus::CommissionPaid]
+                : [BookingStatus::Pending];
+
+            if (! in_array($booking->status, $refusableStatuses, true)) {
                 throw ValidationException::withMessages([
                     'status' => ['Ce booking ne peut pas être refusé dans son état actuel.'],
                 ]);

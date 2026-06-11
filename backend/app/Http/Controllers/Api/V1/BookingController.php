@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\BookingStatus;
+use App\Enums\ErrorCodes;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\AcceptBookingRequest;
 use App\Http\Requests\Booking\CancelBookingRequest;
@@ -16,6 +17,7 @@ use App\Http\Requests\Booking\RefuseBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Services\BookingService;
+use App\Services\FaceEntitlementService;
 use App\Services\Ugc\UgcCommissionPaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,6 +53,7 @@ class BookingController extends Controller
     public function __construct(
         private readonly BookingService $bookingService,
         private readonly UgcCommissionPaymentService $ugcCommissionPaymentService,
+        private readonly FaceEntitlementService $entitlement,
     ) {}
 
     /**
@@ -123,6 +126,17 @@ class BookingController extends Controller
     public function accept(AcceptBookingRequest $request, Booking $booking): JsonResponse
     {
         Gate::authorize('accept', $booking);
+
+        // Gate FR5 (2.4) : une Face non éligible/suspendue ne peut pas s'engager sur un deal UGC.
+        if ($booking->type_contenu === 'UGC'
+            && ! $this->entitlement->canAccessUgc($request->user()->userable)) {
+            return response()->json(
+                ErrorCodes::UgcSubscriptionRequired->envelope(
+                    "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus)."
+                ),
+                403
+            );
+        }
 
         $booking = $this->bookingService->accept($booking);
 

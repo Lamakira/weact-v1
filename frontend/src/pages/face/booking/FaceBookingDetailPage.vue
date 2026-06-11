@@ -40,7 +40,7 @@ import {
   type BookingRating,
 } from '@/features/booking/types'
 import RatingDisplay from '@/components/RatingDisplay.vue'
-import { UgcPaymentOverlay, CommissionBreakdown } from '@/components/ugc'
+import { UgcPaymentOverlay, CommissionBreakdown, UgcEngagementModal } from '@/components/ugc'
 import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
@@ -59,6 +59,7 @@ const {
   isCancelling,
   isReportingNoShow,
   error: actionError,
+  errorCode: actionErrorCode,
   accept,
   refuse,
   confirm,
@@ -78,6 +79,9 @@ const canPayUgcCommission = computed<boolean>(
     && booking.value?.type_contenu === 'UGC'
     && booking.value?.status === BookingStatus.PENDING,
 )
+
+// UGC engagement modal (2.4) — règles + chronos avant l'accept d'un booking UGC.
+const showEngagementModal = ref(false)
 
 // Refuse dialog state
 const showRefuseDialog = ref(false)
@@ -180,8 +184,10 @@ const paymentDeadline = computed<Date | null>(() => {
 })
 
 const shouldShowPaymentDeadline = computed<boolean>(() => {
+  // UGC (2.4) : aucun paiement cash n'est attendu après acceptation.
   return !isFace.value
     && booking.value?.status === BookingStatus.ACCEPTED
+    && booking.value?.type_contenu !== 'UGC'
     && !!booking.value.accepted_at
 })
 
@@ -221,7 +227,7 @@ function goBack(): void {
   }
 }
 
-async function handleAccept(): Promise<void> {
+async function doAccept(): Promise<void> {
   if (!booking.value) return
   clearError()
 
@@ -229,9 +235,36 @@ async function handleAccept(): Promise<void> {
   if (result) {
     booking.value = result
     toast.success('Booking accepté avec succès !')
-  } else {
-    toast.error(actionError.value || 'Erreur lors de l\'acceptation')
+    return
   }
+
+  // Paywall FR5 (2.4) : Face non éligible → invitation à s'abonner.
+  if (actionErrorCode.value === 'UGC_SUBSCRIPTION_REQUIRED') {
+    toast.info(actionError.value || "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus).")
+    router.push({ name: 'pricing' })
+    return
+  }
+
+  toast.error(actionError.value || 'Erreur lors de l\'acceptation')
+}
+
+function handleAccept(): void {
+  if (!booking.value) return
+
+  // UGC (2.4) : l'engagement sur les délais est explicite AVANT tout appel API.
+  if (booking.value.type_contenu === 'UGC') {
+    showEngagementModal.value = true
+    return
+  }
+
+  void doAccept()
+}
+
+async function handleEngagementConfirm(): Promise<void> {
+  // Modal maintenue ouverte pendant l'appel (parité mission) : `:is-submitting`
+  // verrouille le CTA et empêche un double-clic d'engagement.
+  await doAccept()
+  showEngagementModal.value = false
 }
 
 function openRefuseDialog(): void {
@@ -747,6 +780,17 @@ onUnmounted(() => {
       v-model="showPaymentOverlay"
       :booking="booking"
       @payment-success="handlePaymentSuccess"
+    />
+
+    <!-- UGC engagement modal (Face accept — 2.4) -->
+    <UgcEngagementModal
+      v-if="booking"
+      :is-open="showEngagementModal"
+      :nombre-videos="booking.nombre_videos ?? null"
+      :nom-produit="booking.nom_produit"
+      :is-submitting="isAccepting"
+      @confirm="handleEngagementConfirm"
+      @cancel="showEngagementModal = false"
     />
 
     <!-- UGC commission payment tunnel -->
