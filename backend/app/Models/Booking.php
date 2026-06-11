@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Concerns\HasRouteUuid;
 use App\Enums\BookingStatus;
 use App\Enums\CompensationType;
+use App\Enums\UgcRefundReason;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -32,6 +33,10 @@ use Illuminate\Support\Facades\Auth;
  * @property int|null $nombre_videos
  * @property int|null $montant_remuneration
  * @property int|null $commission_ugc
+ * @property \Carbon\CarbonInterface|null $commission_paid_at
+ * @property \Carbon\CarbonInterface|null $commission_refund_requested_at
+ * @property \Carbon\CarbonInterface|null $commission_refunded_at
+ * @property \App\Enums\UgcRefundReason|null $commission_refund_reason
  * @property string|null $lieu
  * @property string|null $message
  * @property int $tarif_base
@@ -83,6 +88,10 @@ class Booking extends Model
         'nombre_videos',
         'montant_remuneration',
         'commission_ugc',
+        'commission_paid_at',
+        'commission_refund_requested_at',
+        'commission_refunded_at',
+        'commission_refund_reason',
         'lieu',
         'message',
         'tarif_base',
@@ -114,6 +123,10 @@ class Booking extends Model
             'nombre_videos' => 'integer',
             'montant_remuneration' => 'integer',
             'commission_ugc' => 'integer',
+            'commission_paid_at' => 'datetime',
+            'commission_refund_requested_at' => 'datetime',
+            'commission_refunded_at' => 'datetime',
+            'commission_refund_reason' => UgcRefundReason::class,
             'tarif_base' => 'integer',
             'montant_total_producteur' => 'integer',
             'montant_face_recoit' => 'integer',

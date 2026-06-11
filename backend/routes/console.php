@@ -5,6 +5,7 @@ use App\Console\Commands\AutoReleaseMissionFundsCommand;
 use App\Console\Commands\AutoValidateMissionAttendanceCommand;
 use App\Console\Commands\ExpireFaceSubscriptionsCommand;
 use App\Console\Commands\ExpireUnacceptedBookingsCommand;
+use App\Console\Commands\ExpireUnacceptedUgcDealsCommand;
 use App\Console\Commands\ExpireUnpaidBookingsCommand;
 use App\Console\Commands\FailStalePendingFaceSubscriptionsCommand;
 use App\Console\Commands\PurgeExpiredMediaCommand;
@@ -25,6 +26,7 @@ Artisan::command('inspire', function () {
 app(Schedule::class)->command(AutoCompleteBookingsCommand::class)->hourly();
 app(Schedule::class)->command(ExpireUnacceptedBookingsCommand::class)->hourly();
 app(Schedule::class)->command(ExpireUnpaidBookingsCommand::class)->hourly();
+app(Schedule::class)->command(ExpireUnacceptedUgcDealsCommand::class)->hourly();
 app(Schedule::class)->command(RemindBookingPaymentCommand::class)->hourly();
 app(Schedule::class)->command(ReconcileWalletCommand::class)->daily();
 app(Schedule::class)->command(AutoReleaseMissionFundsCommand::class)->daily();

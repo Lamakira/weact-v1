@@ -8,4 +8,8 @@ return [
     'commission_floor' => 2500,
     // Nombre de vidéos figé pour « produit seul » (1 Unboxing + 1 Avis).
     'product_only_video_count' => 2,
+    // Fenêtre d'acceptation Face d'un booking UGC payé, en jours (ancrée sur
+    // commission_paid_at — D-2.5.c). Passé ce délai : expiration + demande de
+    // remboursement de la commission Producteur.
+    'acceptance_window_days' => 7,
 ];

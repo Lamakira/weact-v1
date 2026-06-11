@@ -50,7 +50,11 @@ class BookingPolicy
         }
 
         if ($booking->type_contenu === 'UGC') {
-            return $booking->status === BookingStatus::CommissionPaid;
+            // Defense-in-depth (2.5, AC8a) : un deal dont la commission a été
+            // remboursée (refund ops sans demande locale, statut resté
+            // commission_paid) n'est plus acceptable.
+            return $booking->status === BookingStatus::CommissionPaid
+                && $booking->commission_refunded_at === null;
         }
 
         return $booking->status === BookingStatus::Pending;

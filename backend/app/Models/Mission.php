@@ -9,6 +9,7 @@ use App\Enums\CompensationType;
 use App\Enums\MissionGender;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
+use App\Enums\UgcRefundReason;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -43,6 +44,9 @@ use Illuminate\Support\Str;
  * @property int|null $fedapay_transaction_id
  * @property string|null $payment_initiation_key
  * @property \Carbon\CarbonInterface|null $commission_paid_at
+ * @property \Carbon\CarbonInterface|null $commission_refund_requested_at
+ * @property \Carbon\CarbonInterface|null $commission_refunded_at
+ * @property \App\Enums\UgcRefundReason|null $commission_refund_reason
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property int|null $candidatures_count
@@ -143,6 +147,9 @@ class Mission extends Model
         'fedapay_transaction_id',
         'payment_initiation_key',
         'commission_paid_at',
+        'commission_refund_requested_at',
+        'commission_refunded_at',
+        'commission_refund_reason',
     ];
 
     /**
@@ -168,6 +175,9 @@ class Mission extends Model
             'commission_ugc' => 'integer',
             'fedapay_transaction_id' => 'integer',
             'commission_paid_at' => 'datetime',
+            'commission_refund_requested_at' => 'datetime',
+            'commission_refunded_at' => 'datetime',
+            'commission_refund_reason' => UgcRefundReason::class,
         ];
     }
 

@@ -9,6 +9,7 @@ use App\Enums\BookingCancellationReason;
 use App\Enums\BookingStatus;
 use App\Enums\CompensationType;
 use App\Enums\FinancialEventType;
+use App\Enums\UgcRefundReason;
 use App\Events\BookingAccepted;
 use App\Events\BookingCancelled;
 use App\Events\BookingCompleted;
@@ -22,6 +23,7 @@ use App\Models\Booking;
 use App\Models\Face;
 use App\Models\User;
 use App\Services\Ugc\UgcCommissionService;
+use App\Services\Ugc\UgcRefundService;
 use App\ValueObjects\BookingPricing;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -39,6 +41,7 @@ class BookingService
         private readonly WalletService $walletService,
         private readonly FaceEntitlementService $faceEntitlementService,
         private readonly UgcCommissionService $ugcCommissionService,
+        private readonly UgcRefundService $ugcRefundService,
     ) {}
 
     /**
@@ -176,7 +179,12 @@ class BookingService
                 ? BookingStatus::CommissionPaid
                 : BookingStatus::Pending;
 
-            if ($booking->status !== $expectedStatus) {
+            // Re-check sous lock du refund hors-procédure (AC8a/D-2.5.h) : la policy
+            // est évaluée AVANT le lock — un webhook transaction.refunded settled
+            // entre les deux laisserait accepter un deal remboursé.
+            $refundedUgc = $booking->type_contenu === 'UGC' && $booking->commission_refunded_at !== null;
+
+            if ($booking->status !== $expectedStatus || $refundedUgc) {
                 throw ValidationException::withMessages([
                     'status' => ['Ce booking ne peut pas être accepté dans son état actuel.'],
                 ]);
@@ -201,7 +209,9 @@ class BookingService
      */
     public function refuse(Booking $booking, ?string $reason = null): Booking
     {
-        return DB::transaction(function () use ($booking, $reason) {
+        $wasCommissionPaid = false;
+
+        $refused = DB::transaction(function () use ($booking, $reason, &$wasCommissionPaid) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
             // UGC (2.4) : refus possible avant paiement et après (refund = story 2.5).
@@ -215,6 +225,8 @@ class BookingService
                 ]);
             }
 
+            $wasCommissionPaid = $booking->status === BookingStatus::CommissionPaid;
+
             $booking->update([
                 'status' => BookingStatus::Refused,
                 'cancellation_reason' => $reason,
@@ -224,6 +236,14 @@ class BookingService
 
             return $booking->fresh();
         });
+
+        // UGC (2.5) : un refus APRÈS encaissement déclenche la demande de remboursement
+        // (post-commit, no-throw — l'API refuse a déjà réussi). Refus à pending : rien.
+        if ($wasCommissionPaid && $refused->type_contenu === 'UGC') {
+            $this->ugcRefundService->requestRefundForBooking($refused, UgcRefundReason::Refused);
+        }
+
+        return $refused;
     }
 
     /**

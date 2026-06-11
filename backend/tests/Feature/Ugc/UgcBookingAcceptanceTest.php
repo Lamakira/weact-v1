@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Ugc;
 
 use App\Enums\BookingStatus;
+use App\Enums\UgcRefundReason;
 use App\Events\BookingAccepted;
 use App\Events\BookingCommissionPaid;
 use App\Events\BookingRefused;
@@ -166,12 +167,19 @@ class UgcBookingAcceptanceTest extends TestCase
         $booking->refresh();
         $this->assertSame(BookingStatus::Refused, $booking->status);
         $this->assertSame('Pas disponible', $booking->cancellation_reason);
+        // Refus à pending : commission jamais encaissée, aucune demande de remboursement (2.5).
+        $this->assertNull($booking->commission_refund_requested_at);
     }
 
     public function test_face_can_refuse_ugc_booking_at_commission_paid(): void
     {
         Event::fake([BookingRefused::class]);
         $booking = $this->makeUgcBooking(BookingStatus::CommissionPaid);
+        // fedapay_transaction_id : requis par la garde de requestRefundForBooking (2.5) ;
+        // commission_paid_at : vraisemblance du fixture (posé au settlement en prod),
+        // pas exigé par la garde booking. PAS dans le helper partagé :
+        // fedapay_transaction_id est UNIQUE et le helper sert des tests multi-bookings.
+        $booking->update(['fedapay_transaction_id' => 905, 'commission_paid_at' => now()->subHour()]);
 
         $this->actingAs($this->faceUser)
             ->postJson("/api/v1/bookings/{$booking->uuid}/refuse")
@@ -180,8 +188,10 @@ class UgcBookingAcceptanceTest extends TestCase
 
         $booking->refresh();
         $this->assertSame(BookingStatus::Refused, $booking->status);
-        // Trace commission conservée (refund = story 2.5).
+        // Trace commission conservée + demande de remboursement posée (2.5).
         $this->assertNotNull($booking->commission_ugc);
+        $this->assertNotNull($booking->commission_refund_requested_at);
+        $this->assertSame(UgcRefundReason::Refused, $booking->commission_refund_reason);
 
         Event::assertDispatched(BookingRefused::class, fn (BookingRefused $event): bool => $event->booking->id === $booking->id);
     }

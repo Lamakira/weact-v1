@@ -161,7 +161,7 @@ class UgcCommissionPaymentService
                 return $booking; // guard double event
             }
 
-            $booking->update(['status' => BookingStatus::CommissionPaid]);
+            $booking->update(['status' => BookingStatus::CommissionPaid, 'commission_paid_at' => now()]);
             $fresh = $booking->fresh();
 
             $this->recordFinancialEvent(
