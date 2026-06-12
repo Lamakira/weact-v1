@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 /**
  * @property string $uuid
@@ -25,6 +26,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property-read \App\Models\Mission|null $mission
  * @property-read \App\Models\Conversation|null $conversation
  * @property-read \App\Models\MissionPaymentCandidature|null $paymentEntry
+ * @property-read \App\Models\Shipment|null $shipment
  */
 class Candidature extends Model
 {
@@ -99,6 +101,16 @@ class Candidature extends Model
     public function conversation(): HasOne
     {
         return $this->hasOne(Conversation::class);
+    }
+
+    /**
+     * Get the UGC shipment attached to this engaged candidature (tunnel étape 3).
+     *
+     * @return MorphOne<Shipment, $this>
+     */
+    public function shipment(): MorphOne
+    {
+        return $this->morphOne(Shipment::class, 'owner');
     }
 
     /**

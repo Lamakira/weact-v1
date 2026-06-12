@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\Producer\MissionPaymentController;
 use App\Http\Controllers\Api\V1\Producer\ProducerDashboardController;
 use App\Http\Controllers\Api\V1\Producer\ProfileController;
 use App\Http\Controllers\Api\V1\Producer\RatingController;
+use App\Http\Controllers\Api\V1\Producer\UgcShipmentController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -101,6 +102,14 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
     // Candidature action routes
     Route::post('/candidatures/{candidature}/reject', [CandidatureController::class, 'reject'])
         ->middleware('throttle:60,1');
+
+    // UGC shipment confirmation (épic 3 — tunnel étape 3, story 3.1)
+    Route::post('/bookings/{booking}/confirm-shipment', [UgcShipmentController::class, 'confirmForBooking'])
+        ->middleware('throttle:60,1')
+        ->name('producer.bookings.confirm-shipment');
+    Route::post('/candidatures/{candidature}/confirm-shipment', [UgcShipmentController::class, 'confirmForCandidature'])
+        ->middleware('throttle:60,1')
+        ->name('producer.candidatures.confirm-shipment');
 
     // Rating routes - rate Face after completed mission (Producer only)
     Route::post('/candidatures/{candidature}/rate', [RatingController::class, 'store'])

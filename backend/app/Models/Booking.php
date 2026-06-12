@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -52,6 +53,7 @@ use Illuminate\Support\Facades\Auth;
  * @property-read \App\Models\User|null $face
  * @property-read \App\Models\User|null $producer
  * @property-read \App\Models\BookingRating|null $raterBookingRating
+ * @property-read \App\Models\Shipment|null $shipment
  */
 class Booking extends Model
 {
@@ -171,6 +173,16 @@ class Booking extends Model
     public function bookingRatings(): HasMany
     {
         return $this->hasMany(BookingRating::class);
+    }
+
+    /**
+     * Get the UGC shipment attached to this booking (tunnel étape 3).
+     *
+     * @return MorphOne<Shipment, $this>
+     */
+    public function shipment(): MorphOne
+    {
+        return $this->morphOne(Shipment::class, 'owner');
     }
 
     /**

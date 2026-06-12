@@ -57,6 +57,7 @@ enum ErrorCodes: string
     case AlreadyApplied = 'ALREADY_APPLIED';
     case MissionFull = 'MISSION_FULL';
     case AlreadyAccepted = 'ALREADY_ACCEPTED';
+    case AlreadyShipped = 'ALREADY_SHIPPED';
     case GenderMismatch = 'gender_mismatch';
     case PaymentNotConfirmed = 'PAYMENT_NOT_CONFIRMED';
     case NotInFinalSelection = 'NOT_IN_FINAL_SELECTION';

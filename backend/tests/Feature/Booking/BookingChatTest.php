@@ -425,6 +425,103 @@ class BookingChatTest extends TestCase
     }
 
     // ===========================
+    // UGC CHAT (3.1 — chat booking UGC ouvre à Accepted, D-3.1.h)
+    // ===========================
+
+    /**
+     * Booking UGC inline (calque UgcBookingShipmentTest::makeUgcBooking) —
+     * PAS de state factory ugc(), il n'existe pas (defer connu).
+     */
+    private function makeUgcBooking(BookingStatus $status): Booking
+    {
+        return Booking::create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'status' => $status,
+            'accepted_at' => $status === BookingStatus::Accepted ? now() : null,
+            'date_debut' => null,
+            'type_contenu' => 'UGC',
+            'type_compensation' => 'product',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'montant_remuneration' => null,
+            'commission_ugc' => 2500,
+            'commission_paid_at' => now()->subDay(),
+            'tarif_base' => 0,
+            'montant_total_producteur' => 2500,
+            'montant_face_recoit' => 0,
+        ]);
+    }
+
+    public function test_face_can_send_message_in_accepted_ugc_booking(): void
+    {
+        Event::fake([BookingMessageSent::class]);
+
+        $booking = $this->makeUgcBooking(BookingStatus::Accepted);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/messages", [
+                'content' => 'Voici mon adresse de livraison précise.',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.sender_id', $this->faceUser->id);
+
+        Event::assertDispatched(BookingMessageSent::class);
+    }
+
+    public function test_producer_can_send_message_in_accepted_ugc_booking(): void
+    {
+        Event::fake([BookingMessageSent::class]);
+
+        $booking = $this->makeUgcBooking(BookingStatus::Accepted);
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/messages", [
+                'content' => 'Quelle est votre adresse pour la livraison ?',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.sender_id', $this->producerUser->id);
+
+        Event::assertDispatched(BookingMessageSent::class);
+    }
+
+    public function test_ugc_chat_locked_at_commission_paid(): void
+    {
+        // Le chat ouvre à l'acceptation, PAS au paiement (anti-arnaque FR6 :
+        // l'engagement précède la coordination — D-3.1.h).
+        $booking = $this->makeUgcBooking(BookingStatus::CommissionPaid);
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/messages", [
+                'content' => 'Trop tôt — la Face n\'a pas encore accepté.',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}/messages")
+            ->assertForbidden();
+    }
+
+    public function test_parties_can_read_messages_in_completed_ugc_booking(): void
+    {
+        $booking = $this->makeUgcBooking(BookingStatus::Completed);
+
+        BookingMessage::factory()->create([
+            'booking_id' => $booking->id,
+            'sender_id' => $this->faceUser->id,
+        ]);
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}/messages")
+            ->assertOk();
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}/messages")
+            ->assertOk();
+    }
+
+    // ===========================
     // BOOKING MESSAGE SENT EVENT
     // ===========================
 

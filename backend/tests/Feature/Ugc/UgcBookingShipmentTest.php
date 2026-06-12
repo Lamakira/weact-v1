@@ -1,0 +1,368 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature\Ugc;
+
+use App\Enums\BookingStatus;
+use App\Enums\UgcTunnelStatus;
+use App\Events\ShipmentConfirmed;
+use App\Models\Booking;
+use App\Models\Face;
+use App\Models\Notification;
+use App\Models\Producer;
+use App\Models\Shipment;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
+use Tests\TestCase;
+
+/**
+ * UGC 3.1 — POST /api/v1/producer/bookings/{booking}/confirm-shipment :
+ * confirmation d'expédition d'un booking UGC accepté (tunnel étape 3).
+ * Crée le Shipment polymorphe (snapshot destinataire figé), ouvre le
+ * micro-tunnel à `shipped`, idempotent (ALREADY_SHIPPED), gardes refund
+ * propagées (D-2.5.h / action #5 rétro épic 2).
+ */
+class UgcBookingShipmentTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private Producer $producer;
+
+    private User $producerUser;
+
+    private Face $face;
+
+    private User $faceUser;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->producer = Producer::factory()->create();
+        $this->producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $this->producer->id,
+        ]);
+        $this->face = Face::factory()->create([
+            'prenom' => 'Aïcha',
+            'nom' => 'Bello',
+            'ville' => 'Cotonou',
+            'pays' => 'Bénin',
+        ]);
+        $this->faceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $this->face->id,
+        ]);
+    }
+
+    private function makeUgcBooking(BookingStatus $status = BookingStatus::Accepted): Booking
+    {
+        // PAS de fedapay_transaction_id (colonne unique — piège n°3) ; la garde
+        // shipment ne lit que le statut + les colonnes refund.
+        return Booking::create([
+            'face_id' => $this->faceUser->id,        // users.id
+            'producer_id' => $this->producerUser->id, // users.id
+            'status' => $status,
+            'accepted_at' => $status === BookingStatus::Accepted ? now() : null,
+            'date_debut' => null,
+            'type_contenu' => 'UGC',
+            'type_compensation' => 'product',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'montant_remuneration' => null,
+            'commission_ugc' => 2500,
+            'commission_paid_at' => now()->subDay(),
+            // Colonnes NOT NULL sans default (create_bookings_table:23-25) —
+            // obligatoires sinon SQLSTATE « Field 'tarif_base' doesn't have a
+            // default value » (calque UgcBookingAcceptanceTest:77-79).
+            'tarif_base' => 0,
+            'montant_total_producteur' => 2500,
+            'montant_face_recoit' => 0,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function confirmPayload(array $overrides = []): array
+    {
+        return array_merge([
+            'transporteur' => 'Gozem',
+            'numero_suivi' => 'GZM-COT-882194',
+            'note_envoi' => 'Le colis arrive demain entre 14h et 16h.',
+        ], $overrides);
+    }
+
+    // ===================================================================
+    // Happy path (AC3, AC5)
+    // ===================================================================
+
+    public function test_producer_confirms_shipment_on_accepted_ugc_booking(): void
+    {
+        $booking = $this->makeUgcBooking();
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", $this->confirmPayload())
+            ->assertCreated()
+            ->assertJsonPath('message', 'Expédition confirmée')
+            ->assertJsonPath('data.transporteur', 'Gozem')
+            ->assertJsonPath('data.numero_suivi', 'GZM-COT-882194')
+            ->assertJsonPath('data.note_envoi', 'Le colis arrive demain entre 14h et 16h.')
+            ->assertJsonPath('data.tunnel_status', UgcTunnelStatus::Shipped->value)
+            ->assertJsonPath('data.tunnel_status_label', 'Produit expédié')
+            ->assertJsonPath('data.destinataire.nom', 'Aïcha Bello')
+            ->assertJsonPath('data.destinataire.ville', 'Cotonou')
+            ->assertJsonPath('data.destinataire.pays', 'Bénin');
+
+        $this->assertDatabaseHas('shipments', [
+            'owner_type' => Booking::class,
+            'owner_id' => $booking->id,
+            'tunnel_status' => UgcTunnelStatus::Shipped->value,
+        ]);
+
+        $shipment = Shipment::firstOrFail();
+        $this->assertNotNull($shipment->shipped_at);
+        $this->assertNull($shipment->recu_le);
+        $this->assertSame(BookingStatus::Accepted, $booking->fresh()->status); // statut owner inchangé (D-3.1.c)
+    }
+
+    public function test_shipment_snapshot_is_frozen_at_confirmation(): void
+    {
+        $booking = $this->makeUgcBooking();
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", $this->confirmPayload())
+            ->assertCreated();
+
+        $this->face->update(['ville' => 'Porto-Novo']);
+
+        $this->assertDatabaseHas('shipments', [
+            'owner_id' => $booking->id,
+            'destinataire_ville' => 'Cotonou', // snapshot figé (D-3.1.f)
+        ]);
+    }
+
+    public function test_confirm_dispatches_event_and_notifies_face(): void
+    {
+        $booking = $this->makeUgcBooking();
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", $this->confirmPayload())
+            ->assertCreated();
+
+        $notification = Notification::where('user_id', $this->faceUser->id)
+            ->where('type', 'ugc_shipment_confirmed')
+            ->first();
+
+        $this->assertNotNull($notification);
+        $this->assertSame("/face/bookings/{$booking->uuid}", data_get($notification->data, 'url'));
+        $this->assertStringContainsString('Gozem', (string) data_get($notification->data, 'message'));
+        $this->assertStringContainsString('GZM-COT-882194', (string) data_get($notification->data, 'message'));
+    }
+
+    // ===================================================================
+    // Idempotence (AC5)
+    // ===================================================================
+
+    public function test_reconfirm_returns_already_shipped_and_keeps_single_row(): void
+    {
+        $booking = $this->makeUgcBooking();
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", $this->confirmPayload())
+            ->assertCreated();
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", $this->confirmPayload())
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'ALREADY_SHIPPED');
+
+        $this->assertSame(1, Shipment::count());
+        $this->assertSame(1, Notification::where('type', 'ugc_shipment_confirmed')->count());
+    }
+
+    // ===================================================================
+    // Gardes de statut (AC5)
+    // ===================================================================
+
+    public function test_confirm_rejected_at_commission_paid(): void
+    {
+        $booking = $this->makeUgcBooking(BookingStatus::CommissionPaid);
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", $this->confirmPayload())
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'INVALID_STATUS');
+
+        $this->assertSame(0, Shipment::count());
+    }
+
+    public function test_confirm_rejected_at_pending(): void
+    {
+        $booking = $this->makeUgcBooking(BookingStatus::Pending);
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", $this->confirmPayload())
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'INVALID_STATUS');
+
+        $this->assertSame(0, Shipment::count());
+    }
+
+    public function test_confirm_rejected_for_cash_accepted_booking(): void
+    {
+        // Témoin : un booking cash Accepted n'est PAS expédiable.
+        $booking = Booking::factory()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'status' => BookingStatus::Accepted,
+        ]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", $this->confirmPayload())
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'INVALID_STATUS');
+
+        $this->assertSame(0, Shipment::count());
+    }
+
+    // ===================================================================
+    // Gardes refund (AC5 — propagation D-2.5.h, action #5 rétro)
+    // ===================================================================
+
+    public function test_confirm_rejected_when_refund_requested(): void
+    {
+        $booking = $this->makeUgcBooking();
+        $booking->update(['commission_refund_requested_at' => now()]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", $this->confirmPayload());
+
+        $response->assertUnprocessable()
+            ->assertJsonPath('error.code', 'INVALID_STATUS');
+
+        $this->assertStringContainsString('en cours de remboursement', (string) $response->json('error.message'));
+        $this->assertSame(0, Shipment::count());
+    }
+
+    public function test_confirm_rejected_when_refunded_out_of_band(): void
+    {
+        // D-2.5.h : refund réglé hors-procédure, statut resté Accepted.
+        $booking = $this->makeUgcBooking();
+        $booking->update(['commission_refunded_at' => now()]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", $this->confirmPayload())
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'INVALID_STATUS');
+
+        $this->assertSame(0, Shipment::count());
+    }
+
+    // ===================================================================
+    // Autorisation (AC7)
+    // ===================================================================
+
+    public function test_other_producer_gets_403(): void
+    {
+        $booking = $this->makeUgcBooking();
+
+        $otherProducer = Producer::factory()->create();
+        $otherProducerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $otherProducer->id,
+        ]);
+
+        $this->actingAs($otherProducerUser)
+            ->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", $this->confirmPayload())
+            ->assertForbidden();
+
+        $this->assertSame(0, Shipment::count());
+    }
+
+    public function test_face_gets_403(): void
+    {
+        $booking = $this->makeUgcBooking();
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", $this->confirmPayload())
+            ->assertForbidden();
+
+        $this->assertSame(0, Shipment::count());
+    }
+
+    // ===================================================================
+    // Validation (AC4)
+    // ===================================================================
+
+    public function test_transporteur_is_required(): void
+    {
+        $booking = $this->makeUgcBooking();
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", $this->confirmPayload(['transporteur' => null]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['transporteur' => 'Le transporteur est obligatoire.']);
+    }
+
+    public function test_numero_suivi_is_required(): void
+    {
+        $booking = $this->makeUgcBooking();
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", $this->confirmPayload(['numero_suivi' => null]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['numero_suivi' => 'Le numéro de suivi est obligatoire.']);
+    }
+
+    public function test_note_envoi_is_optional(): void
+    {
+        $booking = $this->makeUgcBooking();
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", [
+                'transporteur' => 'DHL',
+                'numero_suivi' => 'DHL-123456',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.note_envoi', null);
+
+        $this->assertDatabaseHas('shipments', [
+            'owner_id' => $booking->id,
+            'note_envoi' => null,
+        ]);
+    }
+
+    // ===================================================================
+    // Exposition resource (AC9) + auth (AC3)
+    // ===================================================================
+
+    public function test_booking_show_exposes_shipment(): void
+    {
+        $booking = $this->makeUgcBooking();
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", $this->confirmPayload())
+            ->assertCreated();
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.shipment.tunnel_status', UgcTunnelStatus::Shipped->value);
+    }
+
+    public function test_unauthenticated_gets_401(): void
+    {
+        Event::fake([ShipmentConfirmed::class]);
+        $booking = $this->makeUgcBooking();
+
+        $this->postJson("/api/v1/producer/bookings/{$booking->uuid}/confirm-shipment", $this->confirmPayload())
+            ->assertUnauthorized();
+
+        Event::assertNotDispatched(ShipmentConfirmed::class);
+    }
+}

@@ -188,6 +188,16 @@ class BookingPolicy
     {
         $isParty = $user->id === $booking->face_id || $user->id === $booking->producer_id;
 
+        // UGC (3.1) : le chat ouvre à l'acceptation — coordination de l'adresse de
+        // livraison avant/pendant l'expédition (ferme le defer 2.4). Lecture
+        // d'historique conservée après clôture (parité cash).
+        if ($booking->type_contenu === 'UGC') {
+            return $isParty && in_array($booking->status, [
+                BookingStatus::Accepted,
+                BookingStatus::Completed,
+            ], true);
+        }
+
         $chatEligibleStatuses = [
             BookingStatus::Paid,
             BookingStatus::ConfirmedByFace,
@@ -205,6 +215,12 @@ class BookingPolicy
     public function sendMessage(User $user, Booking $booking): bool
     {
         $isParty = $user->id === $booking->face_id || $user->id === $booking->producer_id;
+
+        // UGC (3.1) : envoi possible pendant tout le tunnel (le booking reste
+        // Accepted jusqu'à la clôture épic 4 — D-3.1.c).
+        if ($booking->type_contenu === 'UGC') {
+            return $isParty && $booking->status === BookingStatus::Accepted;
+        }
 
         $chatActiveStatuses = [
             BookingStatus::Paid,

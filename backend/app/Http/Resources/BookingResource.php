@@ -51,6 +51,7 @@ class BookingResource extends JsonResource
             'fedapay_transaction_id' => $user && $user->id === $this->producer_id ? $this->fedapay_transaction_id : null,
             'payment_mode' => $this->payment_mode,
             'accepted_at' => $this->accepted_at?->toISOString(),
+            'shipment' => new ShipmentResource($this->whenLoaded('shipment')),
             'face' => new UserResource($this->whenLoaded('face')),
             'producer' => new UserResource($this->whenLoaded('producer')),
             'can_accept' => $user && $user->can('accept', $this->resource),
