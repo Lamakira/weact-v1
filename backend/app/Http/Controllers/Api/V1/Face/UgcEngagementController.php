@@ -12,18 +12,23 @@ use App\Enums\MissionType;
 use App\Events\UgcMissionDealAccepted;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CandidatureResource;
+use App\Http\Resources\ShipmentResource;
 use App\Models\Candidature;
 use App\Models\Conversation;
 use App\Models\Mission;
+use App\Models\Shipment;
 use App\Services\FaceEntitlementService;
+use App\Services\Ugc\UgcShipmentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class UgcEngagementController extends Controller
 {
     public function __construct(
         private readonly FaceEntitlementService $entitlement,
+        private readonly UgcShipmentService $shipmentService,
     ) {}
 
     /**
@@ -183,6 +188,38 @@ class UgcEngagementController extends Controller
             ),
             'already' => response()->json(
                 ErrorCodes::AlreadyAccepted->envelope('Vous avez déjà accepté cette mission.'),
+                422
+            ),
+        };
+    }
+
+    /**
+     * « Produit reçu » (FR6 étape 4, story 3.3) : la Face confirme la
+     * réception — recu_le est figé, le tunnel passe `received`, le chrono
+     * Unboxing démarre (deadline dérivée, D-3.3.a). Pas de gate canAccessUgc :
+     * une Face engagée continue son tunnel (D-3.3.e).
+     */
+    public function confirmReceipt(Shipment $shipment): JsonResponse
+    {
+        Gate::authorize('confirmReceipt', $shipment);
+
+        $result = $this->shipmentService->markReceived($shipment);
+
+        return match ($result['outcome']) {
+            'received' => response()->json([
+                'data' => new ShipmentResource($result['shipment']),
+                'message' => 'Réception confirmée — le chrono Unboxing démarre',
+            ]),
+            'already' => response()->json(
+                ErrorCodes::AlreadyReceived->envelope('La réception de ce produit a déjà été confirmée.'),
+                422
+            ),
+            'refund_in_progress' => response()->json(
+                ErrorCodes::InvalidStatus->envelope('La commission de ce deal est en cours de remboursement — action impossible.'),
+                422
+            ),
+            default => response()->json(
+                ErrorCodes::InvalidStatus->envelope("La réception ne peut pas être confirmée dans l'état actuel de ce deal."),
                 422
             ),
         };

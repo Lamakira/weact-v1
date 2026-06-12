@@ -182,6 +182,10 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
     Route::post('/missions/{mission}/accept', [UgcEngagementController::class, 'accept'])
         ->middleware(['face', 'verified', 'throttle:30,1']);
 
+    // UGC product receipt — la Face confirme la réception, le chrono Unboxing démarre (FR6 étape 4, UGC 3.3)
+    Route::post('/shipments/{shipment}/confirm-receipt', [UgcEngagementController::class, 'confirmReceipt'])
+        ->middleware(['face', 'throttle:30,1']);
+
     // Mission attendance dispute - Face contests being marked absent
     Route::post('/missions/{mission}/dispute-attendance', [MissionAttendanceController::class, 'dispute'])
         ->middleware(['face', 'throttle:30,1']);

@@ -8,6 +8,7 @@ use App\Enums\BookingStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\MissionType;
 use App\Enums\UgcTunnelStatus;
+use App\Events\ProductReceived;
 use App\Events\ShipmentConfirmed;
 use App\Models\Booking;
 use App\Models\Candidature;
@@ -88,6 +89,59 @@ class UgcShipmentService
         // Post-commit : un rollback ne doit pas notifier (D-2.4.f reconduite).
         if ($result['outcome'] === 'confirmed') {
             ShipmentConfirmed::dispatch($result['shipment']);
+        }
+
+        return $result;
+    }
+
+    /**
+     * « Produit reçu » (FR6 étape 4) : fige recu_le (ancre du chrono Unboxing,
+     * dérivé — D-3.3.a) et ouvre `received`. Idempotent sur le FAIT de
+     * réception (recu_le, D-3.3.d) ; gardes owner ré-exécutées sous
+     * transaction (statut + refund — action #5 rétro). Dispatch POST-COMMIT.
+     *
+     * @return array{outcome: string, shipment?: Shipment}
+     */
+    public function markReceived(Shipment $shipment): array
+    {
+        $result = DB::transaction(function () use ($shipment): array {
+            /** @var Shipment $locked */
+            $locked = Shipment::query()->lockForUpdate()->findOrFail($shipment->id);
+
+            // Idempotence sur le FAIT de réception : un second clic ne
+            // réinitialise JAMAIS le chrono, quelle que soit la position du
+            // tunnel (qui avancera aux épics 4-5).
+            if ($locked->recu_le !== null) {
+                return ['outcome' => 'already'];
+            }
+
+            if ($locked->tunnel_status !== UgcTunnelStatus::Shipped) {
+                return ['outcome' => 'invalid_status'];
+            }
+
+            $owner = $locked->owner;
+
+            $guard = match (true) {
+                $owner instanceof Booking => $this->guardBooking($owner),
+                $owner instanceof Candidature => $this->guardCandidature($owner),
+                default => 'invalid_status',
+            };
+
+            if ($guard !== null) {
+                return ['outcome' => $guard];
+            }
+
+            $locked->update([
+                'tunnel_status' => UgcTunnelStatus::Received,
+                'recu_le' => now(),
+            ]);
+
+            return ['outcome' => 'received', 'shipment' => $locked];
+        });
+
+        // Post-commit : un rollback ne doit pas notifier (D-2.4.f reconduite).
+        if ($result['outcome'] === 'received') {
+            ProductReceived::dispatch($result['shipment']);
         }
 
         return $result;

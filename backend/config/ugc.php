@@ -12,4 +12,12 @@ return [
     // commission_paid_at — D-2.5.c). Passé ce délai : expiration + demande de
     // remboursement de la commission Producteur.
     'acceptance_window_days' => 7,
+    // Durées des chronos livrables (FR6/AR11), en jours — déclenchées par
+    // « Produit reçu » (recu_le, story 3.3). `avis` est posé dès maintenant
+    // pour figer le symbole mais n'est consommé qu'à l'épic 4 (la validation
+    // de l'Unboxing démarre le chrono Avis).
+    'deliverable_days' => [
+        'unboxing' => 7,
+        'avis' => 14,
+    ],
 ];

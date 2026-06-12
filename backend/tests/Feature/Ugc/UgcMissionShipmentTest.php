@@ -109,6 +109,23 @@ class UgcMissionShipmentTest extends TestCase
         ], $overrides);
     }
 
+    /**
+     * Shipment `shipped` posé directement : le POST producer confirm-shipment
+     * est déjà couvert par les tests 3.1 — inutile de re-passer par lui.
+     */
+    private function makeShippedShipment(Candidature $owner): Shipment
+    {
+        return $owner->shipment()->create([
+            'transporteur' => 'Gozem',
+            'numero_suivi' => 'GZM-COT-882194',
+            'tunnel_status' => UgcTunnelStatus::Shipped,
+            'shipped_at' => now()->subDay(),
+            'destinataire_nom' => 'Aïcha Bello',
+            'destinataire_ville' => 'Cotonou',
+            'destinataire_pays' => 'Bénin',
+        ]);
+    }
+
     // ===================================================================
     // Happy paths (AC4, AC5, AC6)
     // ===================================================================
@@ -363,5 +380,163 @@ class UgcMissionShipmentTest extends TestCase
             ->getJson("/api/v1/producer/missions/{$mission->uuid}/candidatures")
             ->assertOk()
             ->assertJsonPath('data.0.shipment.numero_suivi', 'GZM-COT-882194');
+    }
+
+    // ===================================================================
+    // UGC 3.3 — POST /api/v1/face/shipments/{shipment}/confirm-receipt :
+    // « Produit reçu » côté candidature (owner = Candidature, faces.id).
+    // ===================================================================
+
+    public function test_face_confirms_receipt_for_candidature_shipment(): void
+    {
+        $mission = $this->makePaidUgcMission();
+        $candidature = $this->makeConfirmedCandidature($mission);
+        $shipment = $this->makeShippedShipment($candidature);
+
+        // Owner candidature : candidatures.face_id = faces.id — la policy
+        // matche via userable_type/userable_id (piège FK n°2).
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertOk()
+            ->assertJsonPath('data.tunnel_status', UgcTunnelStatus::Received->value);
+
+        $shipment->refresh();
+        $this->assertSame(UgcTunnelStatus::Received, $shipment->tunnel_status);
+        $this->assertNotNull($shipment->recu_le);
+        $this->assertSame(CandidatureStatus::Confirmed, $candidature->fresh()->status); // statut owner inchangé
+    }
+
+    public function test_confirm_receipt_notifies_mission_producer(): void
+    {
+        $mission = $this->makePaidUgcMission();
+        $candidature = $this->makeConfirmedCandidature($mission);
+        $shipment = $this->makeShippedShipment($candidature);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertOk();
+
+        // Résolution producers.id → users.id (calque NotifyProducerOnUgcDealAccepted).
+        $notification = Notification::where('user_id', $this->producerUser->id)
+            ->where('type', 'ugc_product_received')
+            ->first();
+
+        $this->assertNotNull($notification);
+        $this->assertSame("/producer/missions/{$mission->uuid}/candidatures", data_get($notification->data, 'url'));
+        $this->assertSame($shipment->uuid, data_get($notification->data, 'shipment_id'));
+    }
+
+    public function test_reconfirm_receipt_returns_already_received(): void
+    {
+        $mission = $this->makePaidUgcMission();
+        $candidature = $this->makeConfirmedCandidature($mission);
+        $shipment = $this->makeShippedShipment($candidature);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertOk();
+
+        $recuLe = $shipment->fresh()->recu_le;
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'ALREADY_RECEIVED');
+
+        $this->assertTrue($shipment->fresh()->recu_le->equalTo($recuLe));
+    }
+
+    public function test_other_face_cannot_confirm_candidature_receipt(): void
+    {
+        $mission = $this->makePaidUgcMission();
+        $candidature = $this->makeConfirmedCandidature($mission);
+        $shipment = $this->makeShippedShipment($candidature);
+
+        $otherFace = Face::factory()->create();
+        $otherFaceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $otherFace->id,
+        ]);
+
+        $this->actingAs($otherFaceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertForbidden();
+
+        $this->assertNull($shipment->fresh()->recu_le);
+    }
+
+    public function test_producer_cannot_confirm_candidature_receipt(): void
+    {
+        $mission = $this->makePaidUgcMission();
+        $candidature = $this->makeConfirmedCandidature($mission);
+        $shipment = $this->makeShippedShipment($candidature);
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertForbidden();
+
+        $this->assertNull($shipment->fresh()->recu_le);
+    }
+
+    public function test_confirm_receipt_rejected_when_mission_refund_requested(): void
+    {
+        $mission = $this->makePaidUgcMission();
+        $candidature = $this->makeConfirmedCandidature($mission);
+        $shipment = $this->makeShippedShipment($candidature);
+        // Refund demandé APRÈS l'expédition (état hors-procédure D-2.5.h).
+        $mission->update(['commission_refund_requested_at' => now()]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt");
+
+        $response->assertUnprocessable()
+            ->assertJsonPath('error.code', 'INVALID_STATUS');
+
+        $this->assertStringContainsString('en cours de remboursement', (string) $response->json('error.message'));
+        $this->assertNull($shipment->fresh()->recu_le);
+    }
+
+    public function test_confirm_receipt_rejected_on_cancelled_candidature(): void
+    {
+        // Garde owner ré-exécutée (D-3.3.f) côté candidature : un statut
+        // non-Confirmed post-ship ne démarre pas de chrono (miroir du test
+        // booking `CancelledByProducer`).
+        $mission = $this->makePaidUgcMission();
+        $candidature = $this->makeConfirmedCandidature($mission);
+        $shipment = $this->makeShippedShipment($candidature);
+        $candidature->update(['status' => CandidatureStatus::Cancelled]);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'INVALID_STATUS');
+
+        $shipment->refresh();
+        $this->assertSame(UgcTunnelStatus::Shipped, $shipment->tunnel_status);
+        $this->assertNull($shipment->recu_le);
+    }
+
+    public function test_face_candidatures_index_exposes_shipment(): void
+    {
+        $mission = $this->makePaidUgcMission();
+        $candidature = $this->makeConfirmedCandidature($mission);
+        $this->makeShippedShipment($candidature);
+
+        $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/candidatures')
+            ->assertOk()
+            ->assertJsonPath('data.0.shipment.numero_suivi', 'GZM-COT-882194');
+    }
+
+    public function test_face_mission_show_exposes_candidature_shipment(): void
+    {
+        $mission = $this->makePaidUgcMission();
+        $candidature = $this->makeConfirmedCandidature($mission);
+        $this->makeShippedShipment($candidature);
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/missions/{$mission->uuid}")
+            ->assertOk()
+            ->assertJsonPath('candidature.shipment.tunnel_status', UgcTunnelStatus::Shipped->value);
     }
 }

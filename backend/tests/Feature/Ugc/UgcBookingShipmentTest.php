@@ -8,6 +8,7 @@ use App\Enums\BookingStatus;
 use App\Enums\UgcTunnelStatus;
 use App\Events\ShipmentConfirmed;
 use App\Models\Booking;
+use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Notification;
 use App\Models\Producer;
@@ -95,6 +96,23 @@ class UgcBookingShipmentTest extends TestCase
             'numero_suivi' => 'GZM-COT-882194',
             'note_envoi' => 'Le colis arrive demain entre 14h et 16h.',
         ], $overrides);
+    }
+
+    /**
+     * Shipment `shipped` posé directement : le POST producer confirm-shipment
+     * est déjà couvert par les tests 3.1 — inutile de re-passer par lui.
+     */
+    private function makeShippedShipment(Booking|Candidature $owner): Shipment
+    {
+        return $owner->shipment()->create([
+            'transporteur' => 'Gozem',
+            'numero_suivi' => 'GZM-COT-882194',
+            'tunnel_status' => UgcTunnelStatus::Shipped,
+            'shipped_at' => now()->subDay(),
+            'destinataire_nom' => 'Aïcha Bello',
+            'destinataire_ville' => 'Cotonou',
+            'destinataire_pays' => 'Bénin',
+        ]);
     }
 
     // ===================================================================
@@ -364,5 +382,191 @@ class UgcBookingShipmentTest extends TestCase
             ->assertUnauthorized();
 
         Event::assertNotDispatched(ShipmentConfirmed::class);
+    }
+
+    // ===================================================================
+    // UGC 3.3 — POST /api/v1/face/shipments/{shipment}/confirm-receipt :
+    // « Produit reçu » — recu_le figé, tunnel `received`, chrono Unboxing.
+    // ===================================================================
+
+    public function test_face_confirms_product_receipt(): void
+    {
+        $booking = $this->makeUgcBooking();
+        $shipment = $this->makeShippedShipment($booking);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertOk()
+            ->assertJsonPath('message', 'Réception confirmée — le chrono Unboxing démarre')
+            ->assertJsonPath('data.tunnel_status', UgcTunnelStatus::Received->value)
+            ->assertJsonPath('data.unboxing_deadline_at', fn ($value) => $value !== null);
+
+        $shipment->refresh();
+        $this->assertSame(UgcTunnelStatus::Received, $shipment->tunnel_status);
+        $this->assertNotNull($shipment->recu_le);
+        $this->assertSame(BookingStatus::Accepted, $booking->fresh()->status); // statut owner inchangé (D-3.1.c reconduite)
+    }
+
+    public function test_confirm_receipt_sets_unboxing_deadline_from_config(): void
+    {
+        $this->freezeTime();
+        config(['ugc.deliverable_days.unboxing' => 3]);
+
+        $booking = $this->makeUgcBooking();
+        $shipment = $this->makeShippedShipment($booking);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertOk()
+            ->assertJsonPath('data.unboxing_deadline_at', now()->addDays(3)->toIso8601String());
+    }
+
+    public function test_confirm_receipt_is_idempotent_and_does_not_reset_chrono(): void
+    {
+        $booking = $this->makeUgcBooking();
+        $shipment = $this->makeShippedShipment($booking);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertOk();
+
+        $recuLe = $shipment->fresh()->recu_le;
+
+        $this->travel(1)->hours();
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'ALREADY_RECEIVED');
+
+        // Le 2ᵉ clic ne réinitialise JAMAIS le chrono (D-3.3.d).
+        $this->assertTrue($shipment->fresh()->recu_le->equalTo($recuLe));
+        $this->assertSame(1, Notification::where('type', 'ugc_product_received')->count());
+    }
+
+    public function test_confirm_receipt_notifies_producer(): void
+    {
+        $booking = $this->makeUgcBooking();
+        $shipment = $this->makeShippedShipment($booking);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertOk();
+
+        $notification = Notification::where('user_id', $this->producerUser->id)
+            ->where('type', 'ugc_product_received')
+            ->first();
+
+        $this->assertNotNull($notification);
+        $this->assertSame("/producer/bookings/{$booking->uuid}", data_get($notification->data, 'url'));
+        $this->assertSame($shipment->uuid, data_get($notification->data, 'shipment_id'));
+        $this->assertStringContainsString('Tenue Shade Fit', (string) data_get($notification->data, 'message'));
+        $this->assertStringContainsString('Aïcha Bello', (string) data_get($notification->data, 'message'));
+    }
+
+    public function test_producer_cannot_confirm_receipt(): void
+    {
+        $booking = $this->makeUgcBooking();
+        $shipment = $this->makeShippedShipment($booking);
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertForbidden();
+
+        $this->assertNull($shipment->fresh()->recu_le);
+    }
+
+    public function test_other_face_cannot_confirm_receipt(): void
+    {
+        $booking = $this->makeUgcBooking();
+        $shipment = $this->makeShippedShipment($booking);
+
+        $otherFace = Face::factory()->create();
+        $otherFaceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $otherFace->id,
+        ]);
+
+        $this->actingAs($otherFaceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertForbidden();
+
+        $this->assertNull($shipment->fresh()->recu_le);
+    }
+
+    public function test_confirm_receipt_rejected_when_refund_requested(): void
+    {
+        $booking = $this->makeUgcBooking();
+        $shipment = $this->makeShippedShipment($booking);
+        // L'expédition a eu lieu AVANT la demande de refund (état hors-procédure D-2.5.h).
+        $booking->update(['commission_refund_requested_at' => now()]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt");
+
+        $response->assertUnprocessable()
+            ->assertJsonPath('error.code', 'INVALID_STATUS');
+
+        $this->assertStringContainsString('en cours de remboursement', (string) $response->json('error.message'));
+        $this->assertNull($shipment->fresh()->recu_le);
+    }
+
+    public function test_confirm_receipt_rejected_on_cancelled_booking(): void
+    {
+        // Garde owner ré-exécutée (D-3.3.f) : un booking annulé après le ship
+        // (defer « cancel UGC-blind ») ne démarre pas de chrono.
+        $booking = $this->makeUgcBooking();
+        $shipment = $this->makeShippedShipment($booking);
+        $booking->update(['status' => BookingStatus::CancelledByProducer]);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'INVALID_STATUS');
+
+        $this->assertSame(UgcTunnelStatus::Shipped, $shipment->fresh()->tunnel_status);
+    }
+
+    public function test_confirm_receipt_rejected_when_shipment_not_shipped(): void
+    {
+        // État défensif fabriqué (review 3.3) : tunnel hors `shipped` avec
+        // recu_le null — la garde tunnel_status rejette AVANT les gardes owner.
+        $booking = $this->makeUgcBooking();
+        $shipment = $this->makeShippedShipment($booking);
+        $shipment->update(['tunnel_status' => UgcTunnelStatus::Suspended]);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'INVALID_STATUS');
+
+        $this->assertNull($shipment->fresh()->recu_le);
+    }
+
+    public function test_booking_show_exposes_receipt_and_unboxing_deadline(): void
+    {
+        $booking = $this->makeUgcBooking();
+        $shipment = $this->makeShippedShipment($booking);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertOk();
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.shipment.recu_le', fn ($value) => $value !== null)
+            ->assertJsonPath('data.shipment.unboxing_deadline_at', fn ($value) => $value !== null);
+    }
+
+    public function test_unauthenticated_confirm_receipt_gets_401(): void
+    {
+        $booking = $this->makeUgcBooking();
+        $shipment = $this->makeShippedShipment($booking);
+
+        $this->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->assertUnauthorized();
+
+        $this->assertNull($shipment->fresh()->recu_le);
     }
 }
