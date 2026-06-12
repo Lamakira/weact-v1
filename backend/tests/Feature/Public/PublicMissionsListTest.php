@@ -429,4 +429,30 @@ class PublicMissionsListTest extends TestCase
             ->assertJsonPath('data.0.titre', 'Mission standard')
             ->assertJsonPath('meta.total', 1);
     }
+
+    // ─── Filtre producteur is_active (témoin du refactor story 3.0) ──
+
+    public function test_public_listing_excludes_inactive_producer_missions(): void
+    {
+        $visibleMission = $this->createPublishedMission(['titre' => 'Mission visible']);
+
+        $inactiveProducer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $inactiveProducer->id,
+            'is_active' => false,
+        ]);
+        $this->createPublishedMission([
+            'producer' => $inactiveProducer,
+            'titre' => 'Mission masquée',
+        ]);
+
+        $response = $this->getJson('/api/v1/public/missions');
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $visibleMission->uuid)
+            ->assertJsonPath('data.0.titre', 'Mission visible')
+            ->assertJsonPath('meta.total', 1);
+    }
 }

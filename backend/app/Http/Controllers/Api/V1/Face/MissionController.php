@@ -42,6 +42,12 @@ class MissionController extends Controller
             abort(404);
         }
 
+        // is_active (3.0) : mission d'un producteur désactivé invisible — sauf
+        // candidature existante (suivi d'engagement, parité exception ci-dessus).
+        if (! $candidature && ! $mission->hasActiveProducer()) {
+            abort(404);
+        }
+
         // Gate UGC (FR5) : détail réservé aux Faces abonnées, sauf candidature existante
         if ($mission->type_mission === MissionType::Ugc
             && ! $candidature
@@ -70,6 +76,7 @@ class MissionController extends Controller
     {
         $missions = Mission::where('status', MissionStatus::Published)
             ->where('type_mission', '!=', MissionType::Ugc->value)
+            ->whereProducerActive()
             ->when($request->lieu, function ($q, $lieu) {
                 // Escape LIKE wildcards to prevent pattern injection
                 $escaped = str_replace(['%', '_'], ['\%', '\_'], $lieu);

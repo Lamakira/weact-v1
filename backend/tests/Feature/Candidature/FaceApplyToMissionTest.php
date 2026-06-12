@@ -37,6 +37,11 @@ class FaceApplyToMissionTest extends TestCase
         $this->publishedMission = Mission::factory()->published()->forAll()->create([
             'date_limite_candidature' => now()->addDays(7),
         ]);
+        // is_active (3.0) : la garde apply exige un producteur avec User actif
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $this->publishedMission->producer_id,
+        ]);
     }
 
     public function test_face_can_apply_to_published_mission_with_motivation(): void
@@ -169,6 +174,10 @@ class FaceApplyToMissionTest extends TestCase
     {
         $expiredMission = Mission::factory()->published()->create([
             'date_limite_candidature' => now()->subDays(1),
+        ]);
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $expiredMission->producer_id,
         ]);
 
         $response = $this->actingAs($this->faceUser)
@@ -361,6 +370,10 @@ class FaceApplyToMissionTest extends TestCase
     private function makePublishedUgcMission(): Mission
     {
         $producer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
 
         return $producer->missions()->create([
             'titre' => 'Appel UGC — Unboxing',
@@ -441,5 +454,31 @@ class FaceApplyToMissionTest extends TestCase
             'mission_id' => $ugcMission->id,
             'status' => 'pending',
         ]);
+    }
+
+    // ===================================================================
+    // Garde producteur is_active (story 3.0)
+    // ===================================================================
+
+    public function test_face_cannot_apply_to_mission_of_inactive_producer(): void
+    {
+        $inactiveProducer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $inactiveProducer->id,
+            'is_active' => false,
+        ]);
+        $hiddenMission = Mission::factory()->published()->create([
+            'producer_id' => $inactiveProducer->id,
+            'date_limite_candidature' => now()->addDays(7),
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/missions/{$hiddenMission->uuid}/apply", [
+                'message_motivation' => 'Très motivé',
+            ]);
+
+        $response->assertStatus(404);
+        $this->assertSame(0, Candidature::count());
     }
 }

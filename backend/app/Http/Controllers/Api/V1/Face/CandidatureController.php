@@ -75,6 +75,11 @@ class CandidatureController extends Controller
             abort(404);
         }
 
+        // is_active (3.0) : pas de nouvelle candidature vers un producteur désactivé.
+        if (! $mission->hasActiveProducer()) {
+            abort(404);
+        }
+
         // Check mission is accepting candidatures (published + deadline not passed)
         if (! $mission->isAcceptingCandidatures()) {
             return response()->json([

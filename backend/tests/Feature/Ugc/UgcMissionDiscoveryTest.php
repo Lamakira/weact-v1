@@ -53,9 +53,9 @@ class UgcMissionDiscoveryTest extends TestCase
      *
      * @param  array<string, mixed>  $overrides
      */
-    private function makePublishedUgcMission(array $overrides = []): Mission
+    private function makePublishedUgcMission(array $overrides = [], ?Producer $producer = null): Mission
     {
-        return $this->producer->missions()->create(array_merge([
+        return ($producer ?? $this->producer)->missions()->create(array_merge([
             'titre' => 'Appel UGC — Unboxing',
             'description' => 'desc',
             'date_tournage' => now()->addMonth(),
@@ -255,6 +255,57 @@ class UgcMissionDiscoveryTest extends TestCase
             ->assertJsonPath('meta.can_access_ugc', false)
             ->assertJsonPath('meta.paywall.code', 'UGC_SUBSCRIPTION_REQUIRED');
         $this->assertArrayNotHasKey('description', $response->json('data.0'));
+    }
+
+    // ===================================================================
+    // Filtre producteur is_active (story 3.0)
+    // ===================================================================
+
+    public function test_ugc_missions_from_inactive_producer_are_excluded(): void
+    {
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        $visible = $this->makePublishedUgcMission(['titre' => 'Appel UGC visible']);
+
+        $inactiveProducer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $inactiveProducer->id,
+            'is_active' => false,
+        ]);
+        $this->makePublishedUgcMission(['titre' => 'Appel UGC masqué'], $inactiveProducer);
+
+        $response = $this->actingAs($this->faceUser)->getJson('/api/v1/face/ugc/missions');
+
+        $response->assertStatus(200)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $visible->uuid)
+            ->assertJsonPath('data.0.titre', 'Appel UGC visible')
+            // Le teaser expose aussi id+titre : seul meta.can_access_ugc
+            // prouve que ce test exerce bien la branche éligible (review 3.0).
+            ->assertJsonPath('meta.can_access_ugc', true);
+    }
+
+    public function test_teaser_list_excludes_inactive_producer_missions(): void
+    {
+        // Face free : le filtre s'applique au niveau query, donc la branche
+        // teaser paywall est couverte au même titre que la branche éligible.
+        $visible = $this->makePublishedUgcMission(['titre' => 'Appel UGC visible']);
+
+        $inactiveProducer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $inactiveProducer->id,
+            'is_active' => false,
+        ]);
+        $this->makePublishedUgcMission(['titre' => 'Appel UGC masqué'], $inactiveProducer);
+
+        $response = $this->actingAs($this->faceUser)->getJson('/api/v1/face/ugc/missions');
+
+        $response->assertStatus(200)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('meta.can_access_ugc', false)
+            ->assertJsonPath('data.0.id', $visible->uuid)
+            ->assertJsonPath('data.0.titre', 'Appel UGC visible');
     }
 
     // ===================================================================

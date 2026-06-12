@@ -189,6 +189,10 @@ class FaceViewMissionDetailTest extends TestCase
             'type' => 'agency',
             'agency_name' => 'Studio XYZ',
         ]);
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
 
         $mission = Mission::factory()->create([
             'producer_id' => $producer->id,
@@ -296,6 +300,10 @@ class FaceViewMissionDetailTest extends TestCase
             'type' => 'agency',
             'agency_name' => 'Rated Studio',
         ]);
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
 
         $mission = Mission::factory()->create([
             'producer_id' => $producer->id,
@@ -338,6 +346,10 @@ class FaceViewMissionDetailTest extends TestCase
     public function test_producer_with_no_ratings_returns_null_in_detail(): void
     {
         $producer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
 
         $mission = Mission::factory()->create([
             'producer_id' => $producer->id,
@@ -425,5 +437,50 @@ class FaceViewMissionDetailTest extends TestCase
             ->getJson("/api/v1/face/missions/{$mission->uuid}")
             ->assertStatus(200)
             ->assertJsonPath('data.id', $mission->uuid);
+    }
+
+    // ─── Garde producteur is_active (story 3.0) ──────────────────────
+
+    public function test_mission_detail_of_inactive_producer_returns_404(): void
+    {
+        $inactiveProducer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $inactiveProducer->id,
+            'is_active' => false,
+        ]);
+        $hiddenMission = Mission::factory()->create([
+            'producer_id' => $inactiveProducer->id,
+            'status' => MissionStatus::Published,
+        ]);
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/missions/{$hiddenMission->uuid}")
+            ->assertStatus(404);
+    }
+
+    public function test_face_with_candidature_can_view_mission_detail_of_inactive_producer(): void
+    {
+        // L'exception candidature prime (D-3.0.a) : une Face engagée continue
+        // de suivre sa mission même si le producteur a été désactivé.
+        $inactiveProducer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $inactiveProducer->id,
+            'is_active' => false,
+        ]);
+        $hiddenMission = Mission::factory()->create([
+            'producer_id' => $inactiveProducer->id,
+            'status' => MissionStatus::Published,
+        ]);
+        Candidature::create([
+            'face_id' => $this->face->id,
+            'mission_id' => $hiddenMission->id,
+        ]);
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/missions/{$hiddenMission->uuid}")
+            ->assertStatus(200)
+            ->assertJsonPath('data.id', $hiddenMission->uuid);
     }
 }

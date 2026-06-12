@@ -378,4 +378,21 @@ class PublicMissionDetailTest extends TestCase
             ->assertStatus(404)
             ->assertJsonPath('error.code', 'MISSION_NOT_FOUND');
     }
+
+    // ─── Filtre producteur is_active (témoin du refactor story 3.0) ──
+
+    public function test_public_detail_of_inactive_producer_returns_404(): void
+    {
+        $inactiveProducer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $inactiveProducer->id,
+            'is_active' => false,
+        ]);
+        $hiddenMission = $this->createPublishedMission(['producer' => $inactiveProducer]);
+
+        $this->getJson("/api/v1/public/missions/{$hiddenMission->slug}")
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 'MISSION_NOT_FOUND');
+    }
 }

@@ -190,6 +190,10 @@ class FaceBrowseMissionsTest extends TestCase
             'type' => 'agency',
             'agency_name' => 'Studio XYZ',
         ]);
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
 
         Mission::factory()->create([
             'producer_id' => $producer->id,
@@ -608,6 +612,10 @@ class FaceBrowseMissionsTest extends TestCase
             'type' => 'agency',
             'agency_name' => 'Rated Studio',
         ]);
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
 
         Mission::factory()->create([
             'producer_id' => $producer->id,
@@ -652,6 +660,10 @@ class FaceBrowseMissionsTest extends TestCase
         $producer = Producer::factory()->create([
             'type' => 'particulier',
         ]);
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
 
         Mission::factory()->create([
             'producer_id' => $producer->id,
@@ -669,6 +681,10 @@ class FaceBrowseMissionsTest extends TestCase
     public function test_producer_with_single_rating_returns_correct_values(): void
     {
         $producer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
 
         Mission::factory()->create([
             'producer_id' => $producer->id,
@@ -749,5 +765,57 @@ class FaceBrowseMissionsTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonCount(0, 'data');
+    }
+
+    // ─── Filtre producteur is_active (story 3.0) ─────────────────────
+
+    public function test_missions_from_inactive_producer_are_excluded(): void
+    {
+        $visibleMission = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Published,
+        ]);
+
+        $inactiveProducer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $inactiveProducer->id,
+            'is_active' => false,
+        ]);
+        Mission::factory()->create([
+            'producer_id' => $inactiveProducer->id,
+            'status' => MissionStatus::Published,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/missions');
+
+        $response->assertStatus(200)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $visibleMission->uuid);
+    }
+
+    public function test_missions_from_producer_without_user_are_excluded(): void
+    {
+        // Témoin (review 3.0) : le scope exclut aussi les producteurs sans
+        // AUCUNE ligne User — l'invariant prod « tout producteur a un User »
+        // n'est pas garanti par la factory (Producer::factory() seul = orphelin).
+        $visibleMission = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Published,
+        ]);
+
+        $orphanProducer = Producer::factory()->create();
+        Mission::factory()->create([
+            'producer_id' => $orphanProducer->id,
+            'status' => MissionStatus::Published,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/missions');
+
+        $response->assertStatus(200)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $visibleMission->uuid);
     }
 }

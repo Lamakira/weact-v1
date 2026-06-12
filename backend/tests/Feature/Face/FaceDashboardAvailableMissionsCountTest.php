@@ -191,6 +191,10 @@ class FaceDashboardAvailableMissionsCountTest extends TestCase
     {
         // Create a second producer
         $producer2 = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer2->id,
+        ]);
 
         // Create missions from different producers
         Mission::factory()
@@ -256,6 +260,41 @@ class FaceDashboardAvailableMissionsCountTest extends TestCase
         $response->assertOk()
             ->assertJson([
                 'data' => ['count' => 1], // La mission UGC n'est pas comptée
+            ]);
+    }
+
+    // ─── Filtre producteur is_active (story 3.0) ─────────────────────
+
+    public function test_excludes_missions_from_inactive_producer(): void
+    {
+        // Le badge compte ce que le listing affiche (D-3.0.e) : la mission
+        // d'un producteur désactivé ne doit pas gonfler le count.
+        Mission::factory()
+            ->for($this->producer)
+            ->create([
+                'status' => MissionStatus::Published,
+                'date_limite_candidature' => Carbon::today()->addDays(7),
+            ]);
+
+        $inactiveProducer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $inactiveProducer->id,
+            'is_active' => false,
+        ]);
+        Mission::factory()
+            ->for($inactiveProducer)
+            ->create([
+                'status' => MissionStatus::Published,
+                'date_limite_candidature' => Carbon::today()->addDays(7),
+            ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/dashboard/available-missions-count');
+
+        $response->assertOk()
+            ->assertJson([
+                'data' => ['count' => 1], // Seule la mission du producteur actif
             ]);
     }
 }

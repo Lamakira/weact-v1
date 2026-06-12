@@ -263,12 +263,36 @@ class Mission extends Model
     }
 
     /**
+     * Scope : missions dont le Producteur a un compte User actif.
+     * Symbole partagé UNIQUE du filtre is_active (story 3.0) — toute surface
+     * de découverte Face/Public passe par ce scope, jamais de whereHas inline.
+     */
+    public function scopeWhereProducerActive(Builder $query): Builder
+    {
+        return $query->whereHas('producer', fn ($q) => $q
+            ->whereHas('user', fn ($u) => $u->where('is_active', true))
+        );
+    }
+
+    /**
      * Check if the mission is currently accepting candidatures.
      */
     public function isAcceptingCandidatures(): bool
     {
         return $this->status === MissionStatus::Published
             && $this->date_limite_candidature >= now()->toDateString();
+    }
+
+    /**
+     * Le Producteur propriétaire est-il actif ? (gardes détail/apply, story 3.0)
+     * Query dédiée — ne PAS loadMissing('producer.user') : ProducerResource
+     * exposerait is_active via whenLoaded('user') (contrat API, D-3.0.d).
+     */
+    public function hasActiveProducer(): bool
+    {
+        return $this->producer()
+            ->whereHas('user', fn ($u) => $u->where('is_active', true))
+            ->exists();
     }
 
     /**

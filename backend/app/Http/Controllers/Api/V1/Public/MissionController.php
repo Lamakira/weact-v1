@@ -24,9 +24,7 @@ class MissionController extends Controller
         return Mission::query()
             ->where('status', MissionStatus::Published)
             ->where('type_mission', '!=', MissionType::Ugc->value)
-            ->whereHas('producer', fn ($q) => $q
-                ->whereHas('user', fn ($u) => $u->where('is_active', true))
-            )
+            ->whereProducerActive() // ← remplace le whereHas inline (même SQL, story 3.0)
             ->with(['producer' => fn ($q) => $q
                 ->withAvg('ratingsReceived', 'score')
                 ->withCount('ratingsReceived'),
