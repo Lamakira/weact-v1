@@ -93,6 +93,24 @@ vi.mock('@/features/candidature/composables', () => ({
   }),
 }))
 
+// Mock useUgcShipment (3.4) — spies hissés, reset dans beforeEach (hygiène mocks 3.2)
+const mockIsSubmittingReceipt = ref(false)
+const mockReceiptError = ref<string | null>(null)
+const mockReceiptErrorCode = ref<string | null>(null)
+const mockConfirmShipment = vi.fn()
+const mockConfirmReceipt = vi.fn()
+
+vi.mock('@/composables/useUgcShipment', () => ({
+  useUgcShipment: () => ({
+    isSubmitting: mockIsSubmittingReceipt,
+    error: mockReceiptError,
+    errorCode: mockReceiptErrorCode,
+    confirmShipment: mockConfirmShipment,
+    confirmReceipt: mockConfirmReceipt,
+    clearError: vi.fn(),
+  }),
+}))
+
 // Factory for creating test mission data
 function createMission(overrides: Partial<Mission> = {}): Mission {
   return {
@@ -197,6 +215,11 @@ describe('FaceMissionDetailPage', () => {
     mockToast.error.mockClear()
     mockToast.warning.mockClear()
     mockToast.info.mockClear()
+    mockIsSubmittingReceipt.value = false
+    mockReceiptError.value = null
+    mockReceiptErrorCode.value = null
+    mockConfirmShipment.mockReset()
+    mockConfirmReceipt.mockReset()
   })
 
   describe('producer rating display', () => {
@@ -997,6 +1020,195 @@ describe('FaceMissionDetailPage', () => {
 
       expect(mockToast.error).toHaveBeenCalledWith('Toutes les places de cette mission sont déjà pourvues.')
       expect(mockFetchMission).toHaveBeenCalledWith('1')
+    })
+  })
+
+  describe('carte de suivi Face & réception (story 3.4)', () => {
+    function makeShipment(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+      return {
+        id: 'shipment-uuid-1',
+        transporteur: 'Gozem',
+        numero_suivi: 'GZM-COT-882194',
+        note_envoi: null,
+        tunnel_status: 'shipped',
+        tunnel_status_label: 'Produit expédié',
+        shipped_at: '2026-06-12T10:00:00+00:00',
+        recu_le: null,
+        unboxing_deadline_at: null,
+        destinataire: { nom: 'Aïcha Bello', ville: 'Cotonou', pays: 'Bénin' },
+        created_at: '2026-06-12T10:00:00+00:00',
+        ...overrides,
+      }
+    }
+
+    function makeEngagedCandidature(overrides: Partial<MissionCandidature> = {}): MissionCandidature {
+      return {
+        id: 'candidature-1',
+        mission_id: 'mission-uuid-1',
+        face_id: 'face-1',
+        status: 'confirmed',
+        status_label: 'Confirmée',
+        message_motivation: null,
+        created_at: '2026-06-11T10:00:00Z',
+        updated_at: '2026-06-11T10:00:00Z',
+        ...overrides,
+      }
+    }
+
+    function mountTrackingPage() {
+      return mount(FaceMissionDetailPage, {
+        global: {
+          plugins: [
+            createTestingPinia({
+              initialState: {
+                auth: {
+                  user: {
+                    id: 1,
+                    email: 'face@test.com',
+                    email_verified: true,
+                    email_verified_at: '2026-01-01',
+                    userable_type: 'Face',
+                    userable: { sexe: 'femme' },
+                  },
+                  token: 'fake-token',
+                },
+              },
+              stubActions: false,
+            }),
+          ],
+          stubs: {
+            ApplyToMissionModal: true,
+            UgcEngagementModal: true,
+            RatingDisplay: true,
+            UgcFaceTrackingCard: {
+              props: ['shipment', 'current', 'isSubmitting'],
+              emits: ['confirm-receipt'],
+              template:
+                '<button data-testid="face-tracking-card-stub" :data-current="current" @click="$emit(\'confirm-receipt\')"/>',
+            },
+            ConfirmModal: {
+              props: ['isOpen'],
+              emits: ['confirm', 'cancel'],
+              template: '<button v-if="isOpen" data-testid="receipt-modal-confirm" @click="$emit(\'confirm\')"/>',
+            },
+            RouterLink: {
+              template: '<a><slot /></a>',
+              props: ['to'],
+            },
+          },
+        },
+      })
+    }
+
+    it('shows the Face tracking card instead of the engaged banner once shipped', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+      mockCandidature.value = makeEngagedCandidature({
+        shipment: makeShipment() as unknown as MissionCandidature['shipment'],
+      })
+
+      const wrapper = mountTrackingPage()
+      await flushPromises()
+
+      const card = wrapper.find('[data-testid="face-tracking-card-stub"]')
+      expect(card.exists()).toBe(true)
+      // Step dérivé par ugcCandidatureTunnelStep : shipped → 4.
+      expect(card.attributes('data-current')).toBe('4')
+      expect(wrapper.find('[data-testid="ugc-engaged-banner"]').exists()).toBe(false)
+    })
+
+    it('keeps the engaged banner while the candidature has no shipment', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+      mockCandidature.value = makeEngagedCandidature()
+
+      const wrapper = mountTrackingPage()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="ugc-engaged-banner"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="face-tracking-card-stub"]').exists()).toBe(false)
+    })
+
+    it('confirms the receipt and applies the shipment to the candidature locally', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+      mockCandidature.value = makeEngagedCandidature({
+        shipment: makeShipment() as unknown as MissionCandidature['shipment'],
+      })
+      const receivedShipment = makeShipment({
+        tunnel_status: 'received',
+        tunnel_status_label: 'Produit reçu',
+        recu_le: '2026-06-12T12:00:00+00:00',
+        unboxing_deadline_at: '2026-06-19T12:00:00+00:00',
+      })
+      mockConfirmReceipt.mockResolvedValue(receivedShipment)
+
+      const wrapper = mountTrackingPage()
+      await flushPromises()
+      mockFetchMission.mockClear()
+
+      // Le CTA de la carte ouvre la modal — pas de POST direct (D-3.4.c).
+      await wrapper.find('[data-testid="face-tracking-card-stub"]').trigger('click')
+      expect(mockConfirmReceipt).not.toHaveBeenCalled()
+
+      await wrapper.find('[data-testid="receipt-modal-confirm"]').trigger('click')
+      await flushPromises()
+
+      expect(mockConfirmReceipt).toHaveBeenCalledWith('shipment-uuid-1')
+      // Assignation locale via le setter existant — pas de refetch (D-3.4.d).
+      expect(mockSetCandidature).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'candidature-1', shipment: receivedShipment }),
+      )
+      expect(mockFetchMission).not.toHaveBeenCalled()
+      expect(mockToast.success).toHaveBeenCalledWith('Réception confirmée — le chrono Unboxing démarre')
+    })
+
+    it('refetches the mission when receipt fails with ALREADY_RECEIVED', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+      mockCandidature.value = makeEngagedCandidature({
+        shipment: makeShipment() as unknown as MissionCandidature['shipment'],
+      })
+      mockConfirmReceipt.mockImplementation(async () => {
+        mockReceiptError.value = 'La réception de ce produit a déjà été confirmée.'
+        mockReceiptErrorCode.value = 'ALREADY_RECEIVED'
+        return null
+      })
+
+      const wrapper = mountTrackingPage()
+      await flushPromises()
+      mockFetchMission.mockClear()
+
+      await wrapper.find('[data-testid="face-tracking-card-stub"]').trigger('click')
+      await wrapper.find('[data-testid="receipt-modal-confirm"]').trigger('click')
+      await flushPromises()
+
+      expect(mockToast.info).toHaveBeenCalledWith('La réception de ce produit a déjà été confirmée.')
+      expect(mockFetchMission).toHaveBeenCalledWith('1')
+      expect(mockSetCandidature).not.toHaveBeenCalled()
+    })
+
+    it('shows an error toast when receipt fails with another error', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+      mockCandidature.value = makeEngagedCandidature({
+        shipment: makeShipment() as unknown as MissionCandidature['shipment'],
+      })
+      mockConfirmReceipt.mockImplementation(async () => {
+        mockReceiptError.value = 'La commission de ce deal est en cours de remboursement — action impossible.'
+        mockReceiptErrorCode.value = 'INVALID_STATUS'
+        return null
+      })
+
+      const wrapper = mountTrackingPage()
+      await flushPromises()
+      mockFetchMission.mockClear()
+
+      await wrapper.find('[data-testid="face-tracking-card-stub"]').trigger('click')
+      await wrapper.find('[data-testid="receipt-modal-confirm"]').trigger('click')
+      await flushPromises()
+
+      expect(mockToast.error).toHaveBeenCalledWith(
+        'La commission de ce deal est en cours de remboursement — action impossible.',
+      )
+      // Pas de refetch ni d'assignation locale hors ALREADY_RECEIVED.
+      expect(mockFetchMission).not.toHaveBeenCalled()
+      expect(mockSetCandidature).not.toHaveBeenCalled()
     })
   })
 

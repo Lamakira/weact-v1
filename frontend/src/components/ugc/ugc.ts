@@ -12,6 +12,11 @@ export const UGC_COMMISSION_RATE = 0.1
 export const UGC_COMMISSION_FLOOR = 2500
 export const UGC_PRODUCT_ONLY_VIDEO_COUNT = 2
 
+/** Miroir de backend/config/ugc.php `deliverable_days.unboxing` — copy statique
+ *  uniquement (« 7 jours ») : la deadline affichée vient TOUJOURS du serveur
+ *  (`unboxing_deadline_at`), jamais d'un calcul front (NFR3, D-3.4.i). */
+export const UGC_UNBOXING_DAYS = 7
+
 export type UgcCompensationType = 'product' | 'hybrid'
 
 /** Commission WeAct (live preview ; le serveur reste autoritatif). */
@@ -48,6 +53,8 @@ export interface Shipment {
   tunnel_status_label: string
   shipped_at: string
   recu_le: string | null
+  /** Échéance Unboxing dérivée serveur (recu_le + config) — null avant réception (3.3 AC7). */
+  unboxing_deadline_at: string | null
   destinataire: {
     nom: string
     ville: string | null
@@ -114,6 +121,26 @@ export function tunnelStatusToPillKind(status: string): StatusPillKind {
 }
 
 /**
+ * Branche shipment commune aux deux helpers de step (une seule table de
+ * mapping). Inconnu → 4 (post-expédition, jamais < 4) — cases réservés 4-5.
+ */
+function shipmentTunnelStep(shipment: Shipment): number {
+  switch (shipment.tunnel_status) {
+    case 'shipped':
+      return 4
+    case 'received':
+    case 'unboxing_in_review':
+      return 5
+    case 'avis_in_review':
+      return 6
+    case 'completed':
+      return 7
+    default:
+      return 4
+  }
+}
+
+/**
  * Étape courante (1-6) de la timeline UGC ; 7 = tunnel terminé, 0 = neutre
  * (deal mort : refusé/expiré/annulé — la carte « raison » couvre déjà).
  * L'amont se lit sur le statut booking, l'aval sur shipment.tunnel_status
@@ -121,19 +148,7 @@ export function tunnelStatusToPillKind(status: string): StatusPillKind {
  */
 export function ugcTunnelStep(bookingStatus: string, shipment?: Shipment | null): number {
   if (shipment) {
-    switch (shipment.tunnel_status) {
-      case 'shipped':
-        return 4
-      case 'received':
-      case 'unboxing_in_review':
-        return 5
-      case 'avis_in_review':
-        return 6
-      case 'completed':
-        return 7
-      default:
-        return 4
-    }
+    return shipmentTunnelStep(shipment)
   }
 
   switch (bookingStatus) {
@@ -142,6 +157,32 @@ export function ugcTunnelStep(bookingStatus: string, shipment?: Shipment | null)
     case 'commission_paid':
       return 2
     case 'accepted':
+      return 3
+    case 'completed':
+      return 7
+    default:
+      return 0
+  }
+}
+
+/**
+ * Étape timeline UGC d'une CANDIDATURE (mission UGC, story 3.4). L'amont se lit
+ * sur le statut candidature (la commission mission est payée AU PUBLISH → une
+ * candidature vivante est au moins à l'étape 2), l'aval sur le shipment.
+ * 0 = neutre (rejetée/annulée/inconnue). Ne PAS détourner ugcTunnelStep pour
+ * une candidature (statuts amont différents — note 3.2 reconduite).
+ */
+export function ugcCandidatureTunnelStep(candidatureStatus: string, shipment?: Shipment | null): number {
+  if (shipment) {
+    return shipmentTunnelStep(shipment)
+  }
+
+  switch (candidatureStatus) {
+    case 'pending':
+    case 'accepted':
+      return 2
+    case 'confirmed':
+    case 'in_progress':
       return 3
     case 'completed':
       return 7

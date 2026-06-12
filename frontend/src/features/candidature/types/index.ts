@@ -88,6 +88,8 @@ export interface FaceCandidature {
   mission: MissionSummary
   producer: ProducerSummary
   conversation_id: string | null
+  /** Expédition UGC (whenLoaded — clé OMISE hors deal UGC expédié, 3.3 AC8). */
+  shipment?: Shipment
 }
 
 // Paginated candidatures response for Face list view

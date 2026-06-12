@@ -26,11 +26,12 @@ import { formatMissionDurationForDisplay } from '@/features/mission/constants/mi
 import { ApplyToMissionModal } from '@/features/candidature/components'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
-import { UgcEngagementModal } from '@/components/ugc'
+import { UgcEngagementModal, UgcFaceTrackingCard, ugcCandidatureTunnelStep, UGC_UNBOXING_DAYS } from '@/components/ugc'
 import { useCancelCandidature, useAcceptUgcDeal } from '@/features/candidature/composables'
 import { authApi } from '@/features/auth/services/authApi'
 import type { Face } from '@/features/auth/types'
 import { useToast } from '@/composables/useToast'
+import { useUgcShipment } from '@/composables/useUgcShipment'
 
 /**
  * LOGIC & STATE MANAGEMENT
@@ -86,6 +87,23 @@ const {
 const ugcEngaged = computed(() =>
   isUgc.value && ['confirmed', 'in_progress', 'completed'].includes(candidature.value?.status ?? ''),
 )
+
+// Carte de suivi Face (3.4) — remplace le bandeau engagé dès qu'un shipment existe (D-3.4.f).
+const candidatureShipment = computed(() => candidature.value?.shipment ?? null)
+const showFaceTrackingCard = computed(() => ugcEngaged.value && candidatureShipment.value !== null)
+const ugcTrackingStep = computed(() =>
+  ugcCandidatureTunnelStep(candidature.value?.status ?? '', candidatureShipment.value),
+)
+
+const showReceiptModal = ref(false)
+const receiptModalMessage = `Le chrono Unboxing (${UGC_UNBOXING_DAYS} jours) démarre dès la confirmation — cette action est définitive.`
+
+const {
+  isSubmitting: isSubmittingReceipt,
+  error: receiptError,
+  errorCode: receiptErrorCode,
+  confirmReceipt,
+} = useUgcShipment()
 
 // CTA sticky : UGC publié acceptant les candidatures, sans candidature ou avec candidature pending.
 const canAcceptUgc = computed(() =>
@@ -295,6 +313,34 @@ async function handleCancelConfirm(): Promise<void> {
   }
 
   resetCancel()
+}
+
+/**
+ * UGC RECEIPT CONFIRMATION (3.4)
+ */
+async function handleConfirmReceipt(): Promise<void> {
+  showReceiptModal.value = false
+  const shipment = candidatureShipment.value
+  if (!shipment || !candidature.value) return
+
+  const updated = await confirmReceipt(shipment.id)
+  if (updated) {
+    // Assignation locale via le setter existant (D-3.4.d) — le statut candidature ne bouge pas.
+    // Snapshot relu après l'await : la ref peut avoir été remplacée/vidée pendant la requête.
+    const current = candidature.value
+    if (current) setCandidature({ ...current, shipment: updated })
+    toast.success('Réception confirmée — le chrono Unboxing démarre')
+    return
+  }
+
+  if (receiptErrorCode.value === 'ALREADY_RECEIVED') {
+    // Multi-onglets : récupérer l'état réel (parité D-3.2.e).
+    toast.info(receiptError.value || 'La réception de ce produit a déjà été confirmée.')
+    if (missionId.value) await fetchMission(missionId.value)
+    return
+  }
+
+  toast.error(receiptError.value || 'Erreur lors de la confirmation de la réception')
 }
 
 /**
@@ -607,8 +653,16 @@ onMounted(() => {
       <div class="mb-8">
         <!-- State 1: Already Applied (UGC engaged: dedicated banner, no CTA, no cancel) -->
         <div v-if="hasApplied" class="space-y-3">
+          <!-- Carte de suivi Face (3.4, D-3.4.f) — remplace le bandeau dès que le produit est expédié -->
+          <UgcFaceTrackingCard
+            v-if="showFaceTrackingCard && candidatureShipment"
+            :shipment="candidatureShipment"
+            :current="ugcTrackingStep"
+            :is-submitting="isSubmittingReceipt"
+            @confirm-receipt="showReceiptModal = true"
+          />
           <div
-            v-if="ugcEngaged"
+            v-else-if="ugcEngaged"
             class="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 px-6 min-[376px]:px-8 py-4 text-green-700"
             data-testid="ugc-engaged-banner"
           >
@@ -820,6 +874,18 @@ onMounted(() => {
       variant="warning"
       @confirm="handleCancelConfirm"
       @cancel="closeCancelModal"
+    />
+
+    <!-- Confirmation « Produit reçu » (3.4, D-3.4.c) — state dédié, chrono 7j irréversible -->
+    <ConfirmModal
+      :is-open="showReceiptModal"
+      title="Confirmer la réception ?"
+      :message="receiptModalMessage"
+      confirm-text="Oui, j'ai reçu le produit"
+      cancel-text="Pas encore"
+      variant="warning"
+      @confirm="handleConfirmReceipt"
+      @cancel="showReceiptModal = false"
     />
   </div>
 </template>

@@ -4,8 +4,10 @@ import {
   UGC_COMMISSION_FLOOR,
   UGC_COMMISSION_RATE,
   UGC_PRODUCT_ONLY_VIDEO_COUNT,
+  UGC_UNBOXING_DAYS,
   tunnelStatusToPillKind,
   ugcTunnelStep,
+  ugcCandidatureTunnelStep,
   ugcShipmentSchema,
   type Shipment,
 } from '../ugc'
@@ -20,6 +22,7 @@ function makeShipment(overrides: Partial<Shipment> = {}): Shipment {
     tunnel_status_label: 'Produit expédié',
     shipped_at: '2026-06-12T10:00:00+00:00',
     recu_le: null,
+    unboxing_deadline_at: null,
     destinataire: { nom: 'Aïcha Bello', ville: 'Cotonou', pays: 'Bénin' },
     created_at: '2026-06-12T10:00:00+00:00',
     ...overrides,
@@ -48,6 +51,7 @@ describe('computeUgcCommission', () => {
     expect(UGC_COMMISSION_RATE).toBe(0.1)
     expect(UGC_COMMISSION_FLOOR).toBe(2500)
     expect(UGC_PRODUCT_ONLY_VIDEO_COUNT).toBe(2)
+    expect(UGC_UNBOXING_DAYS).toBe(7)
   })
 })
 
@@ -96,6 +100,30 @@ describe('ugcTunnelStep', () => {
     expect(ugcTunnelStep('refused')).toBe(0)
     expect(ugcTunnelStep('expired')).toBe(0)
     expect(ugcTunnelStep('cancelled_by_producer')).toBe(0)
+  })
+})
+
+describe('ugcCandidatureTunnelStep', () => {
+  it('derives steps 2/3/7 from candidature status without shipment', () => {
+    // Commission mission payée AU PUBLISH : une candidature vivante est au moins à l'étape 2.
+    expect(ugcCandidatureTunnelStep('pending')).toBe(2)
+    expect(ugcCandidatureTunnelStep('accepted', null)).toBe(2)
+    expect(ugcCandidatureTunnelStep('confirmed')).toBe(3)
+    expect(ugcCandidatureTunnelStep('in_progress')).toBe(3)
+    expect(ugcCandidatureTunnelStep('completed')).toBe(7)
+  })
+
+  it('returns 0 for dead or unknown candidature statuses', () => {
+    expect(ugcCandidatureTunnelStep('rejected')).toBe(0)
+    expect(ugcCandidatureTunnelStep('cancelled')).toBe(0)
+    expect(ugcCandidatureTunnelStep('some_future_status')).toBe(0)
+  })
+
+  it('delegates to the shipment branch when a shipment exists', () => {
+    // Même table de mapping que ugcTunnelStep (shipmentTunnelStep partagée).
+    expect(ugcCandidatureTunnelStep('confirmed', makeShipment())).toBe(4)
+    expect(ugcCandidatureTunnelStep('confirmed', makeShipment({ tunnel_status: 'received' }))).toBe(5)
+    expect(ugcCandidatureTunnelStep('confirmed', makeShipment({ tunnel_status: 'some_future_status' }))).toBe(4)
   })
 })
 

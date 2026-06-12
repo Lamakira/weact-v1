@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { Calendar, MapPin, Wallet, User, Check, Loader2, MessageCircle, XCircle } from 'lucide-vue-next'
 import type { FaceCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
+import { StatusPill, tunnelStatusToPillKind } from '@/components/ugc'
 
 /**
  * Props
@@ -210,6 +211,18 @@ const producerInitials = computed(() => {
         </p>
       </div>
       <User class="h-4 w-4 text-muted-foreground" />
+    </div>
+
+    <!-- Tracking expédition UGC (3.4) — bloc compact informatif, l'action vit sur le détail (D-3.4.h) -->
+    <div
+      v-if="candidature.shipment"
+      class="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs text-muted-foreground"
+      data-testid="candidature-shipment-info"
+    >
+      <StatusPill :kind="tunnelStatusToPillKind(candidature.shipment.tunnel_status)">
+        {{ candidature.shipment.tunnel_status_label }}
+      </StatusPill>
+      <span>{{ candidature.shipment.transporteur }} · {{ candidature.shipment.numero_suivi }}</span>
     </div>
 
     <!-- Actions Section -->

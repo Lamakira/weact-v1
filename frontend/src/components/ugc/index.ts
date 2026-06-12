@@ -8,10 +8,12 @@ export { default as UgcEngagementModal } from './UgcEngagementModal.vue'
 export { default as UgcBookingTimeline } from './UgcBookingTimeline.vue'
 export { default as UgcShipmentForm } from './UgcShipmentForm.vue'
 export { default as UgcShipmentTrackingCard } from './UgcShipmentTrackingCard.vue'
+export { default as UgcFaceTrackingCard } from './UgcFaceTrackingCard.vue'
 export {
   UGC_COMMISSION_RATE,
   UGC_COMMISSION_FLOOR,
   UGC_PRODUCT_ONLY_VIDEO_COUNT,
+  UGC_UNBOXING_DAYS,
   computeUgcCommission,
   type UgcCompensationType,
   type StatusPillKind,
@@ -19,6 +21,7 @@ export {
   ugcShipmentSchema,
   tunnelStatusToPillKind,
   ugcTunnelStep,
+  ugcCandidatureTunnelStep,
   type Shipment,
   type ConfirmShipmentPayload,
   type ShipmentResponse,

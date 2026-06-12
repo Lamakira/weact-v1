@@ -2,6 +2,7 @@ import { ref, type Ref } from 'vue'
 import { isAxiosError } from 'axios'
 import { bookingApi } from '@/features/booking/services/bookingApi'
 import { candidatureApi } from '@/features/candidature/services/candidatureApi'
+import { faceApi } from '@/features/face/services/faceApi'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
 import type { ConfirmShipmentPayload, Shipment } from '@/components/ugc'
 
@@ -16,6 +17,7 @@ interface UseUgcShipmentReturn {
     ownerId: string,
     payload: ConfirmShipmentPayload,
   ) => Promise<Shipment | null>
+  confirmReceipt: (shipmentId: string) => Promise<Shipment | null>
   clearError: () => void
 }
 
@@ -64,5 +66,22 @@ export function useUgcShipment(): UseUgcShipmentReturn {
     }
   }
 
-  return { isSubmitting, error, errorCode, confirmShipment, clearError }
+  /** « Produit reçu » (3.4) — même état isSubmitting/error/errorCode que confirmShipment. */
+  async function confirmReceipt(shipmentId: string): Promise<Shipment | null> {
+    isSubmitting.value = true
+    clearError()
+
+    try {
+      const response = await faceApi.confirmShipmentReceipt(shipmentId)
+      return response.data
+    } catch (err) {
+      error.value = getApiErrorMessage(err)
+      errorCode.value = extractErrorCode(err)
+      return null
+    } finally {
+      isSubmitting.value = false
+    }
+  }
+
+  return { isSubmitting, error, errorCode, confirmShipment, confirmReceipt, clearError }
 }

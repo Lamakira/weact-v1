@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUgcShipment } from '../useUgcShipment'
 import { bookingApi } from '@/features/booking/services/bookingApi'
 import { candidatureApi } from '@/features/candidature/services/candidatureApi'
+import { faceApi } from '@/features/face/services/faceApi'
 import type { ConfirmShipmentPayload, Shipment, ShipmentResponse } from '@/components/ugc'
 
 vi.mock('@/features/booking/services/bookingApi', () => ({
@@ -10,15 +11,18 @@ vi.mock('@/features/booking/services/bookingApi', () => ({
 vi.mock('@/features/candidature/services/candidatureApi', () => ({
   candidatureApi: { confirmShipment: vi.fn() },
 }))
+vi.mock('@/features/face/services/faceApi', () => ({
+  faceApi: { confirmShipmentReceipt: vi.fn() },
+}))
 
 const payload: ConfirmShipmentPayload = {
   transporteur: 'Gozem',
   numero_suivi: 'GZM-COT-882194',
 }
 
-function makeShipmentResponse(): ShipmentResponse {
+function makeShipmentResponse(overrides: Partial<Shipment> = {}): ShipmentResponse {
   return {
-    data: { id: 'shipment-uuid-1', tunnel_status: 'shipped' } as unknown as Shipment,
+    data: { id: 'shipment-uuid-1', tunnel_status: 'shipped', ...overrides } as unknown as Shipment,
     message: 'Expédition confirmée',
   }
 }
@@ -100,6 +104,52 @@ describe('useUgcShipment', () => {
     await confirmShipment('booking', 'b1', payload)
 
     expect(errorCode.value).toBe('ALREADY_SHIPPED')
+  })
+
+  it('confirms a receipt through faceApi', async () => {
+    vi.mocked(faceApi.confirmShipmentReceipt).mockResolvedValue(
+      makeShipmentResponse({ tunnel_status: 'received' }),
+    )
+
+    const { confirmReceipt, error, errorCode } = useUgcShipment()
+    const shipment = await confirmReceipt('shipment-uuid-1')
+
+    expect(faceApi.confirmShipmentReceipt).toHaveBeenCalledWith('shipment-uuid-1')
+    expect(shipment).toMatchObject({ id: 'shipment-uuid-1', tunnel_status: 'received' })
+    expect(error.value).toBeNull()
+    expect(errorCode.value).toBeNull()
+  })
+
+  it('tracks isSubmitting during receipt confirmation', async () => {
+    let resolveRequest!: (value: ShipmentResponse) => void
+    vi.mocked(faceApi.confirmShipmentReceipt).mockReturnValue(
+      new Promise((resolve) => {
+        resolveRequest = resolve
+      }),
+    )
+
+    const { confirmReceipt, isSubmitting } = useUgcShipment()
+    expect(isSubmitting.value).toBe(false)
+
+    const pending = confirmReceipt('shipment-uuid-1')
+    expect(isSubmitting.value).toBe(true)
+
+    resolveRequest(makeShipmentResponse())
+    await pending
+    expect(isSubmitting.value).toBe(false)
+  })
+
+  it('captures the envelope error code on receipt failure', async () => {
+    vi.mocked(faceApi.confirmShipmentReceipt).mockRejectedValue(
+      makeEnvelopeError('ALREADY_RECEIVED', 'La réception de ce produit a déjà été confirmée.'),
+    )
+
+    const { confirmReceipt, error, errorCode } = useUgcShipment()
+    const shipment = await confirmReceipt('shipment-uuid-1')
+
+    expect(shipment).toBeNull()
+    expect(error.value).toBe('La réception de ce produit a déjà été confirmée.')
+    expect(errorCode.value).toBe('ALREADY_RECEIVED')
   })
 
   it('clearError resets error state', async () => {

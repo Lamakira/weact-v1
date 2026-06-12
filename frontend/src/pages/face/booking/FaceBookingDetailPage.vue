@@ -48,9 +48,12 @@ import {
   UgcBookingTimeline,
   UgcShipmentForm,
   UgcShipmentTrackingCard,
+  UgcFaceTrackingCard,
   ugcTunnelStep,
+  UGC_UNBOXING_DAYS,
   type ConfirmShipmentPayload,
 } from '@/components/ugc'
+import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
 import { useUgcShipment } from '@/composables/useUgcShipment'
 
@@ -100,6 +103,7 @@ const {
   error: shipmentError,
   errorCode: shipmentErrorCode,
   confirmShipment,
+  confirmReceipt,
 } = useUgcShipment()
 
 const isUgc = computed(() => booking.value?.type_contenu === 'UGC')
@@ -107,6 +111,13 @@ const isUgc = computed(() => booking.value?.type_contenu === 'UGC')
 const ugcTimelineCurrent = computed(() =>
   booking.value ? ugcTunnelStep(booking.value.status, booking.value.shipment ?? null) : 0,
 )
+
+// Carte de suivi Face (3.4) — remplace la timeline H dès qu'un shipment existe (D-3.4.e).
+const showReceiptModal = ref(false)
+const showFaceTrackingCard = computed(
+  () => isFace.value && isUgc.value && !!booking.value?.shipment,
+)
+const receiptModalMessage = `Le chrono Unboxing (${UGC_UNBOXING_DAYS} jours) démarre dès la confirmation — cette action est définitive.`
 
 // Chat (3.1 AC8) : l'UGC ouvre à Accepted ; le cash garde sa constante (D-3.2.d).
 const canShowChat = computed(() => {
@@ -413,6 +424,29 @@ async function handleConfirmShipment(payload: ConfirmShipmentPayload): Promise<v
   toast.error(shipmentError.value || "Erreur lors de la confirmation de l'expédition")
 }
 
+async function handleConfirmReceipt(): Promise<void> {
+  showReceiptModal.value = false
+  if (!booking.value?.shipment) return
+
+  const shipment = await confirmReceipt(booking.value.shipment.id)
+  if (shipment) {
+    // D-3.3.i/D-3.4.d : la 200 porte la ShipmentResource à jour — pas de refetch.
+    // La ref peut avoir été vidée pendant l'await (navigation, refetch concurrent).
+    if (booking.value) booking.value.shipment = shipment
+    toast.success('Réception confirmée — le chrono Unboxing démarre')
+    return
+  }
+
+  if (shipmentErrorCode.value === 'ALREADY_RECEIVED') {
+    // Multi-onglets : récupérer l'état réel (parité D-3.2.e).
+    toast.info(shipmentError.value || 'La réception de ce produit a déjà été confirmée.')
+    if (bookingId.value) await fetchBooking(bookingId.value)
+    return
+  }
+
+  toast.error(shipmentError.value || 'Erreur lors de la confirmation de la réception')
+}
+
 async function handleUgcCommissionSettled(): Promise<void> {
   showUgcPaymentOverlay.value = false
   if (bookingId.value) {
@@ -543,15 +577,26 @@ onUnmounted(() => {
         <h1 class="text-xl font-bold text-gray-900">Demande de booking</h1>
       </div>
 
-      <!-- UGC timeline (3.2) — pleine largeur, remplace la carte Progression cash -->
+      <!-- UGC timeline (3.2) — pleine largeur, remplace la carte Progression cash.
+           Pour la Face avec shipment, la carte de suivi (timeline V intégrée) la remplace (D-3.4.e). -->
       <div
-        v-if="isUgc"
+        v-if="isUgc && !showFaceTrackingCard"
         class="mb-6 overflow-x-auto rounded-xl border border-gray-200 bg-white p-5"
         data-testid="ugc-booking-timeline-card"
       >
         <h2 class="mb-4 text-sm font-semibold text-gray-700">Progression</h2>
         <UgcBookingTimeline :current="ugcTimelineCurrent" variant="horizontal" />
       </div>
+
+      <!-- Carte de suivi Face (3.4, écran 8A) — même emplacement, pleine largeur -->
+      <UgcFaceTrackingCard
+        v-if="showFaceTrackingCard && booking.shipment"
+        class="mb-6"
+        :shipment="booking.shipment"
+        :current="ugcTimelineCurrent"
+        :is-submitting="isSubmittingShipment"
+        @confirm-receipt="showReceiptModal = true"
+      />
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Left column: Timeline (cash bookings only) -->
@@ -903,6 +948,18 @@ onUnmounted(() => {
       :is-face="isFace"
       @confirm="handleCancel"
       @cancel="showCancellationDialog = false"
+    />
+
+    <!-- Confirmation « Produit reçu » (3.4, D-3.4.c) — chrono 7j irréversible -->
+    <ConfirmModal
+      :is-open="showReceiptModal"
+      title="Confirmer la réception ?"
+      :message="receiptModalMessage"
+      confirm-text="Oui, j'ai reçu le produit"
+      cancel-text="Pas encore"
+      variant="warning"
+      @confirm="handleConfirmReceipt"
+      @cancel="showReceiptModal = false"
     />
 
     <!-- No-show confirmation dialog -->

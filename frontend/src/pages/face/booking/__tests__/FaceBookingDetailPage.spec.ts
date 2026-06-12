@@ -45,6 +45,7 @@ vi.mock('@/features/booking/composables', () => ({
 }))
 
 const mockConfirmShipment = vi.fn()
+const mockConfirmReceipt = vi.fn()
 const mockShipmentError = ref<string | null>(null)
 const mockShipmentErrorCode = ref<string | null>(null)
 
@@ -54,6 +55,7 @@ vi.mock('@/composables/useUgcShipment', () => ({
     error: mockShipmentError,
     errorCode: mockShipmentErrorCode,
     confirmShipment: mockConfirmShipment,
+    confirmReceipt: mockConfirmReceipt,
     clearError: vi.fn(),
   }),
 }))
@@ -64,12 +66,17 @@ vi.mock('@/stores/auth', () => ({
   }),
 }))
 
+const mockToastSuccess = vi.fn()
+const mockToastError = vi.fn()
+const mockToastWarning = vi.fn()
+const mockToastInfo = vi.fn()
+
 vi.mock('@/composables/useToast', () => ({
   useToast: () => ({
-    success: vi.fn(),
-    error: vi.fn(),
-    warning: vi.fn(),
-    info: vi.fn(),
+    success: mockToastSuccess,
+    error: mockToastError,
+    warning: mockToastWarning,
+    info: mockToastInfo,
   }),
 }))
 
@@ -130,6 +137,7 @@ function makeShipment(overrides: Record<string, unknown> = {}): Record<string, u
     tunnel_status_label: 'Produit expédié',
     shipped_at: '2026-06-12T10:00:00+00:00',
     recu_le: null,
+    unboxing_deadline_at: null,
     destinataire: { nom: 'Aïcha Bello', ville: 'Cotonou', pays: 'Bénin' },
     created_at: '2026-06-12T10:00:00+00:00',
     ...overrides,
@@ -173,6 +181,17 @@ async function mountPage(
         UgcShipmentTrackingCard: {
           props: ['shipment'],
           template: '<div data-testid="tracking-card-stub"/>',
+        },
+        UgcFaceTrackingCard: {
+          props: ['shipment', 'current', 'isSubmitting'],
+          emits: ['confirm-receipt'],
+          template:
+            '<button data-testid="face-tracking-card-stub" :data-current="current" @click="$emit(\'confirm-receipt\')"/>',
+        },
+        ConfirmModal: {
+          props: ['isOpen'],
+          emits: ['confirm', 'cancel'],
+          template: '<button v-if="isOpen" data-testid="receipt-modal-confirm" @click="$emit(\'confirm\')"/>',
         },
         BookingStatusBadge: { template: '<div/>' },
         PaymentOverlay: { template: '<div/>' },
@@ -714,5 +733,112 @@ describe('FaceBookingDetailPage — UGC shipment & timeline (story 3.2)', () => 
     })
     expect(mockFetchBooking).toHaveBeenCalledTimes(2) // refetch D-3.2.e
     expect(mockFetchBooking).toHaveBeenLastCalledWith('booking-uuid-1')
+  })
+})
+
+describe('FaceBookingDetailPage — carte de suivi Face & réception (story 3.4)', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockIsLoading.value = false
+    mockError.value = null
+    mockShipmentError.value = null
+    mockShipmentErrorCode.value = null
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    mockFetchBooking.mockReset()
+    mockRefreshBooking.mockReset()
+    mockConfirmShipment.mockReset()
+    mockConfirmReceipt.mockReset()
+    mockToastSuccess.mockReset()
+    mockToastError.mockReset()
+    mockToastWarning.mockReset()
+    mockToastInfo.mockReset()
+  })
+
+  it('shows the Face tracking card instead of the horizontal timeline once shipped', async () => {
+    const wrapper = await mountPage(makeUgcBooking({ shipment: makeShipment() }))
+
+    const card = wrapper.find('[data-testid="face-tracking-card-stub"]')
+    expect(card.exists()).toBe(true)
+    // La timeline verticale vit DANS la carte : la H disparaît (D-3.4.e).
+    expect(wrapper.find('[data-testid="ugc-booking-timeline-card"]').exists()).toBe(false)
+    expect(card.attributes('data-current')).toBe('4')
+  })
+
+  it('keeps the horizontal timeline for the Face before shipment', async () => {
+    const wrapper = await mountPage(makeUgcBooking())
+
+    expect(wrapper.find('[data-testid="ugc-booking-timeline-card"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="face-tracking-card-stub"]').exists()).toBe(false)
+  })
+
+  it('does not show the Face tracking card to the producer', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const wrapper = await mountPage(makeUgcBooking({ producer_id: 2, shipment: makeShipment() }))
+
+    // Le Producteur garde timeline H + tracking card 3.2 (D-3.4.e).
+    expect(wrapper.find('[data-testid="face-tracking-card-stub"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="ugc-booking-timeline-card"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="tracking-card-stub"]').exists()).toBe(true)
+  })
+
+  it('confirms the receipt through the modal and applies the shipment locally without refetching (D-3.3.i)', async () => {
+    mockConfirmReceipt.mockResolvedValue(
+      makeShipment({
+        tunnel_status: 'received',
+        tunnel_status_label: 'Produit reçu',
+        recu_le: '2026-06-12T12:00:00+00:00',
+        unboxing_deadline_at: '2026-06-19T12:00:00+00:00',
+      }),
+    )
+    const wrapper = await mountPage(makeUgcBooking({ shipment: makeShipment() }))
+
+    // Le CTA de la carte ouvre la modal — pas de POST direct (D-3.4.c).
+    await wrapper.find('[data-testid="face-tracking-card-stub"]').trigger('click')
+    expect(mockConfirmReceipt).not.toHaveBeenCalled()
+
+    await wrapper.find('[data-testid="receipt-modal-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(mockConfirmReceipt).toHaveBeenCalledWith('shipment-uuid-1')
+    expect(mockFetchBooking).toHaveBeenCalledTimes(1) // mount uniquement — pas de refetch
+    expect(mockToastSuccess).toHaveBeenCalledWith('Réception confirmée — le chrono Unboxing démarre')
+    expect((mockBooking.value?.shipment as Record<string, unknown>).tunnel_status).toBe('received')
+  })
+
+  it('refetches the booking when receipt fails with ALREADY_RECEIVED', async () => {
+    mockConfirmReceipt.mockImplementation(async () => {
+      mockShipmentError.value = 'La réception de ce produit a déjà été confirmée.'
+      mockShipmentErrorCode.value = 'ALREADY_RECEIVED'
+      return null
+    })
+    const wrapper = await mountPage(makeUgcBooking({ shipment: makeShipment() }))
+
+    await wrapper.find('[data-testid="face-tracking-card-stub"]').trigger('click')
+    await wrapper.find('[data-testid="receipt-modal-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(mockToastInfo).toHaveBeenCalledWith('La réception de ce produit a déjà été confirmée.')
+    expect(mockFetchBooking).toHaveBeenCalledTimes(2) // mount + refetch multi-onglets (D-3.2.e)
+    expect(mockFetchBooking).toHaveBeenLastCalledWith('booking-uuid-1')
+  })
+
+  it('shows an error toast when receipt fails with another error', async () => {
+    mockConfirmReceipt.mockImplementation(async () => {
+      mockShipmentError.value = 'La commission de ce deal est en cours de remboursement — action impossible.'
+      mockShipmentErrorCode.value = 'INVALID_STATUS'
+      return null
+    })
+    const wrapper = await mountPage(makeUgcBooking({ shipment: makeShipment() }))
+
+    await wrapper.find('[data-testid="face-tracking-card-stub"]').trigger('click')
+    await wrapper.find('[data-testid="receipt-modal-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(mockToastError).toHaveBeenCalledWith(
+      'La commission de ce deal est en cours de remboursement — action impossible.',
+    )
+    expect(mockFetchBooking).toHaveBeenCalledTimes(1) // pas de refetch hors ALREADY_RECEIVED
   })
 })

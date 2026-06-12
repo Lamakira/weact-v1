@@ -34,6 +34,7 @@ import type {
   SubscriptionCancelPendingResponse,
   SubscriptionResumePaymentResponse,
 } from '../types'
+import type { ShipmentResponse } from '@/components/ugc'
 
 /**
  * Face API service
@@ -504,6 +505,20 @@ export const faceApi = {
     await getCsrfCookie()
     const response = await apiClient.post<SubscriptionResumePaymentResponse>(
       '/face/subscription/resume-payment',
+    )
+    return response.data
+  },
+
+  /**
+   * « Produit reçu » (UGC 3.4) — confirme la réception du colis d'un deal UGC.
+   * Endpoint owner-agnostic (binding Shipment, D-3.3.b). 200 → ShipmentResource
+   * à jour (recu_le + unboxing_deadline_at) ; 422 ALREADY_RECEIVED → refetch
+   * côté appelant (D-3.4.d).
+   */
+  async confirmShipmentReceipt(shipmentId: string): Promise<ShipmentResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<ShipmentResponse>(
+      `/face/shipments/${shipmentId}/confirm-receipt`,
     )
     return response.data
   },
