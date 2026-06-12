@@ -7,6 +7,7 @@ import type {
   ProducerCandidatureListResponse,
   CandidateFullProfileResponse,
 } from '../types'
+import type { ConfirmShipmentPayload, ShipmentResponse } from '@/components/ugc'
 
 /**
  * Candidature API service
@@ -111,6 +112,21 @@ export const candidatureApi = {
   async rejectCandidature(candidatureId: string): Promise<CandidatureResponse> {
     const response = await apiClient.post<CandidatureResponse>(
       `/producer/candidatures/${candidatureId}/reject`,
+    )
+    return response.data
+  },
+
+  /**
+   * Confirme l'expédition vers une Face engagée — candidature confirmée d'une
+   * mission UGC (Producteur, 3.2). Un shipment PAR candidature (D-3.1.d).
+   */
+  async confirmShipment(
+    candidatureId: string,
+    payload: ConfirmShipmentPayload,
+  ): Promise<ShipmentResponse> {
+    const response = await apiClient.post<ShipmentResponse>(
+      `/producer/candidatures/${candidatureId}/confirm-shipment`,
+      payload,
     )
     return response.data
   },

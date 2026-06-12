@@ -32,6 +32,7 @@ import {
 import {
   BookingStatus,
   CHAT_VIEW_STATUSES,
+  UGC_CHAT_VIEW_STATUSES,
   CANCELLABLE_BY_FACE_STATUSES,
   CANCELLABLE_BY_PRODUCER_STATUSES,
   getCancellationReasonLabel,
@@ -40,8 +41,18 @@ import {
   type BookingRating,
 } from '@/features/booking/types'
 import RatingDisplay from '@/components/RatingDisplay.vue'
-import { UgcPaymentOverlay, CommissionBreakdown, UgcEngagementModal } from '@/components/ugc'
+import {
+  UgcPaymentOverlay,
+  CommissionBreakdown,
+  UgcEngagementModal,
+  UgcBookingTimeline,
+  UgcShipmentForm,
+  UgcShipmentTrackingCard,
+  ugcTunnelStep,
+  type ConfirmShipmentPayload,
+} from '@/components/ugc'
 import { useToast } from '@/composables/useToast'
+import { useUgcShipment } from '@/composables/useUgcShipment'
 
 const route = useRoute()
 const router = useRouter()
@@ -82,6 +93,37 @@ const canPayUgcCommission = computed<boolean>(
 
 // UGC engagement modal (2.4) — règles + chronos avant l'accept d'un booking UGC.
 const showEngagementModal = ref(false)
+
+// Expédition UGC (3.2) — panneau écran 4A + tracking Producteur.
+const {
+  isSubmitting: isSubmittingShipment,
+  error: shipmentError,
+  errorCode: shipmentErrorCode,
+  confirmShipment,
+} = useUgcShipment()
+
+const isUgc = computed(() => booking.value?.type_contenu === 'UGC')
+
+const ugcTimelineCurrent = computed(() =>
+  booking.value ? ugcTunnelStep(booking.value.status, booking.value.shipment ?? null) : 0,
+)
+
+// Chat (3.1 AC8) : l'UGC ouvre à Accepted ; le cash garde sa constante (D-3.2.d).
+const canShowChat = computed(() => {
+  if (!booking.value) return false
+  return isUgc.value
+    ? UGC_CHAT_VIEW_STATUSES.includes(booking.value.status)
+    : CHAT_VIEW_STATUSES.includes(booking.value.status)
+})
+
+// Panneau écran 4A : Producteur, deal accepté, pas encore expédié.
+const canConfirmShipment = computed(
+  () =>
+    !isFace.value
+    && isUgc.value
+    && booking.value?.status === BookingStatus.ACCEPTED
+    && !booking.value?.shipment,
+)
 
 // Refuse dialog state
 const showRefuseDialog = ref(false)
@@ -350,6 +392,27 @@ async function handlePaymentSuccess(): Promise<void> {
   }
 }
 
+async function handleConfirmShipment(payload: ConfirmShipmentPayload): Promise<void> {
+  if (!booking.value) return
+
+  const shipment = await confirmShipment('booking', booking.value.id, payload)
+  if (shipment) {
+    // D-3.1.c : le statut booking ne change pas — l'assignation locale suffit.
+    booking.value.shipment = shipment
+    toast.success('Expédition confirmée')
+    return
+  }
+
+  if (shipmentErrorCode.value === 'ALREADY_SHIPPED') {
+    // Multi-onglets (D-3.1.b/D-3.2.e) : récupérer le shipment existant.
+    toast.info(shipmentError.value || "L'expédition de ce deal a déjà été confirmée.")
+    if (bookingId.value) await fetchBooking(bookingId.value)
+    return
+  }
+
+  toast.error(shipmentError.value || "Erreur lors de la confirmation de l'expédition")
+}
+
 async function handleUgcCommissionSettled(): Promise<void> {
   showUgcPaymentOverlay.value = false
   if (bookingId.value) {
@@ -480,9 +543,19 @@ onUnmounted(() => {
         <h1 class="text-xl font-bold text-gray-900">Demande de booking</h1>
       </div>
 
+      <!-- UGC timeline (3.2) — pleine largeur, remplace la carte Progression cash -->
+      <div
+        v-if="isUgc"
+        class="mb-6 overflow-x-auto rounded-xl border border-gray-200 bg-white p-5"
+        data-testid="ugc-booking-timeline-card"
+      >
+        <h2 class="mb-4 text-sm font-semibold text-gray-700">Progression</h2>
+        <UgcBookingTimeline :current="ugcTimelineCurrent" variant="horizontal" />
+      </div>
+
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Left column: Timeline -->
-        <div class="lg:col-span-1">
+        <!-- Left column: Timeline (cash bookings only) -->
+        <div v-if="!isUgc" class="lg:col-span-1">
           <div class="bg-white rounded-xl border border-gray-200 p-5">
             <h2 class="text-sm font-semibold text-gray-700 mb-4">Progression</h2>
             <BookingTimeline :status="booking.status" :cancellation-reason="booking.cancellation_reason" />
@@ -490,7 +563,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Right column: Details -->
-        <div class="lg:col-span-2 space-y-5">
+        <div class="space-y-5" :class="isUgc ? 'lg:col-span-3' : 'lg:col-span-2'">
           <!-- Producer card -->
           <div class="bg-white rounded-xl border border-gray-200 p-5">
             <h2 class="text-sm font-semibold text-gray-700 mb-3">Producteur</h2>
@@ -599,6 +672,24 @@ onUnmounted(() => {
               :pay-amount="booking.montant_remuneration ?? 0"
             />
           </div>
+
+          <!-- Panneau expédition UGC (Producteur, écran 4A — 3.2) -->
+          <div
+            v-if="canConfirmShipment"
+            class="rounded-xl border border-gray-200 bg-white p-5"
+            data-testid="ugc-shipment-panel"
+          >
+            <p class="mb-1 text-[10px] font-bold uppercase tracking-widest text-weact">Étape 3 sur 6 · Expédition</p>
+            <h2 class="text-sm font-semibold text-gray-700">Confirmer l'envoi du produit</h2>
+            <p class="mb-4 mt-0.5 text-xs text-gray-500">{{ booking.nom_produit }} · Pour {{ faceName }}</p>
+            <UgcShipmentForm :is-submitting="isSubmittingShipment" @submit="handleConfirmShipment" />
+          </div>
+
+          <!-- Tracking expédition UGC (Producteur post-confirmation — 3.2) -->
+          <UgcShipmentTrackingCard
+            v-if="!isFace && isUgc && booking.shipment"
+            :shipment="booking.shipment"
+          />
 
           <!-- Financial section (cash bookings only) -->
           <div v-if="booking.type_contenu !== 'UGC'" class="bg-white rounded-xl border border-gray-200 p-5">
@@ -762,9 +853,9 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Booking Chat Section (AC6: only for eligible statuses) -->
+      <!-- Booking Chat Section (AC6: only for eligible statuses ; UGC dès Accepted — 3.2) -->
       <section
-        v-if="CHAT_VIEW_STATUSES.includes(booking.status)"
+        v-if="canShowChat"
         class="mt-6"
         data-testid="booking-chat-section"
       >

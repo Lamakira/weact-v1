@@ -5,6 +5,9 @@ export { default as UgcPaymentOverlay } from './UgcPaymentOverlay.vue'
 export { default as StatusPill } from './StatusPill.vue'
 export { default as ChronoRing } from './ChronoRing.vue'
 export { default as UgcEngagementModal } from './UgcEngagementModal.vue'
+export { default as UgcBookingTimeline } from './UgcBookingTimeline.vue'
+export { default as UgcShipmentForm } from './UgcShipmentForm.vue'
+export { default as UgcShipmentTrackingCard } from './UgcShipmentTrackingCard.vue'
 export {
   UGC_COMMISSION_RATE,
   UGC_COMMISSION_FLOOR,
@@ -12,4 +15,11 @@ export {
   computeUgcCommission,
   type UgcCompensationType,
   type StatusPillKind,
+  UGC_CARRIER_CHIPS,
+  ugcShipmentSchema,
+  tunnelStatusToPillKind,
+  ugcTunnelStep,
+  type Shipment,
+  type ConfirmShipmentPayload,
+  type ShipmentResponse,
 } from './ugc'

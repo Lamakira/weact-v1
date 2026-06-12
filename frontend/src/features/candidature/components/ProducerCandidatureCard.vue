@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, X, Loader2, CheckSquare, Square } from 'lucide-vue-next'
+import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, X, Loader2, CheckSquare, Square, Truck } from 'lucide-vue-next'
 import type { ProducerCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
 import WBadge from '@/components/ui/WBadge.vue'
+import { StatusPill, tunnelStatusToPillKind } from '@/components/ugc'
 
 /**
  * Props
@@ -13,6 +14,7 @@ const props = defineProps<{
   candidature: ProducerCandidature
   selectionMode?: boolean
   isSelected?: boolean
+  isUgcMission?: boolean
 }>()
 
 /**
@@ -21,6 +23,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   reject: [candidatureId: string]
   'toggle-selection': [candidatureId: string]
+  'confirm-shipment': []
 }>()
 
 /**
@@ -43,6 +46,14 @@ const canChat = computed(() => {
   const chatStatuses = ['accepted', 'confirmed', 'in_progress', 'completed']
   return chatStatuses.includes(props.candidature.status) && props.candidature.conversation_id != null
 })
+
+/**
+ * Computed: Can show the confirm-shipment button (UGC mission, confirmed
+ * candidature, no shipment yet — story 3.2, un colis PAR Face engagée).
+ */
+const canConfirmShipment = computed(
+  () => props.isUgcMission === true && props.candidature.status === 'confirmed' && !props.candidature.shipment,
+)
 
 /**
  * Show reject confirmation dialog
@@ -322,15 +333,26 @@ const categoryLabel = computed(() => {
         </button>
       </div>
 
-      <!-- Chat Button (for accepted/confirmed/in_progress/completed candidatures) -->
-      <div v-else-if="canChat">
+      <!-- Chat + Confirm-shipment buttons (accepted/confirmed/in_progress/completed) -->
+      <div v-else-if="canChat || canConfirmShipment" class="flex flex-wrap gap-2">
         <RouterLink
+          v-if="canChat"
           :to="{ name: 'producer-conversation', params: { conversationId: candidature.conversation_id } }"
           class="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
         >
           <MessageCircle class="h-4 w-4 text-muted-foreground" />
           Discuter
         </RouterLink>
+        <button
+          v-if="canConfirmShipment"
+          type="button"
+          class="inline-flex items-center gap-2 rounded-lg bg-weact px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-weact/90"
+          data-testid="confirm-shipment-card-btn"
+          @click="emit('confirm-shipment')"
+        >
+          <Truck class="h-4 w-4" />
+          Confirmer l'envoi
+        </button>
       </div>
       <div v-else></div>
 
@@ -342,6 +364,18 @@ const categoryLabel = computed(() => {
         Voir le profil complet
         <ArrowUpRight class="h-3 w-3" />
       </RouterLink>
+    </div>
+
+    <!-- Compact shipment tracking (UGC, post-confirmation — story 3.2) -->
+    <div
+      v-if="candidature.shipment"
+      class="mt-3 flex flex-wrap items-center gap-2 border-t border-border/50 pt-3 text-xs text-muted-foreground"
+      data-testid="candidature-shipment-info"
+    >
+      <StatusPill :kind="tunnelStatusToPillKind(candidature.shipment.tunnel_status)">
+        {{ candidature.shipment.tunnel_status_label }}
+      </StatusPill>
+      <span>{{ candidature.shipment.transporteur }} · {{ candidature.shipment.numero_suivi }}</span>
     </div>
 
     <!-- Reject Confirmation Dialog -->

@@ -44,6 +44,20 @@ vi.mock('@/features/booking/composables', () => ({
   }),
 }))
 
+const mockConfirmShipment = vi.fn()
+const mockShipmentError = ref<string | null>(null)
+const mockShipmentErrorCode = ref<string | null>(null)
+
+vi.mock('@/composables/useUgcShipment', () => ({
+  useUgcShipment: () => ({
+    isSubmitting: ref(false),
+    error: mockShipmentError,
+    errorCode: mockShipmentErrorCode,
+    confirmShipment: mockConfirmShipment,
+    clearError: vi.fn(),
+  }),
+}))
+
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
     user: { get id() { return mockUserId.value }, get userable_type() { return mockUserableType.value } },
@@ -88,6 +102,40 @@ function makeBooking(overrides: Record<string, unknown> = {}): Record<string, un
   }
 }
 
+function makeUgcBooking(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return makeBooking({
+    status: 'accepted',
+    type_contenu: 'UGC',
+    type_compensation: 'product',
+    type_compensation_label: 'Produit seul',
+    nom_produit: 'Sneakers Shade Fit',
+    valeur_produit: 20000,
+    nombre_videos: 2,
+    montant_remuneration: null,
+    commission_ugc: 2500,
+    date_debut: null,
+    date_fin: null,
+    duree_heures: null,
+    ...overrides,
+  })
+}
+
+function makeShipment(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: 'shipment-uuid-1',
+    transporteur: 'Gozem',
+    numero_suivi: 'GZM-COT-882194',
+    note_envoi: null,
+    tunnel_status: 'shipped',
+    tunnel_status_label: 'Produit expédié',
+    shipped_at: '2026-06-12T10:00:00+00:00',
+    recu_le: null,
+    destinataire: { nom: 'Aïcha Bello', ville: 'Cotonou', pays: 'Bénin' },
+    created_at: '2026-06-12T10:00:00+00:00',
+    ...overrides,
+  }
+}
+
 async function mountPage(
   booking: Record<string, unknown> | null = null,
   query: Record<string, string> = {},
@@ -112,7 +160,20 @@ async function mountPage(
     global: {
       plugins: [router],
       stubs: {
-        BookingTimeline: { template: '<div/>' },
+        BookingTimeline: { template: '<div data-testid="cash-timeline-stub"/>' },
+        UgcBookingTimeline: {
+          props: ['current', 'variant'],
+          template: '<div data-testid="ugc-timeline-stub" :data-current="current"/>',
+        },
+        UgcShipmentForm: {
+          emits: ['submit'],
+          template:
+            '<button data-testid="shipment-form-stub" @click="$emit(\'submit\', { transporteur: \'Gozem\', numero_suivi: \'GZM-1\' })"/>',
+        },
+        UgcShipmentTrackingCard: {
+          props: ['shipment'],
+          template: '<div data-testid="tracking-card-stub"/>',
+        },
         BookingStatusBadge: { template: '<div/>' },
         PaymentOverlay: { template: '<div/>' },
         UgcPaymentOverlay: {
@@ -536,5 +597,122 @@ describe('FaceBookingDetailPage — UGC commission CTA (story 1.6)', () => {
     expect(text).not.toContain('Date de début')
     expect(text).not.toContain('Invalid Date')
     expect(text).not.toContain('Finances') // cash finances card hidden for UGC
+  })
+})
+
+describe('FaceBookingDetailPage — UGC shipment & timeline (story 3.2)', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockIsLoading.value = false
+    mockError.value = null
+    mockActionError.value = null
+    mockActionErrorCode.value = null
+    mockShipmentError.value = null
+    mockShipmentErrorCode.value = null
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    mockFetchBooking.mockReset()
+    mockRefreshBooking.mockReset()
+    mockConfirmShipment.mockReset()
+  })
+
+  it('renders the UGC timeline instead of the cash timeline for UGC bookings', async () => {
+    const wrapper = await mountPage(makeUgcBooking())
+
+    expect(wrapper.find('[data-testid="ugc-booking-timeline-card"]').exists()).toBe(true)
+    // accepted sans shipment → étape 3 (fix du « recul » defer 2.4)
+    expect(wrapper.find('[data-testid="ugc-timeline-stub"]').attributes('data-current')).toBe('3')
+    expect(wrapper.find('[data-testid="cash-timeline-stub"]').exists()).toBe(false)
+  })
+
+  it('keeps the cash timeline for non-UGC bookings', async () => {
+    const wrapper = await mountPage(makeBooking())
+
+    expect(wrapper.find('[data-testid="cash-timeline-stub"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="ugc-booking-timeline-card"]').exists()).toBe(false)
+  })
+
+  it('shows the shipment panel to the producer on an accepted UGC booking', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const wrapper = await mountPage(makeUgcBooking({ producer_id: 2 }))
+
+    const panel = wrapper.find('[data-testid="ugc-shipment-panel"]')
+    expect(panel.exists()).toBe(true)
+    expect(panel.text()).toContain('Étape 3 sur 6 · Expédition')
+    expect(panel.text()).toContain("Confirmer l'envoi du produit")
+    expect(panel.text()).toContain('Sneakers Shade Fit')
+  })
+
+  it('hides the shipment panel from the Face', async () => {
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    const wrapper = await mountPage(makeUgcBooking())
+
+    expect(wrapper.find('[data-testid="ugc-shipment-panel"]').exists()).toBe(false)
+  })
+
+  it('shows the tracking card instead of the panel once shipped', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const wrapper = await mountPage(makeUgcBooking({ producer_id: 2, shipment: makeShipment() }))
+
+    expect(wrapper.find('[data-testid="tracking-card-stub"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="ugc-shipment-panel"]').exists()).toBe(false)
+    // Le shipment fait avancer la timeline à l'étape 4.
+    expect(wrapper.find('[data-testid="ugc-timeline-stub"]').attributes('data-current')).toBe('4')
+  })
+
+  it('shows the chat section on an accepted UGC booking', async () => {
+    const wrapper = await mountPage(makeUgcBooking())
+
+    expect(wrapper.find('[data-testid="booking-chat-section"]').exists()).toBe(true)
+  })
+
+  it('does not show the chat section on an accepted cash booking', async () => {
+    const wrapper = await mountPage(makeBooking({ status: 'accepted' }))
+
+    expect(wrapper.find('[data-testid="booking-chat-section"]').exists()).toBe(false)
+  })
+
+  it('applies the shipment locally on success without refetching (D-3.1.c)', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    mockConfirmShipment.mockResolvedValue(makeShipment())
+    const wrapper = await mountPage(makeUgcBooking({ producer_id: 2 }))
+
+    expect(wrapper.find('[data-testid="ugc-shipment-panel"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="shipment-form-stub"]').trigger('click')
+    await flushPromises()
+
+    // Le statut booking ne change pas au confirm : assignation locale, AUCUN refetch.
+    expect(mockFetchBooking).toHaveBeenCalledTimes(1) // mount uniquement
+    expect(wrapper.find('[data-testid="ugc-shipment-panel"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="tracking-card-stub"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="ugc-timeline-stub"]').attributes('data-current')).toBe('4')
+  })
+
+  it('refetches the booking when confirmation fails with ALREADY_SHIPPED', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    mockConfirmShipment.mockImplementation(async () => {
+      mockShipmentError.value = "L'expédition de ce deal a déjà été confirmée."
+      mockShipmentErrorCode.value = 'ALREADY_SHIPPED'
+      return null
+    })
+    const wrapper = await mountPage(makeUgcBooking({ producer_id: 2 }))
+
+    expect(mockFetchBooking).toHaveBeenCalledTimes(1) // mount
+
+    await wrapper.find('[data-testid="shipment-form-stub"]').trigger('click')
+    await flushPromises()
+
+    expect(mockConfirmShipment).toHaveBeenCalledWith('booking', 'booking-uuid-1', {
+      transporteur: 'Gozem',
+      numero_suivi: 'GZM-1',
+    })
+    expect(mockFetchBooking).toHaveBeenCalledTimes(2) // refetch D-3.2.e
+    expect(mockFetchBooking).toHaveBeenLastCalledWith('booking-uuid-1')
   })
 })

@@ -7,6 +7,7 @@ import type {
   CancellationReasonValue,
   BookingRatingResponse,
 } from '../types'
+import type { ConfirmShipmentPayload, ShipmentResponse } from '@/components/ugc'
 
 /**
  * Booking API service
@@ -147,6 +148,19 @@ export const bookingApi = {
    */
   async checkCommissionStatus(bookingId: string): Promise<BookingResponse> {
     const response = await apiClient.get<BookingResponse>(`/bookings/${bookingId}/commission-status`)
+    return response.data
+  },
+
+  /**
+   * Confirme l'expédition du produit d'un booking UGC accepté (Producteur, 3.2).
+   * 201 → ShipmentResource ; 422 ALREADY_SHIPPED → refetch côté appelant (D-3.2.e).
+   */
+  async confirmShipment(bookingId: string, payload: ConfirmShipmentPayload): Promise<ShipmentResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<ShipmentResponse>(
+      `/producer/bookings/${bookingId}/confirm-shipment`,
+      payload,
+    )
     return response.data
   },
 }

@@ -25,6 +25,39 @@ const pendingCandidature = {
   },
 }
 
+const confirmedUgcCandidature = {
+  ...pendingCandidature,
+  id: 'candidature-uuid-1',
+  status: 'confirmed' as const,
+  status_label: 'Confirmée',
+  message_motivation: null,
+  conversation_id: 'conv-uuid-1',
+  face: {
+    ...pendingCandidature.face,
+    id: 'face-uuid-1',
+    display_name: 'Aïcha Bello',
+    city: 'Cotonou',
+    category: null,
+    tarif_journalier: null,
+  },
+}
+
+function makeShipment(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: 'shipment-uuid-1',
+    transporteur: 'Gozem',
+    numero_suivi: 'GZM-COT-882194',
+    note_envoi: null,
+    tunnel_status: 'shipped',
+    tunnel_status_label: 'Produit expédié',
+    shipped_at: '2026-06-12T10:00:00+00:00',
+    recu_le: null,
+    destinataire: { nom: 'Aïcha Bello', ville: 'Cotonou', pays: 'Bénin' },
+    created_at: '2026-06-12T10:00:00+00:00',
+    ...overrides,
+  }
+}
+
 describe('ProducerCandidatureCard', () => {
   it('does not render the legacy "Accepter" button outside selection mode (FIX-20.3)', () => {
     const wrapper = mount(ProducerCandidatureCard, {
@@ -75,6 +108,58 @@ describe('ProducerCandidatureCard', () => {
       })
       expect(wrapper.findComponent(WBadge).exists()).toBe(false)
       expect(wrapper.text()).toContain('Alice Martin')
+    })
+  })
+
+  describe('UGC shipment (story 3.2)', () => {
+    function mountCard(candidature: Record<string, unknown>, isUgcMission?: boolean) {
+      return mount(ProducerCandidatureCard, {
+        props: {
+          candidature: candidature as never,
+          isUgcMission,
+        },
+        global: {
+          stubs: {
+            RouterLink: { template: '<a><slot /></a>', props: ['to'] },
+            Teleport: true,
+          },
+        },
+      })
+    }
+
+    it('shows the confirm-shipment button for a confirmed candidature on a UGC mission', async () => {
+      const wrapper = mountCard(confirmedUgcCandidature, true)
+
+      const button = wrapper.find('[data-testid="confirm-shipment-card-btn"]')
+      expect(button.exists()).toBe(true)
+      expect(button.text()).toContain("Confirmer l'envoi")
+
+      await button.trigger('click')
+      expect(wrapper.emitted('confirm-shipment')).toHaveLength(1)
+    })
+
+    it('hides the confirm-shipment button on non-UGC missions', () => {
+      const wrapper = mountCard(confirmedUgcCandidature, false)
+
+      expect(wrapper.find('[data-testid="confirm-shipment-card-btn"]').exists()).toBe(false)
+    })
+
+    it('hides the confirm-shipment button for pending candidatures', () => {
+      const wrapper = mountCard(pendingCandidature, true)
+
+      expect(wrapper.find('[data-testid="confirm-shipment-card-btn"]').exists()).toBe(false)
+    })
+
+    it('renders the compact tracking block instead of the button once shipped', () => {
+      const wrapper = mountCard({ ...confirmedUgcCandidature, shipment: makeShipment() }, true)
+
+      expect(wrapper.find('[data-testid="confirm-shipment-card-btn"]').exists()).toBe(false)
+
+      const tracking = wrapper.find('[data-testid="candidature-shipment-info"]')
+      expect(tracking.exists()).toBe(true)
+      // Label serveur + transporteur · numéro de suivi.
+      expect(tracking.text()).toContain('Produit expédié')
+      expect(tracking.text()).toContain('Gozem · GZM-COT-882194')
     })
   })
 })

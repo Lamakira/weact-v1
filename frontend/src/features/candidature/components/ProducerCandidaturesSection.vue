@@ -15,8 +15,10 @@ import ProducerCandidatureCard from './ProducerCandidatureCard.vue'
 import MissionSelectionSummary from '@/features/mission/components/MissionSelectionSummary.vue'
 import StatusFilter from './StatusFilter.vue'
 import { useToast } from '@/composables/useToast'
+import { useUgcShipment } from '@/composables/useUgcShipment'
+import { UgcShipmentForm, type ConfirmShipmentPayload } from '@/components/ugc'
 import { CandidatureStatusLabel } from '../types'
-import type { CandidatureStatusType } from '../types'
+import type { CandidatureStatusType, ProducerCandidature } from '../types'
 
 /**
  * Props
@@ -27,6 +29,8 @@ const props = defineProps<{
   missionStatus?: string
   nombreFacesVoulu?: number
   allowRetrySelection?: boolean
+  isUgcMission?: boolean
+  ugcProductName?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -123,6 +127,54 @@ async function handleReject(candidatureId: string): Promise<void> {
   }
 
   resetReject()
+}
+
+/**
+ * Expédition UGC (3.2) — modal unique au niveau section : N cartes ne doivent
+ * pas instancier N modals/composables (un colis PAR Face engagée, D-3.1.d).
+ */
+const shipmentTarget = ref<ProducerCandidature | null>(null)
+const {
+  isSubmitting: isSubmittingShipment,
+  error: shipmentError,
+  errorCode: shipmentErrorCode,
+  confirmShipment,
+  clearError: clearShipmentError,
+} = useUgcShipment()
+
+function openShipmentModal(candidature: ProducerCandidature): void {
+  clearShipmentError()
+  shipmentTarget.value = candidature
+}
+
+// Verrouille la fermeture pendant un submit en vol : sinon, fermer/rouvrir pour
+// une autre candidature ferait fermer SA modal à la résolution tardive du premier appel.
+function closeShipmentModal(): void {
+  if (isSubmittingShipment.value) return
+  shipmentTarget.value = null
+}
+
+async function handleConfirmShipment(payload: ConfirmShipmentPayload): Promise<void> {
+  if (!shipmentTarget.value) return
+
+  const shipment = await confirmShipment('candidature', shipmentTarget.value.id, payload)
+  if (shipment) {
+    toast.success('Expédition confirmée')
+    shipmentTarget.value = null
+    await refresh()
+    return
+  }
+
+  if (shipmentErrorCode.value === 'ALREADY_SHIPPED') {
+    // Multi-onglets (D-3.1.b/D-3.2.e) : la liste refetchée porte le shipment existant.
+    toast.info(shipmentError.value || "L'expédition de ce deal a déjà été confirmée.")
+    shipmentTarget.value = null
+    await refresh()
+    return
+  }
+
+  // Autre erreur : la modal reste ouverte, re-tentative possible.
+  toast.error(shipmentError.value || "Erreur lors de la confirmation de l'expédition")
 }
 
 /**
@@ -309,8 +361,10 @@ onMounted(() => {
           :candidature="candidature"
           :selection-mode="isSelectionMode"
           :is-selected="isSelected(candidature.id)"
+          :is-ugc-mission="isUgcMission"
           @reject="handleReject"
           @toggle-selection="(id: string) => toggleSelection(id, candidature.face.display_name)"
+          @confirm-shipment="openShipmentModal(candidature)"
         />
       </div>
 
@@ -364,5 +418,34 @@ onMounted(() => {
         </button>
       </div>
     </template>
+
+    <!-- Modal d'expédition UGC (3.2 — calque dialog reject ProducerCandidatureCard) -->
+    <Teleport to="body">
+      <div
+        v-if="shipmentTarget"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        data-testid="shipment-modal"
+        @click.self="closeShipmentModal()"
+      >
+        <div class="w-full max-w-md rounded-xl bg-card p-6 shadow-xl" role="dialog" aria-modal="true">
+          <p class="mb-1 text-[10px] font-bold uppercase tracking-widest text-weact">Étape 3 sur 6 · Expédition</p>
+          <h3 class="text-lg font-semibold text-foreground">
+            Vous envoyez à {{ shipmentTarget.face.display_name }}
+          </h3>
+          <p v-if="ugcProductName" class="mt-0.5 text-sm text-muted-foreground">{{ ugcProductName }}</p>
+          <div class="mt-4">
+            <UgcShipmentForm :is-submitting="isSubmittingShipment" @submit="handleConfirmShipment" />
+          </div>
+          <button
+            type="button"
+            class="mt-3 text-sm text-muted-foreground hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="isSubmittingShipment"
+            @click="closeShipmentModal()"
+          >
+            Annuler
+          </button>
+        </div>
+      </div>
+    </Teleport>
   </section>
 </template>

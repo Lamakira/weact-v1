@@ -2,6 +2,8 @@
  * Candidature feature types
  */
 
+import type { Shipment } from '@/components/ugc'
+
 // Candidature status enum
 export const CandidatureStatus = {
   PENDING: 'pending',
@@ -137,6 +139,8 @@ export interface ProducerCandidature {
   created_at: string
   conversation_id: string | null
   face: FaceSummary
+  // Expédition UGC (story 3.2) — `whenLoaded` backend : clé OMISE si absente.
+  shipment?: Shipment
 }
 
 // Paginated candidatures response for Producer list view

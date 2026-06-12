@@ -2,6 +2,8 @@
  * Booking feature types
  */
 
+import type { Shipment } from '@/components/ugc'
+
 // Booking status enum
 export const BookingStatus = {
   PENDING: 'pending',
@@ -163,6 +165,9 @@ export interface Booking {
   can_pay: boolean
   can_rate: boolean
   my_rating: BookingRating | null
+  // Expédition UGC (story 3.2) — `whenLoaded` backend : la clé est OMISE quand la
+  // relation n'est pas chargée ou n'existe pas (jamais `null` explicite).
+  shipment?: Shipment
   created_at: string
   updated_at: string
 }
@@ -315,5 +320,13 @@ export const CHAT_VIEW_STATUSES: BookingStatusType[] = [
   BookingStatus.IN_PROGRESS,
   BookingStatus.CONFIRMED_BY_FACE,
   BookingStatus.CONFIRMED_BY_PRODUCER,
+  BookingStatus.COMPLETED,
+]
+
+// Chat-eligible statuses for UGC bookings — miroir de BookingPolicy::viewMessages
+// branche UGC (3.1 AC8) : visible dès Accepted, lecture seule à Completed.
+// NE PAS élargir CHAT_VIEW_STATUSES (cash) : la policy backend refuse accepted cash.
+export const UGC_CHAT_VIEW_STATUSES: BookingStatusType[] = [
+  BookingStatus.ACCEPTED,
   BookingStatus.COMPLETED,
 ]
