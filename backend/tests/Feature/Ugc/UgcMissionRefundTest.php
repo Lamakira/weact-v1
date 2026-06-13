@@ -406,4 +406,44 @@ class UgcMissionRefundTest extends TestCase
             ->withArgs(fn (string $message): bool => str_contains($message, 'commission_ugc mission absente/invalide'))
             ->once();
     }
+
+    public function test_close_rolls_back_when_wallet_credit_fails_then_settles_on_retry(): void
+    {
+        // Revue 2.6 #1 — atomicité : clôture + crédit wallet dans la MÊME transaction.
+        // Si le crédit jette, le passage à Closed est annulé (rollback) → la mission
+        // reste published et le tick cron suivant règle (reprise automatique).
+        $mission = $this->makeExpiredPaidUgcMission(transactionId: 924);
+        $before = (int) $this->producerUser->balance;
+        Log::spy();
+
+        // 1ʳᵉ tentative : wallet en panne (creditDirect jette) → rollback complet.
+        $throwingWallet = new class extends WalletService
+        {
+            public function creditDirect(int $userId, int $amount, string $description): WalletTransaction
+            {
+                throw new \RuntimeException('wallet indisponible');
+            }
+        };
+        $this->assertFalse((new UgcRefundService($throwingWallet))->closeMissionPastDeadlineWithoutEngagement($mission));
+
+        $mission->refresh();
+        $this->assertSame(MissionStatus::Published, $mission->status); // pas de clôture
+        $this->assertNull($mission->commission_refunded_at);
+        $this->assertNull($mission->commission_refund_requested_at);
+        $this->assertSame($before, (int) $this->producerUser->fresh()->balance);
+        $this->assertSame(0, WalletTransaction::where('type', 'credit')->count());
+        Log::shouldHaveReceived('critical')
+            ->withArgs(fn (string $message): bool => str_contains($message, 'échec clôture/settlement mission'))
+            ->once();
+
+        // 2ᵉ tentative (wallet rétabli) : règle dans le même appel (reprise auto).
+        $this->assertTrue(app(UgcRefundService::class)->closeMissionPastDeadlineWithoutEngagement($mission->fresh()));
+
+        $mission->refresh();
+        $this->assertSame(MissionStatus::Closed, $mission->status);
+        $this->assertNotNull($mission->commission_refunded_at);
+        $this->assertSame($before + 2500, (int) $this->producerUser->fresh()->balance);
+        $this->assertSame(1, WalletTransaction::where('user_id', $this->producerUser->id)
+            ->where('type', 'credit')->count());
+    }
 }

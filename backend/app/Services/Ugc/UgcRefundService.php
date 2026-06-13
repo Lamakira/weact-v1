@@ -53,61 +53,7 @@ class UgcRefundService
             DB::transaction(function () use ($booking, $reason, &$settled): void {
                 /** @var Booking $locked */
                 $locked = Booking::query()->lockForUpdate()->findOrFail($booking->id);
-
-                // Idempotence sur le settlement (D-2.6.b) : hors-périmètre ou déjà
-                // réglé → no-op (jamais de second crédit wallet).
-                if ($locked->type_contenu !== 'UGC' || $locked->commission_refunded_at !== null) {
-                    return;
-                }
-
-                if ($locked->commission_paid_at === null) {
-                    // Commission jamais encaissée : rien à recréditer.
-                    Log::critical('UGC refund: demande sans encaissement — rien à créditer', [
-                        'booking_id' => $locked->id,
-                        'reason' => $reason->value,
-                    ]);
-
-                    return;
-                }
-
-                if ((int) $locked->commission_ugc <= 0) {
-                    // Montant de commission absent/invalide (anomalie de données) :
-                    // ne pas marquer remboursé ni créditer 0 — réconciliation requise.
-                    Log::critical('UGC refund: commission_ugc absente/invalide — rien à créditer', [
-                        'booking_id' => $locked->id,
-                        'reason' => $reason->value,
-                    ]);
-
-                    return;
-                }
-
-                $locked->update([
-                    'commission_refund_requested_at' => $locked->commission_refund_requested_at ?? now(),
-                    'commission_refund_reason' => $reason,
-                    'commission_refunded_at' => now(),
-                ]);
-
-                // Crédit wallet Producteur (producer_id = users.id pour un booking).
-                $this->wallet->credit(
-                    (int) $locked->producer_id,
-                    (int) $locked->commission_ugc,
-                    $locked,
-                    WalletCreditMotif::UgcCommissionRefund->label(),
-                );
-
-                // Audit booking-scopé (D-2.6.g) ; ref = transaction d'origine (stable, 1/owner).
-                $ref = (string) $locked->fedapay_transaction_id;
-                if (! $this->hasExistingFinancialEvent($locked->id, FinancialEventType::Refund, $ref)) {
-                    $this->recordFinancialEvent(
-                        FinancialEventType::Refund,
-                        $locked,
-                        (int) $locked->commission_ugc,
-                        ['fedapay_ref' => $ref, 'status' => 'refunded',
-                            'metadata' => ['kind' => 'ugc_commission', 'settlement' => 'wallet']],
-                    );
-                }
-
-                $settled = $locked->fresh();
+                $settled = $this->settleLockedBooking($locked, $reason);
             });
 
             // Après commit (AC1) : un rollback tardif ne doit pas avoir déjà notifié.
@@ -131,77 +77,7 @@ class UgcRefundService
             DB::transaction(function () use ($mission, $reason, &$settled): void {
                 /** @var Mission $locked */
                 $locked = Mission::query()->lockForUpdate()->findOrFail($mission->id);
-
-                // Idempotence sur le settlement (D-2.6.b) : hors-périmètre ou déjà
-                // réglé → no-op (jamais de second crédit wallet).
-                if ($locked->type_mission !== MissionType::Ugc || $locked->commission_refunded_at !== null) {
-                    return;
-                }
-
-                if ($locked->commission_paid_at === null) {
-                    Log::critical('UGC refund: demande mission sans encaissement — rien à créditer', [
-                        'mission_id' => $locked->id,
-                        'reason' => $reason->value,
-                    ]);
-
-                    return;
-                }
-
-                if ((int) $locked->commission_ugc <= 0) {
-                    // Montant de commission absent/invalide (anomalie de données) :
-                    // ne pas marquer remboursé ni créditer 0 — réconciliation requise.
-                    Log::critical('UGC refund: commission_ugc mission absente/invalide — rien à créditer', [
-                        'mission_id' => $locked->id,
-                        'reason' => $reason->value,
-                    ]);
-
-                    return;
-                }
-
-                // missions.producer_id = producers.id → résoudre le users.id du
-                // Producteur (calque exact NotifyProducerOnUgcRefunded).
-                $producerUserId = User::where('userable_type', Producer::class)
-                    ->where('userable_id', $locked->producer_id)
-                    ->value('id');
-
-                if ($producerUserId === null) {
-                    // Producteur orphelin : ne PAS poser commission_refunded_at
-                    // (laisser en attente pour réconciliation), jamais de throw (AC2).
-                    Log::critical('UGC refund: producteur introuvable pour la mission — settlement différé', [
-                        'mission_id' => $locked->id,
-                        'producer_id' => $locked->producer_id,
-                        'reason' => $reason->value,
-                    ]);
-
-                    return;
-                }
-
-                $update = [
-                    'commission_refund_requested_at' => $locked->commission_refund_requested_at ?? now(),
-                    'commission_refund_reason' => $reason,
-                    'commission_refunded_at' => now(),
-                ];
-
-                // Défense-en-profondeur (restaure le force-close 2.5 supprimé) : une
-                // mission remboursée ne doit jamais rester découvrable/acceptable. En
-                // nominal elle est déjà Closed (closeMissionPastDeadlineWithoutEngagement) ;
-                // ce filet couvre une réconciliation ops directe (runbook §4/§6) sur une
-                // mission encore Published — aucune policy mission ne garde commission_refunded_at.
-                if ($locked->status === MissionStatus::Published) {
-                    $update['status'] = MissionStatus::Closed;
-                }
-
-                $locked->update($update);
-
-                // Crédit wallet direct (pas de Booking pour une mission). Pas de
-                // FinancialEvent : audit mission par colonnes (D-2.6.g / D-1.5.g).
-                $this->wallet->creditDirect(
-                    (int) $producerUserId,
-                    (int) $locked->commission_ugc,
-                    WalletCreditMotif::UgcCommissionRefund->label(),
-                );
-
-                $settled = $locked->fresh();
+                $settled = $this->settleLockedMission($locked, $reason);
             });
 
             // Après commit (AC2) : un rollback tardif ne doit pas avoir déjà notifié.
@@ -217,10 +93,158 @@ class UgcRefundService
         }
     }
 
+    /**
+     * Règlement booking SOUS LOCK, DANS la transaction de l'appelant. Retourne le
+     * booking réglé (à dispatcher APRÈS le commit) ou null sur garde déterministe
+     * (hors-périmètre, déjà réglé, sans encaissement, commission invalide).
+     *
+     * NE catch PAS volontairement : une erreur transitoire (crédit wallet) remonte
+     * pour que la transaction de l'appelant rollback — le chemin cron réessaiera alors
+     * au tick suivant (settlement atomique avec le changement de statut, revue 2.6 #1).
+     * Les points d'entrée publics (refuse, tinker) l'enrobent d'un try/no-throw.
+     */
+    private function settleLockedBooking(Booking $locked, UgcRefundReason $reason): ?Booking
+    {
+        // Idempotence (D-2.6.b) : hors-périmètre ou déjà réglé → no-op.
+        if ($locked->type_contenu !== 'UGC' || $locked->commission_refunded_at !== null) {
+            return null;
+        }
+
+        if ($locked->commission_paid_at === null) {
+            // Commission jamais encaissée : rien à recréditer.
+            Log::critical('UGC refund: demande sans encaissement — rien à créditer', [
+                'booking_id' => $locked->id,
+                'reason' => $reason->value,
+            ]);
+
+            return null;
+        }
+
+        if ((int) $locked->commission_ugc <= 0) {
+            // Montant de commission absent/invalide (anomalie de données) :
+            // ne pas marquer remboursé ni créditer 0 — réconciliation requise.
+            Log::critical('UGC refund: commission_ugc absente/invalide — rien à créditer', [
+                'booking_id' => $locked->id,
+                'reason' => $reason->value,
+            ]);
+
+            return null;
+        }
+
+        $locked->update([
+            'commission_refund_requested_at' => $locked->commission_refund_requested_at ?? now(),
+            'commission_refund_reason' => $reason,
+            'commission_refunded_at' => now(),
+        ]);
+
+        // Crédit wallet Producteur (producer_id = users.id pour un booking).
+        $this->wallet->credit(
+            (int) $locked->producer_id,
+            (int) $locked->commission_ugc,
+            $locked,
+            WalletCreditMotif::UgcCommissionRefund->label(),
+        );
+
+        // Audit booking-scopé (D-2.6.g) ; ref = transaction d'origine (stable, 1/owner).
+        $ref = (string) $locked->fedapay_transaction_id;
+        if (! $this->hasExistingFinancialEvent($locked->id, FinancialEventType::Refund, $ref)) {
+            $this->recordFinancialEvent(
+                FinancialEventType::Refund,
+                $locked,
+                (int) $locked->commission_ugc,
+                ['fedapay_ref' => $ref, 'status' => 'refunded',
+                    'metadata' => ['kind' => 'ugc_commission', 'settlement' => 'wallet']],
+            );
+        }
+
+        return $locked->fresh();
+    }
+
+    /**
+     * Règlement mission SOUS LOCK, DANS la transaction de l'appelant. Retourne la
+     * mission réglée (à dispatcher APRÈS le commit) ou null sur garde déterministe
+     * (hors-périmètre, déjà réglé, sans encaissement, commission invalide, producteur
+     * orphelin — AC2). NE catch PAS (cf. settleLockedBooking).
+     */
+    private function settleLockedMission(Mission $locked, UgcRefundReason $reason): ?Mission
+    {
+        // Idempotence (D-2.6.b) : hors-périmètre ou déjà réglé → no-op.
+        if ($locked->type_mission !== MissionType::Ugc || $locked->commission_refunded_at !== null) {
+            return null;
+        }
+
+        if ($locked->commission_paid_at === null) {
+            Log::critical('UGC refund: demande mission sans encaissement — rien à créditer', [
+                'mission_id' => $locked->id,
+                'reason' => $reason->value,
+            ]);
+
+            return null;
+        }
+
+        if ((int) $locked->commission_ugc <= 0) {
+            // Montant de commission absent/invalide (anomalie de données) :
+            // ne pas marquer remboursé ni créditer 0 — réconciliation requise.
+            Log::critical('UGC refund: commission_ugc mission absente/invalide — rien à créditer', [
+                'mission_id' => $locked->id,
+                'reason' => $reason->value,
+            ]);
+
+            return null;
+        }
+
+        // missions.producer_id = producers.id → résoudre le users.id du
+        // Producteur (calque exact NotifyProducerOnUgcRefunded).
+        $producerUserId = User::where('userable_type', Producer::class)
+            ->where('userable_id', $locked->producer_id)
+            ->value('id');
+
+        if ($producerUserId === null) {
+            // Producteur orphelin : ne PAS poser commission_refunded_at
+            // (laisser en attente pour réconciliation), jamais de throw (AC2).
+            Log::critical('UGC refund: producteur introuvable pour la mission — settlement différé', [
+                'mission_id' => $locked->id,
+                'producer_id' => $locked->producer_id,
+                'reason' => $reason->value,
+            ]);
+
+            return null;
+        }
+
+        $update = [
+            'commission_refund_requested_at' => $locked->commission_refund_requested_at ?? now(),
+            'commission_refund_reason' => $reason,
+            'commission_refunded_at' => now(),
+        ];
+
+        // Défense-en-profondeur (restaure le force-close 2.5 supprimé) : une mission
+        // remboursée ne doit jamais rester découvrable/acceptable. En nominal elle est
+        // déjà Closed (closeMissionPastDeadlineWithoutEngagement) ; ce filet couvre une
+        // réconciliation ops directe (runbook §4/§6) sur une mission encore Published —
+        // aucune policy mission ne garde commission_refunded_at.
+        if ($locked->status === MissionStatus::Published) {
+            $update['status'] = MissionStatus::Closed;
+        }
+
+        $locked->update($update);
+
+        // Crédit wallet direct (pas de Booking pour une mission). Pas de
+        // FinancialEvent : audit mission par colonnes (D-2.6.g / D-1.5.g).
+        $this->wallet->creditDirect(
+            (int) $producerUserId,
+            (int) $locked->commission_ugc,
+            WalletCreditMotif::UgcCommissionRefund->label(),
+        );
+
+        return $locked->fresh();
+    }
+
     public function expireBookingPastAcceptanceWindow(Booking $booking): bool
     {
         try {
-            $expired = DB::transaction(function () use ($booking): bool {
+            $settled = null;
+
+            $expired = DB::transaction(function () use ($booking, &$settled): bool {
                 /** @var Booking $locked */
                 $locked = Booking::query()->lockForUpdate()->findOrFail($booking->id);
 
@@ -228,7 +252,7 @@ class UgcRefundService
                     || $locked->status !== BookingStatus::CommissionPaid
                     || $locked->commission_refunded_at !== null) {
                     // re-check sous lock : accepté/refusé entre-temps, ou déjà remboursé
-                    // (le deal est mort — rien à expirer ni à demander).
+                    // (le deal est mort — rien à expirer ni à régler).
                     return false;
                 }
 
@@ -236,16 +260,22 @@ class UgcRefundService
                 // le Producteur est notifié par le crédit wallet.
                 $locked->update(['status' => BookingStatus::Expired]);
 
+                // Settlement ATOMIQUE dans la MÊME transaction (revue 2.6 #1) : si le
+                // crédit wallet jette, l'expiration est annulée (rollback) → le cron
+                // réessaiera au tick suivant (le booking reste commission_paid). Une garde
+                // déterministe (commission invalide) renvoie null → on expire sans créditer.
+                $settled = $this->settleLockedBooking($locked, UgcRefundReason::AcceptanceWindowExpired);
+
                 return true;
             });
 
-            if ($expired) {
-                $this->settleRefundForBooking($booking->fresh(), UgcRefundReason::AcceptanceWindowExpired);
+            if ($settled) {
+                UgcCommissionRefunded::dispatch($settled);
             }
 
             return $expired;
         } catch (\Throwable $e) {
-            Log::critical('UGC refund: échec expiration booking', [
+            Log::critical('UGC refund: échec expiration/settlement booking — réconciliation requise', [
                 'booking_id' => $booking->id,
                 'error' => $e->getMessage(),
             ]);
@@ -257,7 +287,9 @@ class UgcRefundService
     public function closeMissionPastDeadlineWithoutEngagement(Mission $mission): bool
     {
         try {
-            $closed = DB::transaction(function () use ($mission): bool {
+            $settled = null;
+
+            $closed = DB::transaction(function () use ($mission, &$settled): bool {
                 /** @var Mission $locked */
                 $locked = Mission::query()->lockForUpdate()->findOrFail($mission->id);
 
@@ -286,16 +318,22 @@ class UgcRefundService
 
                 $locked->update(['status' => MissionStatus::Closed]);
 
+                // Settlement ATOMIQUE dans la MÊME transaction (revue 2.6 #1) : si le
+                // crédit wallet jette, la clôture est annulée (rollback) → le cron
+                // réessaiera au tick suivant (la mission reste published). Producteur
+                // orphelin → null (clôture conservée, refund différé à la réconciliation, AC2).
+                $settled = $this->settleLockedMission($locked, UgcRefundReason::MissionDeadlineExpired);
+
                 return true;
             });
 
-            if ($closed) {
-                $this->settleRefundForMission($mission->fresh(), UgcRefundReason::MissionDeadlineExpired);
+            if ($settled) {
+                UgcCommissionRefunded::dispatch($settled);
             }
 
             return $closed;
         } catch (\Throwable $e) {
-            Log::critical('UGC refund: échec clôture mission', [
+            Log::critical('UGC refund: échec clôture/settlement mission — réconciliation requise', [
                 'mission_id' => $mission->id,
                 'error' => $e->getMessage(),
             ]);

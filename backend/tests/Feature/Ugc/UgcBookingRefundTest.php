@@ -489,4 +489,45 @@ class UgcBookingRefundTest extends TestCase
             ->withArgs(fn (string $message): bool => str_contains($message, 'commission_ugc absente/invalide'))
             ->once();
     }
+
+    public function test_expiry_rolls_back_when_wallet_credit_fails_then_settles_on_retry(): void
+    {
+        // Revue 2.6 #1 — atomicité : expiration + crédit wallet dans la MÊME
+        // transaction. Si le crédit jette, le passage à Expired est annulé (rollback)
+        // → le booking reste commission_paid et le tick cron suivant règle (reprise
+        // automatique, plus de deal figé en statut terminal sans remboursement).
+        $booking = $this->makePaidUgcBooking(now()->subDays(8));
+        $before = (int) $this->producerUser->balance;
+        Log::spy();
+
+        // 1ʳᵉ tentative : wallet en panne (credit jette) → rollback complet.
+        $throwingWallet = new class extends WalletService
+        {
+            public function credit(int $userId, int $amount, Booking $booking, string $description): WalletTransaction
+            {
+                throw new \RuntimeException('wallet indisponible');
+            }
+        };
+        $this->assertFalse((new UgcRefundService($throwingWallet))->expireBookingPastAcceptanceWindow($booking));
+
+        $booking->refresh();
+        $this->assertSame(BookingStatus::CommissionPaid, $booking->status); // pas d'expiration
+        $this->assertNull($booking->commission_refunded_at);
+        $this->assertNull($booking->commission_refund_requested_at);
+        $this->assertSame($before, (int) $this->producerUser->fresh()->balance);
+        $this->assertSame(0, WalletTransaction::where('user_id', $this->producerUser->id)->count());
+        Log::shouldHaveReceived('critical')
+            ->withArgs(fn (string $message): bool => str_contains($message, 'échec expiration/settlement booking'))
+            ->once();
+
+        // 2ᵉ tentative (wallet rétabli) : règle dans le même appel (reprise auto).
+        $this->assertTrue(app(UgcRefundService::class)->expireBookingPastAcceptanceWindow($booking->fresh()));
+
+        $booking->refresh();
+        $this->assertSame(BookingStatus::Expired, $booking->status);
+        $this->assertNotNull($booking->commission_refunded_at);
+        $this->assertSame($before + 2500, (int) $this->producerUser->fresh()->balance);
+        $this->assertSame(1, WalletTransaction::where('user_id', $this->producerUser->id)
+            ->where('type', 'credit')->count());
+    }
 }

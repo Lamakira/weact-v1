@@ -85,8 +85,10 @@ Le Producteur voit le crédit dans **`/producer/wallet`** et le retire via le fl
 
 Les settlements sont **no-throw** : tout échec est loggé en `critical`, jamais propagé (la file n'est pas empoisonnée). Trois signaux à surveiller dans `laravel.log` :
 
-- `UGC refund: échec settlement wallet booking — réconciliation requise` / `… mission …` — exception pendant le crédit (rollback complet : aucune colonne posée, aucun crédit) ;
-- `UGC refund: producteur introuvable pour la mission — settlement différé` — User producteur orphelin (mission) : `commission_refunded_at` **non posé**, aucun crédit (réconciliation manuelle, AC2) ;
+- `UGC refund: échec expiration/settlement booking — réconciliation requise` / `UGC refund: échec clôture/settlement mission — réconciliation requise` — exception pendant l'expiration/clôture cron **ou** le crédit wallet. Le changement de statut ET le crédit sont dans **la même transaction** : un échec **annule tout** (rollback complet, booking resté `commission_paid` / mission restée `published`). **Le cron réessaie automatiquement au tick suivant** — n'intervenir manuellement que si le critical **persiste** plusieurs ticks (panne durable du wallet) ;
+- `UGC refund: échec settlement wallet booking — réconciliation requise` / `… mission …` — exception pendant un règlement **hors-cron** (hook refuse Face, ou réconciliation tinker) : rollback complet, mais **pas de reprise auto** (le refus a déjà réussi côté API) → réconciliation manuelle via §4 ;
+- `UGC refund: producteur introuvable pour la mission — settlement différé` — User producteur orphelin (mission) : `commission_refunded_at` **non posé**, aucun crédit, mission tout de même clôturée (réconciliation manuelle, AC2) ;
+- `UGC refund: commission_ugc absente/invalide — rien à créditer` / `… mission …` — owner encaissé mais commission nulle/0 (anomalie de données) : ni remboursé ni crédité ;
 - `UGC refund: demande sans encaissement — rien à créditer` — appel sur un owner jamais encaissé (anomalie de données).
 
 **Réconciliation** — ré-appeler la détection/settlement via tinker. C'est **idempotent** (un deal déjà réglé est un no-op) et **synchrone** (le crédit wallet est posé dans l'appel) :
