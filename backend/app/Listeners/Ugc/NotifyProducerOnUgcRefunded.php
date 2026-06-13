@@ -16,9 +16,9 @@ use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 class NotifyProducerOnUgcRefunded
 {
     /**
-     * Notifie le Producteur que sa commission a été remboursée (settlement
-     * webhook transaction.refunded). Non-fatal : commission_refunded_at est
-     * déjà persisté.
+     * Notifie le Producteur que sa commission a été créditée sur son
+     * portefeuille WeAct (settlement wallet synchrone — story 2.6). Non-fatal :
+     * commission_refunded_at + le crédit wallet sont déjà persistés.
      */
     public function handle(UgcCommissionRefunded $event): void
     {
@@ -42,8 +42,8 @@ class NotifyProducerOnUgcRefunded
                 'user_id' => $producerUserId,
                 'type' => 'ugc_commission_refunded',
                 'data' => [
-                    'message' => "Votre commission UGC de {$amount} FCFA a été remboursée.",
-                    'url' => $owner instanceof Mission ? '/producer/missions' : "/producer/bookings/{$owner->uuid}",
+                    'message' => "Votre commission UGC de {$amount} FCFA a été créditée sur votre portefeuille WeAct.",
+                    'url' => '/producer/wallet',
                 ],
             ]);
         } catch (\Throwable $e) {

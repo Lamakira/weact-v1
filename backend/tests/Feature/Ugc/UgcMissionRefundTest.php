@@ -7,8 +7,8 @@ namespace Tests\Feature\Ugc;
 use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
 use App\Enums\UgcRefundReason;
+use App\Enums\WalletCreditMotif;
 use App\Jobs\HandleFedapayWebhook;
-use App\Mail\UgcRefundRequestedMail;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\FedapayWebhookEvent;
@@ -17,6 +17,7 @@ use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
+use App\Models\WalletTransaction;
 use App\Services\BookingService;
 use App\Services\FaceSubscriptionPaymentService;
 use App\Services\MissionPaymentService;
@@ -24,16 +25,20 @@ use App\Services\Ugc\UgcCommissionPaymentService;
 use App\Services\Ugc\UgcRefundService;
 use App\Services\WalletService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 /**
- * UGC 2.5 — remboursement de la commission de publication d'une mission UGC
+ * UGC 2.6 — remboursement de la commission de publication d'une mission UGC
  * terminée sans aucun participant (deadline passée, zéro candidature engagée).
  *
- * Une mission partiellement engagée n'est JAMAIS remboursée (la commission de
- * publication est consommée — D-2.5.d). Settlement par webhook
- * transaction.refunded, SANS FinancialEvent (asymétrie D-1.5.g).
+ * Settlement = CRÉDIT WALLET DIRECT synchrone (creditDirect, booking_id null —
+ * SUPERSEDE le refund FedaPay de la 2.5). Le User producteur est résolu depuis
+ * missions.producer_id (= producers.id). Une mission partiellement engagée
+ * n'est JAMAIS remboursée (commission consommée — D-2.5.d). SANS FinancialEvent
+ * (asymétrie D-2.6.g / D-1.5.g : audit mission = colonnes). Producteur orphelin
+ * → settlement différé (Log::critical, jamais de throw — AC2).
  */
 class UgcMissionRefundTest extends TestCase
 {
@@ -54,7 +59,6 @@ class UgcMissionRefundTest extends TestCase
         parent::setUp();
 
         Mail::fake();
-        config(['app.admin_email' => 'ops@weact.test']);
 
         $this->producer = Producer::factory()->create();
         $this->producerUser = User::factory()->create([
@@ -71,7 +75,12 @@ class UgcMissionRefundTest extends TestCase
 
     private function makeExpiredPaidUgcMission(int $facesVoulues = 3, int $transactionId = 910): Mission
     {
-        return $this->producer->missions()->create([
+        return $this->makeExpiredPaidUgcMissionFor($this->producer, $facesVoulues, $transactionId);
+    }
+
+    private function makeExpiredPaidUgcMissionFor(Producer $producer, int $facesVoulues = 3, int $transactionId = 910): Mission
+    {
+        return $producer->missions()->create([
             'titre' => 'Appel UGC — Unboxing',
             'description' => 'desc',
             'date_tournage' => now()->addMonth(),
@@ -119,17 +128,17 @@ class UgcMissionRefundTest extends TestCase
             app(WalletService::class),
             app(FaceSubscriptionPaymentService::class),
             app(UgcCommissionPaymentService::class),
-            app(UgcRefundService::class),
         );
     }
 
     // ===================================================================
-    // Cron — clôture + demande de remboursement (AC5)
+    // Cron — clôture + settlement wallet (AC2, AC4)
     // ===================================================================
 
-    public function test_cron_closes_and_requests_refund_for_paid_mission_past_deadline_without_engagement(): void
+    public function test_cron_closes_and_settles_mission_via_wallet(): void
     {
         $mission = $this->makeExpiredPaidUgcMission();
+        $before = (int) $this->producerUser->balance;
 
         $this->artisan('ugc:expire-unaccepted-deals')->assertSuccessful();
 
@@ -137,37 +146,49 @@ class UgcMissionRefundTest extends TestCase
         $this->assertSame(MissionStatus::Closed, $mission->status);
         $this->assertNotNull($mission->commission_refund_requested_at);
         $this->assertSame(UgcRefundReason::MissionDeadlineExpired, $mission->commission_refund_reason);
+        // 2.6 : settlement synchrone — commission_refunded_at posé dans le même appel.
+        $this->assertNotNull($mission->commission_refunded_at);
 
-        Mail::assertSent(UgcRefundRequestedMail::class, fn (UgcRefundRequestedMail $mail): bool => $mail->owner->id === $mission->id
-            && $mail->reason === UgcRefundReason::MissionDeadlineExpired
-            && $mail->hasTo('ops@weact.test'));
-
-        $this->assertDatabaseHas('notifications', [
+        // Crédit wallet direct (booking_id null) + libellé motif ; balance += commission.
+        $this->assertSame($before + 2500, (int) $this->producerUser->fresh()->balance);
+        $this->assertDatabaseHas('wallet_transactions', [
             'user_id' => $this->producerUser->id,
-            'type' => 'ugc_commission_refund_requested',
+            'booking_id' => null,
+            'type' => 'credit',
+            'amount' => 2500,
+            'description' => WalletCreditMotif::UgcCommissionRefund->label(),
         ]);
+
+        // Asymétrie D-2.6.g : audit mission = colonnes, PAS de FinancialEvent.
+        $this->assertSame(0, FinancialEvent::where('type', 'refund')->count());
+        $this->assertSame(1, Notification::where('user_id', $this->producerUser->id)
+            ->where('type', 'ugc_commission_refunded')->count());
+        // Cycle « requested » supprimé (AC6).
+        $this->assertSame(0, Notification::where('type', 'ugc_commission_refund_requested')->count());
     }
 
     public function test_cron_ignores_mission_with_confirmed_engagement(): void
     {
         // D-2.5.d : engagement partiel → commission de publication consommée,
-        // ni clôture ni remboursement (lifecycle de clôture = épic 3).
+        // ni clôture ni remboursement.
         $mission = $this->makeExpiredPaidUgcMission();
         Candidature::create([
             'face_id' => $this->face->id,     // candidatures.face_id = faces.id (piège inverse du booking)
             'mission_id' => $mission->id,
             'status' => CandidatureStatus::Confirmed,
         ]);
+        $before = (int) $this->producerUser->balance;
 
         $this->artisan('ugc:expire-unaccepted-deals')->assertSuccessful();
 
         $mission->refresh();
         $this->assertSame(MissionStatus::Published, $mission->status);
         $this->assertNull($mission->commission_refund_requested_at);
-        Mail::assertNotSent(UgcRefundRequestedMail::class);
+        $this->assertNull($mission->commission_refunded_at);
+        $this->assertSame($before, (int) $this->producerUser->fresh()->balance);
     }
 
-    public function test_cron_refunds_mission_with_only_pending_candidatures(): void
+    public function test_cron_settles_mission_with_only_pending_candidatures(): void
     {
         // Une candidature pending n'est PAS un engagement (états 2.4 :
         // confirmed|in_progress|completed) — la mission est remboursée.
@@ -177,12 +198,15 @@ class UgcMissionRefundTest extends TestCase
             'mission_id' => $mission->id,
             'status' => CandidatureStatus::Pending,
         ]);
+        $before = (int) $this->producerUser->balance;
 
         $this->artisan('ugc:expire-unaccepted-deals')->assertSuccessful();
 
         $mission->refresh();
         $this->assertSame(MissionStatus::Closed, $mission->status);
         $this->assertNotNull($mission->commission_refund_requested_at);
+        $this->assertNotNull($mission->commission_refunded_at);
+        $this->assertSame($before + 2500, (int) $this->producerUser->fresh()->balance);
     }
 
     public function test_cron_ignores_mission_with_deadline_today(): void
@@ -230,120 +254,156 @@ class UgcMissionRefundTest extends TestCase
             'commission_paid_at' => null,
             'fedapay_transaction_id' => null,
         ]);
+        $before = (int) $this->producerUser->balance;
 
         $this->artisan('ugc:expire-unaccepted-deals')->assertSuccessful();
 
         $mission->refresh();
         $this->assertSame(MissionStatus::PendingPayment, $mission->status);
         $this->assertNull($mission->commission_refund_requested_at);
-        Mail::assertNotSent(UgcRefundRequestedMail::class);
+        $this->assertSame($before, (int) $this->producerUser->fresh()->balance);
     }
 
-    public function test_cron_is_idempotent(): void
+    public function test_cron_settlement_is_idempotent(): void
     {
         $mission = $this->makeExpiredPaidUgcMission();
+        $before = (int) $this->producerUser->balance;
 
         $this->artisan('ugc:expire-unaccepted-deals')->assertSuccessful();
-        $firstRequestedAt = $mission->fresh()->commission_refund_requested_at;
-
-        $this->artisan('ugc:expire-unaccepted-deals')->assertSuccessful();
-
-        $mission->refresh();
-        $this->assertSame(MissionStatus::Closed, $mission->status);
-        $this->assertEquals(
-            $firstRequestedAt?->toIso8601String(),
-            $mission->commission_refund_requested_at?->toIso8601String(),
-        );
-        Mail::assertSent(UgcRefundRequestedMail::class, 1);
-    }
-
-    // ===================================================================
-    // Settlement — webhook transaction.refunded (AC6, AC8c)
-    // ===================================================================
-
-    public function test_webhook_refunded_settles_mission_refund_without_financial_event(): void
-    {
-        $mission = $this->makeExpiredPaidUgcMission();
-        $this->artisan('ugc:expire-unaccepted-deals')->assertSuccessful(); // Closed + demande
-
-        $this->dispatchWebhook('transaction.refunded', 910, 'ref_refund_m');
-
-        $mission->refresh();
-        $this->assertNotNull($mission->commission_refunded_at);
-        $this->assertSame(MissionStatus::Closed, $mission->status);
-        // Asymétrie D-1.5.g : audit mission = colonnes, PAS de FinancialEvent.
-        $this->assertSame(0, FinancialEvent::where('type', 'refund')->count());
-        $this->assertDatabaseHas('notifications', [
-            'user_id' => $this->producerUser->id,
-            'type' => 'ugc_commission_refunded',
-        ]);
-        $this->assertDatabaseMissing('fedapay_webhook_events', ['status' => 'received']);
-    }
-
-    public function test_webhook_refunded_replay_is_noop(): void
-    {
-        $mission = $this->makeExpiredPaidUgcMission();
-        $this->artisan('ugc:expire-unaccepted-deals')->assertSuccessful();
-
-        $this->dispatchWebhook('transaction.refunded', 910, 'ref_refund_m');
         $firstRefundedAt = $mission->fresh()->commission_refunded_at;
 
-        $this->dispatchWebhook('transaction.refunded', 910, 'ref_refund_m');
+        $this->artisan('ugc:expire-unaccepted-deals')->assertSuccessful();
 
         $mission->refresh();
+        $this->assertSame(MissionStatus::Closed, $mission->status);
         $this->assertEquals(
             $firstRefundedAt?->toIso8601String(),
             $mission->commission_refunded_at?->toIso8601String(),
         );
+        $this->assertSame($before + 2500, (int) $this->producerUser->fresh()->balance);
+        $this->assertSame(1, WalletTransaction::where('user_id', $this->producerUser->id)
+            ->where('type', 'credit')->count());
         $this->assertSame(1, Notification::where('type', 'ugc_commission_refunded')->count());
     }
 
-    public function test_webhook_refunded_on_still_published_mission_forces_close(): void
-    {
-        // AC8c : une mission dont la commission de publication est remboursée
-        // ne doit plus être découvrable/acceptable — clôture forcée dans la
-        // même transaction que le settlement.
-        $mission = $this->makeExpiredPaidUgcMission(transactionId: 913);
-
-        $this->dispatchWebhook('transaction.refunded', 913, 'ref_oob_m');
-
-        $mission->refresh();
-        $this->assertSame(MissionStatus::Closed, $mission->status);
-        $this->assertNotNull($mission->commission_refunded_at);
-        $this->assertNull($mission->commission_refund_requested_at);
-    }
-
-    public function test_webhook_partial_refund_does_not_settle_mission(): void
-    {
-        // Revue 2.5 : un refund PARTIEL (statut FedaPay contenant
-        // partially_refunded) ne règle pas la demande mission.
-        $mission = $this->makeExpiredPaidUgcMission();
-        $this->artisan('ugc:expire-unaccepted-deals')->assertSuccessful(); // Closed + demande
-
-        $this->dispatchWebhook('transaction.refunded', 910, 'ref_partial_m', 'approved_partially_refunded');
-
-        $mission->refresh();
-        $this->assertNull($mission->commission_refunded_at);
-        $this->assertSame(0, Notification::where('type', 'ugc_commission_refunded')->count());
-        $this->assertDatabaseMissing('fedapay_webhook_events', ['status' => 'received']);
-    }
+    // ===================================================================
+    // Gardes type-owner, orphelin & webhook neutralisé (AC2, AC5)
+    // ===================================================================
 
     public function test_settlement_ignores_non_ugc_mission(): void
     {
-        // Revue 2.5 : garde type-owner — un appel tinker (runbook §4) sur un
-        // mauvais id (mission standard) ne stampe rien.
+        // Garde type-owner : settleRefundForMission sur une mission standard ne
+        // stampe rien et ne crédite pas.
         $mission = $this->makeExpiredPaidUgcMission(transactionId: 914);
         $mission->update([
             'type_mission' => 'publicite',
             'commission_paid_at' => null,
             'commission_ugc' => null,
         ]);
+        $before = (int) $this->producerUser->balance;
 
-        app(UgcRefundService::class)->markMissionCommissionRefunded($mission->fresh(), '914');
+        app(UgcRefundService::class)->settleRefundForMission($mission->fresh(), UgcRefundReason::MissionDeadlineExpired);
 
         $mission->refresh();
         $this->assertNull($mission->commission_refunded_at);
         $this->assertSame(MissionStatus::Published, $mission->status);
+        $this->assertSame($before, (int) $this->producerUser->fresh()->balance);
         $this->assertSame(0, Notification::where('type', 'ugc_commission_refunded')->count());
+    }
+
+    public function test_settlement_skips_orphan_producer_without_crediting(): void
+    {
+        // AC2 : User producteur introuvable (orphelin) → Log::critical, ne PAS
+        // poser commission_refunded_at (réconciliation), aucun crédit, jamais de throw.
+        $orphanProducer = Producer::factory()->create(); // aucun User userable associé
+        $mission = $this->makeExpiredPaidUgcMissionFor($orphanProducer, transactionId: 920);
+        Log::spy();
+
+        app(UgcRefundService::class)->settleRefundForMission($mission, UgcRefundReason::MissionDeadlineExpired);
+
+        $mission->refresh();
+        $this->assertNull($mission->commission_refunded_at);
+        $this->assertSame(0, WalletTransaction::where('type', 'credit')->count());
+        $this->assertSame(0, Notification::where('type', 'ugc_commission_refunded')->count());
+        Log::shouldHaveReceived('critical')
+            ->withArgs(fn (string $message): bool => str_contains($message, 'producteur introuvable'))
+            ->once();
+    }
+
+    public function test_webhook_refunded_ugc_mission_is_neutralized_no_settlement(): void
+    {
+        // AC5 / D-2.6.f : transaction.refunded sur une mission UGC ne règle plus
+        // rien (le refund se fait via wallet). Log défensif, aucun crédit, pas de
+        // clôture forcée, queue non empoisonnée.
+        $mission = $this->makeExpiredPaidUgcMission(transactionId: 913);
+        $before = (int) $this->producerUser->balance;
+        Log::spy();
+
+        $this->dispatchWebhook('transaction.refunded', 913, 'ref_oob_m');
+
+        $mission->refresh();
+        $this->assertNull($mission->commission_refunded_at);
+        $this->assertSame(MissionStatus::Published, $mission->status); // pas de clôture forcée
+        $this->assertSame($before, (int) $this->producerUser->fresh()->balance);
+        $this->assertSame(0, WalletTransaction::where('type', 'credit')->count());
+        $this->assertDatabaseMissing('fedapay_webhook_events', ['status' => 'received']);
+        Log::shouldHaveReceived('critical')
+            ->withArgs(fn (string $message): bool => str_contains($message, 'refund UGC inattendu'))
+            ->once();
+    }
+
+    public function test_settlement_forces_close_on_still_published_mission(): void
+    {
+        // Défense-en-profondeur (restaure le force-close 2.5) : une réconciliation
+        // ops directe sur une mission UGC encore Published doit la fermer dans la
+        // même transaction que le crédit — aucune policy mission ne garde refunded_at.
+        $mission = $this->makeExpiredPaidUgcMission(transactionId: 921);
+        $this->assertSame(MissionStatus::Published, $mission->status);
+        $before = (int) $this->producerUser->balance;
+
+        app(UgcRefundService::class)->settleRefundForMission($mission, UgcRefundReason::MissionDeadlineExpired);
+
+        $mission->refresh();
+        $this->assertSame(MissionStatus::Closed, $mission->status); // clôture forcée
+        $this->assertNotNull($mission->commission_refunded_at);
+        $this->assertSame($before + 2500, (int) $this->producerUser->fresh()->balance);
+    }
+
+    public function test_cron_skips_already_settled_published_mission(): void
+    {
+        // Symétrie avec test_cron_skips_already_settled_booking : une mission déjà
+        // réglée (refunded_at posé) ne doit ni être re-clôturée ni re-créditée, même
+        // si son statut est resté Published (cas hors-cron / legacy).
+        $mission = $this->makeExpiredPaidUgcMission(transactionId: 922);
+        $mission->update(['commission_refunded_at' => now()]);
+        $before = (int) $this->producerUser->balance;
+
+        $this->artisan('ugc:expire-unaccepted-deals')->assertSuccessful();
+
+        $mission->refresh();
+        $this->assertSame(MissionStatus::Published, $mission->status); // non re-clôturée
+        $this->assertSame($before, (int) $this->producerUser->fresh()->balance);
+        $this->assertSame(0, WalletTransaction::where('user_id', $this->producerUser->id)
+            ->where('type', 'credit')->count());
+    }
+
+    public function test_settlement_skips_zero_commission_without_crediting(): void
+    {
+        // Garde anti 0-crédit : une mission encaissée mais commission_ugc nulle/0
+        // (anomalie de données) ne doit PAS être marquée remboursée ni créditer 0.
+        $mission = $this->makeExpiredPaidUgcMission(transactionId: 923);
+        $mission->update(['commission_ugc' => 0]);
+        $before = (int) $this->producerUser->balance;
+        Log::spy();
+
+        app(UgcRefundService::class)->settleRefundForMission($mission->fresh(), UgcRefundReason::MissionDeadlineExpired);
+
+        $mission->refresh();
+        $this->assertNull($mission->commission_refunded_at);
+        $this->assertSame($before, (int) $this->producerUser->fresh()->balance);
+        $this->assertSame(0, WalletTransaction::where('type', 'credit')->count());
+        Log::shouldHaveReceived('critical')
+            ->withArgs(fn (string $message): bool => str_contains($message, 'commission_ugc mission absente/invalide'))
+            ->once();
     }
 }

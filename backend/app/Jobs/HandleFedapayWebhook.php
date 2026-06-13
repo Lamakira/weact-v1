@@ -18,7 +18,6 @@ use App\Services\BookingService;
 use App\Services\FaceSubscriptionPaymentService;
 use App\Services\MissionPaymentService;
 use App\Services\Ugc\UgcCommissionPaymentService;
-use App\Services\Ugc\UgcRefundService;
 use App\Services\WalletService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -38,14 +37,13 @@ class HandleFedapayWebhook implements ShouldQueue
         public readonly array $payload,
     ) {}
 
-    public function handle(BookingService $bookingService, MissionPaymentService $missionPaymentService, WalletService $walletService, FaceSubscriptionPaymentService $facePaymentService, ?UgcCommissionPaymentService $ugcPaymentService = null, ?UgcRefundService $ugcRefundService = null): void
+    public function handle(BookingService $bookingService, MissionPaymentService $missionPaymentService, WalletService $walletService, FaceSubscriptionPaymentService $facePaymentService, ?UgcCommissionPaymentService $ugcPaymentService = null): void
     {
         // Resolved here rather than as a required signature param so existing
         // direct-call tests (BookingPaymentTest, MissionPaymentInitiationTest,
         // SubscriptionCancelReactivationTest) that pass 4 args keep working. Real
         // queue dispatch still injects the concrete service via method injection.
         $ugcPaymentService ??= app(UgcCommissionPaymentService::class);
-        $ugcRefundService ??= app(UgcRefundService::class);
 
         $webhookEvent = FedapayWebhookEvent::find($this->webhookEventId);
 
@@ -80,13 +78,15 @@ class HandleFedapayWebhook implements ShouldQueue
                         $fedapayRef,
                         "Payment {$this->eventName}"
                     ),
-                    'transaction.refunded' => $this->isPartialRefund($transactionData)
-                        ? Log::critical('Fedapay webhook: remboursement UGC PARTIEL — settlement refusé, compléter le refund au dashboard (runbook)', [
-                            'booking_id' => $booking->id,
-                            'fedapay_transaction_id' => $transactionId,
-                            'transaction_status' => $transactionData['status'] ?? null,
-                        ])
-                        : $ugcRefundService->markBookingCommissionRefunded($booking, $fedapayRef),
+                    // Settlement refund UGC = crédit wallet synchrone (story 2.6) ;
+                    // un transaction.refunded UGC ne doit donc plus survenir. S'il
+                    // arrive (geste ops manuel hors-procédure au dashboard FedaPay),
+                    // on log sans régler (D-2.6.f) — surtout pas de double crédit.
+                    'transaction.refunded' => Log::critical('Fedapay webhook: refund UGC inattendu — les refunds UGC se règlent désormais via wallet, vérifier ce geste ops hors-procédure', [
+                        'booking_id' => $booking->id,
+                        'fedapay_transaction_id' => $transactionId,
+                        'transaction_status' => $transactionData['status'] ?? null,
+                    ]),
                     default => Log::info('Fedapay webhook: unhandled UGC booking event', ['event' => $this->eventName]),
                 };
             } else {
@@ -146,13 +146,15 @@ class HandleFedapayWebhook implements ShouldQueue
                         $fedapayRef,
                         "Payment {$this->eventName}"
                     ),
-                    'transaction.refunded' => $this->isPartialRefund($transactionData)
-                        ? Log::critical('Fedapay webhook: remboursement UGC PARTIEL — settlement refusé, compléter le refund au dashboard (runbook)', [
-                            'mission_id' => $ugcMission->id,
-                            'fedapay_transaction_id' => $transactionId,
-                            'transaction_status' => $transactionData['status'] ?? null,
-                        ])
-                        : $ugcRefundService->markMissionCommissionRefunded($ugcMission, $fedapayRef),
+                    // Settlement refund UGC = crédit wallet synchrone (story 2.6) ;
+                    // un transaction.refunded UGC ne doit donc plus survenir. S'il
+                    // arrive (geste ops manuel hors-procédure au dashboard FedaPay),
+                    // on log sans régler (D-2.6.f) — surtout pas de double crédit.
+                    'transaction.refunded' => Log::critical('Fedapay webhook: refund UGC inattendu — les refunds UGC se règlent désormais via wallet, vérifier ce geste ops hors-procédure', [
+                        'mission_id' => $ugcMission->id,
+                        'fedapay_transaction_id' => $transactionId,
+                        'transaction_status' => $transactionData['status'] ?? null,
+                    ]),
                     default => Log::info('Fedapay webhook: unhandled UGC mission event', ['event' => $this->eventName]),
                 };
 
@@ -261,24 +263,6 @@ class HandleFedapayWebhook implements ShouldQueue
             }),
             default => Log::info('Fedapay payout webhook: unhandled event', ['event' => $this->eventName]),
         };
-    }
-
-    /**
-     * Un refund PARTIEL ne règle pas la demande de remboursement UGC : la
-     * commission doit être remboursée intégralement (revue 2.5). Critère
-     * canonique FedaPay : le statut de la transaction contient
-     * 'partially_refunded' (même test que Transaction::wasPartiallyRefunded()
-     * du SDK) — le payload n'expose pas de montant remboursé fiable. La
-     * demande reste ouverte (requête runbook §5) jusqu'au webhook du refund
-     * complet, dont le statut redevient 'refunded' sans le préfixe partiel.
-     *
-     * @param  array<string, mixed>  $transactionData
-     */
-    private function isPartialRefund(array $transactionData): bool
-    {
-        $status = $transactionData['status'] ?? null;
-
-        return is_string($status) && str_contains($status, 'partially_refunded');
     }
 
     private function markProcessed(FedapayWebhookEvent $webhookEvent): void

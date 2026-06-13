@@ -10,8 +10,8 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Dispatched when the FedaPay transaction.refunded webhook settles a UGC
- * commission refund (commission_refunded_at posé).
+ * Dispatched (post-commit) when a UGC commission refund is settled via wallet
+ * credit (commission_refunded_at posé + crédit wallet Producteur — story 2.6).
  */
 class UgcCommissionRefunded
 {

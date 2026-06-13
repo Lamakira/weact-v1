@@ -237,10 +237,10 @@ class BookingService
             return $booking->fresh();
         });
 
-        // UGC (2.5) : un refus APRÈS encaissement déclenche la demande de remboursement
-        // (post-commit, no-throw — l'API refuse a déjà réussi). Refus à pending : rien.
+        // UGC (2.6) : un refus APRÈS encaissement règle le remboursement (crédit wallet
+        // synchrone, post-commit, no-throw — l'API refuse a déjà réussi). Refus à pending : rien.
         if ($wasCommissionPaid && $refused->type_contenu === 'UGC') {
-            $this->ugcRefundService->requestRefundForBooking($refused, UgcRefundReason::Refused);
+            $this->ugcRefundService->settleRefundForBooking($refused, UgcRefundReason::Refused);
         }
 
         return $refused;

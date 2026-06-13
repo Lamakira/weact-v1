@@ -56,6 +56,7 @@ class ExpireUnacceptedUgcDealsCommand extends Command
         $missions = Mission::where('status', MissionStatus::Published->value)
             ->where('type_mission', MissionType::Ugc->value)
             ->whereNotNull('commission_paid_at')
+            ->whereNull('commission_refunded_at') // déjà réglée → ne pas re-clôturer ni re-créditer (symétrie booking ligne 41)
             ->whereDate('date_limite_candidature', '<', now()->toDateString())
             ->whereDoesntHave('candidatures', fn ($q) => $q->whereIn('status', [
                 CandidatureStatus::Confirmed->value,

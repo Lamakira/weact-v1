@@ -17,6 +17,7 @@ use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
+use App\Models\WalletTransaction;
 use App\Services\BookingService;
 use App\Services\FaceEntitlementService;
 use App\Services\FaceSubscriptionPaymentService;
@@ -25,6 +26,7 @@ use App\Services\Ugc\UgcCommissionPaymentService;
 use App\Services\WalletService;
 use App\ValueObjects\MissionPricing;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
@@ -140,6 +142,50 @@ class UgcWebhookRoutingTest extends TestCase
 
         // Standard MissionPayment → paid.
         $this->assertSame('paid', $missionPayment->fresh()->status->value);
+    }
+
+    public function test_transaction_refunded_ugc_booking_is_neutralized_and_does_not_leak(): void
+    {
+        // Story 2.6 (AC5 / D-2.6.f) : le routage transaction.refunded UGC ne
+        // déclenche plus aucun settlement (refund = crédit wallet synchrone).
+        // Log défensif, aucune fuite cross-domaine, balance Producteur inchangée.
+        Mail::fake();
+        Log::spy();
+
+        $ugcBooking = Booking::create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'status' => BookingStatus::CommissionPaid,
+            'date_debut' => null,
+            'date_fin' => null,
+            'duree_heures' => null,
+            'type_contenu' => 'UGC',
+            'lieu' => null,
+            'tarif_base' => 0,
+            'montant_face_recoit' => 0,
+            'montant_total_producteur' => 2500,
+            'type_compensation' => 'product',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'commission_ugc' => 2500,
+            'fedapay_transaction_id' => 2002,
+            'commission_paid_at' => now()->subDay(),
+        ]);
+        $before = (int) $this->producerUser->fresh()->balance;
+
+        $this->dispatchWebhook('transaction.refunded', 2002, 'ref_ugc_refund');
+
+        $ugcBooking->refresh();
+        $this->assertNull($ugcBooking->commission_refunded_at);
+        $this->assertSame(BookingStatus::CommissionPaid, $ugcBooking->status);
+        $this->assertSame($before, (int) $this->producerUser->fresh()->balance);
+        $this->assertSame(0, WalletTransaction::where('user_id', $this->producerUser->id)->count());
+        $this->assertDatabaseMissing('financial_events', ['booking_id' => $ugcBooking->id, 'type' => 'refund']);
+        $this->assertDatabaseMissing('fedapay_webhook_events', ['status' => 'received']);
+        Log::shouldHaveReceived('critical')
+            ->withArgs(fn (string $message): bool => str_contains($message, 'refund UGC inattendu'))
+            ->once();
     }
 
     private function makeStandardMissionPayment(string $fedapayTransactionId): MissionPayment

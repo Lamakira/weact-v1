@@ -175,10 +175,10 @@ class UgcBookingAcceptanceTest extends TestCase
     {
         Event::fake([BookingRefused::class]);
         $booking = $this->makeUgcBooking(BookingStatus::CommissionPaid);
-        // fedapay_transaction_id : requis par la garde de requestRefundForBooking (2.5) ;
-        // commission_paid_at : vraisemblance du fixture (posé au settlement en prod),
-        // pas exigé par la garde booking. PAS dans le helper partagé :
-        // fedapay_transaction_id est UNIQUE et le helper sert des tests multi-bookings.
+        // commission_paid_at : requis par la garde de settleRefundForBooking (2.6) ;
+        // fedapay_transaction_id : sert de référence au FinancialEvent Refund (booking-scopé).
+        // PAS dans le helper partagé : fedapay_transaction_id est UNIQUE et le helper
+        // sert des tests multi-bookings.
         $booking->update(['fedapay_transaction_id' => 905, 'commission_paid_at' => now()->subHour()]);
 
         $this->actingAs($this->faceUser)
