@@ -7,8 +7,6 @@ namespace App\Listeners\Ugc;
 use App\Events\UgcCommissionRefunded;
 use App\Models\Mission;
 use App\Models\Notification;
-use App\Models\Producer;
-use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
@@ -25,11 +23,10 @@ class NotifyProducerOnUgcRefunded
         try {
             $owner = $event->owner;
 
-            // bookings.producer_id EST un users.id ; missions.producer_id est un producers.id.
+            // bookings.producer_id EST un users.id ; missions.producer_id est un
+            // producers.id → User via la relation Producer::user() (morphOne userable).
             $producerUserId = $owner instanceof Mission
-                ? User::where('userable_type', Producer::class)
-                    ->where('userable_id', $owner->producer_id)
-                    ->value('id')
+                ? $owner->producer?->user?->getKey()
                 : $owner->producer_id;
 
             if ($producerUserId === null) {

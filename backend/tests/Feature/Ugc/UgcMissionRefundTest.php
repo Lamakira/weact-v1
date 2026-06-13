@@ -403,7 +403,7 @@ class UgcMissionRefundTest extends TestCase
         $this->assertSame($before, (int) $this->producerUser->fresh()->balance);
         $this->assertSame(0, WalletTransaction::where('type', 'credit')->count());
         Log::shouldHaveReceived('critical')
-            ->withArgs(fn (string $message): bool => str_contains($message, 'commission_ugc mission absente/invalide'))
+            ->withArgs(fn (string $message): bool => str_contains($message, 'commission_ugc absente/invalide'))
             ->once();
     }
 
