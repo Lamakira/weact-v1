@@ -44,6 +44,17 @@ class UgcCommissionPaymentService
      */
     private const TERMINAL_FAILED_STATUSES = ['declined', 'canceled', 'refunded'];
 
+    /**
+     * Statut de paiement de commission dérivé du dernier checkAndProcess* (ugc-3-5 Item 3, exposition lecture).
+     * 'paid' | 'pending' | 'failed'. Stateful par requête : un seul checkAndProcess* par requête de polling.
+     *
+     * ⚠️ NE PAS enregistrer ce service en singleton (`$this->app->singleton(...)`). Cet état est
+     * volontairement par-instance/par-requête : le contrôleur appelle checkAndProcess* PUIS lit
+     * lastCommissionPaymentStatus() sur la même instance. Un binding singleton ferait fuiter la
+     * valeur 'failed' d'une requête à l'autre. Aujourd'hui résolu frais par requête (binding par défaut).
+     */
+    private string $lastCommissionPaymentStatus = 'pending';
+
     public function __construct(
         private readonly FedapayService $fedapayService,
     ) {}
@@ -210,15 +221,29 @@ class UgcCommissionPaymentService
      */
     public function checkAndProcessBooking(Booking $booking): Booking
     {
+        if ($booking->status === BookingStatus::CommissionPaid) {
+            $this->lastCommissionPaymentStatus = 'paid';
+
+            return $booking;
+        }
+
         if ($booking->status !== BookingStatus::Pending || ! $booking->fedapay_transaction_id) {
+            $this->lastCommissionPaymentStatus = 'pending';
+
             return $booking;
         }
 
         $transaction = $this->fedapayService->retrieveTransaction((int) $booking->fedapay_transaction_id);
 
         if ($transaction->status === 'approved') {
+            $this->lastCommissionPaymentStatus = 'paid';
+
             return $this->markBookingCommissionPaid($booking, (string) ($transaction->reference ?? 'fedapay_poll'));
         }
+
+        $this->lastCommissionPaymentStatus = in_array($transaction->status, self::TERMINAL_FAILED_STATUSES, true)
+            ? 'failed'
+            : 'pending';
 
         return $booking;
     }
@@ -368,17 +393,39 @@ class UgcCommissionPaymentService
      */
     public function checkAndProcessMission(Mission $mission): Mission
     {
+        if ($mission->status === MissionStatus::Published) {
+            $this->lastCommissionPaymentStatus = 'paid';
+
+            return $mission;
+        }
+
         if ($mission->status !== MissionStatus::PendingPayment || ! $mission->fedapay_transaction_id) {
+            $this->lastCommissionPaymentStatus = 'pending';
+
             return $mission;
         }
 
         $transaction = $this->fedapayService->retrieveTransaction((int) $mission->fedapay_transaction_id);
 
         if ($transaction->status === 'approved') {
+            $this->lastCommissionPaymentStatus = 'paid';
+
             return $this->markMissionCommissionPaid($mission, (string) ($transaction->reference ?? 'fedapay_poll'));
         }
 
+        $this->lastCommissionPaymentStatus = in_array($transaction->status, self::TERMINAL_FAILED_STATUSES, true)
+            ? 'failed'
+            : 'pending';
+
         return $mission;
+    }
+
+    /**
+     * Dernier statut de paiement de commission calculé par checkAndProcess* (ugc-3-5 Item 3, lecture seule).
+     */
+    public function lastCommissionPaymentStatus(): string
+    {
+        return $this->lastCommissionPaymentStatus;
     }
 
     // -------------------------------------------------------------------------

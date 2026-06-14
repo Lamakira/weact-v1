@@ -51,14 +51,23 @@ export function useUgcCommissionPayment(): UseUgcCommissionPaymentReturn {
     isPolling.value = false
   }
 
-  // Terminal status per owner: booking → commission_paid (never `paid`), mission → published.
-  async function isSettled(kind: UgcPaymentOwnerKind, id: string): Promise<boolean> {
+  // Résultat d'un poll : settled (booking → commission_paid / mission → published),
+  // failed (statut provider terminal declined/canceled/refunded exposé par le backend, ugc-3-5),
+  // pending (continuer à poller).
+  async function pollOutcome(
+    kind: UgcPaymentOwnerKind,
+    id: string,
+  ): Promise<'settled' | 'failed' | 'pending'> {
     if (kind === 'booking') {
-      const { data } = await bookingApi.checkCommissionStatus(id)
-      return data.status === BookingStatus.COMMISSION_PAID
+      const { data, commission_payment_status } = await bookingApi.checkCommissionStatus(id)
+      if (data.status === BookingStatus.COMMISSION_PAID) return 'settled'
+      if (commission_payment_status === 'failed') return 'failed'
+      return 'pending'
     }
-    const { data } = await missionApi.getCommissionStatus(id)
-    return data.status === MissionStatus.PUBLISHED
+    const { data, commission_payment_status } = await missionApi.getCommissionStatus(id)
+    if (data.status === MissionStatus.PUBLISHED) return 'settled'
+    if (commission_payment_status === 'failed') return 'failed'
+    return 'pending'
   }
 
   function startPolling(kind: UgcPaymentOwnerKind, id: string, onSettled: () => void): void {
@@ -68,10 +77,16 @@ export function useUgcCommissionPayment(): UseUgcCommissionPaymentReturn {
       try {
         // The commission-status endpoint checks FedaPay directly and settles if
         // approved — resilient to delayed/failed webhook delivery (sandbox/ngrok).
-        if (await isSettled(kind, id)) {
+        const outcome = await pollOutcome(kind, id)
+        if (outcome === 'settled') {
           stopPolling()
           paymentStatus.value = 'confirmed'
           onSettled()
+        } else if (outcome === 'failed') {
+          // Court-circuit : provider refusé/annulé/remboursé — inutile d'attendre le timeout 120s.
+          stopPolling()
+          error.value = 'Votre paiement a été refusé. Vérifiez votre moyen de paiement puis réessayez.'
+          paymentStatus.value = 'failed'
         }
       } catch {
         // Silently ignore polling errors — keep polling

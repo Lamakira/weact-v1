@@ -15,6 +15,7 @@ use App\Models\Producer;
 use App\Models\Shipment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Feature\Ugc\Concerns\BuildsUgcShipments;
 use Tests\TestCase;
 
 /**
@@ -25,6 +26,7 @@ use Tests\TestCase;
  */
 class UgcMissionShipmentTest extends TestCase
 {
+    use BuildsUgcShipments;
     use RefreshDatabase;
 
     private Producer $producer;
@@ -93,36 +95,6 @@ class UgcMissionShipmentTest extends TestCase
             'face_id' => ($face ?? $this->face)->id, // faces.id (PAS users.id — piège n°2)
             'mission_id' => $mission->id,
             'status' => CandidatureStatus::Confirmed,
-        ]);
-    }
-
-    /**
-     * @param  array<string, mixed>  $overrides
-     * @return array<string, mixed>
-     */
-    private function confirmPayload(array $overrides = []): array
-    {
-        return array_merge([
-            'transporteur' => 'Gozem',
-            'numero_suivi' => 'GZM-COT-882194',
-            'note_envoi' => 'Le colis arrive demain entre 14h et 16h.',
-        ], $overrides);
-    }
-
-    /**
-     * Shipment `shipped` posé directement : le POST producer confirm-shipment
-     * est déjà couvert par les tests 3.1 — inutile de re-passer par lui.
-     */
-    private function makeShippedShipment(Candidature $owner): Shipment
-    {
-        return $owner->shipment()->create([
-            'transporteur' => 'Gozem',
-            'numero_suivi' => 'GZM-COT-882194',
-            'tunnel_status' => UgcTunnelStatus::Shipped,
-            'shipped_at' => now()->subDay(),
-            'destinataire_nom' => 'Aïcha Bello',
-            'destinataire_ville' => 'Cotonou',
-            'destinataire_pays' => 'Bénin',
         ]);
     }
 

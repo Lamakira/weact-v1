@@ -282,6 +282,59 @@ class EditMissionTest extends TestCase
         ]);
     }
 
+    public function test_cannot_update_a_ugc_mission(): void
+    {
+        // Une mission UGC publiée est inéditable (garde backend) ; le flow réel renvoie type_mission='ugc' (ugc-3-5).
+        $ugcMission = Mission::factory()->published()->create([
+            'producer_id' => $this->producer->id,
+            'type_mission' => MissionType::Ugc,
+            'type_compensation' => 'product',
+            'commission_ugc' => 2500,
+            'nombre_faces_voulu' => 1,
+        ]);
+
+        $data = $this->getValidUpdateData();
+        $data['type_mission'] = 'ugc';
+
+        $this->actingAs($this->producerUser)
+            ->putJson("/api/v1/producer/missions/{$ugcMission->uuid}", $data)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['type_mission'])
+            ->assertJsonPath('errors.type_mission.0', 'Le type UGC ne peut pas être utilisé pour modifier une mission existante.');
+    }
+
+    public function test_cannot_update_a_ugc_mission_via_forged_standard_type(): void
+    {
+        // Trou classe ugc-1-3 : un PUT forgé avec un type non-UGC ne doit PAS contourner le
+        // verrou d'édition UGC. La garde teste la mission PERSISTÉE, pas l'input `type_mission`.
+        $ugcMission = Mission::factory()->published()->create([
+            'producer_id' => $this->producer->id,
+            'type_mission' => MissionType::Ugc,
+            'type_compensation' => 'product',
+            'commission_ugc' => 2500,
+            'nombre_faces_voulu' => 1,
+            'budget' => 50000,
+        ]);
+
+        // getValidUpdateData() renvoie déjà type_mission='film' (non-UGC) + budget=200000 :
+        // c'est précisément l'input forgé qui contournait l'ancienne garde (input-only).
+        $data = $this->getValidUpdateData();
+
+        $this->actingAs($this->producerUser)
+            ->putJson("/api/v1/producer/missions/{$ugcMission->uuid}", $data)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['mission'])
+            ->assertJsonPath('errors.mission.0', 'Une mission UGC ne peut pas être modifiée.');
+
+        // Rien n'a muté : ni le type, ni le budget de la mission UGC publiée.
+        $this->assertDatabaseHas('missions', [
+            'id' => $ugcMission->id,
+            'type_mission' => MissionType::Ugc->value,
+            'type_compensation' => 'product',
+            'budget' => 50000,
+        ]);
+    }
+
     public function test_validation_error_for_invalid_genre_voulu(): void
     {
         $data = $this->getValidUpdateData();

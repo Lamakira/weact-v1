@@ -146,8 +146,12 @@ export const bookingApi = {
    * Poll FedaPay and settle the UGC commission if approved (fallback when the
    * webhook is delayed). Idempotent server-side. Booking settles to `commission_paid`.
    */
-  async checkCommissionStatus(bookingId: string): Promise<BookingResponse> {
-    const response = await apiClient.get<BookingResponse>(`/bookings/${bookingId}/commission-status`)
+  async checkCommissionStatus(
+    bookingId: string,
+  ): Promise<BookingResponse & { commission_payment_status?: 'paid' | 'pending' | 'failed' }> {
+    const response = await apiClient.get<
+      BookingResponse & { commission_payment_status?: 'paid' | 'pending' | 'failed' }
+    >(`/bookings/${bookingId}/commission-status`)
     return response.data
   },
 

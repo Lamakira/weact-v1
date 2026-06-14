@@ -202,10 +202,12 @@ export const missionApi = {
    * Poll FedaPay and publish the UGC mission if the commission is approved
    * (fallback when the webhook is delayed). Idempotent. Mission settles to `published`.
    */
-  async getCommissionStatus(missionId: string): Promise<MissionResponse> {
-    const response = await apiClient.get<MissionResponse>(
-      `/producer/missions/${missionId}/commission-status`,
-    )
+  async getCommissionStatus(
+    missionId: string,
+  ): Promise<MissionResponse & { commission_payment_status?: 'paid' | 'pending' | 'failed' }> {
+    const response = await apiClient.get<
+      MissionResponse & { commission_payment_status?: 'paid' | 'pending' | 'failed' }
+    >(`/producer/missions/${missionId}/commission-status`)
     return response.data
   },
 }

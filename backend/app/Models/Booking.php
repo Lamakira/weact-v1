@@ -8,6 +8,7 @@ use App\Concerns\HasRouteUuid;
 use App\Enums\BookingStatus;
 use App\Enums\CompensationType;
 use App\Enums\UgcRefundReason;
+use App\Exceptions\MoneyColumnImmutableException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -105,6 +106,38 @@ class Booking extends Model
         'payment_mode',
         'payment_initiation_key',
     ];
+
+    /**
+     * Colonnes de montant immuables après création (durcissement ugc-3-5).
+     *
+     * @var list<string>
+     */
+    private const IMMUTABLE_MONEY_COLUMNS = [
+        'tarif_base',
+        'montant_total_producteur',
+        'montant_face_recoit',
+        'commission_ugc',
+        'valeur_produit',
+        'montant_remuneration',
+    ];
+
+    /**
+     * Empêche toute mutation d'une colonne de montant après création.
+     */
+    protected static function booted(): void
+    {
+        static::updating(function (Booking $model): void {
+            if ($model->isDirty(self::IMMUTABLE_MONEY_COLUMNS)) {
+                throw new MoneyColumnImmutableException(
+                    $model::class.' : colonnes de montant immuables après création ('
+                    .implode(', ', array_keys(array_intersect_key(
+                        $model->getDirty(),
+                        array_flip(self::IMMUTABLE_MONEY_COLUMNS)
+                    ))).')'
+                );
+            }
+        });
+    }
 
     /**
      * Get the attributes that should be cast.

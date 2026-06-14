@@ -78,6 +78,22 @@ class CreateUgcBookingTest extends TestCase
         ]);
     }
 
+    public function test_server_ignores_client_submitted_commission(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        $data = $this->getValidUgcProductData();
+        $data['commission_ugc'] = 999999; // tentative client falsifiée
+
+        // le serveur recalcule via UgcCommissionService (valeur_produit 20000 → 2500), valeur client ignorée
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data)
+            ->assertCreated()
+            ->assertJsonPath('data.commission_ugc', 2500);
+
+        $this->assertDatabaseMissing('bookings', ['commission_ugc' => 999999]);
+    }
+
     public function test_producer_can_create_ugc_product_only_booking(): void
     {
         Event::fake([BookingCreated::class]);

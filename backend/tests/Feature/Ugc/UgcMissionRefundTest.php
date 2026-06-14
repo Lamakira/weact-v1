@@ -8,25 +8,20 @@ use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
 use App\Enums\UgcRefundReason;
 use App\Enums\WalletCreditMotif;
-use App\Jobs\HandleFedapayWebhook;
 use App\Models\Candidature;
 use App\Models\Face;
-use App\Models\FedapayWebhookEvent;
 use App\Models\FinancialEvent;
 use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
 use App\Models\WalletTransaction;
-use App\Services\BookingService;
-use App\Services\FaceSubscriptionPaymentService;
-use App\Services\MissionPaymentService;
-use App\Services\Ugc\UgcCommissionPaymentService;
 use App\Services\Ugc\UgcRefundService;
 use App\Services\WalletService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Tests\Feature\Ugc\Concerns\DispatchesFedapayWebhooks;
 use Tests\TestCase;
 
 /**
@@ -42,6 +37,7 @@ use Tests\TestCase;
  */
 class UgcMissionRefundTest extends TestCase
 {
+    use DispatchesFedapayWebhooks;
     use RefreshDatabase;
 
     private User $producerUser;
@@ -51,8 +47,6 @@ class UgcMissionRefundTest extends TestCase
     private User $faceUser;
 
     private Face $face;
-
-    private int $webhookSeq = 0;
 
     protected function setUp(): void
     {
@@ -102,33 +96,6 @@ class UgcMissionRefundTest extends TestCase
             'fedapay_transaction_id' => $transactionId,    // missions.fedapay_transaction_id est UNIQUE (1.5) : id distinct par mission
             'commission_paid_at' => now()->subDays(10),
         ]);
-    }
-
-    private function dispatchWebhook(string $eventName, int $transactionId, string $reference, ?string $transactionStatus = null): void
-    {
-        $this->webhookSeq++;
-        $entity = ['id' => $transactionId, 'reference' => $reference];
-
-        if ($transactionStatus !== null) {
-            $entity['status'] = $transactionStatus;
-        }
-
-        $payload = ['entity' => $entity];
-
-        $webhookEvent = FedapayWebhookEvent::create([
-            'fedapay_event_id' => "evt_{$transactionId}_{$this->webhookSeq}",
-            'event_name' => $eventName,
-            'payload' => $payload,
-            'status' => 'received',
-        ]);
-
-        (new HandleFedapayWebhook($webhookEvent->id, $eventName, $payload))->handle(
-            app(BookingService::class),
-            app(MissionPaymentService::class),
-            app(WalletService::class),
-            app(FaceSubscriptionPaymentService::class),
-            app(UgcCommissionPaymentService::class),
-        );
     }
 
     // ===================================================================

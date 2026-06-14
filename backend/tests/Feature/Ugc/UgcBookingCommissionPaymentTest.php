@@ -7,25 +7,22 @@ namespace Tests\Feature\Ugc;
 use App\Enums\BookingStatus;
 use App\Enums\FinancialEventType;
 use App\Events\BookingCommissionPaid;
-use App\Jobs\HandleFedapayWebhook;
 use App\Models\Booking;
 use App\Models\Face;
-use App\Models\FedapayWebhookEvent;
 use App\Models\FinancialEvent;
 use App\Models\Producer;
 use App\Models\User;
 use App\Services\BookingService;
-use App\Services\FaceSubscriptionPaymentService;
 use App\Services\FedapayService;
-use App\Services\MissionPaymentService;
-use App\Services\Ugc\UgcCommissionPaymentService;
-use App\Services\WalletService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Feature\Ugc\Concerns\DispatchesFedapayWebhooks;
 use Tests\TestCase;
 
 class UgcBookingCommissionPaymentTest extends TestCase
 {
+    use DispatchesFedapayWebhooks;
     use RefreshDatabase;
 
     private User $producerUser;
@@ -35,8 +32,6 @@ class UgcBookingCommissionPaymentTest extends TestCase
     private User $faceUser;
 
     private Face $face;
-
-    private int $webhookSeq = 0;
 
     protected function setUp(): void
     {
@@ -244,6 +239,44 @@ class UgcBookingCommissionPaymentTest extends TestCase
         $this->assertSame(BookingStatus::CommissionPaid, $booking->fresh()->status);
     }
 
+    #[DataProvider('terminalFailedProviderStatuses')]
+    public function test_commission_status_polling_exposes_failed_on_terminal_status(string $providerStatus): void
+    {
+        $booking = $this->makePendingUgcBooking(commission: 2500);
+        $booking->update(['fedapay_transaction_id' => 920]);
+
+        $transactionStub = \Mockery::mock(\FedaPay\Transaction::class);
+        $transactionStub->status = $providerStatus;
+        $transactionStub->reference = 'ref_ko';
+
+        $this->mock(FedapayService::class, function ($mock) use ($transactionStub): void {
+            $mock->shouldReceive('retrieveTransaction')
+                ->once()
+                ->with(920)
+                ->andReturn($transactionStub);
+        });
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}/commission-status")
+            ->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::Pending->value)
+            ->assertJsonPath('commission_payment_status', 'failed');
+
+        $this->assertSame(BookingStatus::Pending, $booking->fresh()->status);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function terminalFailedProviderStatuses(): array
+    {
+        return [
+            'declined' => ['declined'],
+            'canceled' => ['canceled'],
+            'refunded' => ['refunded'],
+        ];
+    }
+
     public function test_non_owner_cannot_pay_commission(): void
     {
         $booking = $this->makePendingUgcBooking();
@@ -339,26 +372,5 @@ class UgcBookingCommissionPaymentTest extends TestCase
             'montant_remuneration' => $compensation === 'hybrid' ? 15000 : null,
             'commission_ugc' => $commission,
         ]);
-    }
-
-    private function dispatchWebhook(string $eventName, int $transactionId, string $reference): void
-    {
-        $this->webhookSeq++;
-        $payload = ['entity' => ['id' => $transactionId, 'reference' => $reference]];
-
-        $webhookEvent = FedapayWebhookEvent::create([
-            'fedapay_event_id' => "evt_{$transactionId}_{$this->webhookSeq}",
-            'event_name' => $eventName,
-            'payload' => $payload,
-            'status' => 'received',
-        ]);
-
-        (new HandleFedapayWebhook($webhookEvent->id, $eventName, $payload))->handle(
-            app(BookingService::class),
-            app(MissionPaymentService::class),
-            app(WalletService::class),
-            app(FaceSubscriptionPaymentService::class),
-            app(UgcCommissionPaymentService::class),
-        );
     }
 }

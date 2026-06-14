@@ -11,23 +11,18 @@ use App\Jobs\HandleFedapayWebhook;
 use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Face;
-use App\Models\FedapayWebhookEvent;
 use App\Models\Mission;
 use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
 use App\Models\WalletTransaction;
-use App\Services\BookingService;
 use App\Services\FaceEntitlementService;
-use App\Services\FaceSubscriptionPaymentService;
-use App\Services\MissionPaymentService;
-use App\Services\Ugc\UgcCommissionPaymentService;
-use App\Services\WalletService;
 use App\ValueObjects\MissionPricing;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Tests\Feature\Ugc\Concerns\DispatchesFedapayWebhooks;
 use Tests\TestCase;
 
 /**
@@ -37,6 +32,7 @@ use Tests\TestCase;
  */
 class UgcWebhookRoutingTest extends TestCase
 {
+    use DispatchesFedapayWebhooks;
     use RefreshDatabase;
 
     private Producer $producer;
@@ -44,8 +40,6 @@ class UgcWebhookRoutingTest extends TestCase
     private User $producerUser;
 
     private User $faceUser;
-
-    private int $webhookSeq = 0;
 
     protected function setUp(): void
     {
@@ -258,26 +252,5 @@ class UgcWebhookRoutingTest extends TestCase
             'face_id' => $face->id,
             'mission_id' => $mission->id,
         ]);
-    }
-
-    private function dispatchWebhook(string $eventName, int $transactionId, string $reference): void
-    {
-        $this->webhookSeq++;
-        $payload = ['entity' => ['id' => $transactionId, 'reference' => $reference]];
-
-        $webhookEvent = FedapayWebhookEvent::create([
-            'fedapay_event_id' => "evt_{$transactionId}_{$this->webhookSeq}",
-            'event_name' => $eventName,
-            'payload' => $payload,
-            'status' => 'received',
-        ]);
-
-        (new HandleFedapayWebhook($webhookEvent->id, $eventName, $payload))->handle(
-            app(BookingService::class),
-            app(MissionPaymentService::class),
-            app(WalletService::class),
-            app(FaceSubscriptionPaymentService::class),
-            app(UgcCommissionPaymentService::class),
-        );
     }
 }

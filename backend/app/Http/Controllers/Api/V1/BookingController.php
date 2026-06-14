@@ -282,6 +282,7 @@ class BookingController extends Controller
 
         return response()->json([
             'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+            'commission_payment_status' => $this->ugcCommissionPaymentService->lastCommissionPaymentStatus(),
         ]);
     }
 }

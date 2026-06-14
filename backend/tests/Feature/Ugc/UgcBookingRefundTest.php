@@ -8,25 +8,21 @@ use App\Enums\BookingStatus;
 use App\Enums\UgcRefundReason;
 use App\Enums\WalletCreditMotif;
 use App\Events\BookingExpired;
-use App\Jobs\HandleFedapayWebhook;
 use App\Models\Booking;
 use App\Models\Face;
-use App\Models\FedapayWebhookEvent;
 use App\Models\FinancialEvent;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Services\BookingService;
-use App\Services\FaceSubscriptionPaymentService;
-use App\Services\MissionPaymentService;
-use App\Services\Ugc\UgcCommissionPaymentService;
 use App\Services\Ugc\UgcRefundService;
 use App\Services\WalletService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Tests\Feature\Ugc\Concerns\DispatchesFedapayWebhooks;
 use Tests\TestCase;
 
 /**
@@ -42,6 +38,7 @@ use Tests\TestCase;
  */
 class UgcBookingRefundTest extends TestCase
 {
+    use DispatchesFedapayWebhooks;
     use RefreshDatabase;
 
     private User $producerUser;
@@ -51,8 +48,6 @@ class UgcBookingRefundTest extends TestCase
     private User $faceUser;
 
     private Face $face;
-
-    private int $webhookSeq = 0;
 
     protected function setUp(): void
     {
@@ -77,7 +72,7 @@ class UgcBookingRefundTest extends TestCase
         ]);
     }
 
-    private function makePaidUgcBooking(?\Carbon\CarbonInterface $paidAt = null, int $transactionId = 901): Booking
+    private function makePaidUgcBooking(?\Carbon\CarbonInterface $paidAt = null, int $transactionId = 901, int $commission = 2500): Booking
     {
         return Booking::create([
             'face_id' => $this->faceUser->id,          // users.id (PAS faces.id)
@@ -96,37 +91,10 @@ class UgcBookingRefundTest extends TestCase
             'valeur_produit' => 20000,
             'nombre_videos' => 2,
             'montant_remuneration' => null,
-            'commission_ugc' => 2500,
+            'commission_ugc' => $commission,
             'fedapay_transaction_id' => $transactionId,    // colonne UNIQUE : id distinct par booking d'un même test
             'commission_paid_at' => $paidAt ?? now()->subDay(),
         ]);
-    }
-
-    private function dispatchWebhook(string $eventName, int $transactionId, string $reference, ?string $transactionStatus = null): void
-    {
-        $this->webhookSeq++;
-        $entity = ['id' => $transactionId, 'reference' => $reference];
-
-        if ($transactionStatus !== null) {
-            $entity['status'] = $transactionStatus;
-        }
-
-        $payload = ['entity' => $entity];
-
-        $webhookEvent = FedapayWebhookEvent::create([
-            'fedapay_event_id' => "evt_{$transactionId}_{$this->webhookSeq}",
-            'event_name' => $eventName,
-            'payload' => $payload,
-            'status' => 'received',
-        ]);
-
-        (new HandleFedapayWebhook($webhookEvent->id, $eventName, $payload))->handle(
-            app(BookingService::class),
-            app(MissionPaymentService::class),
-            app(WalletService::class),
-            app(FaceSubscriptionPaymentService::class),
-            app(UgcCommissionPaymentService::class),
-        );
     }
 
     // ===================================================================
@@ -469,8 +437,7 @@ class UgcBookingRefundTest extends TestCase
     {
         // Garde anti 0-crédit : un booking UGC encaissé mais commission_ugc nulle/0
         // (anomalie de données) ne doit PAS être marqué remboursé ni créditer 0.
-        $booking = $this->makePaidUgcBooking();
-        $booking->update(['commission_ugc' => 0]);
+        $booking = $this->makePaidUgcBooking(commission: 0);
         $before = (int) $this->producerUser->balance;
         Log::spy();
 

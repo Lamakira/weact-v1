@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\AttendanceStatus;
 use App\Enums\EscrowStatus;
+use App\Exceptions\MoneyColumnImmutableException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -36,6 +37,30 @@ class MissionPaymentCandidature extends Model
         'refunded_at',
         'notified_at',
     ];
+
+    /**
+     * Colonnes de montant immuables après création (durcissement ugc-3-5).
+     *
+     * @var list<string>
+     */
+    private const IMMUTABLE_MONEY_COLUMNS = [
+        'montant_face_recoit',
+    ];
+
+    protected static function booted(): void
+    {
+        static::updating(function (MissionPaymentCandidature $model): void {
+            if ($model->isDirty(self::IMMUTABLE_MONEY_COLUMNS)) {
+                throw new MoneyColumnImmutableException(
+                    $model::class.' : colonnes de montant immuables après création ('
+                    .implode(', ', array_keys(array_intersect_key(
+                        $model->getDirty(),
+                        array_flip(self::IMMUTABLE_MONEY_COLUMNS)
+                    ))).')'
+                );
+            }
+        });
+    }
 
     protected function casts(): array
     {

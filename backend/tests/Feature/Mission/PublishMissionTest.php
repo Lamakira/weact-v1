@@ -355,6 +355,30 @@ class PublishMissionTest extends TestCase
             ->assertJsonPath('errors.nombre_faces_voulu.0', 'Le nombre de Faces doit être au moins 1.');
     }
 
+    public function test_validation_error_for_budget_exceeding_max(): void
+    {
+        $data = $this->getValidMissionData();
+        $data['budget'] = 4294967296; // unsignedInteger max (4294967295) + 1
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/producer/missions', $data);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['budget']);
+    }
+
+    public function test_validation_error_for_nombre_faces_voulu_exceeding_max(): void
+    {
+        $data = $this->getValidMissionData();
+        $data['nombre_faces_voulu'] = 65536; // unsignedSmallInteger max (65535) + 1
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/producer/missions', $data);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['nombre_faces_voulu']);
+    }
+
     public function test_unauthenticated_request_returns_401(): void
     {
         $data = $this->getValidMissionData();

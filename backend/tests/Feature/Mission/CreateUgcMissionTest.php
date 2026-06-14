@@ -65,6 +65,20 @@ class CreateUgcMissionTest extends TestCase
         ]);
     }
 
+    public function test_server_ignores_client_submitted_commission(): void
+    {
+        $data = $this->getValidUgcMissionData();
+        $data['commission_ugc'] = 999999; // tentative client falsifiée
+
+        // serveur recalcule (valeur_produit 20000 → 2500), valeur client ignorée
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/producer/missions', $data)
+            ->assertCreated()
+            ->assertJsonPath('data.commission_ugc', 2500);
+
+        $this->assertDatabaseMissing('missions', ['commission_ugc' => 999999]);
+    }
+
     public function test_producer_can_create_ugc_product_only_mission(): void
     {
         $response = $this->actingAs($this->producerUser)

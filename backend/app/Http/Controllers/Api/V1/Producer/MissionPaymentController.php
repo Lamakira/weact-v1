@@ -191,6 +191,7 @@ class MissionPaymentController extends Controller
 
         return response()->json([
             'data' => new MissionResource($mission),
+            'commission_payment_status' => $this->ugcCommissionPaymentService->lastCommissionPaymentStatus(),
         ]);
     }
 }

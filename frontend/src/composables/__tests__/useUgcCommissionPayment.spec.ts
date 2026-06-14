@@ -24,6 +24,9 @@ const bookingStatus = (status: string): BookingResponse =>
 const missionStatus = (status: string): MissionResponse =>
   ({ data: { status } }) as unknown as MissionResponse
 
+const bookingFailed = (): BookingResponse =>
+  ({ data: { status: 'pending' }, commission_payment_status: 'failed' }) as unknown as BookingResponse
+
 describe('useUgcCommissionPayment', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -139,6 +142,20 @@ describe('useUgcCommissionPayment', () => {
 
     expect(paymentStatus.value).toBe('failed')
     expect(error.value).toContain('délai')
+    expect(isPolling.value).toBe(false)
+  })
+
+  it('fails immediately with a refused message when the backend reports a failed provider status', async () => {
+    vi.useFakeTimers()
+    vi.mocked(bookingApi.payCommission).mockResolvedValue(bookingCheckout('u'))
+    vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue(bookingFailed())
+
+    const { initiate, paymentStatus, error, isPolling } = useUgcCommissionPayment()
+    await initiate('booking', 'b1')
+    await vi.advanceTimersByTimeAsync(5000) // un seul poll, bien avant le timeout 120s
+
+    expect(paymentStatus.value).toBe('failed')
+    expect(error.value).toContain('refusé')
     expect(isPolling.value).toBe(false)
   })
 

@@ -60,6 +60,19 @@ class UpdateMissionRequest extends FormRequest
                 );
             }
 
+            // Une mission UGC déjà persistée n'est JAMAIS modifiable (miroir backend du
+            // dead-end front EditMissionPage). On teste la mission PERSISTÉE, pas l'input :
+            // un PUT forgé `type_mission='standard'` ne doit pas pouvoir muter ni convertir
+            // une mission UGC (classe de bug ugc-1-3). Court-circuit dès qu'on sait UGC.
+            if ($mission->type_mission === MissionType::Ugc) {
+                $validator->errors()->add(
+                    'mission',
+                    'Une mission UGC ne peut pas être modifiée.'
+                );
+
+                return;
+            }
+
             if ($mission->status === MissionStatus::PendingPayment) {
                 $validator->errors()->add(
                     'mission',
