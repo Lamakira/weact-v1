@@ -126,10 +126,10 @@ export const bookingSchema = z
       d.type_compensation !== 'hybrid' ||
       (isFilledNumber(d.nombre_videos) &&
         Number.isInteger(d.nombre_videos) &&
-        d.nombre_videos >= 1 &&
+        d.nombre_videos >= 2 &&
         d.nombre_videos <= 20),
     {
-      message: 'Le nombre de vidéos doit être un entier entre 1 et 20',
+      message: 'Le nombre de vidéos doit être un entier entre 2 et 20',
       path: ['nombre_videos'],
     },
   )

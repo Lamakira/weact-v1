@@ -116,6 +116,23 @@ describe('missionSchema — refines UGC (gardés par type_mission === "ugc")', (
     expect(tooMany.success).toBe(false)
     expect(hasIssueOn(tooMany, 'nombre_videos')).toBe(true)
 
+    const belowFloor = missionSchema.safeParse({
+      ...baseUgc,
+      type_compensation: 'hybrid',
+      nombre_videos: 1,
+      montant_remuneration: 15000,
+    })
+    expect(belowFloor.success).toBe(false)
+    expect(hasIssueOn(belowFloor, 'nombre_videos')).toBe(true)
+
+    const floor = missionSchema.safeParse({
+      ...baseUgc,
+      type_compensation: 'hybrid',
+      nombre_videos: 2,
+      montant_remuneration: 15000,
+    })
+    expect(floor.success).toBe(true)
+
     const ok = missionSchema.safeParse({
       ...baseUgc,
       type_compensation: 'hybrid',

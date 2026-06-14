@@ -193,6 +193,28 @@ class CreateUgcMissionTest extends TestCase
             ->assertJsonValidationErrors('nombre_videos');
     }
 
+    public function test_ugc_hybrid_rejects_video_count_below_2(): void
+    {
+        $data = $this->getValidUgcHybridMissionData();
+        $data['nombre_videos'] = 1; // option B : hybride à 1 désormais refusé (ugc-4-0)
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/producer/missions', $data)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('nombre_videos');
+    }
+
+    public function test_ugc_hybrid_accepts_video_count_of_2(): void
+    {
+        $data = $this->getValidUgcHybridMissionData();
+        $data['nombre_videos'] = 2; // nouveau plancher (ugc-4-0)
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/producer/missions', $data)
+            ->assertCreated()
+            ->assertJsonPath('data.nombre_videos', 2);
+    }
+
     public function test_ugc_requires_valeur_produit(): void
     {
         $data = $this->getValidUgcMissionData();

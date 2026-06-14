@@ -73,7 +73,7 @@ class CreateBookingRequest extends FormRequest
             $rules['valeur_produit'] = ['required', 'integer', 'min:1', 'max:'.self::MAX_UNSIGNED_INTEGER];
 
             if ($this->input('type_compensation') === CompensationType::Hybrid->value) {
-                $rules['nombre_videos'] = ['required', 'integer', 'min:1', 'max:20'];
+                $rules['nombre_videos'] = ['required', 'integer', 'min:2', 'max:20']; // était min:1 (ugc-4-0, option B)
                 $rules['montant_remuneration'] = ['required', 'integer', 'min:1', 'max:'.self::MAX_UNSIGNED_INTEGER];
             }
             // Produit seul : nombre_videos forcé serveur à 2 (BookingService), montant_remuneration ignoré.

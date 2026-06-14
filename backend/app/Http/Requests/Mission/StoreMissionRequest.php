@@ -47,7 +47,7 @@ class StoreMissionRequest extends FormRequest
             $rules['valeur_produit'] = ['required', 'integer', 'min:1', 'max:4294967295'];
 
             if ($this->input('type_compensation') === CompensationType::Hybrid->value) {
-                $rules['nombre_videos'] = ['required', 'integer', 'min:1', 'max:20'];
+                $rules['nombre_videos'] = ['required', 'integer', 'min:2', 'max:20']; // était min:1 (ugc-4-0, option B)
                 $rules['montant_remuneration'] = ['required', 'integer', 'min:1', 'max:4294967295'];
             }
             // produit seul : nombre_videos forcé serveur à 2 (MissionService), montant_remuneration ignoré.
@@ -74,7 +74,7 @@ class StoreMissionRequest extends FormRequest
             'valeur_produit.max' => 'La valeur du produit dépasse le maximum autorisé.',
             'nombre_videos.required' => 'Le nombre de vidéos est obligatoire.',
             'nombre_videos.integer' => 'Le nombre de vidéos doit être un nombre entier.',
-            'nombre_videos.min' => 'Le nombre de vidéos doit être au moins 1.',
+            'nombre_videos.min' => 'Le nombre de vidéos doit être au moins de :min.',
             'nombre_videos.max' => 'Le nombre de vidéos ne peut pas dépasser :max.',
             'montant_remuneration.required' => 'Le montant de la rémunération est obligatoire.',
             'montant_remuneration.integer' => 'Le montant de la rémunération doit être un nombre entier.',

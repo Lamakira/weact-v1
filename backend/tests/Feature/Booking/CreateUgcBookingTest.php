@@ -295,6 +295,30 @@ class CreateUgcBookingTest extends TestCase
             ->assertJsonValidationErrors('nombre_videos');
     }
 
+    public function test_ugc_hybrid_rejects_video_count_below_2(): void
+    {
+        $data = $this->getValidUgcHybridData();
+        $data['nombre_videos'] = 1; // option B : hybride à 1 désormais refusé (ugc-4-0)
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('nombre_videos');
+    }
+
+    public function test_ugc_hybrid_accepts_video_count_of_2(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        $data = $this->getValidUgcHybridData();
+        $data['nombre_videos'] = 2; // nouveau plancher (ugc-4-0)
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data)
+            ->assertCreated()
+            ->assertJsonPath('data.nombre_videos', 2);
+    }
+
     public function test_ugc_hybrid_rejects_too_many_videos(): void
     {
         $data = $this->getValidUgcHybridData();

@@ -159,16 +159,17 @@ describe('bookingSchema — UGC hybrid mode', () => {
     expect(errorPaths({ ...ugcHybrid(), nombre_videos: '' })).toContain('nombre_videos')
   })
 
-  it('rejects a video count below 1', () => {
+  it('rejects a video count below 2', () => {
     expect(errorPaths({ ...ugcHybrid(), nombre_videos: 0 })).toContain('nombre_videos')
+    expect(errorPaths({ ...ugcHybrid(), nombre_videos: 1 })).toContain('nombre_videos') // ← option B (ugc-4-0)
   })
 
   it('rejects a video count above 20', () => {
     expect(errorPaths({ ...ugcHybrid(), nombre_videos: 21 })).toContain('nombre_videos')
   })
 
-  it('accepts the inclusive video-count bounds (1 and 20)', () => {
-    expect(bookingSchema.safeParse({ ...ugcHybrid(), nombre_videos: 1 }).success).toBe(true)
+  it('accepts the inclusive video-count bounds (2 and 20)', () => {
+    expect(bookingSchema.safeParse({ ...ugcHybrid(), nombre_videos: 2 }).success).toBe(true)
     expect(bookingSchema.safeParse({ ...ugcHybrid(), nombre_videos: 20 }).success).toBe(true)
   })
 
