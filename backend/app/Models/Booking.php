@@ -222,12 +222,15 @@ class Booking extends Model
 
     /**
      * Get the UGC video deliverables uploaded for this booking (tunnel étape 5).
+     * Ordonné par chrono_started_at (ordre stable par kind, AC8 4.1 / defer 4.3) :
+     * l'Unboxing (chrono = recu_le) précède toujours l'Avis (chrono =
+     * unboxing.validated_at, postérieur). N'ajoute aucune requête (ORDER BY).
      *
      * @return MorphMany<Deliverable, $this>
      */
     public function deliverables(): MorphMany
     {
-        return $this->morphMany(Deliverable::class, 'owner');
+        return $this->morphMany(Deliverable::class, 'owner')->orderBy('chrono_started_at');
     }
 
     /**

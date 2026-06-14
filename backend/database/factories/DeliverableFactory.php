@@ -34,6 +34,7 @@ class DeliverableFactory extends Factory
             'video_path' => 'ugc/deliverables/unboxing/'.fake()->uuid().'.mp4',
             'thumbnail_path' => 'ugc/deliverables/unboxing/thumbnails/'.fake()->uuid().'.jpg',
             'duree_seconds' => 42,
+            'submitted_at' => now()->subHours(2),
         ];
     }
 
@@ -52,6 +53,33 @@ class DeliverableFactory extends Factory
             'kind' => DeliverableKind::Avis,
             'video_path' => 'ugc/deliverables/avis/'.fake()->uuid().'.mp4',
             'thumbnail_path' => 'ugc/deliverables/avis/thumbnails/'.fake()->uuid().'.jpg',
+        ]);
+    }
+
+    public function validated(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'validation_status' => DeliverableValidationStatus::Validated,
+            'validated_at' => now()->subHour(),
+            'review_note' => null,
+        ]);
+    }
+
+    public function rejected(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'validation_status' => DeliverableValidationStatus::Rejected,
+            'validated_at' => null,
+            'review_note' => 'À refaire : cadrage hors sujet.',
+        ]);
+    }
+
+    public function retoucheRequested(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'validation_status' => DeliverableValidationStatus::RetoucheRequested,
+            'validated_at' => null,
+            'review_note' => 'Ajoute le plan packaging.',
         ]);
     }
 }

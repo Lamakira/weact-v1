@@ -9,11 +9,11 @@ use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
 /**
- * Livrable vidéo déposé par la Face (tunnel étape 5, AR8). Dispatché
- * POST-COMMIT par UgcDeliverableService::upload, uniquement sur un
- * upload effectif (un rollback ne notifie pas — D-2.4.f reconduite).
+ * Livrable validé par le Producteur (tunnel étape 5/6, FR7). Dispatché
+ * POST-COMMIT par UgcDeliverableService::validate, uniquement sur une validation
+ * effective (un rollback ne notifie pas — D-2.4.f reconduite).
  */
-class DeliverableUploaded
+class DeliverableValidated
 {
     use Dispatchable;
     use SerializesModels;

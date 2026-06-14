@@ -32,6 +32,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * @property int|null $duree_seconds
  * @property string|null $review_note
  * @property \Illuminate\Support\Carbon|null $validated_at
+ * @property \Illuminate\Support\Carbon|null $submitted_at
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read Booking|Candidature|null $owner
@@ -58,6 +59,7 @@ class Deliverable extends Model
         'duree_seconds',
         'review_note',
         'validated_at',
+        'submitted_at',
     ];
 
     /**
@@ -72,6 +74,7 @@ class Deliverable extends Model
             'deadline_at' => 'datetime',
             'duree_seconds' => 'integer',
             'validated_at' => 'datetime',
+            'submitted_at' => 'datetime',
         ];
     }
 

@@ -33,4 +33,9 @@ return [
         'allowed_mimetypes' => ['video/mp4', 'video/quicktime', 'video/x-msvideo'],
         'max_duration_seconds' => null,
     ],
+    // SLA de validation Producteur d'un livrable (heures), ancré sur
+    // Deliverable.submitted_at (entrée — ou ré-entrée — en in_review). TRACÉ
+    // SEULEMENT (exposé via DeliverableResource.review_due_at) : aucun
+    // enforcement en 4.3 (relance/auto-action = job dédié, calque 4.5).
+    'deliverable_review_sla_hours' => 48,
 ];

@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\Producer\MissionPaymentController;
 use App\Http\Controllers\Api\V1\Producer\ProducerDashboardController;
 use App\Http\Controllers\Api\V1\Producer\ProfileController;
 use App\Http\Controllers\Api\V1\Producer\RatingController;
+use App\Http\Controllers\Api\V1\Producer\UgcDeliverableValidationController;
 use App\Http\Controllers\Api\V1\Producer\UgcShipmentController;
 use Illuminate\Support\Facades\Route;
 
@@ -110,6 +111,14 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
     Route::post('/candidatures/{candidature}/confirm-shipment', [UgcShipmentController::class, 'confirmForCandidature'])
         ->middleware('throttle:60,1')
         ->name('producer.candidatures.confirm-shipment');
+
+    // UGC deliverable validation (épic 4 — tunnel étape 5/6, story 4.3)
+    Route::post('/deliverables/{deliverable}/validate', [UgcDeliverableValidationController::class, 'validate'])
+        ->middleware('throttle:60,1')->name('producer.deliverables.validate');
+    Route::post('/deliverables/{deliverable}/reject', [UgcDeliverableValidationController::class, 'reject'])
+        ->middleware('throttle:60,1')->name('producer.deliverables.reject');
+    Route::post('/deliverables/{deliverable}/request-retouche', [UgcDeliverableValidationController::class, 'requestRetouche'])
+        ->middleware('throttle:60,1')->name('producer.deliverables.request-retouche');
 
     // Rating routes - rate Face after completed mission (Producer only)
     Route::post('/candidatures/{candidature}/rate', [RatingController::class, 'store'])

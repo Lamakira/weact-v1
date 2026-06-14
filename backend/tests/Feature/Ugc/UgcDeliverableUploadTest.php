@@ -7,6 +7,7 @@ namespace Tests\Feature\Ugc;
 use App\Enums\BookingStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\DeliverableKind;
+use App\Enums\DeliverableValidationStatus;
 use App\Enums\MissionStatus;
 use App\Enums\UgcTunnelStatus;
 use App\Events\DeliverableUploaded;
@@ -35,7 +36,7 @@ use Tests\TestCase;
  * notifie le Producteur (post-commit). Couvre booking-owner ET candidature-owner.
  *
  * Stratégie ffmpeg = partial-mock du service (seams getVideoDuration + storeMedia
- * stubbés ; uploadUnboxing réel → gardes/transition/idempotence/persistance
+ * stubbés ; upload réel → gardes/transition/idempotence/persistance
  * testées pour de vrai, ffmpeg jamais invoqué — calque FaceVideoTest).
  */
 class UgcDeliverableUploadTest extends TestCase
@@ -162,7 +163,7 @@ class UgcDeliverableUploadTest extends TestCase
 
     /**
      * Partial-mock : stub UNIQUEMENT le seam ffmpeg/IO public (getVideoDuration
-     * + storeMedia) ; uploadUnboxing reste RÉEL (ffmpeg jamais invoqué).
+     * + storeMedia) ; upload reste RÉEL (ffmpeg jamais invoqué).
      */
     private function mockDeliverableService(float $duration = 42.0): MockInterface
     {
@@ -181,6 +182,177 @@ class UgcDeliverableUploadTest extends TestCase
     private function fakeVideo(string $name = 'unboxing.mp4'): UploadedFile
     {
         return UploadedFile::fake()->create($name, 5 * 1024, 'video/mp4');
+    }
+
+    /**
+     * Deal en avis_pending (Unboxing validé, chrono Avis actif, AUCUNE ligne Avis
+     * encore) prêt pour le premier upload Avis (4.3).
+     *
+     * @return array{0: Booking, 1: Shipment, 2: Deliverable}
+     */
+    private function makeAvisPendingBooking(): array
+    {
+        [$booking, $shipment] = $this->makeReceivedBooking();
+        $validatedAt = now()->subDay();
+        $shipment->update(['tunnel_status' => UgcTunnelStatus::AvisPending]);
+        $unboxing = $booking->deliverables()->create([
+            'kind' => DeliverableKind::Unboxing,
+            'validation_status' => DeliverableValidationStatus::Validated,
+            'chrono_started_at' => $shipment->recu_le,
+            'deadline_at' => $shipment->recu_le->copy()->addDays(7),
+            'submitted_at' => $shipment->recu_le,
+            'validated_at' => $validatedAt,
+            'video_path' => 'ugc/deliverables/unboxing/seed.mp4',
+            'thumbnail_path' => 'ugc/deliverables/unboxing/thumbnails/seed.jpg',
+            'duree_seconds' => 42,
+        ]);
+
+        return [$booking, $shipment, $unboxing];
+    }
+
+    /**
+     * Symétrie candidature-owner du deal en avis_pending.
+     *
+     * @return array{0: Candidature, 1: Shipment, 2: Deliverable}
+     */
+    private function makeAvisPendingCandidature(): array
+    {
+        [, $candidature, $shipment] = $this->makeReceivedCandidature();
+        $validatedAt = now()->subDay();
+        $shipment->update(['tunnel_status' => UgcTunnelStatus::AvisPending]);
+        $unboxing = $candidature->deliverables()->create([
+            'kind' => DeliverableKind::Unboxing,
+            'validation_status' => DeliverableValidationStatus::Validated,
+            'chrono_started_at' => $shipment->recu_le,
+            'deadline_at' => $shipment->recu_le->copy()->addDays(7),
+            'submitted_at' => $shipment->recu_le,
+            'validated_at' => $validatedAt,
+            'video_path' => 'ugc/deliverables/unboxing/seed.mp4',
+            'thumbnail_path' => 'ugc/deliverables/unboxing/thumbnails/seed.jpg',
+            'duree_seconds' => 42,
+        ]);
+
+        return [$candidature, $shipment, $unboxing];
+    }
+
+    // ===================================================================
+    // 4.3 — Upload Avis (fenêtre avis_pending) + re-upload après reject
+    // ===================================================================
+
+    public function test_face_uploads_avis_for_booking_from_avis_pending(): void
+    {
+        $this->freezeTime();
+        [$booking, $shipment, $unboxing] = $this->makeAvisPendingBooking();
+        $this->mockDeliverableService();
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/deliverables", ['video' => $this->fakeVideo('avis.mp4')])
+            ->assertCreated()
+            ->assertJsonPath('data.kind', 'avis')
+            ->assertJsonPath('data.validation_status', 'in_review')
+            ->assertJsonPath('data.chrono_started_at', $unboxing->validated_at->toIso8601String())
+            ->assertJsonPath('data.deadline_at', $unboxing->validated_at->copy()->addDays(14)->toIso8601String());
+
+        $this->assertDatabaseHas('deliverables', [
+            'owner_type' => Booking::class,
+            'owner_id' => $booking->id,
+            'kind' => 'avis',
+            'validation_status' => 'in_review',
+        ]);
+
+        $this->assertSame(UgcTunnelStatus::AvisInReview, $shipment->fresh()->tunnel_status);
+        $this->assertSame(2, Deliverable::count()); // unboxing + avis
+    }
+
+    public function test_face_uploads_avis_for_candidature_from_avis_pending(): void
+    {
+        $this->freezeTime();
+        [$candidature, $shipment, $unboxing] = $this->makeAvisPendingCandidature();
+        $this->mockDeliverableService();
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/deliverables", ['video' => $this->fakeVideo('avis.mp4')])
+            ->assertCreated()
+            ->assertJsonPath('data.kind', 'avis')
+            ->assertJsonPath('data.deadline_at', $unboxing->validated_at->copy()->addDays(14)->toIso8601String());
+
+        $this->assertDatabaseHas('deliverables', [
+            'owner_type' => Candidature::class,
+            'owner_id' => $candidature->id,
+            'kind' => 'avis',
+            'validation_status' => 'in_review',
+        ]);
+
+        $this->assertSame(UgcTunnelStatus::AvisInReview, $shipment->fresh()->tunnel_status);
+    }
+
+    public function test_reupload_unboxing_after_reject_updates_in_place(): void
+    {
+        // Unboxing refusé, fenêtre rouverte (tunnel received) : un re-upload met à
+        // jour la ligne EN PLACE (1 seule ligne), conserve le chrono, supprime
+        // l'ancien média (AC6 / D-4.3.f).
+        [$booking, $shipment] = $this->makeReceivedBooking();
+        $shipment->update(['tunnel_status' => UgcTunnelStatus::Received]);
+        $oldVideoPath = 'ugc/deliverables/unboxing/old.mp4';
+        $oldThumbPath = 'ugc/deliverables/unboxing/thumbnails/old.jpg';
+        Storage::disk('local')->put($oldVideoPath, 'old-bytes');
+        Storage::disk('local')->put($oldThumbPath, 'old-thumb');
+
+        $rejected = $booking->deliverables()->create([
+            'kind' => DeliverableKind::Unboxing,
+            'validation_status' => DeliverableValidationStatus::Rejected,
+            'chrono_started_at' => $shipment->recu_le,
+            'deadline_at' => $shipment->recu_le->copy()->addDays(7),
+            'submitted_at' => now()->subHours(3),
+            'review_note' => 'À refaire : cadrage hors sujet.',
+            'video_path' => $oldVideoPath,
+            'thumbnail_path' => $oldThumbPath,
+            'duree_seconds' => 42,
+        ]);
+        $conservedDeadline = $rejected->deadline_at->toIso8601String();
+
+        $this->mockDeliverableService();
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/deliverables", ['video' => $this->fakeVideo('retake.mp4')])
+            ->assertCreated()
+            ->assertJsonPath('data.kind', 'unboxing')
+            ->assertJsonPath('data.validation_status', 'in_review')
+            ->assertJsonPath('data.review_note', null);
+
+        // Une SEULE ligne (update-in-place, contrainte unique honorée).
+        $this->assertSame(1, Deliverable::count());
+
+        $fresh = $rejected->fresh();
+        $this->assertSame(DeliverableValidationStatus::InReview, $fresh->validation_status);
+        $this->assertNull($fresh->review_note);
+        $this->assertNull($fresh->validated_at);
+        $this->assertSame($conservedDeadline, $fresh->deadline_at->toIso8601String()); // chrono conservé
+        $this->assertSame('ugc/deliverables/unboxing/test.mp4', $fresh->video_path); // média neuf (mock)
+
+        // Ancien média supprimé du disque (post-commit).
+        Storage::disk('local')->assertMissing($oldVideoPath);
+        Storage::disk('local')->assertMissing($oldThumbPath);
+
+        $this->assertSame(UgcTunnelStatus::UnboxingInReview, $shipment->fresh()->tunnel_status);
+    }
+
+    public function test_second_avis_upload_returns_already_uploaded(): void
+    {
+        // Avis déjà soumis (tunnel avis_in_review) : 2ᵉ POST = idempotent.
+        [$candidature, $shipment, $unboxing] = $this->makeAvisPendingCandidature();
+        $this->mockDeliverableService();
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/deliverables", ['video' => $this->fakeVideo('avis.mp4')])
+            ->assertCreated();
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/deliverables", ['video' => $this->fakeVideo('avis-again.mp4')])
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'ALREADY_UPLOADED');
+
+        $this->assertSame(2, Deliverable::count()); // unboxing + 1 avis, pas de 3ᵉ
     }
 
     // ===================================================================

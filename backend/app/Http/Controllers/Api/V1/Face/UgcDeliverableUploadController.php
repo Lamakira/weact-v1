@@ -20,9 +20,11 @@ class UgcDeliverableUploadController extends Controller
     ) {}
 
     /**
-     * Upload du livrable Unboxing (FR6 étape 5, UGC 4.1) : la Face destinataire
-     * dépose sa vidéo pendant que le chrono court. Crée le Deliverable en
-     * in_review, fait avancer le tunnel à unboxing_in_review, notifie le
+     * Upload d'un livrable Unboxing OU Avis (FR6 étape 5, UGC 4.1 + 4.3) : la
+     * Face destinataire dépose sa vidéo pendant que le chrono court (+ re-upload
+     * après reject/retouche). Le kind ciblé et la fenêtre sont dérivés serveur du
+     * tunnel_status (received → unboxing ; avis_pending → avis). Crée/maj le
+     * Deliverable en in_review, fait avancer le tunnel à *_in_review, notifie le
      * Producteur (post-commit). Pas de gate canAccessUgc : une Face engagée
      * poursuit son tunnel même si son abonnement a changé (D-3.3.e reconduite).
      */
@@ -30,15 +32,20 @@ class UgcDeliverableUploadController extends Controller
     {
         Gate::authorize('uploadDeliverable', $shipment);
 
-        $result = $this->service->uploadUnboxing($shipment, $request->file('video'));
+        $result = $this->service->upload($shipment, $request->file('video'));
 
         return match ($result['outcome']) {
             'uploaded' => response()->json([
                 'data' => new DeliverableResource($result['deliverable']),
-                'message' => 'Vidéo Unboxing déposée — en attente de validation du Producteur',
+                // Message kind-aware : « Unboxing » (4.1) ou « Avis » (4.3). Le
+                // libellé exact « Vidéo Unboxing déposée … » reste pinné par le
+                // test 4.1 via kind->label().
+                'message' => "Vidéo {$result['deliverable']->kind->label()} déposée — en attente de validation du Producteur",
             ], 201),
             'already_uploaded' => response()->json(
-                ErrorCodes::AlreadyUploaded->envelope('Votre vidéo Unboxing a déjà été déposée pour ce deal.'),
+                // Générique : sur ce chemin le kind n'est pas toujours connu
+                // (idempotence lue sur le tunnel avant résolution du kind).
+                ErrorCodes::AlreadyUploaded->envelope('Cette vidéo a déjà été déposée pour ce deal.'),
                 422
             ),
             'refund_in_progress' => response()->json(
