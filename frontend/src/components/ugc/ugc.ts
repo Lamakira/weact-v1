@@ -107,6 +107,35 @@ export interface DeliverableResponse {
   message?: string
 }
 
+/**
+ * Livrable enrichi pour l'inbox de validation Producteur (5A, 4.4) — miroir de
+ * DeliverableReviewResource. Porte le contexte owner + les URLs média signées
+ * (la Face n'a JAMAIS d'URL). kind/validation_status/owner_type `string` ouverts.
+ */
+export interface DeliverableReviewItem {
+  id: string
+  kind: string
+  kind_label: string
+  validation_status: string
+  validation_status_label: string
+  review_note: string | null
+  submitted_at: string | null
+  chrono_started_at: string
+  deadline_at: string
+  review_due_at: string | null
+  duree_seconds: number | null
+  owner_type: string | null
+  owner_id: string | null
+  face_name: string | null
+  product_name: string | null
+  video_url: string
+  thumbnail_url: string | null
+}
+
+export interface DeliverableReviewListResponse {
+  data: DeliverableReviewItem[]
+}
+
 /** Chips transporteur de l'écran 4A — sucre UI (D-3.1.e), le serveur reçoit du texte libre. */
 export const UGC_CARRIER_CHIPS = ['DHL', 'Chronopost', 'Gozem', 'Autre'] as const
 
@@ -140,6 +169,7 @@ export function tunnelStatusToPillKind(status: string): StatusPillKind {
       return 'shipped'
     case 'received':
     case 'unboxing_in_review':
+    case 'avis_pending':
     case 'avis_in_review':
       return 'received'
     case 'completed':
@@ -164,6 +194,7 @@ function shipmentTunnelStep(shipment: Shipment): number {
     case 'received':
     case 'unboxing_in_review':
       return 5
+    case 'avis_pending':
     case 'avis_in_review':
       return 6
     case 'completed':

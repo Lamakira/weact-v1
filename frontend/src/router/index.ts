@@ -311,6 +311,12 @@ const router = createRouter({
           name: 'producer-booking-detail',
           component: () => import('../pages/face/booking/FaceBookingDetailPage.vue'),
         },
+        {
+          path: 'ugc/validation',
+          name: 'producer-ugc-validation',
+          component: () => import('../pages/producer/ugc/ProducerUgcValidationPage.vue'),
+          meta: { title: 'Validation des livrables - WEACT' },
+        },
       ],
     },
     {

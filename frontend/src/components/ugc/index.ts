@@ -4,6 +4,7 @@ export { default as PayTile } from './PayTile.vue'
 export { default as UgcPaymentOverlay } from './UgcPaymentOverlay.vue'
 export { default as StatusPill } from './StatusPill.vue'
 export { default as ChronoRing } from './ChronoRing.vue'
+export { default as ChronoBadge } from './ChronoBadge.vue'
 export { default as UgcEngagementModal } from './UgcEngagementModal.vue'
 export { default as UgcBookingTimeline } from './UgcBookingTimeline.vue'
 export { default as UgcShipmentForm } from './UgcShipmentForm.vue'
@@ -27,5 +28,7 @@ export {
   type ShipmentResponse,
   type Deliverable,
   type DeliverableResponse,
+  type DeliverableReviewItem,
+  type DeliverableReviewListResponse,
   type UgcUploadProgress,
 } from './ugc'

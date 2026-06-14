@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\Producer\MissionAttendanceController;
 use App\Http\Controllers\Api\V1\Producer\MissionController;
 use App\Http\Controllers\Api\V1\Producer\MissionPaymentController;
 use App\Http\Controllers\Api\V1\Producer\ProducerDashboardController;
+use App\Http\Controllers\Api\V1\Producer\ProducerDeliverableMediaController;
 use App\Http\Controllers\Api\V1\Producer\ProfileController;
 use App\Http\Controllers\Api\V1\Producer\RatingController;
 use App\Http\Controllers\Api\V1\Producer\UgcDeliverableValidationController;
@@ -112,6 +113,11 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
         ->middleware('throttle:60,1')
         ->name('producer.candidatures.confirm-shipment');
 
+    // UGC deliverable validation inbox (épic 4 — écran 5A, story 4.4) :
+    // liste agrégée des livrables in_review du Producteur (booking + candidature).
+    Route::get('/deliverables', [UgcDeliverableValidationController::class, 'index'])
+        ->middleware('throttle:ui-read')->name('producer.deliverables.index');
+
     // UGC deliverable validation (épic 4 — tunnel étape 5/6, story 4.3)
     Route::post('/deliverables/{deliverable}/validate', [UgcDeliverableValidationController::class, 'validate'])
         ->middleware('throttle:60,1')->name('producer.deliverables.validate');
@@ -138,4 +144,16 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
         ->middleware('throttle:ui-read');
     Route::post('/conversations/{conversation}/messages', [MessageController::class, 'store'])
         ->middleware('throttle:30,1'); // Override: stricter rate limit for message creation
+});
+
+// UGC deliverable media streaming (épic 4 — écran 5A, story 4.4).
+// HORS du groupe auth:sanctum+api.token : un <video src> natif ne peut pas
+// porter le header api.token → la signature EST la garde (D-4.4.c). L'URL
+// signée (TTL court) n'est émise que dans DeliverableReviewResource, remise au
+// seul Producteur propriétaire (endpoint index producteur-scoped).
+Route::prefix('v1/producer')->middleware(['signed', 'throttle:120,1'])->group(function () {
+    Route::get('/deliverables/{deliverable}/video', [ProducerDeliverableMediaController::class, 'video'])
+        ->name('producer.deliverables.video');
+    Route::get('/deliverables/{deliverable}/thumbnail', [ProducerDeliverableMediaController::class, 'thumbnail'])
+        ->name('producer.deliverables.thumbnail');
 });

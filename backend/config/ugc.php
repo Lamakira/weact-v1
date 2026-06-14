@@ -38,4 +38,10 @@ return [
     // SEULEMENT (exposé via DeliverableResource.review_due_at) : aucun
     // enforcement en 4.3 (relance/auto-action = job dédié, calque 4.5).
     'deliverable_review_sla_hours' => 48,
+    // TTL (minutes) des URLs vidéo/miniature SIGNÉES servies au Producteur sur
+    // l'écran de validation 5A (UGC 4.4). Le disque privé `local` ne supporte
+    // pas Storage::temporaryUrl (S3-only) → URL::temporarySignedRoute + route
+    // signée hors api.token (un <video src> natif ne porte pas le header). TTL
+    // court : borne la fuite d'une URL ; le refetch post-action la renouvelle.
+    'video_url_ttl_minutes' => 30,
 ];

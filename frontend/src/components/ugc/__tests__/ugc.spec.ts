@@ -66,6 +66,10 @@ describe('tunnelStatusToPillKind', () => {
     expect(tunnelStatusToPillKind('suspended')).toBe('suspended')
   })
 
+  it('maps avis_pending to received (4.4 — Unboxing validé, produit reçu mi-tunnel)', () => {
+    expect(tunnelStatusToPillKind('avis_pending')).toBe('received')
+  })
+
   it('falls back to pending for unknown statuses', () => {
     // Règle fan-out 3.1 : les cases réservés (épics 4-5) arrivent sans casser le front.
     expect(tunnelStatusToPillKind('some_future_status')).toBe('pending')
@@ -89,6 +93,11 @@ describe('ugcTunnelStep', () => {
     expect(ugcTunnelStep('accepted', makeShipment({ tunnel_status: 'unboxing_in_review' }))).toBe(5)
     expect(ugcTunnelStep('accepted', makeShipment({ tunnel_status: 'avis_in_review' }))).toBe(6)
     expect(ugcTunnelStep('completed', makeShipment({ tunnel_status: 'completed' }))).toBe(7)
+  })
+
+  it('maps avis_pending to step 6 (4.4 — Unboxing validé, étape Avis active)', () => {
+    // D-4.4.i : avis_pending = Unboxing validé ⇒ étape Avis active (6), aligné avis_in_review.
+    expect(ugcTunnelStep('accepted', makeShipment({ tunnel_status: 'avis_pending' }))).toBe(6)
   })
 
   it('falls back to 4 for unknown tunnel statuses (reserved cases)', () => {

@@ -4,14 +4,21 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Producer;
 
+use App\Enums\DeliverableValidationStatus;
 use App\Enums\ErrorCodes;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ugc\RejectDeliverableRequest;
 use App\Http\Requests\Ugc\ValidateDeliverableRequest;
 use App\Http\Resources\DeliverableResource;
+use App\Http\Resources\DeliverableReviewResource;
+use App\Models\Booking;
+use App\Models\Candidature;
 use App\Models\Deliverable;
+use App\Models\Producer;
 use App\Services\Ugc\UgcDeliverableService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -27,6 +34,39 @@ class UgcDeliverableValidationController extends Controller
     public function __construct(
         private readonly UgcDeliverableService $service,
     ) {}
+
+    /**
+     * Inbox de validation (écran 5A, UGC 4.4) : livrables in_review du Producteur
+     * authentifié, agrégés sur les deux types d'owner. Asymétrie FK : booking
+     * via users.id, candidature via producers.id (mission.producer_id). Ordonnés
+     * par submitted_at ASC (le plus urgent côté SLA d'abord). Pure couche read.
+     */
+    public function index(Request $request): AnonymousResourceCollection
+    {
+        $user = $request->user();
+        $producer = $user->userable;
+        abort_unless($producer instanceof Producer, 403, 'Réservé aux Producteurs.');
+
+        $deliverables = Deliverable::query()
+            ->where('validation_status', DeliverableValidationStatus::InReview)
+            ->where(function ($q) use ($user, $producer): void {
+                $q->whereHasMorph('owner', [Booking::class], function ($b) use ($user): void {
+                    $b->where('producer_id', $user->id);
+                })->orWhereHasMorph('owner', [Candidature::class], function ($c) use ($producer): void {
+                    $c->whereHas('mission', fn ($m) => $m->where('producer_id', $producer->id));
+                });
+            })
+            ->with(['owner' => function ($morphTo): void {
+                $morphTo->morphWith([
+                    Booking::class => ['face.userable'],
+                    Candidature::class => ['face', 'mission'],
+                ]);
+            }])
+            ->orderBy('submitted_at')
+            ->get();
+
+        return DeliverableReviewResource::collection($deliverables);
+    }
 
     /**
      * Valide un livrable : Unboxing → démarre le chrono Avis (avis_pending) ;
