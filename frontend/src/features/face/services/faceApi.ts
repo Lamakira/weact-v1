@@ -34,7 +34,7 @@ import type {
   SubscriptionCancelPendingResponse,
   SubscriptionResumePaymentResponse,
 } from '../types'
-import type { ShipmentResponse } from '@/components/ugc'
+import type { ShipmentResponse, DeliverableResponse, UgcUploadProgress } from '@/components/ugc'
 
 /**
  * Face API service
@@ -519,6 +519,41 @@ export const faceApi = {
     await getCsrfCookie()
     const response = await apiClient.post<ShipmentResponse>(
       `/face/shipments/${shipmentId}/confirm-receipt`,
+    )
+    return response.data
+  },
+
+  /**
+   * Upload de la vidéo livrable Unboxing (UGC 4.2). Endpoint owner-agnostic
+   * (binding Shipment, 4.1). 201 → DeliverableResource (PAS le shipment) :
+   * l'appelant refetch le deal pour lire le nouveau tunnel_status (D-4.2.d).
+   * 422 ALREADY_UPLOADED / INVALID_STATUS / errors.video.
+   */
+  async uploadDeliverable(
+    shipmentId: string,
+    video: File,
+    onProgress?: (progress: UgcUploadProgress) => void,
+  ): Promise<DeliverableResponse> {
+    await getCsrfCookie()
+
+    const formData = new FormData()
+    formData.append('video', video)
+
+    const response = await apiClient.post<DeliverableResponse>(
+      `/face/shipments/${shipmentId}/deliverables`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            onProgress({
+              loaded: progressEvent.loaded,
+              total: progressEvent.total,
+              percentage: Math.round((progressEvent.loaded * 100) / progressEvent.total),
+            })
+          }
+        },
+      },
     )
     return response.data
   },

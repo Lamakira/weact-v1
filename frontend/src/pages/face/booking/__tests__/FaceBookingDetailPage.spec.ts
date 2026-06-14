@@ -60,6 +60,24 @@ vi.mock('@/composables/useUgcShipment', () => ({
   }),
 }))
 
+// Upload livrable (4.2) — factory COMPLÈTE (piège n°6) : tous les membres
+// destructurés par la page doivent exister, sinon TOUS ses tests crashent.
+const mockUploadDeliverable = vi.fn()
+const mockDeliverableError = ref<string | null>(null)
+const mockDeliverableErrorCode = ref<string | null>(null)
+
+vi.mock('@/composables/useUgcDeliverable', () => ({
+  useUgcDeliverable: () => ({
+    isUploading: ref(false),
+    uploadProgress: ref(null),
+    error: mockDeliverableError,
+    errorCode: mockDeliverableErrorCode,
+    uploadDeliverable: mockUploadDeliverable,
+    validateFile: vi.fn(() => ({ valid: true })),
+    clearError: vi.fn(),
+  }),
+}))
+
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
     user: { get id() { return mockUserId.value }, get userable_type() { return mockUserableType.value } },
@@ -183,10 +201,18 @@ async function mountPage(
           template: '<div data-testid="tracking-card-stub"/>',
         },
         UgcFaceTrackingCard: {
-          props: ['shipment', 'current', 'isSubmitting'],
-          emits: ['confirm-receipt'],
-          template:
-            '<button data-testid="face-tracking-card-stub" :data-current="current" @click="$emit(\'confirm-receipt\')"/>',
+          props: ['shipment', 'current', 'isSubmitting', 'isUploading', 'uploadProgress'],
+          emits: ['confirm-receipt', 'upload'],
+          // `new File` vit dans methods (scope JS) — indisponible dans le scope template Vue.
+          methods: {
+            emitUpload() {
+              this.$emit('upload', new File(['x'], 'unboxing.mp4', { type: 'video/mp4' }))
+            },
+          },
+          template: `<div>
+            <button data-testid="face-tracking-card-stub" :data-current="current" @click="$emit('confirm-receipt')"></button>
+            <button data-testid="face-tracking-upload-stub" @click="emitUpload"></button>
+          </div>`,
         },
         ConfirmModal: {
           props: ['isOpen'],
@@ -749,6 +775,9 @@ describe('FaceBookingDetailPage — carte de suivi Face & réception (story 3.4)
     mockRefreshBooking.mockReset()
     mockConfirmShipment.mockReset()
     mockConfirmReceipt.mockReset()
+    mockUploadDeliverable.mockReset()
+    mockDeliverableError.value = null
+    mockDeliverableErrorCode.value = null
     mockToastSuccess.mockReset()
     mockToastError.mockReset()
     mockToastWarning.mockReset()
@@ -840,5 +869,67 @@ describe('FaceBookingDetailPage — carte de suivi Face & réception (story 3.4)
       'La commission de ce deal est en cours de remboursement — action impossible.',
     )
     expect(mockFetchBooking).toHaveBeenCalledTimes(1) // pas de refetch hors ALREADY_RECEIVED
+  })
+
+  it('uploads the unboxing video and refetches the booking on success', async () => {
+    mockUploadDeliverable.mockResolvedValue({ id: 'deliverable-uuid-1', kind: 'unboxing' })
+    const wrapper = await mountPage(makeUgcBooking({ shipment: makeShipment() }))
+
+    await wrapper.find('[data-testid="face-tracking-upload-stub"]').trigger('click')
+    await flushPromises()
+
+    expect(mockUploadDeliverable).toHaveBeenCalledWith('shipment-uuid-1', expect.any(File))
+    expect(mockToastSuccess).toHaveBeenCalledWith('Vidéo Unboxing déposée — en attente de validation')
+    // D-4.2.d : le 201 porte la DeliverableResource, PAS le shipment → refetch.
+    expect(mockFetchBooking).toHaveBeenCalledTimes(2) // mount + refetch
+    expect(mockFetchBooking).toHaveBeenLastCalledWith('booking-uuid-1')
+  })
+
+  it('refetches the booking when the upload reports ALREADY_UPLOADED', async () => {
+    mockUploadDeliverable.mockImplementation(async () => {
+      mockDeliverableError.value = 'Votre vidéo Unboxing a déjà été déposée pour ce deal.'
+      mockDeliverableErrorCode.value = 'ALREADY_UPLOADED'
+      return null
+    })
+    const wrapper = await mountPage(makeUgcBooking({ shipment: makeShipment() }))
+
+    await wrapper.find('[data-testid="face-tracking-upload-stub"]').trigger('click')
+    await flushPromises()
+
+    expect(mockToastInfo).toHaveBeenCalledWith('Votre vidéo Unboxing a déjà été déposée pour ce deal.')
+    expect(mockFetchBooking).toHaveBeenCalledTimes(2) // mount + resync multi-onglets
+    expect(mockFetchBooking).toHaveBeenLastCalledWith('booking-uuid-1')
+  })
+
+  it('refetches the booking when the upload reports INVALID_STATUS', async () => {
+    mockUploadDeliverable.mockImplementation(async () => {
+      mockDeliverableError.value = "La vidéo ne peut pas être déposée dans l'état actuel de ce deal."
+      mockDeliverableErrorCode.value = 'INVALID_STATUS'
+      return null
+    })
+    const wrapper = await mountPage(makeUgcBooking({ shipment: makeShipment() }))
+
+    await wrapper.find('[data-testid="face-tracking-upload-stub"]').trigger('click')
+    await flushPromises()
+
+    expect(mockToastError).toHaveBeenCalledWith(
+      "La vidéo ne peut pas être déposée dans l'état actuel de ce deal.",
+    )
+    expect(mockFetchBooking).toHaveBeenCalledTimes(2) // mount + resync (fenêtre fermée)
+  })
+
+  it('shows an error toast without refetching when the upload fails', async () => {
+    mockUploadDeliverable.mockImplementation(async () => {
+      mockDeliverableError.value = 'Format non supporté.'
+      mockDeliverableErrorCode.value = null // validation client/errors.video → branche « autre »
+      return null
+    })
+    const wrapper = await mountPage(makeUgcBooking({ shipment: makeShipment() }))
+
+    await wrapper.find('[data-testid="face-tracking-upload-stub"]').trigger('click')
+    await flushPromises()
+
+    expect(mockToastError).toHaveBeenCalledWith('Format non supporté.')
+    expect(mockFetchBooking).toHaveBeenCalledTimes(1) // pas de refetch : l'état du deal n'a pas changé
   })
 })

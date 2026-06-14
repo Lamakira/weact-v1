@@ -111,6 +111,23 @@ vi.mock('@/composables/useUgcShipment', () => ({
   }),
 }))
 
+// Mock useUgcDeliverable (4.2) — factory COMPLÈTE (piège n°6), spies hissés.
+const mockUploadDeliverable = vi.fn()
+const mockDeliverableError = ref<string | null>(null)
+const mockDeliverableErrorCode = ref<string | null>(null)
+
+vi.mock('@/composables/useUgcDeliverable', () => ({
+  useUgcDeliverable: () => ({
+    isUploading: ref(false),
+    uploadProgress: ref(null),
+    error: mockDeliverableError,
+    errorCode: mockDeliverableErrorCode,
+    uploadDeliverable: mockUploadDeliverable,
+    validateFile: vi.fn(() => ({ valid: true })),
+    clearError: vi.fn(),
+  }),
+}))
+
 // Factory for creating test mission data
 function createMission(overrides: Partial<Mission> = {}): Mission {
   return {
@@ -220,6 +237,9 @@ describe('FaceMissionDetailPage', () => {
     mockReceiptErrorCode.value = null
     mockConfirmShipment.mockReset()
     mockConfirmReceipt.mockReset()
+    mockUploadDeliverable.mockReset()
+    mockDeliverableError.value = null
+    mockDeliverableErrorCode.value = null
   })
 
   describe('producer rating display', () => {
@@ -1081,10 +1101,18 @@ describe('FaceMissionDetailPage', () => {
             UgcEngagementModal: true,
             RatingDisplay: true,
             UgcFaceTrackingCard: {
-              props: ['shipment', 'current', 'isSubmitting'],
-              emits: ['confirm-receipt'],
-              template:
-                '<button data-testid="face-tracking-card-stub" :data-current="current" @click="$emit(\'confirm-receipt\')"/>',
+              props: ['shipment', 'current', 'isSubmitting', 'isUploading', 'uploadProgress'],
+              emits: ['confirm-receipt', 'upload'],
+              // `new File` vit dans methods (scope JS) — indisponible dans le scope template Vue.
+              methods: {
+                emitUpload() {
+                  this.$emit('upload', new File(['x'], 'unboxing.mp4', { type: 'video/mp4' }))
+                },
+              },
+              template: `<div>
+                <button data-testid="face-tracking-card-stub" :data-current="current" @click="$emit('confirm-receipt')"></button>
+                <button data-testid="face-tracking-upload-stub" @click="emitUpload"></button>
+              </div>`,
             },
             ConfirmModal: {
               props: ['isOpen'],
@@ -1209,6 +1237,94 @@ describe('FaceMissionDetailPage', () => {
       // Pas de refetch ni d'assignation locale hors ALREADY_RECEIVED.
       expect(mockFetchMission).not.toHaveBeenCalled()
       expect(mockSetCandidature).not.toHaveBeenCalled()
+    })
+
+    it('uploads the unboxing video and refetches the mission on success', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+      mockCandidature.value = makeEngagedCandidature({
+        shipment: makeShipment() as unknown as MissionCandidature['shipment'],
+      })
+      mockUploadDeliverable.mockResolvedValue({ id: 'deliverable-uuid-1', kind: 'unboxing' })
+
+      const wrapper = mountTrackingPage()
+      await flushPromises()
+      mockFetchMission.mockClear()
+
+      await wrapper.find('[data-testid="face-tracking-upload-stub"]').trigger('click')
+      await flushPromises()
+
+      expect(mockUploadDeliverable).toHaveBeenCalledWith('shipment-uuid-1', expect.any(File))
+      expect(mockToast.success).toHaveBeenCalledWith('Vidéo Unboxing déposée — en attente de validation')
+      // D-4.2.d : le 201 porte la DeliverableResource, PAS le shipment → refetch via fetchMission.
+      expect(mockFetchMission).toHaveBeenCalledWith('1')
+    })
+
+    it('refetches the mission when the upload reports ALREADY_UPLOADED', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+      mockCandidature.value = makeEngagedCandidature({
+        shipment: makeShipment() as unknown as MissionCandidature['shipment'],
+      })
+      mockUploadDeliverable.mockImplementation(async () => {
+        mockDeliverableError.value = 'Votre vidéo Unboxing a déjà été déposée pour ce deal.'
+        mockDeliverableErrorCode.value = 'ALREADY_UPLOADED'
+        return null
+      })
+
+      const wrapper = mountTrackingPage()
+      await flushPromises()
+      mockFetchMission.mockClear()
+
+      await wrapper.find('[data-testid="face-tracking-upload-stub"]').trigger('click')
+      await flushPromises()
+
+      expect(mockToast.info).toHaveBeenCalledWith('Votre vidéo Unboxing a déjà été déposée pour ce deal.')
+      expect(mockFetchMission).toHaveBeenCalledWith('1')
+    })
+
+    it('refetches the mission when the upload reports INVALID_STATUS', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+      mockCandidature.value = makeEngagedCandidature({
+        shipment: makeShipment() as unknown as MissionCandidature['shipment'],
+      })
+      mockUploadDeliverable.mockImplementation(async () => {
+        mockDeliverableError.value = "La vidéo ne peut pas être déposée dans l'état actuel de ce deal."
+        mockDeliverableErrorCode.value = 'INVALID_STATUS'
+        return null
+      })
+
+      const wrapper = mountTrackingPage()
+      await flushPromises()
+      mockFetchMission.mockClear()
+
+      await wrapper.find('[data-testid="face-tracking-upload-stub"]').trigger('click')
+      await flushPromises()
+
+      expect(mockToast.error).toHaveBeenCalledWith(
+        "La vidéo ne peut pas être déposée dans l'état actuel de ce deal.",
+      )
+      expect(mockFetchMission).toHaveBeenCalledWith('1')
+    })
+
+    it('shows an error toast without refetching when the upload fails', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+      mockCandidature.value = makeEngagedCandidature({
+        shipment: makeShipment() as unknown as MissionCandidature['shipment'],
+      })
+      mockUploadDeliverable.mockImplementation(async () => {
+        mockDeliverableError.value = 'Format non supporté.'
+        mockDeliverableErrorCode.value = null // validation client/errors.video → branche « autre »
+        return null
+      })
+
+      const wrapper = mountTrackingPage()
+      await flushPromises()
+      mockFetchMission.mockClear()
+
+      await wrapper.find('[data-testid="face-tracking-upload-stub"]').trigger('click')
+      await flushPromises()
+
+      expect(mockToast.error).toHaveBeenCalledWith('Format non supporté.')
+      expect(mockFetchMission).not.toHaveBeenCalled() // pas de refetch : l'état du deal n'a pas changé
     })
   })
 

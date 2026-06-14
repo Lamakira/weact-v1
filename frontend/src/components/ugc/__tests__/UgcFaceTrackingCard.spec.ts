@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import UgcFaceTrackingCard from '../UgcFaceTrackingCard.vue'
 import StatusPill from '../StatusPill.vue'
 import ChronoRing from '../ChronoRing.vue'
-import type { Shipment } from '../ugc'
+import type { Shipment, UgcUploadProgress } from '../ugc'
 
 function makeShipment(overrides: Partial<Shipment> = {}): Shipment {
   return {
@@ -30,11 +30,28 @@ const receivedShipment = () =>
     unboxing_deadline_at: '2026-06-19T12:00:00+00:00',
   })
 
-function mountCard(shipment: Shipment, extraProps: { current?: number; isSubmitting?: boolean } = {}) {
+function mountCard(
+  shipment: Shipment,
+  extra: { current?: number; isSubmitting?: boolean; isUploading?: boolean; uploadProgress?: UgcUploadProgress | null } = {},
+) {
   return mount(UgcFaceTrackingCard, {
-    props: { shipment, current: extraProps.current ?? 4, isSubmitting: extraProps.isSubmitting },
+    props: {
+      shipment,
+      current: extra.current ?? 4,
+      isSubmitting: extra.isSubmitting,
+      isUploading: extra.isUploading,
+      uploadProgress: extra.uploadProgress ?? null,
+    },
   })
 }
+
+const inReviewShipment = () =>
+  makeShipment({
+    tunnel_status: 'unboxing_in_review',
+    tunnel_status_label: 'Unboxing en validation',
+    recu_le: '2026-06-12T12:00:00+00:00',
+    unboxing_deadline_at: '2026-06-19T12:00:00+00:00',
+  })
 
 describe('UgcFaceTrackingCard', () => {
   it('renders the vertical timeline at the given step', () => {
@@ -107,12 +124,78 @@ describe('UgcFaceTrackingCard', () => {
     expect(section.text()).toContain('automatiquement suspendu')
   })
 
+  it('renders the upload dropzone in the chrono section while received', () => {
+    const wrapper = mountCard(receivedShipment(), { current: 5 })
+    const section = wrapper.find('[data-testid="ugc-chrono-section"]')
+    expect(section.exists()).toBe(true)
+    expect(section.find('[data-testid="ugc-upload-dropzone"]').exists()).toBe(true)
+    expect(section.find('[data-testid="ugc-upload-input"]').exists()).toBe(true)
+    // Copy 8A réelle : « Uploade » (le placeholder « Prépare » de 3.4 est levé).
+    expect(section.text()).toContain('Uploade ta vidéo Unboxing')
+    expect(section.text()).toContain('MP4, MOV ou AVI · max 200 Mo')
+  })
+
+  it('emits upload when a video file is selected', async () => {
+    const wrapper = mountCard(receivedShipment(), { current: 5 })
+    const file = new File(['x'], 'unboxing.mp4', { type: 'video/mp4' })
+    const input = wrapper.find('[data-testid="ugc-upload-input"]')
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+    expect(wrapper.emitted('upload')?.[0]).toEqual([file])
+  })
+
+  it('emits upload when a video file is dropped', async () => {
+    const wrapper = mountCard(receivedShipment(), { current: 5 })
+    const file = new File(['x'], 'unboxing.mp4', { type: 'video/mp4' })
+    await wrapper
+      .find('[data-testid="ugc-upload-dropzone"]')
+      .trigger('drop', { dataTransfer: { files: [file] } })
+    expect(wrapper.emitted('upload')?.[0]).toEqual([file])
+  })
+
+  it('does not emit upload while an upload is in progress', async () => {
+    const wrapper = mountCard(receivedShipment(), { current: 5, isUploading: true })
+    const file = new File(['x'], 'unboxing.mp4', { type: 'video/mp4' })
+    const input = wrapper.find('[data-testid="ugc-upload-input"]')
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+    await wrapper
+      .find('[data-testid="ugc-upload-dropzone"]')
+      .trigger('drop', { dataTransfer: { files: [file] } })
+    expect(wrapper.emitted('upload')).toBeUndefined()
+  })
+
+  it('shows the upload progress overlay while uploading', () => {
+    const wrapper = mountCard(receivedShipment(), {
+      current: 5,
+      isUploading: true,
+      uploadProgress: { loaded: 42, total: 100, percentage: 42 },
+    })
+    const overlay = wrapper.find('[data-testid="ugc-upload-progress"]')
+    expect(overlay.exists()).toBe(true)
+    expect(overlay.text()).toContain('42%')
+  })
+
+  it('shows the awaiting-validation block once the deliverable is in review', () => {
+    const wrapper = mountCard(inReviewShipment(), { current: 5 })
+    const section = wrapper.find('[data-testid="ugc-deliverable-review-section"]')
+    expect(section.exists()).toBe(true)
+    expect(section.text()).toContain('Vidéo Unboxing déposée')
+    expect(section.text()).toContain('En attente de validation du Producteur')
+    // Ni dropzone, ni ChronoRing : le chrono Unboxing est honoré (D-4.2.e).
+    expect(wrapper.find('[data-testid="ugc-chrono-section"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="ugc-upload-dropzone"]').exists()).toBe(false)
+    expect(wrapper.findComponent(ChronoRing).exists()).toBe(false)
+  })
+
   it('shows neither CTA nor chrono for unknown tunnel statuses', () => {
     const wrapper = mountCard(
       makeShipment({ tunnel_status: 'some_future_status', tunnel_status_label: 'État réservé' }),
     )
     expect(wrapper.find('[data-testid="confirm-receipt-btn"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="ugc-chrono-section"]').exists()).toBe(false)
+    // Le bloc review est aussi absent : seuls received / unboxing_in_review l'activent (D-4.2.h).
+    expect(wrapper.find('[data-testid="ugc-deliverable-review-section"]').exists()).toBe(false)
     // Timeline + tracking restent rendus (déploiement backend seul ne casse rien, D-3.2.i).
     expect(wrapper.find('[data-testid="ugc-timeline-v"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('GZM-COT-882194')

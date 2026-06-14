@@ -56,6 +56,7 @@ import {
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
 import { useUgcShipment } from '@/composables/useUgcShipment'
+import { useUgcDeliverable } from '@/composables/useUgcDeliverable'
 
 const route = useRoute()
 const router = useRouter()
@@ -105,6 +106,16 @@ const {
   confirmShipment,
   confirmReceipt,
 } = useUgcShipment()
+
+// Upload du livrable Unboxing (4.2) — sibling de useUgcShipment, noms distincts
+// pour ne pas collisionner avec l'état receipt (isSubmittingShipment).
+const {
+  isUploading: isUploadingDeliverable,
+  uploadProgress,
+  error: deliverableError,
+  errorCode: deliverableErrorCode,
+  uploadDeliverable,
+} = useUgcDeliverable()
 
 const isUgc = computed(() => booking.value?.type_contenu === 'UGC')
 
@@ -447,6 +458,29 @@ async function handleConfirmReceipt(): Promise<void> {
   toast.error(shipmentError.value || 'Erreur lors de la confirmation de la réception')
 }
 
+async function handleUploadDeliverable(file: File): Promise<void> {
+  if (!booking.value?.shipment) return
+
+  const deliverable = await uploadDeliverable(booking.value.shipment.id, file)
+  if (deliverable) {
+    toast.success('Vidéo Unboxing déposée — en attente de validation')
+    // D-4.2.d : le 201 porte la DeliverableResource, PAS le shipment → refetch.
+    if (bookingId.value) await fetchBooking(bookingId.value)
+    return
+  }
+  if (deliverableErrorCode.value === 'ALREADY_UPLOADED') {
+    toast.info(deliverableError.value || 'Votre vidéo Unboxing a déjà été déposée.')
+    if (bookingId.value) await fetchBooking(bookingId.value)
+    return
+  }
+  if (deliverableErrorCode.value === 'INVALID_STATUS') {
+    toast.error(deliverableError.value || "La vidéo ne peut pas être déposée dans l'état actuel de ce deal.")
+    if (bookingId.value) await fetchBooking(bookingId.value)
+    return
+  }
+  toast.error(deliverableError.value || "Erreur lors de l'envoi de la vidéo Unboxing")
+}
+
 async function handleUgcCommissionSettled(): Promise<void> {
   showUgcPaymentOverlay.value = false
   if (bookingId.value) {
@@ -595,7 +629,10 @@ onUnmounted(() => {
         :shipment="booking.shipment"
         :current="ugcTimelineCurrent"
         :is-submitting="isSubmittingShipment"
+        :is-uploading="isUploadingDeliverable"
+        :upload-progress="uploadProgress"
         @confirm-receipt="showReceiptModal = true"
+        @upload="handleUploadDeliverable"
       />
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -25,4 +25,7 @@ export {
   type Shipment,
   type ConfirmShipmentPayload,
   type ShipmentResponse,
+  type Deliverable,
+  type DeliverableResponse,
+  type UgcUploadProgress,
 } from './ugc'

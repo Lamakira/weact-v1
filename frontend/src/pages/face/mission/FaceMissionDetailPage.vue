@@ -32,6 +32,7 @@ import { authApi } from '@/features/auth/services/authApi'
 import type { Face } from '@/features/auth/types'
 import { useToast } from '@/composables/useToast'
 import { useUgcShipment } from '@/composables/useUgcShipment'
+import { useUgcDeliverable } from '@/composables/useUgcDeliverable'
 
 /**
  * LOGIC & STATE MANAGEMENT
@@ -104,6 +105,15 @@ const {
   errorCode: receiptErrorCode,
   confirmReceipt,
 } = useUgcShipment()
+
+// Upload du livrable Unboxing (4.2) — miroir d'AC5, noms distincts du receipt.
+const {
+  isUploading: isUploadingDeliverable,
+  uploadProgress,
+  error: deliverableError,
+  errorCode: deliverableErrorCode,
+  uploadDeliverable,
+} = useUgcDeliverable()
 
 // CTA sticky : UGC publié acceptant les candidatures, sans candidature ou avec candidature pending.
 const canAcceptUgc = computed(() =>
@@ -341,6 +351,32 @@ async function handleConfirmReceipt(): Promise<void> {
   }
 
   toast.error(receiptError.value || 'Erreur lors de la confirmation de la réception')
+}
+
+/**
+ * UGC DELIVERABLE UPLOAD (4.2) — miroir d'AC5 (booking), refetch via fetchMission.
+ */
+async function handleUploadDeliverable(file: File): Promise<void> {
+  const shipment = candidatureShipment.value
+  if (!shipment) return
+
+  const deliverable = await uploadDeliverable(shipment.id, file)
+  if (deliverable) {
+    toast.success('Vidéo Unboxing déposée — en attente de validation')
+    if (missionId.value) await fetchMission(missionId.value) // D-4.2.d
+    return
+  }
+  if (deliverableErrorCode.value === 'ALREADY_UPLOADED') {
+    toast.info(deliverableError.value || 'Votre vidéo Unboxing a déjà été déposée.')
+    if (missionId.value) await fetchMission(missionId.value)
+    return
+  }
+  if (deliverableErrorCode.value === 'INVALID_STATUS') {
+    toast.error(deliverableError.value || "La vidéo ne peut pas être déposée dans l'état actuel de ce deal.")
+    if (missionId.value) await fetchMission(missionId.value)
+    return
+  }
+  toast.error(deliverableError.value || "Erreur lors de l'envoi de la vidéo Unboxing")
 }
 
 /**
@@ -659,7 +695,10 @@ onMounted(() => {
             :shipment="candidatureShipment"
             :current="ugcTrackingStep"
             :is-submitting="isSubmittingReceipt"
+            :is-uploading="isUploadingDeliverable"
+            :upload-progress="uploadProgress"
             @confirm-receipt="showReceiptModal = true"
+            @upload="handleUploadDeliverable"
           />
           <div
             v-else-if="ugcEngaged"

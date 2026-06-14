@@ -74,6 +74,39 @@ export interface ShipmentResponse {
   message?: string
 }
 
+// ---------- Deliverable (livrable vidéo UGC, stories 4.1/4.2) ----------
+
+/** Progression d'upload multipart. Redéclaré ici (≡ features/face VideoUploadProgress)
+ *  pour garder components/ugc sans dépendance vers features/face (D-4.2.j). */
+export interface UgcUploadProgress {
+  loaded: number
+  total: number
+  percentage: number
+}
+
+/**
+ * Métadonnées d'un livrable vidéo — miroir de DeliverableResource (4.1).
+ * JAMAIS de video_path ni d'URL signée (lecture Producteur = 4.4).
+ * `kind`/`validation_status` `string` OUVERTS (parité tunnel_status) :
+ * l'affichage passe TOUJOURS par les *_label serveur.
+ */
+export interface Deliverable {
+  id: string
+  kind: string
+  kind_label: string
+  validation_status: string
+  validation_status_label: string
+  chrono_started_at: string
+  deadline_at: string
+  duree_seconds: number | null
+  created_at: string | null
+}
+
+export interface DeliverableResponse {
+  data: Deliverable
+  message?: string
+}
+
 /** Chips transporteur de l'écran 4A — sucre UI (D-3.1.e), le serveur reçoit du texte libre. */
 export const UGC_CARRIER_CHIPS = ['DHL', 'Chronopost', 'Gozem', 'Autre'] as const
 
