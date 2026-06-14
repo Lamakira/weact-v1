@@ -458,16 +458,18 @@ class ProducerViewCandidaturesTest extends TestCase
         $response->assertOk();
 
         // The query count must stay bounded regardless of candidature count.
-        // Baseline (3 candidatures) is 10 queries: Sanctum insert + auth lookups (5) +
+        // Baseline (3 candidatures) is 12 queries: Sanctum insert + auth lookups (5) +
         // pagination count + candidatures select + eager faces + eager active_subscriptions
-        // (1 query via HasOne ofMany — NOT N+1) + eager conversations.
-        // Without the eager-load on `face.activeSubscription`, every candidature would
-        // trigger an extra SELECT in FaceEntitlementService::resolveActiveSubscription()
-        // (3 candidatures → 3 extra queries → 13 total). The ceiling of 11 gives a
-        // 1-query safety margin against minor Sanctum / pagination drift while still
-        // failing loud if N+1 is reintroduced.
+        // (1 query via HasOne ofMany — NOT N+1) + eager conversations + eager shipments
+        // (morphOne, 1 query — UGC 3.1) + eager deliverables (morphMany, 1 query — UGC 4.1).
+        // Each of shipment/deliverable eager-loads is a SINGLE query for the whole page,
+        // not per-candidature. Without the eager-load on `face.activeSubscription`, every
+        // candidature would trigger an extra SELECT in
+        // FaceEntitlementService::resolveActiveSubscription() (3 candidatures → 3 extra
+        // queries). The ceiling of 13 gives a 1-query safety margin against minor Sanctum /
+        // pagination drift while still failing loud if N+1 is reintroduced.
         $this->assertLessThanOrEqual(
-            11,
+            13,
             $queryCount,
             "Query count regressed to {$queryCount} — eager-load on face.activeSubscription likely missing."
         );

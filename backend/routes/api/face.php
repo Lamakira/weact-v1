@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\V1\Face\SubscriptionHistoryController;
 use App\Http\Controllers\Api\V1\Face\SubscriptionPaymentController;
 use App\Http\Controllers\Api\V1\Face\SubscriptionStatusController;
 use App\Http\Controllers\Api\V1\Face\TarifsController;
+use App\Http\Controllers\Api\V1\Face\UgcDeliverableUploadController;
 use App\Http\Controllers\Api\V1\Face\UgcEngagementController;
 use App\Http\Controllers\Api\V1\Face\UgcMissionDiscoveryController;
 use Illuminate\Support\Facades\Route;
@@ -184,6 +185,10 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
 
     // UGC product receipt — la Face confirme la réception, le chrono Unboxing démarre (FR6 étape 4, UGC 3.3)
     Route::post('/shipments/{shipment}/confirm-receipt', [UgcEngagementController::class, 'confirmReceipt'])
+        ->middleware(['face', 'throttle:30,1']);
+
+    // UGC deliverable upload — la Face dépose sa vidéo Unboxing sous chrono (FR6 étape 5, UGC 4.1)
+    Route::post('/shipments/{shipment}/deliverables', [UgcDeliverableUploadController::class, 'store'])
         ->middleware(['face', 'throttle:30,1']);
 
     // Mission attendance dispute - Face contests being marked absent

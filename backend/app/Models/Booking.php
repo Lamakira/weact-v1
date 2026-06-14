@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Support\Facades\Auth;
 
@@ -55,6 +56,7 @@ use Illuminate\Support\Facades\Auth;
  * @property-read \App\Models\User|null $producer
  * @property-read \App\Models\BookingRating|null $raterBookingRating
  * @property-read \App\Models\Shipment|null $shipment
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Deliverable> $deliverables
  */
 class Booking extends Model
 {
@@ -216,6 +218,16 @@ class Booking extends Model
     public function shipment(): MorphOne
     {
         return $this->morphOne(Shipment::class, 'owner');
+    }
+
+    /**
+     * Get the UGC video deliverables uploaded for this booking (tunnel étape 5).
+     *
+     * @return MorphMany<Deliverable, $this>
+     */
+    public function deliverables(): MorphMany
+    {
+        return $this->morphMany(Deliverable::class, 'owner');
     }
 
     /**

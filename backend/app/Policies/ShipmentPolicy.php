@@ -50,4 +50,27 @@ class ShipmentPolicy
 
         return false;
     }
+
+    /**
+     * Seule la Face destinataire du deal dépose un livrable (upload Unboxing,
+     * UGC 4.1). L'ability porte sur le Shipment (la ligne Deliverable n'existe
+     * pas encore au moment de l'autz — D-4.1.c). Copie exacte de l'asymétrie FK
+     * de confirmReceipt : bookings.face_id = users.id ; candidatures.face_id = faces.id.
+     */
+    public function uploadDeliverable(User $user, Shipment $shipment): bool
+    {
+        $shipment->loadMissing('owner');
+        $owner = $shipment->owner;
+
+        if ($owner instanceof Booking) {
+            return $user->id === $owner->face_id;
+        }
+
+        if ($owner instanceof Candidature) {
+            return $user->userable_type === Face::class
+                && $user->userable_id === $owner->face_id;
+        }
+
+        return false;
+    }
 }

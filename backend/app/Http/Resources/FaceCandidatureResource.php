@@ -54,6 +54,7 @@ class FaceCandidatureResource extends JsonResource
             ),
             'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->uuid),
             'shipment' => new ShipmentResource($this->whenLoaded('shipment')),
+            'deliverables' => DeliverableResource::collection($this->whenLoaded('deliverables')),
         ];
     }
 }

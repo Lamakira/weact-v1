@@ -20,4 +20,17 @@ return [
         'unboxing' => 7,
         'avis' => 14,
     ],
+    // Disque de stockage des médias livrables : disque PRIVÉ `local`
+    // (storage/app/private, `serve => true`) — distinct du `public` du
+    // portfolio FaceVideo (D7 / AC5). La lecture Producteur (URL signée) = 4.4.
+    'storage_disk' => 'local',
+    // Contraintes de validation du fichier livrable, lues par
+    // UploadDeliverableRequest. `max_duration_seconds = null` : pas de plafond
+    // de durée pour un livrable (un Avis peut être long — question PO #3).
+    'media' => [
+        'max_size_mb' => 200,
+        'allowed_extensions' => ['mp4', 'mov', 'avi'],
+        'allowed_mimetypes' => ['video/mp4', 'video/quicktime', 'video/x-msvideo'],
+        'max_duration_seconds' => null,
+    ],
 ];

@@ -108,6 +108,7 @@ class BookingController extends Controller
             'face.userable',
             'producer.userable',
             'shipment',
+            'deliverables',
             'raterBookingRating' => function ($query) {
                 $query
                     ->where('rater_id', auth()->id())

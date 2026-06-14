@@ -45,7 +45,7 @@ class CandidatureController extends Controller
         $face = $request->user()->userable;
 
         $query = Candidature::where('face_id', $face->id)
-            ->with(['mission', 'mission.producer', 'conversation', 'shipment'])
+            ->with(['mission', 'mission.producer', 'conversation', 'shipment', 'deliverables'])
             ->latest();
 
         // Optional status filter

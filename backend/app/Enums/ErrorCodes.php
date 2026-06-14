@@ -59,6 +59,7 @@ enum ErrorCodes: string
     case AlreadyAccepted = 'ALREADY_ACCEPTED';
     case AlreadyShipped = 'ALREADY_SHIPPED';
     case AlreadyReceived = 'ALREADY_RECEIVED';
+    case AlreadyUploaded = 'ALREADY_UPLOADED';
     case GenderMismatch = 'gender_mismatch';
     case PaymentNotConfirmed = 'PAYMENT_NOT_CONFIRMED';
     case NotInFinalSelection = 'NOT_IN_FINAL_SELECTION';

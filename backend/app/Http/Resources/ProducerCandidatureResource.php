@@ -38,6 +38,7 @@ class ProducerCandidatureResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->uuid),
             'shipment' => new ShipmentResource($this->whenLoaded('shipment')),
+            'deliverables' => DeliverableResource::collection($this->whenLoaded('deliverables')),
             'face' => $this->whenLoaded('face', fn () => [
                 'id' => $this->face->uuid,
                 'display_name' => trim($this->face->prenom.' '.$this->face->nom),
