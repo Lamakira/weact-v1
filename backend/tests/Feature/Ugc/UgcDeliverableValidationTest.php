@@ -650,4 +650,43 @@ class UgcDeliverableValidationTest extends TestCase
             ->assertJsonPath('data.deliverables.0.kind', 'unboxing')
             ->assertJsonPath('data.deliverables.1.kind', 'avis');
     }
+
+    // ===================================================================
+    // AC5 (4.5) — ré-armement du compteur d'escalade au handoff Unboxing→Avis
+    // ===================================================================
+
+    public function test_validate_unboxing_resets_escalation_threshold(): void
+    {
+        [, $shipment, $unboxing] = $this->makeUnboxingInReviewBooking();
+        // Le chrono Unboxing avait déjà escaladé (ambre + orange notifiés).
+        $shipment->update(['last_notified_threshold' => 2]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/deliverables/{$unboxing->uuid}/validate")
+            ->assertOk();
+
+        $fresh = $shipment->fresh();
+        // Nouveau chrono Avis → compteur ré-armé à 0 (D-4.5.e) : la Face ré-escalade
+        // ambre→orange→rouge sur l'Avis au lieu de sauter directement au rouge.
+        $this->assertSame(UgcTunnelStatus::AvisPending, $fresh->tunnel_status);
+        $this->assertSame(0, $fresh->last_notified_threshold);
+    }
+
+    public function test_reject_unboxing_keeps_escalation_threshold(): void
+    {
+        [, $shipment, $unboxing] = $this->makeUnboxingInReviewBooking();
+        $shipment->update(['last_notified_threshold' => 2]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/deliverables/{$unboxing->uuid}/reject", [
+                'review_note' => 'Le cadrage est hors sujet, recommence.',
+            ])
+            ->assertOk();
+
+        $fresh = $shipment->fresh();
+        // Reject = MÊME chrono (deadline_at conservé D-4.3.b) → compteur conservé :
+        // on ne re-spamme pas les paliers ambre/orange déjà notifiés.
+        $this->assertSame(UgcTunnelStatus::Received, $fresh->tunnel_status);
+        $this->assertSame(2, $fresh->last_notified_threshold);
+    }
 }

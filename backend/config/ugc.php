@@ -44,4 +44,9 @@ return [
     // signée hors api.token (un <video src> natif ne porte pas le header). TTL
     // court : borne la fuite d'une URL ; le refetch post-action la renouvelle.
     'video_url_ttl_minutes' => 30,
+    // Seuils d'escalade des notifications de deadline livrable (4.5, OI-5 — PO-tunable).
+    // Fractions de progress ASCENDANTES, alignées sur les paliers couleur du front
+    // (ChronoBadge/ChronoRing : 0.4 ambre, 0.6 orange, 0.85 rouge ; teal = base, sans
+    // notif). `shipments.last_notified_threshold` = nb de paliers déjà notifiés (0..N).
+    'deadline_escalation_thresholds' => [0.4, 0.6, 0.85],
 ];

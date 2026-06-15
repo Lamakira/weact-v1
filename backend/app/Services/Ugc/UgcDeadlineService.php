@@ -6,6 +6,7 @@ namespace App\Services\Ugc;
 
 use App\Enums\DeliverableKind;
 use App\Enums\DeliverableValidationStatus;
+use App\Enums\UgcTunnelStatus;
 use App\Models\Deliverable;
 use App\Models\Shipment;
 use Illuminate\Support\Carbon;
@@ -57,5 +58,65 @@ class UgcDeadlineService
         return $unboxing->validated_at->copy()->addDays(
             (int) config('ugc.deliverable_days.avis', 14)
         );
+    }
+
+    /**
+     * Fenêtre du chrono ACTIF (upload dû par la Face), dérivée du tunnel_status.
+     * Null hors des états où la Face doit uploader (received / avis_pending). 4.5.
+     *
+     * @return array{kind: DeliverableKind, start: Carbon, deadline: Carbon}|null
+     */
+    public function chronoWindowFor(Shipment $shipment): ?array
+    {
+        if ($shipment->tunnel_status === UgcTunnelStatus::Received) {
+            $deadline = $this->unboxingDeadlineFor($shipment);
+            if ($deadline === null || $shipment->recu_le === null) {
+                return null;
+            }
+
+            return ['kind' => DeliverableKind::Unboxing, 'start' => $shipment->recu_le, 'deadline' => $deadline];
+        }
+
+        if ($shipment->tunnel_status === UgcTunnelStatus::AvisPending) {
+            $deadline = $this->avisDeadlineFor($shipment);
+            if ($deadline === null) {
+                return null;
+            }
+            // start = validated_at = deadline - avis days (réutilise avisDeadlineFor, pas de re-query).
+            $start = $deadline->copy()->subDays((int) config('ugc.deliverable_days.avis', 14));
+
+            return ['kind' => DeliverableKind::Avis, 'start' => $start, 'deadline' => $deadline];
+        }
+
+        return null;
+    }
+
+    /** progress ∈ [0,1] du chrono actif (NFR3, serveur autoritatif). Null si pas de chrono actif. 4.5. */
+    public function progressFor(Shipment $shipment, ?Carbon $now = null): ?float
+    {
+        $window = $this->chronoWindowFor($shipment);
+        if ($window === null) {
+            return null;
+        }
+        $now ??= now();
+        $span = $window['deadline']->getTimestamp() - $window['start']->getTimestamp();
+        if ($span <= 0) {
+            return 1.0;
+        }
+
+        return max(0.0, min(1.0, ($now->getTimestamp() - $window['start']->getTimestamp()) / $span));
+    }
+
+    /** Nb de paliers d'escalade franchis (0..N) selon ugc.deadline_escalation_thresholds. 4.5 / D-4.5.c. */
+    public function escalationLevelFor(float $progress): int
+    {
+        $level = 0;
+        foreach ((array) config('ugc.deadline_escalation_thresholds', [0.4, 0.6, 0.85]) as $threshold) {
+            if ($progress >= (float) $threshold) {
+                $level++;
+            }
+        }
+
+        return $level;
     }
 }

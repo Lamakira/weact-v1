@@ -267,6 +267,11 @@ class UgcDeliverableService
                 'tunnel_status' => $fresh->kind === DeliverableKind::Unboxing
                     ? UgcTunnelStatus::AvisPending
                     : UgcTunnelStatus::Completed,
+                // D-4.5.e : ré-arme l'escalade pour le NOUVEAU chrono (Avis) — sans
+                // ce reset la Face hériterait du compteur Unboxing et sauterait
+                // ambre/orange sur l'Avis. No-op à la clôture (completed n'est plus
+                // escaladé) et au reject/retouche (même chrono → compteur conservé).
+                'last_notified_threshold' => 0,
             ]);
 
             return ['outcome' => 'validated', 'deliverable' => $fresh];

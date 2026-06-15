@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * @property \App\Enums\UgcTunnelStatus $tunnel_status
  * @property \Illuminate\Support\Carbon $shipped_at
  * @property \Illuminate\Support\Carbon|null $recu_le
+ * @property int $last_notified_threshold
  * @property string $destinataire_nom
  * @property string|null $destinataire_ville
  * @property string|null $destinataire_pays
@@ -49,6 +50,7 @@ class Shipment extends Model
         'tunnel_status',
         'shipped_at',
         'recu_le',
+        'last_notified_threshold',
         'destinataire_nom',
         'destinataire_ville',
         'destinataire_pays',
@@ -63,6 +65,7 @@ class Shipment extends Model
             'tunnel_status' => UgcTunnelStatus::class,
             'shipped_at' => 'datetime',
             'recu_le' => 'datetime',
+            'last_notified_threshold' => 'integer',
         ];
     }
 
