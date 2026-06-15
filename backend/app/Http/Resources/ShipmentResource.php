@@ -34,6 +34,11 @@ class ShipmentResource extends JsonResource
             'unboxing_deadline_at' => app(UgcDeadlineService::class)
                 ->unboxingDeadlineFor($shipment)
                 ?->toIso8601String(),
+            // Échéance Avis DÉRIVÉE (validated_at Unboxing + config, NFR3, D-4.6.a) —
+            // null hors avis_pending (tant qu'aucun Unboxing n'est validé).
+            'avis_deadline_at' => app(UgcDeadlineService::class)
+                ->avisDeadlineFor($shipment)
+                ?->toIso8601String(),
             'destinataire' => [
                 'nom' => $this->destinataire_nom,
                 'ville' => $this->destinataire_ville,

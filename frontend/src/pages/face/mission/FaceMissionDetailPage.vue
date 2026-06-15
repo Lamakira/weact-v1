@@ -697,6 +697,7 @@ onMounted(() => {
             :is-submitting="isSubmittingReceipt"
             :is-uploading="isUploadingDeliverable"
             :upload-progress="uploadProgress"
+            :deliverables="candidature?.deliverables ?? []"
             @confirm-receipt="showReceiptModal = true"
             @upload="handleUploadDeliverable"
           />

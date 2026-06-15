@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Feature\Ugc;
 
 use App\Enums\BookingStatus;
+use App\Enums\DeliverableKind;
+use App\Enums\DeliverableValidationStatus;
 use App\Enums\UgcTunnelStatus;
 use App\Events\ShipmentConfirmed;
 use App\Models\Booking;
@@ -539,5 +541,63 @@ class UgcBookingShipmentTest extends TestCase
             ->assertUnauthorized();
 
         $this->assertNull($shipment->fresh()->recu_le);
+    }
+
+    // ===================================================================
+    // UGC 4.6 — avis_deadline_at exposé par ShipmentResource (AC2).
+    // Échéance Avis dérivée serveur (validated_at Unboxing + ugc.deliverable_days.avis,
+    // NFR3), null tant qu'aucun Unboxing n'est validé — calque unboxing_deadline_at.
+    // ===================================================================
+
+    public function test_booking_show_exposes_avis_deadline_once_unboxing_validated(): void
+    {
+        $this->freezeTime();
+
+        $booking = $this->makeUgcBooking();
+        $shipment = $this->makeShippedShipment($booking);
+        // Unboxing validé → le deal passe avis_pending (chrono Avis ouvert, D-4.3.b).
+        $shipment->update([
+            'tunnel_status' => UgcTunnelStatus::AvisPending,
+            'recu_le' => now()->subDays(5),
+        ]);
+        $validatedAt = now()->subDays(2);
+        $booking->deliverables()->create([
+            'kind' => DeliverableKind::Unboxing,
+            'validation_status' => DeliverableValidationStatus::Validated,
+            'chrono_started_at' => now()->subDays(5),
+            'deadline_at' => now()->subDays(5)->copy()->addDays(7),
+            'submitted_at' => now()->subDays(3),
+            'validated_at' => $validatedAt,
+            'video_path' => 'ugc/deliverables/unboxing/seed.mp4',
+            'duree_seconds' => 42,
+        ]);
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.shipment.tunnel_status', UgcTunnelStatus::AvisPending->value)
+            // validated_at + ugc.deliverable_days.avis (14 j) — dérivée serveur (NFR3).
+            ->assertJsonPath(
+                'data.shipment.avis_deadline_at',
+                $validatedAt->copy()->addDays((int) config('ugc.deliverable_days.avis', 14))->toIso8601String(),
+            );
+    }
+
+    public function test_booking_show_returns_null_avis_deadline_before_unboxing_validated(): void
+    {
+        // Shipment received (chrono Unboxing en cours) — aucun Unboxing validé
+        // ⇒ avis_deadline_at null (calque unboxing_deadline_at null avant réception).
+        $booking = $this->makeUgcBooking();
+        $shipment = $this->makeShippedShipment($booking);
+        $shipment->update([
+            'tunnel_status' => UgcTunnelStatus::Received,
+            'recu_le' => now(),
+        ]);
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.shipment.recu_le', fn ($value) => $value !== null)
+            ->assertJsonPath('data.shipment.avis_deadline_at', null);
     }
 }

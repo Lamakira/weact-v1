@@ -201,7 +201,7 @@ async function mountPage(
           template: '<div data-testid="tracking-card-stub"/>',
         },
         UgcFaceTrackingCard: {
-          props: ['shipment', 'current', 'isSubmitting', 'isUploading', 'uploadProgress'],
+          props: ['shipment', 'current', 'isSubmitting', 'isUploading', 'uploadProgress', 'deliverables'],
           emits: ['confirm-receipt', 'upload'],
           // `new File` vit dans methods (scope JS) — indisponible dans le scope template Vue.
           methods: {
@@ -210,7 +210,7 @@ async function mountPage(
             },
           },
           template: `<div>
-            <button data-testid="face-tracking-card-stub" :data-current="current" @click="$emit('confirm-receipt')"></button>
+            <button data-testid="face-tracking-card-stub" :data-current="current" :data-deliverables-count="deliverables.length" @click="$emit('confirm-receipt')"></button>
             <button data-testid="face-tracking-upload-stub" @click="emitUpload"></button>
           </div>`,
         },
@@ -931,5 +931,39 @@ describe('FaceBookingDetailPage — carte de suivi Face & réception (story 3.4)
 
     expect(mockToastError).toHaveBeenCalledWith('Format non supporté.')
     expect(mockFetchBooking).toHaveBeenCalledTimes(1) // pas de refetch : l'état du deal n'a pas changé
+  })
+
+  it('passes the booking deliverables to the Face tracking card (4.6)', async () => {
+    const wrapper = await mountPage(
+      makeUgcBooking({
+        shipment: makeShipment({ tunnel_status: 'avis_pending', avis_deadline_at: '2026-06-26T12:00:00+00:00' }),
+        deliverables: [
+          { id: 'd1', kind: 'unboxing', validation_status: 'validated' },
+          { id: 'd2', kind: 'avis', validation_status: 'rejected' },
+        ],
+      }),
+    )
+
+    const card = wrapper.find('[data-testid="face-tracking-card-stub"]')
+    expect(card.exists()).toBe(true)
+    expect(card.attributes('data-deliverables-count')).toBe('2')
+  })
+
+  it('uploads in the Avis phase and refetches the booking (handler réutilisé, kind dérivé serveur)', async () => {
+    mockUploadDeliverable.mockResolvedValue({ id: 'deliverable-uuid-2', kind: 'avis' })
+    const wrapper = await mountPage(
+      makeUgcBooking({
+        shipment: makeShipment({ tunnel_status: 'avis_pending', avis_deadline_at: '2026-06-26T12:00:00+00:00' }),
+        deliverables: [{ id: 'd1', kind: 'unboxing', validation_status: 'validated' }],
+      }),
+    )
+
+    await wrapper.find('[data-testid="face-tracking-upload-stub"]').trigger('click')
+    await flushPromises()
+
+    expect(mockUploadDeliverable).toHaveBeenCalledWith('shipment-uuid-1', expect.any(File))
+    // D-4.2.d : le 201 porte la DeliverableResource → refetch (mount + refetch).
+    expect(mockFetchBooking).toHaveBeenCalledTimes(2)
+    expect(mockFetchBooking).toHaveBeenLastCalledWith('booking-uuid-1')
   })
 })

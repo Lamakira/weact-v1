@@ -15,6 +15,7 @@ function makeShipment(overrides: Partial<Shipment> = {}): Shipment {
     shipped_at: '2026-06-12T10:00:00+00:00',
     recu_le: null,
     unboxing_deadline_at: null,
+    avis_deadline_at: null,
     destinataire: { nom: 'Aïcha Bello', ville: 'Cotonou', pays: 'Bénin' },
     created_at: '2026-06-12T10:00:00+00:00',
     ...overrides,

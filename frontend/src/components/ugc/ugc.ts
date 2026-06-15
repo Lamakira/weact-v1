@@ -17,6 +17,11 @@ export const UGC_PRODUCT_ONLY_VIDEO_COUNT = 2
  *  (`unboxing_deadline_at`), jamais d'un calcul front (NFR3, D-3.4.i). */
 export const UGC_UNBOXING_DAYS = 7
 
+/** Miroir de backend/config/ugc.php `deliverable_days.avis` — copy statique
+ *  (« 14 jours ») : la deadline Avis affichée vient TOUJOURS du serveur
+ *  (`avis_deadline_at`), jamais d'un calcul front (NFR3, D-4.6.a). */
+export const UGC_AVIS_DAYS = 14
+
 export type UgcCompensationType = 'product' | 'hybrid'
 
 /** Commission WeAct (live preview ; le serveur reste autoritatif). */
@@ -55,6 +60,8 @@ export interface Shipment {
   recu_le: string | null
   /** Échéance Unboxing dérivée serveur (recu_le + config) — null avant réception (3.3 AC7). */
   unboxing_deadline_at: string | null
+  /** Échéance Avis dérivée serveur (validated_at Unboxing + config) — null hors avis_pending (4.6). */
+  avis_deadline_at: string | null
   destinataire: {
     nom: string
     ville: string | null
@@ -96,6 +103,10 @@ export interface Deliverable {
   kind_label: string
   validation_status: string
   validation_status_label: string
+  /** Note de revue Producteur (motif rejet/retouche) — exposée par DeliverableResource (4.3). */
+  review_note: string | null
+  /** Timestamp de validation (Unboxing validé) — start du chrono Avis côté Face (4.6). */
+  validated_at: string | null
   chrono_started_at: string
   deadline_at: string
   duree_seconds: number | null

@@ -4,7 +4,7 @@ import { AlertTriangle, BadgeCheck, Loader2, PackageCheck, Truck, UploadCloud } 
 import StatusPill from './StatusPill.vue'
 import ChronoRing from './ChronoRing.vue'
 import UgcBookingTimeline from './UgcBookingTimeline.vue'
-import { tunnelStatusToPillKind, UGC_UNBOXING_DAYS, type Shipment, type UgcUploadProgress } from './ugc'
+import { tunnelStatusToPillKind, UGC_UNBOXING_DAYS, type Deliverable, type Shipment, type UgcUploadProgress } from './ugc'
 import { useChrono } from '@/composables/useChrono'
 
 // Carte de suivi Face (écran 8A, story 3.4) — présentationnel pur : l'API,
@@ -19,35 +19,84 @@ const props = withDefaults(
     isSubmitting?: boolean
     isUploading?: boolean
     uploadProgress?: UgcUploadProgress | null
+    /** Livrables du deal (4.6) — review_note du bandeau de refus + start du chrono Avis (D-4.6.b). */
+    deliverables?: Deliverable[]
   }>(),
-  { isSubmitting: false, isUploading: false, uploadProgress: null },
+  { isSubmitting: false, isUploading: false, uploadProgress: null, deliverables: () => [] },
 )
 
 const emit = defineEmits<{ 'confirm-receipt': []; upload: [file: File] }>()
 
 const pillKind = computed(() => tunnelStatusToPillKind(props.shipment.tunnel_status))
 const isShipped = computed(() => props.shipment.tunnel_status === 'shipped')
-// Strict `received` : aux épics 4-5 (in_review…) le chrono Unboxing n'est plus
-// l'action courante — ces états auront leur UI en 4.x (D-3.4.j).
-const isChronoActive = computed(
+
+// --- Phase Unboxing (4.2) : chrono actif strict `received` (recu_le + deadline dérivée). ---
+const isUnboxingChronoActive = computed(
   () =>
     props.shipment.tunnel_status === 'received'
     && props.shipment.recu_le !== null
     && props.shipment.unboxing_deadline_at !== null,
 )
-
-const { progress, remainingLabel } = useChrono(
+const { progress: unboxingProgress, remainingLabel: unboxingRemaining } = useChrono(
   () => props.shipment.recu_le,
   () => props.shipment.unboxing_deadline_at,
+)
+
+// --- Phase Avis (4.6) : chrono démarré à la validation Unboxing (NFR3, serveur). ---
+const isAvisPending = computed(() => props.shipment.tunnel_status === 'avis_pending')
+// Start du chrono Avis = validated_at de l'Unboxing validé, lu dans deliverables (D-4.6.d).
+const validatedUnboxingAt = computed<string | null>(
+  () =>
+    props.deliverables.find(
+      (d) => d.kind === 'unboxing' && d.validation_status === 'validated',
+    )?.validated_at ?? null,
+)
+const isAvisChronoActive = computed(
+  () =>
+    isAvisPending.value && validatedUnboxingAt.value !== null && props.shipment.avis_deadline_at !== null,
+)
+const { progress: avisProgress, remainingLabel: avisRemaining } = useChrono(
+  () => validatedUnboxingAt.value,
+  () => props.shipment.avis_deadline_at,
+)
+
+// --- Section chrono+dropzone UNIFIÉE (Unboxing `received` OU Avis `avis_pending`) : même
+//     dropzone/emit, seules la copy et la source du chrono diffèrent (D-4.6.e). ---
+const isUploadPhaseActive = computed(() => isUnboxingChronoActive.value || isAvisChronoActive.value)
+const activeProgress = computed(() => (isAvisChronoActive.value ? avisProgress.value : unboxingProgress.value))
+const activeRemainingLabel = computed(() =>
+  isAvisChronoActive.value ? avisRemaining.value : unboxingRemaining.value,
+)
+const activeUploadTitle = computed(() =>
+  isAvisChronoActive.value ? 'Uploade ta vidéo Avis' : 'Uploade ta vidéo Unboxing',
+)
+const activeDeadlineAt = computed<string | null>(() =>
+  isAvisChronoActive.value ? props.shipment.avis_deadline_at : props.shipment.unboxing_deadline_at,
 )
 
 function formatDateTime(iso: string): string {
   return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(iso))
 }
 
-// 4.2 — état post-upload « en attente de validation », dérivé du SEUL
-// tunnel_status (aucune lecture de deliverables[] côté Face, D-4.2.e).
+// --- Phase « en attente de validation » : Unboxing (4.2) OU Avis (4.6), même bloc. ---
 const isUnboxingInReview = computed(() => props.shipment.tunnel_status === 'unboxing_in_review')
+const isAvisInReview = computed(() => props.shipment.tunnel_status === 'avis_in_review')
+const isInReview = computed(() => isUnboxingInReview.value || isAvisInReview.value)
+const reviewTitle = computed(() => (isAvisInReview.value ? 'Vidéo Avis déposée' : 'Vidéo Unboxing déposée'))
+
+// --- Bandeau de refus (4.6, AC3/AC7) : dernier livrable du kind COURANT en rejected/retouche.
+//     Déroge à D-4.2.e (la carte LIT deliverables) pour porter review_note + start chrono Avis (D-4.6.b). ---
+const currentKind = computed(() => (isAvisPending.value ? 'avis' : 'unboxing'))
+const rejectedDeliverable = computed<Deliverable | null>(() => {
+  const matches = props.deliverables.filter(
+    (d) =>
+      d.kind === currentKind.value
+      && (d.validation_status === 'rejected' || d.validation_status === 'retouche_requested'),
+  )
+  // Dernier livrable refusé du kind courant (pas de `.at` : lib TS < ES2022).
+  return matches[matches.length - 1] ?? null
+})
+
 const uploadPercentage = computed(() => props.uploadProgress?.percentage ?? 0)
 
 // Dropzone : sélection/drop ⇒ émet le File brut (la validation vit dans le
@@ -135,32 +184,53 @@ function handleDragLeave(): void {
       </button>
     </div>
 
-    <!-- Étape 5 : chrono Unboxing + dropzone d'upload (écran 8A, face.jsx:341-367) -->
+    <!-- Étape 5/6 : chrono + dropzone — Unboxing `received` OU Avis `avis_pending` (écran 8A, face.jsx:341-367) -->
     <div
-      v-else-if="isChronoActive"
+      v-else-if="isUploadPhaseActive"
       class="mt-4 rounded-lg border border-[rgba(25,132,150,0.3)] bg-[rgba(25,132,150,0.04)] p-3"
       data-testid="ugc-chrono-section"
     >
       <div class="flex items-start gap-3">
-        <ChronoRing :progress="progress" :size="52" :stroke="5" :label="remainingLabel" sublabel="rest." />
+        <ChronoRing :progress="activeProgress" :size="52" :stroke="5" :label="activeRemainingLabel" sublabel="rest." />
         <div class="flex-1">
           <p class="text-[10px] font-bold uppercase tracking-widest text-weact">À faire maintenant</p>
-          <p class="mt-0.5 text-sm font-semibold leading-tight text-gray-900">Uploade ta vidéo Unboxing</p>
+          <p class="mt-0.5 text-sm font-semibold leading-tight text-gray-900">{{ activeUploadTitle }}</p>
           <p class="mt-0.5 text-[11px] text-gray-600">30-60s · format vertical 9:16</p>
-          <p v-if="shipment.unboxing_deadline_at" class="mt-1 text-xs font-medium text-gray-900">
-            À envoyer avant le {{ formatDateTime(shipment.unboxing_deadline_at) }}
+          <p v-if="activeDeadlineAt" class="mt-1 text-xs font-medium text-gray-900">
+            À envoyer avant le {{ formatDateTime(activeDeadlineAt) }}
           </p>
         </div>
       </div>
 
-      <!-- Dropzone (8A face.jsx:350-353) — sélection/drop ⇒ émet `upload` (D-4.2.l) -->
+      <!-- Bandeau de refus (4.6, AC3) — au-dessus de la dropzone, re-upload du kind courant.
+           Le chrono reste celui d'origine (D-4.6.f) ; absent au premier upload (AC7). -->
+      <div
+        v-if="rejectedDeliverable"
+        class="mt-3 flex items-start gap-2 rounded-md border p-3"
+        :class="rejectedDeliverable.validation_status === 'rejected'
+          ? 'border-red-200 bg-red-50' : 'border-orange-200 bg-orange-50'"
+        data-testid="ugc-rejection-banner"
+      >
+        <AlertTriangle
+          class="mt-0.5 h-3.5 w-3.5 shrink-0"
+          :class="rejectedDeliverable.validation_status === 'rejected' ? 'text-[#DC2626]' : 'text-[#EA580C]'"
+        />
+        <div>
+          <p class="text-[11px] font-semibold text-gray-900">{{ rejectedDeliverable.validation_status_label }}</p>
+          <p v-if="rejectedDeliverable.review_note" class="mt-0.5 text-[11px] leading-snug text-gray-700">
+            {{ rejectedDeliverable.review_note }}
+          </p>
+        </div>
+      </div>
+
+      <!-- Dropzone (8A face.jsx:350-353) — réutilisée Unboxing + Avis, émet `upload` (D-4.2.l / D-4.6.e) -->
       <div class="mt-3">
         <div
           class="relative rounded-md border-2 border-dashed bg-white p-4 text-center transition-colors"
           :class="isDragging ? 'border-weact ring-2 ring-weact/20' : 'border-weact/40'"
           role="button"
           tabindex="0"
-          aria-label="Choisir une vidéo Unboxing à uploader"
+          :aria-label="isAvisChronoActive ? 'Choisir une vidéo Avis à uploader' : 'Choisir une vidéo Unboxing à uploader'"
           data-testid="ugc-upload-dropzone"
           @click="triggerFileInput"
           @keydown.enter.prevent="triggerFileInput"
@@ -202,15 +272,15 @@ function handleDragLeave(): void {
       </div>
     </div>
 
-    <!-- Post-upload : livrable déposé, en attente de validation Producteur (4.2, D-4.2.e) -->
+    <!-- Post-upload : livrable déposé, en attente de validation Producteur — Unboxing (4.2) ou Avis (4.6) -->
     <div
-      v-else-if="isUnboxingInReview"
+      v-else-if="isInReview"
       class="mt-4 flex items-start gap-3 rounded-lg border border-[rgba(25,132,150,0.3)] bg-[rgba(25,132,150,0.04)] p-3"
       data-testid="ugc-deliverable-review-section"
     >
       <BadgeCheck class="mt-0.5 h-5 w-5 shrink-0 text-weact" />
       <div>
-        <p class="text-sm font-semibold text-gray-900">Vidéo Unboxing déposée</p>
+        <p class="text-sm font-semibold text-gray-900">{{ reviewTitle }}</p>
         <p class="mt-0.5 text-xs text-gray-600">
           En attente de validation du Producteur (sous 48&nbsp;h). Tu seras notifiée dès qu'il aura statué.
         </p>

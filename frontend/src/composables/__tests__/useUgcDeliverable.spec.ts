@@ -14,6 +14,8 @@ function makeDeliverable(overrides: Partial<Deliverable> = {}): Deliverable {
     kind_label: 'Unboxing',
     validation_status: 'in_review',
     validation_status_label: 'En cours de validation',
+    review_note: null,
+    validated_at: null,
     chrono_started_at: '2026-06-12T12:00:00+00:00',
     deadline_at: '2026-06-19T12:00:00+00:00',
     duree_seconds: 42,

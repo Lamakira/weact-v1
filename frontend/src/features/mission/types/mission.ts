@@ -2,7 +2,7 @@
  * Mission feature types
  */
 
-import type { Shipment } from '@/components/ugc'
+import type { Deliverable, Shipment } from '@/components/ugc'
 
 // Mission status enum
 export const MissionStatus = {
@@ -154,6 +154,8 @@ export interface MissionCandidature {
   updated_at: string
   /** Expédition UGC (whenLoaded — clé OMISE hors deal UGC expédié, 3.3 AC8). */
   shipment?: Shipment
+  /** Livrables vidéo UGC (whenLoaded, 4.6) — review_note du bandeau de refus + start chrono Avis (D-4.6.b). */
+  deliverables?: Deliverable[]
 }
 
 // Mission API response

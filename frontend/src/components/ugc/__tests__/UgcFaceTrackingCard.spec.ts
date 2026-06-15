@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import UgcFaceTrackingCard from '../UgcFaceTrackingCard.vue'
 import StatusPill from '../StatusPill.vue'
 import ChronoRing from '../ChronoRing.vue'
-import type { Shipment, UgcUploadProgress } from '../ugc'
+import type { Deliverable, Shipment, UgcUploadProgress } from '../ugc'
 
 function makeShipment(overrides: Partial<Shipment> = {}): Shipment {
   return {
@@ -16,6 +16,7 @@ function makeShipment(overrides: Partial<Shipment> = {}): Shipment {
     shipped_at: '2026-06-12T10:00:00+00:00',
     recu_le: null,
     unboxing_deadline_at: null,
+    avis_deadline_at: null,
     destinataire: { nom: 'Aïcha Bello', ville: 'Cotonou', pays: 'Bénin' },
     created_at: '2026-06-12T10:00:00+00:00',
     ...overrides,
@@ -32,7 +33,13 @@ const receivedShipment = () =>
 
 function mountCard(
   shipment: Shipment,
-  extra: { current?: number; isSubmitting?: boolean; isUploading?: boolean; uploadProgress?: UgcUploadProgress | null } = {},
+  extra: {
+    current?: number
+    isSubmitting?: boolean
+    isUploading?: boolean
+    uploadProgress?: UgcUploadProgress | null
+    deliverables?: Deliverable[]
+  } = {},
 ) {
   return mount(UgcFaceTrackingCard, {
     props: {
@@ -41,8 +48,45 @@ function mountCard(
       isSubmitting: extra.isSubmitting,
       isUploading: extra.isUploading,
       uploadProgress: extra.uploadProgress ?? null,
+      deliverables: extra.deliverables ?? [],
     },
   })
+}
+
+// --- Fixtures phase Avis (4.6) ---
+const avisPendingShipment = () =>
+  makeShipment({
+    tunnel_status: 'avis_pending',
+    tunnel_status_label: 'Avis en attente',
+    recu_le: '2026-06-12T12:00:00+00:00',
+    unboxing_deadline_at: '2026-06-19T12:00:00+00:00',
+    avis_deadline_at: '2026-06-26T12:00:00+00:00',
+  })
+
+const avisInReviewShipment = () =>
+  makeShipment({
+    tunnel_status: 'avis_in_review',
+    tunnel_status_label: 'Avis en validation',
+    recu_le: '2026-06-12T12:00:00+00:00',
+    avis_deadline_at: '2026-06-26T12:00:00+00:00',
+  })
+
+// Unboxing validé par défaut (start du chrono Avis = validated_at, D-4.6.d).
+function makeDeliverable(overrides: Partial<Deliverable> = {}): Deliverable {
+  return {
+    id: 'deliverable-uuid-1',
+    kind: 'unboxing',
+    kind_label: 'Unboxing',
+    validation_status: 'validated',
+    validation_status_label: 'Validée',
+    review_note: null,
+    validated_at: '2026-06-13T12:00:00+00:00',
+    chrono_started_at: '2026-06-12T12:00:00+00:00',
+    deadline_at: '2026-06-19T12:00:00+00:00',
+    duree_seconds: 42,
+    created_at: '2026-06-12T13:00:00+00:00',
+    ...overrides,
+  }
 }
 
 const inReviewShipment = () =>
@@ -199,5 +243,96 @@ describe('UgcFaceTrackingCard', () => {
     // Timeline + tracking restent rendus (déploiement backend seul ne casse rien, D-3.2.i).
     expect(wrapper.find('[data-testid="ugc-timeline-v"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('GZM-COT-882194')
+  })
+
+  // ============================ Phase Avis & bandeau de refus (4.6) ============================
+
+  it('shows the Avis chrono section and dropzone while avis_pending', () => {
+    const wrapper = mountCard(avisPendingShipment(), {
+      current: 6,
+      deliverables: [makeDeliverable()], // Unboxing validé → start chrono Avis
+    })
+    const section = wrapper.find('[data-testid="ugc-chrono-section"]')
+    expect(section.exists()).toBe(true)
+    expect(wrapper.findComponent(ChronoRing).exists()).toBe(true)
+    expect(section.find('[data-testid="ugc-upload-dropzone"]').exists()).toBe(true)
+    // Copy spécifique Avis (la phase Unboxing dit « Unboxing »).
+    expect(section.text()).toContain('Uploade ta vidéo Avis')
+    expect(section.text()).not.toContain('Uploade ta vidéo Unboxing')
+    // La deadline rendue vient de avis_deadline_at (26 juin), JAMAIS d'unboxing_deadline_at
+    // (19 juin) : verrouille la source de `activeDeadlineAt` en phase Avis (AC2 / D-4.6.d).
+    expect(section.text()).toContain('À envoyer avant le')
+    expect(section.text()).toContain('26 juin 2026')
+    expect(section.text()).not.toContain('19 juin')
+    // Pas de bandeau de refus au premier dépôt Avis (AC7).
+    expect(wrapper.find('[data-testid="ugc-rejection-banner"]').exists()).toBe(false)
+  })
+
+  it('emits upload when an Avis video is selected', async () => {
+    const wrapper = mountCard(avisPendingShipment(), { current: 6, deliverables: [makeDeliverable()] })
+    const file = new File(['x'], 'avis.mp4', { type: 'video/mp4' })
+    const input = wrapper.find('[data-testid="ugc-upload-input"]')
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+    expect(wrapper.emitted('upload')?.[0]).toEqual([file])
+  })
+
+  it('shows the awaiting-validation block once the Avis is in review', () => {
+    const wrapper = mountCard(avisInReviewShipment(), { current: 6 })
+    const section = wrapper.find('[data-testid="ugc-deliverable-review-section"]')
+    expect(section.exists()).toBe(true)
+    expect(section.text()).toContain('Vidéo Avis déposée')
+    expect(section.text()).toContain('En attente de validation du Producteur')
+    // Ni dropzone, ni ChronoRing : le chrono Avis est honoré (calque D-4.2.e).
+    expect(wrapper.find('[data-testid="ugc-chrono-section"]').exists()).toBe(false)
+    expect(wrapper.findComponent(ChronoRing).exists()).toBe(false)
+  })
+
+  it('shows the rejection banner with the producer note on an Avis re-upload', () => {
+    const wrapper = mountCard(avisPendingShipment(), {
+      current: 6,
+      deliverables: [
+        makeDeliverable(), // Unboxing validé (start du chrono Avis)
+        makeDeliverable({
+          id: 'deliverable-uuid-2',
+          kind: 'avis',
+          kind_label: 'Avis',
+          validation_status: 'rejected',
+          validation_status_label: 'Refusée',
+          review_note: 'Le cadrage est flou, refais la vidéo en lumière naturelle.',
+          validated_at: null,
+        }),
+      ],
+    })
+    const banner = wrapper.find('[data-testid="ugc-rejection-banner"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('Refusée')
+    expect(banner.text()).toContain('Le cadrage est flou, refais la vidéo en lumière naturelle.')
+    // La dropzone reste affichée pour re-déposer sous le même chrono (D-4.6.f).
+    expect(wrapper.find('[data-testid="ugc-upload-dropzone"]').exists()).toBe(true)
+  })
+
+  it('shows the rejection banner for a retouche-requested Unboxing re-upload in received', () => {
+    const wrapper = mountCard(receivedShipment(), {
+      current: 5,
+      deliverables: [
+        makeDeliverable({
+          validation_status: 'retouche_requested',
+          validation_status_label: 'Retouche demandée',
+          review_note: 'Ajoute un plan rapproché du logo.',
+          validated_at: null,
+        }),
+      ],
+    })
+    const banner = wrapper.find('[data-testid="ugc-rejection-banner"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('Retouche demandée')
+    expect(banner.text()).toContain('Ajoute un plan rapproché du logo.')
+  })
+
+  it('does not show the rejection banner on a first Unboxing upload (received, no refused deliverable)', () => {
+    const wrapper = mountCard(receivedShipment(), { current: 5, deliverables: [] })
+    expect(wrapper.find('[data-testid="ugc-chrono-section"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="ugc-rejection-banner"]').exists()).toBe(false)
   })
 })

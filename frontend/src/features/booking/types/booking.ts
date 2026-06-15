@@ -2,7 +2,7 @@
  * Booking feature types
  */
 
-import type { Shipment } from '@/components/ugc'
+import type { Deliverable, Shipment } from '@/components/ugc'
 
 // Booking status enum
 export const BookingStatus = {
@@ -168,6 +168,9 @@ export interface Booking {
   // Expédition UGC (story 3.2) — `whenLoaded` backend : la clé est OMISE quand la
   // relation n'est pas chargée ou n'existe pas (jamais `null` explicite).
   shipment?: Shipment
+  // Livrables vidéo UGC (4.6, `whenLoaded`) — portés à la carte de suivi Face
+  // pour la review_note du bandeau de refus + le start du chrono Avis (D-4.6.b).
+  deliverables?: Deliverable[]
   created_at: string
   updated_at: string
 }

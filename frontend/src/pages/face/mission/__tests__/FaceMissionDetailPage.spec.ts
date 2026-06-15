@@ -1101,7 +1101,7 @@ describe('FaceMissionDetailPage', () => {
             UgcEngagementModal: true,
             RatingDisplay: true,
             UgcFaceTrackingCard: {
-              props: ['shipment', 'current', 'isSubmitting', 'isUploading', 'uploadProgress'],
+              props: ['shipment', 'current', 'isSubmitting', 'isUploading', 'uploadProgress', 'deliverables'],
               emits: ['confirm-receipt', 'upload'],
               // `new File` vit dans methods (scope JS) — indisponible dans le scope template Vue.
               methods: {
@@ -1110,7 +1110,7 @@ describe('FaceMissionDetailPage', () => {
                 },
               },
               template: `<div>
-                <button data-testid="face-tracking-card-stub" :data-current="current" @click="$emit('confirm-receipt')"></button>
+                <button data-testid="face-tracking-card-stub" :data-current="current" :data-deliverables-count="deliverables.length" @click="$emit('confirm-receipt')"></button>
                 <button data-testid="face-tracking-upload-stub" @click="emitUpload"></button>
               </div>`,
             },
@@ -1325,6 +1325,51 @@ describe('FaceMissionDetailPage', () => {
 
       expect(mockToast.error).toHaveBeenCalledWith('Format non supporté.')
       expect(mockFetchMission).not.toHaveBeenCalled() // pas de refetch : l'état du deal n'a pas changé
+    })
+
+    it('passes the candidature deliverables to the Face tracking card (4.6)', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+      mockCandidature.value = makeEngagedCandidature({
+        shipment: makeShipment({
+          tunnel_status: 'avis_pending',
+          avis_deadline_at: '2026-06-26T12:00:00+00:00',
+        }) as unknown as MissionCandidature['shipment'],
+        deliverables: [
+          { id: 'd1', kind: 'unboxing', validation_status: 'validated' },
+          { id: 'd2', kind: 'avis', validation_status: 'rejected' },
+        ] as unknown as MissionCandidature['deliverables'],
+      })
+
+      const wrapper = mountTrackingPage()
+      await flushPromises()
+
+      const card = wrapper.find('[data-testid="face-tracking-card-stub"]')
+      expect(card.exists()).toBe(true)
+      expect(card.attributes('data-deliverables-count')).toBe('2')
+    })
+
+    it('uploads in the Avis phase and refetches the mission (handler réutilisé)', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
+      mockCandidature.value = makeEngagedCandidature({
+        shipment: makeShipment({
+          tunnel_status: 'avis_pending',
+          avis_deadline_at: '2026-06-26T12:00:00+00:00',
+        }) as unknown as MissionCandidature['shipment'],
+        deliverables: [
+          { id: 'd1', kind: 'unboxing', validation_status: 'validated' },
+        ] as unknown as MissionCandidature['deliverables'],
+      })
+      mockUploadDeliverable.mockResolvedValue({ id: 'deliverable-uuid-2', kind: 'avis' })
+
+      const wrapper = mountTrackingPage()
+      await flushPromises()
+      mockFetchMission.mockClear()
+
+      await wrapper.find('[data-testid="face-tracking-upload-stub"]').trigger('click')
+      await flushPromises()
+
+      expect(mockUploadDeliverable).toHaveBeenCalledWith('shipment-uuid-1', expect.any(File))
+      expect(mockFetchMission).toHaveBeenCalledWith('1') // D-4.2.d : refetch
     })
   })
 

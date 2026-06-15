@@ -631,6 +631,7 @@ onUnmounted(() => {
         :is-submitting="isSubmittingShipment"
         :is-uploading="isUploadingDeliverable"
         :upload-progress="uploadProgress"
+        :deliverables="booking.deliverables ?? []"
         @confirm-receipt="showReceiptModal = true"
         @upload="handleUploadDeliverable"
       />
