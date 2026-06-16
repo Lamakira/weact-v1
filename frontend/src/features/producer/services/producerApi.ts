@@ -6,7 +6,11 @@ import type {
   ProducerBasicInfoResponse,
   ProducerBasicInfoFormData,
 } from '../types'
-import type { DeliverableResponse, DeliverableReviewListResponse } from '@/components/ugc'
+import type {
+  DeliverableResponse,
+  DeliverableReviewListResponse,
+  DeliverableAssetListResponse,
+} from '@/components/ugc'
 
 /**
  * Producer API service
@@ -126,6 +130,15 @@ export const producerApi = {
    */
   async listDeliverablesToReview(): Promise<DeliverableReviewListResponse> {
     const response = await apiClient.get<DeliverableReviewListResponse>('/producer/deliverables')
+    return response.data
+  },
+
+  /**
+   * Liste les livrables VALIDÉS du Producteur (bibliothèque d'assets 4.7 —
+   * booking + candidature agrégés). Chaque item porte un download_url signé.
+   */
+  async listValidatedDeliverables(): Promise<DeliverableAssetListResponse> {
+    const response = await apiClient.get<DeliverableAssetListResponse>('/producer/deliverables/library')
     return response.data
   },
 

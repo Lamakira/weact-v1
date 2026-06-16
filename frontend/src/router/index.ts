@@ -317,6 +317,12 @@ const router = createRouter({
           component: () => import('../pages/producer/ugc/ProducerUgcValidationPage.vue'),
           meta: { title: 'Validation des livrables - WEACT' },
         },
+        {
+          path: 'ugc/videos',
+          name: 'producer-ugc-library',
+          component: () => import('../pages/producer/ugc/ProducerUgcLibraryPage.vue'),
+          meta: { title: 'Mes vidéos UGC - WEACT' },
+        },
       ],
     },
     {

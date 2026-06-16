@@ -147,6 +147,35 @@ export interface DeliverableReviewListResponse {
   data: DeliverableReviewItem[]
 }
 
+/**
+ * Livrable VALIDÉ exposé dans la bibliothèque d'assets Producteur (4.7) — miroir
+ * de DeliverableAssetResource. Orienté ARCHIVE (≠ DeliverableReviewItem, file
+ * d'action) : pas de champs review-only (review_note/submitted_at/review_due_at/
+ * deadline_at/chrono_started_at), mais porte `validated_at` + `download_url`
+ * (lien signé Content-Disposition: attachment). kind/validation_status/owner_type
+ * `string` ouverts (parité tunnel). La Face n'a JAMAIS d'URL.
+ */
+export interface DeliverableAssetItem {
+  id: string
+  kind: string
+  kind_label: string
+  validation_status: string
+  validation_status_label: string
+  validated_at: string | null
+  duree_seconds: number | null
+  owner_type: string | null
+  owner_id: string | null
+  face_name: string | null
+  product_name: string | null
+  video_url: string
+  thumbnail_url: string | null
+  download_url: string
+}
+
+export interface DeliverableAssetListResponse {
+  data: DeliverableAssetItem[]
+}
+
 /** Chips transporteur de l'écran 4A — sucre UI (D-3.1.e), le serveur reçoit du texte libre. */
 export const UGC_CARRIER_CHIPS = ['DHL', 'Chronopost', 'Gozem', 'Autre'] as const
 

@@ -30,5 +30,7 @@ export {
   type DeliverableResponse,
   type DeliverableReviewItem,
   type DeliverableReviewListResponse,
+  type DeliverableAssetItem,
+  type DeliverableAssetListResponse,
   type UgcUploadProgress,
 } from './ugc'

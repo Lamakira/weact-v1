@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Producer\MissionController;
 use App\Http\Controllers\Api\V1\Producer\MissionPaymentController;
 use App\Http\Controllers\Api\V1\Producer\ProducerDashboardController;
 use App\Http\Controllers\Api\V1\Producer\ProducerDeliverableMediaController;
+use App\Http\Controllers\Api\V1\Producer\ProducerUgcLibraryController;
 use App\Http\Controllers\Api\V1\Producer\ProfileController;
 use App\Http\Controllers\Api\V1\Producer\RatingController;
 use App\Http\Controllers\Api\V1\Producer\UgcDeliverableValidationController;
@@ -118,6 +119,12 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
     Route::get('/deliverables', [UgcDeliverableValidationController::class, 'index'])
         ->middleware('throttle:ui-read')->name('producer.deliverables.index');
 
+    // UGC bibliothèque d'assets (épic 4 — story 4.7) : liste agrégée des
+    // livrables VALIDÉS du Producteur (booking + candidature). Surface parallèle
+    // additive à l'inbox 5A (filtre Validated, pas InReview — D-4.7.b).
+    Route::get('/deliverables/library', [ProducerUgcLibraryController::class, 'index'])
+        ->middleware('throttle:ui-read')->name('producer.deliverables.library');
+
     // UGC deliverable validation (épic 4 — tunnel étape 5/6, story 4.3)
     Route::post('/deliverables/{deliverable}/validate', [UgcDeliverableValidationController::class, 'validate'])
         ->middleware('throttle:60,1')->name('producer.deliverables.validate');
@@ -156,4 +163,7 @@ Route::prefix('v1/producer')->middleware(['signed', 'throttle:120,1'])->group(fu
         ->name('producer.deliverables.video');
     Route::get('/deliverables/{deliverable}/thumbnail', [ProducerDeliverableMediaController::class, 'thumbnail'])
         ->name('producer.deliverables.thumbnail');
+    // Téléchargement (Content-Disposition: attachment) — bibliothèque 4.7 (D-4.7.c).
+    Route::get('/deliverables/{deliverable}/download', [ProducerDeliverableMediaController::class, 'download'])
+        ->name('producer.deliverables.download');
 });

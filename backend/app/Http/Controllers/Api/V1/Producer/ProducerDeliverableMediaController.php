@@ -29,6 +29,24 @@ class ProducerDeliverableMediaController extends Controller
         return $this->serve($deliverable->thumbnail_path);
     }
 
+    /**
+     * Téléchargement de la vidéo validée (bibliothèque d'assets, UGC 4.7) : sert
+     * le video_path avec Content-Disposition: attachment + un nom de fichier
+     * lisible (≠ video() qui sert inline pour la lecture <video>). Garde par
+     * signature (route dans le groupe `signed`, D-4.7.c).
+     */
+    public function download(Deliverable $deliverable): BinaryFileResponse
+    {
+        $disk = Storage::disk((string) config('ugc.storage_disk', 'local'));
+        $path = $deliverable->video_path;
+        abort_unless($disk->exists($path), 404);
+
+        $ext = pathinfo($path, PATHINFO_EXTENSION) ?: 'mp4';
+        $filename = 'ugc-'.$deliverable->kind->value.'-'.substr($deliverable->uuid, 0, 8).'.'.$ext;
+
+        return response()->download($disk->path($path), $filename); // Content-Disposition: attachment
+    }
+
     private function serve(string $path): BinaryFileResponse
     {
         $disk = Storage::disk((string) config('ugc.storage_disk', 'local'));
