@@ -18,6 +18,7 @@ use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Deliverable;
 use App\Models\Shipment;
+use App\Services\BookingService;
 use FFMpeg\Coordinate\TimeCode;
 use FFMpeg\FFMpeg;
 use FFMpeg\FFProbe;
@@ -240,9 +241,12 @@ class UgcDeliverableService
 
     /**
      * Validation Producteur d'un livrable (AC2/AC4). Unboxing validé → démarre le
-     * chrono Avis (tunnel avis_pending) ; Avis validé → clôture (tunnel completed,
-     * D-4.3.a : tunnel SEULEMENT — aucune mutation BookingStatus/CandidatureStatus
-     * ni payout). Idempotent (re-valider un non-in_review → invalid_status).
+     * chrono Avis (tunnel avis_pending) ; Avis validé → clôture : tunnel `completed`.
+     * Pour un BOOKING (RH.3, supersède D-4.3.a), dans la MÊME transaction : release
+     * escrow → wallet Face (hybride ; produit-seul no-op) + `BookingStatus → Completed`
+     * (calque completeBooking). Pour une CANDIDATURE (mission), tunnel-only — pas
+     * d'escrow per-engagement (→ ugc-epic-rh-mission). Idempotent (re-valider un
+     * non-in_review → invalid_status).
      *
      * @return array{outcome: string, deliverable?: Deliverable}
      */
@@ -253,7 +257,7 @@ class UgcDeliverableService
             if (is_string($context)) {
                 return ['outcome' => $context];
             }
-            [$shipment, $fresh] = $context;
+            [$shipment, $fresh, $owner] = $context;
 
             $fresh->update([
                 'validation_status' => DeliverableValidationStatus::Validated,
@@ -262,7 +266,7 @@ class UgcDeliverableService
             ]);
 
             // Unboxing validé → démarre le chrono Avis (avis_pending) ;
-            // Avis validé → clôture (completed, D-4.3.a : tunnel SEULEMENT).
+            // Avis validé → clôture (completed).
             $shipment->update([
                 'tunnel_status' => $fresh->kind === DeliverableKind::Unboxing
                     ? UgcTunnelStatus::AvisPending
@@ -273,6 +277,15 @@ class UgcDeliverableService
                 // escaladé) et au reject/retouche (même chrono → compteur conservé).
                 'last_notified_threshold' => 0,
             ]);
+
+            // RH.3 : valider l'Avis clôture le deal. Pour un booking, dans la MÊME
+            // transaction (atomicité argent/tunnel) : release escrow → wallet Face
+            // (hybride ; produit-seul no-op) + BookingStatus → Completed (calque
+            // completeBooking). Mission (Candidature) : tunnel-only — pas d'escrow
+            // per-engagement (→ ugc-epic-rh-mission).
+            if ($fresh->kind === DeliverableKind::Avis && $owner instanceof Booking) {
+                app(BookingService::class)->completeUgcBooking($owner);
+            }
 
             return ['outcome' => 'validated', 'deliverable' => $fresh];
         });

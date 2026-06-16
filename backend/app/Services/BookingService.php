@@ -890,12 +890,56 @@ class BookingService
     /**
      * Complete a booking: update status, release escrow, credit wallet, dispatch event.
      * MUST be called inside an existing DB::transaction().
+     *
+     * Cash dual-confirm path only. A UGC booking can never reach this method — `confirm`
+     * requires Paid/ConfirmedBy*, whereas UGC bookings are CommissionPaid/Accepted/Completed
+     * and never Paid (D-RH3.b). UGC bookings are closed by completeUgcBooking instead (RH.3),
+     * called inline from UgcDeliverableService::validate. No dead guard added here (parity with
+     * the structural reasoning behind the markAsPaid UGC no-op).
      */
     private function completeBooking(Booking $booking): Booking
     {
         $booking->update(['status' => BookingStatus::Completed]);
         $fresh = $booking->fresh();
         $this->escrowService->release($fresh, $this->walletService);
+        BookingCompleted::dispatch($fresh);
+
+        return $fresh;
+    }
+
+    /**
+     * Complete a UGC booking once its delivery tunnel reaches `completed` (RH.3) —
+     * called inline from UgcDeliverableService::validate when the Producer validates
+     * the Avis. Calque of completeBooking, but UGC-specific: it acquires its OWN
+     * booking lock (the caller locks the deliverable + shipment, not the booking)
+     * and guards the UGC lifecycle. Hybrid → release the escrow (net Face) to the
+     * Face wallet; product-only → no escrow → release() is a no-op. Idempotent.
+     * MUST be called inside an existing DB::transaction().
+     */
+    public function completeUgcBooking(Booking $booking): Booking
+    {
+        /** @var Booking $locked */
+        $locked = Booking::query()->lockForUpdate()->findOrFail($booking->id);
+
+        // Idempotent: already completed → no double release / event / credit.
+        if ($locked->status === BookingStatus::Completed) {
+            return $locked;
+        }
+
+        // Defense-in-depth (D-RH3.d): only an Accepted UGC booking settles here.
+        // The tunnel runs while Accepted (UgcDeliverableService::guardBooking);
+        // a deal cancelled in the race window is left untouched.
+        if ($locked->type_contenu !== 'UGC' || $locked->status !== BookingStatus::Accepted) {
+            return $locked;
+        }
+
+        $locked->update(['status' => BookingStatus::Completed]);
+        $fresh = $locked->fresh();
+
+        // Hybrid: escrow Locked → Released + credit Face montant_face_recoit + EscrowRelease event.
+        // Product-only: no escrow row → release() returns early (no-op).
+        $this->escrowService->release($fresh, $this->walletService);
+
         BookingCompleted::dispatch($fresh);
 
         return $fresh;

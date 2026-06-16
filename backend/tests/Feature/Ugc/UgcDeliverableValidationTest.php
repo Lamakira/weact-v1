@@ -8,6 +8,7 @@ use App\Enums\BookingStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\DeliverableKind;
 use App\Enums\DeliverableValidationStatus;
+use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
 use App\Enums\UgcTunnelStatus;
 use App\Events\DeliverableRejected;
@@ -16,11 +17,14 @@ use App\Events\DeliverableValidated;
 use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Deliverable;
+use App\Models\EscrowTransaction;
 use App\Models\Face;
+use App\Models\FinancialEvent;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\Shipment;
 use App\Models\User;
+use App\Models\WalletTransaction;
 use App\Services\Ugc\UgcDeadlineService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
@@ -238,6 +242,77 @@ class UgcDeliverableValidationTest extends TestCase
     }
 
     /**
+     * Booking hybride Accepted, escrow LOCKÉ (Élite : net Face 14250), tunnel
+     * avis_in_review, Unboxing validé + Avis in_review prêt à valider (RH.3).
+     *
+     * @return array{0: Booking, 1: Shipment, 2: Deliverable}
+     */
+    private function makeAvisInReviewHybridBooking(): array
+    {
+        $booking = Booking::create([
+            'face_id' => $this->faceUser->id,         // users.id
+            'producer_id' => $this->producerUser->id, // users.id
+            'status' => BookingStatus::Accepted,
+            'accepted_at' => now(),
+            'type_contenu' => 'UGC',
+            'type_compensation' => 'hybrid',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 50000,
+            'nombre_videos' => 3,
+            'montant_remuneration' => 15000,
+            'montant_face_recoit' => 14250,        // Élite : cash − 5%
+            'montant_total_producteur' => 16500,   // cash + 10% frais service
+            'commission_ugc' => 2250,              // platformRevenue (les deux côtés)
+            'commission_paid_at' => now()->subDays(2),
+            'fedapay_transaction_id' => 970,
+            'tarif_base' => 0,
+        ]);
+
+        EscrowTransaction::create([
+            'booking_id' => $booking->id,
+            'amount' => 14250,
+            'status' => EscrowStatus::Locked->value,
+            'locked_at' => now()->subDays(2),
+        ]);
+
+        $shipment = $booking->shipment()->create([
+            'transporteur' => 'Gozem',
+            'numero_suivi' => 'GZM-COT-882195',
+            'tunnel_status' => UgcTunnelStatus::AvisInReview,
+            'shipped_at' => now()->subDays(4),
+            'recu_le' => now()->subDays(3),
+            'destinataire_nom' => 'Aïcha Bello',
+            'destinataire_ville' => 'Cotonou',
+            'destinataire_pays' => 'Bénin',
+        ]);
+
+        $validatedAt = now()->subDay();
+        $booking->deliverables()->create([
+            'kind' => DeliverableKind::Unboxing,
+            'validation_status' => DeliverableValidationStatus::Validated,
+            'chrono_started_at' => $shipment->recu_le,
+            'deadline_at' => $shipment->recu_le->copy()->addDays(7),
+            'submitted_at' => $shipment->recu_le,
+            'validated_at' => $validatedAt,
+            'video_path' => 'ugc/deliverables/unboxing/seed.mp4',
+            'thumbnail_path' => 'ugc/deliverables/unboxing/thumbnails/seed.jpg',
+            'duree_seconds' => 42,
+        ]);
+        $avis = $booking->deliverables()->create([
+            'kind' => DeliverableKind::Avis,
+            'validation_status' => DeliverableValidationStatus::InReview,
+            'chrono_started_at' => $validatedAt,
+            'deadline_at' => $validatedAt->copy()->addDays(14),
+            'submitted_at' => now(),
+            'video_path' => 'ugc/deliverables/avis/seed.mp4',
+            'thumbnail_path' => 'ugc/deliverables/avis/thumbnails/seed.jpg',
+            'duree_seconds' => 88,
+        ]);
+
+        return [$booking, $shipment, $avis];
+    }
+
+    /**
      * @return array{0: \App\Models\Mission, 1: Candidature, 2: Shipment, 3: Deliverable}
      */
     private function makeAvisInReviewCandidature(): array
@@ -347,14 +422,104 @@ class UgcDeliverableValidationTest extends TestCase
             ->assertJsonPath('data.validation_status', 'validated');
 
         $this->assertSame(UgcTunnelStatus::Completed, $shipment->fresh()->tunnel_status);
-        // D-4.3.a : statut amont INCHANGÉ, aucun payout.
-        $this->assertSame(BookingStatus::Accepted, $booking->fresh()->status);
+        // RH.3 (supersède D-4.3.a) : produit-seul → clôture (Completed) SANS payout
+        // (montant_face_recoit=0, aucun escrow). La compensation est le produit physique.
+        $this->assertSame(BookingStatus::Completed, $booking->fresh()->status);
+        $this->assertDatabaseMissing('escrow_transactions', ['booking_id' => $booking->id]);
+        $this->assertSame(0, WalletTransaction::where('booking_id', $booking->id)->count());
+        $this->assertDatabaseMissing('financial_events', [
+            'booking_id' => $booking->id,
+            'type' => 'escrow_release',
+        ]);
 
         $notif = Notification::where('user_id', $this->faceUser->id)
             ->where('type', 'ugc_deliverable_validated')
             ->first();
         $this->assertNotNull($notif);
         $this->assertStringContainsString('terminé', (string) data_get($notif->data, 'message'));
+    }
+
+    public function test_producer_validates_avis_releases_escrow_and_completes_hybrid_booking(): void
+    {
+        [$booking, $shipment, $avis] = $this->makeAvisInReviewHybridBooking();
+        $before = (int) $this->faceUser->fresh()->balance;
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/deliverables/{$avis->uuid}/validate")
+            ->assertOk()
+            ->assertJsonPath('data.validation_status', 'validated');
+
+        // Tunnel + booking clôturés.
+        $this->assertSame(UgcTunnelStatus::Completed, $shipment->fresh()->tunnel_status);
+        $this->assertSame(BookingStatus::Completed, $booking->fresh()->status);
+
+        // Escrow libéré (status est une string brute en DB, pas un enum casté).
+        $escrow = $booking->fresh()->escrowTransaction;
+        $this->assertSame(EscrowStatus::Released->value, $escrow->status);
+        $this->assertNotNull($escrow->released_at);
+
+        // Wallet Face crédité du net Face.
+        $this->assertDatabaseHas('wallet_transactions', [
+            'user_id' => $this->faceUser->id,
+            'booking_id' => $booking->id,
+            'type' => 'credit',
+            'amount' => 14250,
+            'description' => 'Booking : escrow libéré',
+        ]);
+        $this->assertSame($before + 14250, (int) $this->faceUser->fresh()->balance);
+
+        // FinancialEvent EscrowRelease tracé.
+        $this->assertDatabaseHas('financial_events', [
+            'booking_id' => $booking->id,
+            'type' => 'escrow_release',
+            'amount' => 14250,
+        ]);
+
+        // Notif Face « wallet crédité » + notif Producteur « booking terminé ».
+        $walletNotif = Notification::where('user_id', $this->faceUser->id)
+            ->where('type', 'booking_wallet_credited')
+            ->first();
+        $this->assertNotNull($walletNotif);
+        $this->assertStringContainsString('14 250', (string) data_get($walletNotif->data, 'message'));
+
+        $this->assertNotNull(
+            Notification::where('user_id', $this->producerUser->id)
+                ->where('type', 'booking_completed')
+                ->first()
+        );
+
+        // Notif Face « deal terminé » (post-commit) conservée (D-RH3.g).
+        $this->assertNotNull(
+            Notification::where('user_id', $this->faceUser->id)
+                ->where('type', 'ugc_deliverable_validated')
+                ->first()
+        );
+    }
+
+    public function test_validate_hybrid_avis_is_idempotent_no_double_release(): void
+    {
+        [$booking, , $avis] = $this->makeAvisInReviewHybridBooking();
+
+        // 1ᵉʳ validate → clôture.
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/deliverables/{$avis->uuid}/validate")
+            ->assertOk();
+
+        // 2ᵉ validate (même Avis, déjà validé) → 422, bloqué en amont (lockReviewContext).
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/deliverables/{$avis->uuid}/validate")
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'INVALID_STATUS');
+
+        // Aucun double release / double crédit / double event.
+        $this->assertSame(1, WalletTransaction::where('booking_id', $booking->id)->count());
+        $this->assertSame(EscrowStatus::Released->value, $booking->fresh()->escrowTransaction->status);
+        $this->assertSame(
+            1,
+            FinancialEvent::where('booking_id', $booking->id)
+                ->where('type', 'escrow_release')
+                ->count()
+        );
     }
 
     public function test_producer_validates_avis_closes_deal_for_candidature(): void
@@ -366,8 +531,10 @@ class UgcDeliverableValidationTest extends TestCase
             ->assertOk();
 
         $this->assertSame(UgcTunnelStatus::Completed, $shipment->fresh()->tunnel_status);
-        // D-4.3.a : statut amont INCHANGÉ.
+        // AC3 : mission (Candidature) strictement tunnel-only — statut amont INCHANGÉ,
+        // aucun escrow / wallet / payout (pas d'escrow per-engagement → ugc-epic-rh-mission).
         $this->assertSame(CandidatureStatus::Confirmed, $candidature->fresh()->status);
+        $this->assertSame(0, WalletTransaction::count());
     }
 
     // ===================================================================
