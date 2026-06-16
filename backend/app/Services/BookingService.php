@@ -74,10 +74,11 @@ class BookingService
             ]);
         }
 
-        // UGC (story 1.1): compensation produit/hybride — commission sur la valeur produit,
-        // pas de tarif horaire ni de garde tarif. Le chemin cash reste strictement inchangé.
+        // UGC (story 1.1 ; RH.1): compensation produit/hybride — commission sur la valeur produit
+        // (produit seul) ou sur le cash au palier Face (hybride), pas de tarif horaire ni de garde
+        // tarif. Le chemin cash reste strictement inchangé.
         $booking = ($data['type_contenu'] ?? null) === 'UGC'
-            ? $this->createUgcBooking($data, $producer, $faceUser)
+            ? $this->createUgcBooking($data, $producer, $faceUser, $face)
             : $this->createCashBooking($data, $producer, $faceUser, $face);
 
         BookingCreated::dispatch($booking);
@@ -124,21 +125,30 @@ class BookingService
 
     /**
      * UGC booking path (story 1.1, D-1.1.b): bypass de la garde tarif.
-     * tarif_base=0 ; commission assise sur la valeur produit uniquement ;
+     * tarif_base=0 ; commission produit seul = valeur produit (compute) ;
+     * commission hybride = cash au palier Face (computeHybrid, RH.1) ;
      * montant_face_recoit=montant_remuneration (0 si produit seul) ;
      * montant_total_producteur=commission_ugc + montant_remuneration.
      *
      * @param  array<string, mixed>  $data
      */
-    private function createUgcBooking(array $data, User $producer, User $faceUser): Booking
+    private function createUgcBooking(array $data, User $producer, User $faceUser, Face $face): Booking
     {
         $compensation = $data['type_compensation'];
         $valeurProduit = (int) $data['valeur_produit'];
-        $commission = $this->ugcCommissionService->compute($valeurProduit);
 
         $isHybrid = $compensation === CompensationType::Hybrid->value;
         $nombreVideos = $isHybrid ? (int) $data['nombre_videos'] : (int) config('ugc.product_only_video_count');
         $montantRemuneration = $isHybrid ? (int) $data['montant_remuneration'] : 0;
+
+        // RH.1 : hybride → commission sur le CASH au palier d'abonnement de la Face (15/10/5 %),
+        // jamais sur la valeur produit ; produit seul → commission produit inchangée (compute).
+        $commission = $isHybrid
+            ? $this->ugcCommissionService->computeHybrid(
+                $montantRemuneration,
+                $this->faceEntitlementService->capabilities($face)->commissionRate,
+            )
+            : $this->ugcCommissionService->compute($valeurProduit);
 
         return Booking::create([
             'face_id' => $faceUser->id,

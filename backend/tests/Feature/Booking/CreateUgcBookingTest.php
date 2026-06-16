@@ -72,9 +72,9 @@ class CreateUgcBookingTest extends TestCase
     {
         return array_merge($this->getValidUgcProductData(), [
             'type_compensation' => 'hybrid',
-            'valeur_produit' => 50000,        // → commission 5000
+            'valeur_produit' => 50000,        // hybride : valeur produit NON commissionnée (D-RH1)
             'nombre_videos' => 3,
-            'montant_remuneration' => 15000,  // → montant_face_recoit 15000, total producteur 20000
+            'montant_remuneration' => 15000,  // → commission sur le cash au palier Face ; Face fixture = Free 0.15 → 2250
         ]);
     }
 
@@ -138,28 +138,53 @@ class CreateUgcBookingTest extends TestCase
         $response = $this->actingAs($this->producerUser)
             ->postJson('/api/v1/bookings', $this->getValidUgcHybridData());
 
+        // Face fixture sans abonnement → palier Free (0.15). Commission sur le CASH (15000),
+        // jamais sur la valeur produit : 0.15 × 15000 = 2250 (D-RH1.a/b/d).
         $response->assertCreated()
             ->assertJsonPath('data.type_compensation', 'hybrid')
             ->assertJsonPath('data.type_compensation_label', 'Produit + argent')
             ->assertJsonPath('data.valeur_produit', 50000)
             ->assertJsonPath('data.nombre_videos', 3)
-            ->assertJsonPath('data.commission_ugc', 5000)
+            ->assertJsonPath('data.commission_ugc', 2250)
             ->assertJsonPath('data.montant_remuneration', 15000)
             ->assertJsonPath('data.tarif_base', 0)
             ->assertJsonPath('data.montant_face_recoit', 15000)
-            ->assertJsonPath('data.montant_total_producteur', 20000);
+            ->assertJsonPath('data.montant_total_producteur', 17250);
 
         $this->assertDatabaseHas('bookings', [
             'type_contenu' => 'UGC',
             'type_compensation' => 'hybrid',
-            'commission_ugc' => 5000,
+            'commission_ugc' => 2250,
             'montant_remuneration' => 15000,
             'montant_face_recoit' => 15000,
-            'montant_total_producteur' => 20000,
+            'montant_total_producteur' => 17250,
             'nombre_videos' => 3,
         ]);
 
         Event::assertDispatchedTimes(BookingCreated::class, 1);
+    }
+
+    public function test_ugc_hybrid_commission_follows_face_tier(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        // Face abonnée Élite (0.05) → commission cash = 0.05 × 15000 = 750 ; produit (50000) jamais commissionné.
+        \App\Models\FaceSubscription::factory()->elite()->active()->create(['face_id' => $this->face->id]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $this->getValidUgcHybridData())
+            ->assertCreated()
+            ->assertJsonPath('data.commission_ugc', 750)            // 0.05 × 15000
+            ->assertJsonPath('data.montant_face_recoit', 15000)     // brut, inchangé (D-RH1.f)
+            ->assertJsonPath('data.montant_total_producteur', 15750); // 750 + 15000
+
+        $this->assertDatabaseHas('bookings', [
+            'type_contenu' => 'UGC',
+            'type_compensation' => 'hybrid',
+            'commission_ugc' => 750,
+            'montant_face_recoit' => 15000,
+            'montant_total_producteur' => 15750,
+        ]);
     }
 
     public function test_ugc_product_only_forces_video_count_to_2(): void
@@ -341,6 +366,24 @@ class CreateUgcBookingTest extends TestCase
             ->postJson('/api/v1/bookings', $data);
 
         $response->assertStatus(422)
+            ->assertJsonValidationErrors('montant_remuneration');
+    }
+
+    public function test_ugc_hybrid_rejects_total_within_overflow_window(): void
+    {
+        // RH.1 review : la commission hybride porte sur le CASH au palier Face (pas sur le produit).
+        // Un montant_remuneration SOUS le MAX mais dont (commission cash + cash) dépasse le MAX doit
+        // être rejeté en 422 — pas accepté puis débordé en QueryException/500 à l'insert.
+        // La garde produit-seule d'origine laissait passer cette fenêtre (2500 + 4e9 ≤ MAX) alors
+        // que le persisté réel = round(0.15 × 4e9) + 4e9 = 4_600_000_000 > 4_294_967_295.
+        // (Face fixture sans abonnement → palier Free 0.15.)
+        $data = $this->getValidUgcHybridData();
+        $data['valeur_produit'] = 1;
+        $data['montant_remuneration'] = 4000000000;
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data)
+            ->assertStatus(422)
             ->assertJsonValidationErrors('montant_remuneration');
     }
 

@@ -77,9 +77,9 @@ class UgcBookingCommissionPaymentTest extends TestCase
 
     public function test_ugc_payment_charges_commission_only(): void
     {
-        // Hybride : commission 5000, rémunération 15000, total producteur 20000.
-        // WeAct ne facture QUE la commission (D-1.5.a) → l'event PaymentInitiated
-        // doit porter 5000, jamais 20000.
+        // Hybride : commission et cash posés directement par le helper (valeurs paramétriques,
+        // indépendantes du calcul au palier RH.1). WeAct ne facture QUE la commission (D-1.5.a)
+        // → l'event PaymentInitiated doit porter 5000 (la commission), jamais 20000 (le total).
         $booking = $this->makePendingUgcBooking(commission: 5000, compensation: 'hybrid');
 
         $this->mock(FedapayService::class, function ($mock): void {

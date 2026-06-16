@@ -201,13 +201,28 @@ class CreateBookingRequest extends FormRequest
             return;
         }
 
-        $rate = (float) config('ugc.commission_rate');
-        $floor = (int) config('ugc.commission_floor');
-        $commission = max($floor, (int) round($valeurProduit * $rate));
+        $isHybrid = $this->input('type_compensation') === CompensationType::Hybrid->value;
+        $montantRemuneration = $isHybrid ? $this->integer('montant_remuneration') : 0;
 
-        $montantRemuneration = $this->input('type_compensation') === CompensationType::Hybrid->value
-            ? $this->integer('montant_remuneration')
-            : 0;
+        // Doit refléter la commission RÉELLEMENT persistée par BookingService::createUgcBooking,
+        // sinon montant_total_producteur (= commission + montant_remuneration) peut déborder la
+        // colonne unsignedInteger (RH.1) :
+        //  - produit seul → commission sur la valeur produit (plancher inclus) ;
+        //  - hybride      → commission sur le CASH au palier de la Face. On borne par le taux
+        //    palier le plus élevé (la commission réelle au palier de la Face ne peut qu'être ≤),
+        //    ce qui garantit qu'aucun débordement ne passe sans coupler ce FormRequest à
+        //    FaceEntitlementService ni interroger l'abonnement.
+        if ($isHybrid) {
+            $maxFaceCommissionRate = (float) max(array_column(
+                array_column((array) config('face_subscription_tiers.tiers'), 'capabilities'),
+                'commission_rate'
+            ));
+            $commission = (int) round($montantRemuneration * $maxFaceCommissionRate);
+        } else {
+            $rate = (float) config('ugc.commission_rate');
+            $floor = (int) config('ugc.commission_floor');
+            $commission = max($floor, (int) round($valeurProduit * $rate));
+        }
 
         if ($commission + $montantRemuneration > self::MAX_UNSIGNED_INTEGER) {
             $validator->errors()->add(
