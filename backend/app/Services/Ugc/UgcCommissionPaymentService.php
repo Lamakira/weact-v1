@@ -20,10 +20,13 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Dedicated settlement service for UGC commission payments (D-1.5.b).
+ * Dedicated settlement service for UGC commission payments (D-1.5.b ; RH.2).
  *
- * WeAct only charges its commission (`commission_ugc`) — never the product value
- * or the out-of-WeAct remuneration (D-1.5.a). There is NO escrow on the UGC path:
+ * RH.2 : the producer settlement is `montant_total_producteur` (hybrid booking = cash
+ * + service fee ; product-only booking = the product commission). The Face's net
+ * (`montant_face_recoit`) is escrowed at settlement for the hybrid booking only; the
+ * product-only path and the mission path have NO escrow (nothing to sequester —
+ * the product is off-platform; the mission has no per-engagement escrow).
  *  - a paid UGC booking transitions pending → BookingStatus::CommissionPaid;
  *  - a paid UGC mission transitions pending_payment → MissionStatus::Published.
  *
@@ -57,6 +60,7 @@ class UgcCommissionPaymentService
 
     public function __construct(
         private readonly FedapayService $fedapayService,
+        private readonly \App\Services\EscrowService $escrowService,
     ) {}
 
     // -------------------------------------------------------------------------
@@ -126,7 +130,7 @@ class UgcCommissionPaymentService
                 $this->recordFinancialEvent(
                     FinancialEventType::PaymentInitiated,
                     $locked->fresh(),
-                    (int) $locked->commission_ugc, // D-1.5.a : commission UNIQUEMENT
+                    (int) $locked->montant_total_producteur, // RH.2 : règlement complet (cash + frais service ; produit-seul = commission)
                     ['idempotency_key' => $idempotencyKey, 'metadata' => ['kind' => 'ugc_commission']],
                 );
 
@@ -138,10 +142,12 @@ class UgcCommissionPaymentService
     }
 
     /**
-     * Settle an approved UGC booking commission: pending → commission_paid.
-     * Idempotent and escrow-free. A payment landing on a non-pending (terminal)
-     * booking is logged for ops and no-oped — never thrown — so the webhook job
-     * is never poisoned into a retry storm.
+     * Settle an approved UGC booking: pending → commission_paid.
+     * RH.2 : records the full settlement (`montant_total_producteur`) and escrows the
+     * Face's net (`montant_face_recoit`) for the hybrid booking (product-only = 0 → no
+     * escrow). Idempotent. A payment landing on a non-pending (terminal) booking is
+     * logged for ops and no-oped — never thrown — so the webhook job is never poisoned
+     * into a retry storm.
      */
     public function markBookingCommissionPaid(Booking $booking, string $fedapayRef): Booking
     {
@@ -178,11 +184,16 @@ class UgcCommissionPaymentService
             $this->recordFinancialEvent(
                 FinancialEventType::PaymentConfirmed,
                 $fresh,
-                (int) $fresh->commission_ugc, // D-1.5.a : commission UNIQUEMENT
+                (int) $fresh->montant_total_producteur, // RH.2 : règlement complet encaissé (calque markAsPaid cash)
                 ['fedapay_ref' => $fedapayRef, 'status' => 'confirmed', 'metadata' => ['kind' => 'ugc_commission']],
             );
 
-            BookingCommissionPaid::dispatch($fresh); // PAS d'escrowService->lock()
+            // RH.2 : séquestre le net Face de l'hybride (montant_face_recoit > 0). Produit-seul = 0 → pas d'escrow.
+            if ((int) $fresh->montant_face_recoit > 0) {
+                $this->escrowService->lock($fresh);
+            }
+
+            BookingCommissionPaid::dispatch($fresh);
 
             return $fresh;
         });

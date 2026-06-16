@@ -146,7 +146,8 @@ describe('MissionsListPage — viewAttendance route handoff (FIX-26.7)', () => {
 describe('MissionsListPage — UGC commission tunnel (story 1.6)', () => {
   const overlayStub = defineComponent({
     name: 'UgcPaymentOverlay',
-    props: { modelValue: { type: Boolean, required: true } },
+    // RH.2 : prop renommée commission → amount (mission paie toujours commission_ugc).
+    props: { modelValue: { type: Boolean, required: true }, amount: { type: Number, default: 0 } },
     setup: (props) => () => (props.modelValue ? h('div', { 'data-testid': 'ugc-overlay-stub' }) : null),
   })
 

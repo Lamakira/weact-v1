@@ -753,6 +753,7 @@ onUnmounted(() => {
             <CommissionBreakdown
               :product-value="booking.valeur_produit ?? 0"
               :pay-amount="booking.montant_remuneration ?? 0"
+              :on-platform="true"
             />
           </div>
 
@@ -973,7 +974,7 @@ onUnmounted(() => {
       v-model="showUgcPaymentOverlay"
       kind="booking"
       :owner-id="booking.id"
-      :commission="booking.commission_ugc ?? 0"
+      :amount="booking.montant_total_producteur ?? 0"
       :reference="booking.id"
       @settled="handleUgcCommissionSettled"
     />

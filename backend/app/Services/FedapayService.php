@@ -147,9 +147,10 @@ class FedapayService
     }
 
     /**
-     * Initiate a hosted checkout for a UGC booking commission.
-     * Charges the WeAct commission ONLY (`commission_ugc`) — never the product
-     * value or the (out-of-WeAct) remuneration. See D-1.5.a.
+     * Initiate a hosted checkout for a UGC booking settlement.
+     * RH.2 : charges the full producer settlement (`montant_total_producteur`) —
+     * hybrid = cash + service fee, product-only = the product commission (same value
+     * as before). The Face's net is escrowed at settlement; see D-RH2.c.
      *
      * @return array{fedapay_transaction_id: int, checkout_url: string}
      */
@@ -161,8 +162,8 @@ class FedapayService
         }
 
         return $this->createUgcCommissionCheckout(
-            amount: (int) $booking->commission_ugc,
-            description: "Commission UGC — Booking #{$booking->id}",
+            amount: (int) $booking->montant_total_producteur,
+            description: "Règlement UGC — Booking #{$booking->id}",
             metadata: ['type' => 'ugc_booking', 'booking_id' => $booking->id, 'idempotency_key' => $idempotencyKey],
             payer: $producer,
         );

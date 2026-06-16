@@ -74,7 +74,7 @@ class EscrowService
             userId: $booking->face_id,
             amount: $booking->montant_face_recoit,
             booking: $booking,
-            description: "Booking : escrow libéré",
+            description: 'Booking : escrow libéré',
         );
 
         $this->recordFinancialEvent(
@@ -107,6 +107,36 @@ class EscrowService
             EscrowStatus::Refunded->value,
         ], true)) {
             throw new \RuntimeException("Escrow already settled for booking {$booking->id}.");
+        }
+
+        $escrow->update([
+            'status' => EscrowStatus::Refunded->value,
+            'refunded_at' => now(),
+        ]);
+    }
+
+    /**
+     * Unwind a UGC hybrid escrow on a pre-acceptance settlement refund (RH.2).
+     * Tolerant variant of markRefundedForNoShow: no escrow → no-op (product-only
+     * booking has nothing sequestered), already released/refunded → no-op (idempotent).
+     * Does NOT credit a wallet nor record a FinancialEvent — the full producer credit
+     * and the Refund audit row are handled by UgcRefundService (D-RH2.g).
+     * MUST be called inside an existing DB::transaction().
+     */
+    public function markRefundedForUgc(Booking $booking): void
+    {
+        /** @var EscrowTransaction|null $escrow */
+        $escrow = $booking->escrowTransaction()->lockForUpdate()->first();
+
+        if ($escrow === null) {
+            return; // produit-seul : rien de séquestré
+        }
+
+        if (in_array($escrow->status, [
+            EscrowStatus::Released->value,
+            EscrowStatus::Refunded->value,
+        ], true)) {
+            return; // idempotent
         }
 
         $escrow->update([
@@ -150,7 +180,7 @@ class EscrowService
             userId: $booking->producer_id,
             amount: $refundAmount,
             booking: $booking,
-            description: "Booking : remboursement annulation (90%)",
+            description: 'Booking : remboursement annulation (90%)',
         );
 
         $this->recordFinancialEvent(

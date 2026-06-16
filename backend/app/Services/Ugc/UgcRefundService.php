@@ -41,6 +41,7 @@ class UgcRefundService
 
     public function __construct(
         private readonly WalletService $wallet,
+        private readonly \App\Services\EscrowService $escrow,
     ) {}
 
     public function settleRefundForBooking(Booking $booking, UgcRefundReason $reason): void
@@ -111,12 +112,18 @@ class UgcRefundService
 
         $locked->update($this->refundStampColumns($locked, $reason));
 
-        // Crédit wallet Producteur (producer_id = users.id pour un booking).
+        // RH.2 : dénoue l'escrow du net Face de l'hybride (no-op produit-seul : aucun escrow).
+        // Ne déplace pas d'argent ni n'enregistre de FinancialEvent (le crédit complet + l'audit
+        // Refund ci-dessous sont l'unique mouvement) — D-RH2.g.
+        $this->escrow->markRefundedForUgc($locked);
+
+        // RH.2 : crédit wallet Producteur du règlement COMPLET (cash + frais service en hybride ;
+        // commission seule en produit-seul = montant identique à avant RH.2). producer_id = users.id.
         $this->wallet->credit(
             (int) $locked->producer_id,
-            (int) $locked->commission_ugc,
+            (int) $locked->montant_total_producteur,
             $locked,
-            WalletCreditMotif::UgcCommissionRefund->label(),
+            WalletCreditMotif::UgcSettlementRefund->label(),
         );
 
         // Audit booking-scopé (D-2.6.g) ; ref = transaction d'origine (stable, 1/owner).
@@ -127,9 +134,9 @@ class UgcRefundService
         $this->recordFinancialEvent(
             FinancialEventType::Refund,
             $locked,
-            (int) $locked->commission_ugc,
+            (int) $locked->montant_total_producteur,
             ['fedapay_ref' => $ref, 'status' => 'refunded',
-                'metadata' => ['kind' => 'ugc_commission', 'settlement' => 'wallet']],
+                'metadata' => ['kind' => 'ugc_settlement', 'settlement' => 'wallet']],
         );
 
         return $locked->fresh();

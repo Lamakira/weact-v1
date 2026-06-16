@@ -16,6 +16,7 @@ use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use App\Services\EscrowService;
 use App\Services\Ugc\UgcRefundService;
 use App\Services\WalletService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -391,7 +392,8 @@ class UgcMissionRefundTest extends TestCase
                 throw new \RuntimeException('wallet indisponible');
             }
         };
-        $this->assertFalse((new UgcRefundService($throwingWallet))->closeMissionPastDeadlineWithoutEngagement($mission));
+        // RH.2 : le ctor injecte aussi EscrowService (non sollicité sur le chemin mission).
+        $this->assertFalse((new UgcRefundService($throwingWallet, app(EscrowService::class)))->closeMissionPastDeadlineWithoutEngagement($mission));
 
         $mission->refresh();
         $this->assertSame(MissionStatus::Published, $mission->status); // pas de clôture

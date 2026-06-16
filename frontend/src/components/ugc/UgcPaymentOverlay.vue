@@ -12,7 +12,7 @@ const props = defineProps<{
   modelValue: boolean
   kind: UgcPaymentOwnerKind
   ownerId: string
-  commission: number
+  amount: number
   reference?: string
 }>()
 
@@ -41,6 +41,17 @@ const successSubtitle = computed((): string =>
   props.kind === 'booking'
     ? 'Votre demande a été envoyée à la Face.'
     : 'Votre mission est maintenant publiée.',
+)
+
+// RH.2 : le booking règle le total (cash + frais service, séquestré) ; la mission paie sa commission.
+const title = computed((): string =>
+  props.kind === 'booking' ? 'Paiement du règlement' : 'Paiement de la commission',
+)
+
+const reassurance = computed((): string =>
+  props.kind === 'booking'
+    ? 'Paiement sécurisé par FedaPay. La rémunération est séquestrée par WeAct et versée à la Face après validation des vidéos.'
+    : "Paiement sécurisé par FedaPay. La commission n'est encaissée qu'après acceptation par la Face.",
 )
 
 const refShort = computed((): string => (props.reference ?? props.ownerId).slice(0, 8).toUpperCase())
@@ -100,8 +111,8 @@ watch(
           <!-- Step: select -->
           <div v-if="step === 'select'" class="space-y-5">
             <div class="text-center">
-              <h2 class="text-lg font-semibold text-gray-900">Paiement de la commission</h2>
-              <p class="mt-1 text-2xl font-bold text-weact">{{ formatXOF(commission) }}</p>
+              <h2 class="text-lg font-semibold text-gray-900">{{ title }}</h2>
+              <p class="mt-1 text-2xl font-bold text-weact">{{ formatXOF(amount) }}</p>
             </div>
 
             <div class="space-y-2">
@@ -112,10 +123,7 @@ watch(
 
             <div class="flex items-start gap-2 rounded-lg bg-weact/[0.04] p-3 text-xs text-gray-600">
               <ShieldCheck :size="16" class="mt-0.5 flex-shrink-0 text-weact" />
-              <span>
-                Paiement sécurisé par FedaPay. La commission n'est encaissée qu'après acceptation par
-                la Face.
-              </span>
+              <span>{{ reassurance }}</span>
             </div>
 
             <div

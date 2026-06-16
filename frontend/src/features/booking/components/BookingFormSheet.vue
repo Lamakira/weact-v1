@@ -404,6 +404,7 @@ const onSubmit = handleSubmit(async (values) => {
                 <CommissionBreakdown
                   :product-value="Number(valeur_produit) || 0"
                   :pay-amount="type_compensation === 'hybrid' ? (Number(montant_remuneration) || 0) : 0"
+                  :on-platform="true"
                 />
                 <div class="flex items-center gap-1.5 text-[11px] text-gray-500">
                   <ShieldCheck :size="12" class="shrink-0 text-weact" />

@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
   computeUgcCommission,
+  computeUgcHybridProducerTotal,
   UGC_COMMISSION_FLOOR,
   UGC_COMMISSION_RATE,
   UGC_PRODUCT_ONLY_VIDEO_COUNT,
+  UGC_PRODUCER_SERVICE_RATE,
   UGC_UNBOXING_DAYS,
   tunnelStatusToPillKind,
   ugcTunnelStep,
@@ -53,6 +55,26 @@ describe('computeUgcCommission', () => {
     expect(UGC_COMMISSION_FLOOR).toBe(2500)
     expect(UGC_PRODUCT_ONLY_VIDEO_COUNT).toBe(2)
     expect(UGC_UNBOXING_DAYS).toBe(7)
+  })
+})
+
+describe('computeUgcHybridProducerTotal', () => {
+  // Mirror of backend BookingPricing::totalProducerPays (cash + 10% flat service fee).
+  it.each([
+    [15000, 16500, 'cash + 10% (15000 → 16500)'],
+    [10001, 11001, 'round half-up (1000.1 → 1000)'],
+    [0, 0, 'zero cash → zero total'],
+  ])('computeUgcHybridProducerTotal(%i) = %i (%s)', (cash, expected) => {
+    expect(computeUgcHybridProducerTotal(cash)).toBe(expected)
+  })
+
+  it('falls back to 0 when given a falsy value', () => {
+    // @ts-expect-error — guarding the `cash || 0` runtime fallback
+    expect(computeUgcHybridProducerTotal(undefined)).toBe(0)
+  })
+
+  it('mirrors the backend producer service rate constant', () => {
+    expect(UGC_PRODUCER_SERVICE_RATE).toBe(0.1)
   })
 })
 

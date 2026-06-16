@@ -6,7 +6,7 @@ import CommissionBreakdown from '../CommissionBreakdown.vue'
 // thousands separator — normalize them to a plain space before asserting.
 const normalize = (text: string): string => text.replace(/[\u202f\u00a0]/g, ' ')
 
-const mountBreak = (props: { productValue: number; payAmount?: number }) =>
+const mountBreak = (props: { productValue: number; payAmount?: number; onPlatform?: boolean }) =>
   mount(CommissionBreakdown, { props })
 
 describe('CommissionBreakdown', () => {
@@ -40,5 +40,15 @@ describe('CommissionBreakdown', () => {
     const wrapper = mountBreak({ productValue: 50000 })
     expect(normalize(wrapper.text())).toContain('10% min. 2 500')
     expect(wrapper.find('[data-testid="commission-breakdown"]').exists()).toBe(true)
+  })
+
+  it('shows the service fee + escrow footer and drops the commission-only copy when onPlatform (booking hybride)', () => {
+    const wrapper = mountBreak({ productValue: 50000, payAmount: 15000, onPlatform: true })
+    const text = normalize(wrapper.text())
+
+    expect(text).toContain('Frais de service')
+    expect(text).toContain('16 500') // 15000 + 10% frais service
+    expect(text).toContain('séquestrée par WeAct') // footer escrow honnête
+    expect(text).not.toContain('WeAct ne facture que sa commission')
   })
 })

@@ -75,12 +75,12 @@ class UgcBookingCommissionPaymentTest extends TestCase
         ]);
     }
 
-    public function test_ugc_payment_charges_commission_only(): void
+    public function test_ugc_payment_charges_full_total(): void
     {
-        // Hybride : commission et cash posés directement par le helper (valeurs paramétriques,
-        // indépendantes du calcul au palier RH.1). WeAct ne facture QUE la commission (D-1.5.a)
-        // → l'event PaymentInitiated doit porter 5000 (la commission), jamais 20000 (le total).
-        $booking = $this->makePendingUgcBooking(commission: 5000, compensation: 'hybrid');
+        // RH.2 : le checkout encaisse le règlement COMPLET (montant_total_producteur), pas seulement
+        // la commission. Hybride Élite (helper) → total 16500, commission 2250. L'event PaymentInitiated
+        // doit porter 16500, jamais 2250 (le modèle commission-seule RH.1 est supprimé).
+        $booking = $this->makePendingUgcBooking(compensation: 'hybrid');
 
         $this->mock(FedapayService::class, function ($mock): void {
             $mock->shouldReceive('initiatePaymentForUgcBooking')
@@ -95,11 +95,12 @@ class UgcBookingCommissionPaymentTest extends TestCase
         $this->assertDatabaseHas('financial_events', [
             'booking_id' => $booking->id,
             'type' => FinancialEventType::PaymentInitiated->value,
-            'amount' => 5000,
+            'amount' => 16500,
         ]);
         $this->assertDatabaseMissing('financial_events', [
             'booking_id' => $booking->id,
-            'amount' => 20000,
+            'type' => FinancialEventType::PaymentInitiated->value,
+            'amount' => 2250,
         ]);
     }
 
@@ -159,11 +160,48 @@ class UgcBookingCommissionPaymentTest extends TestCase
         $this->assertDatabaseHas('financial_events', [
             'booking_id' => $booking->id,
             'type' => FinancialEventType::PaymentConfirmed->value,
-            'amount' => 2500,
+            'amount' => 2500, // produit-seul : montant_total_producteur = commission = 2500
             'fedapay_ref' => 'ref_ok',
         ]);
-        // Pas d'escrow pour l'UGC (D-1.5.b).
+        // Produit-seul : montant_face_recoit = 0 → escrow court-circuité (rien à séquestrer ; produit off-platform).
         $this->assertDatabaseMissing('escrow_transactions', ['booking_id' => $booking->id]);
+
+        Event::assertDispatched(BookingCommissionPaid::class);
+    }
+
+    public function test_hybrid_settlement_locks_escrow_on_face_net(): void
+    {
+        Event::fake([BookingCommissionPaid::class]);
+
+        // Hybride Élite (helper) : total 16500, net Face 14250. À l'encaissement, RH.2 séquestre
+        // le net Face en escrow et l'event PaymentConfirmed porte le total encaissé.
+        $booking = $this->makePendingUgcBooking(compensation: 'hybrid');
+        $booking->update(['fedapay_transaction_id' => 917]);
+
+        $this->dispatchWebhook('transaction.approved', 917, 'ref_hybrid');
+
+        $this->assertDatabaseHas('bookings', [
+            'id' => $booking->id,
+            'status' => BookingStatus::CommissionPaid->value,
+        ]);
+        // Escrow locké sur le NET Face (montant_face_recoit), pas sur le total.
+        $this->assertDatabaseHas('escrow_transactions', [
+            'booking_id' => $booking->id,
+            'amount' => 14250,
+            'status' => 'locked',
+        ]);
+        // PaymentConfirmed = règlement complet encaissé ; EscrowLock = net Face séquestré.
+        $this->assertDatabaseHas('financial_events', [
+            'booking_id' => $booking->id,
+            'type' => FinancialEventType::PaymentConfirmed->value,
+            'amount' => 16500,
+            'fedapay_ref' => 'ref_hybrid',
+        ]);
+        $this->assertDatabaseHas('financial_events', [
+            'booking_id' => $booking->id,
+            'type' => FinancialEventType::EscrowLock->value,
+            'amount' => 14250,
+        ]);
 
         Event::assertDispatched(BookingCommissionPaid::class);
     }
@@ -353,6 +391,10 @@ class UgcBookingCommissionPaymentTest extends TestCase
 
     private function makePendingUgcBooking(int $commission = 2500, string $compensation = 'product'): Booking
     {
+        // RH.2 hybride : valeurs Élite figées (cash 15000 ; BookingPricing → Producteur 16500,
+        // Face 14250, WeAct 2250). Le param $commission ne pilote que le produit-seul.
+        $isHybrid = $compensation === 'hybrid';
+
         return Booking::create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
@@ -363,14 +405,14 @@ class UgcBookingCommissionPaymentTest extends TestCase
             'type_contenu' => 'UGC',
             'lieu' => 'Cotonou',
             'tarif_base' => 0,
-            'montant_face_recoit' => $compensation === 'hybrid' ? 15000 : 0,
-            'montant_total_producteur' => $compensation === 'hybrid' ? $commission + 15000 : $commission,
+            'montant_face_recoit' => $isHybrid ? 14250 : 0,
+            'montant_total_producteur' => $isHybrid ? 16500 : $commission,
             'type_compensation' => $compensation,
             'nom_produit' => 'Tenue Shade Fit',
             'valeur_produit' => 20000,
-            'nombre_videos' => 2,
-            'montant_remuneration' => $compensation === 'hybrid' ? 15000 : null,
-            'commission_ugc' => $commission,
+            'nombre_videos' => $isHybrid ? 3 : 2,
+            'montant_remuneration' => $isHybrid ? 15000 : null,
+            'commission_ugc' => $isHybrid ? 2250 : $commission,
         ]);
     }
 }

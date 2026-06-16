@@ -222,8 +222,8 @@ async function mountPage(
         BookingStatusBadge: { template: '<div/>' },
         PaymentOverlay: { template: '<div/>' },
         UgcPaymentOverlay: {
-          props: ['modelValue'],
-          template: '<div data-testid="ugc-overlay-stub" :data-open="String(modelValue)"/>',
+          props: ['modelValue', 'amount'],
+          template: '<div data-testid="ugc-overlay-stub" :data-open="String(modelValue)" :data-amount="String(amount)"/>',
         },
         UgcEngagementModal: {
           name: 'UgcEngagementModal',
@@ -492,7 +492,10 @@ describe('FaceBookingDetailPage — UGC commission CTA (story 1.6)', () => {
 
     await wrapper.find('[data-testid="ugc-pay-commission-cta"] button').trigger('click')
 
-    expect(wrapper.find('[data-testid="ugc-overlay-stub"]').attributes('data-open')).toBe('true')
+    const opened = wrapper.find('[data-testid="ugc-overlay-stub"]')
+    expect(opened.attributes('data-open')).toBe('true')
+    // RH.2 : l'overlay reçoit le règlement complet (montant_total_producteur), pas la commission.
+    expect(opened.attributes('data-amount')).toBe('57500')
   })
 
   it('auto-opens the UgcPaymentOverlay on arrival with ?pay=1 for an eligible Producer', async () => {

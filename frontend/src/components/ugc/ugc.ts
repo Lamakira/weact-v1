@@ -12,6 +12,11 @@ export const UGC_COMMISSION_RATE = 0.1
 export const UGC_COMMISSION_FLOOR = 2500
 export const UGC_PRODUCT_ONLY_VIDEO_COUNT = 2
 
+/** Frais de service Producteur sur le cash d'un booking hybride (miroir de
+ *  `BookingPricing::PRODUCER_COMMISSION_RATE` = 0.10, flat). Display-only :
+ *  le total réellement encaissé (`montant_total_producteur`) vient du serveur. */
+export const UGC_PRODUCER_SERVICE_RATE = 0.1
+
 /** Miroir de backend/config/ugc.php `deliverable_days.unboxing` — copy statique
  *  uniquement (« 7 jours ») : la deadline affichée vient TOUJOURS du serveur
  *  (`unboxing_deadline_at`), jamais d'un calcul front (NFR3, D-3.4.i). */
@@ -27,6 +32,12 @@ export type UgcCompensationType = 'product' | 'hybrid'
 /** Commission WeAct (live preview ; le serveur reste autoritatif). */
 export function computeUgcCommission(productValue: number): number {
   return Math.max(UGC_COMMISSION_FLOOR, Math.round((productValue || 0) * UGC_COMMISSION_RATE))
+}
+
+/** Total Producteur d'un booking hybride (cash + frais service 10 % flat). Display-only :
+ *  miroir de `BookingPricing::totalProducerPays` ; le serveur reste autoritatif. */
+export function computeUgcHybridProducerTotal(cash: number): number {
+  return (cash || 0) + Math.round((cash || 0) * UGC_PRODUCER_SERVICE_RATE)
 }
 
 /** Kinds de la primitive StatusPill (UX-DR3) — états du tunnel booking UGC. */

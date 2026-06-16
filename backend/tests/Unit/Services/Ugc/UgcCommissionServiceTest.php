@@ -45,34 +45,4 @@ class UgcCommissionServiceTest extends TestCase
         // 25005 × 0.10 = 2500.5 → round half-up = 2501 (> plancher)
         $this->assertSame(2501, $this->service->compute(25005));
     }
-
-    public function test_hybrid_commission_at_free_tier_rate(): void
-    {
-        // Hybride : commission sur le CASH au palier Free (0.15) — 15000 × 0.15 = 2250.
-        $this->assertSame(2250, $this->service->computeHybrid(15000, 0.15));
-    }
-
-    public function test_hybrid_commission_at_starter_pro_tier_rate(): void
-    {
-        // Palier Starter/Pro (0.10) — 15000 × 0.10 = 1500.
-        $this->assertSame(1500, $this->service->computeHybrid(15000, 0.10));
-    }
-
-    public function test_hybrid_commission_at_elite_tier_rate(): void
-    {
-        // Palier Élite (0.05) — 15000 × 0.05 = 750.
-        $this->assertSame(750, $this->service->computeHybrid(15000, 0.05));
-    }
-
-    public function test_hybrid_commission_rounds_half_up(): void
-    {
-        // 10001 × 0.15 = 1500.15 → round = 1500.
-        $this->assertSame(1500, $this->service->computeHybrid(10001, 0.15));
-    }
-
-    public function test_hybrid_commission_has_no_floor(): void
-    {
-        // D-RH1.d : pas de plancher sur le cash hybride. 1000 × 0.05 = 50 (surtout PAS 2500).
-        $this->assertSame(50, $this->service->computeHybrid(1000, 0.05));
-    }
 }

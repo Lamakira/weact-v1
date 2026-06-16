@@ -74,9 +74,10 @@ class BookingService
             ]);
         }
 
-        // UGC (story 1.1 ; RH.1): compensation produit/hybride — commission sur la valeur produit
-        // (produit seul) ou sur le cash au palier Face (hybride), pas de tarif horaire ni de garde
-        // tarif. Le chemin cash reste strictement inchangé.
+        // UGC (story 1.1 ; RH.2): compensation produit/hybride — produit seul = commission sur la
+        // valeur produit (compute) ; hybride = cash tarifé comme un booking cash (BookingPricing,
+        // modèle two-sided : Producteur +10 % flat, Face −palier, WeAct les deux). Pas de tarif
+        // horaire ni de garde tarif. Le chemin cash reste strictement inchangé.
         $booking = ($data['type_contenu'] ?? null) === 'UGC'
             ? $this->createUgcBooking($data, $producer, $faceUser, $face)
             : $this->createCashBooking($data, $producer, $faceUser, $face);
@@ -124,11 +125,12 @@ class BookingService
     }
 
     /**
-     * UGC booking path (story 1.1, D-1.1.b): bypass de la garde tarif.
-     * tarif_base=0 ; commission produit seul = valeur produit (compute) ;
-     * commission hybride = cash au palier Face (computeHybrid, RH.1) ;
-     * montant_face_recoit=montant_remuneration (0 si produit seul) ;
-     * montant_total_producteur=commission_ugc + montant_remuneration.
+     * UGC booking path (story 1.1, D-1.1.b ; RH.2): bypass de la garde tarif (tarif_base=0).
+     * Hybride = le cash se tarife comme un booking cash (BookingPricing : Producteur +10 % flat,
+     * Face −palier) → commission_ugc=platformRevenue, montant_total_producteur=totalProducerPays,
+     * montant_face_recoit=faceReceives. Produit seul = commission produit (compute),
+     * montant_total_producteur=commission, montant_face_recoit=0.
+     * Escrow du net Face = RH.2 (markBookingCommissionPaid) ; versement Face = RH.3.
      *
      * @param  array<string, mixed>  $data
      */
@@ -136,19 +138,26 @@ class BookingService
     {
         $compensation = $data['type_compensation'];
         $valeurProduit = (int) $data['valeur_produit'];
-
         $isHybrid = $compensation === CompensationType::Hybrid->value;
         $nombreVideos = $isHybrid ? (int) $data['nombre_videos'] : (int) config('ugc.product_only_video_count');
-        $montantRemuneration = $isHybrid ? (int) $data['montant_remuneration'] : 0;
 
-        // RH.1 : hybride → commission sur le CASH au palier d'abonnement de la Face (15/10/5 %),
-        // jamais sur la valeur produit ; produit seul → commission produit inchangée (compute).
-        $commission = $isHybrid
-            ? $this->ugcCommissionService->computeHybrid(
+        if ($isHybrid) {
+            // RH.2 : le cash hybride se tarife comme un booking cash (BookingPricing) —
+            // Producteur +10 % flat, Face −palier. Le produit reste hors-plateforme.
+            $montantRemuneration = (int) $data['montant_remuneration'];
+            $pricing = new BookingPricing(
                 $montantRemuneration,
                 $this->faceEntitlementService->capabilities($face)->commissionRate,
-            )
-            : $this->ugcCommissionService->compute($valeurProduit);
+            );
+            $commission = $pricing->platformRevenue;               // round(cash×0.10) + round(cash×palier)
+            $montantTotalProducteur = $pricing->totalProducerPays; // cash + round(cash×0.10)
+            $montantFaceRecoit = $pricing->faceReceives;           // cash − round(cash×palier)
+        } else {
+            $montantRemuneration = 0;
+            $commission = $this->ugcCommissionService->compute($valeurProduit); // produit seul (inchangé)
+            $montantTotalProducteur = $commission;
+            $montantFaceRecoit = 0;
+        }
 
         return Booking::create([
             'face_id' => $faceUser->id,
@@ -163,8 +172,8 @@ class BookingService
             'lieu' => null,
             'message' => $data['message'] ?? null,
             'tarif_base' => 0,                                    // D-1.1.b : pas de tarif horaire
-            'montant_face_recoit' => $montantRemuneration,        // 0 si produit seul
-            'montant_total_producteur' => $commission + $montantRemuneration,
+            'montant_face_recoit' => $montantFaceRecoit,          // net Face (0 si produit seul)
+            'montant_total_producteur' => $montantTotalProducteur,
             'type_compensation' => $compensation,
             'nom_produit' => $data['nom_produit'],
             'valeur_produit' => $valeurProduit,

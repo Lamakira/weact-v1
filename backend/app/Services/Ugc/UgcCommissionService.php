@@ -17,15 +17,4 @@ class UgcCommissionService
 
         return max($floor, (int) round($valeurProduit * $rate));
     }
-
-    /**
-     * Commission WeAct sur le CASH d'un booking UGC hybride : round(cash * tauxPalierFace).
-     * Au taux d'abonnement de la Face (15/10/5 %), JAMAIS sur la valeur produit, et
-     * SANS plancher (≠ produit seul, D-RH1.d). Le taux est résolu par l'appelant
-     * (FaceEntitlementService::capabilities($face)->commissionRate) — ce service reste sans DB.
-     */
-    public function computeHybrid(int $montantRemuneration, float $faceCommissionRate): int
-    {
-        return (int) round($montantRemuneration * $faceCommissionRate);
-    }
 }

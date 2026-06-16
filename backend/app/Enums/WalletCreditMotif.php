@@ -9,6 +9,7 @@ enum WalletCreditMotif: string
     case BookingCancellationRefund = 'booking_cancellation_refund';
     case BookingNoShowRefund = 'booking_no_show_refund';
     case UgcCommissionRefund = 'ugc_commission_refund';
+    case UgcSettlementRefund = 'ugc_settlement_refund';
 
     public function label(): string
     {
@@ -16,6 +17,7 @@ enum WalletCreditMotif: string
             self::BookingCancellationRefund => "Remboursement suite à l'annulation du booking",
             self::BookingNoShowRefund => "Remboursement suite à l'absence signalée de la Face",
             self::UgcCommissionRefund => 'Remboursement de la commission — deal UGC non abouti',
+            self::UgcSettlementRefund => 'Remboursement du règlement UGC — deal non abouti',
         };
     }
 }

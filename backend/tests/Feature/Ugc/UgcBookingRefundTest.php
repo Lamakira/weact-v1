@@ -9,6 +9,7 @@ use App\Enums\UgcRefundReason;
 use App\Enums\WalletCreditMotif;
 use App\Events\BookingExpired;
 use App\Models\Booking;
+use App\Models\EscrowTransaction;
 use App\Models\Face;
 use App\Models\FinancialEvent;
 use App\Models\Notification;
@@ -16,6 +17,7 @@ use App\Models\Producer;
 use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Services\BookingService;
+use App\Services\EscrowService;
 use App\Services\Ugc\UgcRefundService;
 use App\Services\WalletService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -97,6 +99,44 @@ class UgcBookingRefundTest extends TestCase
         ]);
     }
 
+    /**
+     * Booking hybride Élite CommissionPaid (cash 15000 → Producteur 16500, Face 14250, WeAct 2250)
+     * AVEC son EscrowTransaction lockée (net Face séquestré à l'encaissement, RH.2).
+     */
+    private function makePaidHybridUgcBooking(?\Carbon\CarbonInterface $paidAt = null, int $transactionId = 950): Booking
+    {
+        $booking = Booking::create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'status' => BookingStatus::CommissionPaid,
+            'date_debut' => null,
+            'date_fin' => null,
+            'duree_heures' => null,
+            'type_contenu' => 'UGC',
+            'lieu' => null,
+            'tarif_base' => 0,
+            'montant_face_recoit' => 14250,
+            'montant_total_producteur' => 16500,
+            'type_compensation' => 'hybrid',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 50000,
+            'nombre_videos' => 3,
+            'montant_remuneration' => 15000,
+            'commission_ugc' => 2250,
+            'fedapay_transaction_id' => $transactionId,
+            'commission_paid_at' => $paidAt ?? now()->subDay(),
+        ]);
+
+        EscrowTransaction::create([
+            'booking_id' => $booking->id,
+            'amount' => 14250,
+            'status' => 'locked',
+            'locked_at' => now(),
+        ]);
+
+        return $booking;
+    }
+
     // ===================================================================
     // Settlement synchrone — refus depuis commission_paid (AC1, AC7)
     // ===================================================================
@@ -118,13 +158,14 @@ class UgcBookingRefundTest extends TestCase
         // 2.6 : settlement synchrone — commission_refunded_at posé dans le même appel.
         $this->assertNotNull($booking->commission_refunded_at);
 
-        // Crédit wallet Producteur (+ commission_ugc) + WalletTransaction libellée.
+        // Crédit wallet Producteur (produit-seul : montant_total_producteur = commission = 2500) +
+        // WalletTransaction libellée au nouveau motif règlement (RH.2).
         $this->assertSame($before + 2500, (int) $this->producerUser->fresh()->balance);
         $this->assertDatabaseHas('wallet_transactions', [
             'user_id' => $this->producerUser->id,
             'type' => 'credit',
             'amount' => 2500,
-            'description' => WalletCreditMotif::UgcCommissionRefund->label(),
+            'description' => WalletCreditMotif::UgcSettlementRefund->label(),
         ]);
 
         // FinancialEvent Refund (booking-scopé) + UNE notif « créditée portefeuille ».
@@ -137,6 +178,92 @@ class UgcBookingRefundTest extends TestCase
             ->where('type', 'ugc_commission_refunded')->count());
         // Cycle « requested » supprimé (AC6) : aucune notif intermédiaire.
         $this->assertSame(0, Notification::where('type', 'ugc_commission_refund_requested')->count());
+    }
+
+    public function test_hybrid_refuse_refunds_full_total_and_unwinds_escrow(): void
+    {
+        // RH.2 : un booking hybride refusé rembourse le RÈGLEMENT COMPLET (montant_total_producteur =
+        // cash + frais service = 16500) et dénoue l'escrow du net Face (jamais re-libéré vers la Face).
+        $booking = $this->makePaidHybridUgcBooking();
+        $before = (int) $this->producerUser->balance;
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/refuse")
+            ->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::Refused->value);
+
+        $booking->refresh();
+        $this->assertSame(BookingStatus::Refused, $booking->status);
+        $this->assertNotNull($booking->commission_refunded_at);
+
+        // Crédit Producteur = règlement complet (16500), motif UgcSettlementRefund.
+        $this->assertSame($before + 16500, (int) $this->producerUser->fresh()->balance);
+        $this->assertDatabaseHas('wallet_transactions', [
+            'user_id' => $this->producerUser->id,
+            'type' => 'credit',
+            'amount' => 16500,
+            'description' => WalletCreditMotif::UgcSettlementRefund->label(),
+        ]);
+
+        // Escrow dénoué (refunded), jamais re-libéré vers la Face.
+        $this->assertDatabaseHas('escrow_transactions', [
+            'booking_id' => $booking->id,
+            'status' => 'refunded',
+        ]);
+
+        // FinancialEvent Refund = règlement complet (16500), pas la commission seule (2250).
+        $this->assertDatabaseHas('financial_events', [
+            'booking_id' => $booking->id,
+            'type' => 'refund',
+            'amount' => 16500,
+        ]);
+    }
+
+    public function test_hybrid_refund_notification_reports_full_settlement_not_commission(): void
+    {
+        // Revue RH.2 (patch blast-radius) : NotifyProducerOnUgcRefunded lisait commission_ugc
+        // (2 250) alors que le crédit wallet porte montant_total_producteur (16 500). La notif
+        // doit refléter le règlement RÉELLEMENT crédité, pas la commission seule.
+        $booking = $this->makePaidHybridUgcBooking();
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/refuse")
+            ->assertOk();
+
+        $notification = Notification::where('user_id', $this->producerUser->id)
+            ->where('type', 'ugc_commission_refunded')
+            ->sole();
+
+        $message = (string) ($notification->data['message'] ?? '');
+        $this->assertStringContainsString('16 500', $message);    // = montant_total_producteur (règlement complet)
+        $this->assertStringNotContainsString('2 250', $message);  // PAS la commission seule
+        $this->assertStringContainsString('règlement', $message); // libellé honnête (≠ « commission »)
+    }
+
+    public function test_cron_expires_hybrid_and_refunds_full_total_and_unwinds_escrow(): void
+    {
+        // RH.2 : la fenêtre d'acceptation expirée d'un hybride rembourse le total et dénoue l'escrow.
+        $booking = $this->makePaidHybridUgcBooking(now()->subDays(8)); // 8 j > 7 j config
+        $before = (int) $this->producerUser->balance;
+
+        $this->artisan('ugc:expire-unaccepted-deals')->assertSuccessful();
+
+        $booking->refresh();
+        $this->assertSame(BookingStatus::Expired, $booking->status);
+        $this->assertSame(UgcRefundReason::AcceptanceWindowExpired, $booking->commission_refund_reason);
+        $this->assertNotNull($booking->commission_refunded_at);
+
+        $this->assertSame($before + 16500, (int) $this->producerUser->fresh()->balance);
+        $this->assertDatabaseHas('wallet_transactions', [
+            'user_id' => $this->producerUser->id,
+            'type' => 'credit',
+            'amount' => 16500,
+            'description' => WalletCreditMotif::UgcSettlementRefund->label(),
+        ]);
+        $this->assertDatabaseHas('escrow_transactions', [
+            'booking_id' => $booking->id,
+            'status' => 'refunded',
+        ]);
     }
 
     public function test_refuse_at_pending_does_not_settle(): void
@@ -475,7 +602,8 @@ class UgcBookingRefundTest extends TestCase
                 throw new \RuntimeException('wallet indisponible');
             }
         };
-        $this->assertFalse((new UgcRefundService($throwingWallet))->expireBookingPastAcceptanceWindow($booking));
+        // RH.2 : le ctor injecte aussi EscrowService (non sollicité ici — le crédit jette avant l'escrow).
+        $this->assertFalse((new UgcRefundService($throwingWallet, app(EscrowService::class)))->expireBookingPastAcceptanceWindow($booking));
 
         $booking->refresh();
         $this->assertSame(BookingStatus::CommissionPaid, $booking->status); // pas d'expiration

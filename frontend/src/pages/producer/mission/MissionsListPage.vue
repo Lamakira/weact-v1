@@ -425,7 +425,7 @@ async function confirmComplete(): Promise<void> {
       v-model="isUgcPayOpen"
       kind="mission"
       :owner-id="payingMission.id"
-      :commission="payingMission.commission_ugc ?? 0"
+      :amount="payingMission.commission_ugc ?? 0"
       :reference="payingMission.id"
       @settled="handleCommissionSettled"
     />
