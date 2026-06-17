@@ -291,6 +291,16 @@ class BookingService
                 ]);
             }
 
+            // D-5.0.b : defense-in-depth — un deal UGC dont la commission est payée
+            // (escrow net Face Locked dès CommissionPaid, RH.2) n'est pas annulable
+            // hors clôture (RH.3) / suspension (5.1). Garde primaire en policy.
+            if ($booking->type_contenu === 'UGC'
+                && in_array($booking->status, [BookingStatus::CommissionPaid, BookingStatus::Accepted], true)) {
+                throw ValidationException::withMessages([
+                    'status' => ['Un deal UGC ne peut pas être annulé après paiement de la commission.'],
+                ]);
+            }
+
             if ($booking->status === BookingStatus::Paid) {
                 $this->escrowService->refund($booking, $this->walletService);
             }
@@ -341,6 +351,16 @@ class BookingService
             if (! in_array($booking->status, $cancellableStatuses, true)) {
                 throw ValidationException::withMessages([
                     'status' => ['Ce booking ne peut pas être annulé dans son état actuel.'],
+                ]);
+            }
+
+            // D-5.0.b : defense-in-depth — la Face n'a aucune annulation volontaire
+            // d'un deal UGC accepté (escrow net Face Locked, RH.2). Liste de statuts
+            // explicite pour symétrie avec cancel() (statut UGC atteignable = Accepted).
+            if ($booking->type_contenu === 'UGC'
+                && in_array($booking->status, [BookingStatus::CommissionPaid, BookingStatus::Accepted], true)) {
+                throw ValidationException::withMessages([
+                    'status' => ['Un deal UGC ne peut pas être annulé après paiement de la commission.'],
                 ]);
             }
 

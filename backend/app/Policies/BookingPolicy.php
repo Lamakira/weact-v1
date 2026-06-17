@@ -84,6 +84,15 @@ class BookingPolicy
      */
     public function cancel(User $user, Booking $booking): bool
     {
+        // D-5.0.b : pas d'annulation volontaire d'un booking UGC post-paiement
+        // (escrow net Face séquestré dès CommissionPaid — RH.2). Sortie = clôture
+        // (RH.3) ou suspension (5.1). Le UGC Pending (pré-paiement, sans escrow)
+        // reste annulable par le Producteur.
+        if ($booking->type_contenu === 'UGC'
+            && in_array($booking->status, [BookingStatus::CommissionPaid, BookingStatus::Accepted], true)) {
+            return false;
+        }
+
         $cancellableStatuses = [
             BookingStatus::Pending,
             BookingStatus::Accepted,
@@ -100,6 +109,13 @@ class BookingPolicy
      */
     public function cancelByFace(User $user, Booking $booking): bool
     {
+        // D-5.0.b : la Face n'a aucune annulation volontaire d'un deal UGC accepté
+        // (pré-acceptation = `refuse`, AC7). Le seul statut UGC atteignable ici est
+        // Accepted ; on bloque tout UGC pour clarté d'intention.
+        if ($booking->type_contenu === 'UGC') {
+            return false;
+        }
+
         $cancellableStatuses = [
             BookingStatus::Accepted,
             BookingStatus::Paid,
