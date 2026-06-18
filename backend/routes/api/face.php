@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\V1\Face\TarifsController;
 use App\Http\Controllers\Api\V1\Face\UgcDeliverableUploadController;
 use App\Http\Controllers\Api\V1\Face\UgcEngagementController;
 use App\Http\Controllers\Api\V1\Face\UgcMissionDiscoveryController;
+use App\Http\Controllers\Api\V1\Face\UgcSuspensionActionController;
 use App\Http\Controllers\Api\V1\Face\UgcSuspensionStatusController;
 use Illuminate\Support\Facades\Route;
 
@@ -179,6 +180,13 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
     // [5.2] État de suspension UGC de la Face (écran 10A) — read-only, suspension-aware.
     Route::get('/ugc/suspension', [UgcSuspensionStatusController::class, 'show'])
         ->middleware(['face', 'throttle:60,1']);
+
+    // [5.3] Réactivation d'une suspension UGC — terminer en retard ≤J+30 (réouverture tunnel).
+    Route::post('/ugc/suspension/resume', [UgcSuspensionActionController::class, 'resume'])
+        ->middleware(['face', 'throttle:30,1']);
+    // [5.3] Faire appel d'une suspension UGC (none→pending, revue admin).
+    Route::post('/ugc/suspension/appeal', [UgcSuspensionActionController::class, 'appeal'])
+        ->middleware(['face', 'throttle:30,1']);
 
     // Candidature routes - apply to missions (Face only, verified email required)
     Route::post('/missions/{mission}/apply', [CandidatureController::class, 'store'])

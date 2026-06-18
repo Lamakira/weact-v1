@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminFaceSubscriptionController;
 use App\Http\Controllers\Api\V1\Admin\AdminFinanceController;
 use App\Http\Controllers\Api\V1\Admin\AdminForgotPasswordController;
 use App\Http\Controllers\Api\V1\Admin\AdminResetPasswordController;
+use App\Http\Controllers\Api\V1\Admin\AdminUgcSuspensionController;
 use App\Http\Controllers\Api\V1\Admin\ArticleController;
 use App\Http\Controllers\Api\V1\Admin\AuthController;
 use App\Http\Controllers\Api\V1\Admin\FaceController;
@@ -139,6 +140,17 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'api.token', 'admin'])->g
         Route::post('/attendance-disputes/{entry}/resolve', [AdminAttendanceDisputeController::class, 'resolve'])
             ->middleware('throttle:30,1')
             ->name('admin.attendance-disputes.resolve');
+
+        // UGC soft-suspension appeals review + reactivation (épic 5, story 5.3)
+        Route::get('/ugc/suspensions', [AdminUgcSuspensionController::class, 'index'])
+            ->middleware('throttle:30,1')
+            ->name('admin.ugc-suspensions.index');
+        Route::post('/ugc/suspensions/{ugcSuspension}/reactivate', [AdminUgcSuspensionController::class, 'reactivate'])
+            ->middleware('throttle:30,1')
+            ->name('admin.ugc-suspensions.reactivate');
+        Route::post('/ugc/suspensions/{ugcSuspension}/reject-appeal', [AdminUgcSuspensionController::class, 'rejectAppeal'])
+            ->middleware('throttle:30,1')
+            ->name('admin.ugc-suspensions.reject-appeal');
 
         // Face subscription operations (FEATURE-FP-1.4)
         Route::get('/faces/{face}/subscriptions', [AdminFaceSubscriptionController::class, 'index'])
