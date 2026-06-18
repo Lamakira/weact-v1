@@ -39,4 +39,5 @@ export {
   type UgcSuspensionDeal,
   type UgcSuspensionStatus,
   type UgcSuspensionStatusResponse,
+  type UgcSuspensionActionResponse,
 } from './ugc'

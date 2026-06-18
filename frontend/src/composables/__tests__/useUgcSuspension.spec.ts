@@ -7,6 +7,8 @@ import type { UgcSuspensionStatusResponse } from '@/components/ugc'
 vi.mock('@/features/face/services/faceApi', () => ({
   faceApi: {
     getUgcSuspensionStatus: vi.fn(),
+    resumeUgcSuspension: vi.fn(),
+    appealUgcSuspension: vi.fn(),
   },
 }))
 
@@ -95,5 +97,65 @@ describe('useUgcSuspension', () => {
     resolve(cleanResponse)
     await pending
     expect(isLoading.value).toBe(false)
+  })
+
+  // --- [5.4] actions resume / appeal ---
+
+  it('resume() returns true on success without refetching status', async () => {
+    vi.mocked(faceApi.resumeUgcSuspension).mockResolvedValueOnce({ message: 'ok' })
+
+    const { resume, actionError, isActing } = useUgcSuspension()
+
+    const result = await resume()
+
+    expect(result).toBe(true)
+    expect(faceApi.resumeUgcSuspension).toHaveBeenCalledOnce()
+    // resume() does NOT refetch (the page navigates instead)
+    expect(faceApi.getUgcSuspensionStatus).not.toHaveBeenCalled()
+    expect(actionError.value).toBeNull()
+    expect(isActing.value).toBe(false)
+  })
+
+  it('resume() populates actionError and returns false on failure', async () => {
+    vi.mocked(faceApi.resumeUgcSuspension).mockRejectedValueOnce(
+      new Error('La fenêtre de régularisation (30 jours) est dépassée.'),
+    )
+
+    const { resume, actionError, isActing } = useUgcSuspension()
+
+    const result = await resume()
+
+    expect(result).toBe(false)
+    expect(actionError.value).toBe('La fenêtre de régularisation (30 jours) est dépassée.')
+    expect(isActing.value).toBe(false)
+  })
+
+  it('appeal() refetches status and returns true on success', async () => {
+    vi.mocked(faceApi.appealUgcSuspension).mockResolvedValueOnce({ message: 'ok' })
+    vi.mocked(faceApi.getUgcSuspensionStatus).mockResolvedValueOnce(suspendedResponse)
+
+    const { appeal, actionError } = useUgcSuspension()
+
+    const result = await appeal()
+
+    expect(result).toBe(true)
+    expect(faceApi.appealUgcSuspension).toHaveBeenCalledOnce()
+    // appeal() refetches via fetchStatus()
+    expect(faceApi.getUgcSuspensionStatus).toHaveBeenCalledOnce()
+    expect(actionError.value).toBeNull()
+  })
+
+  it('appeal() populates actionError and returns false on failure', async () => {
+    vi.mocked(faceApi.appealUgcSuspension).mockRejectedValueOnce(
+      new Error('Un appel est déjà enregistré pour cette suspension.'),
+    )
+
+    const { appeal, actionError } = useUgcSuspension()
+
+    const result = await appeal()
+
+    expect(result).toBe(false)
+    expect(actionError.value).toBe('Un appel est déjà enregistré pour cette suspension.')
+    expect(faceApi.getUgcSuspensionStatus).not.toHaveBeenCalled()
   })
 })

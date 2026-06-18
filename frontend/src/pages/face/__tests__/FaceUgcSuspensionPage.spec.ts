@@ -17,6 +17,11 @@ const mockSuspension = ref<UgcSuspensionStatus | null>(null)
 const mockIsLoading = ref(false)
 const mockError = ref<string | null>(null)
 const mockFetchStatus = vi.fn()
+// [5.4] action state + actions
+const mockIsActing = ref(false)
+const mockActionError = ref<string | null>(null)
+const mockResume = vi.fn().mockResolvedValue(true)
+const mockAppeal = vi.fn().mockResolvedValue(true)
 
 vi.mock('@/composables/useUgcSuspension', () => ({
   useUgcSuspension: () => ({
@@ -25,6 +30,10 @@ vi.mock('@/composables/useUgcSuspension', () => ({
     isLoading: mockIsLoading,
     error: mockError,
     fetchStatus: mockFetchStatus,
+    isActing: mockIsActing,
+    actionError: mockActionError,
+    resume: mockResume,
+    appeal: mockAppeal,
   }),
 }))
 
@@ -51,7 +60,11 @@ describe('FaceUgcSuspensionPage', () => {
     mockSuspension.value = null
     mockIsLoading.value = false
     mockError.value = null
+    mockIsActing.value = false
+    mockActionError.value = null
     vi.clearAllMocks()
+    mockResume.mockResolvedValue(true)
+    mockAppeal.mockResolvedValue(true)
   })
 
   it('fetches the suspension status on mount', async () => {
@@ -81,7 +94,7 @@ describe('FaceUgcSuspensionPage', () => {
     expect(how.text()).toContain('3')
   })
 
-  it('routes a booking deal to the booking detail page', async () => {
+  it('resumes then routes a booking deal to the booking detail page', async () => {
     mockIsSuspended.value = true
     mockSuspension.value = bookingSuspension()
 
@@ -89,14 +102,17 @@ describe('FaceUgcSuspensionPage', () => {
     await flushPromises()
 
     await wrapper.get('[data-testid="ugc-suspension-terminer"]').trigger('click')
+    await flushPromises()
 
+    // [5.4] resume() runs BEFORE navigation (D-5.4.a)
+    expect(mockResume).toHaveBeenCalledOnce()
     expect(mockRouter.push).toHaveBeenCalledWith({
       name: 'face-booking-detail',
       params: { id: 'booking-uuid-1' },
     })
   })
 
-  it('routes a candidature deal to the mission detail page', async () => {
+  it('resumes then routes a candidature deal to the mission detail page', async () => {
     mockIsSuspended.value = true
     mockSuspension.value = bookingSuspension({
       deal: {
@@ -111,11 +127,79 @@ describe('FaceUgcSuspensionPage', () => {
     await flushPromises()
 
     await wrapper.get('[data-testid="ugc-suspension-terminer"]').trigger('click')
+    await flushPromises()
 
+    expect(mockResume).toHaveBeenCalledOnce()
     expect(mockRouter.push).toHaveBeenCalledWith({
       name: 'face-mission-detail',
       params: { id: 'mission-uuid-1' },
     })
+  })
+
+  it('does NOT navigate when resume fails (422)', async () => {
+    mockIsSuspended.value = true
+    mockSuspension.value = bookingSuspension()
+    mockResume.mockResolvedValue(false)
+
+    const wrapper = mount(FaceUgcSuspensionPage)
+    await flushPromises()
+
+    await wrapper.get('[data-testid="ugc-suspension-terminer"]').trigger('click')
+    await flushPromises()
+
+    expect(mockResume).toHaveBeenCalledOnce()
+    expect(mockRouter.push).not.toHaveBeenCalled()
+  })
+
+  it('calls appeal() when the "Faire appel" CTA is clicked', async () => {
+    mockIsSuspended.value = true
+    mockSuspension.value = bookingSuspension({ appeal_status: 'none' })
+
+    const wrapper = mount(FaceUgcSuspensionPage)
+    await flushPromises()
+
+    await wrapper.get('[data-testid="ugc-suspension-appeal"]').trigger('click')
+    await flushPromises()
+
+    expect(mockAppeal).toHaveBeenCalledOnce()
+  })
+
+  it('shows the pending appeal block (no appeal button) when appeal_status is pending', async () => {
+    mockIsSuspended.value = true
+    mockSuspension.value = bookingSuspension({ appeal_status: 'pending' })
+
+    const wrapper = mount(FaceUgcSuspensionPage)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="ugc-suspension-appeal-pending"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="ugc-suspension-appeal"]').exists()).toBe(false)
+  })
+
+  it('shows the rejected appeal note (no appeal button) when appeal_status is rejected', async () => {
+    mockIsSuspended.value = true
+    mockSuspension.value = bookingSuspension({ appeal_status: 'rejected' })
+
+    const wrapper = mount(FaceUgcSuspensionPage)
+    await flushPromises()
+
+    const note = wrapper.find('[data-testid="ugc-suspension-appeal-rejected"]')
+    expect(note.exists()).toBe(true)
+    expect(note.text()).toContain('Appel rejeté')
+    expect(wrapper.find('[data-testid="ugc-suspension-appeal"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="ugc-suspension-appeal-pending"]').exists()).toBe(false)
+  })
+
+  it('renders the inline action error region when actionError is set', async () => {
+    mockIsSuspended.value = true
+    mockSuspension.value = bookingSuspension()
+    mockActionError.value = 'La fenêtre de régularisation (30 jours) est dépassée.'
+
+    const wrapper = mount(FaceUgcSuspensionPage)
+    await flushPromises()
+
+    const region = wrapper.get('[data-testid="ugc-suspension-action-error"]')
+    expect(region.text()).toContain('La fenêtre de régularisation (30 jours) est dépassée.')
+    expect(region.attributes('role')).toBe('alert')
   })
 
   it('hides the "Terminer" CTA and shows generic copy when the deal is null', async () => {

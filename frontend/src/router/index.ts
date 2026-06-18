@@ -443,6 +443,12 @@ const router = createRouter({
           meta: { title: 'Litiges présence - WEACT' },
         },
         {
+          path: 'ugc/suspensions',
+          name: 'admin-ugc-suspensions',
+          component: () => import('../pages/admin/AdminUgcSuspensionsPage.vue'),
+          meta: { title: 'Suspensions UGC - WEACT' },
+        },
+        {
           path: 'articles',
           name: 'admin-articles-list',
           component: () => import('../pages/admin/AdminArticlesListPage.vue'),

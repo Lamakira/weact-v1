@@ -39,6 +39,7 @@ import type {
   DeliverableResponse,
   UgcUploadProgress,
   UgcSuspensionStatusResponse,
+  UgcSuspensionActionResponse,
 } from '@/components/ugc'
 
 /**
@@ -470,6 +471,27 @@ export const faceApi = {
    */
   async getUgcSuspensionStatus(): Promise<UgcSuspensionStatusResponse> {
     const response = await apiClient.get<UgcSuspensionStatusResponse>('/face/ugc/suspension')
+    return response.data
+  },
+
+  /**
+   * « Terminer en retard » (UGC 5.4) — rouvre le tunnel du deal suspendu pour
+   * ré-autoriser l'upload (POST resume, story 5.3). 200 → { message } ; 422 →
+   * enveloppe ErrorCodes (window_closed / already_resumed / deal_unavailable / no_active).
+   */
+  async resumeUgcSuspension(): Promise<UgcSuspensionActionResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<UgcSuspensionActionResponse>('/face/ugc/suspension/resume')
+    return response.data
+  },
+
+  /**
+   * « Faire appel » (UGC 5.4) — ouvre un appel none→pending (POST appeal, story 5.3).
+   * 200 → { message } ; 422 → enveloppe (appeal_exists / no_active_suspension).
+   */
+  async appealUgcSuspension(): Promise<UgcSuspensionActionResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<UgcSuspensionActionResponse>('/face/ugc/suspension/appeal')
     return response.data
   },
 

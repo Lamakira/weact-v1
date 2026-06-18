@@ -216,6 +216,11 @@ export interface UgcSuspensionStatusResponse {
   }
 }
 
+/** Réponse 200 des actions POST resume / appeal (story 5.4). */
+export interface UgcSuspensionActionResponse {
+  message: string
+}
+
 /** Chips transporteur de l'écran 4A — sucre UI (D-3.1.e), le serveur reçoit du texte libre. */
 export const UGC_CARRIER_CHIPS = ['DHL', 'Chronopost', 'Gozem', 'Autre'] as const
 

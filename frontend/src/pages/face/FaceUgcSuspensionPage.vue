@@ -13,11 +13,13 @@ import { Ban, XCircle, Loader2, AlertCircle } from 'lucide-vue-next'
 import { useUgcSuspension } from '@/composables/useUgcSuspension'
 
 const router = useRouter()
-const { isSuspended, suspension, isLoading, error, fetchStatus } = useUgcSuspension()
+const { isSuspended, suspension, isLoading, error, fetchStatus, isActing, actionError, resume, appeal } =
+  useUgcSuspension()
 
 onMounted(fetchStatus)
 
 const deal = computed(() => suspension.value?.deal ?? null)
+const appealStatus = computed(() => suspension.value?.appeal_status ?? 'none')
 
 function formatDateTime(iso: string | null): string {
   if (!iso) return ''
@@ -26,14 +28,26 @@ function formatDateTime(iso: string | null): string {
   )
 }
 
-function goToDeal(): void {
+/**
+ * [5.4] « Terminer la mission » = resume (5.3) PUIS navigation (D-5.4.a). On
+ * navigue uniquement sur succès : sur 422 le tunnel reste Suspended (dropzone
+ * 8A inactive) → on reste sur le 10A et actionError s'affiche inline.
+ */
+async function resumeAndGoToDeal(): Promise<void> {
   const d = deal.value
   if (!d || !d.owner_uuid) return
+  const ok = await resume()
+  if (!ok) return // actionError affiché inline, pas de navigation
   router.push(
     d.owner_kind === 'booking'
       ? { name: 'face-booking-detail', params: { id: d.owner_uuid } }
       : { name: 'face-mission-detail', params: { id: d.owner_uuid } },
   )
+}
+
+/** [5.4] « Faire appel » : appeal (5.3) puis refetch ⇒ appealStatus passe 'pending'. */
+async function submitAppeal(): Promise<void> {
+  await appeal()
 }
 
 const supportMailto = `mailto:${import.meta.env.VITE_SUPPORT_EMAIL ?? 'contact@weact.bj'}`
@@ -158,6 +172,16 @@ const supportMailto = `mailto:${import.meta.env.VITE_SUPPORT_EMAIL ?? 'contact@w
         </div>
       </section>
 
+      <!-- Action error (resume / appeal) — feedback inline (D-5.4.d) -->
+      <div
+        v-if="actionError"
+        class="rounded-xl border border-red-200 bg-red-50 p-3"
+        role="alert"
+        data-testid="ugc-suspension-action-error"
+      >
+        <p class="text-sm text-red-700">{{ actionError }}</p>
+      </div>
+
       <!-- CTAs -->
       <div class="grid grid-cols-1 min-[376px]:grid-cols-2 gap-3 pt-1">
         <a
@@ -170,12 +194,41 @@ const supportMailto = `mailto:${import.meta.env.VITE_SUPPORT_EMAIL ?? 'contact@w
         <button
           v-if="deal && deal.owner_uuid"
           type="button"
-          class="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg bg-[#198496] text-white hover:bg-[#146c7a] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"
+          :disabled="isActing"
+          class="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg bg-[#198496] text-white hover:bg-[#146c7a] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2 disabled:opacity-50"
           data-testid="ugc-suspension-terminer"
-          @click="goToDeal"
+          @click="resumeAndGoToDeal"
         >
           Terminer la mission
         </button>
+      </div>
+
+      <!-- Appel auprès de WeAct — piloté par appeal_status (D-5.4.c) -->
+      <div class="pt-1">
+        <button
+          v-if="appealStatus === 'none'"
+          type="button"
+          :disabled="isActing"
+          data-testid="ugc-suspension-appeal"
+          class="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 disabled:opacity-50"
+          @click="submitAppeal"
+        >
+          Faire appel auprès de WeAct
+        </button>
+        <p
+          v-else-if="appealStatus === 'pending'"
+          class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+          data-testid="ugc-suspension-appeal-pending"
+        >
+          Appel en cours de revue — l'équipe WeAct te répond sous ~24 h.
+        </p>
+        <p
+          v-else-if="appealStatus === 'rejected'"
+          class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600"
+          data-testid="ugc-suspension-appeal-rejected"
+        >
+          Appel rejeté. Tu peux encore terminer la mission en retard si la fenêtre n'est pas dépassée.
+        </p>
       </div>
     </div>
 

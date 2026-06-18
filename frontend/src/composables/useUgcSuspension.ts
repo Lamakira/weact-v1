@@ -15,6 +15,9 @@ export function useUgcSuspension() {
   const suspension = ref<UgcSuspensionStatus | null>(null)
   const isLoading = ref(false)
   const error = ref<string | null>(null)
+  // [5.4] état des actions resume/appeal (écran 10A)
+  const isActing = ref(false)
+  const actionError = ref<string | null>(null)
 
   async function fetchStatus(): Promise<void> {
     isLoading.value = true
@@ -32,5 +35,42 @@ export function useUgcSuspension() {
     }
   }
 
-  return { isSuspended, suspension, isLoading, error, fetchStatus }
+  /**
+   * [5.4] Terminer en retard : POST resume (5.3). true=succès (la page navigue,
+   * pas de refetch) ; false=échec (actionError peuplé via l'enveloppe 422).
+   */
+  async function resume(): Promise<boolean> {
+    isActing.value = true
+    actionError.value = null
+    try {
+      await faceApi.resumeUgcSuspension()
+      return true
+    } catch (err: unknown) {
+      actionError.value = getApiErrorMessage(err)
+      return false
+    } finally {
+      isActing.value = false
+    }
+  }
+
+  /**
+   * [5.4] Faire appel : POST appeal (5.3) puis refetch (appeal_status → pending).
+   * true=succès ; false=échec (actionError peuplé).
+   */
+  async function appeal(): Promise<boolean> {
+    isActing.value = true
+    actionError.value = null
+    try {
+      await faceApi.appealUgcSuspension()
+      await fetchStatus()
+      return true
+    } catch (err: unknown) {
+      actionError.value = getApiErrorMessage(err)
+      return false
+    } finally {
+      isActing.value = false
+    }
+  }
+
+  return { isSuspended, suspension, isLoading, error, fetchStatus, isActing, actionError, resume, appeal }
 }
