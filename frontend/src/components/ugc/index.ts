@@ -35,4 +35,8 @@ export {
   type DeliverableAssetItem,
   type DeliverableAssetListResponse,
   type UgcUploadProgress,
+  type UgcSuspensionReasonCode,
+  type UgcSuspensionDeal,
+  type UgcSuspensionStatus,
+  type UgcSuspensionStatusResponse,
 } from './ugc'

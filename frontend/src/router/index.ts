@@ -172,6 +172,12 @@ const router = createRouter({
           meta: { title: 'Missions UGC - WEACT' },
         },
         {
+          path: 'ugc/suspension',
+          name: 'face-ugc-suspension',
+          component: () => import('../pages/face/FaceUgcSuspensionPage.vue'),
+          meta: { title: 'Compte suspendu - WEACT' },
+        },
+        {
           path: 'candidatures',
           name: 'face-candidatures',
           component: () => import('../pages/face/candidature/FaceCandidaturesPage.vue'),

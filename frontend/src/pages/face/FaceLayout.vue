@@ -17,6 +17,7 @@ import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 import TarifsMissingBanner from '@/components/TarifsMissingBanner.vue'
 import WhatsappMissingBanner from '@/components/WhatsappMissingBanner.vue'
 import PendingSubscriptionPaymentBanner from '@/components/PendingSubscriptionPaymentBanner.vue'
+import UgcSuspensionBanner from '@/components/UgcSuspensionBanner.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -92,6 +93,11 @@ async function handleLogout(): Promise<void> {
     :is-logging-out="isLoading"
     @logout="handleLogout"
   >
+    <!-- UGC soft-suspension banner — shown on every Face page while a suspension is
+         active (écran 10A, story 5.2). Self-fetches its own state; placed first so a
+         suspension visually outranks the subscription nudges below. -->
+    <UgcSuspensionBanner />
+
     <!-- Pending subscription payment nudge — shown on every Face page (except the
          Facturation tab itself, which carries the full resume controls) so a Face
          with an abandoned/unconfirmed payment is always guided to resume it. -->

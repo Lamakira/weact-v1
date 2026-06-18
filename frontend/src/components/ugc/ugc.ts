@@ -187,6 +187,35 @@ export interface DeliverableAssetListResponse {
   data: DeliverableAssetItem[]
 }
 
+/** Motif de suspension UGC (miroir UgcSuspensionReason backend, story 5.1/5.2). */
+export type UgcSuspensionReasonCode = 'unboxing_deadline_missed' | 'avis_deadline_missed'
+
+/** Deal en cause d'une suspension — null si shipment supprimé. */
+export interface UgcSuspensionDeal {
+  owner_kind: 'booking' | 'candidature'
+  owner_uuid: string | null
+  product_name: string
+  missed_deadline_at: string | null
+}
+
+/** Bloc suspension active (data.suspension de GET /face/ugc/suspension). */
+export interface UgcSuspensionStatus {
+  reason: UgcSuspensionReasonCode
+  reason_label: string
+  suspended_at: string
+  reactivation_deadline: string
+  appeal_status: 'none' | 'pending' | 'accepted' | 'rejected'
+  deal: UgcSuspensionDeal | null
+}
+
+/** Réponse GET /face/ugc/suspension. */
+export interface UgcSuspensionStatusResponse {
+  data: {
+    is_suspended: boolean
+    suspension: UgcSuspensionStatus | null
+  }
+}
+
 /** Chips transporteur de l'écran 4A — sucre UI (D-3.1.e), le serveur reçoit du texte libre. */
 export const UGC_CARRIER_CHIPS = ['DHL', 'Chronopost', 'Gozem', 'Autre'] as const
 

@@ -31,6 +31,7 @@ use App\Http\Controllers\Api\V1\Face\TarifsController;
 use App\Http\Controllers\Api\V1\Face\UgcDeliverableUploadController;
 use App\Http\Controllers\Api\V1\Face\UgcEngagementController;
 use App\Http\Controllers\Api\V1\Face\UgcMissionDiscoveryController;
+use App\Http\Controllers\Api\V1\Face\UgcSuspensionStatusController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -173,6 +174,10 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
 
     // UGC mission discovery - gated by subscription tier (FR5, UGC 2.1)
     Route::get('/ugc/missions', [UgcMissionDiscoveryController::class, 'index'])
+        ->middleware(['face', 'throttle:60,1']);
+
+    // [5.2] État de suspension UGC de la Face (écran 10A) — read-only, suspension-aware.
+    Route::get('/ugc/suspension', [UgcSuspensionStatusController::class, 'show'])
         ->middleware(['face', 'throttle:60,1']);
 
     // Candidature routes - apply to missions (Face only, verified email required)

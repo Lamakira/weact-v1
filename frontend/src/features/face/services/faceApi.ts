@@ -34,7 +34,12 @@ import type {
   SubscriptionCancelPendingResponse,
   SubscriptionResumePaymentResponse,
 } from '../types'
-import type { ShipmentResponse, DeliverableResponse, UgcUploadProgress } from '@/components/ugc'
+import type {
+  ShipmentResponse,
+  DeliverableResponse,
+  UgcUploadProgress,
+  UgcSuspensionStatusResponse,
+} from '@/components/ugc'
 
 /**
  * Face API service
@@ -456,6 +461,15 @@ export const faceApi = {
    */
   async getSubscriptionStatus(): Promise<SubscriptionStatusResponse> {
     const response = await apiClient.get<SubscriptionStatusResponse>('/face/subscription-status')
+    return response.data
+  },
+
+  /**
+   * Get the Face's UGC soft-suspension status (écran 10A, story 5.2).
+   * Server-authoritative + suspension-aware — never the cached capabilities (D-2.2.b).
+   */
+  async getUgcSuspensionStatus(): Promise<UgcSuspensionStatusResponse> {
+    const response = await apiClient.get<UgcSuspensionStatusResponse>('/face/ugc/suspension')
     return response.data
   },
 

@@ -20,6 +20,11 @@ return [
         'unboxing' => 7,
         'avis' => 14,
     ],
+    // Fenêtre de réactivation « terminer en retard » d'une suspension UGC (J+30,
+    // architecture-ugc.md:148 / D5). Source UNIQUE : 5.2 l'affiche
+    // (reactivation_deadline = suspended_at + N jours), 5.3 l'ENFORCE (cutoff de
+    // dégel). Ne pas hardcoder 30 ailleurs (front compris).
+    'late_completion_days' => 30,
     // Disque de stockage des médias livrables : disque PRIVÉ `local`
     // (storage/app/private, `serve => true`) — distinct du `public` du
     // portfolio FaceVideo (D7 / AC5). La lecture Producteur (URL signée) = 4.4.
