@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Tests\Unit\Services;
 
 use App\Enums\FaceSubscriptionTier;
+use App\Enums\UgcSuspensionAppealStatus;
+use App\Enums\UgcSuspensionReason;
 use App\Models\Face;
 use App\Models\FaceSubscription;
+use App\Models\UgcSuspension;
 use App\Services\FaceEntitlementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -384,6 +387,35 @@ class FaceEntitlementServiceTest extends TestCase
     public function test_is_ugc_suspended_defaults_to_false(): void
     {
         $face = Face::factory()->create();
+
+        $this->assertFalse($this->service->isUgcSuspended($face));
+    }
+
+    public function test_is_ugc_suspended_true_with_active_row(): void
+    {
+        $face = Face::factory()->create();
+        UgcSuspension::create([
+            'face_id' => $face->id,
+            'shipment_id' => null,
+            'reason' => UgcSuspensionReason::UnboxingDeadlineMissed,
+            'appeal_status' => UgcSuspensionAppealStatus::None,
+            'suspended_at' => now(),
+        ]);
+
+        $this->assertTrue($this->service->isUgcSuspended($face));
+    }
+
+    public function test_is_ugc_suspended_false_after_reactivation(): void
+    {
+        $face = Face::factory()->create();
+        UgcSuspension::create([
+            'face_id' => $face->id,
+            'shipment_id' => null,
+            'reason' => UgcSuspensionReason::UnboxingDeadlineMissed,
+            'appeal_status' => UgcSuspensionAppealStatus::None,
+            'suspended_at' => now()->subDays(2),
+            'reactivated_at' => now(),
+        ]);
 
         $this->assertFalse($this->service->isUgcSuspended($face));
     }

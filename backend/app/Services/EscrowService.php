@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Concerns\RecordsFinancialEvent;
 use App\Enums\EscrowStatus;
 use App\Enums\FinancialEventType;
+use App\Enums\WalletCreditMotif;
 use App\Models\Booking;
 use App\Models\EscrowTransaction;
 
@@ -143,6 +144,58 @@ class EscrowService
             'status' => EscrowStatus::Refunded->value,
             'refunded_at' => now(),
         ]);
+    }
+
+    /**
+     * D-5.0.a/c — suspension anti-arnaque : rembourser au Producteur l'escrow « net Face »
+     * séquestré (montant_face_recoit UNIQUEMENT ; WeAct garde sa commission de service, D-5.0.c).
+     * Idempotent : pas d'escrow (produit-seul) → false ; déjà released/refunded/pending → false.
+     * MUST be called inside an existing DB::transaction().
+     *
+     * Path DÉDIÉ, distinct de markRefundedForUgc (flip sans crédit, RH.2) et de
+     * UgcRefundService::settleLockedBooking (crédite montant_total_producteur, refund
+     * pré-acceptation). Mouvement atomique « flip + crédit montant_face_recoit + audit
+     * Refund » + retour bool pour que l'appelant ne dispatch/notifie qu'au vrai remboursement.
+     *
+     * @return bool true si remboursé MAINTENANT (crédit + audit émis), false sinon (no-op).
+     */
+    public function refundUgcSuspensionToProducer(Booking $booking, WalletService $walletService): bool
+    {
+        /** @var EscrowTransaction|null $escrow */
+        $escrow = $booking->escrowTransaction()->lockForUpdate()->first();
+
+        if ($escrow === null) {
+            return false; // produit-seul : rien de séquestré
+        }
+
+        if (in_array($escrow->status, [
+            EscrowStatus::Released->value,
+            EscrowStatus::Refunded->value,
+            EscrowStatus::Pending->value,
+        ], true)) {
+            return false; // idempotent
+        }
+
+        $escrow->update([
+            'status' => EscrowStatus::Refunded->value,
+            'refunded_at' => now(),
+        ]);
+
+        $walletService->credit(
+            userId: $booking->producer_id,
+            amount: $booking->montant_face_recoit,
+            booking: $booking,
+            description: WalletCreditMotif::UgcSuspensionRefund->label(),
+        );
+
+        $this->recordFinancialEvent(
+            FinancialEventType::Refund,
+            $booking,
+            $booking->montant_face_recoit,
+            ['status' => 'completed', 'metadata' => ['refund_channel' => 'wallet', 'kind' => 'ugc_suspension']],
+        );
+
+        return true;
     }
 
     /**

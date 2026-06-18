@@ -8,6 +8,7 @@ use App\Enums\UgcTunnelStatus;
 use App\Events\UgcDeadlineApproaching;
 use App\Models\Shipment;
 use App\Services\Ugc\UgcDeadlineService;
+use App\Services\Ugc\UgcSuspensionService;
 use Illuminate\Console\Command;
 
 class ProcessUgcDeadlinesCommand extends Command
@@ -18,6 +19,7 @@ class ProcessUgcDeadlinesCommand extends Command
 
     public function __construct(
         private readonly UgcDeadlineService $deadlines,
+        private readonly UgcSuspensionService $suspensions,
     ) {
         parent::__construct();
     }
@@ -42,8 +44,14 @@ class ProcessUgcDeadlinesCommand extends Command
                 continue;
             }
 
-            // [SEAM 5.1] progress >= 1.0 sans upload validé → suspension douce
-            // (ugc_suspensions). HORS-SCOPE 4.5 : ici on n'escalade que les notifs.
+            // [5.1] progress >= 1.0 sans livrable validé → suspension douce (l'état actif
+            // Received/AvisPending garantit l'absence d'upload validé : un upload validé
+            // aurait fait avancer le tunnel hors de ces états).
+            if ($progress >= 1.0) {
+                $this->suspensions->suspendForOverdueShipment($shipment);
+
+                continue; // suspendu : ne pas aussi escalader une notification ce tick
+            }
 
             $level = $this->deadlines->escalationLevelFor($progress);
             if ($level <= 0) {

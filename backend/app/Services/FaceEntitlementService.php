@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Enums\FaceSubscriptionTier;
 use App\Models\Face;
 use App\Models\FaceSubscription;
+use App\Models\UgcSuspension;
 use App\ValueObjects\TierCapabilities;
 use WeakMap;
 
@@ -70,12 +71,16 @@ class FaceEntitlementService
     }
 
     /**
-     * Point d'extension épic 5 (table `ugc_suspensions`, story 5.1) : la
-     * suspension douce UGC n'existe pas encore — toujours false dans ce slice.
+     * Suspension douce UGC active (épic 5, story 5.1) : une ligne `ugc_suspensions`
+     * non encore réactivée (reactivated_at IS NULL) pour cette Face. Compose
+     * canAccessUgc() pour geler l'accès UGC sans toucher l'abonnement (D-5.0.d).
      */
     public function isUgcSuspended(Face $face): bool
     {
-        return false;
+        return UgcSuspension::query()
+            ->where('face_id', $face->getKey())
+            ->whereNull('reactivated_at')
+            ->exists();
     }
 
     /**
