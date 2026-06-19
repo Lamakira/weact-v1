@@ -192,6 +192,22 @@ describe('BookingFormSheet — UGC', () => {
     expect(wrapper.find('[data-testid="submit-booking"]').text()).toContain('Payer la commission')
   })
 
+  it('updates the pay CTA amount to the hybrid producer total when switching to hybrid', async () => {
+    const wrapper = mountForm()
+
+    await fillValidUgcForm(wrapper, { hybrid: true })
+
+    // cash = 15 000 → producer pays cash + 10% service fee = 16 500 (computeUgcHybridProducerTotal),
+    // NOT the product-only commission of 4 500 (computeUgcCommission(45 000)). The CTA must mirror
+    // the "À payer maintenant" total shown in the récap.
+    const cta = wrapper.find('[data-testid="submit-booking"]').text().replace(/\s/g, '')
+    expect(cta).toContain('16500')
+    expect(cta).not.toContain('4500')
+    expect(wrapper.find('[data-testid="commission-breakdown"]').text().replace(/\s/g, '')).toContain(
+      '16500',
+    )
+  })
+
   it('toggles the video count + Face remuneration fields with the compensation type', async () => {
     const wrapper = mountForm()
 

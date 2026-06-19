@@ -7,7 +7,12 @@ import { useBookingCreate } from '../composables/useBookingCreate'
 import { calculatePricingPreview, type CreateBookingData, type Booking } from '../types'
 import BookingPricingBreakdown from './BookingPricingBreakdown.vue'
 import UgcBookingFields from './UgcBookingFields.vue'
-import { CommissionBreakdown, computeUgcCommission, type UgcCompensationType } from '@/components/ugc'
+import {
+  CommissionBreakdown,
+  computeUgcCommission,
+  computeUgcHybridProducerTotal,
+  type UgcCompensationType,
+} from '@/components/ugc'
 import { FloatingField, FloatingDateField, FloatingSelect } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
 import { BENIN_CITY_OPTIONS } from '@/shared/constants/beninCities'
@@ -110,10 +115,24 @@ const { value: nombre_videos, errorMessage: nombreVideosError } = useField<numbe
 const { value: montant_remuneration, errorMessage: montantRemunerationError } = useField<number | string | undefined>('montant_remuneration')
 
 const isUgc = computed(() => type_contenu.value === 'UGC')
-const ugcCommission = computed(() => computeUgcCommission(Number(valeur_produit.value) || 0))
+// Montant « À payer maintenant » — DOIT refléter le récap CommissionBreakdown :
+// produit-seul (ou hybride sans cash saisi) = commission sur la valeur produit ;
+// hybride avec cash = rémunération + frais de service 10 % (computeUgcHybridProducerTotal).
+const ugcPayable = computed(() => {
+  const cash = Number(montant_remuneration.value) || 0
+  return type_compensation.value === 'hybrid' && cash > 0
+    ? computeUgcHybridProducerTotal(cash)
+    : computeUgcCommission(Number(valeur_produit.value) || 0)
+})
 const submitLabel = computed(() => {
   if (isSubmitting.value) return isUgc.value ? 'Création...' : 'Envoi en cours...'
-  if (isUgc.value) return `Payer la commission · ${ugcCommission.value.toLocaleString('fr-FR')} FCFA`
+  if (isUgc.value) {
+    const amount = ugcPayable.value.toLocaleString('fr-FR')
+    // En hybride le montant n'est pas une commission (rémunération + frais) → libellé neutre.
+    return type_compensation.value === 'hybrid' && (Number(montant_remuneration.value) || 0) > 0
+      ? `Payer · ${amount} FCFA`
+      : `Payer la commission · ${amount} FCFA`
+  }
   return 'Envoyer la demande'
 })
 
