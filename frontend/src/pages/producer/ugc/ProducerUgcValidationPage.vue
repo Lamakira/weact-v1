@@ -1,13 +1,20 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { BadgeCheck, Check } from 'lucide-vue-next'
 import { ChronoBadge } from '@/components/ugc'
 import { useUgcDeliverableReview } from '@/composables/useUgcDeliverableReview'
+import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
 import { useToast } from '@/composables/useToast'
 
 const { items, isLoading, isSubmitting, error, errorCode, fetchPending, validate, reject, requestRetouche } =
   useUgcDeliverableReview()
 const toast = useToast()
+
+// Re-synchronise le badge de nav « X à valider » avec l'inbox (0 GET en plus) :
+// fetchPending réassigne `items` au mount/retry/après action ⇒ le watch (lazy)
+// repropage la taille de la file dans le store partagé (D-7.2.d).
+const ugcValidationCountStore = useUgcValidationCountStore()
+watch(items, () => ugcValidationCountStore.setCount(items.value.length))
 
 const selectedId = ref<string | null>(null)
 const reviewNote = ref('')

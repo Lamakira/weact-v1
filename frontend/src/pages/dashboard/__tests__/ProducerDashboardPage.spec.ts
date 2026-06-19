@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { setActivePinia, createPinia } from 'pinia'
 import { ref } from 'vue'
 import ProducerDashboardPage from '../ProducerDashboardPage.vue'
+import { producerApi } from '@/features/producer/services/producerApi'
 import type { ProducerDashboardStats } from '@/features/dashboard/types'
 
 // Mock vue-router
@@ -83,6 +85,7 @@ vi.mock('@/components/EmailVerificationBanner.vue', () => ({
 vi.mock('@/features/producer/services/producerApi', () => ({
   producerApi: {
     getProfile: vi.fn().mockResolvedValue({ data: null }),
+    listDeliverablesToReview: vi.fn().mockResolvedValue({ data: [] }),
   },
 }))
 
@@ -119,11 +122,13 @@ vi.mock('lucide-vue-next', () => {
     PlayCircle: m('PlayCircle'),
     CheckSquare: m('CheckSquare'),
     XCircle: m('XCircle'),
+    BadgeCheck: m('BadgeCheck'),
   }
 })
 
 describe('ProducerDashboardPage', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     mockStats.value = null
     mockIsStatsLoading.value = false
     mockStatsError.value = null
@@ -131,6 +136,7 @@ describe('ProducerDashboardPage', () => {
     mockFetchStats.mockClear()
     mockRetryStats.mockClear()
     mockRouter.push.mockClear()
+    vi.mocked(producerApi.listDeliverablesToReview).mockResolvedValue({ data: [] })
   })
 
   describe('KPI cards rendering', () => {
@@ -949,6 +955,22 @@ describe('ProducerDashboardPage', () => {
 
       const candidaturesGrid = wrapper.find('[data-testid="candidatures-kpi-grid"]')
       expect(candidaturesGrid.exists()).toBe(false)
+    })
+  })
+
+  describe('UGC validation counter', () => {
+    it('renders the À valider card with the in_review count', async () => {
+      vi.mocked(producerApi.listDeliverablesToReview).mockResolvedValue({ data: [{}, {}, {}] as never })
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+      expect(wrapper.find('[data-testid="ugc-validation-card-count"]').text()).toBe('3')
+    })
+
+    it('navigates to the validation inbox when the card is clicked', async () => {
+      const wrapper = mount(ProducerDashboardPage)
+      await flushPromises()
+      await wrapper.find('[data-testid="ugc-validation-card"]').trigger('click')
+      expect(mockRouter.push).toHaveBeenCalledWith({ name: 'producer-ugc-validation' })
     })
   })
 })

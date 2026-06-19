@@ -23,10 +23,12 @@ import {
   PlayCircle,
   CheckSquare,
   XCircle,
+  BadgeCheck,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useProducerDashboardStats } from '@/features/dashboard/composables/useProducerDashboardStats'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
+import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
 import { PRODUCER_KPI_CONFIGS } from '@/features/dashboard/types'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -34,9 +36,10 @@ const router = useRouter()
 const authStore = useAuthStore()
 const { stats, isLoading: statsLoading, error: statsError, fetchStats, retry } = useProducerDashboardStats()
 const { profile, isLoading: isProfileLoading, fetchProfile } = useProducerProfilePhoto()
+const ugcValidationCountStore = useUgcValidationCountStore()
 
 onMounted(async () => {
-  await Promise.all([fetchProfile(), fetchStats()])
+  await Promise.all([fetchProfile(), fetchStats(), ugcValidationCountStore.fetchCount()])
 })
 
 // Computed values
@@ -122,6 +125,10 @@ function goToPublishMission(): void {
 
 function goToMessages(): void {
   router.push({ name: 'producer-messages' })
+}
+
+function goToValidation(): void {
+  router.push({ name: 'producer-ugc-validation' })
 }
 </script>
 
@@ -326,7 +333,7 @@ function goToMessages(): void {
         </div>
 
         <!-- Quick Access Cards — compact row -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" data-testid="quick-access-cards-grid">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" data-testid="quick-access-cards-grid">
           <!-- Missions -->
           <button
             @click="goToMissions"
@@ -362,6 +369,22 @@ function goToMessages(): void {
               <MessageCircle :size="16" />
             </div>
             <p class="font-semibold text-gray-900 text-xs sm:text-sm truncate">Messages</p>
+          </button>
+
+          <!-- À valider (UGC) — toujours visible, badge inclut 0 (D-7.2.f) -->
+          <button
+            @click="goToValidation"
+            class="group bg-white px-4 py-3 rounded-xl border border-gray-200 shadow-sm transition-all duration-200 hover:border-[#198496] hover:shadow-md flex items-center gap-3"
+            data-testid="ugc-validation-card"
+          >
+            <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500 group-hover:bg-[#198496]/10 group-hover:text-[#198496] transition-colors flex-shrink-0">
+              <BadgeCheck :size="16" />
+            </div>
+            <p class="font-semibold text-gray-900 text-xs sm:text-sm truncate">À valider</p>
+            <span
+              class="ml-auto inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-[#198496] text-white text-[10px] font-bold flex-shrink-0"
+              data-testid="ugc-validation-card-count"
+            >{{ ugcValidationCountStore.count }}</span>
           </button>
         </div>
 

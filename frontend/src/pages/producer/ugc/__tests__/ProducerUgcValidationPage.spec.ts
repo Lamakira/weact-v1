@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
+import { setActivePinia, createPinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
 import ProducerUgcValidationPage from '../ProducerUgcValidationPage.vue'
+import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
 import type { Deliverable, DeliverableReviewItem } from '@/components/ugc'
 
 // Spies + refs hissés hors des factories pour être capturables (calque
@@ -86,6 +88,8 @@ function mountPage() {
 
 describe('ProducerUgcValidationPage', () => {
   beforeEach(() => {
+    // setActivePinia requis : la page instancie désormais useUgcValidationCountStore.
+    setActivePinia(createPinia())
     // resetAllMocks (≠ clearAllMocks) : purge AUSSI les implémentations posées
     // par un test précédent (ex. le mockFetchPending qui filtre itemsRef).
     vi.resetAllMocks()
@@ -206,5 +210,15 @@ describe('ProducerUgcValidationPage', () => {
 
     expect(mockRequestRetouche).toHaveBeenCalledWith('d1', 'Ajoute le plan packaging.')
     expect(mockToastSuccess).toHaveBeenCalledWith('Retouche demandée')
+  })
+
+  it('syncs the validation count store with the inbox size', async () => {
+    const store = useUgcValidationCountStore()
+    mountPage()
+    await flushPromises()
+    // Le watch est lazy : il faut RÉASSIGNER itemsRef après le mount pour le déclencher.
+    itemsRef.value = [makeReviewItem(), item2]
+    await flushPromises()
+    expect(store.count).toBe(2)
   })
 })

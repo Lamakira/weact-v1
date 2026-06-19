@@ -11,25 +11,29 @@ import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { DashboardLayout, type SidebarItem } from '@/components/layout'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
+import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 
 const authStore = useAuthStore()
 const { logout, isLoading } = useAuth()
 const { profile, fetchProfile } = useProducerProfilePhoto()
+const ugcValidationCountStore = useUgcValidationCountStore()
 
-// Sidebar navigation items for Producer dashboard
-const sidebarItems: SidebarItem[] = [
+// Sidebar navigation items for Producer dashboard. Computed so the « Validation
+// livrables » badge reactively follows the in_review count (only that item).
+const sidebarItems = computed<SidebarItem[]>(() => [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/producer/dashboard' },
   { label: 'Mes missions', icon: FileText, to: '/producer/missions' },
   { label: 'Publier une mission', icon: PlusCircle, to: '/producer/missions/publish' },
   { label: 'Liste des faces', icon: Users, to: '/producer/faces' },
   { label: 'Mes bookings', icon: CalendarCheck, to: '/producer/bookings' },
-  { label: 'Validation livrables', icon: BadgeCheck, to: '/producer/ugc/validation' },
+  { label: 'Validation livrables', icon: BadgeCheck, to: '/producer/ugc/validation',
+    badge: ugcValidationCountStore.count },
   { label: 'Mes vidéos UGC', icon: FolderDown, to: '/producer/ugc/videos' },
   { label: 'Messages', icon: MessageCircle, to: '/producer/messages' },
   { label: 'Portefeuille', icon: Wallet, to: '/producer/wallet' },
   { label: 'Mon profil', icon: User, to: '/producer/profile' },
-]
+])
 
 // Computed user name from Producer profile
 const userName = computed(() => {
@@ -45,8 +49,9 @@ const avatarUrl = computed(() => {
   return profile.value.profile_photo_url ?? profile.value.agency_logo_url ?? null
 })
 
-// Fetch profile on mount to get avatar
+// Fetch profile on mount to get avatar + the in_review validation count (badge)
 onMounted(async () => {
+  void ugcValidationCountStore.fetchCount()
   try {
     await fetchProfile()
   } catch {
