@@ -35,7 +35,7 @@ async function fetchAssets(): Promise<void> {
     const response = await producerApi.listValidatedDeliverables()
     items.value = response.data
   } catch {
-    error.value = 'Impossible de charger vos vidéos. Réessaie.'
+    error.value = 'Impossible de charger vos vidéos. Réessayez.'
   } finally {
     isLoading.value = false
   }

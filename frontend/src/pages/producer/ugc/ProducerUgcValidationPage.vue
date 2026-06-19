@@ -49,7 +49,7 @@ async function afterAction(deliverable: unknown, okMessage: string): Promise<voi
     selectFirst()
     return
   }
-  toast.error(error.value || 'Action impossible. Réessaie.')
+  toast.error(error.value || 'Action impossible. Réessayez.')
 }
 
 async function onValidate(): Promise<void> {
