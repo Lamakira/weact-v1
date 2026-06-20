@@ -10,9 +10,9 @@ describe('UgcShipmentForm', () => {
   it('selecting a carrier chip sets the transporteur', async () => {
     const wrapper = mountForm()
 
-    await wrapper.find('[data-testid="carrier-chip-DHL"]').trigger('click')
+    await wrapper.find('[data-testid="carrier-chip-Gozem"]').trigger('click')
 
-    expect(wrapper.find('[data-testid="carrier-chip-DHL"]').classes()).toContain('bg-weact')
+    expect(wrapper.find('[data-testid="carrier-chip-Gozem"]').classes()).toContain('bg-weact')
     // Un chip nommé ne révèle pas le champ texte libre.
     expect(wrapper.find('[data-testid="carrier-free-text"]').exists()).toBe(false)
   })
@@ -42,7 +42,7 @@ describe('UgcShipmentForm', () => {
   it('omits an empty note_envoi from the emitted payload', async () => {
     const wrapper = mountForm()
 
-    await wrapper.find('[data-testid="carrier-chip-DHL"]').trigger('click')
+    await wrapper.find('[data-testid="carrier-chip-Gozem"]').trigger('click')
     await wrapper.find('[data-testid="tracking-number-input"]').setValue('TRK-001')
     await wrapper.find('[data-testid="confirm-shipment-btn"]').trigger('click')
 
@@ -64,7 +64,7 @@ describe('UgcShipmentForm', () => {
   it('shows a field error when numero_suivi is empty', async () => {
     const wrapper = mountForm()
 
-    await wrapper.find('[data-testid="carrier-chip-DHL"]').trigger('click')
+    await wrapper.find('[data-testid="carrier-chip-Gozem"]').trigger('click')
     await wrapper.find('[data-testid="confirm-shipment-btn"]').trigger('click')
 
     expect(wrapper.emitted('submit')).toBeUndefined()
@@ -74,7 +74,7 @@ describe('UgcShipmentForm', () => {
   it('shows a field error when the note exceeds 500 characters', async () => {
     const wrapper = mountForm()
 
-    await wrapper.find('[data-testid="carrier-chip-DHL"]').trigger('click')
+    await wrapper.find('[data-testid="carrier-chip-Gozem"]').trigger('click')
     await wrapper.find('[data-testid="tracking-number-input"]').setValue('TRK-001')
     // happy-dom n'applique pas maxlength sur un setValue programmatique :
     // la branche d'erreur du schéma est atteignable (une note > 500 ne part jamais).

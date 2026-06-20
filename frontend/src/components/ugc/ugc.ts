@@ -222,7 +222,7 @@ export interface UgcSuspensionActionResponse {
 }
 
 /** Chips transporteur de l'écran 4A — sucre UI (D-3.1.e), le serveur reçoit du texte libre. */
-export const UGC_CARRIER_CHIPS = ['DHL', 'Chronopost', 'Gozem', 'Autre'] as const
+export const UGC_CARRIER_CHIPS = ['Gozem', 'Yango', 'Livreur', 'Autre'] as const
 
 /** Miroir client de ConfirmShipmentRequest (3.1) — le serveur reste autoritatif. */
 export const ugcShipmentSchema = z.object({
