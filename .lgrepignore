@@ -1,0 +1,30 @@
+# .lgrepignore — créé pour le test de comparaison lgrep (supprimable).
+# Exclut les dépendances, le généré, les tests et la prose, pour n'indexer que le code source.
+
+# --- Dépendances ---
+node_modules/
+vendor/
+
+# --- Généré / cache (le gros du bruit : 3261 fichiers phpstan) ---
+backend/storage/
+backend/bootstrap/cache/
+dist/
+build/
+.next/
+coverage/
+*.min.js
+
+# --- Tests ---
+__tests__/
+*.spec.ts
+*.spec.js
+*.test.ts
+*.test.js
+backend/tests/
+
+# --- Documentation & prose ---
+*.md
+docs/
+_bmad/
+_bmad-output/
+design-system.md
