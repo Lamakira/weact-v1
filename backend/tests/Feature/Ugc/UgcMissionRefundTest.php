@@ -156,6 +156,29 @@ class UgcMissionRefundTest extends TestCase
         $this->assertSame($before, (int) $this->producerUser->fresh()->balance);
     }
 
+    public function test_cron_ignores_mission_with_accepted_engagement(): void
+    {
+        // D-8.2.c (ugc-8-2) : une Face ACCEPTÉE (pas encore reconfirmée) est un
+        // engagement ⇒ ni clôture ni remboursement. Accepted devient atteignable
+        // en UGC avec le cycle explicite ; ce test échouerait sans la propagation
+        // de Accepted aux 2 gardes engagement (UgcRefundService:314 / cmd:61).
+        $mission = $this->makeExpiredPaidUgcMission();
+        Candidature::create([
+            'face_id' => $this->face->id,
+            'mission_id' => $mission->id,
+            'status' => CandidatureStatus::Accepted,
+        ]);
+        $before = (int) $this->producerUser->balance;
+
+        $this->artisan('ugc:expire-unaccepted-deals')->assertSuccessful();
+
+        $mission->refresh();
+        $this->assertSame(MissionStatus::Published, $mission->status);
+        $this->assertNull($mission->commission_refund_requested_at);
+        $this->assertNull($mission->commission_refunded_at);
+        $this->assertSame($before, (int) $this->producerUser->fresh()->balance);
+    }
+
     public function test_cron_settles_mission_with_only_pending_candidatures(): void
     {
         // Une candidature pending n'est PAS un engagement (états 2.4 :

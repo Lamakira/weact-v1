@@ -106,6 +106,11 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
     Route::post('/candidatures/{candidature}/reject', [CandidatureController::class, 'reject'])
         ->middleware('throttle:60,1');
 
+    // UGC produit-seul : le Producteur accepte explicitement une candidature pending
+    // (pending→accepted, gratuit, ugc-8-2). Hybride différé à ugc-8-4 (422).
+    Route::post('/candidatures/{candidature}/accept', [CandidatureController::class, 'accept'])
+        ->middleware('throttle:60,1');
+
     // UGC shipment confirmation (épic 3 — tunnel étape 3, story 3.1)
     Route::post('/bookings/{booking}/confirm-shipment', [UgcShipmentController::class, 'confirmForBooking'])
         ->middleware('throttle:60,1')

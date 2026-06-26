@@ -309,9 +309,11 @@ class UgcRefundService
                 }
 
                 // Mêmes états engagés que la capacité 2.4 ; re-compté sous lock mission
-                // (sérialisé avec UgcEngagementController::accept qui locke aussi).
+                // (sérialisé avec Producer\CandidatureController::accept qui locke aussi ;
+                // ex-UgcEngagementController::accept, supprimé en ugc-8-2).
                 $engaged = Candidature::where('mission_id', $locked->id)
                     ->whereIn('status', [
+                        CandidatureStatus::Accepted->value,    // ← AJOUT (D-8.2.c), jumeau de S5a (cf. commentaire :311)
                         CandidatureStatus::Confirmed->value,
                         CandidatureStatus::InProgress->value,
                         CandidatureStatus::Completed->value,

@@ -192,10 +192,6 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
     Route::post('/missions/{mission}/apply', [CandidatureController::class, 'store'])
         ->middleware(['face', 'verified', 'throttle:30,1']);
 
-    // UGC direct acceptance - Face accepts the deal, candidature lands confirmed (FR6, UGC 2.4)
-    Route::post('/missions/{mission}/accept', [UgcEngagementController::class, 'accept'])
-        ->middleware(['face', 'verified', 'throttle:30,1']);
-
     // UGC product receipt — la Face confirme la réception, le chrono Unboxing démarre (FR6 étape 4, UGC 3.3)
     Route::post('/shipments/{shipment}/confirm-receipt', [UgcEngagementController::class, 'confirmReceipt'])
         ->middleware(['face', 'throttle:30,1']);
@@ -214,6 +210,11 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
 
     // Candidature routes - confirm participation (Face only)
     Route::post('/candidatures/{candidature}/confirm', [CandidatureController::class, 'confirm'])
+        ->middleware(['face', 'throttle:30,1']);
+
+    // UGC produit-seul : la Face reconfirme sa participation après acceptation Producteur
+    // (accepted→confirmed, ugc-8-2). Séparé du confirm cash (qui exige un MissionPayment).
+    Route::post('/candidatures/{candidature}/reconfirm', [CandidatureController::class, 'reconfirm'])
         ->middleware(['face', 'throttle:30,1']);
 
     // Candidature routes - cancel pending candidature (Face only)

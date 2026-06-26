@@ -10,6 +10,7 @@ use App\Enums\MissionGender;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
+use App\Events\UgcMissionDealAccepted;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Face\StoreCandidatureRequest;
 use App\Http\Resources\CandidatureResource;
@@ -25,6 +26,7 @@ use App\Services\FaceEntitlementService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -206,6 +208,17 @@ class CandidatureController extends Controller
             ], 400);
         }
 
+        // ugc-8-2 : une candidature UGC produit-seul est `Accepted` SANS MissionPayment
+        // (acceptation gratuite). Elle se reconfirme via l'endpoint dédié `reconfirm` ;
+        // la router ici tomberait sur le canary cash INVARIANT_VIOLATION (:218) en
+        // faux positif. Garde explicite AVANT le lookup payment.
+        $candidature->loadMissing('mission');
+        if ($candidature->mission?->type_mission === MissionType::Ugc) {
+            return response()->json(ErrorCodes::InvalidStatus->envelope(
+                'Une candidature UGC se reconfirme via l\'endpoint dédié.'
+            ), 422);
+        }
+
         /** @var Mission $mission */
         $mission = $candidature->mission()->with('payment.entries')->firstOrFail();
         $missionPayment = $mission->payment;
@@ -305,6 +318,71 @@ class CandidatureController extends Controller
         return response()->json([
             'data' => new CandidatureResource($candidature),
             'message' => 'Participation confirmée',
+        ]);
+    }
+
+    /**
+     * Reconfirm participation in a UGC mission after the Producer accepted (ugc-8-2, D-8.2.d).
+     *
+     * Changes candidature status from "accepted" to "confirmed". SÉPARÉ du confirm
+     * cash standard (qui exige un MissionPayment Paid, absent en UGC produit-seul).
+     * Le 2ᵉ oui de la Face arme le tunnel : dispatch UgcMissionDealAccepted (event
+     * REPURPOSÉ, D-8.2.e) ⇒ le Producteur est notifié de préparer l'expédition.
+     */
+    public function reconfirm(Request $request, Candidature $candidature): JsonResponse
+    {
+        $user = $request->user();
+
+        // Verify user is a Face
+        if ($user->userable_type !== Face::class) {
+            abort(403, 'Accès réservé aux Faces');
+        }
+
+        $face = $user->userable;
+
+        // Verify candidature belongs to this Face
+        if ($candidature->face_id !== $face->id) {
+            abort(403, 'Cette candidature ne vous appartient pas');
+        }
+
+        // La reconfirmation directe est réservée à l'UGC (le standard passe par confirm).
+        $candidature->loadMissing('mission');
+        if ($candidature->mission?->type_mission !== MissionType::Ugc) {
+            return response()->json(ErrorCodes::InvalidStatus->envelope(
+                'La reconfirmation directe est réservée aux missions UGC.'
+            ), 422);
+        }
+
+        // Verify candidature is accepted
+        if ($candidature->status !== CandidatureStatus::Accepted) {
+            return response()->json(ErrorCodes::InvalidStatus->envelope(
+                'Seules les candidatures acceptées peuvent être reconfirmées.'
+            ), 422);
+        }
+
+        $confirmed = DB::transaction(function () use ($candidature): ?Candidature {
+            /** @var Candidature $locked */
+            $locked = Candidature::where('id', $candidature->id)->lockForUpdate()->firstOrFail();
+            if ($locked->status !== CandidatureStatus::Accepted) {
+                return null; // idempotence : une requête concurrente a déjà reconfirmé
+            }
+            $locked->update(['status' => CandidatureStatus::Confirmed]);
+
+            return $locked;
+        });
+
+        if ($confirmed === null) {
+            return response()->json(ErrorCodes::InvalidStatus->envelope(
+                'Cette candidature a déjà été reconfirmée.'
+            ), 422);
+        }
+
+        // Post-commit : le deal est ON, le Producteur doit expédier (D-8.2.e, event REPURPOSÉ).
+        UgcMissionDealAccepted::dispatch($confirmed);
+
+        return response()->json([
+            'data' => new CandidatureResource($confirmed),
+            'message' => 'Participation reconfirmée — le producteur va expédier le produit',
         ]);
     }
 

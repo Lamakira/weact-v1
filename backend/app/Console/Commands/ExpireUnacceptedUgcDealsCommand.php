@@ -59,6 +59,7 @@ class ExpireUnacceptedUgcDealsCommand extends Command
             ->whereNull('commission_refunded_at') // déjà réglée → ne pas re-clôturer ni re-créditer (symétrie booking ligne 41)
             ->whereDate('date_limite_candidature', '<', now()->toDateString())
             ->whereDoesntHave('candidatures', fn ($q) => $q->whereIn('status', [
+                CandidatureStatus::Accepted->value,    // ← AJOUT (D-8.2.c) : un Producteur ayant accepté une Face = engagement
                 CandidatureStatus::Confirmed->value,
                 CandidatureStatus::InProgress->value,
                 CandidatureStatus::Completed->value,

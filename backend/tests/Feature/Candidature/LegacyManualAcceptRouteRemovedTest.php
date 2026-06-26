@@ -15,17 +15,17 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Regression guard for FIX-20.3.
+ * Regression guard for FIX-20.3, updated for ugc-8-2.
  *
- * The legacy manual-accept endpoint POST /api/v1/producer/candidatures/{id}/accept
- * was a pre-FedaPay vestige that transitioned a candidature to Accepted without
- * creating a MissionPayment, producing a dead-end state (the Face confirm endpoint
- * requires MissionPaymentStatus::Paid, which could never be true on that path).
- *
- * This test locks in the removal: hitting the legacy URL must return 404.
- * Since FIX-20.1, the only legitimate path to CandidatureStatus::Accepted is
- * MissionPaymentService::applySelectionOutcomesOnPaid, invoked from markAsPaid
- * when the FedaPay webhook confirms a MissionPayment.
+ * The producer accept endpoint POST /api/v1/producer/candidatures/{id}/accept was
+ * reintroduced in ugc-8-2 — but ONLY for UGC product-only candidatures (the
+ * explicit candidature cycle replacing the former Face auto-acceptance). The
+ * FIX-20.3 invariant still holds for cash/standard missions: a STANDARD mission
+ * candidature can NOT be manually accepted (it would be a pre-FedaPay dead-end —
+ * the Face confirm endpoint requires MissionPaymentStatus::Paid). So hitting the
+ * route with a standard candidature is rejected 422 INVALID_STATUS (the UGC-only
+ * guard), not 404. The only path to Accepted on a cash mission remains
+ * MissionPaymentService::applySelectionOutcomesOnPaid (FedaPay webhook).
  */
 class LegacyManualAcceptRouteRemovedTest extends TestCase
 {
@@ -59,6 +59,9 @@ class LegacyManualAcceptRouteRemovedTest extends TestCase
         $response = $this->actingAs($producerUser)
             ->postJson("/api/v1/producer/candidatures/{$candidature->uuid}/accept");
 
-        $response->assertNotFound();
+        // The route exists for UGC product-only candidatures, but a STANDARD
+        // mission candidature is rejected by the UGC-only guard (ugc-8-2).
+        $response->assertStatus(422);
+        $response->assertJsonPath('error.code', 'INVALID_STATUS');
     }
 }
