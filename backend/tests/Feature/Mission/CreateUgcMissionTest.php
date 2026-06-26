@@ -293,4 +293,34 @@ class CreateUgcMissionTest extends TestCase
             ->assertJsonCount(1, 'data')                  // seule la mission standard publiée
             ->assertJsonMissing(['id' => $ugcUuid]);      // la mission UGC pending_payment est absente
     }
+
+    public function test_ugc_mission_created_without_shoot_fields_stores_null(): void
+    {
+        $payload = $this->getValidUgcMissionData();
+        unset($payload['date_tournage'], $payload['lieu'], $payload['duree']);
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/producer/missions', $payload);
+
+        $response->assertCreated();
+        $this->assertDatabaseHas('missions', [
+            'titre' => $payload['titre'],
+            'date_tournage' => null,
+            'lieu' => null,
+            'duree' => null,
+            'type_mission' => 'ugc',
+        ]);
+    }
+
+    public function test_ugc_mission_never_persists_shoot_fields_even_when_sent(): void
+    {
+        // helper complet (envoie encore date_tournage/lieu/duree) → serveur les droppe
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/producer/missions', $this->getValidUgcMissionData());
+
+        $response->assertCreated();
+        $this->assertDatabaseHas('missions', [
+            'type_mission' => 'ugc', 'date_tournage' => null, 'lieu' => null, 'duree' => null,
+        ]);
+    }
 }

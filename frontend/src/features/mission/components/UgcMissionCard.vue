@@ -124,7 +124,7 @@ function handleClick(): void {
           <Video class="h-4 w-4 text-primary" />
           {{ item.nombre_videos }} vidéo{{ item.nombre_videos > 1 ? 's' : '' }}
         </span>
-        <span class="flex items-center gap-1.5">
+        <span v-if="item.lieu" class="flex items-center gap-1.5">
           <MapPin class="h-4 w-4 text-primary" />
           <span class="truncate">{{ item.lieu }}</span>
         </span>

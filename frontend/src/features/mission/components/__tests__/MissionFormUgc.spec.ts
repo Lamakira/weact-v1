@@ -63,14 +63,16 @@ function mountForm({
   })
 }
 
-/** Fills the shared required fields (titre, description, dates, profil, lieu). */
+/**
+ * Fills the required fields visible in UGC mode (titre, description, profil, date limite).
+ * lieu / date_tournage / durée sont MASQUÉS pour l'UGC (D-8.1.e) → ne pas tenter de les
+ * remplir (`.setValue` throw sur élément absent). date_limite_candidature reste affiché.
+ */
 async function fillStandardFields(wrapper: ReturnType<typeof mountForm>) {
   await wrapper.find('#titre').setValue('Campagne sérum')
   await wrapper.find('#description').setValue('Description détaillée valide')
   await wrapper.find('#profil_recherche').setValue('Profil influenceuse beauté')
-  await wrapper.find('select#lieu').setValue('Cotonou')
   await wrapper.find('#date_limite_candidature').setValue(iso(30))
-  await wrapper.find('#date_tournage').setValue(iso(60))
 }
 
 /** Selects UGC + fills the UGC dotation fields, ready to submit. */
@@ -115,7 +117,7 @@ describe('MissionForm — UGC integration', () => {
     expect(options.some((o) => o.element.value === 'ugc')).toBe(false)
   })
 
-  it('3. sélection UGC → bloc dotation + récap visibles, budget + hint masqués', async () => {
+  it('3. sélection UGC → bloc dotation + récap visibles, budget + hint + champs de tournage masqués', async () => {
     const wrapper = mountForm({ mode: 'create' })
 
     await wrapper.find('select#type_mission').setValue('ugc')
@@ -125,6 +127,11 @@ describe('MissionForm — UGC integration', () => {
     expect(wrapper.find('[data-testid="commission-breakdown"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="budget-input"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="pricing-hint"]').exists()).toBe(false)
+    // Champs de tournage masqués pour l'UGC (D-8.1.e), date limite conservée (AC1)
+    expect(wrapper.find('[data-testid="lieu-select"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="duree-select"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="date-tournage-input"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="date-limite-input"]').exists()).toBe(true)
   })
 
   it('4. en UGC, le CTA affiche "Payer la commission"', async () => {
@@ -171,6 +178,10 @@ describe('MissionForm — UGC integration', () => {
     expect(payload).not.toHaveProperty('budget')
     expect(payload).not.toHaveProperty('nombre_videos')
     expect(payload).not.toHaveProperty('montant_remuneration')
+    // Champs de tournage jamais envoyés pour l'UGC (D-8.1.e, AC2)
+    expect(payload).not.toHaveProperty('date_tournage')
+    expect(payload).not.toHaveProperty('lieu')
+    expect(payload).not.toHaveProperty('duree')
     expect(wrapper.emitted('success')).toBeTruthy()
   })
 
@@ -191,6 +202,10 @@ describe('MissionForm — UGC integration', () => {
       montant_remuneration: 15000,
     })
     expect(payload).not.toHaveProperty('budget')
+    // Champs de tournage jamais envoyés pour l'UGC (D-8.1.e, AC2)
+    expect(payload).not.toHaveProperty('date_tournage')
+    expect(payload).not.toHaveProperty('lieu')
+    expect(payload).not.toHaveProperty('duree')
   })
 
   it('8. mode create type standard : pas de champs UGC, CTA "Publier la mission", budget présent', () => {

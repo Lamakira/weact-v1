@@ -210,19 +210,17 @@ const pricingHint = computed(() => {
 })
 
 const onSubmit = handleSubmit(async (values) => {
-  // Base payload WITHOUT budget (added conditionally below — budget is server-derived for UGC, D-1.4.d)
+  // Base payload WITHOUT budget ni champs de tournage (ajoutés conditionnellement ci-dessous —
+  // budget dérivé serveur + date/lieu/durée masqués pour l'UGC, D-1.4.d / D-8.1.e)
   const data: CreateMissionData = {
     titre: values.titre,
     description: values.description,
-    date_tournage: values.date_tournage,
     profil_recherche: values.profil_recherche,
     date_limite_candidature: values.date_limite_candidature,
     nombre_faces_voulu: values.nombre_faces_voulu,
     type_mission: values.type_mission as CreateMissionData['type_mission'],
     type_mission_autre: values.type_mission_autre || undefined,
     genre_voulu: values.genre_voulu as CreateMissionData['genre_voulu'],
-    lieu: values.lieu,
-    duree: values.duree,
   }
 
   if (values.type_mission === 'ugc') {
@@ -235,6 +233,9 @@ const onSubmit = handleSubmit(async (values) => {
     }
   } else {
     data.budget = values.budget as number // Validated by schema before submit
+    data.date_tournage = values.date_tournage
+    data.lieu = values.lieu
+    data.duree = values.duree
   }
 
   // In edit mode, emit the data to parent for handling
@@ -505,8 +506,9 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Lieu -->
+        <!-- Lieu (masqué pour l'UGC : dotation sans tournage — D-8.1.e) -->
         <FloatingSelect
+          v-if="!isUgc"
           id="lieu"
           v-model="lieu"
           label="Lieu du tournage"
@@ -517,8 +519,8 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
           data-testid="lieu-select"
         />
 
-        <!-- Durée -->
-        <div>
+        <!-- Durée (masquée pour l'UGC : dotation sans tournage — D-8.1.e) -->
+        <div v-if="!isUgc">
           <FloatingSelect
             id="duree_preset"
             v-model="selectedDureePreset"
@@ -549,8 +551,9 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
           </template>
         </div>
 
-        <!-- Date de tournage -->
+        <!-- Date de tournage (masquée pour l'UGC : dotation sans tournage — D-8.1.e) -->
         <FloatingField
+          v-if="!isUgc"
           id="date_tournage"
           v-model="date_tournage"
           type="date"

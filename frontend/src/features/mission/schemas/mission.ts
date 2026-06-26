@@ -20,8 +20,7 @@ export const missionSchema = z
       .min(1, 'La description est obligatoire'),
 
     date_tournage: z
-      .string({ message: 'La date de tournage est obligatoire' })
-      .min(1, 'La date de tournage est obligatoire'),
+      .string({ message: 'La date de tournage est obligatoire' }),
 
     profil_recherche: z
       .string({ message: 'Le profil recherché est obligatoire' })
@@ -68,12 +67,10 @@ export const missionSchema = z
 
     lieu: z
       .string({ message: 'Le lieu est obligatoire' })
-      .min(1, 'Le lieu est obligatoire')
       .max(150, 'Le lieu ne peut pas dépasser 150 caractères'),
 
     duree: z
       .string({ message: 'La durée est obligatoire' })
-      .min(1, 'La durée est obligatoire')
       .max(100, 'La durée ne peut pas dépasser 100 caractères'),
 
     // --- Champs UGC (optionnels au niveau objet ; requis conditionnellement via refines) ---
@@ -125,6 +122,29 @@ export const missionSchema = z
     {
       message: 'Le budget est obligatoire',
       path: ['budget'],
+    },
+  )
+  // Champs de tournage (date/lieu/durée) requis seulement pour les types standard
+  // (une mission UGC est une dotation sans tournage — D-8.1.d)
+  .refine(
+    (d) => d.type_mission === 'ugc' || d.date_tournage.trim().length >= 1,
+    {
+      message: 'La date de tournage est obligatoire',
+      path: ['date_tournage'],
+    },
+  )
+  .refine(
+    (d) => d.type_mission === 'ugc' || d.lieu.trim().length >= 1,
+    {
+      message: 'Le lieu est obligatoire',
+      path: ['lieu'],
+    },
+  )
+  .refine(
+    (d) => d.type_mission === 'ugc' || d.duree.trim().length >= 1,
+    {
+      message: 'La durée est obligatoire',
+      path: ['duree'],
     },
   )
   // --- Refines UGC (gardés par type_mission === 'ugc') ---

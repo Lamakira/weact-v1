@@ -42,6 +42,12 @@ class StoreMissionRequest extends FormRequest
         if ($this->input('type_mission') === MissionType::Ugc->value) {
             unset($rules['budget']); // dérivé serveur (montant_remuneration / 0) — D-1.3.b
 
+            // Une mission UGC (dotation) n'a ni date, ni durée, ni lieu de tournage → on relâche
+            // ces champs en nullable POUR L'UGC (le trait partagé MissionValidationRules reste strict).
+            $rules['date_tournage'] = ['nullable', 'date', 'after:date_limite_candidature'];
+            $rules['lieu'] = ['nullable', 'string', 'max:150'];
+            $rules['duree'] = ['nullable', 'string', 'max:100'];
+
             $rules['type_compensation'] = ['required', Rule::in(CompensationType::values())];
             $rules['nom_produit'] = ['required', 'string', 'max:255'];
             $rules['valeur_produit'] = ['required', 'integer', 'min:1', 'max:4294967295'];

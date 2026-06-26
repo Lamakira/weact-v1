@@ -124,7 +124,7 @@ export interface Mission {
 export interface CreateMissionData {
   titre: string
   description: string
-  date_tournage: string
+  date_tournage?: string // optionnel : champ de tournage masqué pour l'UGC (D-8.1.d) ; requis pour les types standard
   profil_recherche: string
   budget?: number // optionnel : dérivé serveur pour l'UGC (D-1.4.d) ; requis pour les types standard
   date_limite_candidature: string
@@ -132,8 +132,8 @@ export interface CreateMissionData {
   type_mission: MissionTypeType | 'ugc' // 'ugc' n'est PAS ajouté à l'enum/labels partagés (D-1.4.b)
   type_mission_autre?: string
   genre_voulu: MissionGenderType
-  lieu: string
-  duree: string
+  lieu?: string // optionnel : champ de tournage masqué pour l'UGC (D-8.1.d) ; requis pour les types standard
+  duree?: string // optionnel : champ de tournage masqué pour l'UGC (D-8.1.d) ; requis pour les types standard
   // UGC dotation (envoyés uniquement quand type_mission === 'ugc')
   type_compensation?: 'product' | 'hybrid'
   nom_produit?: string

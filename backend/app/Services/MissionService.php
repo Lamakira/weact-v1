@@ -87,7 +87,7 @@ class MissionService
         $mission = $producer->missions()->create([
             'titre' => $data['titre'],
             'description' => $data['description'],
-            'date_tournage' => $data['date_tournage'],
+            'date_tournage' => null, // dotation UGC : pas de tournage (invariant serveur, même si input forgé)
             'profil_recherche' => $data['profil_recherche'],
             'budget' => $montantRemuneration,                     // D-1.3.b : dérivé (0 si produit seul)
             'date_limite_candidature' => $data['date_limite_candidature'],
@@ -95,8 +95,8 @@ class MissionService
             'type_mission' => MissionType::Ugc->value,
             'type_mission_autre' => null,
             'genre_voulu' => $data['genre_voulu'],
-            'lieu' => $data['lieu'],
-            'duree' => $data['duree'],
+            'lieu' => null, // dotation UGC : pas de lieu de tournage (invariant serveur)
+            'duree' => null, // dotation UGC : pas de durée de tournage (invariant serveur)
             'status' => MissionStatus::PendingPayment,            // D-1.3.d : PAS Published
             'type_compensation' => $compensation,
             'nom_produit' => $data['nom_produit'],

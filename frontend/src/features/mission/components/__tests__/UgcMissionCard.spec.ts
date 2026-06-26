@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { MapPin } from 'lucide-vue-next'
 import UgcMissionCard from '../UgcMissionCard.vue'
 import type { Mission, UgcMissionTeaser } from '../../types'
 
@@ -99,6 +100,18 @@ describe('UgcMissionCard', () => {
     expect(text).toContain('Maison Kéwé')
     expect(wrapper.find('[data-testid="ugc-card-producer"]').exists()).toBe(true)
     expect(text).toContain('Produit + Argent')
+  })
+
+  it('hides the location pin when lieu is null (UGC dotation has no shoot location — ugc-8-1)', () => {
+    // Depuis ugc-8-1, lieu est nulle sur 100% des missions UGC (migration + service hardcode null).
+    // Le runtime renvoie donc null bien que le type teaser annonce string (mismatch suivi en defer F2).
+    // Sans le v-if="item.lieu", la carte afficherait une épingle 📍 suivie d'un libellé vide.
+    const wrapper = mount(UgcMissionCard, {
+      props: { item: createEligibleMission({ lieu: null as unknown as string }), locked: false },
+    })
+
+    expect(wrapper.findComponent(MapPin).exists()).toBe(false)
+    expect(normalizedText(wrapper)).not.toContain('Cotonou')
   })
 
   it('shows "+ X FCFA" when montant_remuneration is set', () => {
