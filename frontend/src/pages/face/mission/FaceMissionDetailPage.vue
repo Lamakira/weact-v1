@@ -26,8 +26,8 @@ import { formatMissionDurationForDisplay } from '@/features/mission/constants/mi
 import { ApplyToMissionModal } from '@/features/candidature/components'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
-import { UgcEngagementModal, UgcFaceTrackingCard, ugcCandidatureTunnelStep, UGC_UNBOXING_DAYS } from '@/components/ugc'
-import { useCancelCandidature, useAcceptUgcDeal } from '@/features/candidature/composables'
+import { UgcFaceTrackingCard, ugcCandidatureTunnelStep, UGC_UNBOXING_DAYS } from '@/components/ugc'
+import { useCancelCandidature, useReconfirmCandidature } from '@/features/candidature/composables'
 import { authApi } from '@/features/auth/services/authApi'
 import type { Face } from '@/features/auth/types'
 import { useToast } from '@/composables/useToast'
@@ -75,14 +75,13 @@ const {
 } = useCancelCandidature()
 const showCancelModal = ref(false)
 
-// Acceptation directe UGC (2.4) — la candidature atterrit `confirmed`.
-const showEngagementModal = ref(false)
+// Reconfirmation UGC (8-3, D-8.3.d) — la candidature `accepted` repasse `confirmed`
+// via l'endpoint dédié /face/candidatures/{id}/reconfirm (séparé du confirm cash).
 const {
-  isAccepting: isAcceptingUgc,
-  error: acceptError,
-  errorCode: acceptErrorCode,
-  acceptUgcMission,
-} = useAcceptUgcDeal()
+  isReconfirming,
+  error: reconfirmError,
+  reconfirmCandidature,
+} = useReconfirmCandidature()
 
 // Candidature engagée : la Face a accepté le deal (bandeau sans CTA ni annulation).
 const ugcEngaged = computed(() =>
@@ -115,11 +114,10 @@ const {
   uploadDeliverable,
 } = useUgcDeliverable()
 
-// CTA sticky : UGC publié acceptant les candidatures, sans candidature ou avec candidature pending.
-const canAcceptUgc = computed(() =>
-  isUgc.value
-  && (mission.value?.is_accepting_candidatures ?? false)
-  && (!candidature.value || candidature.value.status === 'pending'),
+// CTA « Reconfirmer ma participation » : candidature UGC `accepted` (8-3, D-8.3.d).
+// Mutuellement exclusif avec « Annuler » (pending-only).
+const canReconfirmUgc = computed(
+  () => isUgc.value && candidature.value?.status === 'accepted',
 )
 
 // Email verification resend state
@@ -380,31 +378,19 @@ async function handleUploadDeliverable(file: File): Promise<void> {
 }
 
 /**
- * UGC DIRECT ACCEPTANCE (2.4)
+ * UGC RECONFIRMATION (8-3, D-8.3.d/f) — accepted → confirmed.
  */
-async function handleEngagementConfirm(): Promise<void> {
-  if (!missionId.value) return
-  const result = await acceptUgcMission(missionId.value)
-  showEngagementModal.value = false
+async function handleReconfirm(): Promise<void> {
+  if (!candidature.value || !missionId.value) return
 
+  const result = await reconfirmCandidature(candidature.value.id)
   if (result) {
-    setCandidature(result)
-    toast.success('Mission acceptée — votre engagement est enregistré')
+    toast.success('Participation reconfirmée — le producteur va expédier votre produit')
+    await fetchMission(missionId.value) // D-8.3.f : refetch (pas setCandidature)
     return
   }
 
-  if (acceptErrorCode.value === 'UGC_SUBSCRIPTION_REQUIRED') {
-    toast.info(acceptError.value || "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus).")
-    router.replace({ name: 'pricing' })
-    return
-  }
-
-  toast.error(acceptError.value || "Impossible d'accepter cette mission.")
-  if (['MISSION_FULL', 'MISSION_CLOSED', 'ALREADY_ACCEPTED'].includes(acceptErrorCode.value ?? '')) {
-    // Resynchronise statut/capacité/candidature (la mission a pu se clore,
-    // ou l'acceptation a déjà eu lieu dans un autre onglet).
-    await fetchMission(missionId.value)
-  }
+  toast.error(reconfirmError.value || 'Impossible de reconfirmer votre participation.')
 }
 
 /**
@@ -728,6 +714,18 @@ onMounted(() => {
             <span class="text-xs opacity-75">({{ candidature?.status_label }})</span>
           </div>
           <button
+            v-if="canReconfirmUgc"
+            type="button"
+            data-testid="ugc-reconfirm-btn"
+            class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="isReconfirming"
+            @click="handleReconfirm"
+          >
+            <Loader2 v-if="isReconfirming" class="h-4 w-4 animate-spin" />
+            <CheckCircle v-else class="h-4 w-4" />
+            {{ isReconfirming ? 'Confirmation...' : 'Reconfirmer ma participation' }}
+          </button>
+          <button
             v-if="canCancelCandidature"
             type="button"
             class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-6 min-[376px]:px-8 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -846,9 +844,9 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- State 5: Can Apply (jamais pour l'UGC — acceptation directe via la barre sticky, 2.4) -->
+        <!-- State 5: Can Apply (UGC compris — postule comme un standard, 8-3 D-8.3.e) -->
         <button
-          v-else-if="mission.is_accepting_candidatures && !isUgc"
+          v-else-if="mission.is_accepting_candidatures"
           type="button"
           class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 min-[376px]:px-8 py-3 text-sm min-[376px]:text-base font-semibold text-white transition-colors hover:bg-primary/90"
           @click="openApplyModal"
@@ -866,33 +864,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Sticky CTA: acceptation directe UGC (écran 7A, 2.4) -->
-      <div
-        v-if="canAcceptUgc && canApply && !isGenderContextUnknown && !isGenderMismatch"
-        class="sticky bottom-0 z-10 -mx-4 border-t border-gray-100 bg-white px-4 py-3"
-        data-testid="ugc-accept-sticky"
-      >
-        <button
-          type="button"
-          class="w-full rounded-lg bg-primary py-3 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-          :disabled="isAcceptingUgc"
-          @click="showEngagementModal = true"
-        >
-          Accepter cette mission
-        </button>
-      </div>
     </div>
-
-    <!-- UGC Engagement Modal (2.4) -->
-    <UgcEngagementModal
-      v-if="mission"
-      :is-open="showEngagementModal"
-      :nombre-videos="mission.nombre_videos"
-      :nom-produit="mission.nom_produit"
-      :is-submitting="isAcceptingUgc"
-      @confirm="handleEngagementConfirm"
-      @cancel="showEngagementModal = false"
-    />
 
     <!-- Apply Modal -->
     <ApplyToMissionModal

@@ -15,6 +15,10 @@ const mockRefresh = vi.fn()
 const mockConfirmShipment = vi.fn()
 const mockShipmentError = ref<string | null>(null)
 const mockShipmentErrorCode = ref<string | null>(null)
+const mockAcceptCandidature = vi.fn()
+const mockAcceptError = ref<string | null>(null)
+const mockAcceptErrorCode = ref<string | null>(null)
+const mockAcceptSuccessMessage = ref<string | null>(null)
 
 vi.mock('@/composables/useUgcShipment', () => ({
   useUgcShipment: () => ({
@@ -59,6 +63,13 @@ vi.mock('../../composables', () => ({
     rejectCandidature: vi.fn(),
     reset: vi.fn(),
   }),
+  useAcceptCandidature: () => ({
+    error: mockAcceptError,
+    errorCode: mockAcceptErrorCode,
+    successMessage: mockAcceptSuccessMessage,
+    acceptCandidature: mockAcceptCandidature,
+    reset: vi.fn(),
+  }),
 }))
 
 vi.mock('@/features/mission/composables', () => ({
@@ -91,6 +102,10 @@ describe('ProducerCandidaturesSection', () => {
     mockConfirmShipment.mockReset()
     mockShipmentError.value = null
     mockShipmentErrorCode.value = null
+    mockAcceptCandidature.mockReset()
+    mockAcceptError.value = null
+    mockAcceptErrorCode.value = null
+    mockAcceptSuccessMessage.value = null
   })
 
   it('keeps selection controls visible for the FIX-19.3 retry flow on pending missions', () => {
@@ -198,6 +213,87 @@ describe('ProducerCandidaturesSection', () => {
       // D-3.2.e : toast info + fermeture + refresh (la liste refetchée porte le shipment).
       expect(mockRefresh).toHaveBeenCalledTimes(1)
       expect(wrapper.find('[data-testid="shipment-modal"]').exists()).toBe(false)
+    })
+  })
+
+  describe('UGC accept (8.3)', () => {
+    const ProducerCandidatureCardStub = {
+      name: 'ProducerCandidatureCard',
+      template: '<div class="producer-candidature-card-stub"></div>',
+      props: ['candidature', 'selectionMode', 'isSelected', 'isUgcMission', 'ugcCompensationType'],
+      emits: ['reject', 'accept', 'toggle-selection', 'confirm-shipment'],
+      methods: {
+        resetRejecting() {},
+        resetAccepting() {},
+      },
+    }
+
+    function mountUgcProductSection() {
+      return shallowMount(ProducerCandidaturesSection, {
+        props: {
+          missionId: 'mission-uuid-under-test',
+          missionBudget: 0,
+          missionStatus: 'published',
+          isUgcMission: true,
+          ugcCompensationType: 'product',
+        },
+        global: {
+          stubs: {
+            Teleport: true,
+            ProducerCandidatureCard: ProducerCandidatureCardStub,
+          },
+        },
+      })
+    }
+
+    it('disables the cash selection panel on a UGC product-only mission (selection-mode off)', () => {
+      const wrapper = mountUgcProductSection()
+
+      expect(wrapper.text()).not.toContain('Sélectionnez les faces à retenir')
+      expect(wrapper.find('mission-selection-summary-stub').exists()).toBe(false)
+    })
+
+    it('accepts a candidature and refreshes the list when a card emits accept', async () => {
+      mockAcceptCandidature.mockResolvedValue({ data: { id: 'cand-1' }, message: 'Candidature acceptée' })
+      const wrapper = mountUgcProductSection()
+
+      wrapper.findComponent(ProducerCandidatureCardStub).vm.$emit('accept', 'cand-1')
+      await flushPromises()
+
+      expect(mockAcceptCandidature).toHaveBeenCalledWith('cand-1')
+      expect(mockRefresh).toHaveBeenCalledTimes(1)
+    })
+
+    it('refreshes the list when an accept fails with MISSION_FULL (capacity resync, AC9)', async () => {
+      mockAcceptCandidature.mockImplementation(async () => {
+        mockAcceptError.value = 'Toutes les places de cette mission sont déjà pourvues.'
+        mockAcceptErrorCode.value = 'MISSION_FULL'
+        return null
+      })
+      const wrapper = mountUgcProductSection()
+
+      wrapper.findComponent(ProducerCandidatureCardStub).vm.$emit('accept', 'cand-1')
+      await flushPromises()
+
+      expect(mockAcceptCandidature).toHaveBeenCalledWith('cand-1')
+      // AC9 : sur MISSION_FULL la liste est rafraîchie (resync capacité / auto-clôture).
+      expect(mockRefresh).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not refresh on a non-capacity accept error (the AC9 gate is real)', async () => {
+      mockAcceptCandidature.mockImplementation(async () => {
+        mockAcceptError.value = "Vous n'êtes pas autorisé à effectuer cette action."
+        mockAcceptErrorCode.value = null // 403 ownership / autre — hors MISSION_FULL/ALREADY_ACCEPTED
+        return null
+      })
+      const wrapper = mountUgcProductSection()
+
+      wrapper.findComponent(ProducerCandidatureCardStub).vm.$emit('accept', 'cand-1')
+      await flushPromises()
+
+      expect(mockAcceptCandidature).toHaveBeenCalledWith('cand-1')
+      // Sans gate, ce test échouerait : le refresh ne doit PAS partir sur une erreur non-capacité.
+      expect(mockRefresh).not.toHaveBeenCalled()
     })
   })
 })

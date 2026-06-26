@@ -32,19 +32,6 @@ export const candidatureApi = {
   },
 
   /**
-   * Accept a UGC mission directly (Face only — UGC 2.4)
-   * The candidature lands "confirmed" (created or transitioned from "pending")
-   * @param missionId The UGC mission ID to accept
-   * @returns Candidature data with success message
-   */
-  async acceptUgcMission(missionId: string): Promise<CandidatureResponse> {
-    const response = await apiClient.post<CandidatureResponse>(
-      `/face/missions/${missionId}/accept`,
-    )
-    return response.data
-  },
-
-  /**
    * Get paginated list of Face's candidatures
    * @param page Page number (default 1)
    * @param status Optional status filter
@@ -117,6 +104,20 @@ export const candidatureApi = {
   },
 
   /**
+   * Accept a candidature (Producer only — UGC product-only, 8-2/8-3)
+   * Changes candidature status from "pending" to "accepted" (no payment for
+   * product-only; the hybrid FedaPay overlay is deferred to 8-5).
+   * @param candidatureId The candidature ID to accept
+   * @returns Updated candidature data with success message
+   */
+  async acceptCandidature(candidatureId: string): Promise<CandidatureResponse> {
+    const response = await apiClient.post<CandidatureResponse>(
+      `/producer/candidatures/${candidatureId}/accept`,
+    )
+    return response.data
+  },
+
+  /**
    * Confirme l'expédition vers une Face engagée — candidature confirmée d'une
    * mission UGC (Producteur, 3.2). Un shipment PAR candidature (D-3.1.d).
    */
@@ -140,6 +141,20 @@ export const candidatureApi = {
   async confirmCandidature(candidatureId: string): Promise<CandidatureResponse> {
     const response = await apiClient.post<CandidatureResponse>(
       `/face/candidatures/${candidatureId}/confirm`,
+    )
+    return response.data
+  },
+
+  /**
+   * Reconfirm participation on a UGC mission (Face only — 8-2/8-3)
+   * Changes candidature status from "accepted" to "confirmed". Separate path
+   * from the cash `confirm` which requires a paid MissionPayment.
+   * @param candidatureId The candidature ID to reconfirm
+   * @returns Updated candidature data with success message
+   */
+  async reconfirmCandidature(candidatureId: string): Promise<CandidatureResponse> {
+    const response = await apiClient.post<CandidatureResponse>(
+      `/face/candidatures/${candidatureId}/reconfirm`,
     )
     return response.data
   },

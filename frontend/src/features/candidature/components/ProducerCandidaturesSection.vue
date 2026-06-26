@@ -9,7 +9,7 @@ import {
   Inbox,
   CheckSquare,
 } from 'lucide-vue-next'
-import { useProducerCandidatures, useRejectCandidature } from '../composables'
+import { useProducerCandidatures, useRejectCandidature, useAcceptCandidature } from '../composables'
 import { useMissionPayment } from '@/features/mission/composables'
 import ProducerCandidatureCard from './ProducerCandidatureCard.vue'
 import MissionSelectionSummary from '@/features/mission/components/MissionSelectionSummary.vue'
@@ -31,6 +31,7 @@ const props = defineProps<{
   allowRetrySelection?: boolean
   isUgcMission?: boolean
   ugcProductName?: string | null
+  ugcCompensationType?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -77,6 +78,17 @@ const {
 } = useRejectCandidature()
 
 /**
+ * Composable for accepting candidatures (UGC product-only, 8-3, D-8.3.b)
+ */
+const {
+  error: acceptError,
+  errorCode: acceptErrorCode,
+  successMessage: acceptSuccessMessage,
+  acceptCandidature,
+  reset: resetAccept,
+} = useAcceptCandidature()
+
+/**
  * Mission payment selection composable
  */
 const {
@@ -99,7 +111,9 @@ const {
  * selection.
  */
 const isSelectionMode = computed(
-  () => props.missionStatus === 'published' || props.allowRetrySelection === true
+  () =>
+    !props.isUgcMission &&
+    (props.missionStatus === 'published' || props.allowRetrySelection === true),
 )
 
 const toast = useToast()
@@ -127,6 +141,29 @@ async function handleReject(candidatureId: string): Promise<void> {
   }
 
   resetReject()
+}
+
+/**
+ * Handle accept candidature (UGC product-only, 8-3, D-8.3.b) — no payment step.
+ */
+async function handleAccept(candidatureId: string): Promise<void> {
+  const result = await acceptCandidature(candidatureId)
+
+  // Reset the card's loading state
+  cardRefs.value[candidatureId]?.resetAccepting()
+
+  if (result) {
+    toast.success(acceptSuccessMessage.value || 'Candidature acceptée')
+    await refresh()
+  } else {
+    toast.error(acceptError.value || "Erreur lors de l'acceptation")
+    // Resync capacity / auto-close on capacity errors (AC9)
+    if (['MISSION_FULL', 'ALREADY_ACCEPTED'].includes(acceptErrorCode.value ?? '')) {
+      await refresh()
+    }
+  }
+
+  resetAccept()
 }
 
 /**
@@ -362,7 +399,9 @@ onMounted(() => {
           :selection-mode="isSelectionMode"
           :is-selected="isSelected(candidature.id)"
           :is-ugc-mission="isUgcMission"
+          :ugc-compensation-type="ugcCompensationType"
           @reject="handleReject"
+          @accept="handleAccept"
           @toggle-selection="(id: string) => toggleSelection(id, candidature.face.display_name)"
           @confirm-shipment="openShipmentModal(candidature)"
         />

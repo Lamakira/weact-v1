@@ -65,12 +65,11 @@ vi.mock('@/features/mission/composables', () => ({
   }),
 }))
 
-// Mock du barrel candidature (2.4) — le mock remplace TOUT le module, donc il
-// doit fournir useCancelCandidature (importé par la page) EN PLUS de useAcceptUgcDeal.
-const mockIsAcceptingUgc = ref(false)
-const mockAcceptError = ref<string | null>(null)
-const mockAcceptErrorCode = ref<string | null>(null)
-const mockAcceptUgcMission = vi.fn()
+// Mock du barrel candidature (8-3) — le mock remplace TOUT le module, donc il
+// doit fournir useCancelCandidature (importé par la page) EN PLUS de useReconfirmCandidature.
+const mockIsReconfirming = ref(false)
+const mockReconfirmError = ref<string | null>(null)
+const mockReconfirmCandidature = vi.fn()
 const mockIsCancelling = ref(false)
 const mockCancelError = ref<string | null>(null)
 const mockCancelSuccessMessage = ref<string | null>(null)
@@ -78,11 +77,10 @@ const mockCancelCandidature = vi.fn()
 const mockResetCancel = vi.fn()
 
 vi.mock('@/features/candidature/composables', () => ({
-  useAcceptUgcDeal: () => ({
-    isAccepting: mockIsAcceptingUgc,
-    error: mockAcceptError,
-    errorCode: mockAcceptErrorCode,
-    acceptUgcMission: mockAcceptUgcMission,
+  useReconfirmCandidature: () => ({
+    isReconfirming: mockIsReconfirming,
+    error: mockReconfirmError,
+    reconfirmCandidature: mockReconfirmCandidature,
   }),
   useCancelCandidature: () => ({
     isCancelling: mockIsCancelling,
@@ -216,10 +214,9 @@ describe('FaceMissionDetailPage', () => {
     mockUgcPaywallMessage.value = null
     mockFetchMission.mockClear()
     mockSetCandidature.mockClear()
-    mockIsAcceptingUgc.value = false
-    mockAcceptError.value = null
-    mockAcceptErrorCode.value = null
-    mockAcceptUgcMission.mockReset()
+    mockIsReconfirming.value = false
+    mockReconfirmError.value = null
+    mockReconfirmCandidature.mockReset()
     mockIsCancelling.value = false
     mockCancelError.value = null
     mockCancelSuccessMessage.value = null
@@ -886,14 +883,7 @@ describe('FaceMissionDetailPage', () => {
     })
   })
 
-  describe('UGC acceptance', () => {
-    const UgcEngagementModalStub = {
-      name: 'UgcEngagementModal',
-      template: '<div data-testid="ugc-engagement-modal-stub"></div>',
-      props: ['isOpen', 'nombreVideos', 'nomProduit', 'isSubmitting'],
-      emits: ['confirm', 'cancel'],
-    }
-
+  describe('UGC candidature cycle (8.3)', () => {
     function makeCandidature(overrides: Partial<MissionCandidature> = {}): MissionCandidature {
       return {
         id: 'candidature-1',
@@ -931,7 +921,6 @@ describe('FaceMissionDetailPage', () => {
           ],
           stubs: {
             ApplyToMissionModal: true,
-            UgcEngagementModal: UgcEngagementModalStub,
             RatingDisplay: true,
             ConfirmModal: true,
             RouterLink: {
@@ -943,15 +932,14 @@ describe('FaceMissionDetailPage', () => {
       })
     }
 
-    it('shows the sticky accept CTA and never the apply button for an eligible UGC mission', async () => {
+    it('shows the apply button (no sticky CTA) for an eligible UGC mission without candidature', async () => {
       mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
 
       const wrapper = mountEligiblePage()
       await flushPromises()
 
-      expect(wrapper.find('[data-testid="ugc-accept-sticky"]').exists()).toBe(true)
-      expect(wrapper.text()).toContain('Accepter cette mission')
-      expect(wrapper.text()).not.toContain('Postuler à cette mission')
+      expect(wrapper.text()).toContain('Postuler à cette mission')
+      expect(wrapper.find('[data-testid="ugc-accept-sticky"]').exists()).toBe(false)
     })
 
     it('keeps the apply flow for standard missions without sticky CTA', async () => {
@@ -964,40 +952,32 @@ describe('FaceMissionDetailPage', () => {
       expect(wrapper.find('[data-testid="ugc-accept-sticky"]').exists()).toBe(false)
     })
 
-    it('opens the engagement modal when the sticky CTA is clicked', async () => {
+    it('shows the reconfirm CTA for an accepted UGC candidature and reconfirms + refetches on click', async () => {
       mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
-
-      const wrapper = mountEligiblePage()
-      await flushPromises()
-
-      const modal = wrapper.findComponent(UgcEngagementModalStub)
-      expect(modal.props('isOpen')).toBe(false)
-
-      await wrapper.find('[data-testid="ugc-accept-sticky"] button').trigger('click')
-      expect(modal.props('isOpen')).toBe(true)
-    })
-
-    it('calls acceptUgcMission on confirm and renders the engaged banner after setCandidature', async () => {
-      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
-      const confirmed = makeCandidature({ status: 'confirmed', status_label: 'Confirmée' })
-      mockAcceptUgcMission.mockResolvedValueOnce(confirmed)
-      mockSetCandidature.mockImplementationOnce((candidature: MissionCandidature) => {
-        mockCandidature.value = candidature
+      mockCandidature.value = makeCandidature({ status: 'accepted', status_label: 'Acceptée' })
+      mockReconfirmCandidature.mockResolvedValueOnce({
+        data: { id: 'candidature-1' },
+        message: 'Participation reconfirmée',
       })
 
       const wrapper = mountEligiblePage()
       await flushPromises()
+      mockFetchMission.mockClear()
 
-      wrapper.findComponent(UgcEngagementModalStub).vm.$emit('confirm')
+      const btn = wrapper.find('[data-testid="ugc-reconfirm-btn"]')
+      expect(btn.exists()).toBe(true)
+      // Pas de bouton Annuler (pending-only) ni de sticky auto-accept.
+      expect(wrapper.text()).not.toContain('Annuler ma candidature')
+      expect(wrapper.find('[data-testid="ugc-accept-sticky"]').exists()).toBe(false)
+
+      await btn.trigger('click')
       await flushPromises()
 
-      expect(mockAcceptUgcMission).toHaveBeenCalledWith('1')
-      expect(mockSetCandidature).toHaveBeenCalledWith(confirmed)
-      expect(mockToast.success).toHaveBeenCalledWith('Mission acceptée — votre engagement est enregistré')
-
-      const banner = wrapper.find('[data-testid="ugc-engaged-banner"]')
-      expect(banner.exists()).toBe(true)
-      expect(banner.text()).toContain('Mission acceptée')
+      expect(mockReconfirmCandidature).toHaveBeenCalledWith('candidature-1')
+      expect(mockToast.success).toHaveBeenCalledWith(
+        'Participation reconfirmée — le producteur va expédier votre produit',
+      )
+      expect(mockFetchMission).toHaveBeenCalledWith('1')
     })
 
     it('renders the engaged banner without CTA nor cancel for a confirmed candidature', async () => {
@@ -1012,35 +992,19 @@ describe('FaceMissionDetailPage', () => {
       expect(wrapper.text()).not.toContain('Annuler ma candidature')
     })
 
-    it('keeps the sticky CTA for a pending UGC candidature', async () => {
+    it('shows "Candidature envoyée" + cancel (no sticky, no reconfirm) for a pending UGC candidature', async () => {
       mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
       mockCandidature.value = makeCandidature({ status: 'pending', status_label: 'En attente' })
 
       const wrapper = mountEligiblePage()
       await flushPromises()
 
-      expect(wrapper.find('[data-testid="ugc-accept-sticky"]').exists()).toBe(true)
-      expect(wrapper.find('[data-testid="ugc-engaged-banner"]').exists()).toBe(false)
+      expect(wrapper.text()).toContain('Candidature envoyée')
+      expect(wrapper.text()).toContain('Annuler ma candidature')
+      expect(wrapper.find('[data-testid="ugc-accept-sticky"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="ugc-reconfirm-btn"]').exists()).toBe(false)
     })
 
-    it('shows an error toast and refetches the mission on MISSION_FULL', async () => {
-      mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
-      mockAcceptUgcMission.mockImplementationOnce(async () => {
-        mockAcceptError.value = 'Toutes les places de cette mission sont déjà pourvues.'
-        mockAcceptErrorCode.value = 'MISSION_FULL'
-        return null
-      })
-
-      const wrapper = mountEligiblePage()
-      await flushPromises()
-      mockFetchMission.mockClear()
-
-      wrapper.findComponent(UgcEngagementModalStub).vm.$emit('confirm')
-      await flushPromises()
-
-      expect(mockToast.error).toHaveBeenCalledWith('Toutes les places de cette mission sont déjà pourvues.')
-      expect(mockFetchMission).toHaveBeenCalledWith('1')
-    })
   })
 
   describe('carte de suivi Face & réception (story 3.4)', () => {

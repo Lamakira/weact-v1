@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Candidature;
 
 use App\Enums\CandidatureStatus;
+use App\Enums\CompensationType;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
@@ -75,6 +76,7 @@ class FaceViewCandidaturesTest extends TestCase
                             'date_tournage',
                             'lieu',
                             'budget',
+                            'type_compensation',
                         ],
                         'producer' => [
                             'id',
@@ -201,7 +203,31 @@ class FaceViewCandidaturesTest extends TestCase
             ->assertJsonPath('data.0.mission.id', $mission->uuid)
             ->assertJsonPath('data.0.mission.titre', 'Test Mission Title')
             ->assertJsonPath('data.0.mission.lieu', 'Cotonou')
-            ->assertJsonPath('data.0.mission.budget', 150000);
+            ->assertJsonPath('data.0.mission.budget', 150000)
+            // Mission standard (cash) → type_compensation null (D-8.3.a discriminant)
+            ->assertJsonPath('data.0.mission.type_compensation', null);
+    }
+
+    public function test_ugc_mission_candidature_exposes_product_compensation_type(): void
+    {
+        // Branche PORTEUSE du discriminant (D-8.3.a) : une mission UGC produit-seul
+        // doit sérialiser type_compensation = 'product' (et pas seulement le null du cas cash) —
+        // verrouille la nouvelle ligne resource `$mission?->type_compensation?->value`.
+        $mission = Mission::factory()
+            ->for($this->producer)
+            ->published()
+            ->create(['type_compensation' => CompensationType::Product]);
+
+        Candidature::factory()
+            ->for($this->face)
+            ->for($mission)
+            ->create();
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/candidatures');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.0.mission.type_compensation', 'product');
     }
 
     public function test_candidatures_include_producer_data(): void

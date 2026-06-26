@@ -65,9 +65,16 @@ export interface ApplyToMissionResult {
 export interface MissionSummary {
   id: string
   titre: string
-  date_tournage: string
-  lieu: string
+  date_tournage: string | null // null pour l'UGC (champs tournage masqués, ugc-8-1)
+  lieu: string | null // idem
   budget: number
+  /**
+   * Discriminant UGC (D-8.3.a) : absent/null = standard, 'product'|'hybrid' = UGC.
+   * Optionnel volontairement : le backend l'envoie toujours (null pour le cash),
+   * mais l'optionalité évite de casser les fixtures `FaceCandidature` des specs
+   * existants — le runtime `!= null` traite absent ET null comme cash.
+   */
+  type_compensation?: string | null
 }
 
 // Producer summary for candidature list (nested in FaceCandidature)

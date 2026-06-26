@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, X, Loader2, CheckSquare, Square, Truck } from 'lucide-vue-next'
+import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, X, Loader2, CheckSquare, Square, Truck, Check } from 'lucide-vue-next'
 import type { ProducerCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
 import WBadge from '@/components/ui/WBadge.vue'
@@ -15,6 +15,7 @@ const props = defineProps<{
   selectionMode?: boolean
   isSelected?: boolean
   isUgcMission?: boolean
+  ugcCompensationType?: string | null
 }>()
 
 /**
@@ -22,22 +23,37 @@ const props = defineProps<{
  */
 const emit = defineEmits<{
   reject: [candidatureId: string]
+  accept: [candidatureId: string]
   'toggle-selection': [candidatureId: string]
   'confirm-shipment': []
 }>()
 
 /**
- * Local state for reject button / confirmation dialog
+ * Local state for reject / accept buttons + confirmation dialog
  */
 const isRejecting = ref(false)
+const isAccepting = ref(false)
 const showRejectConfirmation = ref(false)
 
 /**
- * Computed: Can show reject button (only for pending candidatures outside selection mode).
- * Acceptation is now exclusively handled through the paid selection workflow —
- * there is no manual accept button on this card.
+ * Computed: Can take action (reject) — only for pending candidatures outside selection mode.
+ * For cash missions, acceptation stays handled through the paid selection workflow.
+ * For UGC product-only missions (8-3, D-8.3.b/c) a manual "Accepter" button is shown
+ * below (free, individual, never the cash selection-mode); the hybrid accept lands in 8-5.
  */
 const canTakeAction = computed(() => props.candidature.status === 'pending')
+
+/**
+ * Computed: Can show the UGC "Accepter" button — product-only, pending, outside
+ * selection mode (D-8.3.b/c). Hybrid missions get no accept button here (deferred 8-5).
+ */
+const canAcceptUgc = computed(
+  () =>
+    props.isUgcMission === true &&
+    props.ugcCompensationType === 'product' &&
+    props.candidature.status === 'pending' &&
+    !props.selectionMode,
+)
 
 /**
  * Computed: Can show chat button (accepted, confirmed, in_progress, completed + has conversation)
@@ -101,9 +117,26 @@ function resetRejecting(): void {
 }
 
 /**
+ * Handle UGC accept (8-3) — guarded against double-clicks; emits to the parent
+ * section which owns the API call + refresh.
+ */
+function handleAccept(): void {
+  if (isAccepting.value) return
+  isAccepting.value = true
+  emit('accept', props.candidature.id)
+}
+
+/**
+ * Reset accepting state (called from parent after API response)
+ */
+function resetAccepting(): void {
+  isAccepting.value = false
+}
+
+/**
  * Expose methods for parent component
  */
-defineExpose({ resetRejecting })
+defineExpose({ resetRejecting, resetAccepting })
 
 /**
  * Computed: Status badge class
@@ -319,8 +352,20 @@ const categoryLabel = computed(() => {
 
     <!-- Actions -->
     <div class="mt-4 flex items-center justify-between gap-3">
-      <!-- Reject Button (only for pending and NOT in selection mode) -->
+      <!-- Accept (UGC product-only, 8-3) + Reject buttons (pending, outside selection mode) -->
       <div v-if="canTakeAction && !selectionMode" class="flex gap-2">
+        <button
+          v-if="canAcceptUgc"
+          type="button"
+          data-testid="accept-candidature-btn"
+          class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="isAccepting"
+          @click="handleAccept"
+        >
+          <Loader2 v-if="isAccepting" class="h-4 w-4 animate-spin" />
+          <Check v-else class="h-4 w-4" />
+          {{ isAccepting ? 'Acceptation...' : 'Accepter' }}
+        </button>
         <button
           type="button"
           class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"

@@ -42,6 +42,7 @@ class FaceCandidatureResource extends JsonResource
                 'date_tournage' => $mission?->date_tournage?->format('Y-m-d'),
                 'lieu' => $mission?->lieu,
                 'budget' => $mission?->budget,
+                'type_compensation' => $mission?->type_compensation?->value,
             ]),
             'producer' => $this->when(
                 $mission !== null && $mission->relationLoaded('producer') && $producer !== null,

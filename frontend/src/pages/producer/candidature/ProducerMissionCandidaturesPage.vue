@@ -304,6 +304,7 @@ onUnmounted(() => {
         :nombre-faces-voulu="mission.nombre_faces_voulu"
         :allow-retry-selection="mission.status === 'pending_payment' && paymentInitializationFailed"
         :is-ugc-mission="isUgcMission(mission)"
+        :ugc-compensation-type="mission.type_compensation"
         :ugc-product-name="mission.nom_produit"
         @selection-confirmed="handleSelectionConfirmed"
         @selection-failed="handleSelectionFailed"

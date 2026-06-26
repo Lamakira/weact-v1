@@ -162,4 +162,46 @@ describe('ProducerCandidatureCard', () => {
       expect(tracking.text()).toContain('Gozem · GZM-COT-882194')
     })
   })
+
+  describe('UGC accept (8.3)', () => {
+    function mountCard(isUgcMission?: boolean, ugcCompensationType?: string | null) {
+      return mount(ProducerCandidatureCard, {
+        props: {
+          candidature: pendingCandidature,
+          isUgcMission,
+          ugcCompensationType,
+        },
+        global: {
+          stubs: {
+            RouterLink: { template: '<a><slot /></a>', props: ['to'] },
+            Teleport: true,
+          },
+        },
+      })
+    }
+
+    it('shows the "Accepter" button for a product-only UGC pending candidature and emits accept on click', async () => {
+      const wrapper = mountCard(true, 'product')
+
+      const acceptBtn = wrapper.find('[data-testid="accept-candidature-btn"]')
+      expect(acceptBtn.exists()).toBe(true)
+
+      await acceptBtn.trigger('click')
+      expect(wrapper.emitted('accept')).toHaveLength(1)
+      expect(wrapper.emitted('accept')?.[0]).toEqual(['cand-1'])
+    })
+
+    it('does not show the "Accepter" button on a hybrid UGC mission (AC10, deferred 8-5)', () => {
+      const wrapper = mountCard(true, 'hybrid')
+
+      expect(wrapper.find('[data-testid="accept-candidature-btn"]').exists()).toBe(false)
+    })
+
+    it('keeps the "Refuser" button available for a product-only UGC pending candidature', () => {
+      const wrapper = mountCard(true, 'product')
+
+      const rejectButton = wrapper.findAll('button').find((btn) => btn.text().includes('Refuser'))
+      expect(rejectButton).toBeDefined()
+    })
+  })
 })
