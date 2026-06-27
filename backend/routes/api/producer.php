@@ -111,6 +111,11 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
     Route::post('/candidatures/{candidature}/accept', [CandidatureController::class, 'accept'])
         ->middleware('throttle:60,1');
 
+    // UGC : le Producteur libère manuellement une candidature acceptée jamais reconfirmée
+    // (ugc-9-1, D-9.1.h) — dénoue l'escrow hybride (refund), libère le slot, réouvre la mission.
+    Route::post('/candidatures/{candidature}/release', [CandidatureController::class, 'release'])
+        ->middleware('throttle:60,1');
+
     // UGC hybride : self-heal du paiement à l'acceptation (ugc-8-5). L'overlay du
     // Producteur poll ce statut ; le service re-vérifie FedaPay (résilience webhook,
     // comme les autres *payment-status). Garde ownership candidature→mission→producteur.

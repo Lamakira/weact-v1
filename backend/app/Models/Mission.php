@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Concerns\HasRouteUuid;
+use App\Enums\CandidatureStatus;
 use App\Enums\CompensationType;
 use App\Enums\MissionGender;
 use App\Enums\MissionStatus;
@@ -301,5 +302,25 @@ class Mission extends Model
     public function hasPendingPayment(): bool
     {
         return $this->status === MissionStatus::PendingPayment;
+    }
+
+    /**
+     * Count the candidatures that engage a slot of this mission's capacity (ugc-9-1, D-9.1.f).
+     *
+     * Engaged = accepted | confirmed | in_progress | completed — the same set
+     * duplicated inline at the accept / settlement / refund call-sites. The reopen
+     * helper (MissionPaymentService::reopenMissionIfSlotFreed) compares this count
+     * against `nombre_faces_voulu` to decide whether a freed slot reopens the mission.
+     */
+    public function engagedCandidaturesCount(): int
+    {
+        return $this->candidatures()
+            ->whereIn('status', [
+                CandidatureStatus::Accepted->value,
+                CandidatureStatus::Confirmed->value,
+                CandidatureStatus::InProgress->value,
+                CandidatureStatus::Completed->value,
+            ])
+            ->count();
     }
 }

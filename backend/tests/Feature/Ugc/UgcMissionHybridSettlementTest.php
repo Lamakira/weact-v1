@@ -427,10 +427,11 @@ class UgcMissionHybridSettlementTest extends TestCase
     {
         [$producer, $producerUser] = $this->makeProducerWithUser();
         [$face, $faceUser] = $this->makeSubscribedFace('elite');
-        $mission = $this->makePublishedHybridMission($producer);
+        $mission = $this->makePublishedHybridMission($producer); // nombre_faces_voulu = 1
         $candidature = $this->makePendingCandidature($mission, $face);
         $candidature->update(['status' => CandidatureStatus::Accepted]);
         $this->lockHybridEscrow($candidature);
+        $mission->update(['status' => MissionStatus::Closed]); // capacité atteinte (1/1)
 
         $before = (int) $producerUser->fresh()->balance;
 
@@ -446,6 +447,29 @@ class UgcMissionHybridSettlementTest extends TestCase
             'type' => 'refund',
             'amount' => 14250,
         ]);
+        // ugc-9-1 (D-9.1.k) : la décline rouvre le slot → mission Closed → Published.
+        $this->assertSame(MissionStatus::Published, $mission->fresh()->status);
+    }
+
+    public function test_face_cancel_pending_inflight_frees_slot(): void
+    {
+        // ugc-9-1 (D-9.1.j) : une candidature hybride Pending portant une entry escrow Pending
+        // in-flight — la Face annule → l'entry est supprimée (slot in-flight libéré) +
+        // candidature Cancelled, sans aucun mouvement d'argent.
+        [$producer] = $this->makeProducerWithUser();
+        [$face, $faceUser] = $this->makeSubscribedFace('elite');
+        $mission = $this->makePublishedHybridMission($producer);
+        $candidature = $this->makePendingCandidature($mission, $face);
+        $this->pendingHybridEscrow($candidature, txn: '8500');
+
+        $this->actingAs($faceUser)
+            ->postJson("/api/v1/face/candidatures/{$candidature->uuid}/cancel")
+            ->assertOk();
+
+        // Entry in-flight supprimée (slot libéré) + candidature Cancelled ; 0 mouvement d'argent.
+        $this->assertDatabaseMissing('mission_payment_candidatures', ['candidature_id' => $candidature->id]);
+        $this->assertSame(CandidatureStatus::Cancelled, $candidature->fresh()->status);
+        $this->assertSame(0, \App\Models\WalletTransaction::count());
     }
 
     public function test_suspension_refunds_producer_from_locked_escrow(): void

@@ -7,6 +7,7 @@ use App\Console\Commands\ExpireFaceSubscriptionsCommand;
 use App\Console\Commands\ExpireUnacceptedBookingsCommand;
 use App\Console\Commands\ExpireUnacceptedUgcDealsCommand;
 use App\Console\Commands\ExpireUnpaidBookingsCommand;
+use App\Console\Commands\ExpireUnreconfirmedUgcCandidaturesCommand;
 use App\Console\Commands\FailStalePendingFaceSubscriptionsCommand;
 use App\Console\Commands\ProcessUgcDeadlinesCommand;
 use App\Console\Commands\PurgeExpiredMediaCommand;
@@ -28,6 +29,9 @@ app(Schedule::class)->command(AutoCompleteBookingsCommand::class)->hourly();
 app(Schedule::class)->command(ExpireUnacceptedBookingsCommand::class)->hourly();
 app(Schedule::class)->command(ExpireUnpaidBookingsCommand::class)->hourly();
 app(Schedule::class)->command(ExpireUnacceptedUgcDealsCommand::class)->hourly();
+// ugc-9-1 (D-9.1.g) — dénoue les candidatures UGC acceptées jamais reconfirmées après
+// 48h (refund escrow hybride au Producteur, libère le slot, réouvre la mission).
+app(Schedule::class)->command(ExpireUnreconfirmedUgcCandidaturesCommand::class)->hourly();
 // 4.5 — relance d'escalade des deadlines d'upload Face (~15 min, NFR3/AR3).
 // Idempotente par shipments.last_notified_threshold ; withoutOverlapping en
 // défense supplémentaire (D-4.5.d).

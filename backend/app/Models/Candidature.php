@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
  * @property int $mission_id
  * @property string|null $message_motivation
  * @property \App\Enums\CandidatureStatus $status
+ * @property \Illuminate\Support\Carbon|null $accepted_at
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property-read \App\Models\Face|null $face
  * @property-read \App\Models\Mission|null $mission
@@ -54,6 +55,7 @@ class Candidature extends Model
         'mission_id',
         'message_motivation',
         'status',
+        'accepted_at',
     ];
 
     /**
@@ -65,6 +67,7 @@ class Candidature extends Model
     {
         return [
             'status' => CandidatureStatus::class,
+            'accepted_at' => 'datetime',
         ];
     }
 

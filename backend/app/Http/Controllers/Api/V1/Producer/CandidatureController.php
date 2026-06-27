@@ -189,7 +189,8 @@ class CandidatureController extends Controller
                 return ['outcome' => 'already'];
             }
 
-            $locked->update(['status' => CandidatureStatus::Accepted]);
+            // accepted_at (ugc-9-1, D-9.1.a) : ancre le sweep de reconfirmation 48h.
+            $locked->update(['status' => CandidatureStatus::Accepted, 'accepted_at' => now()]);
             Conversation::firstOrCreate(['candidature_id' => $locked->id]);
 
             if ($engagedCount + 1 >= $lockedMission->nombre_faces_voulu) {
@@ -252,6 +253,56 @@ class CandidatureController extends Controller
                 'Cette candidature a déjà été traitée.'
             ), 422),
         };
+    }
+
+    /**
+     * Release (unwind) an accepted UGC candidature's slot at the Producer's initiative (ugc-9-1, D-9.1.h).
+     *
+     * Frees a slot blocked by a Face who ghosted after acceptance: refunds the hybrid escrow
+     * to the Producer (net), cancels the candidature, reopens the mission if a slot is freed.
+     * The deadline sweep (ugc:expire-unreconfirmed-candidatures) does this automatically after
+     * 48h; this endpoint is the manual lever. Reuses MissionPaymentService::unwindUgcCandidatureSlot.
+     * Ownership-guarded (producer → mission → candidature, calque accept:87-99) and status-guarded
+     * (only `accepted`, 400 INVALID_STATUS — calque reject:321-327).
+     *
+     * POST /api/v1/producer/candidatures/{candidature}/release
+     */
+    public function release(Request $request, Candidature $candidature): JsonResponse
+    {
+        $user = $request->user();
+
+        // Verify user is a Producer
+        if ($user->userable_type !== Producer::class) {
+            abort(403, 'Accès réservé aux Producteurs');
+        }
+
+        $candidature->loadMissing('mission');
+
+        // Verify candidature's mission belongs to this Producer
+        if ($candidature->mission?->producer_id !== $user->userable->id) {
+            abort(403, 'Cette candidature ne concerne pas une de vos missions');
+        }
+
+        // Seule une candidature acceptée peut être libérée (escrow intact sinon).
+        if ($candidature->status !== CandidatureStatus::Accepted) {
+            return response()->json([
+                'error' => [
+                    'code' => 'INVALID_STATUS',
+                    'message' => 'Seule une candidature acceptée peut être libérée.',
+                ],
+            ], 400);
+        }
+
+        $this->missionPayments->unwindUgcCandidatureSlot($candidature, 'producer_released');
+
+        $fresh = $candidature->fresh() ?? $candidature;
+
+        return response()->json([
+            'data' => [
+                'candidature_status' => $fresh->status->value,
+                'message' => 'La place a été libérée et le règlement remboursé.',
+            ],
+        ]);
     }
 
     /**

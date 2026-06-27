@@ -54,4 +54,11 @@ return [
     // (ChronoBadge/ChronoRing : 0.4 ambre, 0.6 orange, 0.85 rouge ; teal = base, sans
     // notif). `shipments.last_notified_threshold` = nb de paliers déjà notifiés (0..N).
     'deadline_escalation_thresholds' => [0.4, 0.6, 0.85],
+    // Fenêtre de reconfirmation post-acceptation d'une candidature mission UGC (heures,
+    // ugc-9-1, D-9.1.b). Ancrée sur `candidatures.accepted_at`. Passé ce délai sans
+    // reconfirmation, le sweep `ugc:expire-unreconfirmed-candidatures` dénoue la
+    // candidature (refund escrow hybride au Producteur + libère le slot + réouverture).
+    // Fallback 48 en dur (calque ExpireUnacceptedUgcDealsCommand : une clé absente
+    // donnerait subHours(0) → cutoff = now() → balayage massif de tout l'encours).
+    'reconfirm_window_hours' => 48,
 ];

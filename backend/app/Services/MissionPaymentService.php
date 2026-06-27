@@ -967,7 +967,9 @@ class MissionPaymentService
                 return null;
             }
 
-            $lockedCandidature->update(['status' => CandidatureStatus::Accepted]);
+            // accepted_at (ugc-9-1, D-9.1.a/l) : ancre le sweep de reconfirmation 48h, posé au
+            // flip Accepted comme pour l'accept produit-seul (uniformité des deux compensations).
+            $lockedCandidature->update(['status' => CandidatureStatus::Accepted, 'accepted_at' => now()]);
             Conversation::firstOrCreate(['candidature_id' => $lockedCandidature->id]);
 
             $engagedCount = Candidature::query()
@@ -1066,7 +1068,11 @@ class MissionPaymentService
             return ['producerUserId' => $producerUserId, 'missionTitre' => $missionTitre];
         });
 
-        if ($notifyPayload === null) {
+        // ugc-9-1 (code-review D-9.1.i) : à la suppression de mission, le Producteur initie
+        // lui-même l'action — ne pas lui envoyer un « paiement échoué — réessayez de l'accepter »
+        // qui pointerait vers une mission qui n'existe plus. Toutes les autres raisons (webhook
+        // decline, poll FedaPay, décline/annulation Face, sweep, release) conservent la notif.
+        if ($notifyPayload === null || $reason === 'mission_deleted') {
             return;
         }
 
@@ -1193,6 +1199,114 @@ class MissionPaymentService
         }
 
         $this->refundToProducer($entry, $mission, $reason);
+    }
+
+    /**
+     * Dénoue une candidature mission UGC post-acceptation (ugc-9-1, D-9.1.d).
+     *
+     * Sous DB::transaction + lock candidature + lock mission : (1) dénouement argent —
+     * une entry escrow `Locked` est remboursée au Producteur (refundUgcCandidatureEscrow),
+     * une entry `Pending` in-flight est supprimée (markUgcMissionCandidatureFailed), un
+     * produit-seul sans entry = no-op argent ; (2) flip candidature → Cancelled ; (3)
+     * réouverture du slot (reopenMissionIfSlotFreed) ; (4) notifications Face (place libérée)
+     * + Producteur (remboursement — hybride uniquement, D-9.1.m).
+     *
+     * Idempotent : no-op + `false` si la candidature est déjà terminale
+     * (Cancelled/Rejected/Completed) — protège contre un double crédit sur re-run du sweep
+     * ou double-clic release. Réutilisé par le sweep deadline (D-9.1.g), le release
+     * Producteur (D-9.1.h) et la décline Face (D-9.1.k). Réutilise
+     * refundUgcCandidatureEscrow / markUgcMissionCandidatureFailed (8-4) — 0 réécriture.
+     *
+     * @return bool true ssi un dénouement effectif a eu lieu.
+     */
+    public function unwindUgcCandidatureSlot(Candidature $candidature, string $reason): bool
+    {
+        return DB::transaction(function () use ($candidature, $reason): bool {
+            /** @var Candidature $locked */
+            $locked = Candidature::query()->lockForUpdate()->findOrFail($candidature->id);
+
+            // Idempotence : candidature déjà dénouée / terminale → no-op (pas de double crédit).
+            if (in_array($locked->status, [
+                CandidatureStatus::Cancelled,
+                CandidatureStatus::Rejected,
+                CandidatureStatus::Completed,
+            ], true)) {
+                return false;
+            }
+
+            $locked->loadMissing('mission');
+            $mission = $locked->mission;
+
+            /** @var MissionPaymentCandidature|null $entry */
+            $entry = $locked->paymentEntry; // HasOne, parentless si hybride
+            $refundedAmount = null;
+
+            if ($entry !== null && $entry->escrow_status === EscrowStatus::Locked) {
+                // Hybride réglé : crédite le Producteur du net escrow, escrow Refunded.
+                $this->refundUgcCandidatureEscrow($locked, $reason);
+                $refundedAmount = (int) $entry->montant_face_recoit;
+            } elseif ($entry !== null && $entry->escrow_status === EscrowStatus::Pending) {
+                // Hybride in-flight : supprime l'entry → libère le slot in-flight.
+                $this->markUgcMissionCandidatureFailed($entry, $reason);
+            }
+            // Sinon (produit-seul / pas d'entry) : aucun mouvement d'argent.
+
+            $locked->update(['status' => CandidatureStatus::Cancelled]);
+
+            if ($mission instanceof Mission) {
+                /** @var Mission $lockedMission */
+                $lockedMission = Mission::query()->lockForUpdate()->findOrFail($mission->id);
+                $this->reopenMissionIfSlotFreed($lockedMission);
+
+                // Notifs (D-9.1.m). Ne PAS réutiliser candidature_reset_from_accepted (cash-only).
+                $this->notifySafely(
+                    userId: $this->getUserIdForFace($locked->face_id),
+                    type: 'mission_candidature_slot_released',
+                    data: [
+                        'message' => 'Votre place sur la mission a été libérée.',
+                        'mission_id' => $lockedMission->id,
+                        'candidature_id' => $locked->id,
+                        'url' => '/face/candidatures',
+                        'reason' => $reason,
+                    ],
+                );
+
+                if ($refundedAmount !== null) {
+                    $this->notifySafely(
+                        userId: $this->getUserIdForProducer($lockedMission->producer_id),
+                        type: 'mission_candidature_refunded',
+                        data: [
+                            'message' => 'Le règlement séquestré vous a été remboursé.',
+                            'mission_id' => $lockedMission->id,
+                            'candidature_id' => $locked->id,
+                            'montant' => $refundedAmount,
+                            'reason' => $reason,
+                        ],
+                    );
+                }
+            }
+
+            return true;
+        });
+    }
+
+    /**
+     * Réouvre une mission UGC `Closed` quand un slot vient de se libérer (ugc-9-1, D-9.1.e).
+     *
+     * Sous le lock mission déjà tenu par l'appelant : repasse `Closed → Published` SSI il
+     * reste de la capacité (engagedCandidaturesCount < nombre_faces_voulu) ET la deadline de
+     * candidature n'est pas dépassée. Réouverture interne programmatique — distincte de
+     * MissionService::reopenMission (HTTP, sans garde capacité/deadline). Garde conservatrice :
+     * une deadline nulle (indéfinie) ne rouvre PAS.
+     */
+    private function reopenMissionIfSlotFreed(Mission $lockedMission): void
+    {
+        if ($lockedMission->status === MissionStatus::Closed
+            && $lockedMission->engagedCandidaturesCount() < $lockedMission->nombre_faces_voulu
+            && $lockedMission->date_limite_candidature !== null
+            && $lockedMission->date_limite_candidature->toDateString() >= now()->toDateString()) {
+            $lockedMission->update(['status' => MissionStatus::Published]);
+        }
     }
 
     /**

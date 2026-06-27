@@ -423,17 +423,15 @@ class CandidatureController extends Controller
             abort(403, 'Cette candidature ne vous appartient pas');
         }
 
-        // ugc-8-4 (D-8.4.h) : décline d'une candidature hybride payée (accepted, escrow Locked)
-        // → refund Producteur (net escrow) + candidature Cancelled. Les autres cas (produit-seul
-        // accepted, pending) tombent sur la garde pending-only existante (inchangée). Une
+        // ugc-8-4 (D-8.4.h) / ugc-9-1 (D-9.1.k) : décline d'une candidature hybride payée
+        // (accepted, escrow Locked) → dénouement complet via unwindUgcCandidatureSlot (refund
+        // Producteur du net escrow + candidature Cancelled + RÉOUVERTURE du slot). Les autres
+        // cas (produit-seul accepted, pending) tombent sur la garde pending-only ci-dessous. Une
         // candidature confirmed/en tunnel ne se décline pas ici — c'est le chemin deadline/suspension.
         $candidature->loadMissing('mission');
         if ($candidature->status === CandidatureStatus::Accepted
             && $candidature->mission?->type_compensation === CompensationType::Hybrid) {
-            DB::transaction(function () use ($candidature): void {
-                app(MissionPaymentService::class)->refundUgcCandidatureEscrow($candidature, 'ugc_face_declined');
-                $candidature->update(['status' => CandidatureStatus::Cancelled]);
-            });
+            app(MissionPaymentService::class)->unwindUgcCandidatureSlot($candidature, 'ugc_face_declined');
 
             return response()->json([
                 'message' => 'Candidature annulée — le producteur a été remboursé.',
@@ -446,6 +444,14 @@ class CandidatureController extends Controller
                 ErrorCodes::InvalidStatus->envelope('Seules les candidatures en attente peuvent être annulées.'),
                 400
             );
+        }
+
+        // ugc-9-1 (D-9.1.j) : une candidature hybride Pending peut porter une entry escrow
+        // Pending in-flight (paiement Producteur initié, webhook pas encore confirmé). On la
+        // markFailed (supprime l'entry → libère le slot in-flight) AVANT le flip Cancelled.
+        $entry = $candidature->paymentEntry;
+        if ($entry !== null && $entry->escrow_status === EscrowStatus::Pending) {
+            app(MissionPaymentService::class)->markUgcMissionCandidatureFailed($entry, 'face_cancelled_pending');
         }
 
         $candidature->update(['status' => CandidatureStatus::Cancelled]);

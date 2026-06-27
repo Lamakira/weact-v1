@@ -167,6 +167,11 @@ class MissionService
 
     /**
      * Cancel all active candidatures and notify faces when a mission is deleted.
+     *
+     * ugc-9-1 (D-9.1.i) : dénoue d'abord l'escrow hybride de chaque candidature engagée —
+     * refund au Producteur (entry Locked) / suppression de l'entry in-flight (Pending) — AVANT
+     * le flip Cancelled, le tout sous une DB::transaction (le refund DOIT être transactionnel)
+     * et AVANT le hard-delete (cascade FK) du caller deleteMission : 0 argent orphelin.
      */
     private function cancelActiveCandidatesOnDelete(Mission $mission): void
     {
@@ -175,43 +180,53 @@ class MissionService
                 CandidatureStatus::Rejected->value,
                 CandidatureStatus::Cancelled->value,
             ])
-            ->with('face')
+            ->with(['face', 'paymentEntry'])
             ->get();
 
-        foreach ($activeCandidatures as $candidature) {
-            /** @var Candidature $candidature */
-            $candidature->update(['status' => CandidatureStatus::Cancelled]);
+        DB::transaction(function () use ($mission, $activeCandidatures): void {
+            foreach ($activeCandidatures as $candidature) {
+                /** @var Candidature $candidature */
+                // Dénouement escrow hybride AVANT le flip Cancelled et la cascade FK (D-9.1.i).
+                $entry = $candidature->paymentEntry;
+                if ($entry !== null && $entry->escrow_status === EscrowStatus::Locked) {
+                    $this->missionPaymentService->refundUgcCandidatureEscrow($candidature, 'mission_deleted');
+                } elseif ($entry !== null && $entry->escrow_status === EscrowStatus::Pending) {
+                    $this->missionPaymentService->markUgcMissionCandidatureFailed($entry, 'mission_deleted');
+                }
 
-            $faceId = $candidature->face_id;
-            $userId = $faceId
-                ? User::where('userable_type', \App\Models\Face::class)
-                    ->where('userable_id', $faceId)
-                    ->value('id')
-                : null;
+                $candidature->update(['status' => CandidatureStatus::Cancelled]);
 
-            if (! $userId) {
-                continue;
-            }
+                $faceId = $candidature->face_id;
+                $userId = $faceId
+                    ? User::where('userable_type', \App\Models\Face::class)
+                        ->where('userable_id', $faceId)
+                        ->value('id')
+                    : null;
 
-            try {
-                Notification::create([
-                    'user_id' => $userId,
-                    'type' => 'mission_deleted_candidature_cancelled',
-                    'data' => [
-                        'message' => "La mission \"{$mission->titre}\" a été supprimée par le producteur. Votre candidature a été annulée.",
+                if (! $userId) {
+                    continue;
+                }
+
+                try {
+                    Notification::create([
+                        'user_id' => $userId,
+                        'type' => 'mission_deleted_candidature_cancelled',
+                        'data' => [
+                            'message' => "La mission \"{$mission->titre}\" a été supprimée par le producteur. Votre candidature a été annulée.",
+                            'mission_id' => $mission->id,
+                            'candidature_id' => $candidature->id,
+                            'url' => '/face/candidatures',
+                        ],
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::warning('MissionDeleted candidature notification failed', [
                         'mission_id' => $mission->id,
                         'candidature_id' => $candidature->id,
-                        'url' => '/face/candidatures',
-                    ],
-                ]);
-            } catch (\Throwable $e) {
-                Log::warning('MissionDeleted candidature notification failed', [
-                    'mission_id' => $mission->id,
-                    'candidature_id' => $candidature->id,
-                    'error' => $e->getMessage(),
-                ]);
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
-        }
+        });
     }
 
     /**
