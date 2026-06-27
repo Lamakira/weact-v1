@@ -44,13 +44,15 @@ const showRejectConfirmation = ref(false)
 const canTakeAction = computed(() => props.candidature.status === 'pending')
 
 /**
- * Computed: Can show the UGC "Accepter" button — product-only, pending, outside
- * selection mode (D-8.3.b/c). Hybrid missions get no accept button here (deferred 8-5).
+ * Computed: Can show the UGC "Accepter" button — product-only OR hybrid, pending,
+ * outside selection mode (D-8.3.b/c, D-8.5.g). Product-only accepts for free;
+ * hybrid opens the FedaPay payment overlay (the section branches on compensation
+ * type — the card always emits the same `accept` event).
  */
 const canAcceptUgc = computed(
   () =>
     props.isUgcMission === true &&
-    props.ugcCompensationType === 'product' &&
+    (props.ugcCompensationType === 'product' || props.ugcCompensationType === 'hybrid') &&
     props.candidature.status === 'pending' &&
     !props.selectionMode,
 )

@@ -306,6 +306,7 @@ onUnmounted(() => {
         :is-ugc-mission="isUgcMission(mission)"
         :ugc-compensation-type="mission.type_compensation"
         :ugc-product-name="mission.nom_produit"
+        :mission-montant-remuneration="mission.montant_remuneration"
         @selection-confirmed="handleSelectionConfirmed"
         @selection-failed="handleSelectionFailed"
       />

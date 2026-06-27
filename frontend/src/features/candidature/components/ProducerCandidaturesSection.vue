@@ -12,6 +12,7 @@ import {
 import { useProducerCandidatures, useRejectCandidature, useAcceptCandidature } from '../composables'
 import { useMissionPayment } from '@/features/mission/composables'
 import ProducerCandidatureCard from './ProducerCandidatureCard.vue'
+import UgcCandidaturePaymentOverlay from './UgcCandidaturePaymentOverlay.vue'
 import MissionSelectionSummary from '@/features/mission/components/MissionSelectionSummary.vue'
 import StatusFilter from './StatusFilter.vue'
 import { useToast } from '@/composables/useToast'
@@ -32,6 +33,8 @@ const props = defineProps<{
   isUgcMission?: boolean
   ugcProductName?: string | null
   ugcCompensationType?: string | null
+  /** Cash par-Face d'une mission UGC hybride (aperçu pricing overlay, D-8.5.i/j). */
+  missionMontantRemuneration?: number | null
 }>()
 
 const emit = defineEmits<{
@@ -144,9 +147,24 @@ async function handleReject(candidatureId: string): Promise<void> {
 }
 
 /**
- * Handle accept candidature (UGC product-only, 8-3, D-8.3.b) — no payment step.
+ * Handle accept candidature (UGC, 8-3/8-5). Branches on compensation type:
+ * - hybrid (8-5, D-8.5.h): open the FedaPay payment overlay instead of a free
+ *   accept — payment (escrow) precedes acceptation; the candidature stays pending
+ *   until the webhook/self-heal settles, then the list is refreshed.
+ * - product-only (8-3, D-8.3.b): free direct accept (unchanged).
  */
 async function handleAccept(candidatureId: string): Promise<void> {
+  // Hybride : pas d'accept gratuit — l'overlay de paiement prend le relais.
+  if (props.ugcCompensationType === 'hybrid') {
+    const candidature = candidatures.value.find((c) => c.id === candidatureId)
+    paymentTarget.value = { id: candidatureId, faceName: candidature?.face.display_name ?? '' }
+    // La carte a posé isAccepting=true (handleAccept) ; libère son spinner — sinon
+    // elle reste figée derrière l'overlay.
+    cardRefs.value[candidatureId]?.resetAccepting()
+    return
+  }
+
+  // Produit-seul : accept gratuit direct (inchangé).
   const result = await acceptCandidature(candidatureId)
 
   // Reset the card's loading state
@@ -164,6 +182,25 @@ async function handleAccept(candidatureId: string): Promise<void> {
   }
 
   resetAccept()
+}
+
+/**
+ * UGC hybrid payment overlay (8-5, D-8.5.h) — a single instance at section level
+ * (calque the shipment modal): N cards must not each mount an overlay/composable.
+ * `paymentTarget` holds the candidature whose règlement is being paid.
+ */
+const paymentTarget = ref<{ id: string; faceName: string } | null>(null)
+
+/** Payment confirmed → the candidature is now accepted; refresh the list. */
+async function handlePaymentSuccess(): Promise<void> {
+  await refresh()
+}
+
+/** Overlay closed (cancel / success / failed-dismiss) → drop the target. */
+function handlePaymentOverlayClose(value: boolean): void {
+  if (!value) {
+    paymentTarget.value = null
+  }
 }
 
 /**
@@ -457,6 +494,17 @@ onMounted(() => {
         </button>
       </div>
     </template>
+
+    <!-- Overlay de paiement hybride par-Face (8-5 — un seul au niveau section) -->
+    <UgcCandidaturePaymentOverlay
+      v-if="paymentTarget"
+      :candidature-id="paymentTarget.id"
+      :face-name="paymentTarget.faceName"
+      :montant-remuneration="missionMontantRemuneration ?? null"
+      :model-value="true"
+      @update:model-value="handlePaymentOverlayClose"
+      @payment-success="handlePaymentSuccess"
+    />
 
     <!-- Modal d'expédition UGC (3.2 — calque dialog reject ProducerCandidatureCard) -->
     <Teleport to="body">

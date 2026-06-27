@@ -1,6 +1,8 @@
 import apiClient from '@/services/apiClient'
 import type {
+  AcceptCandidatureResult,
   ApplyToMissionData,
+  CandidaturePaymentStatusResponse,
   CandidatureResponse,
   CandidatureStatusType,
   FaceCandidatureListResponse,
@@ -104,15 +106,33 @@ export const candidatureApi = {
   },
 
   /**
-   * Accept a candidature (Producer only — UGC product-only, 8-2/8-3)
-   * Changes candidature status from "pending" to "accepted" (no payment for
-   * product-only; the hybrid FedaPay overlay is deferred to 8-5).
+   * Accept a candidature (Producer only — UGC, 8-2/8-3/8-5)
+   * Product-only: changes status "pending" → "accepted" (free, no payment).
+   * Hybrid (8-5): initiates the FedaPay checkout and surfaces `checkout_url`
+   * while the candidature stays "pending" until the webhook/self-heal settles.
    * @param candidatureId The candidature ID to accept
-   * @returns Updated candidature data with success message
+   * @returns Updated candidature data (+ checkout_url for hybrid)
    */
-  async acceptCandidature(candidatureId: string): Promise<CandidatureResponse> {
-    const response = await apiClient.post<CandidatureResponse>(
+  async acceptCandidature(candidatureId: string): Promise<AcceptCandidatureResult> {
+    const response = await apiClient.post<AcceptCandidatureResult>(
       `/producer/candidatures/${candidatureId}/accept`,
+    )
+    return response.data
+  },
+
+  /**
+   * Poll the self-heal payment status of a hybrid candidature (Producer — 8-5).
+   * Re-checks FedaPay actively (resilient to webhook delays) and settles. The
+   * overlay polls this until candidature_status === 'accepted' (success) or
+   * payment_status === 'failed' (retryable).
+   * @param candidatureId The candidature ID to poll
+   * @returns Lean payment status payload
+   */
+  async getCandidaturePaymentStatus(
+    candidatureId: string,
+  ): Promise<CandidaturePaymentStatusResponse> {
+    const response = await apiClient.get<CandidaturePaymentStatusResponse>(
+      `/producer/candidatures/${candidatureId}/payment-status`,
     )
     return response.data
   },

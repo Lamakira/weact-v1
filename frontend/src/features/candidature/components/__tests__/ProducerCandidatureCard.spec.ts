@@ -191,10 +191,15 @@ describe('ProducerCandidatureCard', () => {
       expect(wrapper.emitted('accept')?.[0]).toEqual(['cand-1'])
     })
 
-    it('does not show the "Accepter" button on a hybrid UGC mission (AC10, deferred 8-5)', () => {
+    it('shows the "Accepter" button on a hybrid UGC mission and emits accept on click (8-5)', async () => {
       const wrapper = mountCard(true, 'hybrid')
 
-      expect(wrapper.find('[data-testid="accept-candidature-btn"]').exists()).toBe(false)
+      const acceptBtn = wrapper.find('[data-testid="accept-candidature-btn"]')
+      expect(acceptBtn.exists()).toBe(true)
+
+      await acceptBtn.trigger('click')
+      expect(wrapper.emitted('accept')).toHaveLength(1)
+      expect(wrapper.emitted('accept')?.[0]).toEqual(['cand-1'])
     })
 
     it('keeps the "Refuser" button available for a product-only UGC pending candidature', () => {

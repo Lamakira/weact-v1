@@ -1082,6 +1082,56 @@ class MissionPaymentService
     }
 
     /**
+     * Fallback self-heal for a hybrid per-Face candidature payment (D-8.5.b/c).
+     *
+     * Mirror of UgcCommissionPaymentService::checkAndProcessMission, owner =
+     * Candidature: when the FedaPay webhook is delayed or missed (sandbox, no
+     * public ngrok), the producer's payment-status poll actively re-checks
+     * FedaPay and settles. Reuses the webhook settlements markUgcMissionCandidaturePaid
+     * / markUgcMissionCandidatureFailed (both idempotent under lock).
+     *
+     * Returns the derived payment_status as a VALUE (not a mutable field):
+     * markUgcMissionCandidatureFailed DELETES the entry, so a 'failed' MUST be
+     * reported on the very request that detects it — at the next poll the entry is
+     * gone. This deliberately avoids the per-request singleton-state trap documented
+     * on UgcCommissionPaymentService::$lastCommissionPaymentStatus.
+     *
+     * @return array{candidature: Candidature, payment_status: string, is_trackable: bool}
+     */
+    public function checkAndProcessUgcMissionCandidature(Candidature $candidature): array
+    {
+        /** @var MissionPaymentCandidature|null $entry */
+        $entry = $candidature->paymentEntry; // HasOne (Candidature.php:95)
+
+        // Déjà réglée (candidature accepted, ou escrow Locked/Released) → idempotent.
+        if ($candidature->status === CandidatureStatus::Accepted
+            || ($entry !== null && in_array($entry->escrow_status, [EscrowStatus::Locked, EscrowStatus::Released], true))) {
+            return ['candidature' => $candidature, 'payment_status' => 'paid', 'is_trackable' => false];
+        }
+
+        // Aucun paiement in-flight traçable (pas d'entry, entry non-Pending, ou pas de transaction FedaPay).
+        if ($entry === null || $entry->escrow_status !== EscrowStatus::Pending || $entry->fedapay_transaction_id === null) {
+            return ['candidature' => $candidature, 'payment_status' => 'pending', 'is_trackable' => false];
+        }
+
+        $transaction = $this->fedapayService->retrieveTransaction((int) $entry->fedapay_transaction_id);
+
+        if ($transaction->status === 'approved') {
+            $this->markUgcMissionCandidaturePaid($entry, (string) ($transaction->reference ?? 'fedapay_poll'));
+
+            return ['candidature' => $candidature->fresh() ?? $candidature, 'payment_status' => 'paid', 'is_trackable' => false];
+        }
+
+        if (in_array($transaction->status, ['declined', 'canceled', 'refunded'], true)) {
+            $this->markUgcMissionCandidatureFailed($entry, 'fedapay_poll_'.$transaction->status);
+
+            return ['candidature' => $candidature->fresh() ?? $candidature, 'payment_status' => 'failed', 'is_trackable' => false];
+        }
+
+        return ['candidature' => $candidature, 'payment_status' => 'pending', 'is_trackable' => true];
+    }
+
+    /**
      * Release a hybrid candidature's escrow to its Face on tunnel completion (D-8.4.g).
      * Reuses releaseToFace (credit Face wallet montant_face_recoit + escrow Released +
      * EscrowRelease event + candidature Confirmed → Completed). Idempotent (guarded on

@@ -46,6 +46,28 @@ export interface CandidatureResponse {
   message?: string
 }
 
+/**
+ * Accept-candidature result (8-5). Surfaces the FedaPay `checkout_url` returned
+ * by the backend when accepting a HYBRID mission candidature (payment at
+ * acceptance) ; absent for product-only (free direct accept). Mirrors
+ * bookingApi.payBooking's `BookingResponse & { checkout_url }` shape.
+ */
+export type AcceptCandidatureResult = CandidatureResponse & { checkout_url?: string }
+
+/**
+ * Self-heal payment-status poll response for a hybrid candidature (8-5).
+ * The overlay polls until candidature_status === 'accepted' (success) or
+ * payment_status === 'failed' (retryable). Lean payload (mirror of the other
+ * *payment-status endpoints), not a full CandidatureResource.
+ */
+export interface CandidaturePaymentStatusResponse {
+  data: {
+    candidature_status: CandidatureStatusType
+    payment_status: 'pending' | 'paid' | 'failed'
+    is_trackable: boolean
+  }
+}
+
 // Apply to mission request data
 export interface ApplyToMissionData {
   message_motivation?: string

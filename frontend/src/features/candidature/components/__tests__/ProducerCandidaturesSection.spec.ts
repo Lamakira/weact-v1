@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import ProducerCandidaturesSection from '../ProducerCandidaturesSection.vue'
 import ProducerCandidatureCard from '../ProducerCandidatureCard.vue'
+import UgcCandidaturePaymentOverlay from '../UgcCandidaturePaymentOverlay.vue'
 import { UgcShipmentForm } from '@/components/ugc'
 
 vi.mock('@/composables/useToast', () => ({
@@ -294,6 +295,79 @@ describe('ProducerCandidaturesSection', () => {
       expect(mockAcceptCandidature).toHaveBeenCalledWith('cand-1')
       // Sans gate, ce test échouerait : le refresh ne doit PAS partir sur une erreur non-capacité.
       expect(mockRefresh).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('UGC hybrid accept overlay (8.5)', () => {
+    const ProducerCandidatureCardStub = {
+      name: 'ProducerCandidatureCard',
+      template: '<div class="producer-candidature-card-stub"></div>',
+      props: ['candidature', 'selectionMode', 'isSelected', 'isUgcMission', 'ugcCompensationType'],
+      emits: ['reject', 'accept', 'toggle-selection', 'confirm-shipment'],
+      methods: {
+        resetRejecting() {},
+        resetAccepting() {},
+      },
+    }
+
+    function mountUgcHybridSection() {
+      return shallowMount(ProducerCandidaturesSection, {
+        props: {
+          missionId: 'mission-uuid-under-test',
+          missionBudget: 0,
+          missionStatus: 'published',
+          isUgcMission: true,
+          ugcCompensationType: 'hybrid',
+          missionMontantRemuneration: 15000,
+        },
+        global: {
+          stubs: {
+            Teleport: true,
+            ProducerCandidatureCard: ProducerCandidatureCardStub,
+          },
+        },
+      })
+    }
+
+    it('opens the FedaPay payment overlay (and does NOT free-accept) on a hybrid accept', async () => {
+      const wrapper = mountUgcHybridSection()
+
+      // Pas d'overlay tant qu'aucune candidature n'est ciblée.
+      expect(wrapper.findComponent(UgcCandidaturePaymentOverlay).exists()).toBe(false)
+
+      wrapper.findComponent(ProducerCandidatureCardStub).vm.$emit('accept', 'cand-1')
+      await flushPromises()
+
+      const overlay = wrapper.findComponent(UgcCandidaturePaymentOverlay)
+      expect(overlay.exists()).toBe(true)
+      expect(overlay.props('candidatureId')).toBe('cand-1')
+      expect(overlay.props('faceName')).toBe('Alice')
+      expect(overlay.props('montantRemuneration')).toBe(15000)
+      // Hybride : l'accept gratuit produit-seul n'est JAMAIS appelé.
+      expect(mockAcceptCandidature).not.toHaveBeenCalled()
+    })
+
+    it('refreshes the candidatures list when the overlay emits payment-success', async () => {
+      const wrapper = mountUgcHybridSection()
+      wrapper.findComponent(ProducerCandidatureCardStub).vm.$emit('accept', 'cand-1')
+      await flushPromises()
+
+      wrapper.findComponent(UgcCandidaturePaymentOverlay).vm.$emit('payment-success')
+      await flushPromises()
+
+      expect(mockRefresh).toHaveBeenCalledTimes(1)
+    })
+
+    it('closes the overlay when it emits update:modelValue=false', async () => {
+      const wrapper = mountUgcHybridSection()
+      wrapper.findComponent(ProducerCandidatureCardStub).vm.$emit('accept', 'cand-1')
+      await flushPromises()
+      expect(wrapper.findComponent(UgcCandidaturePaymentOverlay).exists()).toBe(true)
+
+      wrapper.findComponent(UgcCandidaturePaymentOverlay).vm.$emit('update:modelValue', false)
+      await flushPromises()
+
+      expect(wrapper.findComponent(UgcCandidaturePaymentOverlay).exists()).toBe(false)
     })
   })
 })

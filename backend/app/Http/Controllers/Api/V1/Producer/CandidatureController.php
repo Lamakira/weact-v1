@@ -22,6 +22,7 @@ use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Services\FaceEntitlementService;
+use App\Services\MissionPaymentService;
 use App\Services\Ugc\UgcCommissionPaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,6 +35,7 @@ class CandidatureController extends Controller
 {
     public function __construct(
         private readonly FaceEntitlementService $entitlement,
+        private readonly MissionPaymentService $missionPayments,
     ) {}
 
     /**
@@ -250,6 +252,43 @@ class CandidatureController extends Controller
                 'Cette candidature a déjà été traitée.'
             ), 422),
         };
+    }
+
+    /**
+     * Poll FedaPay and self-heal a hybrid candidature payment (ugc-8-5, D-8.5.a/d).
+     *
+     * Mirror of MissionPaymentController::paymentStatus / ugcCommissionStatus for the
+     * hybrid per-Face escrow: the producer overlay polls this endpoint after opening
+     * the FedaPay checkout. The service re-checks FedaPay actively (resilient to a
+     * delayed/missed webhook in sandbox/local) and settles. Returns a lean payload —
+     * the frontend polls until candidature_status === 'accepted' (success) or
+     * payment_status === 'failed' (retryable).
+     *
+     * GET /api/v1/producer/candidatures/{candidature}/payment-status
+     */
+    public function paymentStatus(Request $request, Candidature $candidature): JsonResponse
+    {
+        $user = $request->user();
+
+        // Verify user is a Producer
+        if ($user->userable_type !== Producer::class) {
+            abort(403, 'Accès réservé aux Producteurs');
+        }
+
+        $candidature->loadMissing('mission');
+
+        // Verify candidature's mission belongs to this Producer
+        if ($candidature->mission->producer_id !== $user->userable->id) {
+            abort(403, 'Cette candidature ne concerne pas une de vos missions');
+        }
+
+        $result = $this->missionPayments->checkAndProcessUgcMissionCandidature($candidature);
+
+        return response()->json(['data' => [
+            'candidature_status' => $result['candidature']->status->value,
+            'payment_status' => $result['payment_status'],
+            'is_trackable' => $result['is_trackable'],
+        ]]);
     }
 
     /**

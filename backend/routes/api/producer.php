@@ -111,6 +111,12 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
     Route::post('/candidatures/{candidature}/accept', [CandidatureController::class, 'accept'])
         ->middleware('throttle:60,1');
 
+    // UGC hybride : self-heal du paiement à l'acceptation (ugc-8-5). L'overlay du
+    // Producteur poll ce statut ; le service re-vérifie FedaPay (résilience webhook,
+    // comme les autres *payment-status). Garde ownership candidature→mission→producteur.
+    Route::get('/candidatures/{candidature}/payment-status', [CandidatureController::class, 'paymentStatus'])
+        ->middleware('throttle:polling');
+
     // UGC shipment confirmation (épic 3 — tunnel étape 3, story 3.1)
     Route::post('/bookings/{booking}/confirm-shipment', [UgcShipmentController::class, 'confirmForBooking'])
         ->middleware('throttle:60,1')
