@@ -13,6 +13,7 @@ use App\Models\FedapayWebhookEvent;
 use App\Models\FinancialEvent;
 use App\Models\Mission;
 use App\Models\MissionPayment;
+use App\Models\MissionPaymentCandidature;
 use App\Models\WalletTransaction;
 use App\Services\BookingService;
 use App\Services\FaceSubscriptionPaymentService;
@@ -121,6 +122,38 @@ class HandleFedapayWebhook implements ShouldQueue
                     'event_name' => $this->eventName,
                 ]),
                 default => Log::info('Fedapay webhook: unhandled event', ['event' => $this->eventName]),
+            };
+
+            $this->markProcessed($webhookEvent);
+
+            return;
+        }
+
+        // Try to find a hybrid UGC mission candidature escrow entry (per-Face settlement,
+        // ugc-8-4). Disjoint from the lookups above: fedapay_transaction_id is carried by
+        // the ENTRY (parentless mission_payment_candidatures), not a booking/mp/mission.
+        // Settlement is DEDICATED (never markAsPaid, which would close the mission and
+        // reject the other pending candidatures — D-8.4.f). No-throw (markUgc* log + no-op).
+        $ugcEntry = MissionPaymentCandidature::where('fedapay_transaction_id', (string) $transactionId)->first();
+
+        if ($ugcEntry) {
+            match ($this->eventName) {
+                'transaction.approved' => $missionPaymentService->markUgcMissionCandidaturePaid($ugcEntry, $fedapayRef),
+                'transaction.declined', 'transaction.canceled' => $missionPaymentService->markUgcMissionCandidatureFailed(
+                    $ugcEntry,
+                    "Payment {$this->eventName}"
+                ),
+                // Les refunds UGC se règlent on-platform (wallet/escrow), pas via FedaPay : un
+                // transaction.refunded sur une entry candidature hybride = geste ops manuel
+                // hors-procédure au dashboard FedaPay. On log CRITICAL (l'escrow reste Locked →
+                // risque de double-paiement à la complétion) — parité booking :86 / mission :176.
+                'transaction.refunded' => Log::critical('Fedapay webhook: refund UGC inattendu sur une entry candidature hybride — escrow non réconcilié, vérifier ce geste ops hors-procédure', [
+                    'entry_id' => $ugcEntry->id,
+                    'candidature_id' => $ugcEntry->candidature_id,
+                    'fedapay_transaction_id' => $transactionId,
+                    'transaction_status' => $transactionData['status'] ?? null,
+                ]),
+                default => Log::info('Fedapay webhook: unhandled UGC mission candidature event', ['event' => $this->eventName]),
             };
 
             $this->markProcessed($webhookEvent);

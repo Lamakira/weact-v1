@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Face;
 
 use App\Enums\CandidatureStatus;
+use App\Enums\CompensationType;
 use App\Enums\ErrorCodes;
+use App\Enums\EscrowStatus;
 use App\Enums\MissionGender;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
@@ -23,6 +25,7 @@ use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
 use App\Services\FaceEntitlementService;
+use App\Services\MissionPaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -360,6 +363,18 @@ class CandidatureController extends Controller
             ), 422);
         }
 
+        // ugc-8-4 (D-8.4.l) : une candidature hybride ne se reconfirme que si son escrow est
+        // Locked (paiement confirmé par le webhook). Défense — en nominal une candidature
+        // hybride n'est `accepted` que via le webhook qui locke l'escrow, donc la garde tient
+        // toujours ; c'est un filet. Produit-seul (pas d'entry) : inchangé. La garde
+        // type_mission ci-dessus (:350) garantit déjà mission non-null ⇒ `->`.
+        if ($candidature->mission->type_compensation === CompensationType::Hybrid
+            && $candidature->paymentEntry?->escrow_status !== EscrowStatus::Locked) {
+            return response()->json(ErrorCodes::InvalidStatus->envelope(
+                'Le règlement de cette candidature n\'est pas finalisé.'
+            ), 422);
+        }
+
         $confirmed = DB::transaction(function () use ($candidature): ?Candidature {
             /** @var Candidature $locked */
             $locked = Candidature::where('id', $candidature->id)->lockForUpdate()->firstOrFail();
@@ -406,6 +421,23 @@ class CandidatureController extends Controller
         // Verify candidature belongs to this Face
         if ($candidature->face_id !== $face->id) {
             abort(403, 'Cette candidature ne vous appartient pas');
+        }
+
+        // ugc-8-4 (D-8.4.h) : décline d'une candidature hybride payée (accepted, escrow Locked)
+        // → refund Producteur (net escrow) + candidature Cancelled. Les autres cas (produit-seul
+        // accepted, pending) tombent sur la garde pending-only existante (inchangée). Une
+        // candidature confirmed/en tunnel ne se décline pas ici — c'est le chemin deadline/suspension.
+        $candidature->loadMissing('mission');
+        if ($candidature->status === CandidatureStatus::Accepted
+            && $candidature->mission?->type_compensation === CompensationType::Hybrid) {
+            DB::transaction(function () use ($candidature): void {
+                app(MissionPaymentService::class)->refundUgcCandidatureEscrow($candidature, 'ugc_face_declined');
+                $candidature->update(['status' => CandidatureStatus::Cancelled]);
+            });
+
+            return response()->json([
+                'message' => 'Candidature annulée — le producteur a été remboursé.',
+            ]);
         }
 
         // Verify candidature is pending

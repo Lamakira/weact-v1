@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Booking;
+use App\Models\Candidature;
 use App\Models\FaceSubscription;
 use App\Models\Mission;
 use App\Models\MissionPayment;
@@ -186,6 +187,36 @@ class FedapayService
             amount: (int) $mission->commission_ugc,
             description: "Commission UGC — Mission #{$mission->id} — {$mission->titre}",
             metadata: ['type' => 'ugc_mission', 'mission_id' => $mission->id, 'idempotency_key' => $idempotencyKey],
+            payer: $producerUser,
+        );
+    }
+
+    /**
+     * Initiate a hosted checkout for a UGC mission hybrid per-Face settlement (ugc-8-4, D-8.4.e).
+     * Charges `totalProducerPays` (cash + 10 % service fee) computed by the caller via
+     * BookingPricing. The Face's net (`montant_face_recoit`) is escrowed per-Candidature
+     * (mécanisme #2, parentless entry) and released on tunnel completion. The transaction
+     * id is stamped on `mission_payment_candidatures.fedapay_transaction_id` so the webhook
+     * routes the approval/decline back to the entry (D-8.4.f).
+     *
+     * @return array{fedapay_transaction_id: int, checkout_url: string}
+     */
+    public function initiatePaymentForUgcMissionCandidature(Candidature $candidature, int $amount, string $idempotencyKey): array
+    {
+        $mission = $candidature->mission;
+        if (! $mission instanceof Mission) {
+            throw new \RuntimeException('La mission liée à la candidature est introuvable.');
+        }
+
+        /** @var User $producerUser */
+        $producerUser = User::query()->where('userable_type', Producer::class)
+            ->where('userable_id', $mission->producer_id)
+            ->firstOrFail();
+
+        return $this->createUgcCommissionCheckout(
+            amount: $amount,
+            description: "Règlement UGC — Mission #{$mission->id} / Face #{$candidature->face_id}",
+            metadata: ['type' => 'ugc_mission_candidature', 'candidature_id' => $candidature->id, 'idempotency_key' => $idempotencyKey],
             payer: $producerUser,
         );
     }

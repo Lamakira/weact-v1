@@ -6,8 +6,10 @@ namespace App\Services\Ugc;
 
 use App\Enums\BookingStatus;
 use App\Enums\CandidatureStatus;
+use App\Enums\CompensationType;
 use App\Enums\DeliverableKind;
 use App\Enums\DeliverableValidationStatus;
+use App\Enums\EscrowStatus;
 use App\Enums\MissionType;
 use App\Enums\UgcTunnelStatus;
 use App\Events\DeliverableRejected;
@@ -19,6 +21,7 @@ use App\Models\Candidature;
 use App\Models\Deliverable;
 use App\Models\Shipment;
 use App\Services\BookingService;
+use App\Services\MissionPaymentService;
 use FFMpeg\Coordinate\TimeCode;
 use FFMpeg\FFMpeg;
 use FFMpeg\FFProbe;
@@ -244,9 +247,10 @@ class UgcDeliverableService
      * chrono Avis (tunnel avis_pending) ; Avis validé → clôture : tunnel `completed`.
      * Pour un BOOKING (RH.3, supersède D-4.3.a), dans la MÊME transaction : release
      * escrow → wallet Face (hybride ; produit-seul no-op) + `BookingStatus → Completed`
-     * (calque completeBooking). Pour une CANDIDATURE (mission), tunnel-only — pas
-     * d'escrow per-engagement (→ ugc-epic-rh-mission). Idempotent (re-valider un
-     * non-in_review → invalid_status).
+     * (calque completeBooking). Pour une CANDIDATURE hybride (ugc-8-4, D-8.4.g), dans la
+     * MÊME transaction : release escrow par-Candidature → wallet Face + candidature
+     * Confirmed → Completed (produit-seul = no-op, pas d'entry → candidature reste
+     * Confirmed). Idempotent (re-valider un non-in_review → invalid_status).
      *
      * @return array{outcome: string, deliverable?: Deliverable}
      */
@@ -278,13 +282,17 @@ class UgcDeliverableService
                 'last_notified_threshold' => 0,
             ]);
 
-            // RH.3 : valider l'Avis clôture le deal. Pour un booking, dans la MÊME
-            // transaction (atomicité argent/tunnel) : release escrow → wallet Face
-            // (hybride ; produit-seul no-op) + BookingStatus → Completed (calque
-            // completeBooking). Mission (Candidature) : tunnel-only — pas d'escrow
-            // per-engagement (→ ugc-epic-rh-mission).
-            if ($fresh->kind === DeliverableKind::Avis && $owner instanceof Booking) {
-                app(BookingService::class)->completeUgcBooking($owner);
+            // Valider l'Avis clôture le deal, dans la MÊME transaction (atomicité argent/tunnel).
+            // Booking (RH.3) : release escrow → wallet Face (hybride ; produit-seul no-op) +
+            // BookingStatus → Completed. Candidature (ugc-8-4, D-8.4.g) : release escrow
+            // par-Candidature → wallet Face + candidature Confirmed → Completed (produit-seul =
+            // no-op, pas d'entry → la candidature reste Confirmed, RH.3 AC3 préservé).
+            if ($fresh->kind === DeliverableKind::Avis) {
+                if ($owner instanceof Booking) {
+                    app(BookingService::class)->completeUgcBooking($owner);
+                } elseif ($owner instanceof Candidature) {
+                    app(MissionPaymentService::class)->releaseUgcCandidatureEscrow($owner);
+                }
             }
 
             return ['outcome' => 'validated', 'deliverable' => $fresh];
@@ -534,10 +542,17 @@ class UgcDeliverableService
     {
         $mission = $candidature->mission;
 
+        // Gate paiement type-aware (ugc-8-4, D-8.4.d) : hybride = escrow Locked par-Face
+        // (mission publiée sans paiement → commission_paid_at null) ; produit-seul =
+        // commission_paid_at (gate publication inchangé). Garde JUMELLE de UgcShipmentService.
+        $paymentSettled = $mission?->type_compensation === CompensationType::Hybrid
+            ? ($candidature->paymentEntry?->escrow_status === EscrowStatus::Locked)
+            : ($mission?->commission_paid_at !== null);
+
         if ($candidature->status !== CandidatureStatus::Confirmed
             || $mission === null
             || $mission->type_mission !== MissionType::Ugc
-            || $mission->commission_paid_at === null) {
+            || ! $paymentSettled) {
             return 'invalid_status';
         }
 

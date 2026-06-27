@@ -12,7 +12,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property int $id
- * @property int $mission_payment_id
+ * @property int|null $mission_payment_id
+ * @property string|null $fedapay_transaction_id
  * @property int $candidature_id
  * @property int $face_id
  * @property int $montant_face_recoit
@@ -27,6 +28,7 @@ class MissionPaymentCandidature extends Model
 {
     protected $fillable = [
         'mission_payment_id',
+        'fedapay_transaction_id',
         'candidature_id',
         'face_id',
         'montant_face_recoit',

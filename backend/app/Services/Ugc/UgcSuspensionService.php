@@ -19,6 +19,7 @@ use App\Models\Shipment;
 use App\Models\UgcSuspension;
 use App\Models\User;
 use App\Services\EscrowService;
+use App\Services\MissionPaymentService;
 use App\Services\WalletService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -40,6 +41,7 @@ class UgcSuspensionService
     public function __construct(
         private readonly EscrowService $escrow,
         private readonly WalletService $wallet,
+        private readonly MissionPaymentService $missionPaymentService,
     ) {}
 
     public function suspendForOverdueShipment(Shipment $shipment): void
@@ -138,9 +140,13 @@ class UgcSuspensionService
             ]);
         }
 
-        // 5. Refund escrow booking-only (idempotent ; no-op produit-seul / candidature).
+        // 5. Refund escrow (idempotent). Booking → EscrowService ; Candidature hybride →
+        //    mission_payment_candidatures (ugc-8-4, D-8.4.i ; couvre aussi la deadline ratée via
+        //    le cron ProcessUgcDeadlines → suspendForOverdueShipment). No-op produit-seul (pas d'entry).
         if ($owner instanceof Booking) {
             $this->escrow->refundUgcSuspensionToProducer($owner, $this->wallet);
+        } elseif ($owner instanceof Candidature) {
+            $this->missionPaymentService->refundUgcCandidatureEscrow($owner, 'ugc_suspension');
         }
 
         // 6. Sort le shipment du filtre cron [Received, AvisPending] → idempotence (AC8).

@@ -6,6 +6,8 @@ namespace App\Services\Ugc;
 
 use App\Enums\BookingStatus;
 use App\Enums\CandidatureStatus;
+use App\Enums\CompensationType;
+use App\Enums\EscrowStatus;
 use App\Enums\MissionType;
 use App\Enums\UgcTunnelStatus;
 use App\Events\ProductReceived;
@@ -166,12 +168,19 @@ class UgcShipmentService
     {
         $mission = $candidature->mission;
 
+        // Gate paiement type-aware (ugc-8-4, D-8.4.d) : hybride = escrow Locked par-Face
+        // (la mission hybride est publiée sans paiement → commission_paid_at null pour
+        // toujours) ; produit-seul = commission_paid_at (gate publication inchangé).
+        $paymentSettled = $mission?->type_compensation === CompensationType::Hybrid
+            ? ($candidature->paymentEntry?->escrow_status === EscrowStatus::Locked)
+            : ($mission?->commission_paid_at !== null);
+
         // PAS de garde Published : une mission auto-close à capacité (2.4)
         // porte des engagements actifs expédiables (piège n°1).
         if ($candidature->status !== CandidatureStatus::Confirmed
             || $mission === null
             || $mission->type_mission !== MissionType::Ugc
-            || $mission->commission_paid_at === null) {
+            || ! $paymentSettled) {
             return 'invalid_status';
         }
 

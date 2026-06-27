@@ -22,6 +22,7 @@ use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Services\FaceEntitlementService;
+use App\Services\Ugc\UgcCommissionPaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -103,13 +104,6 @@ class CandidatureController extends Controller
             ), 422);
         }
 
-        // Hybride (paiement à l'acceptation → escrow par-Face) différé à ugc-8-4.
-        if ($mission->type_compensation !== CompensationType::Product) {
-            return response()->json(ErrorCodes::InvalidStatus->envelope(
-                "L'acceptation d'une candidature sur une mission hybride sera bientôt disponible."
-            ), 422);
-        }
-
         if ($candidature->status !== CandidatureStatus::Pending) {
             return response()->json(ErrorCodes::InvalidStatus->envelope(
                 'Seules les candidatures en attente peuvent être acceptées.'
@@ -119,7 +113,8 @@ class CandidatureController extends Controller
         // ugc-8-2 (D-2.4.c restauré en revue) : l'engagement exige l'éligibilité
         // ACTUELLE de la Face — re-check abonnement + genre AU MOMENT de l'accept
         // (calque l'auto-accept supprimé). L'apply a pu dater : le Producteur review
-        // ses candidatures après date_limite_candidature.
+        // ses candidatures après date_limite_candidature. ugc-8-4 (S2) : ces gardes
+        // sont remontées AVANT le switch produit/hybride pour gater les DEUX chemins.
         $candidature->loadMissing('face');
         $face = $candidature->face;
 
@@ -138,6 +133,32 @@ class CandidatureController extends Controller
             }
         }
 
+        // ugc-8-4 (D-8.4.e) : hybride = paiement à l'acceptation → escrow par-Face. Le
+        // service crée l'entry escrow Pending + initie FedaPay (cash + 10 %) et renvoie le
+        // checkout_url ; la candidature reste `pending` jusqu'au webhook approved
+        // (markUgcMissionCandidaturePaid). Le produit-seul continue vers l'accept gratuit.
+        if ($mission->type_compensation === CompensationType::Hybrid) {
+            $result = app(UgcCommissionPaymentService::class)->initiateForUgcMissionCandidature($candidature);
+
+            if ($result['outcome'] === 'initiated') {
+                return response()->json([
+                    'data' => new CandidatureResource($result['candidature']),
+                    'checkout_url' => $result['checkout_url'],
+                    'message' => 'Paiement du règlement initié',
+                ]);
+            }
+
+            return match ($result['outcome']) {
+                'full' => response()->json(ErrorCodes::MissionFull->envelope(
+                    'Toutes les places de cette mission sont déjà pourvues.'
+                ), 422),
+                'already' => response()->json(ErrorCodes::AlreadyAccepted->envelope(
+                    'Cette candidature a déjà été traitée.'
+                ), 422),
+            };
+        }
+
+        // Produit-seul (CompensationType::Product) : acceptation gratuite directe (inchangé).
         // Cœur transactionnel : capacité + écriture + auto-clôture, sérialisés par le lock mission (calque D-2.4.d).
         $result = DB::transaction(function () use ($mission, $candidature): array {
             /** @var Mission $lockedMission */

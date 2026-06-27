@@ -113,6 +113,9 @@ class CreateUgcMissionTest extends TestCase
 
     public function test_producer_can_create_ugc_hybrid_mission(): void
     {
+        // ugc-8-4 (D-8.4.c) : l'hybride est publié DIRECTEMENT sans paiement
+        // (commission_ugc null — la commission WeAct porte sur le cash, prélevée par-Face
+        // à l'acceptation). Le produit-seul garde son gate PendingPayment + commission.
         $response = $this->actingAs($this->producerUser)
             ->postJson('/api/v1/producer/missions', $this->getValidUgcHybridMissionData());
 
@@ -121,20 +124,21 @@ class CreateUgcMissionTest extends TestCase
             ->assertJsonPath('data.type_compensation_label', 'Produit + argent')
             ->assertJsonPath('data.valeur_produit', 50000)
             ->assertJsonPath('data.nombre_videos', 3)
-            ->assertJsonPath('data.commission_ugc', 5000)
+            ->assertJsonPath('data.commission_ugc', null)
             ->assertJsonPath('data.montant_remuneration', 15000)
             ->assertJsonPath('data.budget', 15000)
-            ->assertJsonPath('data.status', 'pending_payment');
+            ->assertJsonPath('data.status', 'published')
+            ->assertJsonPath('message', 'Mission publiée avec succès');
 
         $this->assertDatabaseHas('missions', [
             'producer_id' => $this->producer->id,
             'type_mission' => 'ugc',
             'type_compensation' => 'hybrid',
-            'commission_ugc' => 5000,
+            'commission_ugc' => null,
             'montant_remuneration' => 15000,
             'budget' => 15000,
             'nombre_videos' => 3,
-            'status' => 'pending_payment',
+            'status' => 'published',
         ]);
     }
 

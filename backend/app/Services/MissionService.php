@@ -63,13 +63,16 @@ class MissionService
     }
 
     /**
-     * Create a UGC mission (appel à projets) in `pending_payment`.
+     * Create a UGC mission (appel à projets).
      *
-     * The WeAct commission is recomputed server-side from the product value only
-     * (never the cash), the video count is forced to 2 for product-only, and the
-     * cash `budget` is derived from `montant_remuneration` (0 for product-only) —
-     * D-1.3.b / D-1.3.d. The mission stays unpublished until the commission is
-     * paid (story 1.5).
+     * Produit-seul : créée en `pending_payment` (publish-gate) avec une commission
+     * recalculée serveur depuis la valeur produit seule (jamais le cash). Hybride
+     * (ugc-8-4, D-8.4.c) : publiée DIRECTEMENT (`published`) SANS paiement et
+     * `commission_ugc = null` — la commission WeAct porte uniquement sur le cash,
+     * prélevée par-Face à l'acceptation (escrow par-Candidature), pas sur la valeur
+     * produit. Le nombre de vidéos est forcé à 2 pour le produit-seul et la cash
+     * `budget` est dérivée de `montant_remuneration` (0 pour le produit-seul) —
+     * D-1.3.b / D-1.3.d.
      *
      * @param  array<string, mixed>  $data
      */
@@ -77,11 +80,15 @@ class MissionService
     {
         $compensation = $data['type_compensation'];
         $valeurProduit = (int) $data['valeur_produit'];
-        $commission = $this->ugcCommissionService->compute($valeurProduit);
 
         $isHybrid = $compensation === CompensationType::Hybrid->value;
         $nombreVideos = $isHybrid ? (int) $data['nombre_videos'] : (int) config('ugc.product_only_video_count', 2);
         $montantRemuneration = $isHybrid ? (int) $data['montant_remuneration'] : 0;
+
+        // ugc-8-4 (D-8.4.c) : hybride publié SANS paiement (commission sur cash, par-Face
+        // à l'acceptation) ; produit-seul = gate commission produit (PendingPayment), inchangé.
+        $status = $isHybrid ? MissionStatus::Published : MissionStatus::PendingPayment;
+        $commission = $isHybrid ? null : $this->ugcCommissionService->compute($valeurProduit);
 
         /** @var Mission $mission */
         $mission = $producer->missions()->create([
@@ -97,13 +104,13 @@ class MissionService
             'genre_voulu' => $data['genre_voulu'],
             'lieu' => null, // dotation UGC : pas de lieu de tournage (invariant serveur)
             'duree' => null, // dotation UGC : pas de durée de tournage (invariant serveur)
-            'status' => MissionStatus::PendingPayment,            // D-1.3.d : PAS Published
+            'status' => $status,                                  // D-8.4.c : hybride = Published, produit-seul = PendingPayment
             'type_compensation' => $compensation,
             'nom_produit' => $data['nom_produit'],
             'valeur_produit' => $valeurProduit,
             'nombre_videos' => $nombreVideos,
             'montant_remuneration' => $isHybrid ? $montantRemuneration : null,
-            'commission_ugc' => $commission,
+            'commission_ugc' => $commission,                      // D-8.4.c : null pour l'hybride
         ]);
 
         return $mission;

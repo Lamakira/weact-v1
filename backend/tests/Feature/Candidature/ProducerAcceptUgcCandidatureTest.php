@@ -15,6 +15,7 @@ use App\Models\FaceSubscription;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\FedapayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -168,22 +169,41 @@ class ProducerAcceptUgcCandidatureTest extends TestCase
     // Gardes (AC4)
     // ===================================================================
 
-    public function test_accept_on_hybrid_mission_is_rejected(): void
+    public function test_accept_on_hybrid_mission_initiates_payment(): void
     {
+        // ugc-8-4 (D-8.4.e) : l'hybride n'est plus refusé (8-2) — l'accept initie le règlement
+        // FedaPay (cash + 10 %) et renvoie le checkout_url ; la candidature reste pending
+        // jusqu'au webhook approved (couverture complète : UgcMissionHybridSettlementTest).
         [$producer, $producerUser] = $this->makeProducerWithUser();
         [$face] = $this->makeFaceWithUser();
         $mission = $this->makePublishedUgcMission($producer, [
             'type_compensation' => CompensationType::Hybrid->value,
             'montant_remuneration' => 50000,
+            'commission_ugc' => null,
+            'commission_paid_at' => null,
         ]);
         $candidature = $this->makePendingCandidature($mission, $face);
 
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('initiatePaymentForUgcMissionCandidature')
+                ->once()
+                ->andReturn(['fedapay_transaction_id' => 940, 'checkout_url' => 'https://fedapay.test/hybride']);
+        });
+
         $this->actingAs($producerUser)
             ->postJson("/api/v1/producer/candidatures/{$candidature->uuid}/accept")
-            ->assertStatus(422)
-            ->assertJsonPath('error.code', 'INVALID_STATUS');
+            ->assertOk()
+            ->assertJsonPath('checkout_url', 'https://fedapay.test/hybride')
+            ->assertJsonPath('data.status', 'pending');
 
-        // L'hybride n'est PAS accepté (différé 8-4) : la candidature reste pending.
+        // L'escrow par-Face est créé Pending (parentless) ; la candidature reste pending
+        // (l'acceptation effective vient du webhook).
+        $this->assertDatabaseHas('mission_payment_candidatures', [
+            'candidature_id' => $candidature->id,
+            'mission_payment_id' => null,
+            'escrow_status' => 'pending',
+            'fedapay_transaction_id' => '940',
+        ]);
         $this->assertDatabaseHas('candidatures', [
             'id' => $candidature->id,
             'status' => 'pending',
