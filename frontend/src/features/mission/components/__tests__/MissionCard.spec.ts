@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { Calendar } from 'lucide-vue-next'
 import MissionCard from '../MissionCard.vue'
 import type { Mission, MissionStatusType } from '../../types'
 
@@ -163,6 +164,19 @@ describe('MissionCard — UGC commission (story 1.6)', () => {
       },
     })
     expect(wrapper.text()).not.toContain('Modifier')
+  })
+
+  it('hides the shooting date for a UGC mission and shows it for a standard mission', () => {
+    // UGC : date_tournage null → ne pas rendre la cellule (sinon date vide, comme la carte détail).
+    const ugc = mount(MissionCard, {
+      props: { mission: createMission({ commission_ugc: 2500 }), emailVerified: true },
+    })
+    expect(ugc.findComponent(Calendar).exists()).toBe(false)
+
+    const standard = mount(MissionCard, {
+      props: { mission: createMission({ commission_ugc: null }), emailVerified: true },
+    })
+    expect(standard.findComponent(Calendar).exists()).toBe(true)
   })
 
   it('does not emit edit on card click for a published UGC mission', async () => {

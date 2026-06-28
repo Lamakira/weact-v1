@@ -527,8 +527,8 @@ onMounted(() => {
       <div class="mb-8 rounded-lg border border-border bg-card p-4 min-[376px]:p-6">
         <h2 class="text-base min-[376px]:text-lg font-semibold text-foreground mb-4">Détails de la mission</h2>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 min-[376px]:gap-4">
-          <!-- Date de tournage -->
-          <div class="flex items-start gap-3 p-2 min-[376px]:p-3 rounded-lg bg-muted/50">
+          <!-- Date de tournage (masquée pour l'UGC : champ de tournage non pertinent, valeur null) -->
+          <div v-if="!isUgc" class="flex items-start gap-3 p-2 min-[376px]:p-3 rounded-lg bg-muted/50">
             <div class="flex-shrink-0 p-1.5 min-[376px]:p-2 rounded-lg bg-primary/10">
               <Calendar class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-primary" />
             </div>
@@ -538,8 +538,8 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- Lieu -->
-          <div class="flex items-start gap-3 p-2 min-[376px]:p-3 rounded-lg bg-muted/50">
+          <!-- Lieu (masqué pour l'UGC : champ de tournage non pertinent, valeur null) -->
+          <div v-if="!isUgc" class="flex items-start gap-3 p-2 min-[376px]:p-3 rounded-lg bg-muted/50">
             <div class="flex-shrink-0 p-1.5 min-[376px]:p-2 rounded-lg bg-primary/10">
               <MapPin class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-primary" />
             </div>
@@ -571,8 +571,8 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- Durée -->
-          <div class="flex items-start gap-3 p-2 min-[376px]:p-3 rounded-lg bg-muted/50">
+          <!-- Durée (masquée pour l'UGC : champ de tournage non pertinent, valeur null) -->
+          <div v-if="!isUgc" class="flex items-start gap-3 p-2 min-[376px]:p-3 rounded-lg bg-muted/50">
             <div class="flex-shrink-0 p-1.5 min-[376px]:p-2 rounded-lg bg-primary/10">
               <Clock class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-primary" />
             </div>

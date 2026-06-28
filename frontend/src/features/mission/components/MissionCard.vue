@@ -128,7 +128,8 @@ const candidaturesCount = computed<number>(() => props.mission.candidatures_coun
           </h3>
 
           <div class="mt-3 flex flex-wrap gap-x-6 gap-y-2">
-            <div class="flex items-center gap-2 text-sm text-muted-foreground">
+            <!-- Date de tournage masquée pour l'UGC (champ de tournage null, comme la carte détail) -->
+            <div v-if="!isUgcMission" class="flex items-center gap-2 text-sm text-muted-foreground">
               <Calendar :size="16" class="text-primary/70" />
               <span>{{ formatDate(mission.date_tournage) }}</span>
             </div>

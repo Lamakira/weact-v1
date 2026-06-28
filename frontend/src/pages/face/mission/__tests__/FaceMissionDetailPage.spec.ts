@@ -831,6 +831,23 @@ describe('FaceMissionDetailPage', () => {
       expect(standardWrapper.text()).toContain('Rémunération proposée')
     })
 
+    it('hides the shooting fields (date de tournage / lieu / durée) for UGC and keeps them for standard', async () => {
+      // Pour l'UGC ces champs sont null (masqués au cadrage 8-1) → ne JAMAIS les rendre vides.
+      mockMission.value = createUgcMission()
+      const ugcWrapper = mountPage()
+      await flushPromises()
+      expect(ugcWrapper.text()).not.toContain('Date de tournage')
+      expect(ugcWrapper.text()).not.toContain('Lieu')
+      expect(ugcWrapper.text()).not.toContain('Durée')
+
+      mockMission.value = createMission()
+      const standardWrapper = mountPage()
+      await flushPromises()
+      expect(standardWrapper.text()).toContain('Date de tournage')
+      expect(standardWrapper.text()).toContain('Lieu')
+      expect(standardWrapper.text()).toContain('Durée')
+    })
+
     it('renders the deliverables block with two ChronoRing at progress 0', async () => {
       mockMission.value = createUgcMission()
 
