@@ -209,4 +209,129 @@ describe('ProducerCandidatureCard', () => {
       expect(rejectButton).toBeDefined()
     })
   })
+
+  describe('UGC release (9-2)', () => {
+    const acceptedUgcCandidature = {
+      ...pendingCandidature,
+      status: 'accepted' as const,
+      status_label: 'Acceptée',
+    }
+
+    function mountCard(
+      candidature: Record<string, unknown>,
+      isUgcMission?: boolean,
+      ugcCompensationType?: string | null,
+    ) {
+      return mount(ProducerCandidatureCard, {
+        props: {
+          candidature: candidature as never,
+          isUgcMission,
+          ugcCompensationType,
+        },
+        global: {
+          stubs: {
+            RouterLink: { template: '<a><slot /></a>', props: ['to'] },
+            Teleport: true,
+          },
+        },
+      })
+    }
+
+    it('renders the release button for an accepted candidature on a UGC mission', () => {
+      const wrapper = mountCard(acceptedUgcCandidature, true)
+
+      const button = wrapper.find('[data-testid="release-candidature-btn"]')
+      expect(button.exists()).toBe(true)
+      expect(button.text()).toContain('Libérer la place')
+    })
+
+    it('hides the release button for a pending candidature', () => {
+      const wrapper = mountCard(pendingCandidature, true)
+
+      expect(wrapper.find('[data-testid="release-candidature-btn"]').exists()).toBe(false)
+    })
+
+    it('hides the release button for a confirmed candidature', () => {
+      const wrapper = mountCard(confirmedUgcCandidature, true)
+
+      expect(wrapper.find('[data-testid="release-candidature-btn"]').exists()).toBe(false)
+    })
+
+    it('hides the release button on a non-UGC mission', () => {
+      const wrapper = mountCard(acceptedUgcCandidature, false)
+
+      expect(wrapper.find('[data-testid="release-candidature-btn"]').exists()).toBe(false)
+    })
+
+    it('opens the dialog and emits release with the id when confirmed', async () => {
+      const wrapper = mountCard(acceptedUgcCandidature, true)
+
+      await wrapper.find('[data-testid="release-candidature-btn"]').trigger('click')
+
+      const confirmBtn = wrapper
+        .findAll('button')
+        .find((btn) => btn.text().includes('Confirmer la libération'))
+      expect(confirmBtn).toBeDefined()
+
+      await confirmBtn!.trigger('click')
+      expect(wrapper.emitted('release')).toHaveLength(1)
+      expect(wrapper.emitted('release')?.[0]).toEqual(['cand-1'])
+    })
+
+    it('does not emit release when the dialog is cancelled', async () => {
+      const wrapper = mountCard(acceptedUgcCandidature, true)
+
+      await wrapper.find('[data-testid="release-candidature-btn"]').trigger('click')
+
+      const cancelBtn = wrapper
+        .findAll('button')
+        .find((btn) => btn.text().includes('Annuler'))
+      expect(cancelBtn).toBeDefined()
+
+      await cancelBtn!.trigger('click')
+      expect(wrapper.emitted('release')).toBeUndefined()
+    })
+
+    it('promises the escrow refund only for a hybrid mission (honest copy, D-9.2.c)', async () => {
+      const wrapper = mountCard(acceptedUgcCandidature, true, 'hybrid')
+
+      await wrapper.find('[data-testid="release-candidature-btn"]').trigger('click')
+
+      expect(wrapper.text()).toContain('vous remboursera le règlement séquestré')
+    })
+
+    it('omits the refund clause for a product-only mission (no escrow to refund)', async () => {
+      const wrapper = mountCard(acceptedUgcCandidature, true, 'product')
+
+      await wrapper.find('[data-testid="release-candidature-btn"]').trigger('click')
+
+      expect(wrapper.text()).not.toContain('règlement séquestré')
+      expect(wrapper.text()).toContain('annulera sa candidature et rouvrira la mission')
+    })
+
+    it('enters the loading state on confirm and clears it via the exposed resetReleasing()', async () => {
+      const wrapper = mountCard(acceptedUgcCandidature, true)
+
+      await wrapper.find('[data-testid="release-candidature-btn"]').trigger('click')
+      const confirmBtn = wrapper
+        .findAll('button')
+        .find((btn) => btn.text().includes('Confirmer la libération'))
+      await confirmBtn!.trigger('click')
+
+      // confirmRelease : isReleasing=true → spinner « Libération... » + bouton désactivé
+      // (surface de la garde anti-double-clic et du :disabled).
+      const releaseBtn = wrapper.find('[data-testid="release-candidature-btn"]')
+      expect(releaseBtn.text()).toContain('Libération...')
+      expect(releaseBtn.attributes('disabled')).toBeDefined()
+
+      // resetReleasing() (exposé, appelé par la section après la réponse) repasse au repos.
+      const vm = wrapper.vm as unknown as { resetReleasing: () => void }
+      vm.resetReleasing()
+      await wrapper.vm.$nextTick()
+
+      const releaseBtnAfter = wrapper.find('[data-testid="release-candidature-btn"]')
+      expect(releaseBtnAfter.text()).toContain('Libérer la place')
+      expect(releaseBtnAfter.attributes('disabled')).toBeUndefined()
+    })
+  })
 })

@@ -55,6 +55,18 @@ export interface CandidatureResponse {
 export type AcceptCandidatureResult = CandidatureResponse & { checkout_url?: string }
 
 /**
+ * Release-candidature result (9-2). Payload « lean » de dénouement (calque
+ * CandidaturePaymentStatusResponse), PAS un CandidatureResource : le backend
+ * renvoie le nouveau statut + un message après libération du slot (9-1, D-9.1.h).
+ */
+export interface ReleaseCandidatureResponse {
+  data: {
+    candidature_status: CandidatureStatusType
+    message: string
+  }
+}
+
+/**
  * Self-heal payment-status poll response for a hybrid candidature (8-5).
  * The overlay polls until candidature_status === 'accepted' (success) or
  * payment_status === 'failed' (retryable). Lean payload (mirror of the other
@@ -117,6 +129,13 @@ export interface FaceCandidature {
   mission: MissionSummary
   producer: ProducerSummary
   conversation_id: string | null
+  /**
+   * Date-limite de reconfirmation (ISO 8601) d'une candidature UGC acceptée
+   * (accepted_at + ugc.reconfirm_window_hours, 9-1/9-2). null hors UGC accepté
+   * (cash, ou déjà reconfirmée/annulée). Optionnel : calque type_compensation,
+   * évite de casser les fixtures FaceCandidature existantes.
+   */
+  reconfirm_deadline?: string | null
   /** Expédition UGC (whenLoaded — clé OMISE hors deal UGC expédié, 3.3 AC8). */
   shipment?: Shipment
 }

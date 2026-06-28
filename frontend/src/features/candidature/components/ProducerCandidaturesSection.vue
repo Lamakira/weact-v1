@@ -9,7 +9,7 @@ import {
   Inbox,
   CheckSquare,
 } from 'lucide-vue-next'
-import { useProducerCandidatures, useRejectCandidature, useAcceptCandidature } from '../composables'
+import { useProducerCandidatures, useRejectCandidature, useAcceptCandidature, useReleaseCandidature } from '../composables'
 import { useMissionPayment } from '@/features/mission/composables'
 import ProducerCandidatureCard from './ProducerCandidatureCard.vue'
 import UgcCandidaturePaymentOverlay from './UgcCandidaturePaymentOverlay.vue'
@@ -92,6 +92,16 @@ const {
 } = useAcceptCandidature()
 
 /**
+ * Composable for releasing accepted candidatures (UGC, 9-2, D-9.2.d)
+ */
+const {
+  error: releaseError,
+  successMessage: releaseSuccessMessage,
+  releaseCandidature,
+  reset: resetRelease,
+} = useReleaseCandidature()
+
+/**
  * Mission payment selection composable
  */
 const {
@@ -144,6 +154,34 @@ async function handleReject(candidatureId: string): Promise<void> {
   }
 
   resetReject()
+}
+
+/**
+ * Handle release candidature (UGC, 9-2, D-9.2.d) — calque exact de handleReject.
+ * The producer manually frees a slot blocked by an accepted-but-never-reconfirmed
+ * Face; the backend refunds the escrow + reopens the mission, then we refresh.
+ */
+async function handleRelease(candidatureId: string): Promise<void> {
+  const result = await releaseCandidature(candidatureId)
+
+  // Reset the card's loading state
+  cardRefs.value[candidatureId]?.resetReleasing()
+
+  if (result) {
+    // Le message backend est inconditionnel (« ...et le règlement remboursé. »), mais
+    // en produit-seul `unwindUgcCandidatureSlot` ne rembourse aucun escrow. Toast honnête,
+    // calque de `releaseDialogConsequence` (D-9.2.c) : clause remboursement réservée à l'hybride.
+    const successCopy =
+      props.ugcCompensationType === 'hybrid'
+        ? releaseSuccessMessage.value || 'La place a été libérée et le règlement remboursé.'
+        : 'La place a été libérée.'
+    toast.success(successCopy)
+    await refresh()
+  } else {
+    toast.error(releaseError.value || 'Erreur lors de la libération')
+  }
+
+  resetRelease()
 }
 
 /**
@@ -439,6 +477,7 @@ onMounted(() => {
           :ugc-compensation-type="ugcCompensationType"
           @reject="handleReject"
           @accept="handleAccept"
+          @release="handleRelease"
           @toggle-selection="(id: string) => toggleSelection(id, candidature.face.display_name)"
           @confirm-shipment="openShipmentModal(candidature)"
         />

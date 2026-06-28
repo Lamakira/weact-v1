@@ -6,8 +6,16 @@ import ProducerCandidatureCard from '../ProducerCandidatureCard.vue'
 import UgcCandidaturePaymentOverlay from '../UgcCandidaturePaymentOverlay.vue'
 import { UgcShipmentForm } from '@/components/ugc'
 
+const mockToastSuccess = vi.fn()
+const mockToastError = vi.fn()
 vi.mock('@/composables/useToast', () => ({
-  useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(), clear: vi.fn() }),
+  useToast: () => ({
+    success: mockToastSuccess,
+    error: mockToastError,
+    info: vi.fn(),
+    warning: vi.fn(),
+    clear: vi.fn(),
+  }),
 }))
 
 // Spies hissés hors des factories pour être capturables dans les tests
@@ -20,6 +28,9 @@ const mockAcceptCandidature = vi.fn()
 const mockAcceptError = ref<string | null>(null)
 const mockAcceptErrorCode = ref<string | null>(null)
 const mockAcceptSuccessMessage = ref<string | null>(null)
+const mockReleaseCandidature = vi.fn()
+const mockReleaseError = ref<string | null>(null)
+const mockReleaseSuccessMessage = ref<string | null>(null)
 
 vi.mock('@/composables/useUgcShipment', () => ({
   useUgcShipment: () => ({
@@ -71,6 +82,12 @@ vi.mock('../../composables', () => ({
     acceptCandidature: mockAcceptCandidature,
     reset: vi.fn(),
   }),
+  useReleaseCandidature: () => ({
+    error: mockReleaseError,
+    successMessage: mockReleaseSuccessMessage,
+    releaseCandidature: mockReleaseCandidature,
+    reset: vi.fn(),
+  }),
 }))
 
 vi.mock('@/features/mission/composables', () => ({
@@ -107,6 +124,11 @@ describe('ProducerCandidaturesSection', () => {
     mockAcceptError.value = null
     mockAcceptErrorCode.value = null
     mockAcceptSuccessMessage.value = null
+    mockReleaseCandidature.mockReset()
+    mockReleaseError.value = null
+    mockReleaseSuccessMessage.value = null
+    mockToastSuccess.mockReset()
+    mockToastError.mockReset()
   })
 
   it('keeps selection controls visible for the FIX-19.3 retry flow on pending missions', () => {
@@ -222,10 +244,11 @@ describe('ProducerCandidaturesSection', () => {
       name: 'ProducerCandidatureCard',
       template: '<div class="producer-candidature-card-stub"></div>',
       props: ['candidature', 'selectionMode', 'isSelected', 'isUgcMission', 'ugcCompensationType'],
-      emits: ['reject', 'accept', 'toggle-selection', 'confirm-shipment'],
+      emits: ['reject', 'accept', 'release', 'toggle-selection', 'confirm-shipment'],
       methods: {
         resetRejecting() {},
         resetAccepting() {},
+        resetReleasing() {},
       },
     }
 
@@ -296,6 +319,86 @@ describe('ProducerCandidaturesSection', () => {
       // Sans gate, ce test échouerait : le refresh ne doit PAS partir sur une erreur non-capacité.
       expect(mockRefresh).not.toHaveBeenCalled()
     })
+
+    it('releases a candidature and refreshes the list when a card emits release (9-2)', async () => {
+      mockReleaseCandidature.mockResolvedValue({
+        data: { candidature_status: 'cancelled', message: 'Place libérée' },
+      })
+      const wrapper = mountUgcProductSection()
+
+      wrapper.findComponent(ProducerCandidatureCardStub).vm.$emit('release', 'cand-1')
+      await flushPromises()
+
+      expect(mockReleaseCandidature).toHaveBeenCalledWith('cand-1')
+      expect(mockRefresh).toHaveBeenCalledTimes(1)
+    })
+
+    function mountUgcReleaseSection(ugcCompensationType: string) {
+      return shallowMount(ProducerCandidaturesSection, {
+        props: {
+          missionId: 'mission-uuid-under-test',
+          missionBudget: 0,
+          missionStatus: 'published',
+          isUgcMission: true,
+          ugcCompensationType,
+        },
+        global: {
+          stubs: {
+            Teleport: true,
+            ProducerCandidatureCard: ProducerCandidatureCardStub,
+          },
+        },
+      })
+    }
+
+    it('product-only release toast drops the refund claim (honest copy, D-9.2.c)', async () => {
+      // Le backend renvoie un message INCONDITIONNEL mentionnant le remboursement ;
+      // en produit-seul aucun escrow n'est remboursé → le front doit l'élider.
+      mockReleaseCandidature.mockImplementation(async () => {
+        mockReleaseSuccessMessage.value = 'La place a été libérée et le règlement remboursé.'
+        return { data: { candidature_status: 'cancelled', message: mockReleaseSuccessMessage.value } }
+      })
+      const wrapper = mountUgcReleaseSection('product')
+
+      wrapper.findComponent(ProducerCandidatureCardStub).vm.$emit('release', 'cand-1')
+      await flushPromises()
+
+      expect(mockToastSuccess).toHaveBeenCalledTimes(1)
+      expect(mockToastSuccess.mock.calls[0][0]).toBe('La place a été libérée.')
+      expect(mockToastSuccess.mock.calls[0][0]).not.toContain('remboursé')
+      expect(mockRefresh).toHaveBeenCalledTimes(1)
+    })
+
+    it('hybrid release toast keeps the backend refund message', async () => {
+      mockReleaseCandidature.mockImplementation(async () => {
+        mockReleaseSuccessMessage.value = 'La place a été libérée et le règlement remboursé.'
+        return { data: { candidature_status: 'cancelled', message: mockReleaseSuccessMessage.value } }
+      })
+      const wrapper = mountUgcReleaseSection('hybrid')
+
+      wrapper.findComponent(ProducerCandidatureCardStub).vm.$emit('release', 'cand-1')
+      await flushPromises()
+
+      expect(mockToastSuccess).toHaveBeenCalledTimes(1)
+      expect(mockToastSuccess.mock.calls[0][0]).toContain('remboursé')
+      expect(mockRefresh).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not refresh and surfaces an error toast when a release fails (AC3)', async () => {
+      mockReleaseCandidature.mockImplementation(async () => {
+        mockReleaseError.value = 'Seule une candidature acceptée peut être libérée.'
+        return null
+      })
+      const wrapper = mountUgcReleaseSection('product')
+
+      wrapper.findComponent(ProducerCandidatureCardStub).vm.$emit('release', 'cand-1')
+      await flushPromises()
+
+      expect(mockReleaseCandidature).toHaveBeenCalledWith('cand-1')
+      expect(mockToastError).toHaveBeenCalledWith('Seule une candidature acceptée peut être libérée.')
+      // AC3 : la liste n'est pas faussement vidée sur échec.
+      expect(mockRefresh).not.toHaveBeenCalled()
+    })
   })
 
   describe('UGC hybrid accept overlay (8.5)', () => {
@@ -303,10 +406,11 @@ describe('ProducerCandidaturesSection', () => {
       name: 'ProducerCandidatureCard',
       template: '<div class="producer-candidature-card-stub"></div>',
       props: ['candidature', 'selectionMode', 'isSelected', 'isUgcMission', 'ugcCompensationType'],
-      emits: ['reject', 'accept', 'toggle-selection', 'confirm-shipment'],
+      emits: ['reject', 'accept', 'release', 'toggle-selection', 'confirm-shipment'],
       methods: {
         resetRejecting() {},
         resetAccepting() {},
+        resetReleasing() {},
       },
     }
 

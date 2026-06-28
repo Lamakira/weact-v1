@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, X, Loader2, CheckSquare, Square, Truck, Check } from 'lucide-vue-next'
+import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, X, Loader2, CheckSquare, Square, Truck, Check, UserMinus } from 'lucide-vue-next'
 import type { ProducerCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
 import WBadge from '@/components/ui/WBadge.vue'
@@ -24,16 +24,19 @@ const props = defineProps<{
 const emit = defineEmits<{
   reject: [candidatureId: string]
   accept: [candidatureId: string]
+  release: [candidatureId: string]
   'toggle-selection': [candidatureId: string]
   'confirm-shipment': []
 }>()
 
 /**
- * Local state for reject / accept buttons + confirmation dialog
+ * Local state for reject / accept / release buttons + confirmation dialogs
  */
 const isRejecting = ref(false)
 const isAccepting = ref(false)
+const isReleasing = ref(false)
 const showRejectConfirmation = ref(false)
+const showReleaseConfirmation = ref(false)
 
 /**
  * Computed: Can take action (reject) — only for pending candidatures outside selection mode.
@@ -71,6 +74,26 @@ const canChat = computed(() => {
  */
 const canConfirmShipment = computed(
   () => props.isUgcMission === true && props.candidature.status === 'confirmed' && !props.candidature.shipment,
+)
+
+/**
+ * Computed: Can show the UGC "Libérer la place" button (9-2, D-9.2.b) — an
+ * accepted candidature on a UGC mission (product-only OR hybrid : the backend
+ * unwind handles both). NOT gated on compensation type, NOT shown on cash missions.
+ */
+const canRelease = computed(
+  () => props.isUgcMission === true && props.candidature.status === 'accepted',
+)
+
+/**
+ * Computed: dialog consequence copy (9-2, D-9.2.c — « copie honnête »). Le refund
+ * escrow n'existe qu'en hybride : `unwindUgcCandidatureSlot` ne fait aucun mouvement
+ * d'argent en produit-seul. La clause remboursement ne s'affiche donc que pour l'hybride.
+ */
+const releaseDialogConsequence = computed(() =>
+  props.ugcCompensationType === 'hybrid'
+    ? 'Libérer sa place annulera sa candidature, vous remboursera le règlement séquestré et rouvrira la mission aux autres Faces.'
+    : 'Libérer sa place annulera sa candidature et rouvrira la mission aux autres Faces.',
 )
 
 /**
@@ -136,9 +159,41 @@ function resetAccepting(): void {
 }
 
 /**
+ * Show release confirmation dialog (9-2)
+ */
+function showReleaseDialog(): void {
+  showReleaseConfirmation.value = true
+}
+
+/**
+ * Cancel release action (9-2)
+ */
+function cancelRelease(): void {
+  showReleaseConfirmation.value = false
+}
+
+/**
+ * Confirm and execute release action — guarded against double-clicks; emits to the
+ * parent section which owns the API call + refresh (9-2, D-9.2.c/d).
+ */
+function confirmRelease(): void {
+  if (isReleasing.value) return
+  isReleasing.value = true
+  showReleaseConfirmation.value = false
+  emit('release', props.candidature.id)
+}
+
+/**
+ * Reset releasing state (called from parent after API response)
+ */
+function resetReleasing(): void {
+  isReleasing.value = false
+}
+
+/**
  * Expose methods for parent component
  */
-defineExpose({ resetRejecting, resetAccepting })
+defineExpose({ resetRejecting, resetAccepting, resetReleasing })
 
 /**
  * Computed: Status badge class
@@ -380,8 +435,8 @@ const categoryLabel = computed(() => {
         </button>
       </div>
 
-      <!-- Chat + Confirm-shipment buttons (accepted/confirmed/in_progress/completed) -->
-      <div v-else-if="canChat || canConfirmShipment" class="flex flex-wrap gap-2">
+      <!-- Chat + Confirm-shipment + Release buttons (accepted/confirmed/in_progress/completed) -->
+      <div v-else-if="canChat || canConfirmShipment || canRelease" class="flex flex-wrap gap-2">
         <RouterLink
           v-if="canChat"
           :to="{ name: 'producer-conversation', params: { conversationId: candidature.conversation_id } }"
@@ -399,6 +454,18 @@ const categoryLabel = computed(() => {
         >
           <Truck class="h-4 w-4" />
           Confirmer l'envoi
+        </button>
+        <button
+          v-if="canRelease"
+          type="button"
+          data-testid="release-candidature-btn"
+          class="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-4 py-2 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="isReleasing"
+          @click="showReleaseDialog"
+        >
+          <Loader2 v-if="isReleasing" class="h-4 w-4 animate-spin" />
+          <UserMinus v-else class="h-4 w-4" />
+          {{ isReleasing ? 'Libération...' : 'Libérer la place' }}
         </button>
       </div>
       <div v-else></div>
@@ -472,6 +539,55 @@ const categoryLabel = computed(() => {
                 @click="confirmReject"
               >
                 Confirmer le refus
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Release Confirmation Dialog (9-2, D-9.2.c) -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition-all duration-200 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition-all duration-150 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div
+          v-if="showReleaseConfirmation"
+          class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          @click.self="cancelRelease"
+        >
+          <div
+            class="w-full max-w-md rounded-xl bg-card p-6 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="release-dialog-title"
+          >
+            <h3 id="release-dialog-title" class="text-lg font-semibold text-foreground">
+              Libérer la place de cette Face ?
+            </h3>
+            <p class="mt-2 text-sm text-muted-foreground">
+              <span class="font-medium text-foreground">{{ candidature.face.display_name }}</span>
+              a été acceptée mais n'a pas reconfirmé sa participation. {{ releaseDialogConsequence }}
+            </p>
+            <div class="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                class="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                @click="cancelRelease"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700"
+                @click="confirmRelease"
+              >
+                Confirmer la libération
               </button>
             </div>
           </div>

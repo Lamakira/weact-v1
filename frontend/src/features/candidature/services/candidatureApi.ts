@@ -8,6 +8,7 @@ import type {
   FaceCandidatureListResponse,
   ProducerCandidatureListResponse,
   CandidateFullProfileResponse,
+  ReleaseCandidatureResponse,
 } from '../types'
 import type { ConfirmShipmentPayload, ShipmentResponse } from '@/components/ugc'
 
@@ -116,6 +117,19 @@ export const candidatureApi = {
   async acceptCandidature(candidatureId: string): Promise<AcceptCandidatureResult> {
     const response = await apiClient.post<AcceptCandidatureResult>(
       `/producer/candidatures/${candidatureId}/accept`,
+    )
+    return response.data
+  },
+
+  /**
+   * Release (unwind) an accepted UGC candidature's slot (Producer — 9-2).
+   * Refunds the hybrid escrow (net), cancels the candidature, frees the slot and
+   * reopens the mission. Manual lever (the deadline sweep does this after 48h).
+   * @param candidatureId The candidature ID to release
+   */
+  async releaseCandidature(candidatureId: string): Promise<ReleaseCandidatureResponse> {
+    const response = await apiClient.post<ReleaseCandidatureResponse>(
+      `/producer/candidatures/${candidatureId}/release`,
     )
     return response.data
   },

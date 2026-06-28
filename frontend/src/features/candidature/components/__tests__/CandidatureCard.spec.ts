@@ -80,4 +80,39 @@ describe('CandidatureCard', () => {
     const link = wrapper.findComponent(RouterLinkStub)
     expect(link.props('to')).toEqual({ name: 'face-mission-detail', params: { id: 'mission-uuid-1' } })
   })
+
+  describe('reconfirmation deadline label (9-2)', () => {
+    it('renders the deadline label for an accepted candidature with a reconfirm_deadline', () => {
+      const wrapper = mountCard(
+        makeCandidature({
+          status: 'accepted',
+          status_label: 'Acceptée',
+          reconfirm_deadline: '2026-06-29T10:00:00+00:00',
+        }),
+      )
+
+      const label = wrapper.find('[data-testid="reconfirm-deadline-label"]')
+      expect(label.exists()).toBe(true)
+      expect(label.text()).toContain('Reconfirmez avant le')
+      // Assert the FORMATTED date is interpolated (not just the static prefix) :
+      // l'année + le mois long fr-FR prouvent que formattedReconfirmDeadline a tourné
+      // (l'ISO brut ne contient pas « juin »). Stables vis-à-vis du fuseau pour ce 29 juin.
+      expect(label.text()).toContain('2026')
+      expect(label.text()).toContain('juin')
+    })
+
+    it('omits the deadline label for an accepted candidature without a deadline (cash)', () => {
+      const wrapper = mountCard(makeCandidature({ status: 'accepted', status_label: 'Acceptée' }))
+
+      expect(wrapper.find('[data-testid="reconfirm-deadline-label"]').exists()).toBe(false)
+    })
+
+    it('omits the deadline label for a non-accepted candidature', () => {
+      const wrapper = mountCard(
+        makeCandidature({ status: 'confirmed', reconfirm_deadline: '2026-06-29T10:00:00+00:00' }),
+      )
+
+      expect(wrapper.find('[data-testid="reconfirm-deadline-label"]').exists()).toBe(false)
+    })
+  })
 })
