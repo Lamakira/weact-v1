@@ -106,7 +106,10 @@ function handleSuccess() {
         <div class="text-center mt-6 space-y-2">
           <p class="text-sm text-gray-600">
             Déjà un compte ?
-            <router-link to="/login" class="font-medium text-primary-500 hover:text-primary-700 transition-colors">
+            <router-link
+              :to="{ path: '/login', query: route.query.redirect ? { redirect: route.query.redirect } : {} }"
+              class="font-medium text-primary-500 hover:text-primary-700 transition-colors"
+            >
               Se connecter
             </router-link>
           </p>

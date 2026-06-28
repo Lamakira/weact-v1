@@ -14,6 +14,18 @@ vi.mock('@/features/public/services/publicMissionsApi', () => ({
   fetchPublicMissions: vi.fn(),
 }))
 
+// Mock the auth store — the component reads it for the UGC discovery banner visibility (ugc-disc-2).
+// Mutable so individual tests can switch between anonymous / Face / Producer. Reset in beforeEach.
+const authCtx: {
+  store: {
+    isAuthenticated: boolean
+    user: { id: number; userable_type: 'Face' | 'Producer'; email_verified: boolean } | null
+  }
+} = { store: { isAuthenticated: false, user: null } }
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => authCtx.store,
+}))
+
 const mockMissions: PublicMission[] = [
   {
     id: 1,
@@ -83,10 +95,15 @@ describe('PublicMissionsView', () => {
       routes: [
         { path: '/missions', name: 'public-missions-list', component: PublicMissionsView },
         { path: '/missions/:id', name: 'public-mission-detail', component: { template: '<div>Detail</div>' } },
+        { path: '/face/ugc-missions', name: 'face-ugc-missions', component: { template: '<div>UGC Missions</div>' } },
         { path: '/register/face', name: 'register-face', component: { template: '<div>Register Face</div>' } },
         { path: '/register/producer', name: 'register-producer', component: { template: '<div>Register Producer</div>' } },
       ],
     })
+
+    // ugc-disc-2: reset auth to anonymous (UGC banner visible) before each test.
+    authCtx.store.isAuthenticated = false
+    authCtx.store.user = null
 
     vi.clearAllMocks()
   })
@@ -472,6 +489,81 @@ describe('PublicMissionsView', () => {
       const h1 = wrapper.find('h1')
       expect(h1.exists()).toBe(true)
       expect(h1.text()).toBe('Missions disponibles')
+    })
+  })
+
+  describe('UGC discovery entry point (ugc-disc-2)', () => {
+    it('renders the UGC discovery CTA banner for an anonymous visitor', async () => {
+      vi.mocked(publicMissionsApi.fetchPublicMissions).mockResolvedValue(mockResponse)
+
+      const wrapper = await mountView()
+      await flushPromises()
+
+      const cta = wrapper.find('[data-testid="ugc-discovery-cta-public"]')
+      expect(cta.exists()).toBe(true)
+      expect(cta.text()).toContain('Découvrez les missions UGC')
+    })
+
+    it('routes an anonymous visitor to Face registration (lower-friction than the login wall)', async () => {
+      vi.mocked(publicMissionsApi.fetchPublicMissions).mockResolvedValue(mockResponse)
+
+      const wrapper = await mountView()
+      await flushPromises()
+
+      // Real memory router resolves the named route to its href — proves the name is registered.
+      const cta = wrapper.find('[data-testid="ugc-discovery-cta-public"]')
+      const href = cta.attributes('href') ?? ''
+      expect(href).toContain('/register/face')
+      // Carries a redirect so they land on the gated UGC page right after sign-up (encoding-agnostic).
+      expect(decodeURIComponent(href)).toContain('redirect=/face/ugc-missions')
+    })
+
+    it('routes a logged-in Face straight to the gated UGC page', async () => {
+      authCtx.store.isAuthenticated = true
+      authCtx.store.user = { id: 5, userable_type: 'Face', email_verified: true }
+      vi.mocked(publicMissionsApi.fetchPublicMissions).mockResolvedValue(mockResponse)
+
+      const wrapper = await mountView()
+      await flushPromises()
+
+      const cta = wrapper.find('[data-testid="ugc-discovery-cta-public"]')
+      expect(cta.exists()).toBe(true)
+      expect(cta.attributes('href')).toBe('/face/ugc-missions')
+    })
+
+    it('hides the banner for a logged-in non-Face user (Producer)', async () => {
+      authCtx.store.isAuthenticated = true
+      authCtx.store.user = { id: 9, userable_type: 'Producer', email_verified: true }
+      vi.mocked(publicMissionsApi.fetchPublicMissions).mockResolvedValue(mockResponse)
+
+      const wrapper = await mountView()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="ugc-discovery-cta-public"]').exists()).toBe(false)
+    })
+
+    it('keeps the existing public list rendered — grid + filters unchanged (non-regression)', async () => {
+      vi.mocked(publicMissionsApi.fetchPublicMissions).mockResolvedValue(mockResponse)
+
+      const wrapper = await mountView()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="missions-grid"]').exists()).toBe(true)
+      expect(wrapper.findComponent({ name: 'PublicMissionFiltersBar' }).exists()).toBe(true)
+    })
+
+    it('shows the CTA even when there are no missions (always-on discovery door)', async () => {
+      vi.mocked(publicMissionsApi.fetchPublicMissions).mockResolvedValue({
+        ...mockResponse,
+        data: [],
+        meta: { ...mockResponse.meta, total: 0 },
+      })
+
+      const wrapper = await mountView()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="missions-empty"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="ugc-discovery-cta-public"]').exists()).toBe(true)
     })
   })
 })

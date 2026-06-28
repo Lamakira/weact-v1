@@ -120,4 +120,34 @@ describe('RegisterFacePage', () => {
     // AC#6: the reminder toast fires even on the bounce-back path.
     expect(mockToast.info).toHaveBeenCalled()
   })
+
+  // ugc-disc-2 edge case: an already-registered Face reaching /register/face via the public
+  // UGC banner must not lose the bounce-back when switching to login.
+  it('preserves a ?redirect= on the "Se connecter" link', async () => {
+    vi.mocked(authApi.getRegistrationStatus).mockResolvedValueOnce({ data: { enabled: true } } as never)
+
+    await router.push('/register/face?redirect=/face/ugc-missions')
+    await router.isReady()
+    const wrapper = mount(RegisterFacePage, {
+      global: {
+        plugins: [createTestingPinia(), router],
+      },
+    })
+    await flushPromises()
+
+    const loginLink = wrapper.findAll('a').find((a) => a.text().includes('Se connecter'))
+    expect(loginLink).toBeDefined()
+    expect(decodeURIComponent(loginLink!.attributes('href') ?? '')).toBe('/login?redirect=/face/ugc-missions')
+  })
+
+  it('keeps the "Se connecter" link clean when there is no ?redirect=', async () => {
+    vi.mocked(authApi.getRegistrationStatus).mockResolvedValueOnce({ data: { enabled: true } } as never)
+
+    const wrapper = await mountComponent()
+    await flushPromises()
+
+    const loginLink = wrapper.findAll('a').find((a) => a.text().includes('Se connecter'))
+    expect(loginLink).toBeDefined()
+    expect(loginLink!.attributes('href')).toBe('/login')
+  })
 })
