@@ -6,8 +6,13 @@ import CommissionBreakdown from '../CommissionBreakdown.vue'
 // thousands separator — normalize them to a plain space before asserting.
 const normalize = (text: string): string => text.replace(/[\u202f\u00a0]/g, ' ')
 
-const mountBreak = (props: { productValue: number; payAmount?: number; onPlatform?: boolean }) =>
-  mount(CommissionBreakdown, { props })
+const mountBreak = (props: {
+  productValue: number
+  payAmount?: number
+  onPlatform?: boolean
+  mode?: 'booking' | 'mission'
+  nombreFaces?: number
+}) => mount(CommissionBreakdown, { props })
 
 describe('CommissionBreakdown', () => {
   it('shows product value + commission and hides the Face remuneration line when payAmount is 0', () => {
@@ -50,5 +55,42 @@ describe('CommissionBreakdown', () => {
     expect(text).toContain('16 500') // 15000 + 10% frais service
     expect(text).toContain('séquestrée par WeAct') // footer escrow honnête
     expect(text).not.toContain('WeAct ne facture que sa commission')
+  })
+
+  // Mission publish, HYBRID (produit + cash) — the WeAct commission sits on the CASH
+  // (charged per-Face at acceptance), never on the product value. Publication is free.
+  describe('mission publish hybrid mode', () => {
+    it('drops the product commission and charges nothing at publish', () => {
+      const wrapper = mountBreak({ productValue: 80000, payAmount: 25000, mode: 'mission', nombreFaces: 1 })
+      const text = normalize(wrapper.text())
+
+      // No product-based commission, no "à payer maintenant" fee at publish
+      expect(text).not.toContain('8 000') // 10% of 80000 must never surface
+      expect(text).not.toContain('WeAct ne facture que sa commission')
+      expect(text.toLowerCase()).toContain('gratuit')
+      // Face cash + service fee (per-Face cost at acceptance)
+      expect(text).toContain('25 000') // cash
+      expect(text).toContain('Commission WeAct')
+      expect(text).toContain('2 500') // 10% WeAct commission on 25000
+      expect(text).toContain('27 500') // per-Face cost = cash + service fee
+      expect(text).toContain('séquestrée') // escrow note
+    })
+
+    it('multiplies the per-Face cost by the number of Faces', () => {
+      const wrapper = mountBreak({ productValue: 80000, payAmount: 25000, mode: 'mission', nombreFaces: 2 })
+      const text = normalize(wrapper.text())
+
+      expect(text).toContain('Nombre de Faces')
+      expect(text).toContain('27 500') // per Face
+      expect(text).toContain('55 000') // 2 × 27 500 total
+    })
+
+    it('hides the Faces total line for a single Face', () => {
+      const wrapper = mountBreak({ productValue: 80000, payAmount: 25000, mode: 'mission', nombreFaces: 1 })
+      const text = normalize(wrapper.text())
+
+      expect(text).not.toContain('Nombre de Faces')
+      expect(text).not.toContain('55 000')
+    })
   })
 })

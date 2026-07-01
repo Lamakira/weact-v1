@@ -158,9 +158,12 @@ const isUgc = computed(() => type_mission.value === 'ugc')
 const ugcCommission = computed(() => computeUgcCommission(Number(valeur_produit.value) || 0))
 const submitLabel = computed(() => {
   if (props.mode === 'edit') return 'Enregistrer les modifications'
-  return isUgc.value
-    ? `Payer la commission · ${ugcCommission.value.toLocaleString('fr-FR')} FCFA`
-    : 'Publier la mission'
+  if (!isUgc.value) return 'Publier la mission'
+  // UGC hybride : publié DIRECTEMENT, sans paiement (commission WeAct sur le cash, prélevée
+  // par-Face à l'acceptation) — pas de « Payer la commission » au publish (D-8.4.c).
+  if (type_compensation.value === 'hybrid') return 'Publier la mission'
+  // UGC produit-seul : gate commission produit (pending_payment) → réglée au publish.
+  return `Payer la commission · ${ugcCommission.value.toLocaleString('fr-FR')} FCFA`
 })
 
 // Sync duration preset / custom days → duree field
@@ -447,8 +450,10 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
             :montant-remuneration-error="montantRemunerationError"
           />
           <CommissionBreakdown
+            mode="mission"
             :product-value="Number(valeur_produit) || 0"
             :pay-amount="type_compensation === 'hybrid' ? (Number(montant_remuneration) || 0) : 0"
+            :nombre-faces="Number(nombre_faces_voulu) || 1"
           />
         </div>
       </div>

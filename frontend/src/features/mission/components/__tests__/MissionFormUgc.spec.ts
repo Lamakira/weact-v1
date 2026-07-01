@@ -134,13 +134,26 @@ describe('MissionForm — UGC integration', () => {
     expect(wrapper.find('[data-testid="date-limite-input"]').exists()).toBe(true)
   })
 
-  it('4. en UGC, le CTA affiche "Payer la commission"', async () => {
+  it('4. en UGC PRODUIT-SEUL, le CTA affiche "Payer la commission"', async () => {
     const wrapper = mountForm({ mode: 'create' })
 
     await wrapper.find('select#type_mission').setValue('ugc')
     await flushPromises()
 
     expect(wrapper.find('[data-testid="submit-button"]').text()).toContain('Payer la commission')
+  })
+
+  it('4b. en UGC HYBRIDE, le CTA repasse à "Publier la mission" (publication gratuite, commission sur le cash à l\'acceptation)', async () => {
+    const wrapper = mountForm({ mode: 'create' })
+
+    await wrapper.find('select#type_mission').setValue('ugc')
+    await flushPromises()
+    await wrapper.find('[data-testid="compensation-hybrid"]').trigger('click')
+    await flushPromises()
+
+    const cta = wrapper.find('[data-testid="submit-button"]').text()
+    expect(cta).toContain('Publier la mission')
+    expect(cta).not.toContain('Payer la commission')
   })
 
   it('5. UGC product verrouille "2 vidéos" ; hybrid révèle nombre_videos + rémunération', async () => {

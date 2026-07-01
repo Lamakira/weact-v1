@@ -8,19 +8,35 @@ const props = withDefaults(
     productValue: number
     payAmount?: number
     onPlatform?: boolean
+    /**
+     * `'mission'` = récap de PUBLICATION d'une mission UGC (vs `'booking'` par défaut,
+     * inchangé). En hybride, la publication est GRATUITE : la commission WeAct porte
+     * sur le cash, prélevée par-Face à l'acceptation (cash + frais service, escrow),
+     * jamais sur la valeur produit (D-8.4.c, MissionService::createUgcMission).
+     */
+    mode?: 'booking' | 'mission'
+    /** Nombre de Faces recherchées — multiplie le coût cash par-Face (hybride mission). */
+    nombreFaces?: number
   }>(),
   {
     payAmount: 0,
     onPlatform: false,
+    mode: 'booking',
+    nombreFaces: 1,
   },
 )
 
 const commission = computed(() => computeUgcCommission(props.productValue))
 const showPay = computed(() => !!props.payAmount && props.payAmount > 0)
+// Publication d'une mission hybride : gratuit au publish, cash tarifé par-Face à l'acceptation.
+const isMissionHybrid = computed(() => props.mode === 'mission' && showPay.value)
 // Booking hybride réglé on-platform : WeAct encaisse cash + frais service, séquestre le net Face.
-const isOnPlatformHybrid = computed(() => props.onPlatform && showPay.value)
+const isOnPlatformHybrid = computed(() => props.onPlatform && showPay.value && !isMissionHybrid.value)
 const serviceFee = computed(() => Math.round((props.payAmount || 0) * UGC_PRODUCER_SERVICE_RATE))
+// Coût cash par Face = rémunération + frais service (identique au règlement d'un booking cash).
 const onPlatformTotal = computed(() => computeUgcHybridProducerTotal(props.payAmount || 0))
+const missionFacesCount = computed(() => Math.max(1, Math.trunc(props.nombreFaces || 1)))
+const missionHybridTotal = computed(() => onPlatformTotal.value * missionFacesCount.value)
 
 function formatFcfa(amount: number): string {
   return `${(amount || 0).toLocaleString('fr-FR')} FCFA`
@@ -47,8 +63,47 @@ function formatFcfa(amount: number): string {
         <span class="text-gray-700">{{ formatFcfa(payAmount) }}</span>
       </div>
 
+      <!-- Publication d'une mission HYBRIDE : gratuit au publish, cash tarifé par-Face à
+           l'acceptation (cash + frais service, escrow). Commission WeAct sur le cash, jamais
+           sur la valeur produit ; le coût total scale avec le nombre de Faces. -->
+      <template v-if="isMissionHybrid">
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-gray-500">Commission WeAct (10 %)</span>
+          <span class="text-gray-700">{{ formatFcfa(serviceFee) }}</span>
+        </div>
+
+        <div class="mt-2 border-t border-gray-100 pt-2 space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-gray-500">Coût par Face à l'acceptation</span>
+            <span class="font-medium text-gray-700">{{ formatFcfa(onPlatformTotal) }}</span>
+          </div>
+          <template v-if="missionFacesCount > 1">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-gray-500">Nombre de Faces</span>
+              <span class="text-gray-700">× {{ missionFacesCount }}</span>
+            </div>
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-semibold text-gray-900">Total si toutes les Faces acceptent</span>
+              <span class="text-base font-bold text-gray-900">{{ formatFcfa(missionHybridTotal) }}</span>
+            </div>
+          </template>
+        </div>
+
+        <div class="mt-2 border-t border-gray-100 pt-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-semibold text-gray-900">À payer maintenant</span>
+            <span class="text-base font-bold text-weact">Gratuit</span>
+          </div>
+          <p class="mt-1 text-[10px] text-gray-400">
+            Publication gratuite. À l'acceptation de chaque Face, vous réglez la rémunération
+            + la commission WeAct (10 %). La rémunération est séquestrée par WeAct puis versée
+            à la Face après validation des vidéos ; le produit reste géré directement par vous.
+          </p>
+        </div>
+      </template>
+
       <!-- Booking hybride réglé on-platform : frais de service + total + footer escrow honnête -->
-      <template v-if="isOnPlatformHybrid">
+      <template v-else-if="isOnPlatformHybrid">
         <div class="flex items-center justify-between text-xs">
           <span class="text-gray-500">Frais de service (10 %)</span>
           <span class="text-gray-700">{{ formatFcfa(serviceFee) }}</span>
