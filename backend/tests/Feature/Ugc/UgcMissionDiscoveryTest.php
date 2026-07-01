@@ -107,6 +107,19 @@ class UgcMissionDiscoveryTest extends TestCase
         $this->assertArrayNotHasKey('commission_paid_at', $item);
     }
 
+    public function test_excludes_ugc_missions_whose_candidature_deadline_has_passed(): void
+    {
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        $this->makePublishedUgcMission(['titre' => 'UGC ouverte', 'date_limite_candidature' => now()->addWeek()]);
+        // Candidatures fermées → obsolète, ne doit pas apparaître dans la découverte.
+        $this->makePublishedUgcMission(['titre' => 'UGC expirée', 'date_limite_candidature' => now()->subDay()]);
+
+        $response = $this->actingAs($this->faceUser)->getJson('/api/v1/face/ugc/missions');
+
+        $response->assertStatus(200)->assertJsonCount(1, 'data');
+        $this->assertEquals('UGC ouverte', $response->json('data.0.titre'));
+    }
+
     public function test_pro_face_sees_full_ugc_missions_list(): void
     {
         FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);

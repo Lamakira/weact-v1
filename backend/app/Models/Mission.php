@@ -247,6 +247,27 @@ class Mission extends Model
     }
 
     /**
+     * Scope a query to exclude « obsolete » missions from browse listings: those
+     * whose candidature deadline is passed OR whose shooting date is passed.
+     *
+     * The candidature-deadline part mirrors isAcceptingCandidatures() (>= today,
+     * so a mission closing today is still listed) ; the shooting-date part hides
+     * missions whose shoot has already happened. `date_tournage` is nullable
+     * (UGC dotations have none) — a null shooting date never expires here.
+     */
+    public function scopeNotExpired(Builder $query): Builder
+    {
+        $today = now()->toDateString();
+
+        return $query
+            ->whereDate('date_limite_candidature', '>=', $today)
+            ->where(function (Builder $inner) use ($today) {
+                $inner->whereNull('date_tournage')
+                    ->orWhereDate('date_tournage', '>=', $today);
+            });
+    }
+
+    /**
      * Scope a query to only include completed missions.
      */
     public function scopeCompleted(Builder $query): Builder

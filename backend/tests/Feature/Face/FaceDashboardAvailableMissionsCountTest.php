@@ -107,6 +107,35 @@ class FaceDashboardAvailableMissionsCountTest extends TestCase
             ]);
     }
 
+    public function test_excludes_missions_whose_shooting_date_has_passed(): void
+    {
+        // Date de tournage passée (même si la date limite reste future) → non disponible.
+        Mission::factory()
+            ->for($this->producer)
+            ->create([
+                'status' => MissionStatus::Published,
+                'date_limite_candidature' => Carbon::today()->addDays(7),
+                'date_tournage' => Carbon::yesterday(),
+            ]);
+
+        // Mission entièrement à venir → comptée.
+        Mission::factory()
+            ->for($this->producer)
+            ->create([
+                'status' => MissionStatus::Published,
+                'date_limite_candidature' => Carbon::today()->addDays(7),
+                'date_tournage' => Carbon::today()->addDays(14),
+            ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/dashboard/available-missions-count');
+
+        $response->assertOk()
+            ->assertJson([
+                'data' => ['count' => 1],
+            ]);
+    }
+
     public function test_includes_missions_with_deadline_today(): void
     {
         // Create mission with deadline today

@@ -237,14 +237,52 @@ class FaceBrowseMissionsTest extends TestCase
             ->assertJsonPath('meta.current_page', 2);
     }
 
+    public function test_excludes_obsolete_missions_when_deadline_or_shooting_passed(): void
+    {
+        // Ouverte (dates futures) — listée.
+        Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Published,
+            'titre' => 'Mission ouverte',
+            'date_limite_candidature' => now()->addWeek(),
+            'date_tournage' => now()->addWeeks(3),
+        ]);
+        // Date limite de candidature dépassée — exclue.
+        Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Published,
+            'titre' => 'Candidatures fermées',
+            'date_limite_candidature' => now()->subDay(),
+            'date_tournage' => now()->addWeeks(3),
+        ]);
+        // Date de tournage dépassée — exclue.
+        Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Published,
+            'titre' => 'Tournage passé',
+            'date_limite_candidature' => now()->addWeek(),
+            'date_tournage' => now()->subDay(),
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/missions');
+
+        $response->assertStatus(200)->assertJsonCount(1, 'data');
+        $this->assertEquals('Mission ouverte', $response->json('data.0.titre'));
+    }
+
     public function test_mission_card_has_required_fields(): void
     {
+        // Date de tournage relative (future) : le listing exclut les missions dont
+        // la date de tournage est passée (scope notExpired).
+        $dateTournage = now()->addMonth()->format('Y-m-d');
+
         Mission::factory()->create([
             'producer_id' => $this->producer->id,
             'status' => MissionStatus::Published,
             'titre' => 'Test Mission',
             'description' => 'Test Description',
-            'date_tournage' => '2026-02-15',
+            'date_tournage' => $dateTournage,
             'budget' => 150000,
             'lieu' => 'Cotonou',
             'type_mission' => 'publicite',
@@ -267,7 +305,7 @@ class FaceBrowseMissionsTest extends TestCase
         // Check date_tournage exists and is in ISO 8601 format
         $data = $response->json('data.0');
         $this->assertNotNull($data['date_tournage']);
-        $this->assertStringContainsString('2026-02-15', $data['date_tournage']);
+        $this->assertStringContainsString($dateTournage, $data['date_tournage']);
     }
 
     // ========================================
@@ -419,37 +457,43 @@ class FaceBrowseMissionsTest extends TestCase
 
     public function test_filter_by_date_tournage_returns_missions_on_or_after_date(): void
     {
+        // Dates relatives (futures) : le listing exclut les tournages passés (scope
+        // notExpired) ; ce test cible uniquement le filtre date_tournage >= seuil.
+        $before = now()->addMonth()->format('Y-m-d');
+        $threshold = now()->addMonths(2)->format('Y-m-d');
+        $after = now()->addMonths(3)->format('Y-m-d');
+
         Mission::factory()->create([
             'producer_id' => $this->producer->id,
             'status' => MissionStatus::Published,
-            'date_tournage' => '2026-01-15',
-            'titre' => 'January Mission',
+            'date_tournage' => $before,
+            'titre' => 'Mission avant seuil',
         ]);
 
         Mission::factory()->create([
             'producer_id' => $this->producer->id,
             'status' => MissionStatus::Published,
-            'date_tournage' => '2026-02-15',
-            'titre' => 'February Mission',
+            'date_tournage' => $threshold,
+            'titre' => 'Mission au seuil',
         ]);
 
         Mission::factory()->create([
             'producer_id' => $this->producer->id,
             'status' => MissionStatus::Published,
-            'date_tournage' => '2026-03-15',
-            'titre' => 'March Mission',
+            'date_tournage' => $after,
+            'titre' => 'Mission après seuil',
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/missions?date_tournage=2026-02-01');
+            ->getJson("/api/v1/face/missions?date_tournage={$threshold}");
 
         $response->assertStatus(200)
             ->assertJsonCount(2, 'data');
 
         $titles = collect($response->json('data'))->pluck('titre')->all();
-        $this->assertContains('February Mission', $titles);
-        $this->assertContains('March Mission', $titles);
-        $this->assertNotContains('January Mission', $titles);
+        $this->assertContains('Mission au seuil', $titles);
+        $this->assertContains('Mission après seuil', $titles);
+        $this->assertNotContains('Mission avant seuil', $titles);
     }
 
     public function test_filter_by_type_mission_returns_matching_type(): void

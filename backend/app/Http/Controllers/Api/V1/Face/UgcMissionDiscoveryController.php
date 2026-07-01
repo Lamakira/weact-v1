@@ -33,6 +33,7 @@ class UgcMissionDiscoveryController extends Controller
         $missions = Mission::where('status', MissionStatus::Published)
             ->where('type_mission', MissionType::Ugc->value)
             ->whereProducerActive()
+            ->notExpired() // exclut les missions UGC dont la date limite de candidature est passée
             // Le teaser n'expose jamais le producer — eager-load réservé à la branche éligible
             ->when($canAccessUgc, fn ($query) => $query->with('producer'))
             ->orderBy('created_at', 'desc')

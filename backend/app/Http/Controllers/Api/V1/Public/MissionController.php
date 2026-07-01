@@ -43,6 +43,7 @@ class MissionController extends Controller
         $perPage = $request->getPerPage();
 
         $missions = $this->publishedWithProducer()
+            ->notExpired() // exclut les missions obsolètes (date limite candidature / tournage passée)
             ->when(! empty($filters['type_mission']), fn ($query) => $query->where('type_mission', $filters['type_mission']))
             ->when(! empty($filters['lieu']), function ($query) use ($filters) {
                 $escaped = str_replace(['%', '_'], ['\%', '\_'], (string) $filters['lieu']);

@@ -330,11 +330,12 @@ class FaceDashboardController extends Controller
             return $result;
         }
 
-        // Count available missions (published, candidature deadline not passed)
+        // Count available missions (published, non expirées : ni la date limite de
+        // candidature ni la date de tournage passée — aligné sur le listing /missions).
         $count = Mission::where('status', MissionStatus::Published)
             ->where('type_mission', '!=', MissionType::Ugc->value)
             ->whereProducerActive()
-            ->where('date_limite_candidature', '>=', Carbon::today())
+            ->notExpired()
             ->count();
 
         return response()->json([

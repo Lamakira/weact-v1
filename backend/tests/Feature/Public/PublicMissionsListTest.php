@@ -115,6 +115,56 @@ class PublicMissionsListTest extends TestCase
         $this->assertEquals('Published Mission', $response->json('data.0.titre'));
     }
 
+    public function test_excludes_missions_whose_candidature_deadline_has_passed(): void
+    {
+        $producer = $this->createProducerWithUser();
+
+        $open = $this->createPublishedMission([
+            'producer' => $producer,
+            'titre' => 'Mission ouverte',
+            'date_limite_candidature' => now()->addWeek(),
+            'date_tournage' => now()->addWeeks(3),
+        ]);
+        // Date limite de candidature dépassée → obsolète, ne doit pas apparaître.
+        $this->createPublishedMission([
+            'producer' => $producer,
+            'titre' => 'Mission expirée',
+            'date_limite_candidature' => now()->subDay(),
+            'date_tournage' => now()->addWeeks(3),
+        ]);
+
+        $response = $this->getJson('/api/v1/public/missions');
+
+        $response->assertOk();
+        $this->assertEquals(1, $response->json('meta.total'));
+        $this->assertEquals($open->uuid, $response->json('data.0.id'));
+    }
+
+    public function test_excludes_missions_whose_shooting_date_has_passed(): void
+    {
+        $producer = $this->createProducerWithUser();
+
+        $upcoming = $this->createPublishedMission([
+            'producer' => $producer,
+            'titre' => 'Tournage à venir',
+            'date_limite_candidature' => now()->addWeek(),
+            'date_tournage' => now()->addWeeks(2),
+        ]);
+        // Date de tournage passée → obsolète (même si la date limite serait encore future).
+        $this->createPublishedMission([
+            'producer' => $producer,
+            'titre' => 'Tournage passé',
+            'date_limite_candidature' => now()->addWeek(),
+            'date_tournage' => now()->subDay(),
+        ]);
+
+        $response = $this->getJson('/api/v1/public/missions');
+
+        $response->assertOk();
+        $this->assertEquals(1, $response->json('meta.total'));
+        $this->assertEquals($upcoming->uuid, $response->json('data.0.id'));
+    }
+
     public function test_response_includes_correct_mission_fields(): void
     {
         $producer = $this->createProducerWithUser();

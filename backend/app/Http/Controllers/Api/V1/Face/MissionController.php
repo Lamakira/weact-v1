@@ -81,6 +81,7 @@ class MissionController extends Controller
         $missions = Mission::where('status', MissionStatus::Published)
             ->where('type_mission', '!=', MissionType::Ugc->value)
             ->whereProducerActive()
+            ->notExpired() // exclut les missions obsolètes (date limite candidature / tournage passée)
             ->when($request->lieu, function ($q, $lieu) {
                 // Escape LIKE wildcards to prevent pattern injection
                 $escaped = str_replace(['%', '_'], ['\%', '\_'], $lieu);
