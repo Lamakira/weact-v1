@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
+import NavigationProgress from '@/components/layout/NavigationProgress.vue'
 import CookieConsentBanner from '@/components/cookie/CookieConsentBanner.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notification'
@@ -41,6 +42,9 @@ const isLandingPage = computed(() => {
 </script>
 
 <template>
+  <!-- Navigation progress bar (global, all layouts, fixed at top) -->
+  <NavigationProgress />
+
   <!-- Dashboard routes: full-screen, no header/footer -->
   <template v-if="isDashboardRoute">
     <RouterView v-slot="{ Component }">

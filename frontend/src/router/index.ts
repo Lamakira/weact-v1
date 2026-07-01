@@ -2,6 +2,9 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAdminAuthStore } from '@/stores/adminAuth'
+import { useNavigationProgress } from '@/composables/useNavigationProgress'
+
+const navigationProgress = useNavigationProgress()
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -536,6 +539,10 @@ const router = createRouter({
 
 // Navigation guards
 router.beforeEach((to, _from, next) => {
+  // Démarre la barre de chargement dès le début de toute navigation
+  // (les redirections des guards ci-dessous relancent beforeEach : start() est idempotent).
+  navigationProgress.start()
+
   const authStore = useAuthStore()
   const isAuthenticated = authStore.isAuthenticated
   const userType = authStore.user?.userable_type
@@ -606,8 +613,17 @@ router.beforeEach((to, _from, next) => {
 })
 
 router.afterEach((to) => {
+  // Termine la barre : afterEach se déclenche même sur navigation annulée/redirigée,
+  // donc la barre ne reste jamais bloquée.
+  navigationProgress.done()
+
   const title = to.meta.title as string | undefined
   document.title = title || 'WEACT'
+})
+
+// Échec de chargement d'un chunk lazy → on termine aussi la barre pour éviter qu'elle reste figée.
+router.onError(() => {
+  navigationProgress.done()
 })
 
 export default router
