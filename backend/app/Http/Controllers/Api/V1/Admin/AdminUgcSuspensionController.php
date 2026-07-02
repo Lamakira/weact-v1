@@ -12,6 +12,7 @@ use App\Models\UgcSuspension;
 use App\Services\Ugc\UgcSuspensionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Revue admin des appels de suspension douce UGC + réactivation (story 5.3).
@@ -49,7 +50,7 @@ class AdminUgcSuspensionController extends Controller
         ]);
     }
 
-    public function reactivate(UgcSuspension $ugcSuspension): JsonResponse
+    public function reactivate(Request $request, UgcSuspension $ugcSuspension): JsonResponse
     {
         if ($ugcSuspension->reactivated_at !== null) {
             return response()->json(
@@ -61,15 +62,33 @@ class AdminUgcSuspensionController extends Controller
         $this->service->reactivate($ugcSuspension);
         $ugcSuspension->refresh()->loadMissing(['face', 'shipment.owner']);
 
+        // OWASP A09 (L-9): attribute the sensitive admin action (non-repudiation / audit trail).
+        Log::info('admin.ugc_suspension.reactivated', [
+            'admin_id' => $request->user()?->id,
+            'suspension_id' => $ugcSuspension->id,
+            'face_id' => $ugcSuspension->face_id,
+        ]);
+
         return response()->json([
             'data' => new AdminUgcSuspensionResource($ugcSuspension),
             'message' => 'Compte Face réactivé.',
         ]);
     }
 
-    public function rejectAppeal(UgcSuspension $ugcSuspension): JsonResponse
+    public function rejectAppeal(Request $request, UgcSuspension $ugcSuspension): JsonResponse
     {
-        return match ($this->service->rejectAppeal($ugcSuspension)) {
+        $outcome = $this->service->rejectAppeal($ugcSuspension);
+
+        if ($outcome === 'rejected') {
+            // OWASP A09 (L-9): attribute the sensitive admin action.
+            Log::info('admin.ugc_suspension.appeal_rejected', [
+                'admin_id' => $request->user()?->id,
+                'suspension_id' => $ugcSuspension->id,
+                'face_id' => $ugcSuspension->face_id,
+            ]);
+        }
+
+        return match ($outcome) {
             'rejected' => response()->json([
                 'data' => new AdminUgcSuspensionResource(
                     $ugcSuspension->refresh()->loadMissing(['face', 'shipment.owner'])
