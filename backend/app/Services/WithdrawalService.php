@@ -53,29 +53,50 @@ class WithdrawalService
      */
     public function createManualRequest(User $user, array $validated): WithdrawalRequest
     {
-        $withdrawalRequest = WithdrawalRequest::create([
-            'user_id' => $user->id,
-            'amount' => $validated['amount'],
-            'payment_mode' => $validated['payment_mode'],
-            'phone_number' => $validated['phone_number'],
-            'phone_country' => $validated['phone_country'],
-            'status' => 'pending',
-        ]);
+        // OWASP A04: the FormRequest "one pending withdrawal" check runs before this call
+        // and is TOCTOU-racy (two concurrent submits both pass it). Serialise per-user and
+        // re-check under the lock so a race can never create two pending rows for one user.
+        $lock = Cache::lock("withdrawal_manual_{$user->id}", 10);
 
-        $adminEmail = (string) config('app.admin_email', '');
-
-        if ($adminEmail !== '') {
-            Mail::to($adminEmail)->send(
-                new WithdrawalRequestSubmittedMail($withdrawalRequest->loadMissing('user.userable'))
-            );
-        } else {
-            Log::warning('Withdrawal request created but admin_email is not configured — no notification sent to admin', [
-                'withdrawal_request_id' => $withdrawalRequest->id,
-                'user_id' => $user->id,
-            ]);
+        if (! $lock->get()) {
+            throw new WithdrawalLockException('Un retrait est déjà en cours pour ce compte. Veuillez patienter.');
         }
 
-        return $withdrawalRequest;
+        try {
+            $hasPending = WithdrawalRequest::where('user_id', $user->id)
+                ->where('status', 'pending')
+                ->exists();
+
+            if ($hasPending) {
+                throw new WithdrawalLockException('Vous avez déjà une demande de retrait en attente de traitement.');
+            }
+
+            $withdrawalRequest = WithdrawalRequest::create([
+                'user_id' => $user->id,
+                'amount' => $validated['amount'],
+                'payment_mode' => $validated['payment_mode'],
+                'phone_number' => $validated['phone_number'],
+                'phone_country' => $validated['phone_country'],
+                'status' => 'pending',
+            ]);
+
+            $adminEmail = (string) config('app.admin_email', '');
+
+            if ($adminEmail !== '') {
+                Mail::to($adminEmail)->send(
+                    new WithdrawalRequestSubmittedMail($withdrawalRequest->loadMissing('user.userable'))
+                );
+            } else {
+                Log::warning('Withdrawal request created but admin_email is not configured — no notification sent to admin', [
+                    'withdrawal_request_id' => $withdrawalRequest->id,
+                    'user_id' => $user->id,
+                ]);
+            }
+
+            return $withdrawalRequest;
+        } finally {
+            $lock->release();
+        }
     }
 
     /**

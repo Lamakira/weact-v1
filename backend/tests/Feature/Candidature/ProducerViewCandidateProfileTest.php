@@ -140,6 +140,20 @@ class ProducerViewCandidateProfileTest extends TestCase
             ->assertJsonPath('data.prenom', 'Marie');
     }
 
+    public function test_whatsapp_number_is_hidden_from_producers(): void
+    {
+        // PII (OWASP A02): a Producer viewing any candidate must never receive the
+        // WhatsApp number — otherwise any self-signup Producer could harvest them.
+        $this->face->update(['whatsapp_number' => '+22997000000']);
+
+        $this->getJson(
+            "/api/v1/producer/candidates/{$this->face->uuid}",
+            $this->authHeaders($this->producerUser),
+        )
+            ->assertOk()
+            ->assertJsonPath('data.whatsapp_number', null);
+    }
+
     public function test_response_includes_all_profile_fields(): void
     {
         $response = $this->getJson(
