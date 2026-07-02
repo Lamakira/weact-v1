@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { Lock } from 'lucide-vue-next'
 import type { PresentationVideoInfo, VideoUploadProgress } from '../types'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 
@@ -9,6 +10,7 @@ interface Props {
   isDeleting?: boolean
   error?: string | null
   uploadProgress?: VideoUploadProgress | null
+  canUpload?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -16,11 +18,13 @@ const props = withDefaults(defineProps<Props>(), {
   isDeleting: false,
   error: null,
   uploadProgress: null,
+  canUpload: true,
 })
 
 const emit = defineEmits<{
   upload: [file: File]
   delete: []
+  'navigate-pricing': []
 }>()
 
 // File input ref
@@ -49,7 +53,13 @@ const hasVideo = computed(() => !!displayVideoUrl.value || !!previewUrl.value)
 
 const isProcessing = computed(() => props.isUploading || props.isDeleting)
 
+const isTierLocked = computed(() => !props.canUpload)
+
 const progressPercentage = computed(() => props.uploadProgress?.percentage ?? 0)
+
+function onPricingClick(): void {
+  emit('navigate-pricing')
+}
 
 // Clear preview when videoInfo updates (after successful upload)
 watch(
@@ -77,6 +87,7 @@ watch(
  * Trigger file input click
  */
 function triggerFileInput(): void {
+  if (isTierLocked.value || isProcessing.value) return
   fileInputRef.value?.click()
 }
 
@@ -86,6 +97,11 @@ function triggerFileInput(): void {
 function handleFileSelect(event: Event): void {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
+
+  if (isTierLocked.value || isProcessing.value) {
+    input.value = ''
+    return
+  }
 
   if (file) {
     processFile(file)
@@ -101,6 +117,8 @@ function handleFileSelect(event: Event): void {
 function handleDrop(event: DragEvent): void {
   isDragging.value = false
 
+  if (isTierLocked.value || isProcessing.value) return
+
   const file = event.dataTransfer?.files?.[0]
   if (file) {
     processFile(file)
@@ -111,6 +129,8 @@ function handleDrop(event: DragEvent): void {
  * Process the selected file
  */
 function processFile(file: File): void {
+  if (isTierLocked.value || isProcessing.value) return
+
   // Create preview URL
   if (previewUrl.value) {
     URL.revokeObjectURL(previewUrl.value)
@@ -125,6 +145,7 @@ function processFile(file: File): void {
  * Handle drag events
  */
 function handleDragOver(event: DragEvent): void {
+  if (isTierLocked.value || isProcessing.value) return
   event.preventDefault()
   isDragging.value = true
 }
@@ -163,6 +184,28 @@ function cancelDelete(): void {
 
 <template>
   <div class="presentation-video-upload" data-testid="presentation-video-upload">
+    <!-- Tier-locked banner (Free tier without stored video) -->
+    <div
+      v-if="isTierLocked && !hasVideo"
+      class="mb-4 bg-amber-50 border border-amber-200 rounded-md p-4 flex items-start gap-3"
+      data-testid="presentation-video-tier-locked"
+    >
+      <Lock class="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
+      <div class="flex-1">
+        <p class="text-sm text-amber-800 font-medium">
+          L'ajout d'une vidéo de présentation est réservé aux abonnés payants.
+        </p>
+        <button
+          type="button"
+          class="mt-3 px-4 py-2 text-sm font-medium text-white bg-[#198496] rounded-md hover:bg-[#146c7a] transition-colors"
+          data-testid="presentation-video-tier-locked-cta"
+          @click="onPricingClick"
+        >
+          Choisir un abonnement
+        </button>
+      </div>
+    </div>
+
     <!-- Error message -->
     <div
       v-if="error"
@@ -173,8 +216,20 @@ function cancelDelete(): void {
       <p class="text-sm text-red-700">{{ error }}</p>
     </div>
 
-    <!-- Video display area -->
-    <div class="flex flex-col items-center gap-4">
+    <!-- Lock ribbon (Free tier with stored video — downgraded) -->
+    <div
+      v-if="isTierLocked && hasVideo"
+      class="mb-3 bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded-md text-sm flex items-start gap-2"
+      data-testid="presentation-video-lock-badge"
+    >
+      <Lock class="w-4 h-4 flex-shrink-0 mt-0.5" />
+      <span>
+        Visible en privé uniquement — votre formule actuelle ne permet pas la vidéo de présentation publique.
+      </span>
+    </div>
+
+    <!-- Video display area (suppressed when tier-locked and no stored video) -->
+    <div v-if="!(isTierLocked && !hasVideo)" class="flex flex-col items-center gap-4">
       <!-- Video container -->
       <div
         class="relative w-full max-w-md"
@@ -295,7 +350,7 @@ function cancelDelete(): void {
         <!-- Upload/Change button -->
         <button
           type="button"
-          :disabled="isProcessing"
+          :disabled="isProcessing || isTierLocked"
           class="px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           @click="triggerFileInput"
           data-testid="upload-button"
@@ -307,7 +362,7 @@ function cancelDelete(): void {
         <button
           v-if="displayVideoUrl && !previewUrl"
           type="button"
-          :disabled="isProcessing"
+          :disabled="isProcessing || isTierLocked"
           class="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           aria-label="Supprimer la vidéo de présentation"
           @click="handleDelete"

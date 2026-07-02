@@ -1,0 +1,341 @@
+/**
+ * Shared UGC commission helpers (front mirror of `backend/config/ugc.php`
+ * + `App\Services\Ugc\UgcCommissionService::compute`).
+ *
+ * These constants/helpers are display-only: the persisted commission is ALWAYS
+ * recomputed server-side. The front never sends `commission_ugc`.
+ */
+
+import { z } from 'zod'
+
+export const UGC_COMMISSION_RATE = 0.1
+export const UGC_COMMISSION_FLOOR = 2500
+export const UGC_PRODUCT_ONLY_VIDEO_COUNT = 2
+
+/** Frais de service Producteur sur le cash d'un booking hybride (miroir de
+ *  `BookingPricing::PRODUCER_COMMISSION_RATE` = 0.10, flat). Display-only :
+ *  le total réellement encaissé (`montant_total_producteur`) vient du serveur. */
+export const UGC_PRODUCER_SERVICE_RATE = 0.1
+
+/** Miroir de backend/config/ugc.php `deliverable_days.unboxing` — copy statique
+ *  uniquement (« 7 jours ») : la deadline affichée vient TOUJOURS du serveur
+ *  (`unboxing_deadline_at`), jamais d'un calcul front (NFR3, D-3.4.i). */
+export const UGC_UNBOXING_DAYS = 7
+
+/** Miroir de backend/config/ugc.php `deliverable_days.avis` — copy statique
+ *  (« 14 jours ») : la deadline Avis affichée vient TOUJOURS du serveur
+ *  (`avis_deadline_at`), jamais d'un calcul front (NFR3, D-4.6.a). */
+export const UGC_AVIS_DAYS = 14
+
+export type UgcCompensationType = 'product' | 'hybrid'
+
+/** Commission WeAct (live preview ; le serveur reste autoritatif). */
+export function computeUgcCommission(productValue: number): number {
+  return Math.max(UGC_COMMISSION_FLOOR, Math.round((productValue || 0) * UGC_COMMISSION_RATE))
+}
+
+/** Total Producteur d'un booking hybride (cash + frais service 10 % flat). Display-only :
+ *  miroir de `BookingPricing::totalProducerPays` ; le serveur reste autoritatif. */
+export function computeUgcHybridProducerTotal(cash: number): number {
+  return (cash || 0) + Math.round((cash || 0) * UGC_PRODUCER_SERVICE_RATE)
+}
+
+/** Kinds de la primitive StatusPill (UX-DR3) — états du tunnel booking UGC. */
+export type StatusPillKind =
+  | 'pending'
+  | 'paid'
+  | 'accepted'
+  | 'shipped'
+  | 'received'
+  | 'delivered'
+  | 'completed'
+  | 'overdue'
+  | 'suspended'
+
+// ---------- Shipment (tunnel UGC étape 3+, story 3.2) ----------
+
+/**
+ * Expédition d'un deal UGC — miroir de ShipmentResource (3.1).
+ * `tunnel_status` est volontairement un `string` OUVERT (pas d'union fermée) :
+ * l'enum backend UgcTunnelStatus a des cases réservés (épics 4-5) qui doivent
+ * arriver sans redéploiement front (règle fan-out 3.1).
+ */
+export interface Shipment {
+  id: string
+  transporteur: string
+  numero_suivi: string
+  note_envoi: string | null
+  tunnel_status: string
+  tunnel_status_label: string
+  shipped_at: string
+  recu_le: string | null
+  /** Échéance Unboxing dérivée serveur (recu_le + config) — null avant réception (3.3 AC7). */
+  unboxing_deadline_at: string | null
+  /** Échéance Avis dérivée serveur (validated_at Unboxing + config) — null hors avis_pending (4.6). */
+  avis_deadline_at: string | null
+  destinataire: {
+    nom: string
+    ville: string | null
+    pays: string | null
+  }
+  created_at: string
+}
+
+export interface ConfirmShipmentPayload {
+  transporteur: string
+  numero_suivi: string
+  note_envoi?: string
+}
+
+export interface ShipmentResponse {
+  data: Shipment
+  message?: string
+}
+
+// ---------- Deliverable (livrable vidéo UGC, stories 4.1/4.2) ----------
+
+/** Progression d'upload multipart. Redéclaré ici (≡ features/face VideoUploadProgress)
+ *  pour garder components/ugc sans dépendance vers features/face (D-4.2.j). */
+export interface UgcUploadProgress {
+  loaded: number
+  total: number
+  percentage: number
+}
+
+/**
+ * Métadonnées d'un livrable vidéo — miroir de DeliverableResource (4.1).
+ * JAMAIS de video_path ni d'URL signée (lecture Producteur = 4.4).
+ * `kind`/`validation_status` `string` OUVERTS (parité tunnel_status) :
+ * l'affichage passe TOUJOURS par les *_label serveur.
+ */
+export interface Deliverable {
+  id: string
+  kind: string
+  kind_label: string
+  validation_status: string
+  validation_status_label: string
+  /** Note de revue Producteur (motif rejet/retouche) — exposée par DeliverableResource (4.3). */
+  review_note: string | null
+  /** Timestamp de validation (Unboxing validé) — start du chrono Avis côté Face (4.6). */
+  validated_at: string | null
+  chrono_started_at: string
+  deadline_at: string
+  duree_seconds: number | null
+  created_at: string | null
+}
+
+export interface DeliverableResponse {
+  data: Deliverable
+  message?: string
+}
+
+/**
+ * Livrable enrichi pour l'inbox de validation Producteur (5A, 4.4) — miroir de
+ * DeliverableReviewResource. Porte le contexte owner + les URLs média signées
+ * (la Face n'a JAMAIS d'URL). kind/validation_status/owner_type `string` ouverts.
+ */
+export interface DeliverableReviewItem {
+  id: string
+  kind: string
+  kind_label: string
+  validation_status: string
+  validation_status_label: string
+  review_note: string | null
+  submitted_at: string | null
+  chrono_started_at: string
+  deadline_at: string
+  review_due_at: string | null
+  duree_seconds: number | null
+  owner_type: string | null
+  owner_id: string | null
+  face_name: string | null
+  product_name: string | null
+  video_url: string
+  thumbnail_url: string | null
+}
+
+export interface DeliverableReviewListResponse {
+  data: DeliverableReviewItem[]
+}
+
+/**
+ * Livrable VALIDÉ exposé dans la bibliothèque d'assets Producteur (4.7) — miroir
+ * de DeliverableAssetResource. Orienté ARCHIVE (≠ DeliverableReviewItem, file
+ * d'action) : pas de champs review-only (review_note/submitted_at/review_due_at/
+ * deadline_at/chrono_started_at), mais porte `validated_at` + `download_url`
+ * (lien signé Content-Disposition: attachment). kind/validation_status/owner_type
+ * `string` ouverts (parité tunnel). La Face n'a JAMAIS d'URL.
+ */
+export interface DeliverableAssetItem {
+  id: string
+  kind: string
+  kind_label: string
+  validation_status: string
+  validation_status_label: string
+  validated_at: string | null
+  duree_seconds: number | null
+  owner_type: string | null
+  owner_id: string | null
+  face_name: string | null
+  product_name: string | null
+  video_url: string
+  thumbnail_url: string | null
+  download_url: string
+}
+
+export interface DeliverableAssetListResponse {
+  data: DeliverableAssetItem[]
+}
+
+/** Motif de suspension UGC (miroir UgcSuspensionReason backend, story 5.1/5.2). */
+export type UgcSuspensionReasonCode = 'unboxing_deadline_missed' | 'avis_deadline_missed'
+
+/** Deal en cause d'une suspension — null si shipment supprimé. */
+export interface UgcSuspensionDeal {
+  owner_kind: 'booking' | 'candidature'
+  owner_uuid: string | null
+  product_name: string
+  missed_deadline_at: string | null
+}
+
+/** Bloc suspension active (data.suspension de GET /face/ugc/suspension). */
+export interface UgcSuspensionStatus {
+  reason: UgcSuspensionReasonCode
+  reason_label: string
+  suspended_at: string
+  reactivation_deadline: string
+  appeal_status: 'none' | 'pending' | 'accepted' | 'rejected'
+  deal: UgcSuspensionDeal | null
+}
+
+/** Réponse GET /face/ugc/suspension. */
+export interface UgcSuspensionStatusResponse {
+  data: {
+    is_suspended: boolean
+    suspension: UgcSuspensionStatus | null
+  }
+}
+
+/** Réponse 200 des actions POST resume / appeal (story 5.4). */
+export interface UgcSuspensionActionResponse {
+  message: string
+}
+
+/** Chips transporteur de l'écran 4A — sucre UI (D-3.1.e), le serveur reçoit du texte libre. */
+export const UGC_CARRIER_CHIPS = ['Gozem', 'Yango', 'Livreur', 'Autre'] as const
+
+/** Miroir client de ConfirmShipmentRequest (3.1) — le serveur reste autoritatif. */
+export const ugcShipmentSchema = z.object({
+  transporteur: z
+    .string()
+    .trim()
+    .min(1, 'Le transporteur est obligatoire')
+    .max(100, 'Le transporteur ne peut pas dépasser 100 caractères'),
+  numero_suivi: z
+    .string()
+    .trim()
+    .min(1, 'Le numéro de suivi est obligatoire')
+    .max(100, 'Le numéro de suivi ne peut pas dépasser 100 caractères'),
+  note_envoi: z
+    .string()
+    .trim()
+    .max(500, 'La note ne peut pas dépasser 500 caractères')
+    .optional(),
+})
+
+/**
+ * Couleur de pastille par statut tunnel. Default OBLIGATOIRE : les cases
+ * réservés (épics 4-5) doivent rendre un état neutre, jamais throw.
+ * Le label affiché vient TOUJOURS de tunnel_status_label (serveur).
+ */
+export function tunnelStatusToPillKind(status: string): StatusPillKind {
+  switch (status) {
+    case 'shipped':
+      return 'shipped'
+    case 'received':
+    case 'unboxing_in_review':
+    case 'avis_pending':
+    case 'avis_in_review':
+      return 'received'
+    case 'completed':
+      return 'completed'
+    case 'overdue':
+      return 'overdue'
+    case 'suspended':
+      return 'suspended'
+    default:
+      return 'pending'
+  }
+}
+
+/**
+ * Branche shipment commune aux deux helpers de step (une seule table de
+ * mapping). Inconnu → 4 (post-expédition, jamais < 4) — cases réservés 4-5.
+ */
+function shipmentTunnelStep(shipment: Shipment): number {
+  switch (shipment.tunnel_status) {
+    case 'shipped':
+      return 4
+    case 'received':
+    case 'unboxing_in_review':
+      return 5
+    case 'avis_pending':
+    case 'avis_in_review':
+      return 6
+    case 'completed':
+      return 7
+    default:
+      return 4
+  }
+}
+
+/**
+ * Étape courante (1-6) de la timeline UGC ; 7 = tunnel terminé, 0 = neutre
+ * (deal mort : refusé/expiré/annulé — la carte « raison » couvre déjà).
+ * L'amont se lit sur le statut booking, l'aval sur shipment.tunnel_status
+ * (D-3.1.a/D-3.1.c). Defaults obligatoires (cases réservés).
+ */
+export function ugcTunnelStep(bookingStatus: string, shipment?: Shipment | null): number {
+  if (shipment) {
+    return shipmentTunnelStep(shipment)
+  }
+
+  switch (bookingStatus) {
+    case 'pending':
+      return 1
+    case 'commission_paid':
+      return 2
+    case 'accepted':
+      return 3
+    case 'completed':
+      return 7
+    default:
+      return 0
+  }
+}
+
+/**
+ * Étape timeline UGC d'une CANDIDATURE (mission UGC, story 3.4). L'amont se lit
+ * sur le statut candidature (la commission mission est payée AU PUBLISH → une
+ * candidature vivante est au moins à l'étape 2), l'aval sur le shipment.
+ * 0 = neutre (rejetée/annulée/inconnue). Ne PAS détourner ugcTunnelStep pour
+ * une candidature (statuts amont différents — note 3.2 reconduite).
+ */
+export function ugcCandidatureTunnelStep(candidatureStatus: string, shipment?: Shipment | null): number {
+  if (shipment) {
+    return shipmentTunnelStep(shipment)
+  }
+
+  switch (candidatureStatus) {
+    case 'pending':
+    case 'accepted':
+      return 2
+    case 'confirmed':
+    case 'in_progress':
+      return 3
+    case 'completed':
+      return 7
+    default:
+      return 0
+  }
+}

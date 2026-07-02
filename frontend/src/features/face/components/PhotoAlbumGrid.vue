@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { Lock } from 'lucide-vue-next'
 import type { FacePhoto } from '../types'
 
 interface Props {
@@ -7,12 +8,14 @@ interface Props {
   isLoading?: boolean
   isDeleting?: boolean
   canAddMore?: boolean
+  maxAlbumPhotos?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isLoading: false,
   isDeleting: false,
   canAddMore: true,
+  maxAlbumPhotos: 1,
 })
 
 const emit = defineEmits<{
@@ -21,16 +24,25 @@ const emit = defineEmits<{
   'add-click': []
 }>()
 
-// Create slots array (always show 4 slots)
+// Slot count: enough to render every stored photo (so an ex-Élite Face's 5-6
+// photos still show after a downgrade) and at least the current tier quota,
+// capped at the absolute album maximum of 6.
 const slots = computed(() => {
   const result: (FacePhoto | null)[] = []
-  for (let i = 0; i < 4; i++) {
-    result.push(props.photos[i] || null)
+  const total = Math.min(6, Math.max(props.photos.length, props.maxAlbumPhotos ?? 1))
+  for (let i = 0; i < total; i++) {
+    result.push(props.photos[i] ?? null)
   }
   return result
 })
 
 const isProcessing = computed(() => props.isLoading || props.isDeleting)
+
+// A stored photo whose position exceeds the tier quota is masked publicly
+// (only happens after a downgrade — e.g. 6 photos as Élite, then dropped to Pro=4).
+function isPhotoOverQuota(photo: FacePhoto): boolean {
+  return photo.position > (props.maxAlbumPhotos ?? 1)
+}
 
 /**
  * Lightbox state
@@ -62,7 +74,7 @@ function handleAddClick(): void {
 
 <template>
   <div class="photo-album-grid relative" data-testid="photo-album-grid">
-    <!-- Grid of 4 slots -->
+    <!-- Album slots -->
     <div class="grid grid-cols-2 gap-3">
       <div
         v-for="(slot, index) in slots"
@@ -82,6 +94,16 @@ function handleAddClick(): void {
             class="w-full h-full object-cover"
             :data-testid="`album-photo-${slot.id}`"
           />
+
+          <!-- Over-quota badge (positions > maxAlbumPhotos) -->
+          <div
+            v-if="isPhotoOverQuota(slot)"
+            class="absolute top-2 right-2 inline-flex items-center gap-1 bg-amber-500 text-white rounded-md px-2 py-1 text-xs font-medium shadow-sm pointer-events-none"
+            :data-testid="`album-locked-badge-${slot.id}`"
+          >
+            <Lock class="w-3 h-3" />
+            Visible en privé uniquement
+          </div>
 
           <!-- Action buttons overlay -->
           <div

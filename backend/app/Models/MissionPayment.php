@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\MissionPaymentStatus;
+use App\Exceptions\MoneyColumnImmutableException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -36,6 +37,35 @@ class MissionPayment extends Model
         'status',
         'paid_at',
     ];
+
+    /**
+     * Colonnes de montant immuables après création (durcissement ugc-3-5).
+     *
+     * @var list<string>
+     */
+    private const IMMUTABLE_MONEY_COLUMNS = [
+        'budget_par_face',
+        'montant_sous_total',
+        'commission_producteur',
+        'montant_total_producteur',
+        'commission_faces_total',
+        'montant_total_faces',
+    ];
+
+    protected static function booted(): void
+    {
+        static::updating(function (MissionPayment $model): void {
+            if ($model->isDirty(self::IMMUTABLE_MONEY_COLUMNS)) {
+                throw new MoneyColumnImmutableException(
+                    $model::class.' : colonnes de montant immuables après création ('
+                    .implode(', ', array_keys(array_intersect_key(
+                        $model->getDirty(),
+                        array_flip(self::IMMUTABLE_MONEY_COLUMNS)
+                    ))).')'
+                );
+            }
+        });
+    }
 
     protected function casts(): array
     {

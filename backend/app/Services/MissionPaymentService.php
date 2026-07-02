@@ -12,6 +12,7 @@ use App\Enums\FinancialEventType;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Exceptions\MissionPaymentInitiationException;
+use App\Mail\CandidatureAcceptedMail;
 use App\Mail\FaceSelectedMail;
 use App\Mail\MissionCompletedMail;
 use App\Models\Candidature;
@@ -41,6 +42,7 @@ class MissionPaymentService
     public function __construct(
         private readonly FedapayService $fedapayService,
         private readonly WalletService $walletService,
+        private readonly FaceEntitlementService $faceEntitlementService,
     ) {}
 
     /**
@@ -112,6 +114,7 @@ class MissionPaymentService
 
             $candidatures = Candidature::whereIn('uuid', $requestedUuids)
                 ->where('mission_id', $mission->id)
+                ->with('face.activeSubscription')
                 ->lockForUpdate()
                 ->get()
                 ->keyBy('uuid');
@@ -141,6 +144,31 @@ class MissionPaymentService
 
             $pricing = new MissionPricing($mission->budget, $selectedCandidatures->count());
 
+            // FP-3.1b — resolve each selected Face's commission rate by HER tier and
+            // compute her individual net amount. The producer side stays global
+            // (pricing); the Face side is the sum of per-Face commissions, never a
+            // uniform split.
+            $commissionFacesTotal = 0;
+            $montantTotalFaces = 0;
+            $entriesData = [];
+
+            foreach ($selectedCandidatures as $candidature) {
+                /** @var Face $face */
+                $face = $candidature->face;
+                $faceRate = $this->faceEntitlementService->capabilities($face)->commissionRate;
+                $faceCommission = (int) round($pricing->budgetParFace * $faceRate);
+                $montantFaceRecoit = $pricing->budgetParFace - $faceCommission;
+
+                $commissionFacesTotal += $faceCommission;
+                $montantTotalFaces += $montantFaceRecoit;
+
+                $entriesData[] = [
+                    'candidature_id' => $candidature->id,
+                    'face_id' => $candidature->face_id,
+                    'montant_face_recoit' => $montantFaceRecoit,
+                ];
+            }
+
             /** @var MissionPayment $payment */
             $payment = MissionPayment::create([
                 'mission_id' => $mission->id,
@@ -150,17 +178,17 @@ class MissionPaymentService
                 'montant_sous_total' => $pricing->sousTotal,
                 'commission_producteur' => $pricing->commissionProducteur,
                 'montant_total_producteur' => $pricing->montantTotalProducteur,
-                'commission_faces_total' => $pricing->commissionFacesTotal,
-                'montant_total_faces' => $pricing->montantTotalFaces,
+                'commission_faces_total' => $commissionFacesTotal,
+                'montant_total_faces' => $montantTotalFaces,
                 'status' => MissionPaymentStatus::Pending,
             ]);
 
-            foreach ($selectedCandidatures as $candidature) {
+            foreach ($entriesData as $entryData) {
                 MissionPaymentCandidature::create([
                     'mission_payment_id' => $payment->id,
-                    'candidature_id' => $candidature->id,
-                    'face_id' => $candidature->face_id,
-                    'montant_face_recoit' => $pricing->montantParFace,
+                    'candidature_id' => $entryData['candidature_id'],
+                    'face_id' => $entryData['face_id'],
+                    'montant_face_recoit' => $entryData['montant_face_recoit'],
                     'escrow_status' => EscrowStatus::Pending,
                 ]);
             }
@@ -864,6 +892,421 @@ class MissionPaymentService
                 ),
             ],
         );
+    }
+
+    // -------------------------------------------------------------------------
+    // Hybrid UGC mission candidature settlement (ugc-8-4, escrow par-Candidature)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Settle an approved hybrid per-Face payment from the FedaPay webhook (D-8.4.f).
+     * Mirror of UgcCommissionPaymentService::markBookingCommissionPaid but owner =
+     * Candidature: locks the parentless escrow entry (Pending → Locked), then under a
+     * mission row lock flips the candidature `pending → accepted`, provisions the chat
+     * and auto-closes the mission at capacity (calque accept produit-seul D-2.4.d).
+     *
+     * NEVER calls markAsPaid (which closes the mission + rejects the other pending
+     * candidatures — catastrophic per-Face, D-8.4.f). Idempotent (a replay finds the
+     * entry already Locked → no-op). NO-THROW: a missing Face/candidature/mission logs
+     * critical and returns, so the webhook job is never poisoned into a retry storm.
+     */
+    public function markUgcMissionCandidaturePaid(MissionPaymentCandidature $entry, string $fedapayRef): void
+    {
+        /** @var Candidature|null $accepted */
+        $accepted = DB::transaction(function () use ($entry, $fedapayRef): ?Candidature {
+            /** @var MissionPaymentCandidature|null $lockedEntry */
+            $lockedEntry = MissionPaymentCandidature::query()->lockForUpdate()->find($entry->id);
+
+            // Idempotent : un re-jeu trouve l'entry déjà Locked (ou supprimée par un
+            // declined concurrent) → no-op, surtout pas de double notif / double lock.
+            if ($lockedEntry === null || $lockedEntry->escrow_status !== EscrowStatus::Pending) {
+                return null;
+            }
+
+            /** @var Candidature|null $candidature */
+            $candidature = Candidature::query()->find($lockedEntry->candidature_id);
+
+            if ($candidature === null) {
+                Log::critical('UGC hybride: candidature introuvable au settlement du paiement — réconciliation requise', [
+                    'entry_id' => $lockedEntry->id,
+                    'candidature_id' => $lockedEntry->candidature_id,
+                    'fedapay_ref' => $fedapayRef,
+                ]);
+
+                return null;
+            }
+
+            $mission = $candidature->mission;
+
+            if (! $mission instanceof Mission) {
+                Log::critical('UGC hybride: mission introuvable au settlement du paiement — réconciliation requise', [
+                    'entry_id' => $lockedEntry->id,
+                    'candidature_id' => $candidature->id,
+                    'fedapay_ref' => $fedapayRef,
+                ]);
+
+                return null;
+            }
+
+            // Séquestre le cash de la Face (Pending → Locked).
+            $lockedEntry->update([
+                'escrow_status' => EscrowStatus::Locked,
+                'locked_at' => now(),
+            ]);
+
+            // Sous lock mission : flip candidature pending→accepted + auto-close à capacité
+            // (engagés [Accepted,Confirmed,InProgress,Completed]). Calque accept produit-seul.
+            /** @var Mission $lockedMission */
+            $lockedMission = Mission::query()->lockForUpdate()->findOrFail($mission->id);
+
+            /** @var Candidature $lockedCandidature */
+            $lockedCandidature = Candidature::query()->lockForUpdate()->findOrFail($candidature->id);
+
+            if ($lockedCandidature->status !== CandidatureStatus::Pending) {
+                // La candidature a déjà avancé (concurrent) — l'escrow est lock, on s'arrête.
+                return null;
+            }
+
+            // accepted_at (ugc-9-1, D-9.1.a/l) : ancre le sweep de reconfirmation 48h, posé au
+            // flip Accepted comme pour l'accept produit-seul (uniformité des deux compensations).
+            $lockedCandidature->update(['status' => CandidatureStatus::Accepted, 'accepted_at' => now()]);
+            Conversation::firstOrCreate(['candidature_id' => $lockedCandidature->id]);
+
+            $engagedCount = Candidature::query()
+                ->where('mission_id', $lockedMission->id)
+                ->whereIn('status', [
+                    CandidatureStatus::Accepted->value,
+                    CandidatureStatus::Confirmed->value,
+                    CandidatureStatus::InProgress->value,
+                    CandidatureStatus::Completed->value,
+                ])
+                ->count();
+
+            if ($lockedMission->status === MissionStatus::Published
+                && $engagedCount >= $lockedMission->nombre_faces_voulu) {
+                $lockedMission->update(['status' => MissionStatus::Closed]);
+            }
+
+            return $lockedCandidature;
+        });
+
+        if ($accepted === null) {
+            return;
+        }
+
+        // Post-commit : notif in-app + email Face (non-fataux, calque 8-2 accept:184-216).
+        $accepted->loadMissing(['face.user', 'mission']);
+
+        try {
+            Notification::create([
+                'user_id' => $accepted->face?->user?->id,
+                'type' => 'candidature_accepted',
+                'data' => [
+                    'mission_title' => $accepted->mission?->titre,
+                    'candidature_id' => $accepted->id,
+                    'message' => 'Votre candidature a été acceptée — confirmez votre participation.',
+                    'url' => '/face/candidatures',
+                ],
+            ]);
+        } catch (\Throwable) {
+            // Non-fatal : l'acceptation et l'escrow sont déjà persistés.
+        }
+
+        try {
+            $faceEmail = trim((string) $accepted->face?->user?->email);
+            if ($faceEmail !== '') {
+                Mail::to($faceEmail)->queue(new CandidatureAcceptedMail(
+                    faceName: (string) $accepted->face?->prenom,
+                    missionTitle: (string) $accepted->mission?->titre,
+                    productName: (string) $accepted->mission?->nom_produit,
+                    reconfirmUrl: rtrim((string) config('app.frontend_url'), '/').'/face/candidatures',
+                ));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('CandidatureAcceptedMail queue failed (hybride)', [
+                'candidature_id' => $accepted->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Record a failed/cancelled hybrid per-Face payment from the FedaPay webhook (D-8.4.f).
+     * Deletes the parentless escrow entry (frees the in-flight reserved slot) so the
+     * candidature stays `pending` and can be accepted again, then notifies the Producer.
+     * Idempotent / safe: only a `Pending` entry is deleted — a Locked escrow (approved
+     * won the race) is never destroyed. NO-THROW.
+     */
+    public function markUgcMissionCandidatureFailed(MissionPaymentCandidature $entry, string $reason): void
+    {
+        /** @var array{producerUserId: int|null, missionTitre: string}|null $notifyPayload */
+        $notifyPayload = DB::transaction(function () use ($entry, $reason): ?array {
+            /** @var MissionPaymentCandidature|null $lockedEntry */
+            $lockedEntry = MissionPaymentCandidature::query()->lockForUpdate()->find($entry->id);
+
+            // Idempotent : entry déjà supprimée (re-jeu) ou déjà Locked (approved a gagné
+            // la course) → ne JAMAIS détruire un escrow séquestré.
+            if ($lockedEntry === null || $lockedEntry->escrow_status !== EscrowStatus::Pending) {
+                return null;
+            }
+
+            /** @var Candidature|null $candidature */
+            $candidature = Candidature::query()->with('mission')->find($lockedEntry->candidature_id);
+            $mission = $candidature?->mission;
+            $producerUserId = $mission instanceof Mission ? $this->getUserIdForProducer($mission->producer_id) : null;
+            $missionTitre = $mission instanceof Mission ? $mission->titre : '';
+
+            // Supprime l'entry → libère le slot in-flight (la candidature reste pending).
+            $lockedEntry->delete();
+
+            Log::info('UGC hybride: paiement échoué — entry supprimée, slot in-flight libéré', [
+                'entry_id' => $entry->id,
+                'candidature_id' => $lockedEntry->candidature_id,
+                'reason' => $reason,
+            ]);
+
+            return ['producerUserId' => $producerUserId, 'missionTitre' => $missionTitre];
+        });
+
+        // ugc-9-1 (code-review D-9.1.i) : à la suppression de mission, le Producteur initie
+        // lui-même l'action — ne pas lui envoyer un « paiement échoué — réessayez de l'accepter »
+        // qui pointerait vers une mission qui n'existe plus. Toutes les autres raisons (webhook
+        // decline, poll FedaPay, décline/annulation Face, sweep, release) conservent la notif.
+        if ($notifyPayload === null || $reason === 'mission_deleted') {
+            return;
+        }
+
+        $this->notifySafely(
+            userId: $notifyPayload['producerUserId'],
+            type: 'mission_candidature_payment_failed',
+            data: [
+                'message' => 'Le paiement du règlement d\'une Face a échoué. Vous pouvez réessayer de l\'accepter.',
+                'mission_titre' => $notifyPayload['missionTitre'],
+                'url' => '/producer/missions',
+            ],
+        );
+    }
+
+    /**
+     * Fallback self-heal for a hybrid per-Face candidature payment (D-8.5.b/c).
+     *
+     * Mirror of UgcCommissionPaymentService::checkAndProcessMission, owner =
+     * Candidature: when the FedaPay webhook is delayed or missed (sandbox, no
+     * public ngrok), the producer's payment-status poll actively re-checks
+     * FedaPay and settles. Reuses the webhook settlements markUgcMissionCandidaturePaid
+     * / markUgcMissionCandidatureFailed (both idempotent under lock).
+     *
+     * Returns the derived payment_status as a VALUE (not a mutable field):
+     * markUgcMissionCandidatureFailed DELETES the entry, so a 'failed' MUST be
+     * reported on the very request that detects it — at the next poll the entry is
+     * gone. This deliberately avoids the per-request singleton-state trap documented
+     * on UgcCommissionPaymentService::$lastCommissionPaymentStatus.
+     *
+     * @return array{candidature: Candidature, payment_status: string, is_trackable: bool}
+     */
+    public function checkAndProcessUgcMissionCandidature(Candidature $candidature): array
+    {
+        /** @var MissionPaymentCandidature|null $entry */
+        $entry = $candidature->paymentEntry; // HasOne (Candidature.php:95)
+
+        // Déjà réglée (candidature accepted, ou escrow Locked/Released) → idempotent.
+        if ($candidature->status === CandidatureStatus::Accepted
+            || ($entry !== null && in_array($entry->escrow_status, [EscrowStatus::Locked, EscrowStatus::Released], true))) {
+            return ['candidature' => $candidature, 'payment_status' => 'paid', 'is_trackable' => false];
+        }
+
+        // Aucun paiement in-flight traçable (pas d'entry, entry non-Pending, ou pas de transaction FedaPay).
+        if ($entry === null || $entry->escrow_status !== EscrowStatus::Pending || $entry->fedapay_transaction_id === null) {
+            return ['candidature' => $candidature, 'payment_status' => 'pending', 'is_trackable' => false];
+        }
+
+        $transaction = $this->fedapayService->retrieveTransaction((int) $entry->fedapay_transaction_id);
+
+        if ($transaction->status === 'approved') {
+            $this->markUgcMissionCandidaturePaid($entry, (string) ($transaction->reference ?? 'fedapay_poll'));
+
+            return ['candidature' => $candidature->fresh() ?? $candidature, 'payment_status' => 'paid', 'is_trackable' => false];
+        }
+
+        if (in_array($transaction->status, ['declined', 'canceled', 'refunded'], true)) {
+            $this->markUgcMissionCandidatureFailed($entry, 'fedapay_poll_'.$transaction->status);
+
+            return ['candidature' => $candidature->fresh() ?? $candidature, 'payment_status' => 'failed', 'is_trackable' => false];
+        }
+
+        return ['candidature' => $candidature, 'payment_status' => 'pending', 'is_trackable' => true];
+    }
+
+    /**
+     * Release a hybrid candidature's escrow to its Face on tunnel completion (D-8.4.g).
+     * Reuses releaseToFace (credit Face wallet montant_face_recoit + escrow Released +
+     * EscrowRelease event + candidature Confirmed → Completed). Idempotent (guarded on
+     * escrow_status === Locked) and a no-op for a product-only candidature (no entry —
+     * the candidature stays Confirmed, RH.3 AC3 preserved).
+     *
+     * MUST be called inside an existing DB::transaction().
+     */
+    public function releaseUgcCandidatureEscrow(Candidature $candidature): void
+    {
+        /** @var MissionPaymentCandidature|null $entry */
+        $entry = MissionPaymentCandidature::query()
+            ->where('candidature_id', $candidature->id)
+            ->lockForUpdate()
+            ->first();
+
+        if ($entry === null) {
+            return; // produit-seul : pas d'entry → rien à libérer (candidature reste Confirmed, RH.3)
+        }
+
+        if ($entry->escrow_status !== EscrowStatus::Locked) {
+            return; // idempotent (déjà Released/Refunded)
+        }
+
+        $mission = $candidature->mission;
+
+        if (! $mission instanceof Mission) {
+            return;
+        }
+
+        $this->releaseToFace($entry, $mission, 'ugc_tunnel_completed');
+    }
+
+    /**
+     * Refund a hybrid candidature's escrow to the Producer on Face failure — decline,
+     * suspension or missed deadline (D-8.4.h/i/j). Reuses refundToProducer AS-IS: the
+     * Producer is credited the net escrow (montant_face_recoit = cash − palier) and WeAct
+     * keeps its commission (= mission-cash semantics, D-8.4.j). Idempotent (guarded on
+     * escrow_status === Locked) and a no-op without an entry (product-only).
+     *
+     * MUST be called inside an existing DB::transaction().
+     */
+    public function refundUgcCandidatureEscrow(Candidature $candidature, string $reason): void
+    {
+        /** @var MissionPaymentCandidature|null $entry */
+        $entry = MissionPaymentCandidature::query()
+            ->where('candidature_id', $candidature->id)
+            ->lockForUpdate()
+            ->first();
+
+        if ($entry === null || $entry->escrow_status !== EscrowStatus::Locked) {
+            return; // pas d'entry (produit-seul) OU déjà settled (idempotent)
+        }
+
+        $mission = $candidature->mission;
+
+        if (! $mission instanceof Mission) {
+            return;
+        }
+
+        $this->refundToProducer($entry, $mission, $reason);
+    }
+
+    /**
+     * Dénoue une candidature mission UGC post-acceptation (ugc-9-1, D-9.1.d).
+     *
+     * Sous DB::transaction + lock candidature + lock mission : (1) dénouement argent —
+     * une entry escrow `Locked` est remboursée au Producteur (refundUgcCandidatureEscrow),
+     * une entry `Pending` in-flight est supprimée (markUgcMissionCandidatureFailed), un
+     * produit-seul sans entry = no-op argent ; (2) flip candidature → Cancelled ; (3)
+     * réouverture du slot (reopenMissionIfSlotFreed) ; (4) notifications Face (place libérée)
+     * + Producteur (remboursement — hybride uniquement, D-9.1.m).
+     *
+     * Idempotent : no-op + `false` si la candidature est déjà terminale
+     * (Cancelled/Rejected/Completed) — protège contre un double crédit sur re-run du sweep
+     * ou double-clic release. Réutilisé par le sweep deadline (D-9.1.g), le release
+     * Producteur (D-9.1.h) et la décline Face (D-9.1.k). Réutilise
+     * refundUgcCandidatureEscrow / markUgcMissionCandidatureFailed (8-4) — 0 réécriture.
+     *
+     * @return bool true ssi un dénouement effectif a eu lieu.
+     */
+    public function unwindUgcCandidatureSlot(Candidature $candidature, string $reason): bool
+    {
+        return DB::transaction(function () use ($candidature, $reason): bool {
+            /** @var Candidature $locked */
+            $locked = Candidature::query()->lockForUpdate()->findOrFail($candidature->id);
+
+            // Idempotence : candidature déjà dénouée / terminale → no-op (pas de double crédit).
+            if (in_array($locked->status, [
+                CandidatureStatus::Cancelled,
+                CandidatureStatus::Rejected,
+                CandidatureStatus::Completed,
+            ], true)) {
+                return false;
+            }
+
+            $locked->loadMissing('mission');
+            $mission = $locked->mission;
+
+            /** @var MissionPaymentCandidature|null $entry */
+            $entry = $locked->paymentEntry; // HasOne, parentless si hybride
+            $refundedAmount = null;
+
+            if ($entry !== null && $entry->escrow_status === EscrowStatus::Locked) {
+                // Hybride réglé : crédite le Producteur du net escrow, escrow Refunded.
+                $this->refundUgcCandidatureEscrow($locked, $reason);
+                $refundedAmount = (int) $entry->montant_face_recoit;
+            } elseif ($entry !== null && $entry->escrow_status === EscrowStatus::Pending) {
+                // Hybride in-flight : supprime l'entry → libère le slot in-flight.
+                $this->markUgcMissionCandidatureFailed($entry, $reason);
+            }
+            // Sinon (produit-seul / pas d'entry) : aucun mouvement d'argent.
+
+            $locked->update(['status' => CandidatureStatus::Cancelled]);
+
+            if ($mission instanceof Mission) {
+                /** @var Mission $lockedMission */
+                $lockedMission = Mission::query()->lockForUpdate()->findOrFail($mission->id);
+                $this->reopenMissionIfSlotFreed($lockedMission);
+
+                // Notifs (D-9.1.m). Ne PAS réutiliser candidature_reset_from_accepted (cash-only).
+                $this->notifySafely(
+                    userId: $this->getUserIdForFace($locked->face_id),
+                    type: 'mission_candidature_slot_released',
+                    data: [
+                        'message' => 'Votre place sur la mission a été libérée.',
+                        'mission_id' => $lockedMission->id,
+                        'candidature_id' => $locked->id,
+                        'url' => '/face/candidatures',
+                        'reason' => $reason,
+                    ],
+                );
+
+                if ($refundedAmount !== null) {
+                    $this->notifySafely(
+                        userId: $this->getUserIdForProducer($lockedMission->producer_id),
+                        type: 'mission_candidature_refunded',
+                        data: [
+                            'message' => 'Le règlement séquestré vous a été remboursé.',
+                            'mission_id' => $lockedMission->id,
+                            'candidature_id' => $locked->id,
+                            'montant' => $refundedAmount,
+                            'reason' => $reason,
+                        ],
+                    );
+                }
+            }
+
+            return true;
+        });
+    }
+
+    /**
+     * Réouvre une mission UGC `Closed` quand un slot vient de se libérer (ugc-9-1, D-9.1.e).
+     *
+     * Sous le lock mission déjà tenu par l'appelant : repasse `Closed → Published` SSI il
+     * reste de la capacité (engagedCandidaturesCount < nombre_faces_voulu) ET la deadline de
+     * candidature n'est pas dépassée. Réouverture interne programmatique — distincte de
+     * MissionService::reopenMission (HTTP, sans garde capacité/deadline). Garde conservatrice :
+     * une deadline nulle (indéfinie) ne rouvre PAS.
+     */
+    private function reopenMissionIfSlotFreed(Mission $lockedMission): void
+    {
+        if ($lockedMission->status === MissionStatus::Closed
+            && $lockedMission->engagedCandidaturesCount() < $lockedMission->nombre_faces_voulu
+            && $lockedMission->date_limite_candidature !== null
+            && $lockedMission->date_limite_candidature->toDateString() >= now()->toDateString()) {
+            $lockedMission->update(['status' => MissionStatus::Published]);
+        }
     }
 
     /**

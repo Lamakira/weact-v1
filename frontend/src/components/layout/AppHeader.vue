@@ -126,6 +126,14 @@ async function handleLogout(): Promise<void> {
           >
             Ressources
           </RouterLink>
+          <RouterLink
+            to="/pricing"
+            class="text-sm transition-colors pb-0.5 border-b-2"
+            :class="route.path.startsWith('/pricing') ? 'text-[#198496] font-semibold border-[#198496]' : 'text-gray-700 hover:text-[#198496] border-transparent'"
+            data-testid="nav-tarifs"
+          >
+            Tarifs
+          </RouterLink>
         </nav>
 
         <!-- Right Actions (Desktop) -->
@@ -241,6 +249,14 @@ async function handleLogout(): Promise<void> {
               @click="closeMobileMenu"
             >
               Ressources
+            </RouterLink>
+            <RouterLink
+              to="/pricing"
+              class="text-sm transition-colors pl-3 border-l-2"
+              :class="route.path.startsWith('/pricing') ? 'text-[#198496] font-semibold border-[#198496]' : 'text-gray-700 hover:text-[#198496] border-transparent'"
+              @click="closeMobileMenu"
+            >
+              Tarifs
             </RouterLink>
 
           </nav>

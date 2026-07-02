@@ -107,6 +107,35 @@ class FaceDashboardAvailableMissionsCountTest extends TestCase
             ]);
     }
 
+    public function test_excludes_missions_whose_shooting_date_has_passed(): void
+    {
+        // Date de tournage passée (même si la date limite reste future) → non disponible.
+        Mission::factory()
+            ->for($this->producer)
+            ->create([
+                'status' => MissionStatus::Published,
+                'date_limite_candidature' => Carbon::today()->addDays(7),
+                'date_tournage' => Carbon::yesterday(),
+            ]);
+
+        // Mission entièrement à venir → comptée.
+        Mission::factory()
+            ->for($this->producer)
+            ->create([
+                'status' => MissionStatus::Published,
+                'date_limite_candidature' => Carbon::today()->addDays(7),
+                'date_tournage' => Carbon::today()->addDays(14),
+            ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/dashboard/available-missions-count');
+
+        $response->assertOk()
+            ->assertJson([
+                'data' => ['count' => 1],
+            ]);
+    }
+
     public function test_includes_missions_with_deadline_today(): void
     {
         // Create mission with deadline today
@@ -191,6 +220,10 @@ class FaceDashboardAvailableMissionsCountTest extends TestCase
     {
         // Create a second producer
         $producer2 = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer2->id,
+        ]);
 
         // Create missions from different producers
         Mission::factory()
@@ -214,6 +247,83 @@ class FaceDashboardAvailableMissionsCountTest extends TestCase
         $response->assertOk()
             ->assertJson([
                 'data' => ['count' => 3], // All producers' missions
+            ]);
+    }
+
+    // ─── Exclusion des missions UGC (FR5, UGC 2.1) ───────────────────
+
+    public function test_ugc_missions_are_excluded_from_available_count(): void
+    {
+        Mission::factory()
+            ->for($this->producer)
+            ->create([
+                'status' => MissionStatus::Published,
+                'date_limite_candidature' => Carbon::today()->addDays(7),
+            ]);
+        // La factory Mission ne tire jamais `ugc` — attributs explicites obligatoires.
+        $this->producer->missions()->create([
+            'titre' => 'Appel UGC — Unboxing',
+            'description' => 'desc',
+            'date_tournage' => now()->addMonth(),
+            'profil_recherche' => 'Créatrices',
+            'budget' => 0,
+            'date_limite_candidature' => Carbon::today()->addDays(7),
+            'nombre_faces_voulu' => 3,
+            'type_mission' => 'ugc',
+            'genre_voulu' => 'tous',
+            'lieu' => 'Cotonou',
+            'duree' => 'Livrables vidéo',
+            'status' => MissionStatus::Published,
+            'commission_paid_at' => now(),
+            'type_compensation' => 'product',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'montant_remuneration' => null,
+            'commission_ugc' => 2500,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/dashboard/available-missions-count');
+
+        $response->assertOk()
+            ->assertJson([
+                'data' => ['count' => 1], // La mission UGC n'est pas comptée
+            ]);
+    }
+
+    // ─── Filtre producteur is_active (story 3.0) ─────────────────────
+
+    public function test_excludes_missions_from_inactive_producer(): void
+    {
+        // Le badge compte ce que le listing affiche (D-3.0.e) : la mission
+        // d'un producteur désactivé ne doit pas gonfler le count.
+        Mission::factory()
+            ->for($this->producer)
+            ->create([
+                'status' => MissionStatus::Published,
+                'date_limite_candidature' => Carbon::today()->addDays(7),
+            ]);
+
+        $inactiveProducer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $inactiveProducer->id,
+            'is_active' => false,
+        ]);
+        Mission::factory()
+            ->for($inactiveProducer)
+            ->create([
+                'status' => MissionStatus::Published,
+                'date_limite_candidature' => Carbon::today()->addDays(7),
+            ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/dashboard/available-missions-count');
+
+        $response->assertOk()
+            ->assertJson([
+                'data' => ['count' => 1], // Seule la mission du producteur actif
             ]);
     }
 }

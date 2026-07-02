@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ProfileInfoSection from '../ProfileInfoSection.vue'
+import WBadge from '@/components/ui/WBadge.vue'
 
 describe('ProfileInfoSection', () => {
   const defaultProps = {
@@ -254,5 +255,38 @@ describe('ProfileInfoSection', () => {
     const ratingSection = wrapper.find('[data-testid="rating-section"]')
     expect(ratingSection.attributes('aria-label')).toContain('4.5')
     expect(ratingSection.attributes('aria-label')).toContain('étoiles')
+  })
+
+  describe('FP-2.12 — Élite badge (WBadge V13 design refresh)', () => {
+    const baseProps = {
+      prenom: 'Adjoua',
+      ville: 'Cotonou',
+      categories: [{ value: 'acteur', label: 'Acteur' }],
+      niches: [],
+      averageRating: 4.5,
+      ratingsCount: 12,
+    }
+
+    it('renders the WBadge in elite tier at 22px when hasEliteBadge prop is true', () => {
+      const wrapper = mount(ProfileInfoSection, {
+        props: { ...baseProps, hasEliteBadge: true },
+      })
+      const badge = wrapper.findComponent(WBadge)
+      expect(badge.exists()).toBe(true)
+      expect(badge.props('tier')).toBe('elite')
+      expect(badge.props('size')).toBe(22)
+    })
+
+    it('does not render the Élite badge when hasEliteBadge prop is false', () => {
+      const wrapper = mount(ProfileInfoSection, {
+        props: { ...baseProps, hasEliteBadge: false },
+      })
+      expect(wrapper.findComponent(WBadge).exists()).toBe(false)
+    })
+
+    it('does not render the Élite badge when hasEliteBadge prop is undefined (default false)', () => {
+      const wrapper = mount(ProfileInfoSection, { props: baseProps })
+      expect(wrapper.findComponent(WBadge).exists()).toBe(false)
+    })
   })
 })

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Services\FaceEntitlementService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
@@ -36,6 +37,8 @@ class ProducerCandidatureResource extends JsonResource
                 : null,
             'created_at' => $this->created_at?->toIso8601String(),
             'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->uuid),
+            'shipment' => new ShipmentResource($this->whenLoaded('shipment')),
+            'deliverables' => DeliverableResource::collection($this->whenLoaded('deliverables')),
             'face' => $this->whenLoaded('face', fn () => [
                 'id' => $this->face->uuid,
                 'display_name' => trim($this->face->prenom.' '.$this->face->nom),
@@ -44,6 +47,9 @@ class ProducerCandidatureResource extends JsonResource
                 'city' => $this->face->ville,
                 'tarif_horaire' => $this->face->tarif_horaire,
                 'tarif_journalier' => $this->face->tarif_journalier,
+                'has_elite_badge' => $this->face
+                    ? app(FaceEntitlementService::class)->capabilities($this->face)->hasEliteBadge
+                    : false,
             ]),
         ];
     }

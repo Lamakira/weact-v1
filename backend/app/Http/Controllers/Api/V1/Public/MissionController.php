@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Public;
 
 use App\Enums\MissionStatus;
+use App\Enums\MissionType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Public\ListPublicMissionsRequest;
 use App\Http\Resources\PublicMissionResource;
@@ -22,9 +23,8 @@ class MissionController extends Controller
     {
         return Mission::query()
             ->where('status', MissionStatus::Published)
-            ->whereHas('producer', fn ($q) => $q
-                ->whereHas('user', fn ($u) => $u->where('is_active', true))
-            )
+            ->where('type_mission', '!=', MissionType::Ugc->value)
+            ->whereProducerActive() // ← remplace le whereHas inline (même SQL, story 3.0)
             ->with(['producer' => fn ($q) => $q
                 ->withAvg('ratingsReceived', 'score')
                 ->withCount('ratingsReceived'),
@@ -43,6 +43,7 @@ class MissionController extends Controller
         $perPage = $request->getPerPage();
 
         $missions = $this->publishedWithProducer()
+            ->notExpired() // exclut les missions obsolètes (date limite candidature / tournage passée)
             ->when(! empty($filters['type_mission']), fn ($query) => $query->where('type_mission', $filters['type_mission']))
             ->when(! empty($filters['lieu']), function ($query) use ($filters) {
                 $escaped = str_replace(['%', '_'], ['\%', '\_'], (string) $filters['lieu']);

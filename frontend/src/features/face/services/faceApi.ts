@@ -4,7 +4,10 @@ import type {
   FacePhotosResponse,
   FacePhotoResponse,
   PresentationVideoResponse,
-  ActingVideoResponse,
+  FaceVideoType,
+  FaceVideosListResponse,
+  FaceVideoUploadResponse,
+  FaceVideoDeleteResponse,
   VideoUploadProgress,
   BioLocationResponse,
   PhysicalCharacteristicsResponse,
@@ -24,7 +27,20 @@ import type {
   BasicInfoFormData,
   PersonalInfoResponse,
   PersonalInfoFormData,
+  FaceSubscriptionPlan,
+  SubscriptionStatusResponse,
+  SubscriptionInitiatePaymentResponse,
+  SubscriptionVerifyPaymentResponse,
+  SubscriptionCancelPendingResponse,
+  SubscriptionResumePaymentResponse,
 } from '../types'
+import type {
+  ShipmentResponse,
+  DeliverableResponse,
+  UgcUploadProgress,
+  UgcSuspensionStatusResponse,
+  UgcSuspensionActionResponse,
+} from '@/components/ugc'
 
 /**
  * Face API service
@@ -163,28 +179,28 @@ export const faceApi = {
   },
 
   /**
-   * Get the current acting video info
+   * List the authenticated Face's portfolio videos (acting + ugc).
    */
-  async getActingVideo(): Promise<ActingVideoResponse> {
-    const response = await apiClient.get<ActingVideoResponse>('/face/acting-video')
+  async listFaceVideos(): Promise<FaceVideosListResponse> {
+    const response = await apiClient.get<FaceVideosListResponse>('/face/videos')
     return response.data
   },
 
   /**
-   * Upload an acting video
-   * @param video The video file to upload
-   * @param onProgress Optional callback for upload progress
+   * Upload a typed portfolio video (acting or ugc).
    */
-  async uploadActingVideo(
-    video: File,
+  async uploadFaceVideo(
+    type: FaceVideoType,
+    file: File,
     onProgress?: (progress: VideoUploadProgress) => void,
-  ): Promise<ActingVideoResponse> {
+  ): Promise<FaceVideoUploadResponse> {
     await getCsrfCookie()
 
     const formData = new FormData()
-    formData.append('video', video)
+    formData.append('type', type)
+    formData.append('video', file)
 
-    const response = await apiClient.post<ActingVideoResponse>('/face/acting-video', formData, {
+    const response = await apiClient.post<FaceVideoUploadResponse>('/face/videos', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -202,11 +218,11 @@ export const faceApi = {
   },
 
   /**
-   * Delete the acting video
+   * Delete one of the authenticated Face's portfolio videos by uuid.
    */
-  async deleteActingVideo(): Promise<{ message: string }> {
+  async deleteFaceVideo(uuid: string): Promise<FaceVideoDeleteResponse> {
     await getCsrfCookie()
-    const response = await apiClient.delete<{ message: string }>('/face/acting-video')
+    const response = await apiClient.delete<FaceVideoDeleteResponse>(`/face/videos/${uuid}`)
     return response.data
   },
 
@@ -438,6 +454,143 @@ export const faceApi = {
   async updatePersonalInfo(data: PersonalInfoFormData): Promise<PersonalInfoResponse> {
     await getCsrfCookie()
     const response = await apiClient.put<PersonalInfoResponse>('/face/personal-info', data)
+    return response.data
+  },
+
+  /**
+   * Get the Face's current subscription status (FP-2.3 tier-aware contract)
+   */
+  async getSubscriptionStatus(): Promise<SubscriptionStatusResponse> {
+    const response = await apiClient.get<SubscriptionStatusResponse>('/face/subscription-status')
+    return response.data
+  },
+
+  /**
+   * Get the Face's UGC soft-suspension status (écran 10A, story 5.2).
+   * Server-authoritative + suspension-aware — never the cached capabilities (D-2.2.b).
+   */
+  async getUgcSuspensionStatus(): Promise<UgcSuspensionStatusResponse> {
+    const response = await apiClient.get<UgcSuspensionStatusResponse>('/face/ugc/suspension')
+    return response.data
+  },
+
+  /**
+   * « Terminer en retard » (UGC 5.4) — rouvre le tunnel du deal suspendu pour
+   * ré-autoriser l'upload (POST resume, story 5.3). 200 → { message } ; 422 →
+   * enveloppe ErrorCodes (window_closed / already_resumed / deal_unavailable / no_active).
+   */
+  async resumeUgcSuspension(): Promise<UgcSuspensionActionResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<UgcSuspensionActionResponse>('/face/ugc/suspension/resume')
+    return response.data
+  },
+
+  /**
+   * « Faire appel » (UGC 5.4) — ouvre un appel none→pending (POST appeal, story 5.3).
+   * 200 → { message } ; 422 → enveloppe (appeal_exists / no_active_suspension).
+   */
+  async appealUgcSuspension(): Promise<UgcSuspensionActionResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<UgcSuspensionActionResponse>('/face/ugc/suspension/appeal')
+    return response.data
+  },
+
+  /**
+   * Initiate a tiered annual payment via Fedapay hosted checkout (FP-2.5 contract)
+   */
+  async initiateSubscriptionPayment(
+    plan: FaceSubscriptionPlan,
+  ): Promise<SubscriptionInitiatePaymentResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<SubscriptionInitiatePaymentResponse>(
+      '/face/subscription/initiate-payment',
+      { plan },
+    )
+    return response.data
+  },
+
+  /**
+   * Verify a pending subscription payment (FP-2.5 polling fallback)
+   */
+  async verifySubscriptionPayment(): Promise<SubscriptionVerifyPaymentResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<SubscriptionVerifyPaymentResponse>(
+      '/face/subscription/verify-payment',
+    )
+    return response.data
+  },
+
+  /**
+   * Cancel the Face's own pending subscription payment (FP-2.8.1 contract,
+   * surfaced to UI by FP-2.15.1)
+   */
+  async cancelPendingSubscription(): Promise<SubscriptionCancelPendingResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<SubscriptionCancelPendingResponse>(
+      '/face/subscription/cancel-pending',
+    )
+    return response.data
+  },
+
+  /**
+   * Resume the Face's existing pending payment by asking the backend to
+   * regenerate a fresh Fedapay checkout URL (and auto-reconcile if Fedapay
+   * has already approved / declined / canceled / expired the transaction).
+   */
+  async resumePendingSubscription(): Promise<SubscriptionResumePaymentResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<SubscriptionResumePaymentResponse>(
+      '/face/subscription/resume-payment',
+    )
+    return response.data
+  },
+
+  /**
+   * « Produit reçu » (UGC 3.4) — confirme la réception du colis d'un deal UGC.
+   * Endpoint owner-agnostic (binding Shipment, D-3.3.b). 200 → ShipmentResource
+   * à jour (recu_le + unboxing_deadline_at) ; 422 ALREADY_RECEIVED → refetch
+   * côté appelant (D-3.4.d).
+   */
+  async confirmShipmentReceipt(shipmentId: string): Promise<ShipmentResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<ShipmentResponse>(
+      `/face/shipments/${shipmentId}/confirm-receipt`,
+    )
+    return response.data
+  },
+
+  /**
+   * Upload de la vidéo livrable Unboxing (UGC 4.2). Endpoint owner-agnostic
+   * (binding Shipment, 4.1). 201 → DeliverableResource (PAS le shipment) :
+   * l'appelant refetch le deal pour lire le nouveau tunnel_status (D-4.2.d).
+   * 422 ALREADY_UPLOADED / INVALID_STATUS / errors.video.
+   */
+  async uploadDeliverable(
+    shipmentId: string,
+    video: File,
+    onProgress?: (progress: UgcUploadProgress) => void,
+  ): Promise<DeliverableResponse> {
+    await getCsrfCookie()
+
+    const formData = new FormData()
+    formData.append('video', video)
+
+    const response = await apiClient.post<DeliverableResponse>(
+      `/face/shipments/${shipmentId}/deliverables`,
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            onProgress({
+              loaded: progressEvent.loaded,
+              total: progressEvent.total,
+              percentage: Math.round((progressEvent.loaded * 100) / progressEvent.total),
+            })
+          }
+        },
+      },
+    )
     return response.data
   },
 }

@@ -15,6 +15,7 @@ use App\Services\FedapayService;
 use FedaPay\Transaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class FinancialAuditTrailTest extends TestCase
@@ -76,6 +77,42 @@ class FinancialAuditTrailTest extends TestCase
             'type' => FinancialEventType::PaymentInitiated->value,
             'amount' => $this->acceptedBooking->montant_total_producteur,
             'status' => 'pending',
+        ]);
+    }
+
+    public function test_payment_initiation_rejects_ugc_booking_without_financial_event(): void
+    {
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldNotReceive('initiatePayment');
+        });
+
+        $ugcBooking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'type_contenu' => 'UGC',
+            'type_compensation' => 'product',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'montant_remuneration' => null,
+            'commission_ugc' => 2500,
+            'tarif_base' => 0,
+            'montant_face_recoit' => 0,
+            'montant_total_producteur' => 2500,
+        ]);
+
+        $service = app(BookingService::class);
+
+        try {
+            $service->initiatePayment($ugcBooking);
+            $this->fail('Expected UGC booking payment initiation to be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('type_contenu', $exception->errors());
+        }
+
+        $this->assertDatabaseMissing('financial_events', [
+            'booking_id' => $ugcBooking->id,
+            'type' => FinancialEventType::PaymentInitiated->value,
         ]);
     }
 

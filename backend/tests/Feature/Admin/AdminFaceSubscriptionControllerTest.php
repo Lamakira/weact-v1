@@ -1,0 +1,1330 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Feature\Admin;
+
+use App\Enums\AdminRole;
+use App\Enums\FaceSubscriptionAdminAction;
+use App\Enums\FaceSubscriptionPlan;
+use App\Enums\FaceSubscriptionStatus;
+use App\Events\FaceSubscriptionActivated;
+use App\Events\FaceSubscriptionCancelled;
+use App\Events\FaceSubscriptionExpired;
+use App\Models\Admin;
+use App\Models\Face;
+use App\Models\FaceSubscription;
+use App\Models\FaceSubscriptionAudit;
+use App\Models\Producer;
+use App\Models\User;
+use App\Services\FaceSubscriptionAdminService;
+use Illuminate\Database\QueryException;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Event;
+use Tests\TestCase;
+
+class AdminFaceSubscriptionControllerTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private Admin $admin;
+
+    private Face $face;
+
+    private function withAdminApiToken(Admin $admin): static
+    {
+        return $this->withToken($admin->createToken('admin-token')->plainTextToken);
+    }
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->admin = Admin::factory()->create();
+        $this->face = Face::factory()->create();
+    }
+
+    // ===================================================================
+    // Authorization (AC #3, #4, #5, #6)
+    // ===================================================================
+
+    public function test_unauthenticated_list_returns_401(): void
+    {
+        // AC #3
+        $response = $this->getJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions");
+
+        $response->assertUnauthorized()
+            ->assertJsonPath('error.code', 'UNAUTHENTICATED')
+            ->assertJsonPath('error.message', 'Non authentifié.');
+    }
+
+    public function test_face_user_token_gets_403_on_list(): void
+    {
+        // AC #4
+        $face = Face::factory()->create();
+        $user = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+        $token = $user->createToken('face-token')->plainTextToken;
+
+        $response = $this->withToken($token)
+            ->getJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions");
+
+        $response->assertForbidden()
+            ->assertJsonPath('error.code', 'FORBIDDEN')
+            ->assertJsonPath('error.message', "Cette action n'est pas autorisée");
+    }
+
+    public function test_producer_user_token_gets_403_on_list(): void
+    {
+        // AC #4
+        $producer = Producer::factory()->create();
+        $user = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+        $token = $user->createToken('producer-token')->plainTextToken;
+
+        $response = $this->withToken($token)
+            ->getJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions");
+
+        $response->assertForbidden()
+            ->assertJsonPath('error.code', 'FORBIDDEN')
+            ->assertJsonPath('error.message', "Cette action n'est pas autorisée");
+    }
+
+    public function test_editor_admin_gets_403_on_list(): void
+    {
+        // AC #5
+        $editor = Admin::factory()->editor()->create();
+
+        $this->withAdminApiToken($editor)
+            ->getJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions")
+            ->assertForbidden()
+            ->assertJsonPath('error.code', 'FORBIDDEN')
+            ->assertJsonPath('error.message', "Vous n'avez pas les droits nécessaires pour accéder à cette ressource.");
+    }
+
+    public function test_admin_role_admin_can_list(): void
+    {
+        // AC #6
+        $this->withAdminApiToken($this->admin)
+            ->getJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions")
+            ->assertOk();
+    }
+
+    public function test_superadmin_can_list(): void
+    {
+        // AC #6
+        $superadmin = Admin::factory()->superAdmin()->create();
+
+        $this->withAdminApiToken($superadmin)
+            ->getJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions")
+            ->assertOk();
+    }
+
+    public function test_all_mutating_endpoints_block_non_authorised_callers(): void
+    {
+        // AC #3, #4, #5
+        $subscription = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
+        $mutatingEndpoints = [
+            ['POST', "/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", ['plan' => 'pro', 'notes' => 'Test notes 12345']],
+            ['POST', "/api/v1/admin/face-subscriptions/{$subscription->uuid}/extend", ['notes' => 'Test notes 12345', 'additional_days' => 30]],
+            ['POST', "/api/v1/admin/face-subscriptions/{$subscription->uuid}/cancel", ['notes' => 'Test notes 12345']],
+            ['POST', "/api/v1/admin/face-subscriptions/{$subscription->uuid}/correct", ['notes' => 'Test notes 12345', 'expires_at' => now()->addYear()->toIso8601String()]],
+            ['POST', "/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", ['notes' => 'Test notes 12345', 'new_plan' => 'elite']],
+        ];
+
+        // (a) No token → 401
+        foreach ($mutatingEndpoints as [$verb, $url, $body]) {
+            $this->json($verb, $url, $body)->assertUnauthorized();
+        }
+
+        // (b) Face user → 403
+        $face = Face::factory()->create();
+        $faceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+        $faceToken = $faceUser->createToken('face-token')->plainTextToken;
+        foreach ($mutatingEndpoints as [$verb, $url, $body]) {
+            $this->withToken($faceToken)->json($verb, $url, $body)->assertForbidden();
+        }
+
+        // (c) Editor admin → 403
+        $editor = Admin::factory()->editor()->create();
+        foreach ($mutatingEndpoints as [$verb, $url, $body]) {
+            $this->withAdminApiToken($editor)->json($verb, $url, $body)->assertForbidden();
+        }
+    }
+
+    // ===================================================================
+    // Index (AC #7, #8, #9)
+    // ===================================================================
+
+    public function test_index_returns_empty_subscriptions_for_face_with_no_history(): void
+    {
+        // AC #8
+        $this->withAdminApiToken($this->admin)
+            ->getJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions")
+            ->assertOk()
+            ->assertJsonPath('data.face.id', $this->face->uuid)
+            ->assertJsonPath('data.subscriptions', []);
+    }
+
+    public function test_index_returns_subscriptions_ordered_most_recent_first(): void
+    {
+        // AC #7
+        $old = FaceSubscription::factory()->expired()->create([
+            'face_id' => $this->face->id,
+            'created_at' => now()->subYears(2),
+        ]);
+        $mid = FaceSubscription::factory()->cancelled()->create([
+            'face_id' => $this->face->id,
+            'created_at' => now()->subMonths(6),
+        ]);
+        $newest = FaceSubscription::factory()->active()->create([
+            'face_id' => $this->face->id,
+            'created_at' => now()->subDay(),
+        ]);
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->getJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions");
+
+        $response->assertOk();
+        $ids = collect($response->json('data.subscriptions'))->pluck('id')->all();
+        $this->assertSame([$newest->uuid, $mid->uuid, $old->uuid], $ids);
+    }
+
+    public function test_index_returns_audits_ordered_most_recent_first(): void
+    {
+        // AC #7
+        $subscription = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+        $olderAudit = FaceSubscriptionAudit::factory()->create([
+            'face_subscription_id' => $subscription->id,
+            'admin_id' => $this->admin->id,
+            'action' => FaceSubscriptionAdminAction::ManualActivate,
+            'notes' => 'Activation initiale manuelle',
+            'previous_state' => null,
+            'new_state' => $this->snapshotShape($subscription),
+            'created_at' => now()->subMonth(),
+        ]);
+        $newerAudit = FaceSubscriptionAudit::factory()->create([
+            'face_subscription_id' => $subscription->id,
+            'admin_id' => $this->admin->id,
+            'action' => FaceSubscriptionAdminAction::Extend,
+            'notes' => 'Extension de 60 jours',
+            'previous_state' => $this->snapshotShape($subscription),
+            'new_state' => $this->snapshotShape($subscription),
+            'created_at' => now(),
+        ]);
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->getJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions");
+
+        $auditIds = collect($response->json('data.subscriptions.0.audits'))->pluck('id')->all();
+        $this->assertSame([$newerAudit->uuid, $olderAudit->uuid], $auditIds);
+    }
+
+    public function test_index_never_leaks_provider_payload_fields(): void
+    {
+        // AC #7 leak guard
+        FaceSubscription::factory()->active()->create([
+            'face_id' => $this->face->id,
+            'provider' => 'fedapay',
+            'provider_reference' => 'fedapay_secret_ref_xyz',
+            'metadata' => ['internal_token' => 'do_not_leak'],
+        ]);
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->getJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions");
+
+        $response->assertOk();
+        $response->assertDontSee('fedapay_secret_ref_xyz');
+        $response->assertDontSee('do_not_leak');
+        $payload = $response->json('data.subscriptions.0');
+        $this->assertArrayNotHasKey('provider', $payload);
+        $this->assertArrayNotHasKey('provider_reference', $payload);
+        $this->assertArrayNotHasKey('metadata', $payload);
+    }
+
+    public function test_index_returns_404_when_face_uuid_unknown(): void
+    {
+        // AC #9
+        $this->withAdminApiToken($this->admin)
+            ->getJson('/api/v1/admin/faces/00000000-0000-0000-0000-000000000000/subscriptions')
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 'NOT_FOUND')
+            ->assertJsonPath('error.message', 'Ressource introuvable.');
+    }
+
+    // ===================================================================
+    // Activate (AC #10, #11, #12, #13, #14, #15)
+    // ===================================================================
+
+    public function test_activate_creates_active_subscription_and_audit_when_face_has_no_subscription(): void
+    {
+        // AC #10, #11
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
+                'notes' => 'Paiement reçu offline le 11/05/2026 par dépôt MTN',
+            ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.plan', 'pro')
+            ->assertJsonPath('data.status', 'active')
+            ->assertJsonPath('message', 'Abonnement activé manuellement');
+
+        $this->assertDatabaseCount('face_subscriptions', 1);
+        $sub = FaceSubscription::query()->where('face_id', $this->face->id)->first();
+        $this->assertSame(FaceSubscriptionStatus::Active, $sub->status);
+        $this->assertSame(FaceSubscriptionPlan::Pro, $sub->plan);
+        $this->assertNotNull($sub->starts_at);
+        $this->assertNotNull($sub->expires_at);
+        $this->assertTrue($sub->expires_at->equalTo($sub->starts_at->copy()->addDays(365)));
+        $this->assertNull($sub->paid_amount);
+        $this->assertNull($sub->provider);
+        $this->assertNull($sub->provider_reference);
+        $this->assertNull($sub->metadata);
+
+        $this->assertDatabaseCount('face_subscription_audits', 1);
+        $audit = FaceSubscriptionAudit::query()->where('face_subscription_id', $sub->id)->first();
+        $this->assertSame(FaceSubscriptionAdminAction::ManualActivate, $audit->action);
+        $this->assertSame($this->admin->id, $audit->admin_id);
+        $this->assertSame('Paiement reçu offline le 11/05/2026 par dépôt MTN', $audit->notes);
+        $this->assertNull($audit->previous_state);
+        $this->assertSame('pro', $audit->new_state['plan']);
+        $this->assertSame('pro', $audit->new_state['tier']);
+        $this->assertSame('active', $audit->new_state['status']);
+        $this->assertNotNull($audit->new_state['starts_at']);
+        $this->assertNotNull($audit->new_state['expires_at']);
+        $this->assertNull($audit->new_state['cancelled_at']);
+        $this->assertNull($audit->new_state['paid_amount']);
+        $this->assertSame('XOF', $audit->new_state['currency']);
+    }
+
+    public function test_activate_respects_explicit_starts_at_and_duration_days(): void
+    {
+        // AC #10, #15
+        $startsAt = now()->subDays(7)->startOfDay();
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
+                'notes' => 'Backfill activation rétroactive sur 30 jours',
+                'starts_at' => $startsAt->toIso8601String(),
+                'duration_days' => 30,
+            ]);
+
+        $response->assertStatus(201);
+        $sub = FaceSubscription::query()->where('face_id', $this->face->id)->first();
+        $this->assertTrue($sub->starts_at->equalTo($startsAt));
+        $this->assertTrue($sub->expires_at->equalTo($startsAt->copy()->addDays(30)));
+    }
+
+    public function test_activate_returns_409_when_face_already_has_active_subscription(): void
+    {
+        // AC #12
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
+                'notes' => 'Tentative activation alors qu un abonnement actif existe',
+            ]);
+
+        $response->assertStatus(409)
+            ->assertJsonPath('error.code', 'ALREADY_ACTIVE')
+            ->assertJsonPath('error.message', 'Cette Face a déjà un abonnement actif. Utilisez « Étendre » pour prolonger la période en cours.');
+
+        $this->assertDatabaseCount('face_subscriptions', 1);
+        $this->assertDatabaseCount('face_subscription_audits', 0);
+    }
+
+    public function test_activate_returns_409_when_face_has_pending_payment_subscription(): void
+    {
+        // AC #13
+        FaceSubscription::factory()->pendingPayment()->create(['face_id' => $this->face->id]);
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
+                'notes' => 'Tentative activation alors qu un paiement est en attente',
+            ]);
+
+        $response->assertStatus(409)
+            ->assertJsonPath('error.code', 'PENDING_PAYMENT_EXISTS')
+            ->assertJsonPath('error.message', 'Un paiement est en attente pour cette Face. Annulez d\'abord l\'abonnement en attente avant l\'activation manuelle.');
+
+        $this->assertDatabaseCount('face_subscription_audits', 0);
+    }
+
+    public function test_activate_succeeds_when_face_only_has_terminal_rows(): void
+    {
+        // AC #14
+        FaceSubscription::factory()->expired()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->cancelled()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->failed()->create(['face_id' => $this->face->id]);
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
+                'notes' => 'Réactivation après terminal historique',
+            ]);
+
+        $response->assertStatus(201);
+        $this->assertSame(4, FaceSubscription::query()->where('face_id', $this->face->id)->count());
+    }
+
+    public function test_activate_rejects_future_starts_at(): void
+    {
+        // AC #15 — FP-1.1 defer mitigation
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
+                'notes' => 'Tentative activation future',
+                'starts_at' => now()->addDay()->toIso8601String(),
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
+            ->assertJsonValidationErrors(['starts_at']);
+    }
+
+    public function test_activate_rejects_short_notes(): void
+    {
+        // AC #15
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
+                'notes' => 'OK',
+            ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['notes']);
+    }
+
+    public function test_activate_rejects_missing_notes(): void
+    {
+        // AC #15
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
+            ]);
+
+        $response->assertStatus(422)->assertJsonValidationErrors(['notes']);
+    }
+
+    public function test_activate_rejects_duration_below_30_and_above_3650(): void
+    {
+        // AC #15
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
+                'notes' => 'Durée invalide trop courte',
+                'duration_days' => 7,
+            ])->assertStatus(422)->assertJsonValidationErrors(['duration_days']);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
+                'notes' => 'Durée invalide trop longue',
+                'duration_days' => 4000,
+            ])->assertStatus(422)->assertJsonValidationErrors(['duration_days']);
+    }
+
+    public function test_activate_rejects_starts_at_older_than_90_days(): void
+    {
+        // Code review patch: prevents admins from backfilling an arbitrarily-old starts_at
+        // that combined with a short duration_days produces an immediately-expired Active row.
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
+                'notes' => 'Backfill bien trop ancien pour être valide',
+                'starts_at' => now()->subDays(100)->toIso8601String(),
+                'duration_days' => 30,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['starts_at']);
+
+        // Boundary case — 89 days back must still succeed.
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
+                'notes' => 'Backfill récent dans la fenêtre autorisée',
+                'starts_at' => now()->subDays(89)->toIso8601String(),
+                'duration_days' => 365,
+            ])
+            ->assertStatus(201);
+    }
+
+    public function test_activate_acquires_face_row_lock_before_scanning_subscriptions(): void
+    {
+        // Code review patch: serialises concurrent activations on the same Face.
+        // We can't easily run real concurrent requests in PHPUnit, so we pin the
+        // SQL pattern: a SELECT ... FROM `faces` ... FOR UPDATE must fire before
+        // the SELECT ... FROM `face_subscriptions` ... FOR UPDATE.
+        $queries = [];
+        \Illuminate\Support\Facades\DB::listen(static function ($query) use (&$queries): void {
+            $sql = strtolower($query->sql);
+            if (str_contains($sql, 'for update')) {
+                $queries[] = $sql;
+            }
+        });
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
+                'notes' => 'Activation déclenchant la séquence de verrous',
+            ])
+            ->assertStatus(201);
+
+        $this->assertGreaterThanOrEqual(2, count($queries), 'Expected at least two FOR UPDATE queries during activate');
+
+        $facesLockIndex = null;
+        $subscriptionsLockIndex = null;
+        foreach ($queries as $index => $sql) {
+            if ($facesLockIndex === null && str_contains($sql, 'from `faces`')) {
+                $facesLockIndex = $index;
+            }
+            if ($subscriptionsLockIndex === null && str_contains($sql, 'from `face_subscriptions`')) {
+                $subscriptionsLockIndex = $index;
+            }
+        }
+
+        $this->assertNotNull($facesLockIndex, 'Expected a FOR UPDATE lock on faces');
+        $this->assertNotNull($subscriptionsLockIndex, 'Expected a FOR UPDATE lock on face_subscriptions');
+        $this->assertLessThan(
+            $subscriptionsLockIndex,
+            $facesLockIndex,
+            'Face row lock must be acquired before scanning face_subscriptions',
+        );
+    }
+
+    public function test_activate_persists_starter_subscription_when_plan_is_starter(): void
+    {
+        // AC #6
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'starter',
+                'notes' => 'Activation Starter offline',
+            ]);
+
+        $response->assertStatus(201)->assertJsonPath('data.plan', 'starter');
+
+        $sub = FaceSubscription::query()->where('face_id', $this->face->id)->first();
+        $this->assertSame(FaceSubscriptionPlan::Starter, $sub->plan);
+
+        $audit = FaceSubscriptionAudit::query()->where('face_subscription_id', $sub->id)->first();
+        $this->assertSame('starter', $audit->new_state['plan']);
+        $this->assertSame('starter', $audit->new_state['tier']);
+    }
+
+    public function test_activate_persists_elite_subscription_when_plan_is_elite(): void
+    {
+        // AC #6
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'elite',
+                'notes' => 'Activation Élite offline',
+            ]);
+
+        $response->assertStatus(201)->assertJsonPath('data.plan', 'elite');
+
+        $sub = FaceSubscription::query()->where('face_id', $this->face->id)->first();
+        $this->assertSame(FaceSubscriptionPlan::Elite, $sub->plan);
+
+        $audit = FaceSubscriptionAudit::query()->where('face_subscription_id', $sub->id)->first();
+        $this->assertSame('elite', $audit->new_state['plan']);
+        $this->assertSame('elite', $audit->new_state['tier']);
+    }
+
+    public function test_activate_rejects_missing_plan(): void
+    {
+        // AC #7
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'notes' => 'Notes valides sans plan fourni',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
+            ->assertJsonValidationErrors(['plan']);
+
+        $this->assertDatabaseCount('face_subscriptions', 0);
+        $this->assertDatabaseCount('face_subscription_audits', 0);
+    }
+
+    public function test_activate_rejects_unknown_or_free_plan(): void
+    {
+        // AC #8
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'platinum',
+                'notes' => 'Plan inconnu rejeté',
+            ])->assertStatus(422)->assertJsonValidationErrors(['plan']);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'free',
+                'notes' => 'Free n est pas un plan achetable',
+            ])->assertStatus(422)->assertJsonValidationErrors(['plan']);
+
+        $this->assertDatabaseCount('face_subscriptions', 0);
+    }
+
+    // ===================================================================
+    // Extend (AC #16, #17, #18)
+    // ===================================================================
+
+    public function test_extend_pushes_expires_at_and_writes_audit_on_active_subscription(): void
+    {
+        // AC #16
+        Carbon::setTestNow('2026-05-11T12:00:00Z');
+
+        $subscription = FaceSubscription::factory()->active()->create([
+            'face_id' => $this->face->id,
+            'starts_at' => now()->subMonth(),
+            'expires_at' => now()->addMonths(11),
+        ]);
+        $originalExpiry = $subscription->expires_at->copy();
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/extend", [
+                'notes' => 'Compensation downtime — extension 60 jours',
+                'additional_days' => 60,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('message', 'Abonnement étendu')
+            ->assertJsonPath('data.id', $subscription->uuid);
+
+        $subscription->refresh();
+        $this->assertTrue($subscription->expires_at->equalTo($originalExpiry->copy()->addDays(60)));
+
+        $audit = FaceSubscriptionAudit::query()->where('face_subscription_id', $subscription->id)->first();
+        $this->assertSame(FaceSubscriptionAdminAction::Extend, $audit->action);
+        $this->assertSame('pro', $audit->new_state['tier']);
+        $this->assertSame($originalExpiry->toIso8601String(), $audit->previous_state['expires_at']);
+        $this->assertSame($subscription->expires_at->toIso8601String(), $audit->new_state['expires_at']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_extend_returns_409_when_subscription_is_zombie_active(): void
+    {
+        // AC #17
+        $subscription = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::query()->whereKey($subscription->id)->update([
+            'expires_at' => now()->subDay(),
+        ]);
+        $subscription->refresh();
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/extend", [
+                'notes' => 'Tentative extension sur zombie',
+                'additional_days' => 30,
+            ]);
+
+        $response->assertStatus(409)
+            ->assertJsonPath('error.code', 'NOT_EXTENDABLE');
+    }
+
+    public function test_extend_returns_409_on_non_active_statuses(): void
+    {
+        // AC #17
+        $cases = [
+            'expired' => fn () => FaceSubscription::factory()->expired(),
+            'cancelled' => fn () => FaceSubscription::factory()->cancelled(),
+            'failed' => fn () => FaceSubscription::factory()->failed(),
+            'pendingPayment' => fn () => FaceSubscription::factory()->pendingPayment(),
+        ];
+
+        foreach ($cases as $state => $factoryFn) {
+            $face = Face::factory()->create();
+            $sub = $factoryFn()->create(['face_id' => $face->id]);
+
+            $this->withAdminApiToken($this->admin)
+                ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/extend", [
+                    'notes' => "Tentative extension {$state}",
+                    'additional_days' => 30,
+                ])
+                ->assertStatus(409)
+                ->assertJsonPath('error.code', 'NOT_EXTENDABLE');
+        }
+    }
+
+    public function test_extend_rejects_missing_additional_days(): void
+    {
+        // AC #18
+        $sub = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/extend", [
+                'notes' => 'Notes valides mais additional_days manquant',
+            ])->assertStatus(422)->assertJsonValidationErrors(['additional_days']);
+    }
+
+    public function test_extend_rejects_additional_days_out_of_range(): void
+    {
+        // AC #18
+        $sub = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/extend", [
+                'notes' => 'Notes valides — additional_days = 0',
+                'additional_days' => 0,
+            ])->assertStatus(422)->assertJsonValidationErrors(['additional_days']);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/extend", [
+                'notes' => 'Notes valides — additional_days trop grand',
+                'additional_days' => 4000,
+            ])->assertStatus(422)->assertJsonValidationErrors(['additional_days']);
+    }
+
+    // ===================================================================
+    // Cancel (AC #19, #20, #21)
+    // ===================================================================
+
+    public function test_cancel_active_subscription_sets_status_and_cancelled_at_with_audit(): void
+    {
+        // AC #19
+        Carbon::setTestNow('2026-05-11T15:00:00Z');
+
+        $subscription = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+        $originalStarts = $subscription->starts_at->copy();
+        $originalExpires = $subscription->expires_at->copy();
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/cancel", [
+                'notes' => 'Annulation demande client après remboursement intégral',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('message', 'Abonnement annulé')
+            ->assertJsonPath('data.status', 'cancelled');
+
+        $subscription->refresh();
+        $this->assertSame(FaceSubscriptionStatus::Cancelled, $subscription->status);
+        $this->assertNotNull($subscription->cancelled_at);
+        $this->assertTrue($subscription->starts_at->equalTo($originalStarts));
+        $this->assertTrue($subscription->expires_at->equalTo($originalExpires));
+
+        $audit = FaceSubscriptionAudit::query()->where('face_subscription_id', $subscription->id)->first();
+        $this->assertSame(FaceSubscriptionAdminAction::Cancel, $audit->action);
+        $this->assertSame('pro', $audit->previous_state['tier']);
+        $this->assertSame('pro', $audit->new_state['tier']);
+        $this->assertSame('active', $audit->previous_state['status']);
+        $this->assertSame('cancelled', $audit->new_state['status']);
+        $this->assertNull($audit->previous_state['cancelled_at']);
+        $this->assertNotNull($audit->new_state['cancelled_at']);
+
+        Carbon::setTestNow();
+    }
+
+    public function test_cancel_pending_payment_succeeds(): void
+    {
+        // AC #19
+        $subscription = FaceSubscription::factory()->pendingPayment()->create(['face_id' => $this->face->id]);
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/cancel", [
+                'notes' => 'Annulation paiement en attente avant activation manuelle',
+            ]);
+
+        $response->assertOk()->assertJsonPath('data.status', 'cancelled');
+    }
+
+    public function test_cancel_returns_409_on_terminal_statuses(): void
+    {
+        // AC #20
+        $cases = [
+            fn () => FaceSubscription::factory()->expired(),
+            fn () => FaceSubscription::factory()->cancelled(),
+            fn () => FaceSubscription::factory()->failed(),
+        ];
+
+        foreach ($cases as $factoryFn) {
+            $face = Face::factory()->create();
+            $sub = $factoryFn()->create(['face_id' => $face->id]);
+
+            $this->withAdminApiToken($this->admin)
+                ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/cancel", [
+                    'notes' => 'Tentative annulation sur statut terminal',
+                ])
+                ->assertStatus(409)
+                ->assertJsonPath('error.code', 'NOT_CANCELLABLE');
+        }
+    }
+
+    public function test_cancel_rejects_missing_notes(): void
+    {
+        // AC #21
+        $sub = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/cancel", [])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['notes']);
+    }
+
+    // ===================================================================
+    // Correct (AC #22, #23)
+    // ===================================================================
+
+    public function test_correct_updates_starts_at_only_and_writes_audit(): void
+    {
+        // AC #22, #23
+        $subscription = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+        $originalStarts = $subscription->starts_at->copy();
+        $originalExpires = $subscription->expires_at->copy();
+        $newStarts = $subscription->starts_at->copy()->subDays(3);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/correct", [
+                'notes' => 'Correction starts_at après erreur de saisie',
+                'starts_at' => $newStarts->toIso8601String(),
+            ])
+            ->assertOk()
+            ->assertJsonPath('message', 'Dates corrigées');
+
+        $subscription->refresh();
+        $this->assertTrue($subscription->starts_at->equalTo($newStarts));
+        $this->assertTrue($subscription->expires_at->equalTo($originalExpires));
+
+        $audit = FaceSubscriptionAudit::query()->where('face_subscription_id', $subscription->id)->first();
+        $this->assertSame(FaceSubscriptionAdminAction::CorrectDates, $audit->action);
+        $this->assertSame('pro', $audit->new_state['tier']);
+        $this->assertSame($originalStarts->toIso8601String(), $audit->previous_state['starts_at']);
+        $this->assertSame($newStarts->toIso8601String(), $audit->new_state['starts_at']);
+    }
+
+    public function test_correct_updates_expires_at_only_and_writes_audit(): void
+    {
+        // AC #22, #23
+        $subscription = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+        $originalStarts = $subscription->starts_at->copy();
+        $originalExpires = $subscription->expires_at->copy();
+        $newExpires = $subscription->expires_at->copy()->addDays(10);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/correct", [
+                'notes' => 'Correction expires_at uniquement',
+                'expires_at' => $newExpires->toIso8601String(),
+            ])
+            ->assertOk();
+
+        $subscription->refresh();
+        $this->assertTrue($subscription->starts_at->equalTo($originalStarts));
+        $this->assertTrue($subscription->expires_at->equalTo($newExpires));
+
+        $audit = FaceSubscriptionAudit::query()->where('face_subscription_id', $subscription->id)->first();
+        $this->assertSame($originalExpires->toIso8601String(), $audit->previous_state['expires_at']);
+        $this->assertSame($newExpires->toIso8601String(), $audit->new_state['expires_at']);
+    }
+
+    public function test_correct_updates_both_dates_and_writes_audit(): void
+    {
+        // AC #22, #23
+        Carbon::setTestNow('2026-05-11T12:00:00Z');
+
+        $subscription = FaceSubscription::factory()->active()->create([
+            'face_id' => $this->face->id,
+            'starts_at' => now()->subMonth(),
+            'expires_at' => now()->addMonths(11),
+        ]);
+
+        $newStarts = now()->subDays(5);
+        $newExpires = now()->addYear();
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/correct", [
+                'notes' => 'Correction des deux dates',
+                'starts_at' => $newStarts->toIso8601String(),
+                'expires_at' => $newExpires->toIso8601String(),
+            ])
+            ->assertOk();
+
+        $subscription->refresh();
+        $this->assertTrue($subscription->starts_at->equalTo($newStarts));
+        $this->assertTrue($subscription->expires_at->equalTo($newExpires));
+
+        Carbon::setTestNow();
+    }
+
+    public function test_correct_works_on_terminal_subscription(): void
+    {
+        // AC #22
+        $subscription = FaceSubscription::factory()->expired()->create(['face_id' => $this->face->id]);
+        $newExpires = now()->subDays(10);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/correct", [
+                'notes' => 'Correction dates historiques sur expired',
+                'expires_at' => $newExpires->toIso8601String(),
+            ])->assertOk();
+    }
+
+    public function test_correct_rejects_request_with_neither_date(): void
+    {
+        // AC #23
+        $sub = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/correct", [
+                'notes' => 'Notes valides mais aucune date fournie',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['expires_at'])
+            ->assertJsonPath(
+                'error.details.expires_at.0',
+                'Au moins une des dates starts_at ou expires_at est requise.',
+            );
+    }
+
+    public function test_correct_rejects_expires_at_not_after_starts_at(): void
+    {
+        // AC #23
+        $sub = FaceSubscription::factory()->active()->create([
+            'face_id' => $this->face->id,
+            'starts_at' => now()->subMonth(),
+            'expires_at' => now()->addMonth(),
+        ]);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/correct", [
+                'notes' => 'expires_at antérieur à starts_at actuel — doit échouer',
+                'expires_at' => now()->subMonths(2)->toIso8601String(),
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['expires_at'])
+            ->assertJsonPath(
+                'error.details.expires_at.0',
+                'expires_at doit être postérieure à starts_at.',
+            );
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/correct", [
+                'notes' => 'Les deux dates invalides',
+                'starts_at' => now()->toIso8601String(),
+                'expires_at' => now()->subDay()->toIso8601String(),
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['expires_at']);
+    }
+
+    public function test_correct_rejects_dates_outside_sanity_bounds(): void
+    {
+        // Code review patch: sanity bounds [2020-01-01, +10 years] on both dates
+        // block typos like 1970 or 9999 from being persisted as subscription dates.
+        $sub = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
+        // Pre-2020 starts_at must be rejected.
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/correct", [
+                'notes' => 'Typo grossier sur starts_at — année 1970',
+                'starts_at' => '1970-01-01T00:00:00Z',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['starts_at']);
+
+        // expires_at beyond +10 years must be rejected.
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/correct", [
+                'notes' => 'Typo grossier sur expires_at — horizon absurde',
+                'expires_at' => now()->addYears(11)->toIso8601String(),
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['expires_at']);
+    }
+
+    public function test_correct_requires_both_dates_when_persisted_counterpart_is_null(): void
+    {
+        // Code review patch: prevents leaving a PendingPayment row in an anchorless state.
+        // When the persisted starts_at OR expires_at is null and the payload only sends one
+        // of them, the cross-field invariant cannot be evaluated — we require both dates.
+        $sub = FaceSubscription::factory()->pendingPayment()->create(['face_id' => $this->face->id]);
+        $this->assertNull($sub->starts_at);
+        $this->assertNull($sub->expires_at);
+
+        // Only expires_at sent — persisted starts_at is null → validation must fail on starts_at.
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/correct", [
+                'notes' => 'Pose seulement expires_at sur un PendingPayment sans starts_at',
+                'expires_at' => now()->addYear()->toIso8601String(),
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath(
+                'error.details.starts_at.0',
+                'starts_at est requis lorsque l\'abonnement n\'a pas encore de date de début.',
+            );
+
+        // Only starts_at sent — persisted expires_at is null → validation must fail on expires_at.
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/correct", [
+                'notes' => 'Pose seulement starts_at sur un PendingPayment sans expires_at',
+                'starts_at' => now()->toIso8601String(),
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath(
+                'error.details.expires_at.0',
+                'expires_at est requis lorsque l\'abonnement n\'a pas encore de date de fin.',
+            );
+
+        // Both dates sent — must succeed.
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/correct", [
+                'notes' => 'Pose les deux dates sur un PendingPayment sans anchor',
+                'starts_at' => now()->toIso8601String(),
+                'expires_at' => now()->addYear()->toIso8601String(),
+            ])
+            ->assertOk();
+    }
+
+    // ===================================================================
+    // Change tier (AC #10-#17)
+    // ===================================================================
+
+    public function test_change_tier_updates_plan_and_writes_audit_on_active_subscription(): void
+    {
+        // AC #10, #14, #18
+        $subscription = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+        $originalStarts = $subscription->starts_at->copy();
+        $originalExpires = $subscription->expires_at->copy();
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'Correction palier vers Élite',
+                'new_plan' => 'elite',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('message', 'Palier modifié')
+            ->assertJsonPath('data.plan', 'elite')
+            ->assertJsonPath('data.audits.0.action', 'change_tier')
+            ->assertJsonPath('data.audits.0.action_label', 'Changement de palier');
+
+        $subscription->refresh();
+        $this->assertSame(FaceSubscriptionPlan::Elite, $subscription->plan);
+        $this->assertTrue($subscription->starts_at->equalTo($originalStarts));
+        $this->assertTrue($subscription->expires_at->equalTo($originalExpires));
+
+        $this->assertDatabaseCount('face_subscription_audits', 1);
+        $audit = FaceSubscriptionAudit::query()->where('face_subscription_id', $subscription->id)->first();
+        $this->assertSame(FaceSubscriptionAdminAction::ChangeTier, $audit->action);
+        $this->assertSame('pro', $audit->previous_state['plan']);
+        $this->assertSame('pro', $audit->previous_state['tier']);
+        $this->assertSame('elite', $audit->new_state['plan']);
+        $this->assertSame('elite', $audit->new_state['tier']);
+    }
+
+    public function test_change_tier_succeeds_for_every_paid_tier_transition(): void
+    {
+        // AC #14
+        $transitions = [
+            [FaceSubscriptionPlan::Starter, FaceSubscriptionPlan::Pro],
+            [FaceSubscriptionPlan::Starter, FaceSubscriptionPlan::Elite],
+            [FaceSubscriptionPlan::Pro, FaceSubscriptionPlan::Starter],
+            [FaceSubscriptionPlan::Pro, FaceSubscriptionPlan::Elite],
+            [FaceSubscriptionPlan::Elite, FaceSubscriptionPlan::Starter],
+            [FaceSubscriptionPlan::Elite, FaceSubscriptionPlan::Pro],
+        ];
+
+        foreach ($transitions as [$from, $to]) {
+            $face = Face::factory()->create();
+            $sub = FaceSubscription::factory()->active()->create([
+                'face_id' => $face->id,
+                'plan' => $from,
+            ]);
+
+            $this->withAdminApiToken($this->admin)
+                ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/change-tier", [
+                    'notes' => "Transition {$from->value} vers {$to->value}",
+                    'new_plan' => $to->value,
+                ])
+                ->assertOk()
+                ->assertJsonPath('data.plan', $to->value);
+
+            $this->assertSame($to, $sub->fresh()->plan);
+        }
+    }
+
+    public function test_change_tier_dispatches_no_lifecycle_event(): void
+    {
+        // AC #17
+        Event::fake([
+            FaceSubscriptionActivated::class,
+            FaceSubscriptionCancelled::class,
+            FaceSubscriptionExpired::class,
+        ]);
+
+        $subscription = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'Changement de palier sans événement',
+                'new_plan' => 'elite',
+            ])
+            ->assertOk();
+
+        Event::assertNotDispatched(FaceSubscriptionActivated::class);
+        Event::assertNotDispatched(FaceSubscriptionCancelled::class);
+        Event::assertNotDispatched(FaceSubscriptionExpired::class);
+    }
+
+    public function test_change_tier_returns_409_same_tier_when_new_plan_equals_current(): void
+    {
+        // AC #12
+        $subscription = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'Tentative changement vers le même palier',
+                'new_plan' => 'pro',
+            ]);
+
+        $response->assertStatus(409)->assertJsonPath('error.code', 'SAME_TIER');
+
+        $this->assertSame(FaceSubscriptionPlan::Pro, $subscription->fresh()->plan);
+        $this->assertDatabaseCount('face_subscription_audits', 0);
+    }
+
+    public function test_change_tier_returns_409_not_tier_changeable_on_non_active_statuses(): void
+    {
+        // AC #11
+        $cases = [
+            'expired' => fn () => FaceSubscription::factory()->expired(),
+            'cancelled' => fn () => FaceSubscription::factory()->cancelled(),
+            'failed' => fn () => FaceSubscription::factory()->failed(),
+            'pendingPayment' => fn () => FaceSubscription::factory()->pendingPayment(),
+        ];
+
+        foreach ($cases as $state => $factoryFn) {
+            $face = Face::factory()->create();
+            $sub = $factoryFn()->create(['face_id' => $face->id]);
+
+            $this->withAdminApiToken($this->admin)
+                ->postJson("/api/v1/admin/face-subscriptions/{$sub->uuid}/change-tier", [
+                    'notes' => "Tentative changement palier {$state}",
+                    'new_plan' => 'elite',
+                ])
+                ->assertStatus(409)
+                ->assertJsonPath('error.code', 'NOT_TIER_CHANGEABLE');
+        }
+
+        $this->assertDatabaseCount('face_subscription_audits', 0);
+    }
+
+    public function test_change_tier_returns_409_not_tier_changeable_on_zombie_active(): void
+    {
+        // AC #11
+        $subscription = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+        FaceSubscription::query()->whereKey($subscription->id)->update([
+            'expires_at' => now()->subDay(),
+        ]);
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'Tentative changement palier sur zombie',
+                'new_plan' => 'elite',
+            ]);
+
+        $response->assertStatus(409)->assertJsonPath('error.code', 'NOT_TIER_CHANGEABLE');
+    }
+
+    public function test_change_tier_returns_409_not_tier_changeable_when_non_active_even_if_new_plan_equals_current(): void
+    {
+        // AC #11/#12 — the active/unexpired guard runs before the same-tier guard.
+        $subscription = FaceSubscription::factory()->expired()->create([
+            'face_id' => $this->face->id,
+            'plan' => FaceSubscriptionPlan::Pro,
+        ]);
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'Changement palier sur abonnement expiré, même plan',
+                'new_plan' => 'pro',
+            ]);
+
+        $response->assertStatus(409)->assertJsonPath('error.code', 'NOT_TIER_CHANGEABLE');
+
+        $this->assertDatabaseCount('face_subscription_audits', 0);
+    }
+
+    public function test_change_tier_rejects_missing_new_plan(): void
+    {
+        // AC #15
+        $subscription = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'Notes valides mais new_plan manquant',
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['new_plan']);
+
+        $this->assertDatabaseCount('face_subscription_audits', 0);
+    }
+
+    public function test_change_tier_rejects_unknown_or_free_new_plan(): void
+    {
+        // AC #15
+        $subscription = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'new_plan inconnu rejeté',
+                'new_plan' => 'platinum',
+            ])->assertStatus(422)->assertJsonValidationErrors(['new_plan']);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'Free n est pas un palier achetable',
+                'new_plan' => 'free',
+            ])->assertStatus(422)->assertJsonValidationErrors(['new_plan']);
+    }
+
+    public function test_change_tier_rejects_invalid_notes(): void
+    {
+        // AC #15
+        $subscription = FaceSubscription::factory()->pro()->active()->create([
+            'face_id' => $this->face->id,
+        ]);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'new_plan' => 'elite',
+            ])->assertStatus(422)->assertJsonValidationErrors(['notes']);
+
+        $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/face-subscriptions/{$subscription->uuid}/change-tier", [
+                'notes' => 'OK',
+                'new_plan' => 'elite',
+            ])->assertStatus(422)->assertJsonValidationErrors(['notes']);
+    }
+
+    public function test_change_tier_returns_404_when_subscription_uuid_unknown(): void
+    {
+        // AC #16
+        $this->withAdminApiToken($this->admin)
+            ->postJson('/api/v1/admin/face-subscriptions/00000000-0000-0000-0000-000000000000/change-tier', [
+                'notes' => 'Changement palier sur UUID inexistant',
+                'new_plan' => 'elite',
+            ])
+            ->assertStatus(404)
+            ->assertJsonPath('error.code', 'NOT_FOUND')
+            ->assertJsonPath('error.message', 'Ressource introuvable.');
+    }
+
+    // ===================================================================
+    // Audit invariants (AC #24, #25, #26, #27)
+    // ===================================================================
+
+    public function test_audit_and_subscription_change_are_transactional(): void
+    {
+        // AC #24 — atomicity: forcing the audit insert to fail must roll back the subscription mutation.
+        $sub = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
+        $ghostAdmin = new Admin;
+        $ghostAdmin->forceFill([
+            'id' => 999999999,
+            'uuid' => '00000000-0000-0000-0000-000000000001',
+            'name' => 'Ghost Admin',
+            'email' => 'ghost-admin@example.test',
+            'role' => AdminRole::Admin,
+        ]);
+
+        $service = app(FaceSubscriptionAdminService::class);
+
+        try {
+            $service->cancel(
+                subscription: $sub,
+                admin: $ghostAdmin,
+                notes: 'forced rollback test',
+            );
+            $this->fail('Expected the audit insert to fail on the admin_id foreign key.');
+        } catch (QueryException) {
+            // Expected: audit insertion fails, enclosing DB::transaction rolls back.
+        }
+
+        $sub->refresh();
+        $this->assertSame(FaceSubscriptionStatus::Active, $sub->status);
+        $this->assertNull($sub->cancelled_at);
+        $this->assertDatabaseCount('face_subscription_audits', 0);
+    }
+
+    public function test_audit_admin_id_set_to_null_when_admin_is_deleted(): void
+    {
+        // AC #26
+        $sub = FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+        $audit = FaceSubscriptionAudit::factory()->create([
+            'face_subscription_id' => $sub->id,
+            'admin_id' => $this->admin->id,
+        ]);
+
+        $this->admin->delete();
+        $audit->refresh();
+        $this->assertNull($audit->admin_id);
+
+        $newAdmin = Admin::factory()->create();
+        $response = $this->withAdminApiToken($newAdmin)
+            ->getJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions");
+
+        $response->assertJsonPath('data.subscriptions.0.audits.0.admin.name', 'Admin supprimé');
+        $response->assertJsonPath('data.subscriptions.0.audits.0.admin.id', null);
+        $response->assertJsonPath('data.subscriptions.0.audits.0.admin.role', null);
+    }
+
+    public function test_audit_snapshot_excludes_provider_payload_fields(): void
+    {
+        // AC #27
+        $response = $this->withAdminApiToken($this->admin)
+            ->postJson("/api/v1/admin/faces/{$this->face->uuid}/subscriptions/activate", [
+                'plan' => 'pro',
+                'notes' => 'Snapshot leak guard test',
+            ]);
+
+        $response->assertStatus(201);
+        $audit = FaceSubscriptionAudit::query()->first();
+        $this->assertArrayNotHasKey('provider', $audit->new_state);
+        $this->assertArrayNotHasKey('provider_reference', $audit->new_state);
+        $this->assertArrayNotHasKey('metadata', $audit->new_state);
+        // MySQL JSON columns do not preserve insertion order; compare the key set.
+        $actualKeys = array_keys($audit->new_state);
+        sort($actualKeys);
+        $expectedKeys = ['cancelled_at', 'currency', 'expires_at', 'paid_amount', 'plan', 'starts_at', 'status', 'tier'];
+        $this->assertSame($expectedKeys, $actualKeys);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function snapshotShape(FaceSubscription $subscription): array
+    {
+        return [
+            'plan' => $subscription->plan?->value,
+            'status' => $subscription->status?->value,
+            'starts_at' => $subscription->starts_at?->toIso8601String(),
+            'expires_at' => $subscription->expires_at?->toIso8601String(),
+            'cancelled_at' => $subscription->cancelled_at?->toIso8601String(),
+            'paid_amount' => $subscription->paid_amount,
+            'currency' => $subscription->currency,
+        ];
+    }
+}

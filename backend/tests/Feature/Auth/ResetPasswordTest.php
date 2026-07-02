@@ -45,6 +45,25 @@ class ResetPasswordTest extends TestCase
         $this->assertTrue(Hash::check('NewPassword1', $user->password));
     }
 
+    public function test_reset_password_rate_limiting(): void
+    {
+        $payload = [
+            'token' => 'fake-token',
+            'email' => 'ratelimit@example.com',
+            'password' => 'NewPassword1',
+            'password_confirmation' => 'NewPassword1',
+        ];
+
+        // The route throttle counts every request (regardless of payload).
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/v1/auth/reset-password', $payload);
+        }
+
+        // 6th request is rate limited (parity with forgot-password).
+        $this->postJson('/api/v1/auth/reset-password', $payload)
+            ->assertStatus(429);
+    }
+
     /**
      * Test reset password with expired token returns 422.
      */
@@ -198,5 +217,34 @@ class ResetPasswordTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonPath('error.code', 'VALIDATION_ERROR');
+    }
+
+    /**
+     * OWASP A07 (M-4): resetting the password must revoke all Sanctum tokens so a
+     * stolen/leaked bearer token cannot survive the very recovery flow used to
+     * reclaim a compromised account.
+     */
+    public function test_reset_password_revokes_all_sanctum_tokens(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'test@example.com',
+            'password' => Hash::make('oldpassword'),
+        ]);
+
+        // Two live sessions (e.g. one stolen, one legitimate).
+        $user->createToken('device-a');
+        $user->createToken('device-b');
+        $this->assertSame(2, $user->tokens()->count());
+
+        $token = Password::createToken($user);
+
+        $this->postJson('/api/v1/auth/reset-password', [
+            'token' => $token,
+            'email' => 'test@example.com',
+            'password' => 'NewPassword1',
+            'password_confirmation' => 'NewPassword1',
+        ])->assertStatus(200);
+
+        $this->assertSame(0, $user->tokens()->count());
     }
 }

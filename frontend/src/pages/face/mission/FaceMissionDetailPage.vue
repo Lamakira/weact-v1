@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -12,21 +12,24 @@ import {
   Target,
   AlertCircle,
   Loader2,
-  CheckCircle,
-  ShieldAlert,
-  Mail,
-  XCircle,
+  ShieldCheck,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useMissionDetail } from '@/features/mission/composables'
+import { isUgcMission } from '@/features/mission/types'
+import { UgcMissionStats, UgcDeliverablesPreview } from '@/features/mission/components'
 import { formatMissionDurationForDisplay } from '@/features/mission/constants/missionDuration'
 import { ApplyToMissionModal } from '@/features/candidature/components'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
-import { useCancelCandidature } from '@/features/candidature/composables'
+import MissionApplyBlock from './MissionApplyBlock.vue'
+import { ugcCandidatureTunnelStep, UGC_UNBOXING_DAYS } from '@/components/ugc'
+import { useCancelCandidature, useReconfirmCandidature } from '@/features/candidature/composables'
 import { authApi } from '@/features/auth/services/authApi'
 import type { Face } from '@/features/auth/types'
 import { useToast } from '@/composables/useToast'
+import { useUgcShipment } from '@/composables/useUgcShipment'
+import { useUgcDeliverable } from '@/composables/useUgcDeliverable'
 
 /**
  * LOGIC & STATE MANAGEMENT
@@ -36,7 +39,25 @@ const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
 
-const { mission, candidature, isLoading, error, notFound, fetchMission, setCandidature } = useMissionDetail()
+const { mission, candidature, isLoading, error, notFound, ugcPaywall, ugcPaywallMessage, fetchMission, setCandidature } =
+  useMissionDetail()
+
+const isUgc = computed(() => mission.value !== null && isUgcMission(mission.value))
+
+// FR5 : Face non éligible → paywall /pricing (D-2.3.c ; replace = pas de boucle back)
+watch(
+  ugcPaywall,
+  (blocked) => {
+    if (blocked) {
+      // `||` (pas `??`) : un message backend vide ne doit pas produire un toast vide
+      toast.info(
+        ugcPaywallMessage.value || "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus).",
+      )
+      router.replace({ name: 'pricing' })
+    }
+  },
+  { immediate: true },
+)
 
 // Modal state
 const isApplyModalOpen = ref(false)
@@ -50,6 +71,51 @@ const {
   reset: resetCancel,
 } = useCancelCandidature()
 const showCancelModal = ref(false)
+
+// Reconfirmation UGC (8-3, D-8.3.d) — la candidature `accepted` repasse `confirmed`
+// via l'endpoint dédié /face/candidatures/{id}/reconfirm (séparé du confirm cash).
+const {
+  isReconfirming,
+  error: reconfirmError,
+  reconfirmCandidature,
+} = useReconfirmCandidature()
+
+// Candidature engagée : la Face a accepté le deal (bandeau sans CTA ni annulation).
+const ugcEngaged = computed(() =>
+  isUgc.value && ['confirmed', 'in_progress', 'completed'].includes(candidature.value?.status ?? ''),
+)
+
+// Carte de suivi Face (3.4) — remplace le bandeau engagé dès qu'un shipment existe (D-3.4.f).
+const candidatureShipment = computed(() => candidature.value?.shipment ?? null)
+const showFaceTrackingCard = computed(() => ugcEngaged.value && candidatureShipment.value !== null)
+const ugcTrackingStep = computed(() =>
+  ugcCandidatureTunnelStep(candidature.value?.status ?? '', candidatureShipment.value),
+)
+
+const showReceiptModal = ref(false)
+const receiptModalMessage = `Le chrono Unboxing (${UGC_UNBOXING_DAYS} jours) démarre dès la confirmation — cette action est définitive.`
+
+const {
+  isSubmitting: isSubmittingReceipt,
+  error: receiptError,
+  errorCode: receiptErrorCode,
+  confirmReceipt,
+} = useUgcShipment()
+
+// Upload du livrable Unboxing (4.2) — miroir d'AC5, noms distincts du receipt.
+const {
+  isUploading: isUploadingDeliverable,
+  uploadProgress,
+  error: deliverableError,
+  errorCode: deliverableErrorCode,
+  uploadDeliverable,
+} = useUgcDeliverable()
+
+// CTA « Reconfirmer ma participation » : candidature UGC `accepted` (8-3, D-8.3.d).
+// Mutuellement exclusif avec « Annuler » (pending-only).
+const canReconfirmUgc = computed(
+  () => isUgc.value && candidature.value?.status === 'accepted',
+)
 
 // Email verification resend state
 const isResendingVerification = ref(false)
@@ -255,6 +321,109 @@ async function handleCancelConfirm(): Promise<void> {
 }
 
 /**
+ * UGC RECEIPT CONFIRMATION (3.4)
+ */
+async function handleConfirmReceipt(): Promise<void> {
+  showReceiptModal.value = false
+  const shipment = candidatureShipment.value
+  if (!shipment || !candidature.value) return
+
+  const updated = await confirmReceipt(shipment.id)
+  if (updated) {
+    // Assignation locale via le setter existant (D-3.4.d) — le statut candidature ne bouge pas.
+    // Snapshot relu après l'await : la ref peut avoir été remplacée/vidée pendant la requête.
+    const current = candidature.value
+    if (current) setCandidature({ ...current, shipment: updated })
+    toast.success('Réception confirmée — le chrono Unboxing démarre')
+    return
+  }
+
+  if (receiptErrorCode.value === 'ALREADY_RECEIVED') {
+    // Multi-onglets : récupérer l'état réel (parité D-3.2.e).
+    toast.info(receiptError.value || 'La réception de ce produit a déjà été confirmée.')
+    if (missionId.value) await fetchMission(missionId.value)
+    return
+  }
+
+  toast.error(receiptError.value || 'Erreur lors de la confirmation de la réception')
+}
+
+/**
+ * UGC DELIVERABLE UPLOAD (4.2) — miroir d'AC5 (booking), refetch via fetchMission.
+ */
+async function handleUploadDeliverable(file: File): Promise<void> {
+  const shipment = candidatureShipment.value
+  if (!shipment) return
+
+  const deliverable = await uploadDeliverable(shipment.id, file)
+  if (deliverable) {
+    toast.success('Vidéo Unboxing déposée — en attente de validation')
+    if (missionId.value) await fetchMission(missionId.value) // D-4.2.d
+    return
+  }
+  if (deliverableErrorCode.value === 'ALREADY_UPLOADED') {
+    toast.info(deliverableError.value || 'Votre vidéo Unboxing a déjà été déposée.')
+    if (missionId.value) await fetchMission(missionId.value)
+    return
+  }
+  if (deliverableErrorCode.value === 'INVALID_STATUS') {
+    toast.error(deliverableError.value || "La vidéo ne peut pas être déposée dans l'état actuel de ce deal.")
+    if (missionId.value) await fetchMission(missionId.value)
+    return
+  }
+  toast.error(deliverableError.value || "Erreur lors de l'envoi de la vidéo Unboxing")
+}
+
+/**
+ * UGC RECONFIRMATION (8-3, D-8.3.d/f) — accepted → confirmed.
+ */
+async function handleReconfirm(): Promise<void> {
+  if (!candidature.value || !missionId.value) return
+
+  const result = await reconfirmCandidature(candidature.value.id)
+  if (result) {
+    toast.success('Participation reconfirmée — le producteur va expédier votre produit')
+    await fetchMission(missionId.value) // D-8.3.f : refetch (pas setCandidature)
+    return
+  }
+
+  toast.error(reconfirmError.value || 'Impossible de reconfirmer votre participation.')
+}
+
+/**
+ * APPLY BLOCK PROPS
+ *
+ * Regroupe l'état consommé par MissionApplyBlock pour le `v-bind` aux deux
+ * emplacements (sidebar sticky desktop + barre fixe / inline mobile) sans
+ * répéter ~20 props à la main. Purement présentationnel — aucune logique
+ * nouvelle, juste un miroir des computeds/refs existants. `mission.value!` :
+ * le composant n'est rendu que dans la branche `v-else-if="mission"`.
+ */
+const applyBlockProps = computed(() => ({
+  mission: mission.value!,
+  candidature: candidature.value,
+  hasApplied: hasApplied.value,
+  showFaceTrackingCard: showFaceTrackingCard.value,
+  candidatureShipment: candidatureShipment.value,
+  ugcTrackingStep: ugcTrackingStep.value,
+  isSubmittingReceipt: isSubmittingReceipt.value,
+  isUploadingDeliverable: isUploadingDeliverable.value,
+  uploadProgress: uploadProgress.value,
+  ugcEngaged: ugcEngaged.value,
+  canCancelCandidature: canCancelCandidature.value,
+  canReconfirmUgc: canReconfirmUgc.value,
+  isReconfirming: isReconfirming.value,
+  isCancelling: isCancelling.value,
+  canApply: canApply.value,
+  isResendingVerification: isResendingVerification.value,
+  isGenderContextUnknown: isGenderContextUnknown.value,
+  isRefreshingGenderContext: isRefreshingGenderContext.value,
+  genderContextMessage: genderContextMessage.value,
+  isGenderMismatch: isGenderMismatch.value,
+  genderMismatchMessage: genderMismatchMessage.value,
+}))
+
+/**
  * LIFECYCLE
  */
 onMounted(() => {
@@ -342,325 +511,305 @@ onMounted(() => {
     </div>
 
     <!-- Mission Detail Content -->
-    <div v-else-if="mission" class="max-w-4xl">
-      <!-- Mission Type Badge -->
-      <div class="mb-4">
-        <span
-          class="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs min-[376px]:text-sm font-medium text-primary"
-        >
-          {{ mission.type_mission === 'autre' && mission.type_mission_autre ? `Autre : ${mission.type_mission_autre}` : mission.type_mission_label }}
-        </span>
-      </div>
-
-      <!-- Mission Title -->
-      <h1 class="text-xl min-[376px]:text-2xl sm:text-3xl font-bold text-foreground mb-6">
-        {{ mission.titre }}
-      </h1>
-
-      <!-- Mission Description -->
-      <div class="mb-8 rounded-lg border border-border bg-card p-4 min-[376px]:p-6">
-        <h2 class="text-base min-[376px]:text-lg font-semibold text-foreground mb-3">Description</h2>
-        <p class="text-xs min-[376px]:text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-          {{ mission.description }}
+    <div v-else-if="mission">
+      <!-- En-tête pleine largeur (au-dessus de la grille) -->
+      <div class="mb-6">
+        <div class="mb-3 flex flex-wrap items-center gap-2">
+          <span
+            class="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs min-[376px]:text-sm font-medium text-primary"
+          >
+            {{ mission.type_mission === 'autre' && mission.type_mission_autre ? `Autre : ${mission.type_mission_autre}` : mission.type_mission_label }}
+          </span>
+          <span
+            v-if="isUgc && mission.type_compensation_label"
+            class="inline-flex items-center rounded-full bg-muted px-3 py-1 text-xs min-[376px]:text-sm font-medium text-muted-foreground"
+            data-testid="ugc-compensation-tag"
+          >
+            {{ mission.type_compensation_label }}
+          </span>
+          <span
+            v-if="isUgc"
+            class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700"
+          >
+            <ShieldCheck class="h-3.5 w-3.5" aria-hidden="true" />
+            Dotation réglée via WeAct
+          </span>
+        </div>
+        <h1 class="text-xl min-[376px]:text-2xl sm:text-3xl font-bold text-foreground">
+          {{ mission.titre }}
+        </h1>
+        <p class="mt-1.5 text-xs min-[376px]:text-sm text-gray-400">
+          Publiée le {{ formatDate(mission.created_at) }} · {{ producerName }}
         </p>
       </div>
 
-      <!-- Mission Details Grid -->
-      <div class="mb-8 rounded-lg border border-border bg-card p-4 min-[376px]:p-6">
-        <h2 class="text-base min-[376px]:text-lg font-semibold text-foreground mb-4">Détails de la mission</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 min-[376px]:gap-4">
-          <!-- Date de tournage -->
-          <div class="flex items-start gap-3 p-2 min-[376px]:p-3 rounded-lg bg-muted/50">
-            <div class="flex-shrink-0 p-1.5 min-[376px]:p-2 rounded-lg bg-primary/10">
-              <Calendar class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-primary" />
-            </div>
-            <div>
-              <p class="text-[10px] min-[376px]:text-xs text-muted-foreground uppercase tracking-wider">Date de tournage</p>
-              <p class="text-xs min-[376px]:text-sm font-medium text-foreground">{{ formatDate(mission.date_tournage) }}</p>
-            </div>
-          </div>
-
-          <!-- Lieu -->
-          <div class="flex items-start gap-3 p-2 min-[376px]:p-3 rounded-lg bg-muted/50">
-            <div class="flex-shrink-0 p-1.5 min-[376px]:p-2 rounded-lg bg-primary/10">
-              <MapPin class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-primary" />
-            </div>
-            <div>
-              <p class="text-[10px] min-[376px]:text-xs text-muted-foreground uppercase tracking-wider">Lieu</p>
-              <p class="text-xs min-[376px]:text-sm font-medium text-foreground">{{ mission.lieu }}</p>
-            </div>
-          </div>
-
-          <!-- Budget -->
-          <div class="flex items-start gap-3 p-2 min-[376px]:p-3 rounded-lg bg-muted/50">
-            <div class="flex-shrink-0 p-1.5 min-[376px]:p-2 rounded-lg bg-primary/10">
-              <Wallet class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-primary" />
-            </div>
-            <div>
-              <p class="text-[10px] min-[376px]:text-xs text-muted-foreground uppercase tracking-wider">Rémunération proposée</p>
-              <p class="text-xs min-[376px]:text-sm font-medium text-foreground">{{ formatCurrency(mission.budget) }}</p>
-            </div>
-          </div>
-
-          <!-- Nombre de Faces -->
-          <div class="flex items-start gap-3 p-2 min-[376px]:p-3 rounded-lg bg-muted/50">
-            <div class="flex-shrink-0 p-1.5 min-[376px]:p-2 rounded-lg bg-primary/10">
-              <Users class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-primary" />
-            </div>
-            <div>
-              <p class="text-[10px] min-[376px]:text-xs text-muted-foreground uppercase tracking-wider">Faces recherchées</p>
-              <p class="text-xs min-[376px]:text-sm font-medium text-foreground">{{ mission.nombre_faces_voulu }} Face{{ mission.nombre_faces_voulu > 1 ? 's' : '' }}</p>
-            </div>
-          </div>
-
-          <!-- Durée -->
-          <div class="flex items-start gap-3 p-2 min-[376px]:p-3 rounded-lg bg-muted/50">
-            <div class="flex-shrink-0 p-1.5 min-[376px]:p-2 rounded-lg bg-primary/10">
-              <Clock class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-primary" />
-            </div>
-            <div>
-              <p class="text-[10px] min-[376px]:text-xs text-muted-foreground uppercase tracking-wider">Durée</p>
-              <p class="text-xs min-[376px]:text-sm font-medium text-foreground">{{ formatMissionDurationForDisplay(mission.duree) }}</p>
-            </div>
-          </div>
-
-          <!-- Genre voulu -->
-          <div class="flex items-start gap-3 p-2 min-[376px]:p-3 rounded-lg bg-muted/50">
-            <div class="flex-shrink-0 p-1.5 min-[376px]:p-2 rounded-lg bg-primary/10">
-              <UserCheck class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-primary" />
-            </div>
-            <div>
-              <p class="text-[10px] min-[376px]:text-xs text-muted-foreground uppercase tracking-wider">Genre recherché</p>
-              <p class="text-xs min-[376px]:text-sm font-medium text-foreground">{{ mission.genre_voulu_label }}</p>
-            </div>
-          </div>
-
-          <!-- Date limite candidature -->
-          <div class="flex items-start gap-3 p-2 min-[376px]:p-3 rounded-lg bg-muted/50 sm:col-span-2">
-            <div class="flex-shrink-0 p-1.5 min-[376px]:p-2 rounded-lg bg-primary/10">
-              <Target class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-primary" />
-            </div>
-            <div>
-              <p class="text-[10px] min-[376px]:text-xs text-muted-foreground uppercase tracking-wider">Date limite de candidature</p>
-              <p class="text-xs min-[376px]:text-sm font-medium text-foreground">{{ formatDate(mission.date_limite_candidature) }}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Profil recherché -->
-      <div class="mb-8 rounded-lg border border-border bg-card p-4 min-[376px]:p-6">
-        <h2 class="text-base min-[376px]:text-lg font-semibold text-foreground mb-3">Profil recherché</h2>
-        <p class="text-xs min-[376px]:text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
-          {{ mission.profil_recherche }}
-        </p>
-      </div>
-
-      <!-- Producer Card -->
-      <div class="mb-8 rounded-lg border border-border bg-card p-4 min-[376px]:p-6">
-        <h2 class="text-base min-[376px]:text-lg font-semibold text-foreground mb-4">Producteur</h2>
-        <router-link
-          v-if="mission.producer?.slug"
-          :to="`/producers/${mission.producer.slug}`"
-          class="flex items-center gap-3 min-[376px]:gap-4 rounded-lg p-2 -m-2 transition-colors hover:bg-muted/50"
-          :aria-label="`Voir le profil de ${producerName}`"
-        >
-          <div class="relative h-12 w-12 min-[376px]:h-16 min-[376px]:w-16 flex-shrink-0 overflow-hidden rounded-full border-2 border-border bg-muted">
-            <img
-              v-if="producerAvatarUrl"
-              :src="producerAvatarUrl"
-              :alt="producerName"
-              class="h-full w-full object-cover"
+      <!-- Grille 2 colonnes : contenu (gauche) + carte d'action sticky (droite).
+           `items-start` est indispensable au fonctionnement du sticky. `pb-28`
+           réserve l'espace de la barre d'action fixe mobile (retirée dès qu'on a
+           déjà postulé — l'état passe alors inline dans la colonne de gauche). -->
+      <div
+        class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start"
+        :class="{ 'pb-28 lg:pb-0': !hasApplied }"
+      >
+        <!-- COLONNE GAUCHE : contenu défilable -->
+        <div class="lg:col-span-7 xl:col-span-8 space-y-5">
+          <!-- Mobile : stats + producteur compact remontés en tête (signal de confiance ;
+               sur desktop ils vivent dans la carte d'action / la sidebar) -->
+          <div class="space-y-4 lg:hidden">
+            <UgcMissionStats
+              v-if="isUgc"
+              :valeur-produit="mission.valeur_produit"
+              :montant-remuneration="mission.montant_remuneration"
+              :nombre-videos="mission.nombre_videos"
             />
-            <div
-              v-else
-              class="flex h-full w-full items-center justify-center bg-primary/10 text-base min-[376px]:text-xl font-bold uppercase text-primary"
+            <router-link
+              v-if="mission.producer?.slug"
+              :to="`/producers/${mission.producer.slug}`"
+              class="flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-3 shadow-sm transition-colors hover:bg-muted/30"
+              :aria-label="`Voir le profil de ${producerName}`"
             >
-              {{ producerInitials }}
+              <div class="h-10 w-10 flex-shrink-0 overflow-hidden rounded-full bg-muted">
+                <img v-if="producerAvatarUrl" :src="producerAvatarUrl" :alt="producerName" class="h-full w-full object-cover" />
+                <div v-else class="flex h-full w-full items-center justify-center bg-primary/10 text-sm font-bold uppercase text-primary">{{ producerInitials }}</div>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-semibold text-gray-900 truncate">{{ producerName }}</p>
+                <RatingDisplay :average-rating="producerRating" :review-count="producerRatingsCount" />
+              </div>
+              <span v-if="isUgc" class="flex flex-shrink-0 items-center gap-1 text-[10px] font-medium text-primary">
+                <ShieldCheck class="h-3 w-3" aria-hidden="true" />
+                Vérifié
+              </span>
+            </router-link>
+            <div v-else class="flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
+              <div class="h-10 w-10 flex-shrink-0 overflow-hidden rounded-full bg-muted">
+                <img v-if="producerAvatarUrl" :src="producerAvatarUrl" :alt="producerName" class="h-full w-full object-cover" />
+                <div v-else class="flex h-full w-full items-center justify-center bg-primary/10 text-sm font-bold uppercase text-primary">{{ producerInitials }}</div>
+              </div>
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-semibold text-gray-900 truncate">{{ producerName }}</p>
+                <RatingDisplay :average-rating="producerRating" :review-count="producerRatingsCount" />
+              </div>
+              <span v-if="isUgc" class="flex flex-shrink-0 items-center gap-1 text-[10px] font-medium text-primary">
+                <ShieldCheck class="h-3 w-3" aria-hidden="true" />
+                Vérifié
+              </span>
             </div>
           </div>
-          <div class="flex flex-col gap-0.5 min-[376px]:gap-1">
-            <p class="text-base min-[376px]:text-lg font-semibold text-foreground">{{ producerName }}</p>
-            <p class="text-xs min-[376px]:text-sm text-muted-foreground">{{ producerTypeLabel }}</p>
-            <RatingDisplay
-              :average-rating="producerRating"
-              :review-count="producerRatingsCount"
-            />
-          </div>
-        </router-link>
-        <div v-else class="flex items-center gap-3 min-[376px]:gap-4">
-          <div class="relative h-12 w-12 min-[376px]:h-16 min-[376px]:w-16 flex-shrink-0 overflow-hidden rounded-full border-2 border-border bg-muted">
-            <div class="flex h-full w-full items-center justify-center bg-primary/10 text-base min-[376px]:text-xl font-bold uppercase text-primary">
-              {{ producerInitials }}
+
+          <!-- Brief / Description -->
+          <section class="rounded-2xl border border-gray-100 bg-white p-4 min-[376px]:p-6 shadow-sm">
+            <h2 class="mb-2.5 text-sm font-semibold text-gray-900">{{ isUgc ? 'Brief' : 'Description' }}</h2>
+            <p class="whitespace-pre-line text-sm leading-relaxed text-gray-600">{{ mission.description }}</p>
+          </section>
+
+          <!-- Livrables UGC -->
+          <UgcDeliverablesPreview v-if="isUgc" :nombre-videos="mission.nombre_videos" />
+
+          <!-- Détails de la mission (champs de tournage masqués pour l'UGC : valeurs null) -->
+          <section class="rounded-2xl border border-gray-100 bg-white p-4 min-[376px]:p-6 shadow-sm">
+            <h2 class="mb-4 text-sm font-semibold text-gray-900">Détails de la mission</h2>
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <!-- Date de tournage (masquée pour l'UGC) -->
+              <div v-if="!isUgc" class="flex items-start gap-3 rounded-xl bg-gray-50 p-3.5">
+                <span class="flex-shrink-0 rounded-lg bg-primary/10 p-2 text-primary">
+                  <Calendar class="h-[18px] w-[18px]" />
+                </span>
+                <div>
+                  <p class="text-[10px] uppercase tracking-wider text-gray-500">Date de tournage</p>
+                  <p class="text-sm font-medium text-gray-900">{{ formatDate(mission.date_tournage) }}</p>
+                </div>
+              </div>
+
+              <!-- Lieu (masqué pour l'UGC) -->
+              <div v-if="!isUgc" class="flex items-start gap-3 rounded-xl bg-gray-50 p-3.5">
+                <span class="flex-shrink-0 rounded-lg bg-primary/10 p-2 text-primary">
+                  <MapPin class="h-[18px] w-[18px]" />
+                </span>
+                <div>
+                  <p class="text-[10px] uppercase tracking-wider text-gray-500">Lieu</p>
+                  <p class="text-sm font-medium text-gray-900">{{ mission.lieu }}</p>
+                </div>
+              </div>
+
+              <!-- Rémunération (masquée pour l'UGC : dérivée serveur, la grille stats est canonique) -->
+              <div v-if="!isUgc" class="flex items-start gap-3 rounded-xl bg-gray-50 p-3.5">
+                <span class="flex-shrink-0 rounded-lg bg-primary/10 p-2 text-primary">
+                  <Wallet class="h-[18px] w-[18px]" />
+                </span>
+                <div>
+                  <p class="text-[10px] uppercase tracking-wider text-gray-500">Rémunération proposée</p>
+                  <p class="text-sm font-medium text-gray-900">{{ formatCurrency(mission.budget) }}</p>
+                </div>
+              </div>
+
+              <!-- Nombre de Faces -->
+              <div class="flex items-start gap-3 rounded-xl bg-gray-50 p-3.5">
+                <span class="flex-shrink-0 rounded-lg bg-primary/10 p-2 text-primary">
+                  <Users class="h-[18px] w-[18px]" />
+                </span>
+                <div>
+                  <p class="text-[10px] uppercase tracking-wider text-gray-500">Faces recherchées</p>
+                  <p class="text-sm font-medium text-gray-900">{{ mission.nombre_faces_voulu }} Face{{ mission.nombre_faces_voulu > 1 ? 's' : '' }}</p>
+                </div>
+              </div>
+
+              <!-- Durée (masquée pour l'UGC) -->
+              <div v-if="!isUgc" class="flex items-start gap-3 rounded-xl bg-gray-50 p-3.5">
+                <span class="flex-shrink-0 rounded-lg bg-primary/10 p-2 text-primary">
+                  <Clock class="h-[18px] w-[18px]" />
+                </span>
+                <div>
+                  <p class="text-[10px] uppercase tracking-wider text-gray-500">Durée</p>
+                  <p class="text-sm font-medium text-gray-900">{{ formatMissionDurationForDisplay(mission.duree) }}</p>
+                </div>
+              </div>
+
+              <!-- Genre voulu -->
+              <div class="flex items-start gap-3 rounded-xl bg-gray-50 p-3.5">
+                <span class="flex-shrink-0 rounded-lg bg-primary/10 p-2 text-primary">
+                  <UserCheck class="h-[18px] w-[18px]" />
+                </span>
+                <div>
+                  <p class="text-[10px] uppercase tracking-wider text-gray-500">Genre recherché</p>
+                  <p class="text-sm font-medium text-gray-900">{{ mission.genre_voulu_label }}</p>
+                </div>
+              </div>
+
+              <!-- Date limite candidature -->
+              <div class="flex items-start gap-3 rounded-xl bg-gray-50 p-3.5">
+                <span class="flex-shrink-0 rounded-lg bg-primary/10 p-2 text-primary">
+                  <Target class="h-[18px] w-[18px]" />
+                </span>
+                <div>
+                  <p class="text-[10px] uppercase tracking-wider text-gray-500">Date limite</p>
+                  <p class="text-sm font-medium text-gray-900">{{ formatDate(mission.date_limite_candidature) }}</p>
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="flex flex-col gap-0.5 min-[376px]:gap-1">
-            <p class="text-base min-[376px]:text-lg font-semibold text-foreground">{{ producerName }}</p>
-            <p class="text-xs min-[376px]:text-sm text-muted-foreground">{{ producerTypeLabel }}</p>
-            <RatingDisplay
-              :average-rating="producerRating"
-              :review-count="producerRatingsCount"
+          </section>
+
+          <!-- Profil recherché -->
+          <section class="rounded-2xl border border-gray-100 bg-white p-4 min-[376px]:p-6 shadow-sm">
+            <h2 class="mb-2.5 text-sm font-semibold text-gray-900">Profil recherché</h2>
+            <p class="whitespace-pre-line text-sm leading-relaxed text-gray-600">{{ mission.profil_recherche }}</p>
+          </section>
+
+          <!-- Mobile : zone d'action inline une fois la candidature posée (le suivi de
+               livraison / les bandeaux n'ont pas leur place dans une barre fixe étroite). -->
+          <div v-if="hasApplied" class="lg:hidden">
+            <MissionApplyBlock
+              v-bind="applyBlockProps"
+              @apply="openApplyModal"
+              @cancel="openCancelModal"
+              @reconfirm="handleReconfirm"
+              @resend-verification="handleResendVerification"
+              @confirm-receipt="showReceiptModal = true"
+              @upload="handleUploadDeliverable"
             />
           </div>
         </div>
+
+        <!-- COLONNE DROITE : carte d'action sticky (desktop uniquement) -->
+        <aside class="hidden lg:col-span-5 lg:block xl:col-span-4">
+          <div class="sticky top-6 space-y-4">
+            <!-- Carte d'action : stats/budget + infos clés + zone Postuler -->
+            <div class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+              <UgcMissionStats
+                v-if="isUgc"
+                class="mb-4"
+                :valeur-produit="mission.valeur_produit"
+                :montant-remuneration="mission.montant_remuneration"
+                :nombre-videos="mission.nombre_videos"
+              />
+
+              <dl class="mb-4 space-y-2 text-sm">
+                <div v-if="!isUgc" class="flex items-center justify-between">
+                  <dt class="text-gray-500">Rémunération</dt>
+                  <dd class="font-medium text-gray-900">{{ formatCurrency(mission.budget) }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                  <dt class="text-gray-500">Faces recherchées</dt>
+                  <dd class="font-medium text-gray-900">{{ mission.nombre_faces_voulu }} Face{{ mission.nombre_faces_voulu > 1 ? 's' : '' }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                  <dt class="text-gray-500">Genre</dt>
+                  <dd class="font-medium text-gray-900">{{ mission.genre_voulu_label }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                  <dt class="text-gray-500">Date limite</dt>
+                  <dd class="font-medium text-gray-900">{{ formatDate(mission.date_limite_candidature) }}</dd>
+                </div>
+              </dl>
+
+              <div class="mb-4 h-px w-full bg-gray-100"></div>
+
+              <MissionApplyBlock
+                v-bind="applyBlockProps"
+                @apply="openApplyModal"
+                @cancel="openCancelModal"
+                @reconfirm="handleReconfirm"
+                @resend-verification="handleResendVerification"
+                @confirm-receipt="showReceiptModal = true"
+                @upload="handleUploadDeliverable"
+              />
+            </div>
+
+            <!-- Carte producteur -->
+            <div class="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+              <h2 class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500">Producteur</h2>
+              <router-link
+                v-if="mission.producer?.slug"
+                :to="`/producers/${mission.producer.slug}`"
+                class="-m-1 flex items-center gap-3 rounded-lg p-1 transition-colors hover:bg-muted/50"
+                :aria-label="`Voir le profil de ${producerName}`"
+              >
+                <div class="h-11 w-11 flex-shrink-0 overflow-hidden rounded-full border border-border bg-muted">
+                  <img v-if="producerAvatarUrl" :src="producerAvatarUrl" :alt="producerName" class="h-full w-full object-cover" />
+                  <div v-else class="flex h-full w-full items-center justify-center bg-primary/10 text-base font-bold uppercase text-primary">{{ producerInitials }}</div>
+                </div>
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-semibold text-gray-900">{{ producerName }}</p>
+                  <p class="text-xs text-gray-400">{{ producerTypeLabel }}</p>
+                  <RatingDisplay :average-rating="producerRating" :review-count="producerRatingsCount" />
+                </div>
+              </router-link>
+              <div v-else class="flex items-center gap-3">
+                <div class="h-11 w-11 flex-shrink-0 overflow-hidden rounded-full border border-border bg-muted">
+                  <img v-if="producerAvatarUrl" :src="producerAvatarUrl" :alt="producerName" class="h-full w-full object-cover" />
+                  <div v-else class="flex h-full w-full items-center justify-center bg-primary/10 text-base font-bold uppercase text-primary">{{ producerInitials }}</div>
+                </div>
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-semibold text-gray-900">{{ producerName }}</p>
+                  <p class="text-xs text-gray-400">{{ producerTypeLabel }}</p>
+                  <RatingDisplay :average-rating="producerRating" :review-count="producerRatingsCount" />
+                </div>
+              </div>
+              <p v-if="isUgc" class="mt-3 flex items-center gap-1.5 text-xs font-medium text-primary" data-testid="ugc-verified-producer">
+                <ShieldCheck class="h-3.5 w-3.5" aria-hidden="true" />
+                Producteur vérifié — dotation réglée via WeAct
+              </p>
+            </div>
+          </div>
+        </aside>
       </div>
 
-      <!-- Apply Section -->
-      <div class="mb-8">
-        <!-- State 1: Already Applied -->
-        <div v-if="hasApplied" class="space-y-3">
-          <div
-            class="flex items-center justify-center gap-2 rounded-lg border px-6 min-[376px]:px-8 py-3"
-            :class="canCancelCandidature
-              ? 'border-green-200 bg-green-50 text-green-700'
-              : candidature?.status === 'cancelled'
-                ? 'border-gray-200 bg-gray-50 text-gray-600'
-                : 'border-green-200 bg-green-50 text-green-700'"
-          >
-            <CheckCircle v-if="candidature?.status !== 'cancelled'" class="h-5 w-5" />
-            <XCircle v-else class="h-5 w-5" />
-            <span class="text-xs min-[376px]:text-sm font-medium">
-              {{ candidature?.status === 'cancelled' ? 'Candidature annulée' : 'Candidature envoyée' }}
-            </span>
-            <span class="text-xs opacity-75">({{ candidature?.status_label }})</span>
-          </div>
-          <button
-            v-if="canCancelCandidature"
-            type="button"
-            class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-6 min-[376px]:px-8 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            :disabled="isCancelling"
-            @click="openCancelModal"
-          >
-            <Loader2 v-if="isCancelling" class="h-4 w-4 animate-spin" />
-            <XCircle v-else class="h-4 w-4" />
-            {{ isCancelling ? 'Annulation...' : 'Annuler ma candidature' }}
-          </button>
-        </div>
-
-        <!-- State 2: Email not verified -->
-        <div
-          v-else-if="!canApply && mission.is_accepting_candidatures"
-          class="rounded-lg border border-amber-200 bg-amber-50 p-3 min-[376px]:p-4"
-          data-testid="email-verification-apply-block"
-        >
-          <div class="flex flex-col sm:flex-row items-center gap-3 min-[376px]:gap-4">
-            <div class="flex items-center gap-3">
-              <div class="flex-shrink-0 w-9 h-9 min-[376px]:w-10 min-[376px]:h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                <ShieldAlert class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-amber-600" />
-              </div>
-              <div class="text-center sm:text-left">
-                <p class="text-xs min-[376px]:text-sm font-medium text-amber-800">Vérification email requise</p>
-                <p class="text-[10px] min-[376px]:text-xs text-amber-700">Vous devez vérifier votre email pour postuler.</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              :disabled="isResendingVerification"
-              class="flex-shrink-0 inline-flex items-center gap-2 px-3 min-[376px]:px-4 py-2 text-xs min-[376px]:text-sm font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              @click="handleResendVerification"
-            >
-              <Mail v-if="!isResendingVerification" class="h-4 w-4" />
-              <Loader2 v-else class="h-4 w-4 animate-spin" />
-              {{ isResendingVerification ? 'Envoi...' : "Renvoyer l'email" }}
-            </button>
-          </div>
-        </div>
-
-        <!-- State 3: Gender context unavailable -->
-        <div
-          v-else-if="mission.is_accepting_candidatures && isGenderContextUnknown"
-          class="rounded-lg border border-amber-200 bg-amber-50 p-3 min-[376px]:p-4"
-          data-testid="gender-context-block"
-        >
-          <div class="flex flex-col gap-3">
-            <div class="flex items-center gap-3">
-              <div class="flex-shrink-0 w-9 h-9 min-[376px]:w-10 min-[376px]:h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                <Loader2
-                  v-if="isRefreshingGenderContext"
-                  class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-amber-600 animate-spin"
-                />
-                <ShieldAlert
-                  v-else
-                  class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-amber-600"
-                />
-              </div>
-              <div>
-                <p class="text-xs min-[376px]:text-sm font-medium text-amber-800">Validation du profil requise</p>
-                <p
-                  id="gender-context-message"
-                  class="text-[10px] min-[376px]:text-xs text-amber-700"
-                >
-                  {{ genderContextMessage }}
-                </p>
-              </div>
-            </div>
-            <div>
-              <button
-                type="button"
-                disabled
-                aria-describedby="gender-context-message"
-                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 min-[376px]:px-8 py-3 text-sm min-[376px]:text-base font-semibold text-white opacity-50 cursor-not-allowed"
-                data-testid="apply-button-disabled"
-              >
-                Postuler à cette mission
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- State 4: Gender mismatch -->
-        <div
-          v-else-if="mission.is_accepting_candidatures && isGenderMismatch"
-          class="rounded-lg border border-amber-200 bg-amber-50 p-3 min-[376px]:p-4"
-          data-testid="gender-mismatch-block"
-        >
-          <div class="flex flex-col gap-3">
-            <div class="flex items-center gap-3">
-              <div class="flex-shrink-0 w-9 h-9 min-[376px]:w-10 min-[376px]:h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                <ShieldAlert class="h-4 w-4 min-[376px]:h-5 min-[376px]:w-5 text-amber-600" />
-              </div>
-              <div>
-                <p class="text-xs min-[376px]:text-sm font-medium text-amber-800">Candidature non autorisée</p>
-                <p
-                  id="gender-mismatch-message"
-                  class="text-[10px] min-[376px]:text-xs text-amber-700"
-                >
-                  {{ genderMismatchMessage }}
-                </p>
-              </div>
-            </div>
-            <div>
-              <button
-                type="button"
-                disabled
-                aria-describedby="gender-mismatch-message"
-                class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 min-[376px]:px-8 py-3 text-sm min-[376px]:text-base font-semibold text-white opacity-50 cursor-not-allowed"
-                data-testid="apply-button-disabled"
-              >
-                Postuler à cette mission
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- State 5: Can Apply -->
-        <button
-          v-else-if="mission.is_accepting_candidatures"
-          type="button"
-          class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 min-[376px]:px-8 py-3 text-sm min-[376px]:text-base font-semibold text-white transition-colors hover:bg-primary/90"
-          @click="openApplyModal"
-        >
-          Postuler à cette mission
-        </button>
-
-        <!-- State 6: Mission Closed -->
-        <div
-          v-else
-          class="flex items-center justify-center gap-2 rounded-lg border border-muted bg-muted/50 px-6 min-[376px]:px-8 py-3 text-xs min-[376px]:text-sm text-muted-foreground"
-        >
-          <AlertCircle class="h-5 w-5" />
-          <span>Les candidatures sont fermées pour cette mission</span>
-        </div>
+      <!-- Barre d'action fixe en bas (mobile) — CTA toujours visible tant qu'on n'a
+           pas postulé ; une fois la candidature posée, l'état passe inline (colonne
+           gauche). z-30 < menu mobile (z-40/z-50) → bien recouvert à l'ouverture. -->
+      <div
+        v-if="!hasApplied"
+        class="fixed inset-x-0 bottom-0 z-30 border-t border-gray-100 bg-white/95 px-4 pt-3 pb-7 backdrop-blur lg:hidden"
+      >
+        <MissionApplyBlock
+          v-bind="applyBlockProps"
+          @apply="openApplyModal"
+          @cancel="openCancelModal"
+          @reconfirm="handleReconfirm"
+          @resend-verification="handleResendVerification"
+          @confirm-receipt="showReceiptModal = true"
+          @upload="handleUploadDeliverable"
+        />
       </div>
     </div>
 
@@ -684,6 +833,18 @@ onMounted(() => {
       variant="warning"
       @confirm="handleCancelConfirm"
       @cancel="closeCancelModal"
+    />
+
+    <!-- Confirmation « Produit reçu » (3.4, D-3.4.c) — state dédié, chrono 7j irréversible -->
+    <ConfirmModal
+      :is-open="showReceiptModal"
+      title="Confirmer la réception ?"
+      :message="receiptModalMessage"
+      confirm-text="Oui, j'ai reçu le produit"
+      cancel-text="Pas encore"
+      variant="warning"
+      @confirm="handleConfirmReceipt"
+      @cancel="showReceiptModal = false"
     />
   </div>
 </template>

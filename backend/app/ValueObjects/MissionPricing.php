@@ -6,7 +6,17 @@ namespace App\ValueObjects;
 
 class MissionPricing
 {
-    private const COMMISSION_RATE = 0.10;
+    /**
+     * Producer-side platform fee. Flat, tier-independent: the producer always
+     * pays subtotal + 10 % regardless of the selected Faces' subscription tiers.
+     *
+     * The Face-side commission is NOT modelled here. It is resolved per-Face in
+     * MissionPaymentService::prepareSelectionForPayment using each Face's tier
+     * rate (FaceEntitlementService::capabilities($face)->commissionRate). This
+     * value object deliberately exposes no uniform `montantParFace` so the
+     * per-Face split cannot be bypassed (FP-3.1b).
+     */
+    private const PRODUCER_COMMISSION_RATE = 0.10;
 
     public readonly int $budgetParFace;
 
@@ -18,23 +28,12 @@ class MissionPricing
 
     public readonly int $montantTotalProducteur;
 
-    public readonly int $commissionFacesTotal;
-
-    public readonly int $montantTotalFaces;
-
-    public readonly int $montantParFace;
-
     public function __construct(int $budgetParFace, int $nombreFaces)
     {
         $this->budgetParFace = $budgetParFace;
         $this->nombreFaces = $nombreFaces;
         $this->sousTotal = $budgetParFace * $nombreFaces;
-        $this->commissionProducteur = (int) round($this->sousTotal * self::COMMISSION_RATE);
+        $this->commissionProducteur = (int) round($this->sousTotal * self::PRODUCER_COMMISSION_RATE);
         $this->montantTotalProducteur = $this->sousTotal + $this->commissionProducteur;
-        $this->commissionFacesTotal = (int) round($this->sousTotal * self::COMMISSION_RATE);
-        $this->montantTotalFaces = $this->sousTotal - $this->commissionFacesTotal;
-        $this->montantParFace = $nombreFaces > 0
-            ? (int) round($this->montantTotalFaces / $nombreFaces)
-            : 0;
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Candidature;
 
 use App\Enums\CandidatureStatus;
+use App\Enums\CompensationType;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
@@ -75,6 +76,7 @@ class FaceViewCandidaturesTest extends TestCase
                             'date_tournage',
                             'lieu',
                             'budget',
+                            'type_compensation',
                         ],
                         'producer' => [
                             'id',
@@ -201,7 +203,84 @@ class FaceViewCandidaturesTest extends TestCase
             ->assertJsonPath('data.0.mission.id', $mission->uuid)
             ->assertJsonPath('data.0.mission.titre', 'Test Mission Title')
             ->assertJsonPath('data.0.mission.lieu', 'Cotonou')
-            ->assertJsonPath('data.0.mission.budget', 150000);
+            ->assertJsonPath('data.0.mission.budget', 150000)
+            // Mission standard (cash) → type_compensation null (D-8.3.a discriminant)
+            ->assertJsonPath('data.0.mission.type_compensation', null);
+    }
+
+    public function test_ugc_mission_candidature_exposes_product_compensation_type(): void
+    {
+        // Branche PORTEUSE du discriminant (D-8.3.a) : une mission UGC produit-seul
+        // doit sérialiser type_compensation = 'product' (et pas seulement le null du cas cash) —
+        // verrouille la nouvelle ligne resource `$mission?->type_compensation?->value`.
+        $mission = Mission::factory()
+            ->for($this->producer)
+            ->published()
+            ->create(['type_compensation' => CompensationType::Product]);
+
+        Candidature::factory()
+            ->for($this->face)
+            ->for($mission)
+            ->create();
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/candidatures');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.0.mission.type_compensation', 'product');
+    }
+
+    public function test_accepted_ugc_candidature_exposes_reconfirm_deadline(): void
+    {
+        // 9-2, D-9.2.a : une candidature UGC `accepted` portant `accepted_at` expose
+        // `reconfirm_deadline` = accepted_at + config('ugc.reconfirm_window_hours') en ISO 8601.
+        // Fenêtre NON-DÉFAUT (72 ≠ le défaut 48 de la resource) pour prouver la lecture de config :
+        // une régression hardcodant addHours(48) échouerait ici.
+        config(['ugc.reconfirm_window_hours' => 72]);
+
+        $acceptedAt = now()->startOfSecond();
+
+        $hybridMission = Mission::factory()
+            ->for($this->producer)
+            ->published()
+            ->create(['type_compensation' => CompensationType::Hybrid]);
+
+        $accepted = Candidature::factory()
+            ->accepted()
+            ->for($this->face)
+            ->for($hybridMission)
+            // CandidatureFactory::accepted() ne pose PAS accepted_at — explicite ici.
+            ->create(['accepted_at' => $acceptedAt]);
+
+        // Une candidature `pending` (sans accepted_at) → reconfirm_deadline null (garde statut).
+        $pendingMission = Mission::factory()->for($this->producer)->published()->create();
+        $pending = Candidature::factory()
+            ->for($this->face)
+            ->for($pendingMission)
+            ->create(['status' => CandidatureStatus::Pending]);
+
+        // AC5 / clause `accepted_at !== null` : une candidature `Accepted` SANS `accepted_at`
+        // (l'effet de bord cash `applySelectionOutcomesOnPaid` flippe Accepted sans ancrer
+        // accepted_at) → reconfirm_deadline null. C'est l'exclusion « cash acceptée » de la story ;
+        // la factory accepted() ne pose pas accepted_at, donc on ne le passe pas.
+        $acceptedNoTimestampMission = Mission::factory()->for($this->producer)->published()->create();
+        $acceptedNoTimestamp = Candidature::factory()
+            ->accepted()
+            ->for($this->face)
+            ->for($acceptedNoTimestampMission)
+            ->create();
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/candidatures');
+
+        $response->assertStatus(200);
+
+        $byId = collect($response->json('data'))->keyBy('id');
+
+        $expected = $acceptedAt->copy()->addHours(72)->toIso8601String();
+        $this->assertSame($expected, $byId[$accepted->uuid]['reconfirm_deadline']);
+        $this->assertNull($byId[$pending->uuid]['reconfirm_deadline']);
+        $this->assertNull($byId[$acceptedNoTimestamp->uuid]['reconfirm_deadline']);
     }
 
     public function test_candidatures_include_producer_data(): void

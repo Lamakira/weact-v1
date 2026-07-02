@@ -6,6 +6,7 @@ import { ProducerCandidaturesSection } from '@/features/candidature/components'
 import { missionApi } from '@/features/mission/services/missionApi'
 import { useMissionPayment } from '@/features/mission/composables'
 import { useToast } from '@/composables/useToast'
+import { isUgcMission } from '@/features/mission/types'
 import type { Mission } from '@/features/mission/types'
 
 /**
@@ -302,6 +303,10 @@ onUnmounted(() => {
         :mission-status="mission.status"
         :nombre-faces-voulu="mission.nombre_faces_voulu"
         :allow-retry-selection="mission.status === 'pending_payment' && paymentInitializationFailed"
+        :is-ugc-mission="isUgcMission(mission)"
+        :ugc-compensation-type="mission.type_compensation"
+        :ugc-product-name="mission.nom_produit"
+        :mission-montant-remuneration="mission.montant_remuneration"
         @selection-confirmed="handleSelectionConfirmed"
         @selection-failed="handleSelectionFailed"
       />

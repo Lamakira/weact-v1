@@ -23,7 +23,9 @@ class ProfileController extends Controller
     public function show(Request $request): JsonResponse
     {
         $user = $request->user();
+        /** @var \App\Models\Face $face */
         $face = $user->userable;
+        $face->load(['photos', 'videos', 'activeSubscription']);
 
         return response()->json([
             'data' => new FaceResource($face),

@@ -1,12 +1,16 @@
 import apiClient from '@/services/apiClient'
 import type {
+  AcceptCandidatureResult,
   ApplyToMissionData,
+  CandidaturePaymentStatusResponse,
   CandidatureResponse,
   CandidatureStatusType,
   FaceCandidatureListResponse,
   ProducerCandidatureListResponse,
   CandidateFullProfileResponse,
+  ReleaseCandidatureResponse,
 } from '../types'
+import type { ConfirmShipmentPayload, ShipmentResponse } from '@/components/ugc'
 
 /**
  * Candidature API service
@@ -103,6 +107,66 @@ export const candidatureApi = {
   },
 
   /**
+   * Accept a candidature (Producer only — UGC, 8-2/8-3/8-5)
+   * Product-only: changes status "pending" → "accepted" (free, no payment).
+   * Hybrid (8-5): initiates the FedaPay checkout and surfaces `checkout_url`
+   * while the candidature stays "pending" until the webhook/self-heal settles.
+   * @param candidatureId The candidature ID to accept
+   * @returns Updated candidature data (+ checkout_url for hybrid)
+   */
+  async acceptCandidature(candidatureId: string): Promise<AcceptCandidatureResult> {
+    const response = await apiClient.post<AcceptCandidatureResult>(
+      `/producer/candidatures/${candidatureId}/accept`,
+    )
+    return response.data
+  },
+
+  /**
+   * Release (unwind) an accepted UGC candidature's slot (Producer — 9-2).
+   * Refunds the hybrid escrow (net), cancels the candidature, frees the slot and
+   * reopens the mission. Manual lever (the deadline sweep does this after 48h).
+   * @param candidatureId The candidature ID to release
+   */
+  async releaseCandidature(candidatureId: string): Promise<ReleaseCandidatureResponse> {
+    const response = await apiClient.post<ReleaseCandidatureResponse>(
+      `/producer/candidatures/${candidatureId}/release`,
+    )
+    return response.data
+  },
+
+  /**
+   * Poll the self-heal payment status of a hybrid candidature (Producer — 8-5).
+   * Re-checks FedaPay actively (resilient to webhook delays) and settles. The
+   * overlay polls this until candidature_status === 'accepted' (success) or
+   * payment_status === 'failed' (retryable).
+   * @param candidatureId The candidature ID to poll
+   * @returns Lean payment status payload
+   */
+  async getCandidaturePaymentStatus(
+    candidatureId: string,
+  ): Promise<CandidaturePaymentStatusResponse> {
+    const response = await apiClient.get<CandidaturePaymentStatusResponse>(
+      `/producer/candidatures/${candidatureId}/payment-status`,
+    )
+    return response.data
+  },
+
+  /**
+   * Confirme l'expédition vers une Face engagée — candidature confirmée d'une
+   * mission UGC (Producteur, 3.2). Un shipment PAR candidature (D-3.1.d).
+   */
+  async confirmShipment(
+    candidatureId: string,
+    payload: ConfirmShipmentPayload,
+  ): Promise<ShipmentResponse> {
+    const response = await apiClient.post<ShipmentResponse>(
+      `/producer/candidatures/${candidatureId}/confirm-shipment`,
+      payload,
+    )
+    return response.data
+  },
+
+  /**
    * Confirm participation in a mission (Face only)
    * Changes candidature status from "accepted" to "confirmed"
    * @param candidatureId The candidature ID to confirm
@@ -111,6 +175,20 @@ export const candidatureApi = {
   async confirmCandidature(candidatureId: string): Promise<CandidatureResponse> {
     const response = await apiClient.post<CandidatureResponse>(
       `/face/candidatures/${candidatureId}/confirm`,
+    )
+    return response.data
+  },
+
+  /**
+   * Reconfirm participation on a UGC mission (Face only — 8-2/8-3)
+   * Changes candidature status from "accepted" to "confirmed". Separate path
+   * from the cash `confirm` which requires a paid MissionPayment.
+   * @param candidatureId The candidature ID to reconfirm
+   * @returns Updated candidature data with success message
+   */
+  async reconfirmCandidature(candidatureId: string): Promise<CandidatureResponse> {
+    const response = await apiClient.post<CandidatureResponse>(
+      `/face/candidatures/${candidatureId}/reconfirm`,
     )
     return response.data
   },

@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import FaceDashboardPage from '../FaceDashboardPage.vue'
 import type { DashboardStats } from '@/features/dashboard/types'
+import type { SubscriptionCurrent } from '@/features/face/types'
 
 const mockRouter = {
   push: vi.fn(),
@@ -110,6 +111,20 @@ vi.mock('@/features/wallet', () => ({
   useWallet: () => ({
     balance: mockWalletBalance,
     fetchWallet: mockFetchWallet,
+  }),
+}))
+
+// CurrentPlanCard (FP-3.2) is mounted in the left column and reads this composable.
+// The faceApi mock below has no getSubscriptionStatus, so mock the composable directly.
+const mockSubscriptionCurrent = ref<SubscriptionCurrent | null>(null)
+const mockFetchStatus = vi.fn().mockResolvedValue(undefined)
+vi.mock('@/features/face/composables/useSubscriptionStatus', () => ({
+  useSubscriptionStatus: () => ({
+    current: mockSubscriptionCurrent,
+    isLoading: ref(false),
+    error: ref(null),
+    fetchStatus: mockFetchStatus,
+    refreshStatus: vi.fn().mockResolvedValue(undefined),
   }),
 }))
 
@@ -230,6 +245,20 @@ describe('FaceDashboardPage', () => {
     expect(walletCard.text()).toContain('Mon portefeuille')
     expect(walletCard.text()).toContain('125')
     expect(walletCard.attributes('href')).toBe('face-wallet')
+  })
+
+  it('renders the current plan card directly under the wallet', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    const wallet = wrapper.find('[data-testid="wallet-card"]')
+    const plan = wrapper.find('[data-testid="current-plan-card"]')
+
+    expect(wallet.exists()).toBe(true)
+    expect(plan.exists()).toBe(true)
+    // AC1: directly below the wallet → same container, and the card is the wallet's next sibling.
+    expect(plan.element.parentElement).toBe(wallet.element.parentElement)
+    expect(wallet.element.nextElementSibling).toBe(plan.element)
   })
 
   it('renders candidature and booking charts with current loading and error props', async () => {

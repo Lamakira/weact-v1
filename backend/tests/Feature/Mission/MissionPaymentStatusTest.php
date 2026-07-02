@@ -15,6 +15,7 @@ use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\FaceEntitlementService;
 use App\Services\FedapayService;
 use App\ValueObjects\MissionPricing;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -165,6 +166,19 @@ class MissionPaymentStatusTest extends TestCase
     {
         $selectedCandidatures = [$this->firstCandidature, $this->secondCandidature];
         $pricing = new MissionPricing($this->mission->budget, count($selectedCandidatures));
+        $entitlements = app(FaceEntitlementService::class);
+
+        $commissionFacesTotal = 0;
+        $montantTotalFaces = 0;
+        $entries = [];
+
+        foreach ($selectedCandidatures as $candidature) {
+            $rate = $entitlements->capabilities($candidature->face)->commissionRate;
+            $montantFaceRecoit = $pricing->budgetParFace - (int) round($pricing->budgetParFace * $rate);
+            $commissionFacesTotal += $pricing->budgetParFace - $montantFaceRecoit;
+            $montantTotalFaces += $montantFaceRecoit;
+            $entries[] = ['candidature' => $candidature, 'montant_face_recoit' => $montantFaceRecoit];
+        }
 
         $payment = MissionPayment::query()->create([
             'mission_id' => $this->mission->id,
@@ -174,22 +188,22 @@ class MissionPaymentStatusTest extends TestCase
             'montant_sous_total' => $pricing->sousTotal,
             'commission_producteur' => $pricing->commissionProducteur,
             'montant_total_producteur' => $pricing->montantTotalProducteur,
-            'commission_faces_total' => $pricing->commissionFacesTotal,
-            'montant_total_faces' => $pricing->montantTotalFaces,
+            'commission_faces_total' => $commissionFacesTotal,
+            'montant_total_faces' => $montantTotalFaces,
             'fedapay_transaction_id' => $fedapayTransactionId,
             'status' => MissionPaymentStatus::Pending,
         ]);
 
-        foreach ($selectedCandidatures as $candidature) {
+        foreach ($entries as $entry) {
             MissionPaymentCandidature::query()->create([
                 'mission_payment_id' => $payment->id,
-                'candidature_id' => $candidature->id,
-                'face_id' => $candidature->face_id,
-                'montant_face_recoit' => $pricing->montantParFace,
+                'candidature_id' => $entry['candidature']->id,
+                'face_id' => $entry['candidature']->face_id,
+                'montant_face_recoit' => $entry['montant_face_recoit'],
                 'escrow_status' => EscrowStatus::Pending,
             ]);
 
-            $candidature->update(['status' => CandidatureStatus::Accepted]);
+            $entry['candidature']->update(['status' => CandidatureStatus::Accepted]);
         }
 
         $this->mission->update(['status' => MissionStatus::PendingPayment]);

@@ -115,6 +115,56 @@ class PublicMissionsListTest extends TestCase
         $this->assertEquals('Published Mission', $response->json('data.0.titre'));
     }
 
+    public function test_excludes_missions_whose_candidature_deadline_has_passed(): void
+    {
+        $producer = $this->createProducerWithUser();
+
+        $open = $this->createPublishedMission([
+            'producer' => $producer,
+            'titre' => 'Mission ouverte',
+            'date_limite_candidature' => now()->addWeek(),
+            'date_tournage' => now()->addWeeks(3),
+        ]);
+        // Date limite de candidature dépassée → obsolète, ne doit pas apparaître.
+        $this->createPublishedMission([
+            'producer' => $producer,
+            'titre' => 'Mission expirée',
+            'date_limite_candidature' => now()->subDay(),
+            'date_tournage' => now()->addWeeks(3),
+        ]);
+
+        $response = $this->getJson('/api/v1/public/missions');
+
+        $response->assertOk();
+        $this->assertEquals(1, $response->json('meta.total'));
+        $this->assertEquals($open->uuid, $response->json('data.0.id'));
+    }
+
+    public function test_excludes_missions_whose_shooting_date_has_passed(): void
+    {
+        $producer = $this->createProducerWithUser();
+
+        $upcoming = $this->createPublishedMission([
+            'producer' => $producer,
+            'titre' => 'Tournage à venir',
+            'date_limite_candidature' => now()->addWeek(),
+            'date_tournage' => now()->addWeeks(2),
+        ]);
+        // Date de tournage passée → obsolète (même si la date limite serait encore future).
+        $this->createPublishedMission([
+            'producer' => $producer,
+            'titre' => 'Tournage passé',
+            'date_limite_candidature' => now()->addWeek(),
+            'date_tournage' => now()->subDay(),
+        ]);
+
+        $response = $this->getJson('/api/v1/public/missions');
+
+        $response->assertOk();
+        $this->assertEquals(1, $response->json('meta.total'));
+        $this->assertEquals($upcoming->uuid, $response->json('data.0.id'));
+    }
+
     public function test_response_includes_correct_mission_fields(): void
     {
         $producer = $this->createProducerWithUser();
@@ -391,5 +441,68 @@ class PublicMissionsListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals('Missions retrieved successfully', $response->json('message'));
+    }
+
+    // ─── Exclusion des missions UGC (FR5, UGC 2.1) ───────────────────
+
+    public function test_ugc_missions_are_excluded_from_public_list(): void
+    {
+        $producer = $this->createProducerWithUser();
+        $this->createPublishedMission(['producer' => $producer, 'titre' => 'Mission standard']);
+        // La factory Mission ne tire jamais `ugc` — attributs explicites obligatoires.
+        $producer->missions()->create([
+            'titre' => 'Appel UGC — Unboxing',
+            'description' => 'desc',
+            'date_tournage' => now()->addMonth(),
+            'profil_recherche' => 'Créatrices',
+            'budget' => 0,
+            'date_limite_candidature' => now()->addWeeks(2),
+            'nombre_faces_voulu' => 3,
+            'type_mission' => 'ugc',
+            'genre_voulu' => 'tous',
+            'lieu' => 'Cotonou',
+            'duree' => 'Livrables vidéo',
+            'status' => 'published',
+            'commission_paid_at' => now(),
+            'type_compensation' => 'product',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'montant_remuneration' => null,
+            'commission_ugc' => 2500,
+        ]);
+
+        $response = $this->getJson('/api/v1/public/missions');
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.titre', 'Mission standard')
+            ->assertJsonPath('meta.total', 1);
+    }
+
+    // ─── Filtre producteur is_active (témoin du refactor story 3.0) ──
+
+    public function test_public_listing_excludes_inactive_producer_missions(): void
+    {
+        $visibleMission = $this->createPublishedMission(['titre' => 'Mission visible']);
+
+        $inactiveProducer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $inactiveProducer->id,
+            'is_active' => false,
+        ]);
+        $this->createPublishedMission([
+            'producer' => $inactiveProducer,
+            'titre' => 'Mission masquée',
+        ]);
+
+        $response = $this->getJson('/api/v1/public/missions');
+
+        $response->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $visibleMission->uuid)
+            ->assertJsonPath('data.0.titre', 'Mission visible')
+            ->assertJsonPath('meta.total', 1);
     }
 }

@@ -53,7 +53,13 @@ enum ErrorCodes: string
     // --- Business-rule status ---
     case InvalidStatus = 'INVALID_STATUS';
     case MissionClosed = 'MISSION_CLOSED';
+    case UgcSubscriptionRequired = 'UGC_SUBSCRIPTION_REQUIRED';
     case AlreadyApplied = 'ALREADY_APPLIED';
+    case MissionFull = 'MISSION_FULL';
+    case AlreadyAccepted = 'ALREADY_ACCEPTED';
+    case AlreadyShipped = 'ALREADY_SHIPPED';
+    case AlreadyReceived = 'ALREADY_RECEIVED';
+    case AlreadyUploaded = 'ALREADY_UPLOADED';
     case GenderMismatch = 'gender_mismatch';
     case PaymentNotConfirmed = 'PAYMENT_NOT_CONFIRMED';
     case NotInFinalSelection = 'NOT_IN_FINAL_SELECTION';

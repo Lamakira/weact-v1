@@ -5,16 +5,20 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\BookingStatus;
+use App\Enums\ErrorCodes;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\AcceptBookingRequest;
 use App\Http\Requests\Booking\CancelBookingRequest;
 use App\Http\Requests\Booking\ConfirmBookingRequest;
 use App\Http\Requests\Booking\CreateBookingRequest;
 use App\Http\Requests\Booking\PayBookingRequest;
+use App\Http\Requests\Booking\PayUgcCommissionRequest;
 use App\Http\Requests\Booking\RefuseBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Services\BookingService;
+use App\Services\FaceEntitlementService;
+use App\Services\Ugc\UgcCommissionPaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -32,6 +36,7 @@ class BookingController extends Controller
         'active' => [
             BookingStatus::Accepted,
             BookingStatus::Paid,
+            BookingStatus::CommissionPaid,
             BookingStatus::ConfirmedByFace,
             BookingStatus::ConfirmedByProducer,
         ],
@@ -47,6 +52,8 @@ class BookingController extends Controller
 
     public function __construct(
         private readonly BookingService $bookingService,
+        private readonly UgcCommissionPaymentService $ugcCommissionPaymentService,
+        private readonly FaceEntitlementService $entitlement,
     ) {}
 
     /**
@@ -58,7 +65,7 @@ class BookingController extends Controller
 
         $user = $request->user();
 
-        $query = Booking::with(['face.userable', 'producer.userable'])
+        $query = Booking::with(['face.userable', 'producer.userable', 'shipment'])
             ->where(function ($q) use ($user) {
                 $q->where('face_id', $user->id)
                     ->orWhere('producer_id', $user->id);
@@ -100,6 +107,8 @@ class BookingController extends Controller
         $booking->load([
             'face.userable',
             'producer.userable',
+            'shipment',
+            'deliverables',
             'raterBookingRating' => function ($query) {
                 $query
                     ->where('rater_id', auth()->id())
@@ -119,6 +128,17 @@ class BookingController extends Controller
     public function accept(AcceptBookingRequest $request, Booking $booking): JsonResponse
     {
         Gate::authorize('accept', $booking);
+
+        // Gate FR5 (2.4) : une Face non éligible/suspendue ne peut pas s'engager sur un deal UGC.
+        if ($booking->type_contenu === 'UGC'
+            && ! $this->entitlement->canAccessUgc($request->user()->userable)) {
+            return response()->json(
+                ErrorCodes::UgcSubscriptionRequired->envelope(
+                    "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus)."
+                ),
+                403
+            );
+        }
 
         $booking = $this->bookingService->accept($booking);
 
@@ -233,6 +253,37 @@ class BookingController extends Controller
 
         return response()->json([
             'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+        ]);
+    }
+
+    /**
+     * Initiate payment of the WeAct commission for a pending UGC booking (Producer only).
+     * Charges `commission_ugc` only — no escrow (D-1.5.a/b).
+     */
+    public function payCommission(PayUgcCommissionRequest $request, Booking $booking): JsonResponse
+    {
+        $result = $this->ugcCommissionPaymentService->initiateForBooking($booking);
+
+        return response()->json([
+            'data' => new BookingResource($result['booking']->load(['face.userable', 'producer.userable'])),
+            'checkout_url' => $result['checkout_url'],
+            'message' => 'Paiement de la commission initié',
+        ]);
+    }
+
+    /**
+     * Poll Fedapay and settle the UGC commission if approved (fallback when the
+     * webhook is delayed). Idempotent.
+     */
+    public function commissionStatus(Request $request, Booking $booking): JsonResponse
+    {
+        Gate::authorize('view', $booking);
+
+        $booking = $this->ugcCommissionPaymentService->checkAndProcessBooking($booking);
+
+        return response()->json([
+            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+            'commission_payment_status' => $this->ugcCommissionPaymentService->lastCommissionPaymentStatus(),
         ]);
     }
 }

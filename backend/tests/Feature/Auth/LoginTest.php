@@ -9,16 +9,13 @@ use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class LoginTest extends TestCase
 {
     use RefreshDatabase;
-
-    private User $faceUser;
-
-    private User $producerUser;
 
     private string $password = 'Password123';
 
@@ -33,7 +30,7 @@ class LoginTest extends TestCase
             'username' => 'johndoe',
         ]);
 
-        $this->faceUser = User::create([
+        User::create([
             'email' => 'face@example.com',
             'password' => Hash::make($this->password),
             'userable_type' => Face::class,
@@ -46,7 +43,7 @@ class LoginTest extends TestCase
             'agency_name' => 'Test Agency',
         ]);
 
-        $this->producerUser = User::create([
+        User::create([
             'email' => 'producer@example.com',
             'password' => Hash::make($this->password),
             'userable_type' => Producer::class,
@@ -305,8 +302,10 @@ class LoginTest extends TestCase
         ])->assertStatus(200);
     }
 
-    public function test_throttle_is_keyed_by_email_not_ip(): void
+    public function test_throttle_distinguishes_different_emails_on_same_ip(): void
     {
+        // Per-account limiter is keyed by email|ip: from a single IP, two
+        // different emails keep independent counters (one throttled, the other not).
         for ($i = 0; $i < 3; $i++) {
             $this->postJson('/api/v1/auth/login', [
                 'email' => 'face@example.com',
@@ -339,6 +338,56 @@ class LoginTest extends TestCase
         ]);
 
         $this->assertFrenchThrottleResponse($response);
+    }
+
+    public function test_throttle_does_not_lock_victim_from_a_different_ip(): void
+    {
+        $attackerIp = ['REMOTE_ADDR' => '203.0.113.10'];
+
+        // Attacker spams the victim's email from their own IP until throttled.
+        for ($i = 0; $i < 5; $i++) {
+            $this->withServerVariables($attackerIp)->postJson('/api/v1/auth/login', [
+                'email' => 'face@example.com',
+                'password' => 'wrongpassword',
+            ])->assertStatus(401);
+        }
+
+        $this->assertFrenchThrottleResponse(
+            $this->withServerVariables($attackerIp)->postJson('/api/v1/auth/login', [
+                'email' => 'face@example.com',
+                'password' => 'wrongpassword',
+            ])
+        );
+
+        // The real victim, from a DIFFERENT IP and with the correct password,
+        // is NOT locked out — the lockout is scoped to the attacker's IP.
+        $this->withServerVariables(['REMOTE_ADDR' => '198.51.100.20'])
+            ->postJson('/api/v1/auth/login', [
+                'email' => 'face@example.com',
+                'password' => $this->password,
+            ])->assertStatus(200);
+    }
+
+    public function test_ip_throttle_bounds_spraying_across_many_emails(): void
+    {
+        $sprayerIp = ['REMOTE_ADDR' => '203.0.113.99'];
+
+        // One attempt per distinct email never trips the per-account limiter,
+        // but the coarse per-IP route throttle (30/min) bounds the spray.
+        for ($i = 0; $i < 30; $i++) {
+            $this->withServerVariables($sprayerIp)->postJson('/api/v1/auth/login', [
+                'email' => "spray{$i}@example.com",
+                'password' => 'wrongpassword',
+            ])->assertStatus(401);
+        }
+
+        $this->withServerVariables($sprayerIp)
+            ->postJson('/api/v1/auth/login', [
+                'email' => 'spray-final@example.com',
+                'password' => 'wrongpassword',
+            ])
+            ->assertStatus(429)
+            ->assertJsonPath('error.code', 'THROTTLED');
     }
 
     public function test_throttle_expires_after_60_seconds_via_time_travel(): void
@@ -430,5 +479,61 @@ class LoginTest extends TestCase
             ->getJson('/api/v1/user');
 
         $userResponse->assertStatus(200);
+    }
+
+    public function test_token_expires_after_30_days(): void
+    {
+        $token = $this->postJson('/api/v1/auth/login', [
+            'email' => 'face@example.com',
+            'password' => $this->password,
+        ])->json('data.token');
+
+        // Past the 30-day lifetime (config/sanctum.php expiration) the token is rejected.
+        // NB: we deliberately do NOT make an authenticated call before travelling — that would
+        // cache the user on the persistent test-container 'web' guard (via api.token's
+        // Auth::setUser) and mask the expiry. The "works before expiry" path is covered by
+        // test_token_can_be_used_for_authenticated_requests.
+        $this->travel(31)->days();
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/v1/user')->assertStatus(401);
+    }
+
+    public function test_expired_token_is_rejected_even_when_stale_session_exists(): void
+    {
+        $token = $this->postJson('/api/v1/auth/login', [
+            'email' => 'face@example.com',
+            'password' => $this->password,
+        ])->json('data.token');
+
+        $staleSessionUser = User::where('email', 'producer@example.com')->firstOrFail();
+
+        $this->travel(31)->days();
+
+        $this->actingAs($staleSessionUser)
+            ->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/v1/user')
+            ->assertStatus(401);
+    }
+
+    public function test_failed_login_is_logged_without_leaking_the_email_in_clear(): void
+    {
+        // OWASP A09 (M-3) + I-1: failed credential attempts are logged for monitoring, but the
+        // email is fingerprinted (never stored in clear) so security logs carry no PII.
+        Log::spy();
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'face@example.com',
+            'password' => 'wrongpassword',
+        ])->assertStatus(401);
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'auth.login.failed'
+                    && isset($context['email_hash'])
+                    && $context['email_hash'] !== 'face@example.com'
+                    && ! in_array('face@example.com', $context, true);
+            })
+            ->once();
     }
 }

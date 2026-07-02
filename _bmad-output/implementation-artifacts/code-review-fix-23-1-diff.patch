@@ -1,0 +1,483 @@
+=== MODIFIED FILES ===
+diff --git a/backend/routes/api.php b/backend/routes/api.php
+index fba3a15..2a63f2c 100644
+--- a/backend/routes/api.php
++++ b/backend/routes/api.php
+@@ -42,7 +42,7 @@
+     Route::prefix('auth')->group(function (): void {
+         Route::get('/registration-status', fn () => response()->json([
+             'data' => ['enabled' => (bool) config('app.registration_enabled', true)],
+-        ]))->name('auth.registration-status');
++        ])->header('Cache-Control', 'public, max-age=300'))->name('auth.registration-status');
+ 
+         Route::post('/register/face', RegisterFaceController::class)
+             ->middleware('throttle:5,1')
+diff --git a/backend/tests/Feature/Auth/FaceRegistrationTest.php b/backend/tests/Feature/Auth/FaceRegistrationTest.php
+index b70ce88..5071bc7 100644
+--- a/backend/tests/Feature/Auth/FaceRegistrationTest.php
++++ b/backend/tests/Feature/Auth/FaceRegistrationTest.php
+@@ -105,6 +105,14 @@ public function test_registration_status_endpoint_returns_disabled(): void
+             ->assertJsonPath('data.enabled', false);
+     }
+ 
++    public function test_registration_status_endpoint_emits_cache_control_header_300s(): void
++    {
++        $response = $this->getJson('/api/v1/auth/registration-status');
++
++        $response->assertOk()
++            ->assertHeader('Cache-Control', 'max-age=300, public');
++    }
++
+     public function test_registration_returns_403_when_disabled(): void
+     {
+         config(['app.registration_enabled' => false]);
+diff --git a/frontend/.env.example b/frontend/.env.example
+index 004030f..e7450e0 100644
+--- a/frontend/.env.example
++++ b/frontend/.env.example
+@@ -5,10 +5,12 @@ VITE_APP_NAME=WEACT
+ 
+ # Feature Flags (for future use)
+ VITE_ENABLE_WALLET=false
++# Fallback build-time si GET /auth/registration-status échoue (réseau/5xx).
++# La valeur backend REGISTRATION_ENABLED reste la source de vérité quand l'API répond.
++VITE_REGISTRATION_ENABLED=true
+ 
+ # Laravel Reverb (WebSocket chat)
+ VITE_REVERB_APP_KEY=weact-key-local
+ VITE_REVERB_HOST=localhost
+ VITE_REVERB_PORT=8080
+ VITE_REVERB_SCHEME=http
+-
+diff --git a/frontend/env.d.ts b/frontend/env.d.ts
+index 11f02fe..b7f6120 100644
+--- a/frontend/env.d.ts
++++ b/frontend/env.d.ts
+@@ -1 +1,9 @@
+ /// <reference types="vite/client" />
++
++interface ImportMetaEnv {
++  readonly VITE_REGISTRATION_ENABLED?: string
++}
++
++interface ImportMeta {
++  readonly env: ImportMetaEnv
++}
+diff --git a/frontend/src/pages/auth/RegisterFacePage.vue b/frontend/src/pages/auth/RegisterFacePage.vue
+index 9e5b59a..8228486 100644
+--- a/frontend/src/pages/auth/RegisterFacePage.vue
++++ b/frontend/src/pages/auth/RegisterFacePage.vue
+@@ -16,7 +16,12 @@ onMounted(async () => {
+     const response = await authApi.getRegistrationStatus()
+     registrationEnabled.value = response.data.enabled
+   } catch {
+-    registrationEnabled.value = false
++    // FIX-23.1 — Fallback build-time permissif : si l'API /auth/registration-status
++    // échoue (réseau, 5xx, CDN), on lit VITE_REGISTRATION_ENABLED. Valeur par défaut
++    // permissive ('true') pour ne jamais masquer le formulaire par erreur réseau
++    // quand le flag backend est à true. Seule une réponse API explicite enabled=false
++    // masque le formulaire.
++    registrationEnabled.value = import.meta.env.VITE_REGISTRATION_ENABLED !== 'false'
+   }
+ })
+ 
+diff --git a/frontend/src/pages/auth/RegisterProducerPage.vue b/frontend/src/pages/auth/RegisterProducerPage.vue
+index 9d8ee89..055ccd4 100644
+--- a/frontend/src/pages/auth/RegisterProducerPage.vue
++++ b/frontend/src/pages/auth/RegisterProducerPage.vue
+@@ -16,7 +16,12 @@ onMounted(async () => {
+     const response = await authApi.getRegistrationStatus()
+     registrationEnabled.value = response.data.enabled
+   } catch {
+-    registrationEnabled.value = false
++    // FIX-23.1 — Fallback build-time permissif : si l'API /auth/registration-status
++    // échoue (réseau, 5xx, CDN), on lit VITE_REGISTRATION_ENABLED. Valeur par défaut
++    // permissive ('true') pour ne jamais masquer le formulaire par erreur réseau
++    // quand le flag backend est à true. Seule une réponse API explicite enabled=false
++    // masque le formulaire.
++    registrationEnabled.value = import.meta.env.VITE_REGISTRATION_ENABLED !== 'false'
+   }
+ })
+ 
+
+=== NEW FILE: frontend/src/pages/auth/__tests__/RegisterFacePage.spec.ts ===
+diff --git a/frontend/src/pages/auth/__tests__/RegisterFacePage.spec.ts b/frontend/src/pages/auth/__tests__/RegisterFacePage.spec.ts
+new file mode 100644
+index 0000000..69998ca
+--- /dev/null
++++ b/frontend/src/pages/auth/__tests__/RegisterFacePage.spec.ts
+@@ -0,0 +1,80 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
++import { flushPromises, mount } from '@vue/test-utils'
++import { createTestingPinia } from '@pinia/testing'
++import { createMemoryHistory, createRouter } from 'vue-router'
++import RegisterFacePage from '../RegisterFacePage.vue'
++
++vi.mock('@/features/auth/services/authApi', () => ({
++  authApi: {
++    getRegistrationStatus: vi.fn(),
++  },
++  getApiErrorMessage: vi.fn(),
++}))
++
++vi.mock('@/features/auth/components/FaceRegistrationForm.vue', () => ({
++  default: {
++    template: '<form data-testid="face-registration-form"><slot /></form>',
++    emits: ['success'],
++  },
++}))
++
++const mockToast = {
++  success: vi.fn(),
++  error: vi.fn(),
++  warning: vi.fn(),
++  info: vi.fn(),
++}
++
++vi.mock('@/composables/useToast', () => ({
++  useToast: () => mockToast,
++}))
++
++import { authApi } from '@/features/auth/services/authApi'
++
++describe('RegisterFacePage', () => {
++  let router: ReturnType<typeof createRouter>
++
++  beforeEach(() => {
++    vi.clearAllMocks()
++
++    router = createRouter({
++      history: createMemoryHistory(),
++      routes: [
++        { path: '/', name: 'home', component: { template: '<div>Home</div>' } },
++        { path: '/register/face', name: 'register-face', component: RegisterFacePage },
++        { path: '/register/producer', name: 'register-producer', component: { template: '<div>Register Producer</div>' } },
++        { path: '/cgu', name: 'cgu', component: { template: '<div>CGU</div>' } },
++        { path: '/politique-confidentialite', name: 'privacy-policy', component: { template: '<div>Privacy</div>' } },
++        { path: '/login', name: 'login', component: { template: '<div>Login</div>' } },
++        { path: '/face/dashboard', name: 'face-dashboard', component: { template: '<div>Face Dashboard</div>' } },
++        { path: '/producer/dashboard', name: 'producer-dashboard', component: { template: '<div>Producer Dashboard</div>' } },
++      ],
++    })
++  })
++
++  afterEach(() => {
++    vi.unstubAllEnvs()
++  })
++
++  async function mountComponent() {
++    await router.push('/register/face')
++    await router.isReady()
++
++    return mount(RegisterFacePage, {
++      global: {
++        plugins: [createTestingPinia(), router],
++      },
++    })
++  }
++
++  it('red-phase: test_registration_form_visible_when_api_fails_and_vite_flag_true', async () => {
++    vi.stubEnv('VITE_REGISTRATION_ENABLED', 'true')
++    vi.mocked(authApi.getRegistrationStatus).mockRejectedValueOnce(new Error('Network error'))
++
++    const wrapper = await mountComponent()
++    await flushPromises()
++
++    expect(wrapper.find('[data-testid="face-registration-form"]').exists()).toBe(true)
++    expect(wrapper.text()).not.toContain('Les inscriptions sont temporairement suspendues.')
++  })
++})
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { createTestingPinia } from '@pinia/testing'
+import { createMemoryHistory, createRouter } from 'vue-router'
+import RegisterFacePage from '../RegisterFacePage.vue'
+
+vi.mock('@/features/auth/services/authApi', () => ({
+  authApi: {
+    getRegistrationStatus: vi.fn(),
+  },
+  getApiErrorMessage: vi.fn(),
+}))
+
+vi.mock('@/features/auth/components/FaceRegistrationForm.vue', () => ({
+  default: {
+    template: '<form data-testid="face-registration-form"><slot /></form>',
+    emits: ['success'],
+  },
+}))
+
+const mockToast = {
+  success: vi.fn(),
+  error: vi.fn(),
+  warning: vi.fn(),
+  info: vi.fn(),
+}
+
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => mockToast,
+}))
+
+import { authApi } from '@/features/auth/services/authApi'
+
+describe('RegisterFacePage', () => {
+  let router: ReturnType<typeof createRouter>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+
+    router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/', name: 'home', component: { template: '<div>Home</div>' } },
+        { path: '/register/face', name: 'register-face', component: RegisterFacePage },
+        { path: '/register/producer', name: 'register-producer', component: { template: '<div>Register Producer</div>' } },
+        { path: '/cgu', name: 'cgu', component: { template: '<div>CGU</div>' } },
+        { path: '/politique-confidentialite', name: 'privacy-policy', component: { template: '<div>Privacy</div>' } },
+        { path: '/login', name: 'login', component: { template: '<div>Login</div>' } },
+        { path: '/face/dashboard', name: 'face-dashboard', component: { template: '<div>Face Dashboard</div>' } },
+        { path: '/producer/dashboard', name: 'producer-dashboard', component: { template: '<div>Producer Dashboard</div>' } },
+      ],
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  async function mountComponent() {
+    await router.push('/register/face')
+    await router.isReady()
+
+    return mount(RegisterFacePage, {
+      global: {
+        plugins: [createTestingPinia(), router],
+      },
+    })
+  }
+
+  it('red-phase: test_registration_form_visible_when_api_fails_and_vite_flag_true', async () => {
+    vi.stubEnv('VITE_REGISTRATION_ENABLED', 'true')
+    vi.mocked(authApi.getRegistrationStatus).mockRejectedValueOnce(new Error('Network error'))
+
+    const wrapper = await mountComponent()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="face-registration-form"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('Les inscriptions sont temporairement suspendues.')
+  })
+})
+
+=== NEW FILE: frontend/src/pages/auth/__tests__/RegisterProducerPage.spec.ts ===
+diff --git a/frontend/src/pages/auth/__tests__/RegisterProducerPage.spec.ts b/frontend/src/pages/auth/__tests__/RegisterProducerPage.spec.ts
+new file mode 100644
+index 0000000..0eebac7
+--- /dev/null
++++ b/frontend/src/pages/auth/__tests__/RegisterProducerPage.spec.ts
+@@ -0,0 +1,103 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
++import { flushPromises, mount } from '@vue/test-utils'
++import { createTestingPinia } from '@pinia/testing'
++import { createMemoryHistory, createRouter } from 'vue-router'
++import RegisterProducerPage from '../RegisterProducerPage.vue'
++
++vi.mock('@/features/auth/services/authApi', () => ({
++  authApi: {
++    getRegistrationStatus: vi.fn(),
++  },
++  getApiErrorMessage: vi.fn(),
++}))
++
++vi.mock('@/features/auth/components/ProducerRegistrationForm.vue', () => ({
++  default: {
++    template: '<form data-testid="producer-registration-form"><slot /></form>',
++    emits: ['success'],
++  },
++}))
++
++const mockToast = {
++  success: vi.fn(),
++  error: vi.fn(),
++  warning: vi.fn(),
++  info: vi.fn(),
++}
++
++vi.mock('@/composables/useToast', () => ({
++  useToast: () => mockToast,
++}))
++
++import { authApi } from '@/features/auth/services/authApi'
++
++describe('RegisterProducerPage', () => {
++  let router: ReturnType<typeof createRouter>
++
++  beforeEach(() => {
++    vi.clearAllMocks()
++
++    router = createRouter({
++      history: createMemoryHistory(),
++      routes: [
++        { path: '/', name: 'home', component: { template: '<div>Home</div>' } },
++        { path: '/register/producer', name: 'register-producer', component: RegisterProducerPage },
++        { path: '/register/face', name: 'register-face', component: { template: '<div>Register Face</div>' } },
++        { path: '/cgu', name: 'cgu', component: { template: '<div>CGU</div>' } },
++        { path: '/politique-confidentialite', name: 'privacy-policy', component: { template: '<div>Privacy</div>' } },
++        { path: '/login', name: 'login', component: { template: '<div>Login</div>' } },
++        { path: '/face/dashboard', name: 'face-dashboard', component: { template: '<div>Face Dashboard</div>' } },
++        { path: '/producer/dashboard', name: 'producer-dashboard', component: { template: '<div>Producer Dashboard</div>' } },
++      ],
++    })
++  })
++
++  afterEach(() => {
++    vi.unstubAllEnvs()
++  })
++
++  async function mountComponent() {
++    await router.push('/register/producer')
++    await router.isReady()
++
++    return mount(RegisterProducerPage, {
++      global: {
++        plugins: [createTestingPinia(), router],
++      },
++    })
++  }
++
++  it('red-phase: test_registration_form_visible_when_api_fails_and_vite_flag_true', async () => {
++    vi.stubEnv('VITE_REGISTRATION_ENABLED', 'true')
++    vi.mocked(authApi.getRegistrationStatus).mockRejectedValueOnce(new Error('Network error'))
++
++    const wrapper = await mountComponent()
++    await flushPromises()
++
++    expect(wrapper.find('[data-testid="producer-registration-form"]').exists()).toBe(true)
++    expect(wrapper.text()).not.toContain('Les inscriptions sont temporairement suspendues.')
++  })
++
++  it('regression: test_registration_form_hidden_when_api_confirms_disabled', async () => {
++    vi.mocked(authApi.getRegistrationStatus).mockResolvedValueOnce({
++      data: { enabled: false },
++    })
++
++    const wrapper = await mountComponent()
++    await flushPromises()
++
++    expect(wrapper.find('[data-testid="producer-registration-form"]').exists()).toBe(false)
++    expect(wrapper.text()).toContain('Les inscriptions sont temporairement suspendues.')
++  })
++
++  it('regression: test_registration_form_hidden_when_api_fails_and_vite_flag_false', async () => {
++    vi.stubEnv('VITE_REGISTRATION_ENABLED', 'false')
++    vi.mocked(authApi.getRegistrationStatus).mockRejectedValueOnce(new Error('Network error'))
++
++    const wrapper = await mountComponent()
++    await flushPromises()
++
++    expect(wrapper.find('[data-testid="producer-registration-form"]').exists()).toBe(false)
++    expect(wrapper.text()).toContain('Les inscriptions sont temporairement suspendues.')
++  })
++})
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { createTestingPinia } from '@pinia/testing'
+import { createMemoryHistory, createRouter } from 'vue-router'
+import RegisterProducerPage from '../RegisterProducerPage.vue'
+
+vi.mock('@/features/auth/services/authApi', () => ({
+  authApi: {
+    getRegistrationStatus: vi.fn(),
+  },
+  getApiErrorMessage: vi.fn(),
+}))
+
+vi.mock('@/features/auth/components/ProducerRegistrationForm.vue', () => ({
+  default: {
+    template: '<form data-testid="producer-registration-form"><slot /></form>',
+    emits: ['success'],
+  },
+}))
+
+const mockToast = {
+  success: vi.fn(),
+  error: vi.fn(),
+  warning: vi.fn(),
+  info: vi.fn(),
+}
+
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => mockToast,
+}))
+
+import { authApi } from '@/features/auth/services/authApi'
+
+describe('RegisterProducerPage', () => {
+  let router: ReturnType<typeof createRouter>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+
+    router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/', name: 'home', component: { template: '<div>Home</div>' } },
+        { path: '/register/producer', name: 'register-producer', component: RegisterProducerPage },
+        { path: '/register/face', name: 'register-face', component: { template: '<div>Register Face</div>' } },
+        { path: '/cgu', name: 'cgu', component: { template: '<div>CGU</div>' } },
+        { path: '/politique-confidentialite', name: 'privacy-policy', component: { template: '<div>Privacy</div>' } },
+        { path: '/login', name: 'login', component: { template: '<div>Login</div>' } },
+        { path: '/face/dashboard', name: 'face-dashboard', component: { template: '<div>Face Dashboard</div>' } },
+        { path: '/producer/dashboard', name: 'producer-dashboard', component: { template: '<div>Producer Dashboard</div>' } },
+      ],
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  async function mountComponent() {
+    await router.push('/register/producer')
+    await router.isReady()
+
+    return mount(RegisterProducerPage, {
+      global: {
+        plugins: [createTestingPinia(), router],
+      },
+    })
+  }
+
+  it('red-phase: test_registration_form_visible_when_api_fails_and_vite_flag_true', async () => {
+    vi.stubEnv('VITE_REGISTRATION_ENABLED', 'true')
+    vi.mocked(authApi.getRegistrationStatus).mockRejectedValueOnce(new Error('Network error'))
+
+    const wrapper = await mountComponent()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="producer-registration-form"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('Les inscriptions sont temporairement suspendues.')
+  })
+
+  it('regression: test_registration_form_hidden_when_api_confirms_disabled', async () => {
+    vi.mocked(authApi.getRegistrationStatus).mockResolvedValueOnce({
+      data: { enabled: false },
+    })
+
+    const wrapper = await mountComponent()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="producer-registration-form"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Les inscriptions sont temporairement suspendues.')
+  })
+
+  it('regression: test_registration_form_hidden_when_api_fails_and_vite_flag_false', async () => {
+    vi.stubEnv('VITE_REGISTRATION_ENABLED', 'false')
+    vi.mocked(authApi.getRegistrationStatus).mockRejectedValueOnce(new Error('Network error'))
+
+    const wrapper = await mountComponent()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="producer-registration-form"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Les inscriptions sont temporairement suspendues.')
+  })
+})

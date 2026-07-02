@@ -11,6 +11,7 @@ const statusColorClasses: Record<BookingStatusType, string> = {
   accepted: 'bg-sky-100 text-sky-800',
   refused: 'bg-red-100 text-red-800',
   paid: 'bg-blue-100 text-blue-800',
+  commission_paid: 'bg-blue-100 text-blue-800',
   in_progress: 'bg-teal-100 text-teal-800',
   confirmed_by_face: 'bg-emerald-100 text-emerald-800',
   confirmed_by_producer: 'bg-emerald-100 text-emerald-800',

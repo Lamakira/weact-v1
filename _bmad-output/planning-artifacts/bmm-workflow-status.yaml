@@ -51,3 +51,40 @@ sprint-planning:
   status: complete
   completed_at: 2026-02-28
   notes: Appended 6 booking epics (16 stories) to existing sprint-status.yaml
+
+# ----------------------------------------------------------------------------
+# Module UGC (User Generated Content) — chaîne de planification 2026-06-05
+# PRD/UX substitués par spec (docs/new-features-docs/ugc.docx) + design handoff
+# (docs/design/Weact Ugc Design/design_handoff_ugc_module/). Pas de product-brief/PRD séparés (décision PO).
+# ----------------------------------------------------------------------------
+ugc-architecture:
+  file: architecture-ugc.md
+  project: WEACT - Module UGC
+  status: complete
+  completed_at: 2026-06-05
+  steps_completed: [1, 2, 3, 4, 5, 6, 7, 8]
+  notes: Décisions D1-D10 (extension Booking/Mission + Shipment/Deliverable/UgcSuspension, suspension douce, commission débit+refund, tunnel 6 étapes). Open items OI-1/OI-2 tracés.
+
+ugc-epics-and-stories:
+  file: epics-ugc-module.md
+  project: WEACT - Module UGC
+  status: ready
+  completed_at: 2026-06-05
+  steps_completed: [1, 2, 3, 4]
+  notes: 6 epics / 23 stories. Couverture FR 100%, UX-DR 21/21.
+
+ugc-implementation-readiness:
+  file: implementation-readiness-report-2026-06-05.md
+  project: WEACT - Module UGC
+  status: complete
+  completed_at: 2026-06-05
+  steps_completed: [1, 2, 3, 4, 5, 6]
+  result: READY
+
+ugc-sprint-planning:
+  file: sprint-status.yaml
+  location: _bmad-output/implementation-artifacts/
+  project: WEACT - Module UGC
+  status: complete
+  completed_at: 2026-06-05
+  notes: Appended 6 epics UGC (23 stories, clés ugc-epic-N / ugc-N-M-slug) au sprint-status.yaml multi-feature, sans écraser les autres features. Toutes en backlog. E6 (doc workflow) hors-MVP.

@@ -6,11 +6,16 @@ namespace App\Models;
 
 use App\Concerns\HasRouteUuid;
 use App\Enums\BookingStatus;
+use App\Enums\CompensationType;
+use App\Enums\UgcRefundReason;
+use App\Exceptions\MoneyColumnImmutableException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -19,12 +24,22 @@ use Illuminate\Support\Facades\Auth;
  * @property \App\Enums\BookingStatus $status
  * @property \Carbon\CarbonInterface|null $accepted_at
  * @property \Carbon\CarbonInterface|null $payment_reminder_sent_at
- * @property \Carbon\CarbonInterface $date_debut
- * @property \Carbon\CarbonInterface $date_fin
+ * @property \Carbon\CarbonInterface|null $date_debut
+ * @property \Carbon\CarbonInterface|null $date_fin
  * @property int $face_id
  * @property int $producer_id
- * @property int $duree_heures
+ * @property int|null $duree_heures
  * @property string $type_contenu
+ * @property \App\Enums\CompensationType|null $type_compensation
+ * @property string|null $nom_produit
+ * @property int|null $valeur_produit
+ * @property int|null $nombre_videos
+ * @property int|null $montant_remuneration
+ * @property int|null $commission_ugc
+ * @property \Carbon\CarbonInterface|null $commission_paid_at
+ * @property \Carbon\CarbonInterface|null $commission_refund_requested_at
+ * @property \Carbon\CarbonInterface|null $commission_refunded_at
+ * @property \App\Enums\UgcRefundReason|null $commission_refund_reason
  * @property string|null $lieu
  * @property string|null $message
  * @property int $tarif_base
@@ -40,6 +55,8 @@ use Illuminate\Support\Facades\Auth;
  * @property-read \App\Models\User|null $face
  * @property-read \App\Models\User|null $producer
  * @property-read \App\Models\BookingRating|null $raterBookingRating
+ * @property-read \App\Models\Shipment|null $shipment
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Deliverable> $deliverables
  */
 class Booking extends Model
 {
@@ -70,6 +87,16 @@ class Booking extends Model
         'date_fin',
         'duree_heures',
         'type_contenu',
+        'type_compensation',
+        'nom_produit',
+        'valeur_produit',
+        'nombre_videos',
+        'montant_remuneration',
+        'commission_ugc',
+        'commission_paid_at',
+        'commission_refund_requested_at',
+        'commission_refunded_at',
+        'commission_refund_reason',
         'lieu',
         'message',
         'tarif_base',
@@ -81,6 +108,38 @@ class Booking extends Model
         'payment_mode',
         'payment_initiation_key',
     ];
+
+    /**
+     * Colonnes de montant immuables après création (durcissement ugc-3-5).
+     *
+     * @var list<string>
+     */
+    private const IMMUTABLE_MONEY_COLUMNS = [
+        'tarif_base',
+        'montant_total_producteur',
+        'montant_face_recoit',
+        'commission_ugc',
+        'valeur_produit',
+        'montant_remuneration',
+    ];
+
+    /**
+     * Empêche toute mutation d'une colonne de montant après création.
+     */
+    protected static function booted(): void
+    {
+        static::updating(function (Booking $model): void {
+            if ($model->isDirty(self::IMMUTABLE_MONEY_COLUMNS)) {
+                throw new MoneyColumnImmutableException(
+                    $model::class.' : colonnes de montant immuables après création ('
+                    .implode(', ', array_keys(array_intersect_key(
+                        $model->getDirty(),
+                        array_flip(self::IMMUTABLE_MONEY_COLUMNS)
+                    ))).')'
+                );
+            }
+        });
+    }
 
     /**
      * Get the attributes that should be cast.
@@ -96,6 +155,15 @@ class Booking extends Model
             'date_debut' => 'datetime',
             'date_fin' => 'datetime',
             'duree_heures' => 'integer',
+            'type_compensation' => CompensationType::class,
+            'valeur_produit' => 'integer',
+            'nombre_videos' => 'integer',
+            'montant_remuneration' => 'integer',
+            'commission_ugc' => 'integer',
+            'commission_paid_at' => 'datetime',
+            'commission_refund_requested_at' => 'datetime',
+            'commission_refunded_at' => 'datetime',
+            'commission_refund_reason' => UgcRefundReason::class,
             'tarif_base' => 'integer',
             'montant_total_producteur' => 'integer',
             'montant_face_recoit' => 'integer',
@@ -140,6 +208,29 @@ class Booking extends Model
     public function bookingRatings(): HasMany
     {
         return $this->hasMany(BookingRating::class);
+    }
+
+    /**
+     * Get the UGC shipment attached to this booking (tunnel étape 3).
+     *
+     * @return MorphOne<Shipment, $this>
+     */
+    public function shipment(): MorphOne
+    {
+        return $this->morphOne(Shipment::class, 'owner');
+    }
+
+    /**
+     * Get the UGC video deliverables uploaded for this booking (tunnel étape 5).
+     * Ordonné par chrono_started_at (ordre stable par kind, AC8 4.1 / defer 4.3) :
+     * l'Unboxing (chrono = recu_le) précède toujours l'Avis (chrono =
+     * unboxing.validated_at, postérieur). N'ajoute aucune requête (ORDER BY).
+     *
+     * @return MorphMany<Deliverable, $this>
+     */
+    public function deliverables(): MorphMany
+    {
+        return $this->morphMany(Deliverable::class, 'owner')->orderBy('chrono_started_at');
     }
 
     /**

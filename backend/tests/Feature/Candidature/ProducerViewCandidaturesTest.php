@@ -8,10 +8,12 @@ use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
 use App\Models\Candidature;
 use App\Models\Face;
+use App\Models\FaceSubscription;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class ProducerViewCandidaturesTest extends TestCase
@@ -362,5 +364,114 @@ class ProducerViewCandidaturesTest extends TestCase
         $response->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.face.id', $this->face->uuid);
+    }
+
+    // ===================================================================
+    // FP-2.12 face.has_elite_badge in producer candidatures listing
+    // ===================================================================
+
+    public function test_face_has_elite_badge_true_for_elite_candidate(): void
+    {
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $this->face->id]);
+        Candidature::factory()->create([
+            'mission_id' => $this->mission->id,
+            'face_id' => $this->face->id,
+            'status' => CandidatureStatus::Pending,
+        ]);
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures")
+            ->assertOk()
+            ->assertJsonPath('data.0.face.has_elite_badge', true);
+    }
+
+    public function test_face_has_elite_badge_false_for_pro_candidate(): void
+    {
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
+        Candidature::factory()->create([
+            'mission_id' => $this->mission->id,
+            'face_id' => $this->face->id,
+            'status' => CandidatureStatus::Pending,
+        ]);
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures")
+            ->assertOk()
+            ->assertJsonPath('data.0.face.has_elite_badge', false);
+    }
+
+    public function test_face_has_elite_badge_false_for_starter_candidate(): void
+    {
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        Candidature::factory()->create([
+            'mission_id' => $this->mission->id,
+            'face_id' => $this->face->id,
+            'status' => CandidatureStatus::Pending,
+        ]);
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures")
+            ->assertOk()
+            ->assertJsonPath('data.0.face.has_elite_badge', false);
+    }
+
+    public function test_face_has_elite_badge_false_for_free_candidate(): void
+    {
+        // $this->face has no FaceSubscription row → Free fallback.
+        Candidature::factory()->create([
+            'mission_id' => $this->mission->id,
+            'face_id' => $this->face->id,
+            'status' => CandidatureStatus::Pending,
+        ]);
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures")
+            ->assertOk()
+            ->assertJsonPath('data.0.face.has_elite_badge', false);
+    }
+
+    public function test_listing_eager_loads_face_active_subscription_to_prevent_n_plus_one(): void
+    {
+        // Three distinct Faces with different tiers, all candidating on $this->mission.
+        $facePro = Face::factory()->create();
+        $faceElite = Face::factory()->create();
+
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $facePro->id]);
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $faceElite->id]);
+
+        foreach ([$this->face, $facePro, $faceElite] as $f) {
+            Candidature::factory()->create([
+                'mission_id' => $this->mission->id,
+                'face_id' => $f->id,
+                'status' => CandidatureStatus::Pending,
+            ]);
+        }
+
+        DB::enableQueryLog();
+
+        $response = $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures");
+
+        $queryCount = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $response->assertOk();
+
+        // The query count must stay bounded regardless of candidature count.
+        // Baseline (3 candidatures) is 12 queries: Sanctum insert + auth lookups (5) +
+        // pagination count + candidatures select + eager faces + eager active_subscriptions
+        // (1 query via HasOne ofMany — NOT N+1) + eager conversations + eager shipments
+        // (morphOne, 1 query — UGC 3.1) + eager deliverables (morphMany, 1 query — UGC 4.1).
+        // Each of shipment/deliverable eager-loads is a SINGLE query for the whole page,
+        // not per-candidature. Without the eager-load on `face.activeSubscription`, every
+        // candidature would trigger an extra SELECT in
+        // FaceEntitlementService::resolveActiveSubscription() (3 candidatures → 3 extra
+        // queries). The ceiling of 13 gives a 1-query safety margin against minor Sanctum /
+        // pagination drift while still failing loud if N+1 is reintroduced.
+        $this->assertLessThanOrEqual(
+            13,
+            $queryCount,
+            "Query count regressed to {$queryCount} — eager-load on face.activeSubscription likely missing."
+        );
     }
 }

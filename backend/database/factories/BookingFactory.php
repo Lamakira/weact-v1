@@ -33,7 +33,10 @@ class BookingFactory extends Factory
         $dateFin = fake()->dateTimeBetween($dateDebut, (clone $dateDebut)->modify('+1 week'));
         $dureeHeures = fake()->randomElement([4, 6, 8, 10, 16, 24]);
         $tarifBase = fake()->numberBetween(20000, 200000);
-        $pricing = new BookingPricing($tarifBase);
+        // FP-3.1a: factory is intentionally NOT tier-aware — it pins the legacy 10 %
+        // Face rate so existing fixtures (montant_face_recoit = base − 10 %) stay stable.
+        // Tier-aware behavior is asserted through the live BookingService::create() flow.
+        $pricing = new BookingPricing($tarifBase, 0.10);
 
         return [
             'uuid' => fake()->uuid(),

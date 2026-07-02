@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
+import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
 
 // Mock vue-router
 const mockPush = vi.fn()
@@ -71,6 +72,19 @@ describe('useAuth - logout', () => {
     await logout()
 
     expect(mockPush).toHaveBeenCalledWith('/login')
+  })
+
+  it('resets the UGC validation count on logout (no cross-account leak)', async () => {
+    // Simule un Producteur A avec des livrables en attente déjà chargés.
+    const ugcValidationCountStore = useUgcValidationCountStore()
+    ugcValidationCountStore.setCount(5)
+    expect(ugcValidationCountStore.count).toBe(5)
+
+    const { logout } = useAuth()
+    await logout()
+
+    // Le compteur ne doit pas survivre au logout : le compte suivant repart de 0.
+    expect(ugcValidationCountStore.count).toBe(0)
   })
 
   it('clears local state even if API call fails', async () => {

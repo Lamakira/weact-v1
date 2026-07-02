@@ -8,7 +8,12 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-vue-next'
-import { useFaceCandidatures, useConfirmCandidature, useCancelCandidature } from '@/features/candidature/composables'
+import {
+  useFaceCandidatures,
+  useConfirmCandidature,
+  useReconfirmCandidature,
+  useCancelCandidature,
+} from '@/features/candidature/composables'
 import { CandidatureCard, StatusFilter } from '@/features/candidature/components'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
@@ -51,6 +56,16 @@ const {
 } = useConfirmCandidature()
 
 /**
+ * Composable for reconfirming UGC candidatures (8-3, D-8.3.d) — accepted → confirmed.
+ */
+const {
+  error: reconfirmError,
+  successMessage: reconfirmSuccessMessage,
+  reconfirmCandidature,
+  reset: resetReconfirm,
+} = useReconfirmCandidature()
+
+/**
  * Composable for cancelling candidatures
  */
 const {
@@ -77,20 +92,31 @@ const candidatureToCancel = ref<string | null>(null)
  * Handle confirm candidature
  */
 async function handleConfirm(candidatureId: string): Promise<void> {
-  const result = await confirmCandidature(candidatureId)
+  // D-8.3.a : UGC (type_compensation != null) → reconfirm ; cash → confirm.
+  const target = candidatures.value.find((c) => c.id === candidatureId)
+  const isUgc = target?.mission.type_compensation != null
+
+  const result = isUgc
+    ? await reconfirmCandidature(candidatureId)
+    : await confirmCandidature(candidatureId)
 
   // Reset the card's loading state
   cardRefs.value[candidatureId]?.resetConfirming()
 
   if (result) {
-    toast.success(confirmSuccessMessage.value || 'Participation confirmée')
+    toast.success(
+      (isUgc ? reconfirmSuccessMessage.value : confirmSuccessMessage.value) || 'Participation confirmée',
+    )
     // Refresh the list to show updated status
     await refresh()
   } else {
-    toast.error(confirmError.value || 'Erreur lors de la confirmation')
+    toast.error(
+      (isUgc ? reconfirmError.value : confirmError.value) || 'Erreur lors de la confirmation',
+    )
   }
 
-  resetConfirm()
+  if (isUgc) resetReconfirm()
+  else resetConfirm()
 }
 
 /**

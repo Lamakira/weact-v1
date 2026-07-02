@@ -31,7 +31,10 @@ class RemindBookingPaymentCommand extends Command
         $from = now()->subHours(20);
         $to = now()->subHours(12);
 
+        // UGC (2.4) : pas de paiement Producteur après acceptation — aucune relance à envoyer.
+        // BINARY : aligne la comparaison SQL (collation _ci) sur le PHP `=== 'UGC'` (cf. ExpireUnpaidBookings).
         $bookings = Booking::where('status', BookingStatus::Accepted->value)
+            ->whereRaw("BINARY type_contenu != 'UGC'")
             ->whereNotNull('accepted_at')
             ->whereBetween('accepted_at', [$from, $to])
             ->whereNull('payment_reminder_sent_at')

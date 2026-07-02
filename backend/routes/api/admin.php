@@ -5,9 +5,12 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\Admin\AdminAttendanceDisputeController;
 use App\Http\Controllers\Api\V1\Admin\AdminController;
 use App\Http\Controllers\Api\V1\Admin\AdminDashboardController;
+use App\Http\Controllers\Api\V1\Admin\AdminEngagementController;
+use App\Http\Controllers\Api\V1\Admin\AdminFaceSubscriptionController;
 use App\Http\Controllers\Api\V1\Admin\AdminFinanceController;
 use App\Http\Controllers\Api\V1\Admin\AdminForgotPasswordController;
 use App\Http\Controllers\Api\V1\Admin\AdminResetPasswordController;
+use App\Http\Controllers\Api\V1\Admin\AdminUgcSuspensionController;
 use App\Http\Controllers\Api\V1\Admin\ArticleController;
 use App\Http\Controllers\Api\V1\Admin\AuthController;
 use App\Http\Controllers\Api\V1\Admin\FaceController;
@@ -108,6 +111,11 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'api.token', 'admin'])->g
         Route::get('/missions', [MissionController::class, 'index'])->name('admin.missions.index');
         Route::get('/missions/{mission}', [MissionController::class, 'show'])->name('admin.missions.show');
 
+        // Engagements — unified "Faces à contacter" monitoring (read-only)
+        Route::get('/engagements', [AdminEngagementController::class, 'index'])
+            ->middleware('throttle:30,1')
+            ->name('admin.engagements.index');
+
         // Finance routes (read-only)
         Route::get('/finance/overview', [AdminFinanceController::class, 'overview'])
             ->middleware('throttle:30,1')
@@ -132,6 +140,37 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'api.token', 'admin'])->g
         Route::post('/attendance-disputes/{entry}/resolve', [AdminAttendanceDisputeController::class, 'resolve'])
             ->middleware('throttle:30,1')
             ->name('admin.attendance-disputes.resolve');
+
+        // UGC soft-suspension appeals review + reactivation (épic 5, story 5.3)
+        Route::get('/ugc/suspensions', [AdminUgcSuspensionController::class, 'index'])
+            ->middleware('throttle:30,1')
+            ->name('admin.ugc-suspensions.index');
+        Route::post('/ugc/suspensions/{ugcSuspension}/reactivate', [AdminUgcSuspensionController::class, 'reactivate'])
+            ->middleware('throttle:30,1')
+            ->name('admin.ugc-suspensions.reactivate');
+        Route::post('/ugc/suspensions/{ugcSuspension}/reject-appeal', [AdminUgcSuspensionController::class, 'rejectAppeal'])
+            ->middleware('throttle:30,1')
+            ->name('admin.ugc-suspensions.reject-appeal');
+
+        // Face subscription operations (FEATURE-FP-1.4)
+        Route::get('/faces/{face}/subscriptions', [AdminFaceSubscriptionController::class, 'index'])
+            ->middleware('throttle:30,1')
+            ->name('admin.faces.subscriptions.index');
+        Route::post('/faces/{face}/subscriptions/activate', [AdminFaceSubscriptionController::class, 'activate'])
+            ->middleware('throttle:30,1')
+            ->name('admin.faces.subscriptions.activate');
+        Route::post('/face-subscriptions/{subscription}/extend', [AdminFaceSubscriptionController::class, 'extend'])
+            ->middleware('throttle:30,1')
+            ->name('admin.face-subscriptions.extend');
+        Route::post('/face-subscriptions/{subscription}/cancel', [AdminFaceSubscriptionController::class, 'cancel'])
+            ->middleware('throttle:30,1')
+            ->name('admin.face-subscriptions.cancel');
+        Route::post('/face-subscriptions/{subscription}/correct', [AdminFaceSubscriptionController::class, 'correct'])
+            ->middleware('throttle:30,1')
+            ->name('admin.face-subscriptions.correct');
+        Route::post('/face-subscriptions/{subscription}/change-tier', [AdminFaceSubscriptionController::class, 'changeTier'])
+            ->middleware('throttle:30,1')
+            ->name('admin.face-subscriptions.change-tier');
     });
 
     // SuperAdmin only

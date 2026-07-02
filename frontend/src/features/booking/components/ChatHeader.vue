@@ -46,9 +46,12 @@ const otherPartyInitials = computed((): string => {
 })
 
 const bookingDateLabel = computed((): string => {
+  // UGC dotations have no shoot date/duration (chat isn't shown for them, but stay null-safe).
+  if (!props.booking.date_debut) return ''
   const start = new Date(props.booking.date_debut)
   const dateStr = start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
-  return `${dateStr} · max ${props.booking.duree_heures}h`
+  const dureeSuffix = props.booking.duree_heures ? ` · max ${props.booking.duree_heures}h` : ''
+  return `${dateStr}${dureeSuffix}`
 })
 
 const isFaceRole = computed((): boolean => props.currentUserId === props.booking.face_id)

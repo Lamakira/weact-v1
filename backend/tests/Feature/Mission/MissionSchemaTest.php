@@ -321,7 +321,7 @@ class MissionSchemaTest extends TestCase
         $genderValues = MissionGender::values();
 
         $this->assertEquals(['draft', 'published', 'pending_payment', 'closed', 'pending_attendance_validation', 'completed'], $statusValues);
-        $this->assertEquals(['publicite', 'film', 'court_metrage', 'clip_musical', 'shooting_photo', 'autre'], $typeValues);
+        $this->assertEquals(['publicite', 'film', 'court_metrage', 'clip_musical', 'shooting_photo', 'autre', 'ugc'], $typeValues);
         $this->assertEquals(['homme', 'femme', 'tous'], $genderValues);
     }
 

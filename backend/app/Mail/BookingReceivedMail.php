@@ -19,7 +19,13 @@ final class BookingReceivedMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return 'Nouvelle demande de booking de '.$this->resolveProducerName().' pour le '.$this->formatBookingDate();
+        $producerName = $this->resolveProducerName();
+        $date = $this->formatBookingDate();
+
+        // A UGC dotation has no shoot date → omit the "pour le {date}" suffix.
+        return $date !== null
+            ? "Nouvelle demande de booking de {$producerName} pour le {$date}"
+            : "Nouvelle demande de booking de {$producerName}";
     }
 
     public function content(): Content
@@ -53,9 +59,9 @@ final class BookingReceivedMail extends BaseMail
         return $name !== '' ? $name : 'Le Producteur';
     }
 
-    private function formatBookingDate(): string
+    private function formatBookingDate(): ?string
     {
-        return $this->booking->date_debut->locale('fr')->translatedFormat('l d F Y');
+        return $this->booking->date_debut?->locale('fr')->translatedFormat('l d F Y');
     }
 
     private function formatAmount(): string

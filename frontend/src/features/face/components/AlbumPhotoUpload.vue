@@ -1,21 +1,30 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 interface Props {
   isFull?: boolean
   isUploading?: boolean
   error?: string | null
+  uploadLimit?: number
+  currentCount?: number
+  lockedByQuota?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   isFull: false,
   isUploading: false,
   error: null,
+  uploadLimit: 6,
+  currentCount: 0,
+  lockedByQuota: false,
 })
 
 const emit = defineEmits<{
   upload: [file: File]
 }>()
+
+// Entitlement-aware lock predicate — keeps backwards-compat with isFull callers.
+const isLocked = computed(() => props.lockedByQuota || props.isFull)
 
 // File input ref
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -27,7 +36,7 @@ const isDragging = ref(false)
  * Trigger file input click
  */
 function triggerFileInput(): void {
-  if (!props.isFull && !props.isUploading) {
+  if (!isLocked.value && !props.isUploading) {
     fileInputRef.value?.click()
   }
 }
@@ -38,6 +47,11 @@ function triggerFileInput(): void {
 function handleFileSelect(event: Event): void {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
+
+  if (isLocked.value || props.isUploading) {
+    input.value = ''
+    return
+  }
 
   if (file) {
     emit('upload', file)
@@ -53,7 +67,7 @@ function handleFileSelect(event: Event): void {
 function handleDrop(event: DragEvent): void {
   isDragging.value = false
 
-  if (props.isFull || props.isUploading) return
+  if (isLocked.value || props.isUploading) return
 
   const file = event.dataTransfer?.files?.[0]
   if (file) {
@@ -65,7 +79,7 @@ function handleDrop(event: DragEvent): void {
  * Handle drag events
  */
 function handleDragOver(event: DragEvent): void {
-  if (props.isFull || props.isUploading) return
+  if (isLocked.value || props.isUploading) return
   event.preventDefault()
   isDragging.value = true
 }
@@ -91,8 +105,8 @@ function handleDragLeave(): void {
     <div
       class="border-2 border-dashed rounded-lg p-6 text-center transition-all"
       :class="[
-        isDragging && !isFull ? 'border-teal-500 bg-teal-50' : 'border-gray-300',
-        isFull ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-teal-400',
+        isDragging && !isLocked ? 'border-teal-500 bg-teal-50' : 'border-gray-300',
+        isLocked ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:border-teal-400',
       ]"
       @click="triggerFileInput"
       @dragover="handleDragOver"
@@ -132,7 +146,7 @@ function handleDragLeave(): void {
         <template v-else>
           <svg
             class="w-10 h-10"
-            :class="isFull ? 'text-gray-300' : 'text-gray-400'"
+            :class="isLocked ? 'text-gray-300' : 'text-gray-400'"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -146,11 +160,17 @@ function handleDragLeave(): void {
             />
           </svg>
 
-          <p class="text-sm" :class="isFull ? 'text-gray-400' : 'text-gray-600'">
-            <template v-if="isFull"> Album complet (4 photos maximum) </template>
+          <p
+            class="text-sm"
+            :class="isLocked ? 'text-gray-400' : 'text-gray-600'"
+            data-testid="album-quota-label"
+          >
+            <template v-if="isLocked">
+              Album complet ({{ uploadLimit }} photos maximum pour votre abonnement)
+            </template>
             <template v-else>
-              <span class="font-medium text-teal-600">Cliquez pour ajouter</span>
-              ou glissez une photo ici
+              <span class="font-medium text-teal-600">Cliquez pour ajouter une photo</span>
+              ({{ currentCount }}/{{ uploadLimit }}) ou glissez une photo ici
             </template>
           </p>
         </template>
@@ -166,7 +186,7 @@ function handleDragLeave(): void {
       type="file"
       accept="image/jpeg,image/png"
       class="hidden"
-      :disabled="isFull || isUploading"
+      :disabled="isLocked || isUploading"
       @change="handleFileSelect"
       data-testid="file-input"
     />

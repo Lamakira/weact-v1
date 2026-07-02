@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace Tests\Feature\Candidature;
 
 use App\Enums\CandidatureStatus;
+use App\Enums\CompensationType;
 use App\Enums\MissionStatus;
+use App\Enums\MissionType;
+use App\Mail\CandidatureRefusedMail;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class ProducerRejectCandidatureTest extends TestCase
@@ -243,5 +247,68 @@ class ProducerRejectCandidatureTest extends TestCase
 
         $this->candidature->refresh();
         $this->assertNotEquals($originalUpdatedAt, $this->candidature->updated_at);
+    }
+
+    // ===================================================================
+    // ugc-8-2 — email refus UGC (FR6, D-8.2.g) : UGC-only, additif et non-fatal.
+    // ===================================================================
+
+    public function test_rejecting_ugc_candidature_queues_refused_email(): void
+    {
+        Mail::fake();
+        $ugcCandidature = $this->makeUgcPendingCandidature();
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/candidatures/{$ugcCandidature->uuid}/reject");
+
+        $response->assertOk()->assertJsonPath('data.status', 'rejected');
+        Mail::assertQueued(CandidatureRefusedMail::class);
+    }
+
+    public function test_rejecting_standard_candidature_queues_no_email(): void
+    {
+        // Non-régression : le refus d'une candidature STANDARD reste in-app seul.
+        Mail::fake();
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/candidatures/{$this->candidature->uuid}/reject");
+
+        $response->assertOk()->assertJsonPath('data.status', 'rejected');
+        Mail::assertNothingQueued();
+    }
+
+    /**
+     * Crée une mission UGC produit-seul publiée + une candidature pending pour la
+     * Face du setUp (MissionFactory exclut l'UGC ⇒ mission construite à la main).
+     */
+    private function makeUgcPendingCandidature(): Candidature
+    {
+        $mission = $this->producer->missions()->create([
+            'titre' => 'Appel UGC — Unboxing',
+            'description' => 'Brief',
+            'date_tournage' => null,
+            'lieu' => null,
+            'duree' => null,
+            'profil_recherche' => 'Créatrices lifestyle',
+            'budget' => 0,
+            'date_limite_candidature' => now()->addWeeks(2),
+            'nombre_faces_voulu' => 1,
+            'type_mission' => MissionType::Ugc->value,
+            'genre_voulu' => 'tous',
+            'status' => MissionStatus::Published,
+            'commission_paid_at' => now(),
+            'type_compensation' => CompensationType::Product->value,
+            'nom_produit' => 'Sneakers',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'montant_remuneration' => null,
+            'commission_ugc' => 2500,
+        ]);
+
+        return Candidature::factory()->create([
+            'mission_id' => $mission->id,
+            'face_id' => $this->face->id,
+            'status' => CandidatureStatus::Pending,
+        ]);
     }
 }

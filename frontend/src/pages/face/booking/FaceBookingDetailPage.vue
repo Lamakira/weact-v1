@@ -15,6 +15,8 @@ import {
   CheckCircle,
   XCircle,
   Star,
+  Package,
+  Gift,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useBookingDetail, useBookingActions } from '@/features/booking/composables'
@@ -30,6 +32,7 @@ import {
 import {
   BookingStatus,
   CHAT_VIEW_STATUSES,
+  UGC_CHAT_VIEW_STATUSES,
   CANCELLABLE_BY_FACE_STATUSES,
   CANCELLABLE_BY_PRODUCER_STATUSES,
   getCancellationReasonLabel,
@@ -38,7 +41,22 @@ import {
   type BookingRating,
 } from '@/features/booking/types'
 import RatingDisplay from '@/components/RatingDisplay.vue'
+import {
+  UgcPaymentOverlay,
+  CommissionBreakdown,
+  UgcEngagementModal,
+  UgcBookingTimeline,
+  UgcShipmentForm,
+  UgcShipmentTrackingCard,
+  UgcFaceTrackingCard,
+  ugcTunnelStep,
+  UGC_UNBOXING_DAYS,
+  type ConfirmShipmentPayload,
+} from '@/components/ugc'
+import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
+import { useUgcShipment } from '@/composables/useUgcShipment'
+import { useUgcDeliverable } from '@/composables/useUgcDeliverable'
 
 const route = useRoute()
 const router = useRouter()
@@ -56,6 +74,7 @@ const {
   isCancelling,
   isReportingNoShow,
   error: actionError,
+  errorCode: actionErrorCode,
   accept,
   refuse,
   confirm,
@@ -66,6 +85,67 @@ const {
 
 // Payment overlay state
 const showPaymentOverlay = ref(false)
+
+// UGC commission payment tunnel (Producer view of a pending UGC booking).
+const showUgcPaymentOverlay = ref(false)
+const canPayUgcCommission = computed<boolean>(
+  () =>
+    !isFace.value
+    && booking.value?.type_contenu === 'UGC'
+    && booking.value?.status === BookingStatus.PENDING,
+)
+
+// UGC engagement modal (2.4) — règles + chronos avant l'accept d'un booking UGC.
+const showEngagementModal = ref(false)
+
+// Expédition UGC (3.2) — panneau écran 4A + tracking Producteur.
+const {
+  isSubmitting: isSubmittingShipment,
+  error: shipmentError,
+  errorCode: shipmentErrorCode,
+  confirmShipment,
+  confirmReceipt,
+} = useUgcShipment()
+
+// Upload du livrable Unboxing (4.2) — sibling de useUgcShipment, noms distincts
+// pour ne pas collisionner avec l'état receipt (isSubmittingShipment).
+const {
+  isUploading: isUploadingDeliverable,
+  uploadProgress,
+  error: deliverableError,
+  errorCode: deliverableErrorCode,
+  uploadDeliverable,
+} = useUgcDeliverable()
+
+const isUgc = computed(() => booking.value?.type_contenu === 'UGC')
+
+const ugcTimelineCurrent = computed(() =>
+  booking.value ? ugcTunnelStep(booking.value.status, booking.value.shipment ?? null) : 0,
+)
+
+// Carte de suivi Face (3.4) — remplace la timeline H dès qu'un shipment existe (D-3.4.e).
+const showReceiptModal = ref(false)
+const showFaceTrackingCard = computed(
+  () => isFace.value && isUgc.value && !!booking.value?.shipment,
+)
+const receiptModalMessage = `Le chrono Unboxing (${UGC_UNBOXING_DAYS} jours) démarre dès la confirmation — cette action est définitive.`
+
+// Chat (3.1 AC8) : l'UGC ouvre à Accepted ; le cash garde sa constante (D-3.2.d).
+const canShowChat = computed(() => {
+  if (!booking.value) return false
+  return isUgc.value
+    ? UGC_CHAT_VIEW_STATUSES.includes(booking.value.status)
+    : CHAT_VIEW_STATUSES.includes(booking.value.status)
+})
+
+// Panneau écran 4A : Producteur, deal accepté, pas encore expédié.
+const canConfirmShipment = computed(
+  () =>
+    !isFace.value
+    && isUgc.value
+    && booking.value?.status === BookingStatus.ACCEPTED
+    && !booking.value?.shipment,
+)
 
 // Refuse dialog state
 const showRefuseDialog = ref(false)
@@ -142,6 +222,7 @@ const canReportNoShow = computed(() => {
   if (!booking.value) return false
   if (isFace.value) return false
   if (booking.value.status !== BookingStatus.PAID) return false
+  if (!booking.value.date_debut) return false
   return new Date(booking.value.date_debut).getTime() < nowTimestamp.value
 })
 
@@ -167,8 +248,10 @@ const paymentDeadline = computed<Date | null>(() => {
 })
 
 const shouldShowPaymentDeadline = computed<boolean>(() => {
+  // UGC (2.4) : aucun paiement cash n'est attendu après acceptation.
   return !isFace.value
     && booking.value?.status === BookingStatus.ACCEPTED
+    && booking.value?.type_contenu !== 'UGC'
     && !!booking.value.accepted_at
 })
 
@@ -188,7 +271,7 @@ const formattedPaymentDeadline = computed<string>(() => {
 /**
  * FORMAT HELPERS
  */
-function formatDate(dateString: string): string {
+function formatDate(dateString: string | null): string {
   if (!dateString) return ''
   return new Intl.DateTimeFormat('fr-FR', {
     day: 'numeric',
@@ -208,7 +291,7 @@ function goBack(): void {
   }
 }
 
-async function handleAccept(): Promise<void> {
+async function doAccept(): Promise<void> {
   if (!booking.value) return
   clearError()
 
@@ -216,9 +299,36 @@ async function handleAccept(): Promise<void> {
   if (result) {
     booking.value = result
     toast.success('Booking accepté avec succès !')
-  } else {
-    toast.error(actionError.value || 'Erreur lors de l\'acceptation')
+    return
   }
+
+  // Paywall FR5 (2.4) : Face non éligible → invitation à s'abonner.
+  if (actionErrorCode.value === 'UGC_SUBSCRIPTION_REQUIRED') {
+    toast.info(actionError.value || "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus).")
+    router.push({ name: 'pricing' })
+    return
+  }
+
+  toast.error(actionError.value || 'Erreur lors de l\'acceptation')
+}
+
+function handleAccept(): void {
+  if (!booking.value) return
+
+  // UGC (2.4) : l'engagement sur les délais est explicite AVANT tout appel API.
+  if (booking.value.type_contenu === 'UGC') {
+    showEngagementModal.value = true
+    return
+  }
+
+  void doAccept()
+}
+
+async function handleEngagementConfirm(): Promise<void> {
+  // Modal maintenue ouverte pendant l'appel (parité mission) : `:is-submitting`
+  // verrouille le CTA et empêche un double-clic d'engagement.
+  await doAccept()
+  showEngagementModal.value = false
 }
 
 function openRefuseDialog(): void {
@@ -304,6 +414,81 @@ async function handlePaymentSuccess(): Promise<void> {
   }
 }
 
+async function handleConfirmShipment(payload: ConfirmShipmentPayload): Promise<void> {
+  if (!booking.value) return
+
+  const shipment = await confirmShipment('booking', booking.value.id, payload)
+  if (shipment) {
+    // D-3.1.c : le statut booking ne change pas — l'assignation locale suffit.
+    booking.value.shipment = shipment
+    toast.success('Expédition confirmée')
+    return
+  }
+
+  if (shipmentErrorCode.value === 'ALREADY_SHIPPED') {
+    // Multi-onglets (D-3.1.b/D-3.2.e) : récupérer le shipment existant.
+    toast.info(shipmentError.value || "L'expédition de ce deal a déjà été confirmée.")
+    if (bookingId.value) await fetchBooking(bookingId.value)
+    return
+  }
+
+  toast.error(shipmentError.value || "Erreur lors de la confirmation de l'expédition")
+}
+
+async function handleConfirmReceipt(): Promise<void> {
+  showReceiptModal.value = false
+  if (!booking.value?.shipment) return
+
+  const shipment = await confirmReceipt(booking.value.shipment.id)
+  if (shipment) {
+    // D-3.3.i/D-3.4.d : la 200 porte la ShipmentResource à jour — pas de refetch.
+    // La ref peut avoir été vidée pendant l'await (navigation, refetch concurrent).
+    if (booking.value) booking.value.shipment = shipment
+    toast.success('Réception confirmée — le chrono Unboxing démarre')
+    return
+  }
+
+  if (shipmentErrorCode.value === 'ALREADY_RECEIVED') {
+    // Multi-onglets : récupérer l'état réel (parité D-3.2.e).
+    toast.info(shipmentError.value || 'La réception de ce produit a déjà été confirmée.')
+    if (bookingId.value) await fetchBooking(bookingId.value)
+    return
+  }
+
+  toast.error(shipmentError.value || 'Erreur lors de la confirmation de la réception')
+}
+
+async function handleUploadDeliverable(file: File): Promise<void> {
+  if (!booking.value?.shipment) return
+
+  const deliverable = await uploadDeliverable(booking.value.shipment.id, file)
+  if (deliverable) {
+    toast.success('Vidéo Unboxing déposée — en attente de validation')
+    // D-4.2.d : le 201 porte la DeliverableResource, PAS le shipment → refetch.
+    if (bookingId.value) await fetchBooking(bookingId.value)
+    return
+  }
+  if (deliverableErrorCode.value === 'ALREADY_UPLOADED') {
+    toast.info(deliverableError.value || 'Votre vidéo Unboxing a déjà été déposée.')
+    if (bookingId.value) await fetchBooking(bookingId.value)
+    return
+  }
+  if (deliverableErrorCode.value === 'INVALID_STATUS') {
+    toast.error(deliverableError.value || "La vidéo ne peut pas être déposée dans l'état actuel de ce deal.")
+    if (bookingId.value) await fetchBooking(bookingId.value)
+    return
+  }
+  toast.error(deliverableError.value || "Erreur lors de l'envoi de la vidéo Unboxing")
+}
+
+async function handleUgcCommissionSettled(): Promise<void> {
+  showUgcPaymentOverlay.value = false
+  if (bookingId.value) {
+    await fetchBooking(bookingId.value)
+    toast.success('Commission payée. La Face va recevoir votre demande.')
+  }
+}
+
 interface EchoChannel {
   listen: (event: string, callback: () => void) => EchoChannel
   stopListening: (event: string) => EchoChannel
@@ -360,6 +545,11 @@ watch(
 onMounted(async () => {
   if (bookingId.value) {
     await fetchBooking(bookingId.value)
+  }
+
+  // Auto-open the commission tunnel when arriving from UGC booking creation (?pay=1).
+  if (route.query.pay === '1' && canPayUgcCommission.value) {
+    showUgcPaymentOverlay.value = true
   }
 
   countdownTicker = setInterval(() => {
@@ -421,9 +611,34 @@ onUnmounted(() => {
         <h1 class="text-xl font-bold text-gray-900">Demande de booking</h1>
       </div>
 
+      <!-- UGC timeline (3.2) — pleine largeur, remplace la carte Progression cash.
+           Pour la Face avec shipment, la carte de suivi (timeline V intégrée) la remplace (D-3.4.e). -->
+      <div
+        v-if="isUgc && !showFaceTrackingCard"
+        class="mb-6 overflow-x-auto rounded-xl border border-gray-200 bg-white p-5"
+        data-testid="ugc-booking-timeline-card"
+      >
+        <h2 class="mb-4 text-sm font-semibold text-gray-700">Progression</h2>
+        <UgcBookingTimeline :current="ugcTimelineCurrent" variant="horizontal" />
+      </div>
+
+      <!-- Carte de suivi Face (3.4, écran 8A) — même emplacement, pleine largeur -->
+      <UgcFaceTrackingCard
+        v-if="showFaceTrackingCard && booking.shipment"
+        class="mb-6"
+        :shipment="booking.shipment"
+        :current="ugcTimelineCurrent"
+        :is-submitting="isSubmittingShipment"
+        :is-uploading="isUploadingDeliverable"
+        :upload-progress="uploadProgress"
+        :deliverables="booking.deliverables ?? []"
+        @confirm-receipt="showReceiptModal = true"
+        @upload="handleUploadDeliverable"
+      />
+
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Left column: Timeline -->
-        <div class="lg:col-span-1">
+        <!-- Left column: Timeline (cash bookings only) -->
+        <div v-if="!isUgc" class="lg:col-span-1">
           <div class="bg-white rounded-xl border border-gray-200 p-5">
             <h2 class="text-sm font-semibold text-gray-700 mb-4">Progression</h2>
             <BookingTimeline :status="booking.status" :cancellation-reason="booking.cancellation_reason" />
@@ -431,7 +646,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Right column: Details -->
-        <div class="lg:col-span-2 space-y-5">
+        <div class="space-y-5" :class="isUgc ? 'lg:col-span-3' : 'lg:col-span-2'">
           <!-- Producer card -->
           <div class="bg-white rounded-xl border border-gray-200 p-5">
             <h2 class="text-sm font-semibold text-gray-700 mb-3">Producteur</h2>
@@ -460,21 +675,21 @@ onUnmounted(() => {
           <div class="bg-white rounded-xl border border-gray-200 p-5">
             <h2 class="text-sm font-semibold text-gray-700 mb-3">Détails</h2>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div class="flex items-center gap-2.5">
+              <div v-if="booking.date_debut" class="flex items-center gap-2.5">
                 <Calendar class="w-4 h-4 text-gray-400 shrink-0" />
                 <div>
                   <p class="text-xs text-gray-500">Date de début</p>
                   <p class="text-sm font-medium text-gray-900">{{ formatDate(booking.date_debut) }}</p>
                 </div>
               </div>
-              <div class="flex items-center gap-2.5">
+              <div v-if="booking.date_fin" class="flex items-center gap-2.5">
                 <Calendar class="w-4 h-4 text-gray-400 shrink-0" />
                 <div>
                   <p class="text-xs text-gray-500">Date de fin</p>
                   <p class="text-sm font-medium text-gray-900">{{ formatDate(booking.date_fin) }}</p>
                 </div>
               </div>
-              <div class="flex items-center gap-2.5">
+              <div v-if="booking.duree_heures" class="flex items-center gap-2.5">
                 <Clock class="w-4 h-4 text-gray-400 shrink-0" />
                 <div>
                   <p class="text-xs text-gray-500">Durée</p>
@@ -509,8 +724,59 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Financial section -->
-          <div class="bg-white rounded-xl border border-gray-200 p-5">
+          <!-- UGC dotation summary (replaces the cash finances card for UGC bookings) -->
+          <div v-if="booking.type_contenu === 'UGC'" class="bg-white rounded-xl border border-gray-200 p-5">
+            <h2 class="text-sm font-semibold text-gray-700 mb-3">Dotation UGC</h2>
+            <div class="space-y-3 mb-4">
+              <div v-if="booking.nom_produit" class="flex items-center gap-2.5">
+                <Package class="w-4 h-4 text-gray-400 shrink-0" />
+                <div>
+                  <p class="text-xs text-gray-500">Produit</p>
+                  <p class="text-sm font-medium text-gray-900">{{ booking.nom_produit }}</p>
+                </div>
+              </div>
+              <div v-if="booking.type_compensation_label" class="flex items-center gap-2.5">
+                <Gift class="w-4 h-4 text-gray-400 shrink-0" />
+                <div>
+                  <p class="text-xs text-gray-500">Type de compensation</p>
+                  <p class="text-sm font-medium text-gray-900">{{ booking.type_compensation_label }}</p>
+                </div>
+              </div>
+              <div v-if="booking.nombre_videos" class="flex items-center gap-2.5">
+                <Film class="w-4 h-4 text-gray-400 shrink-0" />
+                <div>
+                  <p class="text-xs text-gray-500">Vidéos attendues</p>
+                  <p class="text-sm font-medium text-gray-900">{{ booking.nombre_videos }}</p>
+                </div>
+              </div>
+            </div>
+            <CommissionBreakdown
+              :product-value="booking.valeur_produit ?? 0"
+              :pay-amount="booking.montant_remuneration ?? 0"
+              :on-platform="true"
+            />
+          </div>
+
+          <!-- Panneau expédition UGC (Producteur, écran 4A — 3.2) -->
+          <div
+            v-if="canConfirmShipment"
+            class="rounded-xl border border-gray-200 bg-white p-5"
+            data-testid="ugc-shipment-panel"
+          >
+            <p class="mb-1 text-[10px] font-bold uppercase tracking-widest text-weact">Étape 3 sur 6 · Expédition</p>
+            <h2 class="text-sm font-semibold text-gray-700">Confirmer l'envoi du produit</h2>
+            <p class="mb-4 mt-0.5 text-xs text-gray-500">{{ booking.nom_produit }} · Pour {{ faceName }}</p>
+            <UgcShipmentForm :is-submitting="isSubmittingShipment" @submit="handleConfirmShipment" />
+          </div>
+
+          <!-- Tracking expédition UGC (Producteur post-confirmation — 3.2) -->
+          <UgcShipmentTrackingCard
+            v-if="!isFace && isUgc && booking.shipment"
+            :shipment="booking.shipment"
+          />
+
+          <!-- Financial section (cash bookings only) -->
+          <div v-if="booking.type_contenu !== 'UGC'" class="bg-white rounded-xl border border-gray-200 p-5">
             <h2 class="text-sm font-semibold text-gray-700 mb-3">Finances</h2>
             <BookingPricingBreakdown
               :tarif-base="booking.tarif_base"
@@ -619,6 +885,17 @@ onUnmounted(() => {
             </button>
           </div>
 
+          <!-- UGC commission payment (Producer only — pending UGC booking) -->
+          <div v-if="canPayUgcCommission" class="flex gap-3" data-testid="ugc-pay-commission-cta">
+            <button
+              class="flex-1 flex items-center justify-center gap-2 rounded-lg bg-weact px-4 py-3 text-sm font-semibold text-white hover:bg-weact/90 transition-colors"
+              @click="showUgcPaymentOverlay = true"
+            >
+              <Wallet class="w-4 h-4" />
+              Payer la commission · {{ new Intl.NumberFormat('fr-FR').format(booking.commission_ugc ?? 0) }} FCFA
+            </button>
+          </div>
+
           <!-- Rating section (completed only) -->
           <div
             v-if="booking.status === BookingStatus.COMPLETED"
@@ -660,9 +937,9 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Booking Chat Section (AC6: only for eligible statuses) -->
+      <!-- Booking Chat Section (AC6: only for eligible statuses ; UGC dès Accepted — 3.2) -->
       <section
-        v-if="CHAT_VIEW_STATUSES.includes(booking.status)"
+        v-if="canShowChat"
         class="mt-6"
         data-testid="booking-chat-section"
       >
@@ -680,6 +957,28 @@ onUnmounted(() => {
       @payment-success="handlePaymentSuccess"
     />
 
+    <!-- UGC engagement modal (Face accept — 2.4) -->
+    <UgcEngagementModal
+      v-if="booking"
+      :is-open="showEngagementModal"
+      :nombre-videos="booking.nombre_videos ?? null"
+      :nom-produit="booking.nom_produit"
+      :is-submitting="isAccepting"
+      @confirm="handleEngagementConfirm"
+      @cancel="showEngagementModal = false"
+    />
+
+    <!-- UGC commission payment tunnel -->
+    <UgcPaymentOverlay
+      v-if="booking && canPayUgcCommission"
+      v-model="showUgcPaymentOverlay"
+      kind="booking"
+      :owner-id="booking.id"
+      :amount="booking.montant_total_producteur ?? 0"
+      :reference="booking.id"
+      @settled="handleUgcCommissionSettled"
+    />
+
     <CancellationDialog
       v-if="booking"
       :booking="booking"
@@ -688,6 +987,18 @@ onUnmounted(() => {
       :is-face="isFace"
       @confirm="handleCancel"
       @cancel="showCancellationDialog = false"
+    />
+
+    <!-- Confirmation « Produit reçu » (3.4, D-3.4.c) — chrono 7j irréversible -->
+    <ConfirmModal
+      :is-open="showReceiptModal"
+      title="Confirmer la réception ?"
+      :message="receiptModalMessage"
+      confirm-text="Oui, j'ai reçu le produit"
+      cancel-text="Pas encore"
+      variant="warning"
+      @confirm="handleConfirmReceipt"
+      @cancel="showReceiptModal = false"
     />
 
     <!-- No-show confirmation dialog -->

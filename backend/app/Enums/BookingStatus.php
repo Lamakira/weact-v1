@@ -18,6 +18,7 @@ enum BookingStatus: string
     case CancelledByProducer = 'cancelled_by_producer';
     case CancelledByFace = 'cancelled_by_face';
     case NoShow = 'no_show';
+    case CommissionPaid = 'commission_paid';
 
     /**
      * Get the display name in French for this booking status.
@@ -37,6 +38,7 @@ enum BookingStatus: string
             self::CancelledByProducer => 'Annulee par le Producteur',
             self::CancelledByFace => 'Annulee par la Face',
             self::NoShow => 'Absence signalee',
+            self::CommissionPaid => 'Commission payée',
         };
     }
 

@@ -334,4 +334,92 @@ describe('PresentationVideoUpload', () => {
     expect(wrapper.find('[data-testid="video-placeholder"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="video-player"]').exists()).toBe(false)
   })
+
+  describe('canUpload=false (FP-2.7.1 Free-tier gate)', () => {
+    it('renders the tier-locked banner and suppresses the drop zone when canUpload=false and no stored video', () => {
+      const wrapper = mount(PresentationVideoUpload, {
+        props: { videoInfo: null, canUpload: false },
+      })
+
+      const banner = wrapper.find('[data-testid="presentation-video-tier-locked"]')
+      expect(banner.exists()).toBe(true)
+      expect(banner.text()).toContain(
+        "L'ajout d'une vidéo de présentation est réservé aux abonnés payants.",
+      )
+      // The drop zone / video placeholder is suppressed.
+      expect(wrapper.find('[data-testid="video-placeholder"]').exists()).toBe(false)
+    })
+
+    it('renders the lock ribbon above the video and disables the action buttons when canUpload=false but a stored video exists', () => {
+      const wrapper = mount(PresentationVideoUpload, {
+        props: {
+          videoInfo: mockVideoInfo,
+          canUpload: false,
+        },
+      })
+
+      // Lock ribbon visible
+      expect(wrapper.find('[data-testid="presentation-video-lock-badge"]').exists()).toBe(true)
+      // Video player remains visible
+      expect(wrapper.find('[data-testid="video-player"]').exists()).toBe(true)
+      // Tier-locked banner NOT shown (since hasVideo is true)
+      expect(wrapper.find('[data-testid="presentation-video-tier-locked"]').exists()).toBe(false)
+      // Buttons disabled
+      expect(wrapper.find('[data-testid="upload-button"]').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('[data-testid="delete-button"]').attributes('disabled')).toBeDefined()
+    })
+
+    it('emits navigate-pricing once when the tier-locked CTA is clicked', async () => {
+      const wrapper = mount(PresentationVideoUpload, {
+        props: { videoInfo: null, canUpload: false },
+      })
+
+      await wrapper.find('[data-testid="presentation-video-tier-locked-cta"]').trigger('click')
+
+      expect(wrapper.emitted('navigate-pricing')).toHaveLength(1)
+      expect(wrapper.emitted('navigate-pricing')?.[0]).toEqual([])
+    })
+
+    it('preserves the existing behaviour when canUpload=true (default) — drop zone visible, no tier-locked banner', () => {
+      const wrapper = mount(PresentationVideoUpload, {
+        props: { videoInfo: null, canUpload: true },
+      })
+
+      expect(wrapper.find('[data-testid="presentation-video-tier-locked"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="presentation-video-lock-badge"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="video-placeholder"]').exists()).toBe(true)
+      // Upload button enabled
+      expect(wrapper.find('[data-testid="upload-button"]').attributes('disabled')).toBeUndefined()
+    })
+
+    it('does NOT emit upload when a tier-locked user drops a file on the video container (P1)', async () => {
+      const wrapper = mount(PresentationVideoUpload, {
+        props: { videoInfo: mockVideoInfo, canUpload: false },
+      })
+
+      // Find the drop container (the one with @drop handler on the video tile).
+      const drop = wrapper.find('.relative.aspect-video')
+      expect(drop.exists()).toBe(true)
+
+      const file = new File(['x'], 'video.mp4', { type: 'video/mp4' })
+      const dataTransfer = { files: [file] } as unknown as DataTransfer
+      await drop.trigger('drop', { dataTransfer })
+
+      expect(wrapper.emitted('upload')).toBeUndefined()
+    })
+
+    it('does NOT emit upload when a tier-locked user selects a file via the hidden input (P1)', async () => {
+      const wrapper = mount(PresentationVideoUpload, {
+        props: { videoInfo: mockVideoInfo, canUpload: false },
+      })
+
+      const input = wrapper.find('[data-testid="file-input"]')
+      const file = new File(['x'], 'video.mp4', { type: 'video/mp4' })
+      Object.defineProperty(input.element, 'files', { value: [file], writable: false })
+
+      await input.trigger('change')
+
+      expect(wrapper.emitted('upload')).toBeUndefined()
+    })
+  })
 })

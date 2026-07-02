@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Listeners\Booking;
 
+use App\Enums\EscrowStatus;
 use App\Events\BookingCompleted;
 use App\Models\Notification;
 use Illuminate\Support\Facades\Log;
@@ -15,32 +16,47 @@ class NotifyPartiesOnBookingCompleted
     /**
      * Handle the event — notify Face (wallet credit) and Producer (completion).
      * Each notification is wrapped independently so one failure doesn't skip the other.
+     * The Face notification fires only when a credit actually happened
+     * (montant_face_recoit > 0) — a product-only UGC booking completes without any
+     * wallet movement (RH.3), so "0 XOF ont été ajoutés" must not be sent. It is ALSO
+     * suppressed when the escrow has been REFUNDED (UGC soft-suspension, 5.3 / D-5.0.a):
+     * the snapshot montant_face_recoit stays > 0 but release() no-op'd on the refunded
+     * escrow, so no credit actually happened — "X XOF ont été ajoutés" would be a lie.
      */
     public function handle(BookingCompleted $event): void
     {
         $booking = $event->booking;
 
-        // Notify Face: wallet credited
-        try {
-            $formattedAmount = number_format((float) ($booking->montant_face_recoit ?? 0), 0, ',', ' ');
+        // Notify Face: wallet credited — only when a credit REALLY happened. Product-only
+        // UGC (montant_face_recoit = 0, RH.3) and suspended-then-completed deals (escrow
+        // already Refunded → release() no-op, D-5.0.a) must NOT be notified.
+        $escrowRefunded = $booking->escrowTransaction()
+            ->where('status', EscrowStatus::Refunded->value)
+            ->exists();
+        $creditHappened = (int) ($booking->montant_face_recoit ?? 0) > 0 && ! $escrowRefunded;
 
-            Notification::create([
-                'user_id' => $booking->face_id,
-                'type' => 'booking_wallet_credited',
-                'data' => [
-                    'message' => "{$formattedAmount} XOF ont été ajoutés à votre wallet !",
+        if ($creditHappened) {
+            try {
+                $formattedAmount = number_format((float) ($booking->montant_face_recoit ?? 0), 0, ',', ' ');
+
+                Notification::create([
+                    'user_id' => $booking->face_id,
+                    'type' => 'booking_wallet_credited',
+                    'data' => [
+                        'message' => "{$formattedAmount} XOF ont été ajoutés à votre wallet !",
+                        'booking_id' => $booking->id,
+                        'url' => "/face/bookings/{$booking->uuid}",
+                    ],
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('BookingCompleted wallet notification for Face failed', [
                     'booking_id' => $booking->id,
-                    'url' => "/face/bookings/{$booking->uuid}",
-                ],
-            ]);
-        } catch (\Throwable $e) {
-            Log::warning('BookingCompleted wallet notification for Face failed', [
-                'booking_id' => $booking->id,
-                'error' => $e->getMessage(),
-            ]);
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
-        // Notify Producer: booking completed
+        // Notify Producer: booking completed — UNCHANGED (toujours créée).
         try {
             Notification::create([
                 'user_id' => $booking->producer_id,

@@ -26,6 +26,8 @@ class CandidatureResource extends JsonResource
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'message_motivation' => $this->message_motivation,
+            'shipment' => new ShipmentResource($this->whenLoaded('shipment')),
+            'deliverables' => DeliverableResource::collection($this->whenLoaded('deliverables')),
             'mission' => new MissionResource($this->whenLoaded('mission')),
             'face' => new FaceResource($this->whenLoaded('face')),
             'created_at' => $this->created_at?->toIso8601String(),

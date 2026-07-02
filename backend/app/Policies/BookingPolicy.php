@@ -40,22 +40,42 @@ class BookingPolicy
 
     /**
      * Determine if the user can accept the booking.
-     * Only the Face can accept, and only when status is pending.
+     * Only the Face can accept. Cash: from pending. UGC: only once the
+     * commission is settled (2.4, bloqueur #12 — FR6 étape 2).
      */
     public function accept(User $user, Booking $booking): bool
     {
-        return $user->id === $booking->face_id
-            && $booking->status === BookingStatus::Pending;
+        if ($user->id !== $booking->face_id) {
+            return false;
+        }
+
+        if ($booking->type_contenu === 'UGC') {
+            // Defense-in-depth (2.5, AC8a) : un deal dont la commission a été
+            // remboursée (refund ops sans demande locale, statut resté
+            // commission_paid) n'est plus acceptable.
+            return $booking->status === BookingStatus::CommissionPaid
+                && $booking->commission_refunded_at === null;
+        }
+
+        return $booking->status === BookingStatus::Pending;
     }
 
     /**
      * Determine if the user can refuse the booking.
-     * Only the Face can refuse, and only when status is pending.
+     * Only the Face can refuse. Cash: from pending. UGC: before payment
+     * (évite un paiement pour rien) et après (refund = story 2.5).
      */
     public function refuse(User $user, Booking $booking): bool
     {
-        return $user->id === $booking->face_id
-            && $booking->status === BookingStatus::Pending;
+        if ($user->id !== $booking->face_id) {
+            return false;
+        }
+
+        if ($booking->type_contenu === 'UGC') {
+            return in_array($booking->status, [BookingStatus::Pending, BookingStatus::CommissionPaid], true);
+        }
+
+        return $booking->status === BookingStatus::Pending;
     }
 
     /**
@@ -64,6 +84,15 @@ class BookingPolicy
      */
     public function cancel(User $user, Booking $booking): bool
     {
+        // D-5.0.b : pas d'annulation volontaire d'un booking UGC post-paiement
+        // (escrow net Face séquestré dès CommissionPaid — RH.2). Sortie = clôture
+        // (RH.3) ou suspension (5.1). Le UGC Pending (pré-paiement, sans escrow)
+        // reste annulable par le Producteur.
+        if ($booking->type_contenu === 'UGC'
+            && in_array($booking->status, [BookingStatus::CommissionPaid, BookingStatus::Accepted], true)) {
+            return false;
+        }
+
         $cancellableStatuses = [
             BookingStatus::Pending,
             BookingStatus::Accepted,
@@ -80,6 +109,13 @@ class BookingPolicy
      */
     public function cancelByFace(User $user, Booking $booking): bool
     {
+        // D-5.0.b : la Face n'a aucune annulation volontaire d'un deal UGC accepté
+        // (pré-acceptation = `refuse`, AC7). Le seul statut UGC atteignable ici est
+        // Accepted ; on bloque tout UGC pour clarté d'intention.
+        if ($booking->type_contenu === 'UGC') {
+            return false;
+        }
+
         $cancellableStatuses = [
             BookingStatus::Accepted,
             BookingStatus::Paid,
@@ -96,7 +132,19 @@ class BookingPolicy
     public function pay(User $user, Booking $booking): bool
     {
         return $user->id === $booking->producer_id
-            && $booking->status === BookingStatus::Accepted;
+            && $booking->status === BookingStatus::Accepted
+            && $booking->type_contenu !== 'UGC';
+    }
+
+    /**
+     * Determine if the user can pay the WeAct commission of a UGC booking.
+     * Only the owning Producer, on a pending UGC booking (dedicated UGC path).
+     */
+    public function payCommission(User $user, Booking $booking): bool
+    {
+        return $user->id === $booking->producer_id
+            && $booking->type_contenu === 'UGC'
+            && $booking->status === BookingStatus::Pending;
     }
 
     /**
@@ -156,6 +204,16 @@ class BookingPolicy
     {
         $isParty = $user->id === $booking->face_id || $user->id === $booking->producer_id;
 
+        // UGC (3.1) : le chat ouvre à l'acceptation — coordination de l'adresse de
+        // livraison avant/pendant l'expédition (ferme le defer 2.4). Lecture
+        // d'historique conservée après clôture (parité cash).
+        if ($booking->type_contenu === 'UGC') {
+            return $isParty && in_array($booking->status, [
+                BookingStatus::Accepted,
+                BookingStatus::Completed,
+            ], true);
+        }
+
         $chatEligibleStatuses = [
             BookingStatus::Paid,
             BookingStatus::ConfirmedByFace,
@@ -173,6 +231,12 @@ class BookingPolicy
     public function sendMessage(User $user, Booking $booking): bool
     {
         $isParty = $user->id === $booking->face_id || $user->id === $booking->producer_id;
+
+        // UGC (3.1) : envoi possible pendant tout le tunnel (le booking reste
+        // Accepted jusqu'à la clôture épic 4 — D-3.1.c).
+        if ($booking->type_contenu === 'UGC') {
+            return $isParty && $booking->status === BookingStatus::Accepted;
+        }
 
         $chatActiveStatuses = [
             BookingStatus::Paid,

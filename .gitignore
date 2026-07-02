@@ -95,12 +95,16 @@ public/hot/
 
 # Outils IA & Gestion de projet (BMAD)
 _bmad/
-_bmad-output/implementation-artifacts/
+_bmad-output/implementation-artifacts/*.md
+_bmad-output/implementation-artifacts/.review/
 CLAUDE.md
 AGENTS.md
 .opencode/
 .agents/
+.codex
 
+#Fichiers divers
 .mcp.json
 nginx-weact.conf
+scripts/codex-notify.sh
 

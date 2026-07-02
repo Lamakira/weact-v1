@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1\Face;
 use App\Enums\BookingStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
+use App\Enums\MissionType;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ChartStatsResource;
 use App\Http\Resources\FaceDashboardStatsResource;
@@ -329,9 +330,12 @@ class FaceDashboardController extends Controller
             return $result;
         }
 
-        // Count available missions (published, candidature deadline not passed)
+        // Count available missions (published, non expirées : ni la date limite de
+        // candidature ni la date de tournage passée — aligné sur le listing /missions).
         $count = Mission::where('status', MissionStatus::Published)
-            ->where('date_limite_candidature', '>=', Carbon::today())
+            ->where('type_mission', '!=', MissionType::Ugc->value)
+            ->whereProducerActive()
+            ->notExpired()
             ->count();
 
         return response()->json([

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Face;
 
+use App\Exceptions\AlbumQuotaReachedException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Face\AddAlbumPhotoRequest;
 use App\Http\Resources\FacePhotoResource;
@@ -58,6 +59,13 @@ class AlbumController extends Controller
                 'data' => new FacePhotoResource($facePhoto),
                 'message' => 'Photo ajoutée à l\'album',
             ], 201);
+        } catch (AlbumQuotaReachedException $e) {
+            return response()->json([
+                'error' => [
+                    'code' => 'ALBUM_QUOTA_REACHED',
+                    'message' => $e->getMessage(),
+                ],
+            ], 422);
         } catch (\Exception $e) {
             return response()->json([
                 'error' => [

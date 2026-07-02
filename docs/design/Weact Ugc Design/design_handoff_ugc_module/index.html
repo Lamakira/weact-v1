@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>WeAct UGC — Exploration</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root { color-scheme: light; }
+    html, body { margin: 0; padding: 0; background: #f0eee9; font-family: 'Inter', system-ui, sans-serif; }
+    /* WeAct brand tokens */
+    :root {
+      --teal: #198496;
+      --teal-700: #146c7a;
+      --teal-50: rgba(25,132,150,0.05);
+      --teal-100: rgba(25,132,150,0.10);
+      --teal-ring: rgba(25,132,150,0.5);
+      --dark: #0F1419;
+      --footer: #101828;
+    }
+    .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    /* Subtle striped placeholder for imagery */
+    .ph-stripe {
+      background-color: #f5f4f0;
+      background-image: repeating-linear-gradient(135deg,
+        rgba(15,20,25,0.04) 0 8px,
+        transparent 8px 16px);
+    }
+    .ph-stripe-dark {
+      background-color: #1a1f24;
+      background-image: repeating-linear-gradient(135deg,
+        rgba(255,255,255,0.05) 0 8px,
+        transparent 8px 16px);
+    }
+    /* Chrono ring base */
+    .chrono-svg { transform: rotate(-90deg); }
+  </style>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Starters -->
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="tweaks-panel.jsx"></script>
+
+  <!-- Shared primitives + screens -->
+  <script type="text/babel" src="shared.jsx"></script>
+  <script type="text/babel" src="producer.jsx"></script>
+  <script type="text/babel" src="face.jsx"></script>
+  <script type="text/babel" src="workflow.jsx"></script>
+  <script type="text/babel" src="app.jsx"></script>
+</body>
+</html>

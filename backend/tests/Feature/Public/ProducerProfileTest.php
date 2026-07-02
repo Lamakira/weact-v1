@@ -242,6 +242,46 @@ class ProducerProfileTest extends TestCase
             ->assertJsonPath('data.missions_count', 2);
     }
 
+    public function test_published_ugc_missions_are_excluded_from_missions_count(): void
+    {
+        // FR5 (UGC 2.1) : les missions UGC sont invisibles de toutes les surfaces
+        // publiques — le count du profil producer doit refléter la liste publique.
+        $producer = $this->createProducerWithUser();
+
+        Mission::factory()->create([
+            'producer_id' => $producer->id,
+            'status' => MissionStatus::Published,
+        ]);
+
+        // Mission UGC publiée (la factory ne tire jamais `ugc` — attributs explicites)
+        $producer->missions()->create([
+            'titre' => 'Appel UGC — Unboxing',
+            'description' => 'desc',
+            'date_tournage' => now()->addMonth(),
+            'profil_recherche' => 'Créatrices',
+            'budget' => 0,
+            'date_limite_candidature' => now()->addWeeks(2),
+            'nombre_faces_voulu' => 3,
+            'type_mission' => 'ugc',
+            'genre_voulu' => 'tous',
+            'lieu' => 'Cotonou',
+            'duree' => 'Livrables vidéo',
+            'status' => MissionStatus::Published,
+            'commission_paid_at' => now(),
+            'type_compensation' => 'product',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'montant_remuneration' => null,
+            'commission_ugc' => 2500,
+        ]);
+
+        $response = $this->getJson("/api/v1/public/producers/{$producer->slug}");
+
+        $response->assertOk()
+            ->assertJsonPath('data.missions_count', 1);
+    }
+
     public function test_producer_with_only_non_published_missions_shows_zero(): void
     {
         $producer = $this->createProducerWithUser();

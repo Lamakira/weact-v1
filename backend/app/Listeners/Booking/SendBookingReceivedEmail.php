@@ -28,6 +28,11 @@ final class SendBookingReceivedEmail
     {
         try {
             $booking = $event->booking;
+
+            if ($booking->type_contenu === 'UGC') {
+                return; // l'email « demande reçue » est prématuré pour l'UGC (booking pending_payment) ; remplacé par UgcCommissionPaidMail (D-7.3.b)
+            }
+
             $booking->loadMissing(['face.userable', 'producer.userable']);
 
             $face = $booking->face->userable instanceof Face ? $booking->face->userable : null;

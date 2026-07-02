@@ -23,14 +23,16 @@ class NotifyFaceOnBookingReceived
 
             $booking->loadMissing('producer.userable');
             $producerName = (string) data_get($booking, 'producer.userable.display_name', 'Le Producteur');
-            $formattedDate = $booking->date_debut->format('d/m/Y');
+            // A UGC dotation has no shoot date/location → omit them from the message.
+            $formattedDate = $booking->date_debut?->format('d/m/Y');
+            $dateSuffix = $formattedDate ? " le {$formattedDate}" : '';
             $locationSuffix = $booking->lieu ? " à {$booking->lieu}" : '';
 
             Notification::create([
                 'user_id' => $booking->face_id,
                 'type' => 'booking_received',
                 'data' => [
-                    'message' => "{$producerName} souhaite vous booker pour {$booking->type_contenu} le {$formattedDate}{$locationSuffix}",
+                    'message' => "{$producerName} souhaite vous booker pour {$booking->type_contenu}{$dateSuffix}{$locationSuffix}",
                     'booking_id' => $booking->id,
                     'url' => "/face/bookings/{$booking->uuid}",
                 ],

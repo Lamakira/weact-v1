@@ -7,8 +7,10 @@ namespace Tests\Feature\Public;
 use App\Enums\FaceCategory;
 use App\Enums\FaceNiche;
 use App\Models\Face;
+use App\Models\FaceSubscription;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class PublicFacesListTest extends TestCase
@@ -40,6 +42,7 @@ class PublicFacesListTest extends TestCase
                         'is_available',
                         'profile_photo_thumbnail_url',
                         'average_rating',
+                        'has_elite_badge',
                     ],
                 ],
                 'meta' => [
@@ -303,10 +306,13 @@ class PublicFacesListTest extends TestCase
         $response = $this->getJson('/api/v1/public/faces?per_page=10');
 
         $response->assertOk();
+        // FP-2.6: the profile-completeness key now applies within the featured
+        // group too — oldFeatured (photo + tarif) outranks the newer newFeatured
+        // (photo only). Non-featured Faces follow, ordered by completeness.
         $this->assertSame(
             [
-                $newFeatured->uuid,
                 $oldFeatured->uuid,
+                $newFeatured->uuid,
                 $photoAndTarif->uuid,
                 $photoOnly->uuid,
                 $rest->uuid,
@@ -632,5 +638,820 @@ class PublicFacesListTest extends TestCase
 
         $response->assertOk();
         $this->assertEquals(3, $response->json('meta.total'));
+    }
+
+    // ─── Subscription-driven Featured Placement (FEATURE-FP-1.6) ──────
+
+    public function test_subscription_active_face_floats_to_featured_bucket(): void
+    {
+        $subscriptionFeatured = Face::factory()->create([
+            'prenom' => 'Sub Featured',
+            'is_featured' => false,
+            'profile_photo' => null,
+            'profile_photo_thumbnail' => null,
+            'tarif_journalier' => null,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $subscriptionFeatured->id,
+        ]);
+        FaceSubscription::factory()->active()->create([
+            'face_id' => $subscriptionFeatured->id,
+        ]);
+
+        $photoAndTarif = Face::factory()->create([
+            'prenom' => 'Photo Tarif',
+            'is_featured' => false,
+            'profile_photo' => 'photo-tarif.jpg',
+            'profile_photo_thumbnail' => 'photo-tarif-thumb.jpg',
+            'tarif_journalier' => 95000,
+            'created_at' => now()->subHours(6),
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $photoAndTarif->id,
+        ]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+        $response->assertOk();
+        $this->assertSame(
+            [$subscriptionFeatured->uuid, $photoAndTarif->uuid],
+            array_column($response->json('data'), 'id')
+        );
+    }
+
+    public function test_expired_subscription_does_not_float_to_featured_bucket(): void
+    {
+        $expiredSubFace = Face::factory()->create([
+            'prenom' => 'Expired Sub',
+            'is_featured' => false,
+            'profile_photo' => null,
+            'profile_photo_thumbnail' => null,
+            'tarif_journalier' => null,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $expiredSubFace->id,
+        ]);
+        FaceSubscription::factory()->expired()->create([
+            'face_id' => $expiredSubFace->id,
+        ]);
+
+        $photoAndTarif = Face::factory()->create([
+            'prenom' => 'Photo Tarif',
+            'is_featured' => false,
+            'profile_photo' => 'photo-tarif.jpg',
+            'profile_photo_thumbnail' => 'photo-tarif-thumb.jpg',
+            'tarif_journalier' => 95000,
+            'created_at' => now()->subHours(6),
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $photoAndTarif->id,
+        ]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+        $response->assertOk();
+        // Expired-sub Face is bucket 3 (no profile_photo, no tarif), Photo+Tarif is bucket 1.
+        $this->assertSame(
+            [$photoAndTarif->uuid, $expiredSubFace->uuid],
+            array_column($response->json('data'), 'id')
+        );
+    }
+
+    public function test_cancelled_pending_failed_subscriptions_do_not_float_to_featured_bucket(): void
+    {
+        $cancelledSubFace = Face::factory()->create([
+            'prenom' => 'Cancelled Sub',
+            'is_featured' => false,
+            'created_at' => now()->subDays(3),
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $cancelledSubFace->id,
+        ]);
+        FaceSubscription::factory()->cancelled()->create(['face_id' => $cancelledSubFace->id]);
+
+        $pendingSubFace = Face::factory()->create([
+            'prenom' => 'Pending Sub',
+            'is_featured' => false,
+            'created_at' => now()->subDays(2),
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $pendingSubFace->id,
+        ]);
+        FaceSubscription::factory()->pendingPayment()->create(['face_id' => $pendingSubFace->id]);
+
+        $failedSubFace = Face::factory()->create([
+            'prenom' => 'Failed Sub',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $failedSubFace->id,
+        ]);
+        FaceSubscription::factory()->failed()->create(['face_id' => $failedSubFace->id]);
+
+        $manualFeaturedFace = Face::factory()->create([
+            'prenom' => 'Manual',
+            'is_featured' => true,
+            'created_at' => now()->subHour(),
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $manualFeaturedFace->id,
+        ]);
+
+        $photoAndTarif = Face::factory()->create([
+            'prenom' => 'Photo Tarif',
+            'is_featured' => false,
+            'profile_photo' => 'photo-tarif.jpg',
+            'profile_photo_thumbnail' => 'photo-tarif-thumb.jpg',
+            'tarif_journalier' => 95000,
+            'created_at' => now()->subHours(2),
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $photoAndTarif->id,
+        ]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+        $response->assertOk();
+        $this->assertSame(
+            [
+                $manualFeaturedFace->uuid,
+                $photoAndTarif->uuid,
+                $failedSubFace->uuid,
+                $pendingSubFace->uuid,
+                $cancelledSubFace->uuid,
+            ],
+            array_column($response->json('data'), 'id')
+        );
+    }
+
+    public function test_stale_active_subscription_with_past_expiry_does_not_float_to_featured_bucket(): void
+    {
+        $staleActiveFace = Face::factory()->create([
+            'prenom' => 'Stale Active',
+            'is_featured' => false,
+            'profile_photo' => null,
+            'profile_photo_thumbnail' => null,
+            'tarif_journalier' => null,
+            'created_at' => now()->subHour(),
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $staleActiveFace->id,
+        ]);
+        FaceSubscription::factory()->active()->create([
+            'face_id' => $staleActiveFace->id,
+            'expires_at' => now()->subDay(),
+        ]);
+
+        $manualFeaturedFace = Face::factory()->create([
+            'prenom' => 'Manual',
+            'is_featured' => true,
+            'created_at' => now()->subHours(6),
+        ]);
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $manualFeaturedFace->id,
+        ]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+        $response->assertOk();
+        // Stale-active Face must NOT be in bucket 0.
+        $this->assertSame(
+            [$manualFeaturedFace->uuid, $staleActiveFace->uuid],
+            array_column($response->json('data'), 'id')
+        );
+    }
+
+    public function test_manual_featured_and_subscription_featured_coexist_in_bucket_zero(): void
+    {
+        $manualOnly = Face::factory()->create([
+            'prenom' => 'Manual Only',
+            'is_featured' => true,
+            'created_at' => now()->subDays(2),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $manualOnly->id]);
+
+        $subscriptionOnly = Face::factory()->create([
+            'prenom' => 'Subscription Only',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $subscriptionOnly->id]);
+        FaceSubscription::factory()->active()->create(['face_id' => $subscriptionOnly->id]);
+
+        $bothFlags = Face::factory()->create([
+            'prenom' => 'Both Flags',
+            'is_featured' => true,
+            'created_at' => now()->subHour(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $bothFlags->id]);
+        FaceSubscription::factory()->active()->create(['face_id' => $bothFlags->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+        $response->assertOk();
+        $this->assertSame(
+            [$bothFlags->uuid, $subscriptionOnly->uuid, $manualOnly->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+    }
+
+    public function test_public_response_omits_subscription_fields_for_subscription_featured_face(): void
+    {
+        $face = Face::factory()->create([
+            'is_featured' => false,
+            'profile_photo' => 'p.jpg',
+            'profile_photo_thumbnail' => 'p-thumb.jpg',
+            'tarif_journalier' => 100000,
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+        FaceSubscription::factory()->active()->create(['face_id' => $face->id]);
+
+        $response = $this->getJson('/api/v1/public/faces');
+        $response->assertOk();
+        $faceData = $response->json('data.0');
+
+        $this->assertArrayNotHasKey('is_featured', $faceData);
+        $this->assertArrayNotHasKey('is_featured_by_subscription', $faceData);
+        $this->assertArrayNotHasKey('subscription_tier', $faceData);
+        $this->assertArrayNotHasKey('subscriptions', $faceData);
+        $this->assertArrayNotHasKey('active_subscription', $faceData);
+    }
+
+    // ─── Tier-Priority Ordering (FEATURE-FP-2.6) ──────────────────────
+
+    public function test_faces_are_ordered_by_subscription_tier_priority(): void
+    {
+        $makeFace = function (string $prenom): Face {
+            $face = Face::factory()->create([
+                'prenom' => $prenom,
+                'is_featured' => false,
+                'profile_photo' => null,
+                'profile_photo_thumbnail' => null,
+                'tarif_journalier' => null,
+                'created_at' => now()->subDay(),
+            ]);
+            User::factory()->create([
+                'userable_type' => Face::class,
+                'userable_id' => $face->id,
+            ]);
+
+            return $face;
+        };
+
+        $elite = $makeFace('Elite');
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $elite->id]);
+
+        $pro = $makeFace('Pro');
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $pro->id]);
+
+        $starter = $makeFace('Starter');
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $starter->id]);
+
+        $free = $makeFace('Free'); // no subscription row
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$elite->uuid, $pro->uuid, $starter->uuid, $free->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+    }
+
+    public function test_elite_subscriber_outranks_a_manually_featured_free_face(): void
+    {
+        $manualFeaturedFree = Face::factory()->create([
+            'prenom' => 'Manual Featured Free',
+            'is_featured' => true,
+            'created_at' => now()->subHour(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $manualFeaturedFree->id]);
+
+        $elite = Face::factory()->create([
+            'prenom' => 'Elite',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $elite->id]);
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $elite->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$elite->uuid, $manualFeaturedFree->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+    }
+
+    public function test_manual_is_featured_boosts_within_a_tier_bucket(): void
+    {
+        $featuredPro = Face::factory()->create([
+            'prenom' => 'Featured Pro',
+            'is_featured' => true,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $featuredPro->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $featuredPro->id]);
+
+        $plainPro = Face::factory()->create([
+            'prenom' => 'Plain Pro',
+            'is_featured' => false,
+            'created_at' => now()->subHour(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $plainPro->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $plainPro->id]);
+
+        $featuredFree = Face::factory()->create([
+            'prenom' => 'Featured Free',
+            'is_featured' => true,
+            'created_at' => now()->subHour(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $featuredFree->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$featuredPro->uuid, $plainPro->uuid, $featuredFree->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+    }
+
+    public function test_profile_completeness_breaks_ties_within_a_tier_bucket(): void
+    {
+        $photoTarif = Face::factory()->create([
+            'prenom' => 'Photo Tarif',
+            'is_featured' => false,
+            'profile_photo' => 'photo-tarif.jpg',
+            'profile_photo_thumbnail' => 'photo-tarif-thumb.jpg',
+            'tarif_journalier' => 95000,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $photoTarif->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $photoTarif->id]);
+
+        $photoOnly = Face::factory()->create([
+            'prenom' => 'Photo Only',
+            'is_featured' => false,
+            'profile_photo' => 'photo-only.jpg',
+            'profile_photo_thumbnail' => 'photo-only-thumb.jpg',
+            'tarif_journalier' => null,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $photoOnly->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $photoOnly->id]);
+
+        $bare = Face::factory()->create([
+            'prenom' => 'Bare',
+            'is_featured' => false,
+            'profile_photo' => null,
+            'profile_photo_thumbnail' => null,
+            'tarif_journalier' => null,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $bare->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $bare->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$photoTarif->uuid, $photoOnly->uuid, $bare->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+    }
+
+    public function test_created_at_breaks_final_ties_within_a_tier_bucket(): void
+    {
+        $newer = Face::factory()->create([
+            'prenom' => 'Newer Pro',
+            'is_featured' => false,
+            'profile_photo' => null,
+            'profile_photo_thumbnail' => null,
+            'tarif_journalier' => null,
+            'created_at' => now()->subHour(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $newer->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $newer->id]);
+
+        $older = Face::factory()->create([
+            'prenom' => 'Older Pro',
+            'is_featured' => false,
+            'profile_photo' => null,
+            'profile_photo_thumbnail' => null,
+            'tarif_journalier' => null,
+            'created_at' => now()->subDays(3),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $older->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $older->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$newer->uuid, $older->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+    }
+
+    public function test_face_drops_to_free_bucket_after_subscription_expiration(): void
+    {
+        $expiredElite = Face::factory()->create([
+            'prenom' => 'Expired Elite',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $expiredElite->id]);
+        FaceSubscription::factory()->elite()->expired()->create(['face_id' => $expiredElite->id]);
+
+        $starter = Face::factory()->create([
+            'prenom' => 'Starter',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $starter->id]);
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $starter->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$starter->uuid, $expiredElite->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+    }
+
+    public function test_face_ranks_by_active_row_after_a_tier_change(): void
+    {
+        // FP-2.5 tier-change outcome: the old Pro row is Cancelled, a fresh Élite
+        // row is Active. The Face must now rank in the Élite bucket.
+        $upgraded = Face::factory()->create([
+            'prenom' => 'Upgraded',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $upgraded->id]);
+        FaceSubscription::factory()->pro()->cancelled()->create(['face_id' => $upgraded->id]);
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $upgraded->id]);
+
+        $pro = Face::factory()->create([
+            'prenom' => 'Pro',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $pro->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $pro->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$upgraded->uuid, $pro->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+    }
+
+    public function test_face_with_mixed_subscription_history_ranks_by_its_active_row(): void
+    {
+        $mixedHistory = Face::factory()->create([
+            'prenom' => 'Mixed History',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $mixedHistory->id]);
+        FaceSubscription::factory()->pro()->cancelled()->create(['face_id' => $mixedHistory->id]);
+        FaceSubscription::factory()->starter()->expired()->create(['face_id' => $mixedHistory->id]);
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $mixedHistory->id]);
+
+        $pro = Face::factory()->create([
+            'prenom' => 'Pro',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $pro->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $pro->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$mixedHistory->uuid, $pro->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+    }
+
+    public function test_cancelled_pending_failed_subscriptions_keep_face_in_free_bucket(): void
+    {
+        $freeBucketFace = Face::factory()->create([
+            'prenom' => 'Free Bucket',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $freeBucketFace->id]);
+        FaceSubscription::factory()->pro()->cancelled()->create(['face_id' => $freeBucketFace->id]);
+        FaceSubscription::factory()->pro()->pendingPayment()->create(['face_id' => $freeBucketFace->id]);
+        FaceSubscription::factory()->pro()->failed()->create(['face_id' => $freeBucketFace->id]);
+
+        $starter = Face::factory()->create([
+            'prenom' => 'Starter',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $starter->id]);
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $starter->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$starter->uuid, $freeBucketFace->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+    }
+
+    public function test_stale_active_subscription_past_expiry_keeps_face_in_free_bucket(): void
+    {
+        $staleElite = Face::factory()->create([
+            'prenom' => 'Stale Elite',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $staleElite->id]);
+        FaceSubscription::factory()->elite()->active()->create([
+            'face_id' => $staleElite->id,
+            'expires_at' => now()->subDay(),
+        ]);
+
+        $pro = Face::factory()->create([
+            'prenom' => 'Pro',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $pro->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $pro->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$pro->uuid, $staleElite->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+    }
+
+    public function test_tier_priority_order_is_driven_by_config(): void
+    {
+        // Flip the configured priorities so Starter outranks Élite; the list order
+        // must follow with zero code change (Product Decision #9).
+        config(['face_subscription_tiers.tiers.starter.capabilities.sort_priority' => 1]);
+        config(['face_subscription_tiers.tiers.elite.capabilities.sort_priority' => 3]);
+
+        $elite = Face::factory()->create([
+            'prenom' => 'Elite',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $elite->id]);
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $elite->id]);
+
+        $starter = Face::factory()->create([
+            'prenom' => 'Starter',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $starter->id]);
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $starter->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$starter->uuid, $elite->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+    }
+
+    public function test_all_free_faces_order_by_featured_then_completeness_then_created_at(): void
+    {
+        $featured = Face::factory()->create([
+            'prenom' => 'Featured Free',
+            'is_featured' => true,
+            'profile_photo' => null,
+            'profile_photo_thumbnail' => null,
+            'tarif_journalier' => null,
+            'created_at' => now()->subDays(4),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $featured->id]);
+
+        $photoTarif = Face::factory()->create([
+            'prenom' => 'Photo Tarif',
+            'is_featured' => false,
+            'profile_photo' => 'photo-tarif.jpg',
+            'profile_photo_thumbnail' => 'photo-tarif-thumb.jpg',
+            'tarif_journalier' => 95000,
+            'created_at' => now()->subDays(3),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $photoTarif->id]);
+
+        $photoOnly = Face::factory()->create([
+            'prenom' => 'Photo Only',
+            'is_featured' => false,
+            'profile_photo' => 'photo-only.jpg',
+            'profile_photo_thumbnail' => 'photo-only-thumb.jpg',
+            'tarif_journalier' => null,
+            'created_at' => now()->subDays(2),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $photoOnly->id]);
+
+        $bare = Face::factory()->create([
+            'prenom' => 'Bare',
+            'is_featured' => false,
+            'profile_photo' => null,
+            'profile_photo_thumbnail' => null,
+            'tarif_journalier' => null,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $bare->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$featured->uuid, $photoTarif->uuid, $photoOnly->uuid, $bare->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+    }
+
+    public function test_full_mixed_tier_ordering(): void
+    {
+        $plainElite = Face::factory()->create([
+            'prenom' => 'Plain Elite',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $plainElite->id]);
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $plainElite->id]);
+
+        $featuredPro = Face::factory()->create([
+            'prenom' => 'Featured Pro',
+            'is_featured' => true,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $featuredPro->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $featuredPro->id]);
+
+        $plainPro = Face::factory()->create([
+            'prenom' => 'Plain Pro',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $plainPro->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $plainPro->id]);
+
+        $plainStarter = Face::factory()->create([
+            'prenom' => 'Plain Starter',
+            'is_featured' => false,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $plainStarter->id]);
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $plainStarter->id]);
+
+        $featuredFree = Face::factory()->create([
+            'prenom' => 'Featured Free',
+            'is_featured' => true,
+            'created_at' => now()->subDay(),
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $featuredFree->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$plainElite->uuid, $featuredPro->uuid, $plainPro->uuid, $plainStarter->uuid, $featuredFree->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+    }
+
+    public function test_tier_priority_ordering_adds_no_per_row_queries(): void
+    {
+        // The tier-priority ordering is a correlated subquery inside the single
+        // paginated SELECT — it must add zero per-Face queries. Proven by
+        // querying the same 10-Face list with and without active subscriptions:
+        // the query count is identical. (The public list has a pre-existing
+        // per-Face query cost unrelated to FP-2.6; this comparison cancels it.)
+        $faces = [];
+        for ($i = 0; $i < 10; $i++) {
+            $face = Face::factory()->create();
+            User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+            $faces[] = $face;
+        }
+
+        DB::enableQueryLog();
+
+        try {
+            $this->getJson('/api/v1/public/faces?per_page=15')->assertOk();
+            $withoutSubscriptions = count(DB::getQueryLog());
+
+            foreach ($faces as $face) {
+                FaceSubscription::factory()->active()->create(['face_id' => $face->id]);
+            }
+
+            DB::flushQueryLog();
+            $this->getJson('/api/v1/public/faces?per_page=15')->assertOk();
+            $withSubscriptions = count(DB::getQueryLog());
+
+            $this->assertGreaterThan(0, $withoutSubscriptions);
+            $this->assertSame(
+                $withoutSubscriptions,
+                $withSubscriptions,
+                'The tier-priority ordering subquery must not add a query per subscribed Face.',
+            );
+        } finally {
+            DB::disableQueryLog();
+        }
+    }
+
+    public function test_public_faces_list_fails_loud_on_non_integer_tier_sort_priority(): void
+    {
+        // The tierSortPriority() guard must reject a non-integer config value
+        // (here a fractional 1.9) instead of silently truncating it to 1 and
+        // mis-ranking the tier — a broken config must surface, not sort wrong.
+        config(['face_subscription_tiers.tiers.pro.capabilities.sort_priority' => 1.9]);
+
+        $this->withoutExceptionHandling();
+        $this->expectException(\RuntimeException::class);
+
+        $this->getJson('/api/v1/public/faces');
+    }
+
+    // ===================================================================
+    // FP-2.12.1 — has_elite_badge in public faces listing
+    // ===================================================================
+
+    public function test_public_list_emits_has_elite_badge_true_for_active_elite_face(): void
+    {
+        $face = Face::factory()->create();
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $face->id]);
+
+        $this->getJson('/api/v1/public/faces')
+            ->assertOk()
+            ->assertJsonPath('data.0.has_elite_badge', true);
+    }
+
+    public function test_public_list_emits_has_elite_badge_false_for_non_elite_tiers(): void
+    {
+        // Free (no subscription)
+        $free = Face::factory()->create();
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $free->id]);
+
+        // Starter active
+        $starter = Face::factory()->create();
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $starter->id]);
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $starter->id]);
+
+        // Pro active
+        $pro = Face::factory()->create();
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $pro->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $pro->id]);
+
+        $response = $this->getJson('/api/v1/public/faces')->assertOk();
+
+        // Élite-bucket is empty so the 3 returned rows are all non-Élite.
+        $this->assertCount(3, $response->json('data'));
+        foreach ($response->json('data') as $row) {
+            $this->assertFalse($row['has_elite_badge'], "Face {$row['username']} should not have elite badge");
+        }
+    }
+
+    public function test_public_list_emits_has_elite_badge_false_for_expired_and_cancelled_elite(): void
+    {
+        $expired = Face::factory()->create();
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $expired->id]);
+        FaceSubscription::factory()->elite()->expired()->create(['face_id' => $expired->id]);
+
+        $cancelled = Face::factory()->create();
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $cancelled->id]);
+        FaceSubscription::factory()->elite()->cancelled()->create(['face_id' => $cancelled->id]);
+
+        $response = $this->getJson('/api/v1/public/faces')->assertOk();
+
+        $this->assertCount(2, $response->json('data'));
+        foreach ($response->json('data') as $row) {
+            $this->assertFalse($row['has_elite_badge'], "Non-Active Élite face {$row['username']} must not earn the badge");
+        }
     }
 }

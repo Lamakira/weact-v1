@@ -154,9 +154,12 @@ describe('usePhotoAlbum', () => {
       expect(isUploading.value).toBe(false)
     })
 
-    it('rejects when album is full (4 photos)', async () => {
+    it('delegates the album-full check to the backend (no client-side cap)', async () => {
+      // After FP-1.7 the composable no longer enforces the album cap client-side.
+      // The backend's AlbumQuotaReachedException (HTTP 422) is the canonical signal.
+      vi.mocked(faceApi.addAlbumPhoto).mockRejectedValue(new Error('Quota reached'))
+
       const { photos, addPhoto, error } = usePhotoAlbum()
-      // Set 4 photos
       photos.value = [
         { ...mockPhoto1, id: 1, position: 1 },
         { ...mockPhoto1, id: 2, position: 2 },
@@ -168,10 +171,10 @@ describe('usePhotoAlbum', () => {
 
       const result = await addPhoto(file)
 
+      expect(faceApi.addAlbumPhoto).toHaveBeenCalledOnce()
       expect(result.success).toBe(false)
-      expect(result.message).toBe('Maximum 4 photos atteint')
-      expect(error.value).toBe('Maximum 4 photos atteint')
-      expect(faceApi.addAlbumPhoto).not.toHaveBeenCalled()
+      expect(result.message).toBe('Une erreur est survenue')
+      expect(error.value).toBe('Une erreur est survenue')
     })
 
     it('handles upload error', async () => {
@@ -333,43 +336,56 @@ describe('usePhotoAlbum', () => {
       expect(photoCount.value).toBe(2)
     })
 
-    it('canAddMore returns true when under limit', async () => {
-      vi.mocked(faceApi.getAlbumPhotos).mockResolvedValue(mockPhotosResponse)
-
-      const { canAddMore, fetchPhotos } = usePhotoAlbum()
-
-      await fetchPhotos()
-
-      expect(canAddMore.value).toBe(true)
-    })
-
-    it('canAddMore returns false when at limit', () => {
+    it('canAddMore returns true one photo under the absolute ceiling of 6', () => {
       const { photos, canAddMore } = usePhotoAlbum()
       photos.value = [
         { ...mockPhoto1, id: 1, position: 1 },
         { ...mockPhoto1, id: 2, position: 2 },
         { ...mockPhoto1, id: 3, position: 3 },
         { ...mockPhoto1, id: 4, position: 4 },
+        { ...mockPhoto1, id: 5, position: 5 },
+      ]
+
+      expect(canAddMore.value).toBe(true)
+    })
+
+    it('canAddMore returns false at the absolute ceiling of 6', () => {
+      const { photos, canAddMore } = usePhotoAlbum()
+      photos.value = [
+        { ...mockPhoto1, id: 1, position: 1 },
+        { ...mockPhoto1, id: 2, position: 2 },
+        { ...mockPhoto1, id: 3, position: 3 },
+        { ...mockPhoto1, id: 4, position: 4 },
+        { ...mockPhoto1, id: 5, position: 5 },
+        { ...mockPhoto1, id: 6, position: 6 },
       ]
 
       expect(canAddMore.value).toBe(false)
     })
 
-    it('isFull returns true when at limit', () => {
+    it('isFull returns true at the absolute ceiling of 6', () => {
       const { photos, isFull } = usePhotoAlbum()
       photos.value = [
         { ...mockPhoto1, id: 1, position: 1 },
         { ...mockPhoto1, id: 2, position: 2 },
         { ...mockPhoto1, id: 3, position: 3 },
         { ...mockPhoto1, id: 4, position: 4 },
+        { ...mockPhoto1, id: 5, position: 5 },
+        { ...mockPhoto1, id: 6, position: 6 },
       ]
 
       expect(isFull.value).toBe(true)
     })
 
-    it('isFull returns false when under limit', () => {
+    it('isFull returns false one photo under the absolute ceiling of 6', () => {
       const { photos, isFull } = usePhotoAlbum()
-      photos.value = [mockPhoto1, mockPhoto2]
+      photos.value = [
+        { ...mockPhoto1, id: 1, position: 1 },
+        { ...mockPhoto1, id: 2, position: 2 },
+        { ...mockPhoto1, id: 3, position: 3 },
+        { ...mockPhoto1, id: 4, position: 4 },
+        { ...mockPhoto1, id: 5, position: 5 },
+      ]
 
       expect(isFull.value).toBe(false)
     })

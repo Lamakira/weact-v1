@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Mission;
 
 use App\Enums\MissionStatus;
+use App\Enums\MissionType;
 use App\Models\Mission;
 use App\Models\Producer;
 use Illuminate\Foundation\Http\FormRequest;
@@ -51,6 +52,26 @@ class UpdateMissionRequest extends FormRequest
         $validator->after(function ($validator) {
             /** @var Mission $mission */
             $mission = $this->route('mission');
+
+            if ($this->input('type_mission') === MissionType::Ugc->value) {
+                $validator->errors()->add(
+                    'type_mission',
+                    'Le type UGC ne peut pas être utilisé pour modifier une mission existante.'
+                );
+            }
+
+            // Une mission UGC déjà persistée n'est JAMAIS modifiable (miroir backend du
+            // dead-end front EditMissionPage). On teste la mission PERSISTÉE, pas l'input :
+            // un PUT forgé `type_mission='standard'` ne doit pas pouvoir muter ni convertir
+            // une mission UGC (classe de bug ugc-1-3). Court-circuit dès qu'on sait UGC.
+            if ($mission->type_mission === MissionType::Ugc) {
+                $validator->errors()->add(
+                    'mission',
+                    'Une mission UGC ne peut pas être modifiée.'
+                );
+
+                return;
+            }
 
             if ($mission->status === MissionStatus::PendingPayment) {
                 $validator->errors()->add(

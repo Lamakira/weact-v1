@@ -101,6 +101,16 @@ describe('AppHeader', () => {
       expect(wrapper.text()).toContain('Trouver des faces')
       expect(wrapper.text()).toContain('Missions')
       expect(wrapper.text()).toContain('Ressources')
+      expect(wrapper.text()).toContain('Tarifs')
+    })
+
+    it('exposes the Tarifs nav link with the correct testid and route (FP-2.15)', () => {
+      const wrapper = mountHeader()
+
+      const tarifsLink = wrapper.findComponent('[data-testid="nav-tarifs"]' as never)
+      expect(tarifsLink.exists()).toBe(true)
+      expect(tarifsLink.props('to')).toBe('/pricing')
+      expect(tarifsLink.text()).toBe('Tarifs')
     })
 
     it('does not display Dashboard link when not authenticated', () => {
@@ -312,6 +322,7 @@ describe('AppHeader', () => {
       expect(mobileMenu.text()).toContain('Trouver des faces')
       expect(mobileMenu.text()).toContain('Missions')
       expect(mobileMenu.text()).toContain('Ressources')
+      expect(mobileMenu.text()).toContain('Tarifs')
     })
 
     it('mobile menu contains CTAs for guest', async () => {

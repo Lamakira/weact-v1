@@ -2,7 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import { CheckCircle, XCircle, Bell, Loader2 } from 'lucide-vue-next'
+import { CheckCircle, XCircle, Bell, Loader2, Clock } from 'lucide-vue-next'
 import type { Notification } from '../types'
 import { NotificationType } from '../types'
 import { useNotificationStore } from '@/stores/notification'
@@ -72,6 +72,19 @@ function getNotificationIcon(type: string): 'check' | 'x' | 'bell' {
   if (positiveTypes.includes(type)) return 'check'
   if (negativeTypes.includes(type)) return 'x'
   return 'bell'
+}
+
+// UGC 4.5 — escalade visuelle de l'inbox (9A) : horloge colorée par palier,
+// mêmes hex que ChronoBadge/ChronoRing (cohérence chrono ↔ inbox). teal = base,
+// jamais notifié → la couleur démarre à l'ambre (niveau 1).
+function isDeadlineEscalation(type: string): boolean {
+  return type === NotificationType.UGC_DEADLINE_APPROACHING
+}
+
+function escalationColor(level?: number): string {
+  if (level !== undefined && level >= 3) return '#DC2626'
+  if (level === 2) return '#EA580C'
+  return '#F59E0B'
 }
 
 onMounted(async () => {
@@ -151,8 +164,14 @@ onMounted(async () => {
             <div class="flex gap-3">
               <!-- Icon -->
               <div class="flex-shrink-0 mt-0.5">
+                <Clock
+                  v-if="isDeadlineEscalation(notification.type)"
+                  class="w-5 h-5"
+                  :style="{ color: escalationColor(notification.data.level) }"
+                  data-testid="deadline-icon"
+                />
                 <CheckCircle
-                  v-if="getNotificationIcon(notification.type) === 'check'"
+                  v-else-if="getNotificationIcon(notification.type) === 'check'"
                   class="w-5 h-5 text-green-600"
                 />
                 <XCircle

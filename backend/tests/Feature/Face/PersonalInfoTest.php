@@ -6,6 +6,7 @@ namespace Tests\Feature\Face;
 
 use App\Enums\FaceGender;
 use App\Models\Face;
+use App\Models\FaceVideo;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -272,7 +273,6 @@ class PersonalInfoTest extends TestCase
         $this->face->update([
             'profile_photo' => 'photo.jpg',
             'presentation_video' => 'video.mp4',
-            'acting_video' => 'acting.mp4',
             'bio' => 'My bio',
             'ville' => 'Cotonou',
             'categories' => ['mannequin'],
@@ -280,6 +280,7 @@ class PersonalInfoTest extends TestCase
             'langues' => ['francais'],
             'whatsapp_number' => '+22990001122',
         ]);
+        FaceVideo::factory()->acting()->create(['face_id' => $this->face->id]);
 
         $this->assertEquals(100, $this->face->fresh()->profile_completion_percentage);
     }

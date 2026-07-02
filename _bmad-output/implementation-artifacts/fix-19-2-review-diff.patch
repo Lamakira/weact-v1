@@ -1,0 +1,395 @@
+diff --git a/_bmad-output/implementation-artifacts/sprint-status.yaml b/_bmad-output/implementation-artifacts/sprint-status.yaml
+index 50a53eb..8fd6f44 100644
+--- a/_bmad-output/implementation-artifacts/sprint-status.yaml
++++ b/_bmad-output/implementation-artifacts/sprint-status.yaml
+@@ -432,7 +432,7 @@ development_status:
+   # Epic FIX-19: Résilience locale du paiement mission (5 stories)
+   epic-fix-19: in-progress
+   fix-19-1-compensate-mission-payment-initiation-failure: done
+-  fix-19-2-resume-mission-payment-checkout: ready-for-dev
++  fix-19-2-resume-mission-payment-checkout: in-progress
+   fix-19-3-guard-false-pending-payment-ui: ready-for-dev
+   fix-19-4-log-mission-payment-failure-context: ready-for-dev
+   fix-19-5-cover-mission-payment-failure-regressions: ready-for-dev
+diff --git a/backend/app/Http/Controllers/Api/V1/Producer/MissionPaymentController.php b/backend/app/Http/Controllers/Api/V1/Producer/MissionPaymentController.php
+index 20e983a..7f82b84 100644
+--- a/backend/app/Http/Controllers/Api/V1/Producer/MissionPaymentController.php
++++ b/backend/app/Http/Controllers/Api/V1/Producer/MissionPaymentController.php
+@@ -31,9 +31,12 @@ public function __construct(
+     public function confirmAndPay(ConfirmMissionSelectionRequest $request, Mission $mission): JsonResponse
+     {
+         try {
++            /** @var string[] $candidatureIds */
++            $candidatureIds = (array) $request->validated('candidature_ids', []);
++
+             $result = $this->missionPaymentService->confirmAndInitiatePayment(
+                 $mission,
+-                $request->validated('candidature_ids')
++                $candidatureIds
+             );
+ 
+             return response()->json([
+diff --git a/backend/app/Http/Requests/Producer/ConfirmMissionSelectionRequest.php b/backend/app/Http/Requests/Producer/ConfirmMissionSelectionRequest.php
+index b0ac3f1..2bb9550 100644
+--- a/backend/app/Http/Requests/Producer/ConfirmMissionSelectionRequest.php
++++ b/backend/app/Http/Requests/Producer/ConfirmMissionSelectionRequest.php
+@@ -4,6 +4,8 @@
+ 
+ namespace App\Http\Requests\Producer;
+ 
++use App\Enums\MissionPaymentStatus;
++use App\Enums\MissionStatus;
+ use App\Models\Mission;
+ use App\Models\Producer;
+ use Illuminate\Foundation\Http\FormRequest;
+@@ -29,8 +31,13 @@ public function authorize(): bool
+      */
+     public function rules(): array
+     {
++        /** @var Mission $mission */
++        $mission = $this->route('mission');
++
++        $selectionRule = $this->canResumePendingPayment($mission) ? 'sometimes' : 'required';
++
+         return [
+-            'candidature_ids' => ['required', 'array', 'min:1'],
++            'candidature_ids' => [$selectionRule, 'array', 'min:1'],
+             'candidature_ids.*' => ['required', 'string', 'uuid', 'exists:candidatures,uuid'],
+         ];
+     }
+@@ -46,4 +53,13 @@ public function messages(): array
+             'candidature_ids.*.exists' => 'Une ou plusieurs candidatures sélectionnées sont invalides.',
+         ];
+     }
++
++    private function canResumePendingPayment(Mission $mission): bool
++    {
++        $payment = $mission->payment;
++
++        return $mission->status === MissionStatus::PendingPayment
++            && $payment !== null
++            && $payment->status === MissionPaymentStatus::Pending;
++    }
+ }
+diff --git a/backend/app/Services/MissionPaymentService.php b/backend/app/Services/MissionPaymentService.php
+index f3819e9..479bf5e 100644
+--- a/backend/app/Services/MissionPaymentService.php
++++ b/backend/app/Services/MissionPaymentService.php
+@@ -17,6 +17,8 @@
+ use App\Models\Notification;
+ use App\Models\User;
+ use App\ValueObjects\MissionPricing;
++use Illuminate\Contracts\Cache\LockTimeoutException;
++use Illuminate\Support\Facades\Cache;
+ use Illuminate\Support\Facades\DB;
+ use Illuminate\Support\Facades\Log;
+ use Illuminate\Support\Str;
+@@ -39,22 +41,36 @@ public function __construct(
+      */
+     public function confirmAndInitiatePayment(Mission $mission, array $candidatureUuids): array
+     {
+-        $prepared = $this->prepareSelectionForPayment($mission, $candidatureUuids);
+-        $remotePayment = null;
++        return $this->withMissionPaymentLock($mission, function () use ($mission, $candidatureUuids): array {
++            $existingPayment = $this->resolveResumablePayment($mission);
+ 
+-        try {
+-            $remotePayment = $this->requestHostedCheckout($prepared['payment']);
+-            $payment = $this->finalizePreparedPayment($prepared['payment'], $remotePayment);
+-        } catch (\Throwable $e) {
+-            $this->handleInitiationFailure($prepared, $remotePayment, $e);
+-        }
++            if ($existingPayment instanceof MissionPayment) {
++                return $this->initiatePayment($existingPayment);
++            }
++
++            if ($candidatureUuids === []) {
++                throw ValidationException::withMessages([
++                    'candidature_ids' => ['Vous devez sélectionner au moins une candidature.'],
++                ]);
++            }
+ 
+-        $this->dispatchSelectionNotifications($prepared['notifications']);
++            $prepared = $this->prepareSelectionForPayment($mission, $candidatureUuids);
++            $remotePayment = null;
+ 
+-        return [
+-            'payment' => $payment,
+-            'checkout_url' => $remotePayment['checkout_url'],
+-        ];
++            try {
++                $remotePayment = $this->requestHostedCheckout($prepared['payment']);
++                $payment = $this->finalizePreparedPayment($prepared['payment'], $remotePayment);
++            } catch (\Throwable $e) {
++                $this->handleInitiationFailure($prepared, $remotePayment, $e);
++            }
++
++            $this->dispatchSelectionNotifications($prepared['notifications']);
++
++            return [
++                'payment' => $payment,
++                'checkout_url' => $remotePayment['checkout_url'],
++            ];
++        });
+     }
+ 
+     /**
+@@ -204,6 +220,49 @@ protected function requestHostedCheckout(MissionPayment $payment): array
+         );
+     }
+ 
++    /**
++     * @template T
++     *
++     * @param  callable(): T  $callback
++     * @return T
++     *
++     * @throws ValidationException
++     */
++    private function withMissionPaymentLock(Mission $mission, callable $callback): mixed
++    {
++        $lock = Cache::lock("mission_payment_{$mission->id}", 30);
++
++        try {
++            return $lock->block(5, $callback);
++        } catch (LockTimeoutException) {
++            throw ValidationException::withMessages([
++                'status' => ['Un paiement est deja en cours pour cette mission.'],
++            ]);
++        } finally {
++            optional($lock)->release();
++        }
++    }
++
++    private function resolveResumablePayment(Mission $mission): ?MissionPayment
++    {
++        /** @var Mission $freshMission */
++        $freshMission = Mission::query()
++            ->with('payment')
++            ->findOrFail($mission->id);
++
++        $payment = $freshMission->payment;
++
++        if (
++            ! $payment instanceof MissionPayment
++            || $freshMission->status !== MissionStatus::PendingPayment
++            || $payment->status !== MissionPaymentStatus::Pending
++        ) {
++            return null;
++        }
++
++        return $payment;
++    }
++
+     /**
+      * @param  array{fedapay_transaction_id: int, checkout_url: string}  $remotePayment
+      */
+diff --git a/backend/tests/Feature/Mission/MissionPaymentInitiationTest.php b/backend/tests/Feature/Mission/MissionPaymentInitiationTest.php
+index c036762..a57bee5 100644
+--- a/backend/tests/Feature/Mission/MissionPaymentInitiationTest.php
++++ b/backend/tests/Feature/Mission/MissionPaymentInitiationTest.php
+@@ -5,14 +5,18 @@
+ namespace Tests\Feature\Mission;
+ 
+ use App\Enums\CandidatureStatus;
++use App\Enums\EscrowStatus;
+ use App\Enums\MissionStatus;
+ use App\Models\Candidature;
+ use App\Models\Face;
+ use App\Models\Mission;
++use App\Models\MissionPayment;
++use App\Models\MissionPaymentCandidature;
+ use App\Models\Producer;
+ use App\Models\User;
+ use App\Services\FedapayService;
+ use App\Services\MissionPaymentService;
++use App\ValueObjects\MissionPricing;
+ use Illuminate\Foundation\Testing\RefreshDatabase;
+ use Illuminate\Support\Facades\Log;
+ use Tests\TestCase;
+@@ -132,6 +136,125 @@ public function test_successful_payment_initiation_finalizes_selection_and_creat
+         ]);
+     }
+ 
++    public function test_retry_without_reselecting_faces_reuses_existing_checkout_url(): void
++    {
++        $payment = $this->createPendingMissionPayment('123456');
++        $existingTransaction = $this->makeTransactionStub(
++            status: 'pending',
++            checkoutUrl: 'https://checkout.fedapay.com/reused-token',
++        );
++
++        $this->mock(FedapayService::class, function ($mock) use ($existingTransaction): void {
++            $mock->shouldReceive('retrieveTransaction')
++                ->once()
++                ->with(123456)
++                ->andReturn($existingTransaction);
++            $mock->shouldNotReceive('initiatePaymentForMission');
++        });
++
++        $response = $this->actingAs($this->producerUser)
++            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", []);
++
++        $response->assertOk()
++            ->assertJsonPath('data.payment_id', $payment->id)
++            ->assertJsonPath('data.checkout_url', 'https://checkout.fedapay.com/reused-token')
++            ->assertJsonPath('data.status', 'pending');
++
++        $this->assertSame(1, MissionPayment::query()->count());
++        $this->assertSame(MissionStatus::PendingPayment, $this->mission->fresh()->status);
++        $this->assertSame(CandidatureStatus::Accepted, $this->selectedFirst->fresh()->status);
++        $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
++        $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
++    }
++
++    public function test_second_confirmation_request_reuses_same_mission_payment_without_duplicate_mutation(): void
++    {
++        $existingTransaction = $this->makeTransactionStub(
++            status: 'pending',
++            checkoutUrl: 'https://checkout.fedapay.com/reused-token',
++        );
++
++        $this->mock(FedapayService::class, function ($mock) use ($existingTransaction): void {
++            $mock->shouldReceive('initiatePaymentForMission')
++                ->once()
++                ->andReturn([
++                    'fedapay_transaction_id' => 123456,
++                    'checkout_url' => 'https://checkout.fedapay.com/mission-token',
++                ]);
++            $mock->shouldReceive('retrieveTransaction')
++                ->once()
++                ->with(123456)
++                ->andReturn($existingTransaction);
++        });
++
++        $payload = [
++            'candidature_ids' => [
++                $this->selectedFirst->uuid,
++                $this->selectedSecond->uuid,
++            ],
++        ];
++
++        $this->actingAs($this->producerUser)
++            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", $payload)
++            ->assertOk()
++            ->assertJsonPath('data.checkout_url', 'https://checkout.fedapay.com/mission-token');
++
++        $secondResponse = $this->actingAs($this->producerUser)
++            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", $payload);
++
++        $secondResponse->assertOk()
++            ->assertJsonPath('data.checkout_url', 'https://checkout.fedapay.com/reused-token');
++
++        $this->assertSame(1, MissionPayment::query()->count());
++        $this->assertDatabaseHas('mission_payments', [
++            'mission_id' => $this->mission->id,
++            'fedapay_transaction_id' => '123456',
++            'status' => 'pending',
++        ]);
++    }
++
++    public function test_retry_after_terminal_remote_failure_reuses_same_payment_record_with_new_checkout(): void
++    {
++        $payment = $this->createPendingMissionPayment('123456');
++        $failedTransaction = $this->makeTransactionStub(
++            status: 'declined',
++            checkoutUrl: 'https://checkout.fedapay.com/obsolete-token',
++            expectsGenerateToken: false,
++        );
++
++        $this->mock(FedapayService::class, function ($mock) use ($failedTransaction): void {
++            $mock->shouldReceive('retrieveTransaction')
++                ->once()
++                ->with(123456)
++                ->andReturn($failedTransaction);
++            $mock->shouldReceive('initiatePaymentForMission')
++                ->once()
++                ->andReturn([
++                    'fedapay_transaction_id' => 987654,
++                    'checkout_url' => 'https://checkout.fedapay.com/retry-token',
++                ]);
++        });
++
++        $response = $this->actingAs($this->producerUser)
++            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", []);
++
++        $response->assertOk()
++            ->assertJsonPath('data.payment_id', $payment->id)
++            ->assertJsonPath('data.checkout_url', 'https://checkout.fedapay.com/retry-token')
++            ->assertJsonPath('data.status', 'pending');
++
++        $this->assertSame(1, MissionPayment::query()->count());
++        $this->assertDatabaseHas('mission_payments', [
++            'id' => $payment->id,
++            'mission_id' => $this->mission->id,
++            'fedapay_transaction_id' => '987654',
++            'status' => 'pending',
++        ]);
++        $this->assertSame(CandidatureStatus::Accepted, $this->selectedFirst->fresh()->status);
++        $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
++        $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
++    }
++
+     public function test_finalization_failure_after_checkout_returns_business_error_and_restores_state(): void
+     {
+         Log::spy();
+@@ -262,4 +385,59 @@ private function getFaceUserId(Candidature $candidature): int
+             ->where('userable_id', $candidature->face_id)
+             ->value('id');
+     }
++
++    private function createPendingMissionPayment(string $fedapayTransactionId): MissionPayment
++    {
++        $selectedCandidatures = [$this->selectedFirst, $this->selectedSecond];
++        $pricing = new MissionPricing($this->mission->budget, count($selectedCandidatures));
++
++        $payment = MissionPayment::query()->create([
++            'mission_id' => $this->mission->id,
++            'producer_id' => $this->producer->id,
++            'nombre_faces_retenues' => count($selectedCandidatures),
++            'budget_par_face' => $pricing->budgetParFace,
++            'montant_sous_total' => $pricing->sousTotal,
++            'commission_producteur' => $pricing->commissionProducteur,
++            'montant_total_producteur' => $pricing->montantTotalProducteur,
++            'commission_faces_total' => $pricing->commissionFacesTotal,
++            'montant_total_faces' => $pricing->montantTotalFaces,
++            'fedapay_transaction_id' => $fedapayTransactionId,
++            'status' => 'pending',
++        ]);
++
++        foreach ($selectedCandidatures as $candidature) {
++            MissionPaymentCandidature::query()->create([
++                'mission_payment_id' => $payment->id,
++                'candidature_id' => $candidature->id,
++                'face_id' => $candidature->face_id,
++                'montant_face_recoit' => $pricing->montantParFace,
++                'escrow_status' => EscrowStatus::Pending,
++            ]);
++
++            $candidature->update(['status' => CandidatureStatus::Accepted]);
++        }
++
++        $this->rejectedCandidate->update(['status' => CandidatureStatus::Rejected]);
++        $this->mission->update(['status' => MissionStatus::PendingPayment]);
++
++        return $payment->fresh();
++    }
++
++    private function makeTransactionStub(
++        string $status,
++        string $checkoutUrl,
++        bool $expectsGenerateToken = true,
++    ): \FedaPay\Transaction {
++        /** @var \FedaPay\Transaction $transaction */
++        $transaction = \Mockery::mock(\FedaPay\Transaction::class);
++        $transaction->status = $status;
++
++        if ($expectsGenerateToken) {
++            $transaction->shouldReceive('generateToken')
++                ->once()
++                ->andReturn((object) ['url' => $checkoutUrl]);
++        }
++
++        return $transaction;
++    }
+ }

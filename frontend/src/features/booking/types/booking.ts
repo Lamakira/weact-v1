@@ -2,12 +2,15 @@
  * Booking feature types
  */
 
+import type { Deliverable, Shipment } from '@/components/ugc'
+
 // Booking status enum
 export const BookingStatus = {
   PENDING: 'pending',
   ACCEPTED: 'accepted',
   REFUSED: 'refused',
   PAID: 'paid',
+  COMMISSION_PAID: 'commission_paid',
   IN_PROGRESS: 'in_progress',
   CONFIRMED_BY_FACE: 'confirmed_by_face',
   CONFIRMED_BY_PRODUCER: 'confirmed_by_producer',
@@ -26,6 +29,7 @@ export const BookingStatusLabel: Record<BookingStatusType, string> = {
   [BookingStatus.ACCEPTED]: 'Acceptée',
   [BookingStatus.REFUSED]: 'Refusée',
   [BookingStatus.PAID]: 'Payée',
+  [BookingStatus.COMMISSION_PAID]: 'Commission payée',
   [BookingStatus.IN_PROGRESS]: 'En cours',
   [BookingStatus.CONFIRMED_BY_FACE]: 'Confirmée par la Face',
   [BookingStatus.CONFIRMED_BY_PRODUCER]: 'Confirmée par le Producteur',
@@ -131,10 +135,19 @@ export interface Booking {
   producer_id: number
   status: BookingStatusType
   status_label: string
-  date_debut: string
-  date_fin: string
-  duree_heures: number
+  // null for UGC dotations (no shoot date / duration — the Face films at home)
+  date_debut: string | null
+  date_fin: string | null
+  duree_heures: number | null
   type_contenu: string
+  // UGC fields (null for non-UGC bookings) — mirrors BookingResource (story 1.1)
+  type_compensation: string | null
+  type_compensation_label: string | null
+  nom_produit: string | null
+  valeur_produit: number | null
+  nombre_videos: number | null
+  montant_remuneration: number | null
+  commission_ugc: number | null
   lieu: string | null
   message: string | null
   tarif_base: number
@@ -152,6 +165,12 @@ export interface Booking {
   can_pay: boolean
   can_rate: boolean
   my_rating: BookingRating | null
+  // Expédition UGC (story 3.2) — `whenLoaded` backend : la clé est OMISE quand la
+  // relation n'est pas chargée ou n'existe pas (jamais `null` explicite).
+  shipment?: Shipment
+  // Livrables vidéo UGC (4.6, `whenLoaded`) — portés à la carte de suivi Face
+  // pour la review_note du bandeau de refus + le start du chrono Avis (D-4.6.b).
+  deliverables?: Deliverable[]
   created_at: string
   updated_at: string
 }
@@ -159,12 +178,19 @@ export interface Booking {
 // Data for creating a new booking
 export interface CreateBookingData {
   face_id: string
-  date_debut: string
-  date_fin: string
-  duree_heures: number
+  // Shoot fields are omitted for UGC dotations (sent only for cash bookings)
+  date_debut?: string
+  date_fin?: string
+  duree_heures?: number
   type_contenu: string
-  lieu: string
+  lieu?: string
   message?: string
+  // UGC fields (sent only when type_contenu === 'UGC')
+  type_compensation?: 'product' | 'hybrid'
+  nom_produit?: string
+  valeur_produit?: number
+  nombre_videos?: number
+  montant_remuneration?: number
 }
 
 // Booking API response
@@ -297,5 +323,13 @@ export const CHAT_VIEW_STATUSES: BookingStatusType[] = [
   BookingStatus.IN_PROGRESS,
   BookingStatus.CONFIRMED_BY_FACE,
   BookingStatus.CONFIRMED_BY_PRODUCER,
+  BookingStatus.COMPLETED,
+]
+
+// Chat-eligible statuses for UGC bookings — miroir de BookingPolicy::viewMessages
+// branche UGC (3.1 AC8) : visible dès Accepted, lecture seule à Completed.
+// NE PAS élargir CHAT_VIEW_STATUSES (cash) : la policy backend refuse accepted cash.
+export const UGC_CHAT_VIEW_STATUSES: BookingStatusType[] = [
+  BookingStatus.ACCEPTED,
   BookingStatus.COMPLETED,
 ]

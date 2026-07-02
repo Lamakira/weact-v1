@@ -7,7 +7,9 @@ namespace App\Services;
 use App\Concerns\RecordsFinancialEvent;
 use App\Enums\BookingCancellationReason;
 use App\Enums\BookingStatus;
+use App\Enums\CompensationType;
 use App\Enums\FinancialEventType;
+use App\Enums\UgcRefundReason;
 use App\Events\BookingAccepted;
 use App\Events\BookingCancelled;
 use App\Events\BookingCompleted;
@@ -20,6 +22,8 @@ use App\Events\BookingRefused;
 use App\Models\Booking;
 use App\Models\Face;
 use App\Models\User;
+use App\Services\Ugc\UgcCommissionService;
+use App\Services\Ugc\UgcRefundService;
 use App\ValueObjects\BookingPricing;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -35,6 +39,9 @@ class BookingService
         private readonly FedapayService $fedapayService,
         private readonly EscrowService $escrowService,
         private readonly WalletService $walletService,
+        private readonly FaceEntitlementService $faceEntitlementService,
+        private readonly UgcCommissionService $ugcCommissionService,
+        private readonly UgcRefundService $ugcRefundService,
     ) {}
 
     /**
@@ -60,13 +67,33 @@ class BookingService
             ]);
         }
 
-        // FR10: Validate minimum 4h duration
-        if ($data['duree_heures'] < 4) {
+        // FR10: Validate minimum 4h duration (cash bookings only — a UGC dotation has no shoot duration).
+        if (($data['type_contenu'] ?? null) !== 'UGC' && ($data['duree_heures'] ?? 0) < 4) {
             throw ValidationException::withMessages([
                 'duree_heures' => ['La duree minimale est de 4 heures.'],
             ]);
         }
 
+        // UGC (story 1.1 ; RH.2): compensation produit/hybride — produit seul = commission sur la
+        // valeur produit (compute) ; hybride = cash tarifé comme un booking cash (BookingPricing,
+        // modèle two-sided : Producteur +10 % flat, Face −palier, WeAct les deux). Pas de tarif
+        // horaire ni de garde tarif. Le chemin cash reste strictement inchangé.
+        $booking = ($data['type_contenu'] ?? null) === 'UGC'
+            ? $this->createUgcBooking($data, $producer, $faceUser, $face)
+            : $this->createCashBooking($data, $producer, $faceUser, $face);
+
+        BookingCreated::dispatch($booking);
+
+        return $booking;
+    }
+
+    /**
+     * Cash booking path (existing behavior, unchanged) — server-side pricing via BookingPricing VO.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function createCashBooking(array $data, User $producer, User $faceUser, Face $face): Booking
+    {
         // FR4: Calculate pricing via BookingPricing VO (server-side recalculation)
         $tarifBase = $this->calculateTarifBase($face, (int) $data['duree_heures']);
 
@@ -76,9 +103,12 @@ class BookingService
             ]);
         }
 
-        $pricing = new BookingPricing($tarifBase);
+        // FP-3.1a: Face-side commission is tier-driven (Découverte 15 % / Starter-Pro 10 % / Élite 5 %),
+        // locked in at booking creation. Producer side stays a flat 10 % (BookingPricing constant).
+        $faceCommissionRate = $this->faceEntitlementService->capabilities($face)->commissionRate;
+        $pricing = new BookingPricing($tarifBase, $faceCommissionRate);
 
-        $booking = Booking::create([
+        return Booking::create([
             'face_id' => $faceUser->id,
             'producer_id' => $producer->id,
             'status' => BookingStatus::Pending,
@@ -86,16 +116,71 @@ class BookingService
             'date_fin' => $data['date_fin'],
             'duree_heures' => $data['duree_heures'],
             'type_contenu' => $data['type_contenu'],
-            'lieu' => !empty($data['lieu']) ? $data['lieu'] : null,
+            'lieu' => ! empty($data['lieu']) ? $data['lieu'] : null,
             'message' => $data['message'] ?? null,
             'tarif_base' => $pricing->baseTarif,
             'montant_total_producteur' => $pricing->totalProducerPays,
             'montant_face_recoit' => $pricing->faceReceives,
         ]);
+    }
 
-        BookingCreated::dispatch($booking);
+    /**
+     * UGC booking path (story 1.1, D-1.1.b ; RH.2): bypass de la garde tarif (tarif_base=0).
+     * Hybride = le cash se tarife comme un booking cash (BookingPricing : Producteur +10 % flat,
+     * Face −palier) → commission_ugc=platformRevenue, montant_total_producteur=totalProducerPays,
+     * montant_face_recoit=faceReceives. Produit seul = commission produit (compute),
+     * montant_total_producteur=commission, montant_face_recoit=0.
+     * Escrow du net Face = RH.2 (markBookingCommissionPaid) ; versement Face = RH.3.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function createUgcBooking(array $data, User $producer, User $faceUser, Face $face): Booking
+    {
+        $compensation = $data['type_compensation'];
+        $valeurProduit = (int) $data['valeur_produit'];
+        $isHybrid = $compensation === CompensationType::Hybrid->value;
+        $nombreVideos = $isHybrid ? (int) $data['nombre_videos'] : (int) config('ugc.product_only_video_count');
 
-        return $booking;
+        if ($isHybrid) {
+            // RH.2 : le cash hybride se tarife comme un booking cash (BookingPricing) —
+            // Producteur +10 % flat, Face −palier. Le produit reste hors-plateforme.
+            $montantRemuneration = (int) $data['montant_remuneration'];
+            $pricing = new BookingPricing(
+                $montantRemuneration,
+                $this->faceEntitlementService->capabilities($face)->commissionRate,
+            );
+            $commission = $pricing->platformRevenue;               // round(cash×0.10) + round(cash×palier)
+            $montantTotalProducteur = $pricing->totalProducerPays; // cash + round(cash×0.10)
+            $montantFaceRecoit = $pricing->faceReceives;           // cash − round(cash×palier)
+        } else {
+            $montantRemuneration = 0;
+            $commission = $this->ugcCommissionService->compute($valeurProduit); // produit seul (inchangé)
+            $montantTotalProducteur = $commission;
+            $montantFaceRecoit = 0;
+        }
+
+        return Booking::create([
+            'face_id' => $faceUser->id,
+            'producer_id' => $producer->id,
+            'status' => BookingStatus::Pending,
+            // UGC dotations have no shoot date/duration/location — never persist them, even
+            // if a client sends them (the form omits them; this enforces the invariant server-side).
+            'date_debut' => null,
+            'date_fin' => null,
+            'duree_heures' => null,
+            'type_contenu' => 'UGC',
+            'lieu' => null,
+            'message' => $data['message'] ?? null,
+            'tarif_base' => 0,                                    // D-1.1.b : pas de tarif horaire
+            'montant_face_recoit' => $montantFaceRecoit,          // net Face (0 si produit seul)
+            'montant_total_producteur' => $montantTotalProducteur,
+            'type_compensation' => $compensation,
+            'nom_produit' => $data['nom_produit'],
+            'valeur_produit' => $valeurProduit,
+            'nombre_videos' => $nombreVideos,
+            'montant_remuneration' => $isHybrid ? $montantRemuneration : null,
+            'commission_ugc' => $commission,
+        ]);
     }
 
     /**
@@ -108,7 +193,17 @@ class BookingService
         return DB::transaction(function () use ($booking) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
-            if ($booking->status !== BookingStatus::Pending) {
+            // UGC (2.4) : l'acceptation n'ouvre qu'une fois la commission réglée.
+            $expectedStatus = $booking->type_contenu === 'UGC'
+                ? BookingStatus::CommissionPaid
+                : BookingStatus::Pending;
+
+            // Re-check sous lock du refund hors-procédure (AC8a/D-2.5.h) : la policy
+            // est évaluée AVANT le lock — un webhook transaction.refunded settled
+            // entre les deux laisserait accepter un deal remboursé.
+            $refundedUgc = $booking->type_contenu === 'UGC' && $booking->commission_refunded_at !== null;
+
+            if ($booking->status !== $expectedStatus || $refundedUgc) {
                 throw ValidationException::withMessages([
                     'status' => ['Ce booking ne peut pas être accepté dans son état actuel.'],
                 ]);
@@ -133,14 +228,23 @@ class BookingService
      */
     public function refuse(Booking $booking, ?string $reason = null): Booking
     {
-        return DB::transaction(function () use ($booking, $reason) {
+        $wasCommissionPaid = false;
+
+        $refused = DB::transaction(function () use ($booking, $reason, &$wasCommissionPaid) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
-            if ($booking->status !== BookingStatus::Pending) {
+            // UGC (2.4) : refus possible avant paiement et après (refund = story 2.5).
+            $refusableStatuses = $booking->type_contenu === 'UGC'
+                ? [BookingStatus::Pending, BookingStatus::CommissionPaid]
+                : [BookingStatus::Pending];
+
+            if (! in_array($booking->status, $refusableStatuses, true)) {
                 throw ValidationException::withMessages([
                     'status' => ['Ce booking ne peut pas être refusé dans son état actuel.'],
                 ]);
             }
+
+            $wasCommissionPaid = $booking->status === BookingStatus::CommissionPaid;
 
             $booking->update([
                 'status' => BookingStatus::Refused,
@@ -151,6 +255,14 @@ class BookingService
 
             return $booking->fresh();
         });
+
+        // UGC (2.6) : un refus APRÈS encaissement règle le remboursement (crédit wallet
+        // synchrone, post-commit, no-throw — l'API refuse a déjà réussi). Refus à pending : rien.
+        if ($wasCommissionPaid && $refused->type_contenu === 'UGC') {
+            $this->ugcRefundService->settleRefundForBooking($refused, UgcRefundReason::Refused);
+        }
+
+        return $refused;
     }
 
     /**
@@ -176,6 +288,16 @@ class BookingService
             if (! in_array($booking->status, $cancellableStatuses, true)) {
                 throw ValidationException::withMessages([
                     'status' => ['Ce booking ne peut pas être annulé dans son état actuel.'],
+                ]);
+            }
+
+            // D-5.0.b : defense-in-depth — un deal UGC dont la commission est payée
+            // (escrow net Face Locked dès CommissionPaid, RH.2) n'est pas annulable
+            // hors clôture (RH.3) / suspension (5.1). Garde primaire en policy.
+            if ($booking->type_contenu === 'UGC'
+                && in_array($booking->status, [BookingStatus::CommissionPaid, BookingStatus::Accepted], true)) {
+                throw ValidationException::withMessages([
+                    'status' => ['Un deal UGC ne peut pas être annulé après paiement de la commission.'],
                 ]);
             }
 
@@ -229,6 +351,16 @@ class BookingService
             if (! in_array($booking->status, $cancellableStatuses, true)) {
                 throw ValidationException::withMessages([
                     'status' => ['Ce booking ne peut pas être annulé dans son état actuel.'],
+                ]);
+            }
+
+            // D-5.0.b : defense-in-depth — la Face n'a aucune annulation volontaire
+            // d'un deal UGC accepté (escrow net Face Locked, RH.2). Liste de statuts
+            // explicite pour symétrie avec cancel() (statut UGC atteignable = Accepted).
+            if ($booking->type_contenu === 'UGC'
+                && in_array($booking->status, [BookingStatus::CommissionPaid, BookingStatus::Accepted], true)) {
+                throw ValidationException::withMessages([
+                    'status' => ['Un deal UGC ne peut pas être annulé après paiement de la commission.'],
                 ]);
             }
 
@@ -296,7 +428,7 @@ class BookingService
                 ]);
             }
 
-            if ($lockedBooking->date_debut->isFuture()) {
+            if ($lockedBooking->date_debut?->isFuture() ?? false) {
                 throw ValidationException::withMessages([
                     'date_debut' => ['Le signalement d\'absence n\'est possible qu\'après la date de tournage.'],
                 ]);
@@ -318,7 +450,7 @@ class BookingService
                 $lockedBooking->producer_id,
                 $lockedBooking->montant_total_producteur,
                 $lockedBooking,
-                "Booking : remboursement absence Face (100%)",
+                'Booking : remboursement absence Face (100%)',
             );
 
             // Record financial event for audit trail
@@ -389,6 +521,8 @@ class BookingService
                         'status' => ['Ce booking ne peut pas être payé dans son état actuel.'],
                     ]);
                 }
+
+                $this->ensureBookingPaymentIsSupported($lockedBooking);
 
                 if ($lockedBooking->fedapay_transaction_id !== null) {
                     return [
@@ -514,6 +648,14 @@ class BookingService
      */
     public function markAsPaid(Booking $booking, string $fedapayRef): Booking
     {
+        // Defense-in-depth (resolves deferred-work.md:572): UGC bookings never go
+        // through the cash escrow settlement. Even if a UGC fedapay_transaction_id
+        // reached this path, it is a no-op here — UGC is settled by
+        // UgcCommissionPaymentService (D-1.5.b).
+        if ($booking->type_contenu === 'UGC') {
+            return $booking;
+        }
+
         return DB::transaction(function () use ($booking, $fedapayRef) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
@@ -609,7 +751,7 @@ class BookingService
         return DB::transaction(function () use ($booking, $confirmer) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
-            if ($booking->date_debut->isFuture()) {
+            if ($booking->date_debut?->isFuture() ?? false) {
                 throw ValidationException::withMessages([
                     'date_debut' => ['La confirmation n\'est possible qu\'à partir du jour du tournage.'],
                 ]);
@@ -740,7 +882,9 @@ class BookingService
                 return;
             }
 
-            if ($booking->date_debut->isFuture()) {
+            // A null date_debut (UGC dotation — no shoot date) must never be expired by this
+            // shoot-date path; treat null as "future" so the booking is left untouched.
+            if ($booking->date_debut?->isFuture() ?? true) {
                 return;
             }
 
@@ -766,12 +910,56 @@ class BookingService
     /**
      * Complete a booking: update status, release escrow, credit wallet, dispatch event.
      * MUST be called inside an existing DB::transaction().
+     *
+     * Cash dual-confirm path only. A UGC booking can never reach this method — `confirm`
+     * requires Paid/ConfirmedBy*, whereas UGC bookings are CommissionPaid/Accepted/Completed
+     * and never Paid (D-RH3.b). UGC bookings are closed by completeUgcBooking instead (RH.3),
+     * called inline from UgcDeliverableService::validate. No dead guard added here (parity with
+     * the structural reasoning behind the markAsPaid UGC no-op).
      */
     private function completeBooking(Booking $booking): Booking
     {
         $booking->update(['status' => BookingStatus::Completed]);
         $fresh = $booking->fresh();
         $this->escrowService->release($fresh, $this->walletService);
+        BookingCompleted::dispatch($fresh);
+
+        return $fresh;
+    }
+
+    /**
+     * Complete a UGC booking once its delivery tunnel reaches `completed` (RH.3) —
+     * called inline from UgcDeliverableService::validate when the Producer validates
+     * the Avis. Calque of completeBooking, but UGC-specific: it acquires its OWN
+     * booking lock (the caller locks the deliverable + shipment, not the booking)
+     * and guards the UGC lifecycle. Hybrid → release the escrow (net Face) to the
+     * Face wallet; product-only → no escrow → release() is a no-op. Idempotent.
+     * MUST be called inside an existing DB::transaction().
+     */
+    public function completeUgcBooking(Booking $booking): Booking
+    {
+        /** @var Booking $locked */
+        $locked = Booking::query()->lockForUpdate()->findOrFail($booking->id);
+
+        // Idempotent: already completed → no double release / event / credit.
+        if ($locked->status === BookingStatus::Completed) {
+            return $locked;
+        }
+
+        // Defense-in-depth (D-RH3.d): only an Accepted UGC booking settles here.
+        // The tunnel runs while Accepted (UgcDeliverableService::guardBooking);
+        // a deal cancelled in the race window is left untouched.
+        if ($locked->type_contenu !== 'UGC' || $locked->status !== BookingStatus::Accepted) {
+            return $locked;
+        }
+
+        $locked->update(['status' => BookingStatus::Completed]);
+        $fresh = $locked->fresh();
+
+        // Hybrid: escrow Locked → Released + credit Face montant_face_recoit + EscrowRelease event.
+        // Product-only: no escrow row → release() returns early (no-op).
+        $this->escrowService->release($fresh, $this->walletService);
+
         BookingCompleted::dispatch($fresh);
 
         return $fresh;
@@ -788,5 +976,16 @@ class BookingService
         }
 
         return 0;
+    }
+
+    private function ensureBookingPaymentIsSupported(Booking $booking): void
+    {
+        if ($booking->type_contenu !== 'UGC') {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'type_contenu' => ['Le paiement des bookings UGC sera disponible dans une prochaine version.'],
+        ]);
     }
 }

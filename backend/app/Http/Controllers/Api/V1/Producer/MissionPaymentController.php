@@ -8,11 +8,14 @@ use App\Enums\ErrorCodes;
 use App\Enums\MissionPaymentStatus;
 use App\Exceptions\MissionPaymentInitiationException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Mission\PayUgcMissionCommissionRequest;
 use App\Http\Requests\Producer\ConfirmMissionSelectionRequest;
+use App\Http\Resources\MissionResource;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Services\FedapayService;
 use App\Services\MissionPaymentService;
+use App\Services\Ugc\UgcCommissionPaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -22,6 +25,7 @@ class MissionPaymentController extends Controller
     public function __construct(
         private readonly MissionPaymentService $missionPaymentService,
         private readonly FedapayService $fedapayService,
+        private readonly UgcCommissionPaymentService $ugcCommissionPaymentService,
     ) {}
 
     /**
@@ -149,6 +153,45 @@ class MissionPaymentController extends Controller
                 'montant_total' => $payment->montant_total_producteur,
                 'mission_status' => $mission->fresh()->status,
             ],
+        ]);
+    }
+
+    /**
+     * Initiate payment of the WeAct commission to publish a UGC mission (Producer only).
+     * Charges `commission_ugc` only — no escrow, no MissionPayment (D-1.5.a/d).
+     *
+     * POST /api/v1/producer/missions/{mission}/pay-commission
+     */
+    public function payUgcCommission(PayUgcMissionCommissionRequest $request, Mission $mission): JsonResponse
+    {
+        $result = $this->ugcCommissionPaymentService->initiateForMission($mission);
+
+        return response()->json([
+            'data' => new MissionResource($result['mission']),
+            'checkout_url' => $result['checkout_url'],
+            'message' => 'Paiement de la commission initié',
+        ]);
+    }
+
+    /**
+     * Poll Fedapay and publish the UGC mission if the commission is approved
+     * (fallback when the webhook is delayed). Idempotent.
+     *
+     * GET /api/v1/producer/missions/{mission}/commission-status
+     */
+    public function ugcCommissionStatus(Request $request, Mission $mission): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->userable_type !== Producer::class || $user->userable_id !== $mission->producer_id) {
+            abort(403, 'Cette action n\'est pas autorisée');
+        }
+
+        $mission = $this->ugcCommissionPaymentService->checkAndProcessMission($mission);
+
+        return response()->json([
+            'data' => new MissionResource($mission),
+            'commission_payment_status' => $this->ugcCommissionPaymentService->lastCommissionPaymentStatus(),
         ]);
     }
 }

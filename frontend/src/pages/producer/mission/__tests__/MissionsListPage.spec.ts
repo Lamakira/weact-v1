@@ -5,9 +5,11 @@ import type { Mission } from '@/features/mission/types'
 
 const routerPushSpy = vi.fn()
 const fetchMissionsSpy = vi.fn().mockResolvedValue(undefined)
+const routeQuery: { value: Record<string, unknown> } = { value: {} }
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: routerPushSpy }),
+  useRoute: () => ({ query: routeQuery.value }),
 }))
 
 vi.mock('@/stores/auth', () => ({
@@ -46,10 +48,21 @@ const missionFixture: Mission = {
   updated_at: '2026-01-01T00:00:00Z',
 }
 
+// UGC mission awaiting commission payment (story 1.6).
+const ugcMissionFixture: Mission = {
+  ...missionFixture,
+  id: 'ugc-mission-1',
+  titre: 'Appel UGC — Unboxing',
+  status: 'pending_payment',
+  status_label: 'En attente de paiement',
+  has_paid_payment: false,
+  commission_ugc: 2500,
+}
+
 vi.mock('@/features/mission/composables', () => ({
   useMissionsList: () => ({
-    missions: ref<Mission[]>([missionFixture]),
-    allMissions: ref<Mission[]>([missionFixture]),
+    missions: ref<Mission[]>([missionFixture, ugcMissionFixture]),
+    allMissions: ref<Mission[]>([missionFixture, ugcMissionFixture]),
     isLoading: ref(false),
     error: ref(null),
     isEmpty: ref(false),
@@ -69,7 +82,7 @@ vi.mock('@/features/mission/components', () => ({
   MissionCard: defineComponent({
     name: 'MissionCardStub',
     props: { mission: { type: Object, required: true }, emailVerified: { type: Boolean, required: true } },
-    emits: ['edit', 'delete', 'view-candidatures', 'close', 'reopen', 'complete', 'view-attendance'],
+    emits: ['edit', 'delete', 'view-candidatures', 'close', 'reopen', 'complete', 'view-attendance', 'pay-commission'],
     setup(props, { emit }) {
       return () =>
         h(
@@ -83,6 +96,14 @@ vi.mock('@/features/mission/components', () => ({
                 onClick: () => emit('view-attendance', props.mission.id),
               },
               'Valider les présences',
+            ),
+            h(
+              'button',
+              {
+                'data-testid': `pay-commission-${props.mission.id}`,
+                onClick: () => emit('pay-commission', props.mission.id),
+              },
+              'Régler la commission',
             ),
           ],
         )
@@ -100,6 +121,7 @@ import MissionsListPage from '../MissionsListPage.vue'
 describe('MissionsListPage — viewAttendance route handoff (FIX-26.7)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    routeQuery.value = {}
   })
 
   afterEach(() => {
@@ -118,5 +140,49 @@ describe('MissionsListPage — viewAttendance route handoff (FIX-26.7)', () => {
       name: 'producer-mission-attendance',
       params: { id: 'mission-uuid-handoff' },
     })
+  })
+})
+
+describe('MissionsListPage — UGC commission tunnel (story 1.6)', () => {
+  const overlayStub = defineComponent({
+    name: 'UgcPaymentOverlay',
+    // RH.2 : prop renommée commission → amount (mission paie toujours commission_ugc).
+    props: { modelValue: { type: Boolean, required: true }, amount: { type: Number, default: 0 } },
+    setup: (props) => () => (props.modelValue ? h('div', { 'data-testid': 'ugc-overlay-stub' }) : null),
+  })
+
+  const mountPage = () =>
+    mount(MissionsListPage, {
+      attachTo: document.body,
+      global: { stubs: { UgcPaymentOverlay: overlayStub } },
+    })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    routeQuery.value = {}
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('opens the commission overlay when a card emits pay-commission', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="ugc-overlay-stub"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="pay-commission-ugc-mission-1"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="ugc-overlay-stub"]').exists()).toBe(true)
+  })
+
+  it('auto-opens the commission overlay when arriving with ?pay={missionId}', async () => {
+    routeQuery.value = { pay: 'ugc-mission-1' }
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="ugc-overlay-stub"]').exists()).toBe(true)
   })
 })

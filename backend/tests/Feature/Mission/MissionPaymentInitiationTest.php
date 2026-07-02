@@ -19,6 +19,7 @@ use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
 use App\Services\BookingService;
+use App\Services\FaceEntitlementService;
 use App\Services\FedapayService;
 use App\Services\MissionPaymentService;
 use App\Services\WalletService;
@@ -571,8 +572,7 @@ class MissionPaymentInitiationTest extends TestCase
     {
         Log::spy();
 
-        $this->partialMock(MissionPaymentService::class, function ($mock): void {
-            $mock->shouldAllowMockingProtectedMethods();
+        $this->partialMockPaymentServiceWithRealDeps(function ($mock): void {
             $mock->shouldReceive('requestHostedCheckout')
                 ->once()
                 ->andReturn([
@@ -629,8 +629,7 @@ class MissionPaymentInitiationTest extends TestCase
     {
         Log::spy();
 
-        $this->partialMock(MissionPaymentService::class, function ($mock): void {
-            $mock->shouldAllowMockingProtectedMethods();
+        $this->partialMockPaymentServiceWithRealDeps(function ($mock): void {
             $mock->shouldReceive('requestHostedCheckout')
                 ->once()
                 ->andReturn([
@@ -912,6 +911,7 @@ class MissionPaymentInitiationTest extends TestCase
             app(BookingService::class),
             app(MissionPaymentService::class),
             app(WalletService::class),
+            app(\App\Services\FaceSubscriptionPaymentService::class),
         );
 
         Log::shouldHaveReceived('warning')
@@ -1178,6 +1178,19 @@ class MissionPaymentInitiationTest extends TestCase
     {
         $selectedCandidatures = [$this->selectedFirst, $this->selectedSecond];
         $pricing = new MissionPricing($this->mission->budget, count($selectedCandidatures));
+        $entitlements = app(FaceEntitlementService::class);
+
+        $commissionFacesTotal = 0;
+        $montantTotalFaces = 0;
+        $entries = [];
+
+        foreach ($selectedCandidatures as $candidature) {
+            $rate = $entitlements->capabilities($candidature->face)->commissionRate;
+            $montantFaceRecoit = $pricing->budgetParFace - (int) round($pricing->budgetParFace * $rate);
+            $commissionFacesTotal += $pricing->budgetParFace - $montantFaceRecoit;
+            $montantTotalFaces += $montantFaceRecoit;
+            $entries[] = ['candidature' => $candidature, 'montant_face_recoit' => $montantFaceRecoit];
+        }
 
         $payment = MissionPayment::query()->create([
             'mission_id' => $this->mission->id,
@@ -1187,18 +1200,18 @@ class MissionPaymentInitiationTest extends TestCase
             'montant_sous_total' => $pricing->sousTotal,
             'commission_producteur' => $pricing->commissionProducteur,
             'montant_total_producteur' => $pricing->montantTotalProducteur,
-            'commission_faces_total' => $pricing->commissionFacesTotal,
-            'montant_total_faces' => $pricing->montantTotalFaces,
+            'commission_faces_total' => $commissionFacesTotal,
+            'montant_total_faces' => $montantTotalFaces,
             'fedapay_transaction_id' => $fedapayTransactionId,
             'status' => 'pending',
         ]);
 
-        foreach ($selectedCandidatures as $candidature) {
+        foreach ($entries as $entry) {
             MissionPaymentCandidature::query()->create([
                 'mission_payment_id' => $payment->id,
-                'candidature_id' => $candidature->id,
-                'face_id' => $candidature->face_id,
-                'montant_face_recoit' => $pricing->montantParFace,
+                'candidature_id' => $entry['candidature']->id,
+                'face_id' => $entry['candidature']->face_id,
+                'montant_face_recoit' => $entry['montant_face_recoit'],
                 'escrow_status' => EscrowStatus::Pending,
             ]);
         }
@@ -1209,6 +1222,31 @@ class MissionPaymentInitiationTest extends TestCase
         $this->mission->update(['status' => MissionStatus::PendingPayment]);
 
         return $payment->fresh();
+    }
+
+    /**
+     * Partial-mock MissionPaymentService while still running the REAL constructor,
+     * so its injected dependencies are initialized. Laravel's partialMock() skips
+     * construction; once the real prepareSelectionForPayment() touches an injected
+     * dependency (FP-3.1b: FaceEntitlementService, to resolve each Face's tier
+     * commission), an uninitialized readonly property would otherwise fatal with
+     * "Typed property must not be accessed before initialization" → HTTP 500.
+     *
+     * @param  \Closure(\Mockery\MockInterface):void  $expectations
+     */
+    private function partialMockPaymentServiceWithRealDeps(\Closure $expectations): void
+    {
+        /** @var MissionPaymentService&\Mockery\MockInterface $mock */
+        $mock = \Mockery::mock(MissionPaymentService::class, [
+            app(FedapayService::class),
+            app(WalletService::class),
+            app(FaceEntitlementService::class),
+        ])->makePartial();
+        $mock->shouldAllowMockingProtectedMethods();
+
+        $expectations($mock);
+
+        $this->app->instance(MissionPaymentService::class, $mock);
     }
 
     private function makeTransactionStub(

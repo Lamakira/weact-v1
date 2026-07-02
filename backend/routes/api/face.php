@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Http\Controllers\Api\V1\Face\ActingVideoController;
 use App\Http\Controllers\Api\V1\Face\AlbumController;
 use App\Http\Controllers\Api\V1\Face\AvailabilityController;
 use App\Http\Controllers\Api\V1\Face\BasicInfoController;
@@ -13,6 +12,7 @@ use App\Http\Controllers\Api\V1\Face\CategoryNicheOptionsController;
 use App\Http\Controllers\Api\V1\Face\ConversationController;
 use App\Http\Controllers\Api\V1\Face\ExperienceController;
 use App\Http\Controllers\Api\V1\Face\FaceDashboardController;
+use App\Http\Controllers\Api\V1\Face\FaceVideoController;
 use App\Http\Controllers\Api\V1\Face\LanguesController;
 use App\Http\Controllers\Api\V1\Face\MessageController;
 use App\Http\Controllers\Api\V1\Face\MissionAttendanceController;
@@ -24,7 +24,15 @@ use App\Http\Controllers\Api\V1\Face\PresentationVideoController;
 use App\Http\Controllers\Api\V1\Face\ProfileCompletionController;
 use App\Http\Controllers\Api\V1\Face\ProfileController;
 use App\Http\Controllers\Api\V1\Face\RatingController;
+use App\Http\Controllers\Api\V1\Face\SubscriptionHistoryController;
+use App\Http\Controllers\Api\V1\Face\SubscriptionPaymentController;
+use App\Http\Controllers\Api\V1\Face\SubscriptionStatusController;
 use App\Http\Controllers\Api\V1\Face\TarifsController;
+use App\Http\Controllers\Api\V1\Face\UgcDeliverableUploadController;
+use App\Http\Controllers\Api\V1\Face\UgcEngagementController;
+use App\Http\Controllers\Api\V1\Face\UgcMissionDiscoveryController;
+use App\Http\Controllers\Api\V1\Face\UgcSuspensionActionController;
+use App\Http\Controllers\Api\V1\Face\UgcSuspensionStatusController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -83,11 +91,11 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
         ->middleware('throttle:uploads');
     Route::delete('/presentation-video', [PresentationVideoController::class, 'destroy']);
 
-    // Acting video routes
-    Route::get('/acting-video', [ActingVideoController::class, 'show']);
-    Route::post('/acting-video', [ActingVideoController::class, 'store'])
+    // Face portfolio video routes (acting + UGC — typed, multi-row)
+    Route::get('/videos', [FaceVideoController::class, 'index']);
+    Route::post('/videos', [FaceVideoController::class, 'store'])
         ->middleware('throttle:uploads');
-    Route::delete('/acting-video', [ActingVideoController::class, 'destroy']);
+    Route::delete('/videos/{video}', [FaceVideoController::class, 'destroy']);
 
     // Bio and location routes
     Route::get('/bio-location', [BioLocationController::class, 'show'])
@@ -141,15 +149,56 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
     Route::get('/profile-completion', [ProfileCompletionController::class, 'show'])
         ->middleware('throttle:ui-read');
 
+    // Subscription status route (Face only — premium entitlements + plan CTA)
+    Route::get('/subscription-status', [SubscriptionStatusController::class, 'show'])
+        ->middleware('throttle:ui-read');
+
+    // Subscription history (Face only — read-only, backs the billing tab)
+    Route::get('/subscriptions/history', [SubscriptionHistoryController::class, 'index'])
+        ->middleware('throttle:ui-read');
+
+    // Subscription payment initiation (Face only — Fedapay hosted checkout)
+    Route::post('/subscription/initiate-payment', [SubscriptionPaymentController::class, 'initiate'])
+        ->middleware('throttle:30,1');
+    Route::post('/subscription/verify-payment', [SubscriptionPaymentController::class, 'verify'])
+        ->middleware('throttle:30,1');
+    Route::post('/subscription/cancel-pending', [SubscriptionPaymentController::class, 'cancelPending'])
+        ->middleware('throttle:30,1');
+    Route::post('/subscription/resume-payment', [SubscriptionPaymentController::class, 'resumePayment'])
+        ->middleware('throttle:30,1');
+
     // Mission routes - browse available missions (Face only)
     Route::get('/missions', [MissionController::class, 'index'])
         ->middleware(['face', 'throttle:60,1']);
     Route::get('/missions/{mission}', [MissionController::class, 'show'])
         ->middleware(['face', 'throttle:60,1']);
 
+    // UGC mission discovery - gated by subscription tier (FR5, UGC 2.1)
+    Route::get('/ugc/missions', [UgcMissionDiscoveryController::class, 'index'])
+        ->middleware(['face', 'throttle:60,1']);
+
+    // [5.2] État de suspension UGC de la Face (écran 10A) — read-only, suspension-aware.
+    Route::get('/ugc/suspension', [UgcSuspensionStatusController::class, 'show'])
+        ->middleware(['face', 'throttle:60,1']);
+
+    // [5.3] Réactivation d'une suspension UGC — terminer en retard ≤J+30 (réouverture tunnel).
+    Route::post('/ugc/suspension/resume', [UgcSuspensionActionController::class, 'resume'])
+        ->middleware(['face', 'throttle:30,1']);
+    // [5.3] Faire appel d'une suspension UGC (none→pending, revue admin).
+    Route::post('/ugc/suspension/appeal', [UgcSuspensionActionController::class, 'appeal'])
+        ->middleware(['face', 'throttle:30,1']);
+
     // Candidature routes - apply to missions (Face only, verified email required)
     Route::post('/missions/{mission}/apply', [CandidatureController::class, 'store'])
         ->middleware(['face', 'verified', 'throttle:30,1']);
+
+    // UGC product receipt — la Face confirme la réception, le chrono Unboxing démarre (FR6 étape 4, UGC 3.3)
+    Route::post('/shipments/{shipment}/confirm-receipt', [UgcEngagementController::class, 'confirmReceipt'])
+        ->middleware(['face', 'throttle:30,1']);
+
+    // UGC deliverable upload — la Face dépose sa vidéo Unboxing sous chrono (FR6 étape 5, UGC 4.1)
+    Route::post('/shipments/{shipment}/deliverables', [UgcDeliverableUploadController::class, 'store'])
+        ->middleware(['face', 'throttle:30,1']);
 
     // Mission attendance dispute - Face contests being marked absent
     Route::post('/missions/{mission}/dispute-attendance', [MissionAttendanceController::class, 'dispute'])
@@ -161,6 +210,11 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
 
     // Candidature routes - confirm participation (Face only)
     Route::post('/candidatures/{candidature}/confirm', [CandidatureController::class, 'confirm'])
+        ->middleware(['face', 'throttle:30,1']);
+
+    // UGC produit-seul : la Face reconfirme sa participation après acceptation Producteur
+    // (accepted→confirmed, ugc-8-2). Séparé du confirm cash (qui exige un MissionPayment).
+    Route::post('/candidatures/{candidature}/reconfirm', [CandidatureController::class, 'reconfirm'])
         ->middleware(['face', 'throttle:30,1']);
 
     // Candidature routes - cancel pending candidature (Face only)

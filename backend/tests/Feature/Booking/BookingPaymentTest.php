@@ -103,6 +103,38 @@ class BookingPaymentTest extends TestCase
         $response->assertForbidden();
     }
 
+    public function test_producer_cannot_pay_ugc_booking_before_ugc_payment_story(): void
+    {
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldNotReceive('initiatePayment');
+        });
+
+        $ugcBooking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'type_contenu' => 'UGC',
+            'type_compensation' => 'product',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'montant_remuneration' => null,
+            'commission_ugc' => 2500,
+            'tarif_base' => 0,
+            'montant_face_recoit' => 0,
+            'montant_total_producteur' => 2500,
+        ]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/bookings/{$ugcBooking->uuid}/pay");
+
+        $response->assertForbidden();
+
+        $this->assertDatabaseMissing('financial_events', [
+            'booking_id' => $ugcBooking->id,
+            'type' => FinancialEventType::PaymentInitiated->value,
+        ]);
+    }
+
     public function test_face_cannot_initiate_payment(): void
     {
         $response = $this->actingAs($this->faceUser)
@@ -284,6 +316,7 @@ class BookingPaymentTest extends TestCase
             app(BookingService::class),
             app(MissionPaymentService::class),
             app(WalletService::class),
+            app(\App\Services\FaceSubscriptionPaymentService::class),
         );
 
         // Booking stays accepted (can retry)
@@ -426,6 +459,7 @@ class BookingPaymentTest extends TestCase
             app(BookingService::class),
             app(MissionPaymentService::class),
             app(WalletService::class),
+            app(\App\Services\FaceSubscriptionPaymentService::class),
         );
 
         $booking->refresh();

@@ -32,6 +32,7 @@ import {
 } from '@/features/dashboard'
 import { useWallet } from '@/features/wallet'
 import { Skeleton } from '@/components/ui/skeleton'
+import CurrentPlanCard from '@/features/face/components/CurrentPlanCard.vue'
 
 const router = useRouter()
 const {
@@ -253,6 +254,9 @@ function goToMessages(): void {
           </div>
           <span class="ml-auto text-xs font-medium text-[#198496] group-hover:underline flex-shrink-0">Gérer →</span>
         </RouterLink>
+
+        <!-- Current Plan Card (FP-3.2) — tier + status, anchored below the wallet -->
+        <CurrentPlanCard />
       </div>
 
       <!-- RIGHT COLUMN: Stats + Quick Access (scrolls with page) -->

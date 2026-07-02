@@ -85,22 +85,40 @@ export interface VideoUploadProgress {
   percentage: number
 }
 
-// Acting video info from API
-export interface ActingVideoInfo {
-  acting_video_url: string | null
-  acting_video_thumbnail_url: string | null
+// Face videos (FP-2.2.1 typed face_videos API)
+
+export type FaceVideoType = 'acting' | 'ugc'
+
+export interface FaceVideo {
+  id: string // uuid
+  type: FaceVideoType
+  video_url: string | null
+  thumbnail_url: string | null
+  position: number
 }
 
-// Acting video API response
-export interface ActingVideoResponse {
-  data: ActingVideoInfo
+export interface FaceVideosListResponse {
+  data: FaceVideo[]
+}
+
+export interface FaceVideoUploadResponse {
+  data: FaceVideo
   message?: string
 }
 
-// Acting video operation result
-export interface ActingVideoResult {
+export interface FaceVideoDeleteResponse {
+  message: string
+}
+
+export interface FaceVideoUploadResult {
   success: boolean
-  data?: ActingVideoInfo
+  data?: FaceVideo
+  errors?: Record<string, string[]>
+  message?: string
+}
+
+export interface FaceVideoDeleteResult {
+  success: boolean
   errors?: Record<string, string[]>
   message?: string
 }
@@ -388,3 +406,104 @@ export interface PersonalInfoResult {
   errors?: Record<string, string[]>
   message?: string
 }
+
+// Subscription — FP-2.7 tier-aware contract (GET /api/v1/face/subscription-status, FP-2.3)
+export type FaceSubscriptionTier = 'free' | 'starter' | 'pro' | 'elite'
+export type FaceSubscriptionPlan = 'starter' | 'pro' | 'elite' // purchasable tiers only
+export type SubscriptionStatusValue =
+  | 'free'
+  | 'pending_payment'
+  | 'active'
+  | 'expired'
+  | 'cancelled'
+  | 'failed'
+
+export interface TierCapabilities {
+  max_album_photos: number
+  max_presentation_videos: number
+  max_acting_videos: number
+  max_ugc_videos: number
+  ugc_access: boolean
+  commission_rate: number
+  sort_priority: number
+  has_elite_badge: boolean
+}
+
+export interface SubscriptionCurrent {
+  tier: FaceSubscriptionTier
+  plan: FaceSubscriptionPlan | null
+  status: SubscriptionStatusValue
+  starts_at: string | null
+  expires_at: string | null
+  cancelled_at: string | null
+  capabilities: TierCapabilities
+}
+
+export interface SubscriptionOffer {
+  tier: FaceSubscriptionTier
+  price: number
+  currency: string
+  capabilities: TierCapabilities
+}
+
+export interface SubscriptionCta {
+  upgrade_available: boolean
+  downgrade_available: boolean
+  renew_available: boolean
+}
+
+export interface SubscriptionStatusData {
+  current: SubscriptionCurrent
+  offers: SubscriptionOffer[]
+  cta: SubscriptionCta
+}
+
+export interface SubscriptionStatusResponse {
+  data: SubscriptionStatusData
+}
+
+// Payment initiation (FP-2.5) — POST /api/v1/face/subscription/initiate-payment
+export interface SubscriptionInitiatePaymentResponse {
+  data: {
+    subscription_id: string
+    status: SubscriptionStatusValue
+    plan: FaceSubscriptionPlan
+    checkout_url: string
+    amount: number
+    currency: string
+    forfeited_days: number
+  }
+  message?: string
+}
+
+// Payment verification (FP-2.5) — POST /api/v1/face/subscription/verify-payment
+export interface SubscriptionVerifyPaymentResponse {
+  data: {
+    subscription_id: string | null
+    status: SubscriptionStatusValue
+  }
+}
+
+// Payment cancellation (FP-2.8.1 backend, FP-2.15.1 frontend) — POST /api/v1/face/subscription/cancel-pending
+export interface SubscriptionCancelPendingResponse {
+  data: {
+    subscription_id: string
+    status: SubscriptionStatusValue
+  }
+  message?: string
+}
+
+// Payment resume (FP-2.15.2) — POST /api/v1/face/subscription/resume-payment
+export interface SubscriptionResumePaymentResponse {
+  data: {
+    subscription_id: string
+    status: SubscriptionStatusValue
+    checkout_url: string | null
+    amount: number | null
+    currency: string | null
+  }
+  message?: string
+}
+
+// UI-only ephemeral state for the payment flow
+export type SubscriptionPaymentState = 'idle' | 'waiting' | 'confirmed' | 'failed'

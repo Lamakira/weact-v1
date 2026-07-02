@@ -13,6 +13,8 @@ use App\Models\Candidature;
 use App\Models\Experience;
 use App\Models\Face;
 use App\Models\FacePhoto;
+use App\Models\FaceSubscription;
+use App\Models\FaceVideo;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
@@ -77,12 +79,16 @@ class ProducerViewCandidateProfileTest extends TestCase
             'is_available' => true,
             'profile_photo' => 'marie_photo.jpg',
             'presentation_video' => 'marie_presentation.mp4',
-            'acting_video' => 'marie_acting.mp4',
         ]);
 
         $this->faceUser = User::factory()->create([
             'userable_type' => Face::class,
             'userable_id' => $this->face->id,
+        ]);
+
+        FaceVideo::factory()->acting()->create([
+            'face_id' => $this->face->id,
+            'filename' => 'marie_acting.mp4',
         ]);
 
         // Create a candidature linking Face to Producer's mission
@@ -124,7 +130,7 @@ class ProducerViewCandidateProfileTest extends TestCase
                     'availability_badge',
                     'availability_badge_color',
                     'presentation_video_url',
-                    'acting_video_url',
+                    'videos',
                     'experiences',
                     'photos',
                 ],
@@ -132,6 +138,20 @@ class ProducerViewCandidateProfileTest extends TestCase
             ->assertJsonPath('data.id', $this->face->uuid)
             ->assertJsonPath('data.nom', 'Dupont')
             ->assertJsonPath('data.prenom', 'Marie');
+    }
+
+    public function test_whatsapp_number_is_hidden_from_producers(): void
+    {
+        // PII (OWASP A02): a Producer viewing any candidate must never receive the
+        // WhatsApp number — otherwise any self-signup Producer could harvest them.
+        $this->face->update(['whatsapp_number' => '+22997000000']);
+
+        $this->getJson(
+            "/api/v1/producer/candidates/{$this->face->uuid}",
+            $this->authHeaders($this->producerUser),
+        )
+            ->assertOk()
+            ->assertJsonPath('data.whatsapp_number', null);
     }
 
     public function test_response_includes_all_profile_fields(): void
@@ -160,6 +180,12 @@ class ProducerViewCandidateProfileTest extends TestCase
 
     public function test_response_includes_video_urls(): void
     {
+        // Producer view of portfolio videos is masked for free Faces; this test
+        // asserts the acting video URL stays exposed, so we promote the Face to
+        // premium. Free-Face video masking is covered by
+        // PremiumVideoMaskingTest::test_producer_lens_free_face_has_no_videos.
+        FaceSubscription::factory()->active()->create(['face_id' => $this->face->id]);
+
         $response = $this->getJson(
             "/api/v1/producer/candidates/{$this->face->uuid}",
             $this->authHeaders($this->producerUser),
@@ -172,12 +198,11 @@ class ProducerViewCandidateProfileTest extends TestCase
         // Video URLs should be present (based on profile_photo, presentation_video, acting_video fields)
         $this->assertArrayHasKey('presentation_video_url', $data);
         $this->assertArrayHasKey('presentation_video_thumbnail_url', $data);
-        $this->assertArrayHasKey('acting_video_url', $data);
-        $this->assertArrayHasKey('acting_video_thumbnail_url', $data);
+        $this->assertArrayHasKey('videos', $data);
 
         // URLs should contain the expected path
         $this->assertStringContainsString('marie_presentation.mp4', $data['presentation_video_url']);
-        $this->assertStringContainsString('marie_acting.mp4', $data['acting_video_url']);
+        $this->assertStringContainsString('marie_acting.mp4', $data['videos'][0]['video_url']);
     }
 
     public function test_response_includes_photo_album(): void
@@ -200,7 +225,7 @@ class ProducerViewCandidateProfileTest extends TestCase
         );
 
         $response->assertOk()
-            ->assertJsonCount(2, 'data.photos')
+            ->assertJsonCount(1, 'data.photos')
             ->assertJsonStructure([
                 'data' => [
                     'photos' => [
@@ -307,7 +332,6 @@ class ProducerViewCandidateProfileTest extends TestCase
             'taille' => null,
             'poids' => null,
             'presentation_video' => null,
-            'acting_video' => null,
         ]);
 
         // Create candidature to allow Producer to view this Face
@@ -327,7 +351,7 @@ class ProducerViewCandidateProfileTest extends TestCase
             ->assertJsonPath('data.taille', null)
             ->assertJsonPath('data.poids', null)
             ->assertJsonPath('data.presentation_video_url', null)
-            ->assertJsonPath('data.acting_video_url', null);
+            ->assertJsonPath('data.videos', []);
     }
 
     public function test_producer_can_view_face_who_applied_to_any_of_their_missions(): void

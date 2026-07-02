@@ -22,6 +22,8 @@ export const NotificationType = {
   // Mission domain
   MISSION_CLOSED_PENDING_CANDIDATURE: 'mission_closed_pending_candidature',
   SHOOTING_DAY_REMINDER: 'shooting_day_reminder',
+  // UGC domain (4.5)
+  UGC_DEADLINE_APPROACHING: 'ugc_deliverable_deadline_approaching',
 } as const
 
 // Notification data structure (varies by type — fields are optional to support both domains)
@@ -35,6 +37,10 @@ export interface NotificationData {
   booking_id?: string
   score?: number
   url?: string
+  // UGC domain fields (optional, 4.5 — escalade de deadline livrable)
+  level?: number
+  kind?: string
+  shipment_id?: string
 }
 
 // Notification from API

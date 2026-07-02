@@ -124,6 +124,25 @@ class AdminCreateTest extends TestCase
             ->assertJsonPath('error.details.password.0', 'Le mot de passe doit contenir au moins 8 caractères.');
     }
 
+    public function test_rejects_password_without_uppercase_and_digit(): void
+    {
+        // OWASP A07 (L-6): the most privileged account type enforces the same
+        // complexity policy as everyone else (uppercase + digit required).
+        $response = $this->withToken($this->adminToken)
+            ->postJson('/api/v1/admin/admins', [
+                'name' => 'Weak Admin',
+                'email' => 'weak@weact.bj',
+                'password' => 'lowercaseonly', // 8+ chars but no uppercase, no digit
+                'password_confirmation' => 'lowercaseonly',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
+            ->assertJsonPath('error.details.password.0', 'Le mot de passe doit contenir au moins une majuscule et un chiffre.');
+
+        $this->assertDatabaseMissing('admins', ['email' => 'weak@weact.bj']);
+    }
+
     public function test_rejects_password_confirmation_mismatch(): void
     {
         $response = $this->withToken($this->adminToken)

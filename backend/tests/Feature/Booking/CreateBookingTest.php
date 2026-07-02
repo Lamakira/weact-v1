@@ -133,7 +133,8 @@ class CreateBookingTest extends TestCase
         $response->assertCreated();
 
         // 8h >= 8h → uses daily rate: 1 day * 30000 = 30000 tarif_base
-        $expectedPricing = new BookingPricing(30000);
+        // FP-3.1a: the setUp Face has no subscription → Découverte (free) tier → 15 % Face commission.
+        $expectedPricing = new BookingPricing(30000, 0.15);
 
         $response->assertJsonPath('data.tarif_base', $expectedPricing->baseTarif);
         $response->assertJsonPath('data.montant_total_producteur', $expectedPricing->totalProducerPays);
@@ -153,7 +154,8 @@ class CreateBookingTest extends TestCase
         $response->assertCreated();
 
         // 4h → tarif_journalier/8 × 4 = 30000/8 × 4 = 15000 tarif_base
-        $expectedPricing = new BookingPricing(15000);
+        // FP-3.1a: the setUp Face has no subscription → Découverte (free) tier → 15 % Face commission.
+        $expectedPricing = new BookingPricing(15000, 0.15);
 
         $response->assertJsonPath('data.tarif_base', $expectedPricing->baseTarif);
         $response->assertJsonPath('data.montant_total_producteur', $expectedPricing->totalProducerPays);
@@ -362,7 +364,8 @@ class CreateBookingTest extends TestCase
         $response->assertCreated();
 
         // Server recalculates: 8h → daily rate: 1 day * 30000 = 30000
-        $expectedPricing = new BookingPricing(30000);
+        // FP-3.1a: the setUp Face has no subscription → Découverte (free) tier → 15 % Face commission.
+        $expectedPricing = new BookingPricing(30000, 0.15);
 
         // Stored amounts must match server calculation, NOT client-submitted values
         $this->assertDatabaseHas('bookings', [
@@ -388,7 +391,8 @@ class CreateBookingTest extends TestCase
 
         $response->assertCreated();
 
-        $expectedPricing = new BookingPricing(15000);
+        // FP-3.1a: the setUp Face has no subscription → Découverte (free) tier → 15 % Face commission.
+        $expectedPricing = new BookingPricing(15000, 0.15);
 
         // BookingResource must expose amounts that match BookingPricing VO output
         $response

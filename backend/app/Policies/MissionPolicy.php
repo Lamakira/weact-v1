@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Policies;
 
 use App\Enums\MissionStatus;
+use App\Enums\MissionType;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
@@ -55,6 +56,18 @@ class MissionPolicy
 
         // Check mission is editable (not closed or completed)
         return ! in_array($mission->status, [MissionStatus::Closed, MissionStatus::Completed], true);
+    }
+
+    /**
+     * Determine whether the user can pay the WeAct commission of a UGC mission.
+     * Only the owning Producer, on a pending_payment UGC mission.
+     */
+    public function payCommission(User $user, Mission $mission): bool
+    {
+        return $user->userable_type === Producer::class
+            && $user->userable_id === $mission->producer_id
+            && $mission->type_mission === MissionType::Ugc
+            && $mission->status === MissionStatus::PendingPayment;
     }
 
     /**

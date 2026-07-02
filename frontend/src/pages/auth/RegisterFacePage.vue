@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import FaceRegistrationForm from '@/features/auth/components/FaceRegistrationForm.vue'
 import { useToast } from '@/composables/useToast'
 import { authApi } from '@/features/auth/services/authApi'
@@ -8,6 +8,7 @@ import logoNoir from '@/assets/images/logonoir.png'
 import registerFaceIllustration from '@/assets/images/register-face-illustration.webp'
 
 const router = useRouter()
+const route = useRoute()
 const toast = useToast()
 const registrationEnabled = ref<boolean | null>(null)
 
@@ -33,8 +34,18 @@ function handleSuccess() {
     'Un email de vérification a été envoyé. Veuillez vérifier votre boîte de réception.',
     { timeout: 8000 }
   )
-  // Redirect to Face dashboard after successful registration
-  router.push('/face/dashboard')
+  // Redirect post-registration: honor ?redirect= bounce-back from /login (FP-2.15),
+  // else default to the post-registration upsell page (FP-3.5). A valid ?redirect=
+  // still wins so a Face sent here from a protected deep-link returns there.
+  // Defensive guard (FP-2.15 review P3): startsWith('/') && !startsWith('//')
+  // rejects protocol-relative (//evil.com) and absolute URLs that would otherwise
+  // crash pushState with a SecurityError.
+  const redirectQuery = typeof route.query.redirect === 'string' ? route.query.redirect : null
+  const redirectPath =
+    redirectQuery && redirectQuery.startsWith('/') && !redirectQuery.startsWith('//')
+      ? redirectQuery
+      : null
+  router.push(redirectPath ?? { name: 'face-upsell' })
 }
 </script>
 
@@ -95,7 +106,10 @@ function handleSuccess() {
         <div class="text-center mt-6 space-y-2">
           <p class="text-sm text-gray-600">
             Déjà un compte ?
-            <router-link to="/login" class="font-medium text-primary-500 hover:text-primary-700 transition-colors">
+            <router-link
+              :to="{ path: '/login', query: route.query.redirect ? { redirect: route.query.redirect } : {} }"
+              class="font-medium text-primary-500 hover:text-primary-700 transition-colors"
+            >
               Se connecter
             </router-link>
           </p>

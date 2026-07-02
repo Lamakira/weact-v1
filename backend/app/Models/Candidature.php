@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 /**
  * @property string $uuid
@@ -20,10 +22,14 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property int $mission_id
  * @property string|null $message_motivation
  * @property \App\Enums\CandidatureStatus $status
+ * @property \Illuminate\Support\Carbon|null $accepted_at
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property-read \App\Models\Face|null $face
  * @property-read \App\Models\Mission|null $mission
  * @property-read \App\Models\Conversation|null $conversation
+ * @property-read \App\Models\MissionPaymentCandidature|null $paymentEntry
+ * @property-read \App\Models\Shipment|null $shipment
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Deliverable> $deliverables
  */
 class Candidature extends Model
 {
@@ -49,6 +55,7 @@ class Candidature extends Model
         'mission_id',
         'message_motivation',
         'status',
+        'accepted_at',
     ];
 
     /**
@@ -60,6 +67,7 @@ class Candidature extends Model
     {
         return [
             'status' => CandidatureStatus::class,
+            'accepted_at' => 'datetime',
         ];
     }
 
@@ -80,11 +88,47 @@ class Candidature extends Model
     }
 
     /**
+     * Get the paid escrow entry (per-Face amount) for this candidature.
+     *
+     * Created together with the candidature acceptance inside
+     * MissionPaymentService::markAsPaid(), so it is reliably present for
+     * accepted/confirmed/in_progress candidatures. Read-only helper used by
+     * the admin engagements view to surface montant_face_recoit.
+     */
+    public function paymentEntry(): HasOne
+    {
+        return $this->hasOne(MissionPaymentCandidature::class, 'candidature_id');
+    }
+
+    /**
      * Get the conversation associated with this candidature.
      */
     public function conversation(): HasOne
     {
         return $this->hasOne(Conversation::class);
+    }
+
+    /**
+     * Get the UGC shipment attached to this engaged candidature (tunnel étape 3).
+     *
+     * @return MorphOne<Shipment, $this>
+     */
+    public function shipment(): MorphOne
+    {
+        return $this->morphOne(Shipment::class, 'owner');
+    }
+
+    /**
+     * Get the UGC video deliverables uploaded for this engaged candidature (tunnel étape 5).
+     * Ordonné par chrono_started_at (ordre stable par kind, AC8 4.1 / defer 4.3) :
+     * l'Unboxing (chrono = recu_le) précède toujours l'Avis (chrono =
+     * unboxing.validated_at, postérieur). N'ajoute aucune requête (ORDER BY).
+     *
+     * @return MorphMany<Deliverable, $this>
+     */
+    public function deliverables(): MorphMany
+    {
+        return $this->morphMany(Deliverable::class, 'owner')->orderBy('chrono_started_at');
     }
 
     /**

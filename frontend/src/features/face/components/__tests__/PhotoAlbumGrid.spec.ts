@@ -3,141 +3,153 @@ import { mount } from '@vue/test-utils'
 import PhotoAlbumGrid from '../PhotoAlbumGrid.vue'
 import type { FacePhoto } from '../../types'
 
-describe('PhotoAlbumGrid', () => {
-  const mockPhoto1: FacePhoto = {
-    id: 1,
-    photo_url: 'http://localhost/storage/avatars/faces/albums/photo1.jpg',
-    thumbnail_url: 'http://localhost/storage/avatars/faces/albums/thumbnails/photo1.jpg',
-    position: 1,
+function makePhoto(id: number, position: number): FacePhoto {
+  // Round 2 P8 — `FacePhoto.id` is typed `string` in `types.ts`; the previous
+  // shorthand `id,` assigned a number, drifting the fixture from the contract.
+  return {
+    id: String(id),
+    photo_url: `http://localhost/storage/albums/photo${id}.jpg`,
+    thumbnail_url: `http://localhost/storage/albums/thumbnails/photo${id}.jpg`,
+    position,
   }
+}
 
-  const mockPhoto2: FacePhoto = {
-    id: 2,
-    photo_url: 'http://localhost/storage/avatars/faces/albums/photo2.jpg',
-    thumbnail_url: 'http://localhost/storage/avatars/faces/albums/thumbnails/photo2.jpg',
-    position: 2,
-  }
+describe('PhotoAlbumGrid (FP-2.7 tier-aware)', () => {
+  const photo1 = makePhoto(1, 1)
+  const photo2 = makePhoto(2, 2)
 
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('renders empty grid with placeholders when no photos', () => {
+  it('renders maxAlbumPhotos empty slots when the album is empty', () => {
     const wrapper = mount(PhotoAlbumGrid, {
-      props: {
-        photos: [],
-      },
+      props: { photos: [], maxAlbumPhotos: 4 },
     })
 
     expect(wrapper.find('[data-testid="photo-album-grid"]').exists()).toBe(true)
-    // Should have 4 slots
     expect(wrapper.findAll('[data-testid^="album-slot-"]')).toHaveLength(4)
-    // Should have 4 add buttons (since canAddMore is true by default)
     expect(wrapper.findAll('[data-testid^="add-photo-slot-"]')).toHaveLength(4)
   })
 
-  it('renders photos in grid', () => {
+  it('renders photos plus filler slots up to the tier quota', () => {
     const wrapper = mount(PhotoAlbumGrid, {
-      props: {
-        photos: [mockPhoto1, mockPhoto2],
-      },
+      props: { photos: [photo1, photo2], maxAlbumPhotos: 4 },
     })
 
-    // Should have 2 photos
-    expect(wrapper.find(`[data-testid="album-photo-${mockPhoto1.id}"]`).exists()).toBe(true)
-    expect(wrapper.find(`[data-testid="album-photo-${mockPhoto2.id}"]`).exists()).toBe(true)
-
-    // Check src attributes
-    const photo1 = wrapper.find(`[data-testid="album-photo-${mockPhoto1.id}"]`)
-    expect(photo1.attributes('src')).toBe(mockPhoto1.photo_url)
-
-    // Should have 2 empty slots with add buttons
+    expect(wrapper.find(`[data-testid="album-photo-${photo1.id}"]`).exists()).toBe(true)
+    expect(wrapper.find(`[data-testid="album-photo-${photo2.id}"]`).exists()).toBe(true)
+    expect(wrapper.findAll('[data-testid^="album-slot-"]')).toHaveLength(4)
     expect(wrapper.findAll('[data-testid^="add-photo-slot-"]')).toHaveLength(2)
   })
 
-  it('shows delete button overlay on photos', () => {
+  it('shows the delete button overlay on photos', () => {
     const wrapper = mount(PhotoAlbumGrid, {
-      props: {
-        photos: [mockPhoto1],
-      },
+      props: { photos: [photo1], maxAlbumPhotos: 4 },
     })
-
-    // Delete button should exist (visible on hover via CSS)
-    expect(wrapper.find(`[data-testid="delete-photo-${mockPhoto1.id}"]`).exists()).toBe(true)
+    expect(wrapper.find(`[data-testid="delete-photo-${photo1.id}"]`).exists()).toBe(true)
   })
 
-  it('emits delete event when delete button is clicked', async () => {
+  it('emits delete when a delete button is clicked', async () => {
     const wrapper = mount(PhotoAlbumGrid, {
-      props: {
-        photos: [mockPhoto1],
-      },
+      props: { photos: [photo1], maxAlbumPhotos: 4 },
     })
 
-    const deleteButton = wrapper.find(`[data-testid="delete-photo-${mockPhoto1.id}"]`)
-    await deleteButton.trigger('click')
+    await wrapper.find(`[data-testid="delete-photo-${photo1.id}"]`).trigger('click')
 
-    expect(wrapper.emitted('delete')).toBeTruthy()
-    expect(wrapper.emitted('delete')?.[0]).toEqual([mockPhoto1.id])
+    expect(wrapper.emitted('delete')?.[0]).toEqual([photo1.id])
   })
 
-  it('emits add-click event when empty slot is clicked', async () => {
+  it('emits add-click when an empty slot is clicked', async () => {
     const wrapper = mount(PhotoAlbumGrid, {
-      props: {
-        photos: [],
-        canAddMore: true,
-      },
+      props: { photos: [], maxAlbumPhotos: 4, canAddMore: true },
     })
 
-    const addButton = wrapper.find('[data-testid="add-photo-slot-0"]')
-    await addButton.trigger('click')
+    await wrapper.find('[data-testid="add-photo-slot-0"]').trigger('click')
 
     expect(wrapper.emitted('add-click')).toBeTruthy()
   })
 
-  it('shows disabled placeholder when canAddMore is false', () => {
+  it('shows disabled placeholders instead of add buttons when canAddMore is false', () => {
     const wrapper = mount(PhotoAlbumGrid, {
-      props: {
-        photos: [mockPhoto1],
-        canAddMore: false,
-      },
+      props: { photos: [photo1], maxAlbumPhotos: 4, canAddMore: false },
     })
 
-    // Empty slots should show disabled placeholder, not add button
     expect(wrapper.findAll('[data-testid^="add-photo-slot-"]')).toHaveLength(0)
     expect(wrapper.findAll('[data-testid^="empty-slot-"]')).toHaveLength(3)
   })
 
-  it('displays loading state', () => {
+  it('displays the loading overlay', () => {
     const wrapper = mount(PhotoAlbumGrid, {
-      props: {
-        photos: [],
-        isLoading: true,
-      },
+      props: { photos: [], maxAlbumPhotos: 4, isLoading: true },
     })
-
     expect(wrapper.find('[data-testid="loading-overlay"]').exists()).toBe(true)
   })
 
-  it('applies opacity when processing', () => {
+  it('applies an opacity class while processing', () => {
     const wrapper = mount(PhotoAlbumGrid, {
-      props: {
-        photos: [mockPhoto1],
-        isDeleting: true,
-      },
+      props: { photos: [photo1], maxAlbumPhotos: 4, isDeleting: true },
     })
-
-    const slot = wrapper.find('[data-testid="album-slot-0"]')
-    expect(slot.classes()).toContain('opacity-50')
+    expect(wrapper.find('[data-testid="album-slot-0"]').classes()).toContain('opacity-50')
   })
 
-  it('renders all 4 slots even with some photos', () => {
+  it('renders the full tier-quota slot count even with fewer photos', () => {
     const wrapper = mount(PhotoAlbumGrid, {
-      props: {
-        photos: [mockPhoto1],
-      },
+      props: { photos: [photo1], maxAlbumPhotos: 4 },
+    })
+    expect(wrapper.findAll('[data-testid^="album-slot-"]')).toHaveLength(4)
+  })
+
+  it('renders a locked badge on photos beyond the tier quota', () => {
+    const photo3 = makePhoto(3, 3)
+    const photo4 = makePhoto(4, 4)
+    const wrapper = mount(PhotoAlbumGrid, {
+      props: { photos: [photo1, photo2, photo3, photo4], maxAlbumPhotos: 2 },
     })
 
-    // Should always have 4 slots
-    expect(wrapper.findAll('[data-testid^="album-slot-"]')).toHaveLength(4)
+    expect(wrapper.find('[data-testid="album-locked-badge-3"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="album-locked-badge-4"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="album-locked-badge-1"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="album-locked-badge-2"]').exists()).toBe(false)
+  })
+
+  it('uses each photo position, not its array index, for the locked badge', () => {
+    const lateButPublic = makePhoto(10, 1)
+    const earlyButOverQuota = makePhoto(11, 4)
+    const wrapper = mount(PhotoAlbumGrid, {
+      props: { photos: [earlyButOverQuota, lateButPublic], maxAlbumPhotos: 2 },
+    })
+
+    expect(wrapper.find('[data-testid="album-locked-badge-11"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="album-locked-badge-10"]').exists()).toBe(false)
+  })
+
+  it('renders no locked badge when the tier quota covers every photo', () => {
+    const wrapper = mount(PhotoAlbumGrid, {
+      props: {
+        photos: [photo1, photo2, makePhoto(3, 3), makePhoto(4, 4)],
+        maxAlbumPhotos: 4,
+      },
+    })
+    expect(wrapper.findAll('[data-testid^="album-locked-badge-"]')).toHaveLength(0)
+  })
+
+  it('renders six slots for an Élite Face', () => {
+    const wrapper = mount(PhotoAlbumGrid, {
+      props: { photos: [], maxAlbumPhotos: 6 },
+    })
+    expect(wrapper.findAll('[data-testid^="album-slot-"]')).toHaveLength(6)
+  })
+
+  it('locks the photos beyond quota after a downgrade (6 photos, Pro quota of 4)', () => {
+    const photos = [1, 2, 3, 4, 5, 6].map((n) => makePhoto(n, n))
+    const wrapper = mount(PhotoAlbumGrid, {
+      props: { photos, maxAlbumPhotos: 4 },
+    })
+
+    expect(wrapper.findAll('[data-testid^="album-slot-"]')).toHaveLength(6)
+    expect(wrapper.find('[data-testid="album-locked-badge-5"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="album-locked-badge-6"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="album-locked-badge-4"]').exists()).toBe(false)
   })
 })

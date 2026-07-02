@@ -87,4 +87,48 @@ class RemindShootingDayCommandTest extends TestCase
         $this->assertNull(Notification::where('user_id', $acceptedUser->id)->first());
         $this->assertSame(CandidatureStatus::Accepted, $acceptedCandidature->fresh()->status);
     }
+
+    public function test_command_ignores_ugc_missions(): void
+    {
+        // UGC 2.4 : pas de tournage en UGC (livrables à distance) — le rappel J-1
+        // ne doit notifier ni le Producteur ni les Faces engagées d'une mission UGC.
+        $producer = Producer::factory()->create();
+        $producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+
+        $mission = Mission::factory()->published()->create([
+            'producer_id' => $producer->id,
+            'date_tournage' => now()->addDay()->format('Y-m-d'),
+            'shooting_reminder_sent_at' => null,
+            'type_mission' => 'ugc',
+            'type_compensation' => 'product',
+            'nom_produit' => 'Sneakers Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'commission_ugc' => 2500,
+            'commission_paid_at' => now(),
+        ]);
+
+        $face = Face::factory()->create();
+        $faceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+
+        Candidature::factory()->create([
+            'mission_id' => $mission->id,
+            'face_id' => $face->id,
+            'status' => CandidatureStatus::Confirmed,
+        ]);
+
+        $this->artisan('missions:remind-shooting')
+            ->expectsOutput('Found 0 mission(s) with shooting tomorrow.')
+            ->assertExitCode(0);
+
+        $this->assertDatabaseMissing('notifications', ['user_id' => $producerUser->id, 'type' => 'shooting_day_reminder']);
+        $this->assertDatabaseMissing('notifications', ['user_id' => $faceUser->id, 'type' => 'shooting_day_reminder']);
+        $this->assertNull($mission->fresh()->shooting_reminder_sent_at);
+    }
 }

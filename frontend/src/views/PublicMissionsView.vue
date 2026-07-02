@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Briefcase, AlertCircle, RefreshCw } from 'lucide-vue-next'
+import { Briefcase, AlertCircle, RefreshCw, Video, ChevronRight } from 'lucide-vue-next'
 import { usePaginatedMissions } from '@/features/public/composables/usePaginatedMissions'
 import type { PublicMissionFilters } from '@/features/public/services/publicMissionsApi'
 import PublicMissionCard from '@/features/public/components/PublicMissionCard.vue'
@@ -9,6 +9,7 @@ import RegistrationCta from '@/features/public/components/RegistrationCta.vue'
 import { Pagination } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getMissionTypeOptions } from '@/features/mission/types'
+import { useAuthStore } from '@/stores/auth'
 
 const {
   missions,
@@ -26,6 +27,24 @@ const {
 } = usePaginatedMissions(15)
 
 const missionTypes = getMissionTypeOptions()
+
+// ugc-disc-2: UGC discovery banner shown to anonymous visitors + logged-in Faces,
+// hidden for logged-in non-Face users (Producer/Admin would be bounced by the role guard).
+const authStore = useAuthStore()
+const showUgcBanner = computed(
+  () => !authStore.isAuthenticated || authStore.user?.userable_type === 'Face',
+)
+
+// ugc-disc-2 (CTA target): anonymous visitors → Face registration. The role guard would
+// otherwise bounce an anonymous click to a login wall (useless for someone with no account);
+// sending them to sign-up — carrying a redirect so they land on the gated UGC page right after —
+// is the lower-friction acquisition path. Logged-in Faces (the only other audience the banner
+// shows to) go straight to the UGC page.
+const ugcCtaTarget = computed(() =>
+  authStore.isAuthenticated
+    ? { name: 'face-ugc-missions' }
+    : { name: 'register-face', query: { redirect: '/face/ugc-missions' } },
+)
 
 const resultsLabel = computed(() => {
   const plural = totalMissions.value > 1 ? 's' : ''
@@ -61,6 +80,37 @@ function handleFilterChange(newFilters: PublicMissionFilters): void {
         Publicités, films, courts-métrages, clips musicaux et plus encore.
       </p>
     </header>
+
+    <!-- UGC Discovery Entry Point (ugc-disc-2) — public-page door into the conversion tunnel.
+         Anonymous click → Face registration (redirect-back) → gated UGC teaser/paywall after sign-up.
+         Logged-in Face → straight to the gated UGC page. -->
+    <RouterLink
+      v-if="showUgcBanner"
+      :to="ugcCtaTarget"
+      data-testid="ugc-discovery-cta-public"
+      class="group mb-8 flex items-center gap-3 rounded-xl border border-weact-100 bg-weact-50 p-4 transition-[border-color,box-shadow] hover:border-weact-200 hover:shadow-sm min-[376px]:gap-4 min-[376px]:p-5"
+    >
+      <div
+        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-weact text-white shadow-sm min-[376px]:h-12 min-[376px]:w-12"
+      >
+        <Video class="h-5 w-5 min-[376px]:h-6 min-[376px]:w-6" aria-hidden="true" />
+      </div>
+      <div class="min-w-0 flex-1">
+        <p class="text-sm font-bold text-slate-800 min-[376px]:text-base">
+          Découvrez les missions UGC
+        </p>
+        <p class="mt-0.5 text-xs text-slate-600 min-[376px]:text-sm">
+          Tournez des vidéos, gagnez des produits + du cash
+        </p>
+      </div>
+      <span
+        class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-weact px-3 py-2 text-xs font-semibold text-white transition-opacity group-hover:opacity-90 min-[376px]:text-sm"
+      >
+        <span class="hidden min-[376px]:inline">Voir les missions UGC</span>
+        <span class="min-[376px]:hidden">Voir</span>
+        <ChevronRight class="h-4 w-4" aria-hidden="true" />
+      </span>
+    </RouterLink>
 
     <PublicMissionFiltersBar
       :current-filters="filters"

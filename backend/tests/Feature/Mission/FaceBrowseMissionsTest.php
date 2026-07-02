@@ -190,6 +190,10 @@ class FaceBrowseMissionsTest extends TestCase
             'type' => 'agency',
             'agency_name' => 'Studio XYZ',
         ]);
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
 
         Mission::factory()->create([
             'producer_id' => $producer->id,
@@ -233,14 +237,52 @@ class FaceBrowseMissionsTest extends TestCase
             ->assertJsonPath('meta.current_page', 2);
     }
 
+    public function test_excludes_obsolete_missions_when_deadline_or_shooting_passed(): void
+    {
+        // Ouverte (dates futures) — listée.
+        Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Published,
+            'titre' => 'Mission ouverte',
+            'date_limite_candidature' => now()->addWeek(),
+            'date_tournage' => now()->addWeeks(3),
+        ]);
+        // Date limite de candidature dépassée — exclue.
+        Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Published,
+            'titre' => 'Candidatures fermées',
+            'date_limite_candidature' => now()->subDay(),
+            'date_tournage' => now()->addWeeks(3),
+        ]);
+        // Date de tournage dépassée — exclue.
+        Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Published,
+            'titre' => 'Tournage passé',
+            'date_limite_candidature' => now()->addWeek(),
+            'date_tournage' => now()->subDay(),
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/missions');
+
+        $response->assertStatus(200)->assertJsonCount(1, 'data');
+        $this->assertEquals('Mission ouverte', $response->json('data.0.titre'));
+    }
+
     public function test_mission_card_has_required_fields(): void
     {
+        // Date de tournage relative (future) : le listing exclut les missions dont
+        // la date de tournage est passée (scope notExpired).
+        $dateTournage = now()->addMonth()->format('Y-m-d');
+
         Mission::factory()->create([
             'producer_id' => $this->producer->id,
             'status' => MissionStatus::Published,
             'titre' => 'Test Mission',
             'description' => 'Test Description',
-            'date_tournage' => '2026-02-15',
+            'date_tournage' => $dateTournage,
             'budget' => 150000,
             'lieu' => 'Cotonou',
             'type_mission' => 'publicite',
@@ -263,7 +305,7 @@ class FaceBrowseMissionsTest extends TestCase
         // Check date_tournage exists and is in ISO 8601 format
         $data = $response->json('data.0');
         $this->assertNotNull($data['date_tournage']);
-        $this->assertStringContainsString('2026-02-15', $data['date_tournage']);
+        $this->assertStringContainsString($dateTournage, $data['date_tournage']);
     }
 
     // ========================================
@@ -415,37 +457,43 @@ class FaceBrowseMissionsTest extends TestCase
 
     public function test_filter_by_date_tournage_returns_missions_on_or_after_date(): void
     {
+        // Dates relatives (futures) : le listing exclut les tournages passés (scope
+        // notExpired) ; ce test cible uniquement le filtre date_tournage >= seuil.
+        $before = now()->addMonth()->format('Y-m-d');
+        $threshold = now()->addMonths(2)->format('Y-m-d');
+        $after = now()->addMonths(3)->format('Y-m-d');
+
         Mission::factory()->create([
             'producer_id' => $this->producer->id,
             'status' => MissionStatus::Published,
-            'date_tournage' => '2026-01-15',
-            'titre' => 'January Mission',
+            'date_tournage' => $before,
+            'titre' => 'Mission avant seuil',
         ]);
 
         Mission::factory()->create([
             'producer_id' => $this->producer->id,
             'status' => MissionStatus::Published,
-            'date_tournage' => '2026-02-15',
-            'titre' => 'February Mission',
+            'date_tournage' => $threshold,
+            'titre' => 'Mission au seuil',
         ]);
 
         Mission::factory()->create([
             'producer_id' => $this->producer->id,
             'status' => MissionStatus::Published,
-            'date_tournage' => '2026-03-15',
-            'titre' => 'March Mission',
+            'date_tournage' => $after,
+            'titre' => 'Mission après seuil',
         ]);
 
         $response = $this->actingAs($this->faceUser)
-            ->getJson('/api/v1/face/missions?date_tournage=2026-02-01');
+            ->getJson("/api/v1/face/missions?date_tournage={$threshold}");
 
         $response->assertStatus(200)
             ->assertJsonCount(2, 'data');
 
         $titles = collect($response->json('data'))->pluck('titre')->all();
-        $this->assertContains('February Mission', $titles);
-        $this->assertContains('March Mission', $titles);
-        $this->assertNotContains('January Mission', $titles);
+        $this->assertContains('Mission au seuil', $titles);
+        $this->assertContains('Mission après seuil', $titles);
+        $this->assertNotContains('Mission avant seuil', $titles);
     }
 
     public function test_filter_by_type_mission_returns_matching_type(): void
@@ -608,6 +656,10 @@ class FaceBrowseMissionsTest extends TestCase
             'type' => 'agency',
             'agency_name' => 'Rated Studio',
         ]);
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
 
         Mission::factory()->create([
             'producer_id' => $producer->id,
@@ -652,6 +704,10 @@ class FaceBrowseMissionsTest extends TestCase
         $producer = Producer::factory()->create([
             'type' => 'particulier',
         ]);
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
 
         Mission::factory()->create([
             'producer_id' => $producer->id,
@@ -669,6 +725,10 @@ class FaceBrowseMissionsTest extends TestCase
     public function test_producer_with_single_rating_returns_correct_values(): void
     {
         $producer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
 
         Mission::factory()->create([
             'producer_id' => $producer->id,
@@ -690,5 +750,116 @@ class FaceBrowseMissionsTest extends TestCase
 
         // Check average rating value
         $this->assertEquals(5.0, $response->json('data.0.producer.average_rating'));
+    }
+
+    // ===================================================================
+    // Exclusion des missions UGC de la liste standard (FR5, UGC 2.1)
+    // ===================================================================
+
+    /**
+     * La factory Mission ne tire jamais `ugc` — attributs explicites obligatoires.
+     */
+    private function makePublishedUgcMission(): Mission
+    {
+        return $this->producer->missions()->create([
+            'titre' => 'Appel UGC — Unboxing',
+            'description' => 'desc',
+            'date_tournage' => now()->addMonth(),
+            'profil_recherche' => 'Créatrices',
+            'budget' => 0,
+            'date_limite_candidature' => now()->addWeeks(2),
+            'nombre_faces_voulu' => 3,
+            'type_mission' => 'ugc',
+            'genre_voulu' => 'tous',
+            'lieu' => 'Cotonou',
+            'duree' => 'Livrables vidéo',
+            'status' => MissionStatus::Published,
+            'commission_paid_at' => now(),
+            'type_compensation' => 'product',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'montant_remuneration' => null,
+            'commission_ugc' => 2500,
+        ]);
+    }
+
+    public function test_ugc_missions_are_excluded_from_standard_listing(): void
+    {
+        $this->makePublishedUgcMission();
+        $standard = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Published,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/missions');
+
+        $response->assertStatus(200)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $standard->uuid);
+    }
+
+    public function test_type_mission_ugc_filter_returns_empty_list(): void
+    {
+        $this->makePublishedUgcMission();
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/missions?type_mission=ugc');
+
+        $response->assertStatus(200)
+            ->assertJsonCount(0, 'data');
+    }
+
+    // ─── Filtre producteur is_active (story 3.0) ─────────────────────
+
+    public function test_missions_from_inactive_producer_are_excluded(): void
+    {
+        $visibleMission = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Published,
+        ]);
+
+        $inactiveProducer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $inactiveProducer->id,
+            'is_active' => false,
+        ]);
+        Mission::factory()->create([
+            'producer_id' => $inactiveProducer->id,
+            'status' => MissionStatus::Published,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/missions');
+
+        $response->assertStatus(200)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $visibleMission->uuid);
+    }
+
+    public function test_missions_from_producer_without_user_are_excluded(): void
+    {
+        // Témoin (review 3.0) : le scope exclut aussi les producteurs sans
+        // AUCUNE ligne User — l'invariant prod « tout producteur a un User »
+        // n'est pas garanti par la factory (Producer::factory() seul = orphelin).
+        $visibleMission = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Published,
+        ]);
+
+        $orphanProducer = Producer::factory()->create();
+        Mission::factory()->create([
+            'producer_id' => $orphanProducer->id,
+            'status' => MissionStatus::Published,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/missions');
+
+        $response->assertStatus(200)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $visibleMission->uuid);
     }
 }

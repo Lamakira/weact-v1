@@ -2,6 +2,9 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAdminAuthStore } from '@/stores/adminAuth'
+import { useNavigationProgress } from '@/composables/useNavigationProgress'
+
+const navigationProgress = useNavigationProgress()
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -166,6 +169,18 @@ const router = createRouter({
           component: () => import('../pages/face/mission/FaceMissionDetailPage.vue'),
         },
         {
+          path: 'ugc-missions',
+          name: 'face-ugc-missions',
+          component: () => import('../pages/face/mission/FaceUgcMissionsListPage.vue'),
+          meta: { title: 'Missions UGC - WEACT' },
+        },
+        {
+          path: 'ugc/suspension',
+          name: 'face-ugc-suspension',
+          component: () => import('../pages/face/FaceUgcSuspensionPage.vue'),
+          meta: { title: 'Compte suspendu - WEACT' },
+        },
+        {
           path: 'candidatures',
           name: 'face-candidatures',
           component: () => import('../pages/face/candidature/FaceCandidaturesPage.vue'),
@@ -196,7 +211,22 @@ const router = createRouter({
           component: () => import('../pages/face/wallet/FaceWalletPage.vue'),
           meta: { title: 'Mon portefeuille - WEACT' },
         },
+        {
+          path: 'billing',
+          name: 'face-billing',
+          component: () => import('../pages/face/billing/FaceBillingPage.vue'),
+          meta: { title: 'Facturation & Abonnement - WEACT' },
+        },
       ],
+    },
+    // Post-registration upsell page (FP-3.5) — standalone full-page (NOT under
+    // FaceLayout). Reached only from RegisterFacePage.handleSuccess default;
+    // requiresAuth + role:'Face' is satisfied by the just-stored post-register auth.
+    {
+      path: '/bienvenue',
+      name: 'face-upsell',
+      component: () => import('../pages/auth/FaceUpsellPage.vue'),
+      meta: { requiresAuth: true, role: 'Face', title: 'Bienvenue sur WEACT' },
     },
     {
       path: '/dashboard/face',
@@ -289,6 +319,18 @@ const router = createRouter({
           path: 'bookings/:id',
           name: 'producer-booking-detail',
           component: () => import('../pages/face/booking/FaceBookingDetailPage.vue'),
+        },
+        {
+          path: 'ugc/validation',
+          name: 'producer-ugc-validation',
+          component: () => import('../pages/producer/ugc/ProducerUgcValidationPage.vue'),
+          meta: { title: 'Validation des livrables - WEACT' },
+        },
+        {
+          path: 'ugc/videos',
+          name: 'producer-ugc-library',
+          component: () => import('../pages/producer/ugc/ProducerUgcLibraryPage.vue'),
+          meta: { title: 'Mes vidéos UGC - WEACT' },
         },
       ],
     },
@@ -386,6 +428,12 @@ const router = createRouter({
           meta: { title: 'Détail Mission - WEACT' },
         },
         {
+          path: 'engagements',
+          name: 'admin-engagements',
+          component: () => import('../pages/admin/AdminFaceContactsPage.vue'),
+          meta: { title: 'Faces à contacter - WEACT' },
+        },
+        {
           path: 'finance',
           name: 'admin-finance',
           component: () => import('../pages/admin/AdminFinancePage.vue'),
@@ -396,6 +444,12 @@ const router = createRouter({
           name: 'admin-attendance-disputes',
           component: () => import('../pages/admin/AdminAttendanceDisputesPage.vue'),
           meta: { title: 'Litiges présence - WEACT' },
+        },
+        {
+          path: 'ugc/suspensions',
+          name: 'admin-ugc-suspensions',
+          component: () => import('../pages/admin/AdminUgcSuspensionsPage.vue'),
+          meta: { title: 'Suspensions UGC - WEACT' },
         },
         {
           path: 'articles',
@@ -485,6 +539,10 @@ const router = createRouter({
 
 // Navigation guards
 router.beforeEach((to, _from, next) => {
+  // Démarre la barre de chargement dès le début de toute navigation
+  // (les redirections des guards ci-dessous relancent beforeEach : start() est idempotent).
+  navigationProgress.start()
+
   const authStore = useAuthStore()
   const isAuthenticated = authStore.isAuthenticated
   const userType = authStore.user?.userable_type
@@ -555,8 +613,17 @@ router.beforeEach((to, _from, next) => {
 })
 
 router.afterEach((to) => {
+  // Termine la barre : afterEach se déclenche même sur navigation annulée/redirigée,
+  // donc la barre ne reste jamais bloquée.
+  navigationProgress.done()
+
   const title = to.meta.title as string | undefined
   document.title = title || 'WEACT'
+})
+
+// Échec de chargement d'un chunk lazy → on termine aussi la barre pour éviter qu'elle reste figée.
+router.onError(() => {
+  navigationProgress.done()
 })
 
 export default router

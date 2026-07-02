@@ -30,7 +30,8 @@ class ContactController extends Controller
         } catch (\Throwable $e) {
             Log::error('Contact form email failed', [
                 'error' => $e->getMessage(),
-                'sender' => $validated['email'],
+                // OWASP A09 (I-1): fingerprint the sender email, never log it in clear.
+                'sender_hash' => substr(hash('sha256', strtolower(trim((string) $validated['email']))), 0, 16),
             ]);
 
             return response()->json(

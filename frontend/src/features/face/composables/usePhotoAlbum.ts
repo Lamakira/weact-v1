@@ -4,8 +4,10 @@ import type { FacePhoto, AlbumPhotoResult } from '../types'
 import { getApiErrorDetails, getApiErrorMessage } from '@/features/auth/services/authApi'
 import { createSharedCachedResource } from '@/lib/createSharedCachedResource'
 
-// Maximum number of photos in the album
-const MAX_PHOTOS = 4
+// Absolute UI ceiling for album photos (the Élite maximum).
+// Subscription-tier enforcement is the backend's job; this is a soft client-side
+// safety net only.
+const ABSOLUTE_ALBUM_UPLOAD_CEILING = 6
 
 // Allowed file types
 const ALLOWED_TYPES = ['image/jpeg', 'image/png']
@@ -53,8 +55,8 @@ export function usePhotoAlbum(): UsePhotoAlbumReturn {
 
   // Computed properties
   const photoCount = computed(() => photos.value.length)
-  const canAddMore = computed(() => photos.value.length < MAX_PHOTOS)
-  const isFull = computed(() => photos.value.length >= MAX_PHOTOS)
+  const canAddMore = computed(() => photos.value.length < ABSOLUTE_ALBUM_UPLOAD_CEILING)
+  const isFull = computed(() => photos.value.length >= ABSOLUTE_ALBUM_UPLOAD_CEILING)
 
   /**
    * Validate file before upload
@@ -88,15 +90,9 @@ export function usePhotoAlbum(): UsePhotoAlbumReturn {
    * Add a new photo to the album
    */
   async function addPhoto(file: File): Promise<AlbumPhotoResult> {
-    // Check album limit first
-    if (isFull.value) {
-      const errorMessage = `Maximum ${MAX_PHOTOS} photos atteint`
-      error.value = errorMessage
-      return {
-        success: false,
-        message: errorMessage,
-      }
-    }
+    // Album full-check is owned by the backend (entitlement-resolved limit).
+    // The composable no longer enforces it client-side — AlbumQuotaReachedException
+    // (HTTP 422, code ALBUM_QUOTA_REACHED) is the canonical signal.
 
     // Validate file
     const validation = validateFile(file)
@@ -145,19 +141,21 @@ export function usePhotoAlbum(): UsePhotoAlbumReturn {
     try {
       await faceApi.deleteAlbumPhoto(photoId)
 
-      // Remove from local state
+      // Round 2 P9 — combine the splice + position-rebuild into one setData call.
+      // The previous code issued two setData calls: a splice (skipped if photo
+      // wasn't in cache) followed by a position rebuild that operated on the
+      // unchanged array when findIndex returned -1, wasting one cache mutation.
+      // If the photo isn't in the local cache (cross-device delete + stale cache),
+      // we treat the backend success as authoritative and leave the local cache
+      // alone — the next fetchPhotos() will reconcile.
       const index = photos.value.findIndex((p) => p.id === photoId)
       if (index !== -1) {
         const nextPhotos = [...photos.value]
         nextPhotos.splice(index, 1)
-        photoAlbumResource.setData(nextPhotos)
+        photoAlbumResource.setData(
+          nextPhotos.map((photo, idx) => ({ ...photo, position: idx + 1 })),
+        )
       }
-
-      // Update positions locally
-      photoAlbumResource.setData(photos.value.map((photo, idx) => ({
-        ...photo,
-        position: idx + 1,
-      })))
 
       return {
         success: true,

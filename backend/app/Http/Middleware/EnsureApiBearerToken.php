@@ -23,7 +23,7 @@ class EnsureApiBearerToken
         $plainTextToken = $request->bearerToken();
         $accessToken = $plainTextToken ? PersonalAccessToken::findToken($plainTextToken) : null;
 
-        if ($accessToken === null || $accessToken->tokenable === null) {
+        if ($accessToken === null || $accessToken->tokenable === null || $this->isExpired($accessToken)) {
             return new JsonResponse([
                 'error' => [
                     'message' => 'Unauthenticated',
@@ -49,5 +49,16 @@ class EnsureApiBearerToken
         $request->setUserResolver(static fn () => $authenticatedUser);
 
         return $next($request);
+    }
+
+    private function isExpired(PersonalAccessToken $accessToken): bool
+    {
+        $expiration = config('sanctum.expiration');
+
+        if ($expiration && ! $accessToken->created_at->gt(now()->subMinutes((int) $expiration))) {
+            return true;
+        }
+
+        return $accessToken->expires_at !== null && $accessToken->expires_at->isPast();
     }
 }

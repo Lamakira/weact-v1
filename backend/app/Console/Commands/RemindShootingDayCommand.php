@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
+use App\Enums\MissionType;
 use App\Models\Candidature;
 use App\Models\Mission;
 use App\Models\Notification;
@@ -33,10 +34,12 @@ class RemindShootingDayCommand extends Command
     {
         $tomorrow = now()->addDay()->toDateString();
 
+        // UGC (2.4) : pas de tournage — livrables à distance après expédition du produit.
         $missions = Mission::whereIn('status', [
             MissionStatus::Published->value,
             MissionStatus::Closed->value,
         ])
+            ->where('type_mission', '!=', MissionType::Ugc->value)
             ->whereDate('date_tournage', $tomorrow)
             ->whereNull('shooting_reminder_sent_at')
             ->with([

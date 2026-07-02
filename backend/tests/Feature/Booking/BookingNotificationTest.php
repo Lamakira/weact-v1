@@ -227,6 +227,32 @@ class BookingNotificationTest extends TestCase
         $this->assertEquals("/producer/bookings/{$this->booking->uuid}", $notification->data['url']);
     }
 
+    public function test_booking_completed_skips_wallet_notification_when_face_receives_zero(): void
+    {
+        // Produit-seul UGC : aucun crédit wallet (montant_face_recoit=0) → pas de notif
+        // trompeuse « 0 XOF ont été ajoutés » (RH.3). La notif Producteur reste créée.
+        // montant_face_recoit est immuable après création → booking dédié (pas d'update).
+        $zeroBooking = Booking::factory()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'status' => BookingStatus::Completed,
+            'type_contenu' => 'UGC',
+            'montant_face_recoit' => 0,
+        ]);
+
+        $listener = new NotifyPartiesOnBookingCompleted;
+        $listener->handle(new BookingCompleted($zeroBooking));
+
+        $this->assertDatabaseMissing('notifications', [
+            'type' => 'booking_wallet_credited',
+            'user_id' => $this->faceUser->id,
+        ]);
+        $this->assertDatabaseHas('notifications', [
+            'type' => 'booking_completed',
+            'user_id' => $this->producerUser->id,
+        ]);
+    }
+
     public function test_booking_expired_without_face_response_creates_specific_notifications_for_both_parties(): void
     {
         $this->booking->update([

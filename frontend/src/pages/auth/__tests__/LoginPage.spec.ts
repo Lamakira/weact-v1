@@ -129,4 +129,42 @@ describe('LoginPage', () => {
       expect(router.currentRoute.value.query.redirect).toBe('/some-protected-route')
     })
   })
+
+  describe('Register links preserve redirect query (FP-2.15)', () => {
+    it('passes redirect query through to /register/face link when arriving from /pricing', async () => {
+      const wrapper = await mountComponent({ redirect: '/pricing?plan=starter' })
+      await flushPromises()
+
+      const registerFaceLink = wrapper.find('a[href*="/register/face"]')
+      expect(registerFaceLink.exists()).toBe(true)
+      const href = registerFaceLink.attributes('href') ?? ''
+      // URL contains the encoded redirect param
+      expect(href).toMatch(/^\/register\/face\?redirect=/)
+      expect(decodeURIComponent(href)).toContain('/pricing?plan=starter')
+    })
+
+    it('passes redirect query through to /register/producer link when arriving with a redirect', async () => {
+      const wrapper = await mountComponent({ redirect: '/pricing?plan=pro' })
+      await flushPromises()
+
+      const registerProducerLink = wrapper.find('a[href*="/register/producer"]')
+      expect(registerProducerLink.exists()).toBe(true)
+      const href = registerProducerLink.attributes('href') ?? ''
+      expect(href).toMatch(/^\/register\/producer\?redirect=/)
+      expect(decodeURIComponent(href)).toContain('/pricing?plan=pro')
+    })
+
+    it('renders register links without redirect query when no redirect is present', async () => {
+      const wrapper = await mountComponent()
+      await flushPromises()
+
+      const registerFaceLink = wrapper.find('a[href*="/register/face"]')
+      expect(registerFaceLink.exists()).toBe(true)
+      expect(registerFaceLink.attributes('href')).toBe('/register/face')
+
+      const registerProducerLink = wrapper.find('a[href*="/register/producer"]')
+      expect(registerProducerLink.exists()).toBe(true)
+      expect(registerProducerLink.attributes('href')).toBe('/register/producer')
+    })
+  })
 })

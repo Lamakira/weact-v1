@@ -2,6 +2,8 @@
  * Candidature feature types
  */
 
+import type { Shipment } from '@/components/ugc'
+
 // Candidature status enum
 export const CandidatureStatus = {
   PENDING: 'pending',
@@ -44,6 +46,40 @@ export interface CandidatureResponse {
   message?: string
 }
 
+/**
+ * Accept-candidature result (8-5). Surfaces the FedaPay `checkout_url` returned
+ * by the backend when accepting a HYBRID mission candidature (payment at
+ * acceptance) ; absent for product-only (free direct accept). Mirrors
+ * bookingApi.payBooking's `BookingResponse & { checkout_url }` shape.
+ */
+export type AcceptCandidatureResult = CandidatureResponse & { checkout_url?: string }
+
+/**
+ * Release-candidature result (9-2). Payload « lean » de dénouement (calque
+ * CandidaturePaymentStatusResponse), PAS un CandidatureResource : le backend
+ * renvoie le nouveau statut + un message après libération du slot (9-1, D-9.1.h).
+ */
+export interface ReleaseCandidatureResponse {
+  data: {
+    candidature_status: CandidatureStatusType
+    message: string
+  }
+}
+
+/**
+ * Self-heal payment-status poll response for a hybrid candidature (8-5).
+ * The overlay polls until candidature_status === 'accepted' (success) or
+ * payment_status === 'failed' (retryable). Lean payload (mirror of the other
+ * *payment-status endpoints), not a full CandidatureResource.
+ */
+export interface CandidaturePaymentStatusResponse {
+  data: {
+    candidature_status: CandidatureStatusType
+    payment_status: 'pending' | 'paid' | 'failed'
+    is_trackable: boolean
+  }
+}
+
 // Apply to mission request data
 export interface ApplyToMissionData {
   message_motivation?: string
@@ -63,9 +99,16 @@ export interface ApplyToMissionResult {
 export interface MissionSummary {
   id: string
   titre: string
-  date_tournage: string
-  lieu: string
+  date_tournage: string | null // null pour l'UGC (champs tournage masqués, ugc-8-1)
+  lieu: string | null // idem
   budget: number
+  /**
+   * Discriminant UGC (D-8.3.a) : absent/null = standard, 'product'|'hybrid' = UGC.
+   * Optionnel volontairement : le backend l'envoie toujours (null pour le cash),
+   * mais l'optionalité évite de casser les fixtures `FaceCandidature` des specs
+   * existants — le runtime `!= null` traite absent ET null comme cash.
+   */
+  type_compensation?: string | null
 }
 
 // Producer summary for candidature list (nested in FaceCandidature)
@@ -86,6 +129,15 @@ export interface FaceCandidature {
   mission: MissionSummary
   producer: ProducerSummary
   conversation_id: string | null
+  /**
+   * Date-limite de reconfirmation (ISO 8601) d'une candidature UGC acceptée
+   * (accepted_at + ugc.reconfirm_window_hours, 9-1/9-2). null hors UGC accepté
+   * (cash, ou déjà reconfirmée/annulée). Optionnel : calque type_compensation,
+   * évite de casser les fixtures FaceCandidature existantes.
+   */
+  reconfirm_deadline?: string | null
+  /** Expédition UGC (whenLoaded — clé OMISE hors deal UGC expédié, 3.3 AC8). */
+  shipment?: Shipment
 }
 
 // Paginated candidatures response for Face list view
@@ -125,6 +177,7 @@ export interface FaceSummary {
   city: string | null
   tarif_horaire: number | null
   tarif_journalier: number | null
+  has_elite_badge: boolean
 }
 
 // Producer candidature for list view (includes face summary)
@@ -136,6 +189,8 @@ export interface ProducerCandidature {
   created_at: string
   conversation_id: string | null
   face: FaceSummary
+  // Expédition UGC (story 3.2) — `whenLoaded` backend : clé OMISE si absente.
+  shipment?: Shipment
 }
 
 // Paginated candidatures response for Producer list view
@@ -211,6 +266,7 @@ export interface CandidateFullProfile {
   average_rating: number | null
   ratings_count: number
   experiences: FaceExperience[]
+  has_elite_badge: boolean
   photos: FacePhoto[]
 }
 

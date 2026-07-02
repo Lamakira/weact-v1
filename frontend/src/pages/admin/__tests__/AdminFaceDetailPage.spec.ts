@@ -106,6 +106,9 @@ async function mountPage(face: AdminFaceData) {
         ConfirmModal: {
           template: '<div><slot /></div>',
         },
+        AdminFaceSubscriptionSection: {
+          template: '<div data-testid="admin-face-subscription-section-stub" />',
+        },
       },
     },
   })

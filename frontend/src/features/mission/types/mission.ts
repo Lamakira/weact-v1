@@ -2,6 +2,8 @@
  * Mission feature types
  */
 
+import type { Deliverable, Shipment } from '@/components/ugc'
+
 // Mission status enum
 export const MissionStatus = {
   DRAFT: 'draft',
@@ -95,6 +97,15 @@ export interface Mission {
   type_mission: MissionTypeType
   type_mission_label: string
   type_mission_autre: string | null
+  // UGC fields (null pour les missions non-UGC) — mirrors MissionResource (story 1.3)
+  type_compensation: string | null
+  type_compensation_label: string | null
+  nom_produit: string | null
+  valeur_produit: number | null
+  nombre_videos: number | null
+  montant_remuneration: number | null
+  commission_ugc: number | null
+  commission_paid_at: string | null
   genre_voulu: MissionGenderType
   genre_voulu_label: string
   lieu: string
@@ -113,16 +124,22 @@ export interface Mission {
 export interface CreateMissionData {
   titre: string
   description: string
-  date_tournage: string
+  date_tournage?: string // optionnel : champ de tournage masqué pour l'UGC (D-8.1.d) ; requis pour les types standard
   profil_recherche: string
-  budget: number
+  budget?: number // optionnel : dérivé serveur pour l'UGC (D-1.4.d) ; requis pour les types standard
   date_limite_candidature: string
   nombre_faces_voulu?: number
-  type_mission: MissionTypeType
+  type_mission: MissionTypeType | 'ugc' // 'ugc' n'est PAS ajouté à l'enum/labels partagés (D-1.4.b)
   type_mission_autre?: string
   genre_voulu: MissionGenderType
-  lieu: string
-  duree: string
+  lieu?: string // optionnel : champ de tournage masqué pour l'UGC (D-8.1.d) ; requis pour les types standard
+  duree?: string // optionnel : champ de tournage masqué pour l'UGC (D-8.1.d) ; requis pour les types standard
+  // UGC dotation (envoyés uniquement quand type_mission === 'ugc')
+  type_compensation?: 'product' | 'hybrid'
+  nom_produit?: string
+  valeur_produit?: number
+  nombre_videos?: number
+  montant_remuneration?: number
 }
 
 // Candidature data (minimal version for mission detail response)
@@ -135,6 +152,10 @@ export interface MissionCandidature {
   message_motivation: string | null
   created_at: string
   updated_at: string
+  /** Expédition UGC (whenLoaded — clé OMISE hors deal UGC expédié, 3.3 AC8). */
+  shipment?: Shipment
+  /** Livrables vidéo UGC (whenLoaded, 4.6) — review_note du bandeau de refus + start chrono Avis (D-4.6.b). */
+  deliverables?: Deliverable[]
 }
 
 // Mission API response
@@ -197,6 +218,48 @@ export interface PaginatedMissionsResponse {
   message?: string
 }
 
+// ─── Découverte UGC (story 2.2) ───────────────────────────────────────────
+// Miroir strict de UgcMissionTeaserResource (backend 2.1, D-2.1.c — 10 clés).
+export interface UgcMissionTeaser {
+  id: string
+  titre: string
+  type_compensation: 'product' | 'hybrid' | null
+  type_compensation_label: string | null
+  nom_produit: string | null
+  valeur_produit: number | null
+  nombre_videos: number | null
+  lieu: string
+  date_limite_candidature: string | null
+  created_at: string | null
+}
+
+export interface UgcPaywallMeta {
+  code: string
+  message: string
+  pricing_url: string
+}
+
+// Un item de découverte : MissionResource complet (Face éligible) ou teaser (free).
+export type UgcDiscoveryItem = Mission | UgcMissionTeaser
+
+export interface PaginatedUgcMissionsResponse {
+  data: UgcDiscoveryItem[]
+  links: {
+    first: string | null
+    last: string | null
+    prev: string | null
+    next: string | null
+  }
+  meta: {
+    current_page: number
+    last_page: number
+    per_page: number
+    total: number
+    can_access_ugc: boolean
+    paywall?: UgcPaywallMeta
+  }
+}
+
 // Mission type option for select inputs
 interface MissionTypeOption {
   value: MissionTypeType
@@ -223,4 +286,14 @@ export function getMissionGenderOptions(): MissionGenderOption[] {
     value: value as MissionGenderType,
     label,
   }))
+}
+
+/**
+ * Discriminant UGC côté Face (D-2.3.b) : `type_compensation` est requis à la
+ * création d'une mission UGC et structurellement null sur les standard.
+ * Ne JAMAIS discriminer par `type_mission === 'ugc'` (hors MissionTypeType,
+ * D-1.4.b) ni par `commission_ugc` (masqué pour les requesters Face, 2.1).
+ */
+export function isUgcMission(mission: Mission): boolean {
+  return mission.type_compensation != null
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Face;
 
 use App\Models\Face;
+use App\Services\FaceEntitlementService;
 use App\Services\PresentationVideoService;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -49,6 +50,24 @@ class UploadPresentationVideoRequest extends FormRequest
         $validator->after(function (Validator $validator) {
             if ($validator->errors()->isNotEmpty()) {
                 return;
+            }
+
+            // Tier gate — presentation video is unavailable on the Free tier
+            // (capabilities()->maxPresentationVideos = 0).
+            $user = $this->user();
+            if ($user !== null && $user->userable_type === Face::class) {
+                /** @var Face $face */
+                $face = $user->userable;
+                $maxPresentation = app(FaceEntitlementService::class)
+                    ->capabilities($face)->maxPresentationVideos;
+                if ($maxPresentation < 1) {
+                    $validator->errors()->add(
+                        'video',
+                        'Votre formule actuelle ne permet pas d\'ajouter une vidéo de présentation.'
+                    );
+
+                    return;
+                }
             }
 
             $video = $this->file('video');

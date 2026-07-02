@@ -1,8 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import type { Ref } from 'vue'
 import PublicFaceProfileView from '../PublicFaceProfileView.vue'
 import * as publicFacesApi from '@/features/public/services/publicFacesApi'
 import type { PublicFaceProfile } from '@/features/public/services/publicFacesApi'
+
+// Shared, controllable access state so individual tests can drive a bookable
+// (producer_with_access + available + priced) view to exercise the booking flow.
+const accessHolder = vi.hoisted(
+  () =>
+    ({ accessLevel: null, fullProfile: null, isLoadingFullProfile: null }) as {
+      accessLevel: Ref<string> | null
+      fullProfile: Ref<Record<string, unknown> | null> | null
+      isLoadingFullProfile: Ref<boolean> | null
+    },
+)
 
 // Mock route params - mutable for different test scenarios
 const mockParams: Record<string, string> = { username: 'adjoua' }
@@ -50,14 +62,17 @@ vi.mock('@/components/report/ReportButton.vue', () => ({
   },
 }))
 
-// Mock usePublicFaceAccess (uses Pinia's useAuthStore)
+// Mock usePublicFaceAccess (uses Pinia's useAuthStore) — returns shared refs so tests can drive state.
 vi.mock('@/features/public/composables/usePublicFaceAccess', async () => {
   const { ref } = await import('vue')
+  accessHolder.accessLevel = ref('guest')
+  accessHolder.fullProfile = ref(null)
+  accessHolder.isLoadingFullProfile = ref(false)
   return {
     usePublicFaceAccess: () => ({
-      accessLevel: ref('guest'),
-      fullProfile: ref(null),
-      isLoadingFullProfile: ref(false),
+      accessLevel: accessHolder.accessLevel,
+      fullProfile: accessHolder.fullProfile,
+      isLoadingFullProfile: accessHolder.isLoadingFullProfile,
     }),
   }
 })
@@ -177,6 +192,8 @@ describe('PublicFaceProfileView (Integration)', () => {
     vi.clearAllMocks()
     mockParams.username = 'adjoua'
     Object.keys(mockQuery).forEach((key) => delete mockQuery[key])
+    if (accessHolder.accessLevel) accessHolder.accessLevel.value = 'guest'
+    if (accessHolder.fullProfile) accessHolder.fullProfile.value = null
   })
 
   afterEach(() => {
@@ -336,5 +353,51 @@ describe('PublicFaceProfileView (Integration)', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="candidate-resume-summary"]').exists()).toBe(true)
+  })
+})
+
+describe('PublicFaceProfileView — UGC booking redirect (story 1.6)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockParams.username = 'adjoua'
+    Object.keys(mockQuery).forEach((key) => delete mockQuery[key])
+    vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
+      success: true,
+      profile: mockProfile,
+    })
+    // Drive a bookable state so BookingFormSheet renders.
+    if (accessHolder.accessLevel) accessHolder.accessLevel.value = 'producer_with_access'
+    if (accessHolder.fullProfile) {
+      accessHolder.fullProfile.value = {
+        id: 1,
+        prenom: 'Adjoua',
+        is_available: true,
+        tarif_journalier: 50000,
+        tarif_horaire: 10000,
+      }
+    }
+  })
+
+  async function emitBookingSuccess(typeContenu: string): Promise<void> {
+    const wrapper = mountView()
+    await flushPromises()
+    const sheet = wrapper.findComponent('[data-testid="booking-form-sheet"]')
+    expect(sheet.exists()).toBe(true)
+    sheet.vm.$emit('success', { id: 'booking-uuid-1', type_contenu: typeContenu })
+    await flushPromises()
+  }
+
+  it('redirects a UGC booking to its detail page with ?pay=1', async () => {
+    await emitBookingSuccess('UGC')
+    expect(mockRouter.push).toHaveBeenCalledWith({
+      name: 'producer-booking-detail',
+      params: { id: 'booking-uuid-1' },
+      query: { pay: '1' },
+    })
+  })
+
+  it('keeps the existing redirect for a cash booking', async () => {
+    await emitBookingSuccess('Publicité')
+    expect(mockRouter.push).toHaveBeenCalledWith('/producer')
   })
 })

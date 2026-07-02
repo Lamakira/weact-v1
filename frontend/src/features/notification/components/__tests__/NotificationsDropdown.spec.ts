@@ -17,7 +17,7 @@ vi.mock('vue-router', () => ({
 }))
 
 // Mock store with reactive refs
-const mockItems = ref<Array<{ id: string; type: string; data: { message: string; url?: string }; read_at: string | null; created_at: string }>>([])
+const mockItems = ref<Array<{ id: string; type: string; data: { message: string; url?: string; level?: number; kind?: string; shipment_id?: string }; read_at: string | null; created_at: string }>>([])
 const mockIsLoading = ref(false)
 
 const mockFetchNotifications = vi.fn()
@@ -57,6 +57,18 @@ function createNotification(overrides: Partial<typeof mockItems.value[0]> = {}) 
   }
 }
 
+// jsdom/cssstyle normalise les couleurs inline → on accepte hex OU rgb (calque ChronoBadge.spec).
+const RGB: Record<string, string> = {
+  '#F59E0B': 'rgb(245, 158, 11)',
+  '#EA580C': 'rgb(234, 88, 12)',
+  '#DC2626': 'rgb(220, 38, 38)',
+}
+
+function styleHasColor(style: string, hex: string): boolean {
+  const s = style.replace(/\s/g, '').toLowerCase()
+  return s.includes(hex.toLowerCase()) || s.includes(RGB[hex].replace(/\s/g, '').toLowerCase())
+}
+
 describe('NotificationsDropdown', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -76,6 +88,7 @@ describe('NotificationsDropdown', () => {
           XCircle: { template: '<svg />' },
           Bell: { template: '<svg />' },
           Loader2: { template: '<svg class="animate-spin" />' },
+          Clock: { template: '<svg />' },
         },
       },
     })
@@ -179,5 +192,49 @@ describe('NotificationsDropdown', () => {
     await flushPromises()
 
     expect(wrapper.emitted('close')).toBeTruthy()
+  })
+
+  // UGC 4.5 — escalade visuelle (9A) : horloge colorée par data.level.
+  it('renders a colored clock icon + message for a deadline escalation notification', async () => {
+    mockItems.value = [
+      createNotification({
+        id: 'deadline-1',
+        type: 'ugc_deliverable_deadline_approaching',
+        data: { message: 'Plus que 2 jours pour déposer ton Unboxing', level: 1 },
+      }),
+    ]
+
+    const wrapper = mountDropdown()
+    await flushPromises()
+
+    const icon = wrapper.find('[data-testid="deadline-icon"]')
+    expect(icon.exists()).toBe(true)
+    expect(wrapper.text()).toContain('Plus que 2 jours pour déposer ton Unboxing')
+    expect(styleHasColor(icon.attributes('style') ?? '', '#F59E0B')).toBe(true)
+  })
+
+  it('escalates the clock color amber → orange → red by level', async () => {
+    const cases: Array<{ level: number; hex: string }> = [
+      { level: 1, hex: '#F59E0B' },
+      { level: 2, hex: '#EA580C' },
+      { level: 3, hex: '#DC2626' },
+    ]
+
+    for (const { level, hex } of cases) {
+      mockItems.value = [
+        createNotification({
+          id: `deadline-${level}`,
+          type: 'ugc_deliverable_deadline_approaching',
+          data: { message: 'Deadline', level },
+        }),
+      ]
+
+      const wrapper = mountDropdown()
+      await flushPromises()
+
+      const icon = wrapper.find('[data-testid="deadline-icon"]')
+      expect(icon.exists()).toBe(true)
+      expect(styleHasColor(icon.attributes('style') ?? '', hex)).toBe(true)
+    }
   })
 })

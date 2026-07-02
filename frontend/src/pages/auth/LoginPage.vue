@@ -35,9 +35,14 @@ onMounted(() => {
 })
 
 function handleLoginSuccess(): void {
-  // Check for redirect query param (e.g., from protected route redirect)
-  const redirectPath = route.query.redirect as string
-  if (redirectPath) {
+  // Check for redirect query param (e.g., from protected route redirect or
+  // from the FP-2.15 /pricing bounce-back chain).
+  // Defensive guard (FP-2.15 review P2 + P3): typeof === 'string' rejects the
+  // string[] case from duplicate ?redirect= params ; the same-origin path
+  // check rejects protocol-relative (//evil.com) and absolute URLs that would
+  // otherwise crash pushState with a SecurityError.
+  const redirectPath = typeof route.query.redirect === 'string' ? route.query.redirect : null
+  if (redirectPath && redirectPath.startsWith('/') && !redirectPath.startsWith('//')) {
     router.push(redirectPath)
     return
   }
@@ -144,13 +149,13 @@ function handleLoginSuccess(): void {
         <!-- Registration links -->
         <div class="mt-6 grid grid-cols-2 gap-3">
           <router-link
-            to="/register/face"
+            :to="{ path: '/register/face', query: route.query.redirect ? { redirect: route.query.redirect } : {} }"
             class="w-full inline-flex justify-center py-3 px-4 border border-gray-300 rounded-lg text-xs min-[376px]:text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
             Devenir Face
           </router-link>
           <router-link
-            to="/register/producer"
+            :to="{ path: '/register/producer', query: route.query.redirect ? { redirect: route.query.redirect } : {} }"
             class="w-full inline-flex justify-center py-3 px-4 border border-gray-300 rounded-lg text-xs min-[376px]:text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
             Devenir Producteur

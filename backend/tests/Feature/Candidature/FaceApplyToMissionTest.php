@@ -7,6 +7,7 @@ namespace Tests\Feature\Candidature;
 use App\Enums\CandidatureStatus;
 use App\Models\Candidature;
 use App\Models\Face;
+use App\Models\FaceSubscription;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
@@ -35,6 +36,11 @@ class FaceApplyToMissionTest extends TestCase
 
         $this->publishedMission = Mission::factory()->published()->forAll()->create([
             'date_limite_candidature' => now()->addDays(7),
+        ]);
+        // is_active (3.0) : la garde apply exige un producteur avec User actif
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $this->publishedMission->producer_id,
         ]);
     }
 
@@ -168,6 +174,10 @@ class FaceApplyToMissionTest extends TestCase
     {
         $expiredMission = Mission::factory()->published()->create([
             'date_limite_candidature' => now()->subDays(1),
+        ]);
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $expiredMission->producer_id,
         ]);
 
         $response = $this->actingAs($this->faceUser)
@@ -348,5 +358,127 @@ class FaceApplyToMissionTest extends TestCase
             ->postJson('/api/v1/face/missions/00000000-0000-0000-0000-000000000000/apply');
 
         $response->assertStatus(404);
+    }
+
+    // ===================================================================
+    // Garde UGC sur le apply (FR5, UGC 2.1)
+    // ===================================================================
+
+    /**
+     * La factory Mission ne tire jamais `ugc` — attributs explicites obligatoires.
+     */
+    private function makePublishedUgcMission(): Mission
+    {
+        $producer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+
+        return $producer->missions()->create([
+            'titre' => 'Appel UGC — Unboxing',
+            'description' => 'desc',
+            'date_tournage' => now()->addMonth(),
+            'profil_recherche' => 'Créatrices',
+            'budget' => 0,
+            'date_limite_candidature' => now()->addWeeks(2),
+            'nombre_faces_voulu' => 3,
+            'type_mission' => 'ugc',
+            'genre_voulu' => 'tous', // évite le guard gender_mismatch
+            'lieu' => 'Cotonou',
+            'duree' => 'Livrables vidéo',
+            'status' => 'published',
+            'commission_paid_at' => now(),
+            'type_compensation' => 'product',
+            'nom_produit' => 'Tenue Shade Fit',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'montant_remuneration' => null,
+            'commission_ugc' => 2500,
+        ]);
+    }
+
+    public function test_free_face_cannot_apply_to_ugc_mission(): void
+    {
+        $ugcMission = $this->makePublishedUgcMission();
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/missions/{$ugcMission->uuid}/apply", [
+                'message_motivation' => 'Très motivé',
+            ]);
+
+        $response->assertStatus(403)
+            ->assertJsonPath('error.code', 'UGC_SUBSCRIPTION_REQUIRED');
+
+        $this->assertDatabaseCount('candidatures', 0);
+        $this->assertDatabaseMissing('candidatures', [
+            'face_id' => $this->face->id,
+            'mission_id' => $ugcMission->id,
+        ]);
+    }
+
+    public function test_free_face_with_existing_candidature_on_ugc_mission_gets_already_applied(): void
+    {
+        // Précédence des gardes (review 2.1) : le check duplicate passe avant le
+        // gate UGC — une Face détentrice d'une candidature (abonnée au moment du
+        // apply, expirée depuis) reçoit ALREADY_APPLIED, pas le paywall.
+        $ugcMission = $this->makePublishedUgcMission();
+        Candidature::factory()->create([
+            'face_id' => $this->face->id,
+            'mission_id' => $ugcMission->id,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/missions/{$ugcMission->uuid}/apply", [
+                'message_motivation' => 'Très motivé',
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'ALREADY_APPLIED');
+    }
+
+    public function test_subscribed_face_can_apply_to_ugc_mission(): void
+    {
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        $ugcMission = $this->makePublishedUgcMission();
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/missions/{$ugcMission->uuid}/apply", [
+                'message_motivation' => 'Très motivé',
+            ]);
+
+        $response->assertStatus(201);
+
+        $this->assertDatabaseHas('candidatures', [
+            'face_id' => $this->face->id,
+            'mission_id' => $ugcMission->id,
+            'status' => 'pending',
+        ]);
+    }
+
+    // ===================================================================
+    // Garde producteur is_active (story 3.0)
+    // ===================================================================
+
+    public function test_face_cannot_apply_to_mission_of_inactive_producer(): void
+    {
+        $inactiveProducer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $inactiveProducer->id,
+            'is_active' => false,
+        ]);
+        $hiddenMission = Mission::factory()->published()->create([
+            'producer_id' => $inactiveProducer->id,
+            'date_limite_candidature' => now()->addDays(7),
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/missions/{$hiddenMission->uuid}/apply", [
+                'message_motivation' => 'Très motivé',
+            ]);
+
+        $response->assertStatus(404);
+        $this->assertSame(0, Candidature::count());
     }
 }

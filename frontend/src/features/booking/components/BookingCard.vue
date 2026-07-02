@@ -58,7 +58,7 @@ const detailRouteName = computed(() => {
 /**
  * Format helpers
  */
-function formatDate(dateString: string): string {
+function formatDate(dateString: string | null): string {
   if (!dateString) return ''
   return new Intl.DateTimeFormat('fr-FR', {
     day: 'numeric',
@@ -76,6 +76,8 @@ function formatCurrency(amount: number): string {
 }
 
 const formattedDateRange = computed(() => {
+  // UGC dotations have no shoot dates → empty (the row is hidden via v-if).
+  if (!props.booking.date_debut || !props.booking.date_fin) return ''
   const start = formatDate(props.booking.date_debut)
   const end = formatDate(props.booking.date_fin)
   return `${start} — ${end}`
@@ -123,11 +125,11 @@ const formattedDateRange = computed(() => {
 
     <!-- Booking Details -->
     <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground border-t border-border pt-3">
-      <div class="flex items-center gap-1.5">
+      <div v-if="formattedDateRange" class="flex items-center gap-1.5">
         <Calendar class="h-4 w-4" />
         <span>{{ formattedDateRange }}</span>
       </div>
-      <div class="flex items-center gap-1.5">
+      <div v-if="booking.duree_heures" class="flex items-center gap-1.5">
         <Clock class="h-4 w-4" />
         <span>max {{ booking.duree_heures }}h</span>
       </div>

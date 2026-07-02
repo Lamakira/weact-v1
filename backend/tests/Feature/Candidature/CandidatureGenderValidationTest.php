@@ -29,9 +29,16 @@ class CandidatureGenderValidationTest extends TestCase
 
     private function createMission(string $factoryState = 'forAll'): Mission
     {
-        return Mission::factory()->published()->{$factoryState}()->create([
+        $mission = Mission::factory()->published()->{$factoryState}()->create([
             'date_limite_candidature' => now()->addDays(7),
         ]);
+        // is_active (3.0) : la garde apply exige un producteur avec User actif
+        User::factory()->create([
+            'userable_type' => \App\Models\Producer::class,
+            'userable_id' => $mission->producer_id,
+        ]);
+
+        return $mission;
     }
 
     public function test_homme_face_can_apply_to_homme_mission(): void

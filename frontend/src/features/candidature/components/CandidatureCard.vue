@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { Calendar, MapPin, Wallet, User, Check, Loader2, MessageCircle, XCircle } from 'lucide-vue-next'
 import type { FaceCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
+import { StatusPill, tunnelStatusToPillKind } from '@/components/ugc'
 
 /**
  * Props
@@ -144,6 +145,28 @@ const statusBadgeClass = computed(() => {
 const producerInitials = computed(() => {
   return props.candidature.producer.display_name.charAt(0).toUpperCase()
 })
+
+/**
+ * Computed: Format the reconfirmation deadline for display (9-2, D-9.2.e).
+ * The backend exposes `reconfirm_deadline` (accepted_at + ugc.reconfirm_window_hours)
+ * already computed; the front only formats it (fr-FR, jour/mois/année + heure).
+ */
+const formattedReconfirmDeadline = computed(() => {
+  if (!props.candidature.reconfirm_deadline) return ''
+  try {
+    const date = new Date(props.candidature.reconfirm_deadline)
+    if (isNaN(date.getTime())) return ''
+    return new Intl.DateTimeFormat('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date)
+  } catch {
+    return ''
+  }
+})
 </script>
 
 <template>
@@ -212,6 +235,18 @@ const producerInitials = computed(() => {
       <User class="h-4 w-4 text-muted-foreground" />
     </div>
 
+    <!-- Tracking expédition UGC (3.4) — bloc compact informatif, l'action vit sur le détail (D-3.4.h) -->
+    <div
+      v-if="candidature.shipment"
+      class="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs text-muted-foreground"
+      data-testid="candidature-shipment-info"
+    >
+      <StatusPill :kind="tunnelStatusToPillKind(candidature.shipment.tunnel_status)">
+        {{ candidature.shipment.tunnel_status_label }}
+      </StatusPill>
+      <span>{{ candidature.shipment.transporteur }} · {{ candidature.shipment.numero_suivi }}</span>
+    </div>
+
     <!-- Actions Section -->
     <div
       v-if="canCancel || canConfirm || canChat"
@@ -229,6 +264,15 @@ const producerInitials = computed(() => {
         <Check v-else class="h-4 w-4" />
         {{ isConfirming ? 'Confirmation...' : 'Confirmer ma participation' }}
       </button>
+
+      <!-- Reconfirmation deadline label (UGC accepted, 9-2, D-9.2.e) -->
+      <p
+        v-if="canConfirm && formattedReconfirmDeadline"
+        data-testid="reconfirm-deadline-label"
+        class="text-center text-xs text-amber-600 dark:text-amber-400"
+      >
+        Reconfirmez avant le {{ formattedReconfirmDeadline }}, sinon votre place sera libérée.
+      </p>
 
       <!-- Cancel Button -->
       <button
