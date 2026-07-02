@@ -53,6 +53,7 @@ class ExpireUnreconfirmedUgcCandidaturesCommand extends Command
         $this->info("Found {$candidatures->count()} unreconfirmed UGC candidature(s) past the reconfirmation window.");
 
         $unwound = 0;
+        $failures = 0;
 
         foreach ($candidatures as $candidature) {
             // No-throw par candidature : une exception ne doit pas empoisonner le sweep
@@ -63,6 +64,7 @@ class ExpireUnreconfirmedUgcCandidaturesCommand extends Command
                     $unwound++;
                 }
             } catch (\Throwable $e) {
+                $failures++;
                 Log::critical('Sweep reconfirm-deadline échoué pour une candidature', [
                     'candidature_id' => $candidature->id,
                     'error' => $e->getMessage(),
@@ -70,8 +72,10 @@ class ExpireUnreconfirmedUgcCandidaturesCommand extends Command
             }
         }
 
-        $this->info("Done. Candidatures unwound: {$unwound}.");
+        $this->info("Done. Candidatures unwound: {$unwound}.".($failures > 0 ? " Failures: {$failures}." : ''));
 
-        return self::SUCCESS;
+        // OWASP A09 (L-8): surface silent failures to the scheduler/monitoring — a batch where
+        // candidatures threw must not exit SUCCESS. Per-item no-throw above is preserved.
+        return $failures > 0 ? self::FAILURE : self::SUCCESS;
     }
 }

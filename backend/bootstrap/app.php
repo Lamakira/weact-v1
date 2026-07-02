@@ -94,6 +94,13 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
+            // OWASP A09 (M-3): low-noise trace of unauthenticated access to protected endpoints.
+            Log::info('auth.unauthenticated', [
+                'path' => $request->path(),
+                'method' => $request->method(),
+                'ip' => $request->ip(),
+            ]);
+
             return response()->json([
                 'error' => ['message' => 'Non authentifié.', 'code' => 'UNAUTHENTICATED'],
             ], 401);
@@ -193,6 +200,18 @@ return Application::configure(basePath: dirname(__DIR__))
             ];
 
             $status = $e->getStatusCode();
+
+            // OWASP A09 (M-3): an authenticated principal hitting a forbidden resource is a
+            // meaningful signal (probing / compromised account) — log 403s for monitoring.
+            if ($status === 403) {
+                Log::warning('auth.forbidden', [
+                    'path' => $request->path(),
+                    'method' => $request->method(),
+                    'ip' => $request->ip(),
+                    'user_id' => optional($request->user())->id,
+                ]);
+            }
+
             $code = $statusMap[$status] ?? 'HTTP_ERROR';
             $message = $e->getMessage() !== '' ? $e->getMessage() : ($defaults[$status] ?? 'Erreur HTTP.');
 

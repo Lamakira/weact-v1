@@ -9,6 +9,7 @@ use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -513,5 +514,26 @@ class LoginTest extends TestCase
             ->withHeader('Authorization', "Bearer {$token}")
             ->getJson('/api/v1/user')
             ->assertStatus(401);
+    }
+
+    public function test_failed_login_is_logged_without_leaking_the_email_in_clear(): void
+    {
+        // OWASP A09 (M-3) + I-1: failed credential attempts are logged for monitoring, but the
+        // email is fingerprinted (never stored in clear) so security logs carry no PII.
+        Log::spy();
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'face@example.com',
+            'password' => 'wrongpassword',
+        ])->assertStatus(401);
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(function (string $message, array $context): bool {
+                return $message === 'auth.login.failed'
+                    && isset($context['email_hash'])
+                    && $context['email_hash'] !== 'face@example.com'
+                    && ! in_array('face@example.com', $context, true);
+            })
+            ->once();
     }
 }

@@ -60,7 +60,9 @@ class FaceResource extends JsonResource
             'bio' => $this->bio,
             'ville' => $this->ville,
             'pays' => $this->pays,
-            'whatsapp_number' => $this->whatsapp_number,
+            // OWASP A02: WhatsApp number is PII — only the owner/admin may see it, never
+            // any authenticated Producer (would allow mass off-platform contact harvesting).
+            'whatsapp_number' => $isPrivileged ? $this->whatsapp_number : null,
             'formatted_location' => $this->formatted_location,
             'taille' => $this->taille,
             'poids' => $this->poids,

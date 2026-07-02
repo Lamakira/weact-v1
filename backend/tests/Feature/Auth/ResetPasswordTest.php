@@ -218,4 +218,33 @@ class ResetPasswordTest extends TestCase
         $response->assertStatus(422)
             ->assertJsonPath('error.code', 'VALIDATION_ERROR');
     }
+
+    /**
+     * OWASP A07 (M-4): resetting the password must revoke all Sanctum tokens so a
+     * stolen/leaked bearer token cannot survive the very recovery flow used to
+     * reclaim a compromised account.
+     */
+    public function test_reset_password_revokes_all_sanctum_tokens(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'test@example.com',
+            'password' => Hash::make('oldpassword'),
+        ]);
+
+        // Two live sessions (e.g. one stolen, one legitimate).
+        $user->createToken('device-a');
+        $user->createToken('device-b');
+        $this->assertSame(2, $user->tokens()->count());
+
+        $token = Password::createToken($user);
+
+        $this->postJson('/api/v1/auth/reset-password', [
+            'token' => $token,
+            'email' => 'test@example.com',
+            'password' => 'NewPassword1',
+            'password_confirmation' => 'NewPassword1',
+        ])->assertStatus(200);
+
+        $this->assertSame(0, $user->tokens()->count());
+    }
 }

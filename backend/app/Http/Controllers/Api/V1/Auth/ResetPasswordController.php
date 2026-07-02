@@ -30,6 +30,10 @@ class ResetPasswordController extends Controller
 
                 $user->save();
 
+                // OWASP A07: revoke all Sanctum tokens so a stolen/leaked bearer token
+                // cannot survive the very recovery flow used to reclaim a compromised account.
+                $user->tokens()->delete();
+
                 event(new PasswordReset($user));
             }
         );

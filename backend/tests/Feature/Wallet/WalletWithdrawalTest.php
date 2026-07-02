@@ -293,6 +293,40 @@ class WalletWithdrawalTest extends TestCase
             ->assertJsonValidationErrors(['amount']);
     }
 
+    public function test_manual_withdrawal_service_rejects_second_pending_under_lock(): void
+    {
+        // OWASP A04 (L-2): the FormRequest "one pending" check runs BEFORE this call and
+        // is TOCTOU-racy. Calling the service directly (as two racing requests would once
+        // both pass the validator) must still refuse the duplicate under the per-user lock.
+        config(['app.withdrawal_mode' => 'manual', 'app.admin_email' => 'admin@example.com']);
+        Mail::fake();
+
+        $service = app(WithdrawalService::class);
+        $payload = [
+            'amount' => 5000,
+            'payment_mode' => 'mtn',
+            'phone_number' => '0197000000',
+            'phone_country' => 'bj',
+        ];
+
+        $service->createManualRequest($this->faceUser, $payload);
+
+        try {
+            $service->createManualRequest($this->faceUser, $payload);
+            $this->fail('Expected WithdrawalLockException on the second pending request.');
+        } catch (WithdrawalLockException) {
+            // expected — the under-lock re-check blocked the duplicate.
+        }
+
+        // TOCTOU closed: exactly one pending row despite two create attempts.
+        $this->assertSame(
+            1,
+            \App\Models\WithdrawalRequest::where('user_id', $this->faceUser->id)
+                ->where('status', 'pending')
+                ->count(),
+        );
+    }
+
     public function test_benin_phone_fails_with_wrong_operator_prefix(): void
     {
         // 0197 is an MTN prefix — submitting it under Moov must fail

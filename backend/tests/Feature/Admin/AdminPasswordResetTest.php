@@ -179,6 +179,30 @@ class AdminPasswordResetTest extends TestCase
             ->assertJsonStructure(['data' => ['token']]);
     }
 
+    /**
+     * OWASP A07 (M-4): an admin password reset must revoke all Sanctum tokens
+     * (higher stakes than a regular user — SuperAdmin controls finances).
+     */
+    public function test_admin_reset_password_revokes_all_sanctum_tokens(): void
+    {
+        $admin = Admin::factory()->create(['email' => 'admin@weact.test']);
+
+        $admin->createToken('session-a');
+        $admin->createToken('session-b');
+        $this->assertSame(2, $admin->tokens()->count());
+
+        $token = Password::broker('admins')->createToken($admin);
+
+        $this->postJson('/api/v1/admin/reset-password', [
+            'token' => $token,
+            'email' => 'admin@weact.test',
+            'password' => 'NewPassword1',
+            'password_confirmation' => 'NewPassword1',
+        ])->assertOk();
+
+        $this->assertSame(0, $admin->tokens()->count());
+    }
+
     // ─── SuperAdmin Trigger Reset ──────────────────────────────────
 
     public function test_superadmin_can_trigger_reset_for_admin(): void

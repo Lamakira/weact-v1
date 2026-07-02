@@ -1,3 +1,10 @@
+// @vitest-environment jsdom
+//
+// DOMPurify relies on a spec-faithful DOM. happy-dom (the suite's default env) diverges
+// from real browsers in a way that breaks DOMPurify >= 3.4 (it reports isSupported=true
+// but does NOT strip scripts). jsdom mirrors real-browser behaviour (it's DOMPurify's own
+// test env), so this file overrides the environment to exercise the real sanitiser path.
+// Verified: in a real browser and under jsdom, DOMPurify 3.4.x strips script/iframe/onerror.
 import { describe, it, expect } from 'vitest'
 import { sanitizeHtml } from '../sanitize'
 

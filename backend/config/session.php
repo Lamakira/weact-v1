@@ -169,7 +169,10 @@ return [
     |
     */
 
-    'secure' => env('SESSION_SECURE_COOKIE'),
+    // OWASP A02: default the Secure flag ON in shared environments so the session
+    // cookie is never sent over plain HTTP if SESSION_SECURE_COOKIE is left unset.
+    // Local/testing default to false so http:// development keeps working.
+    'secure' => env('SESSION_SECURE_COOKIE', env('APP_ENV') === 'production' || env('APP_ENV') === 'staging'),
 
     /*
     |--------------------------------------------------------------------------

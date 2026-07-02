@@ -28,7 +28,9 @@ class CreateAdminRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'unique:admins,email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            // OWASP A07: the most privileged account type must meet the same password
+            // policy as everyone else (>= 8 chars, at least one uppercase + one digit).
+            'password' => ['required', 'string', 'min:8', 'regex:/^(?=.*[A-Z])(?=.*\d).+$/', 'confirmed'],
             'role' => ['sometimes', new Enum(AdminRole::class)],
         ];
     }
@@ -48,6 +50,7 @@ class CreateAdminRequest extends FormRequest
             'email.unique' => 'Cet email est déjà utilisé.',
             'password.required' => 'Le mot de passe est obligatoire.',
             'password.min' => 'Le mot de passe doit contenir au moins 8 caractères.',
+            'password.regex' => 'Le mot de passe doit contenir au moins une majuscule et un chiffre.',
             'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
             'role' => 'Le rôle sélectionné est invalide.',
         ];

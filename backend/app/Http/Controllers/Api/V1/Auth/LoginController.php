@@ -33,7 +33,7 @@ class LoginController extends Controller
 
         if (RateLimiter::tooManyAttempts($throttleKey, 5)) {
             Log::warning('auth.login.throttled', [
-                'email' => $email,
+                'email_hash' => $this->emailFingerprint($email),
                 'ip' => $request->ip(),
             ]);
 
@@ -53,6 +53,13 @@ class LoginController extends Controller
         if ($result === null) {
             RateLimiter::hit($throttleKey, 60);
 
+            // OWASP A09 (M-3): record failed credential attempts (email fingerprinted, not in
+            // clear — I-1) so credential-stuffing is visible to monitoring even under the throttle.
+            Log::warning('auth.login.failed', [
+                'email_hash' => $this->emailFingerprint($email),
+                'ip' => $request->ip(),
+            ]);
+
             return response()->json([
                 'error' => [
                     'message' => 'Email ou mot de passe incorrect',
@@ -62,6 +69,11 @@ class LoginController extends Controller
         }
 
         if (isset($result['error']) && $result['error'] === 'ACCOUNT_DEACTIVATED') {
+            Log::warning('auth.login.account_deactivated', [
+                'email_hash' => $this->emailFingerprint($email),
+                'ip' => $request->ip(),
+            ]);
+
             return response()->json([
                 'error' => [
                     'message' => 'Votre compte a été désactivé',
@@ -80,5 +92,14 @@ class LoginController extends Controller
             'message' => 'Connexion réussie',
             'meta' => [],
         ], 200);
+    }
+
+    /**
+     * Non-reversible, correlatable fingerprint of an email for security logs
+     * (OWASP A09 / I-1 — never log the address in clear).
+     */
+    private function emailFingerprint(string $email): string
+    {
+        return substr(hash('sha256', Str::lower(trim($email))), 0, 16);
     }
 }

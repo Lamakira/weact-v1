@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Services\MissionPaymentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 /**
@@ -65,6 +66,29 @@ class UgcReconfirmDeadlineSweepTest extends TestCase
             'user_id' => $producerUser->id,
             'type' => 'mission_candidature_refunded',
         ]);
+    }
+
+    public function test_sweep_exits_failure_when_a_candidature_unwind_throws(): void
+    {
+        // OWASP A09 (L-8): per-candidature no-throw keeps the sweep alive, but a batch where an
+        // unwind throws must exit FAILURE so the scheduler/monitoring is alerted (not silent).
+        [$producer] = $this->makeProducerWithUser();
+        [$face] = $this->makeSubscribedFace('elite');
+        $mission = $this->makePublishedHybridMission($producer, ['nombre_faces_voulu' => 1]);
+        $candidature = $this->makeAcceptedCandidaturePast48h($mission, $face);
+        $this->lockHybridEscrow($candidature);
+
+        $mock = \Mockery::mock(MissionPaymentService::class);
+        $mock->shouldReceive('unwindUgcCandidatureSlot')->andThrow(new \RuntimeException('boom'));
+        $this->app->instance(MissionPaymentService::class, $mock);
+
+        Log::spy();
+
+        $this->artisan('ugc:expire-unreconfirmed-candidatures')->assertExitCode(1);
+
+        Log::shouldHaveReceived('critical')
+            ->withArgs(fn (string $message): bool => str_contains($message, 'Sweep reconfirm-deadline'))
+            ->once();
     }
 
     public function test_sweep_ignores_candidature_within_48h(): void
