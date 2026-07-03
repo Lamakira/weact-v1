@@ -7,15 +7,13 @@ namespace App\Http\Controllers\Api\V1\Public;
 use App\Constants\BeninCities;
 use App\Enums\FaceCategory;
 use App\Enums\FaceNiche;
-use App\Enums\FaceSubscriptionPlan;
-use App\Enums\FaceSubscriptionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Public\ListFacesRequest;
 use App\Http\Resources\PublicFaceProfileResource;
 use App\Http\Resources\PublicFaceResource;
 use App\Models\Face;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Http\JsonResponse;
-use RuntimeException;
 
 class FaceController extends Controller
 {
@@ -28,22 +26,10 @@ class FaceController extends Controller
     {
         $perPage = $request->getPerPage();
 
-        // FP-2.6: build the plan -> sort_priority CASE for the tier-priority
-        // ORDER BY. The priority integers come from config/face_subscription_tiers.php
-        // (Product Decision #9 — config-driven, never hard-coded in SQL); only the
-        // bound values vary, the "WHEN ? THEN ?" placeholders are a static literal.
-        $tierPriorityCase = '';
-        $tierPriorityBindings = [];
-
-        foreach (FaceSubscriptionPlan::cases() as $plan) {
-            $tierPriorityCase .= ' WHEN ? THEN ?';
-            $tierPriorityBindings[] = $plan->value;
-            $tierPriorityBindings[] = $this->tierSortPriority($plan->value);
-        }
-
-        $freeSortPriority = $this->tierSortPriority('free');
-
         $faces = Face::query()
+            // The LEFT JOIN below adds face_listing_ranks columns to the row:
+            // keep the hydrated model on faces.* only.
+            ->select('faces.*')
             ->whereHas('user', fn ($q) => $q->where('is_active', true))
             ->with('activeSubscription')
             ->withAvg('ratingsReceived', 'score')
@@ -60,43 +46,22 @@ class FaceController extends Controller
                         ->orWhere('bio', 'like', "%{$escaped}%");
                 });
             })
-            // FP-2.6 key 1 — subscription tier priority (Élite 1 .. Free 4). A
-            // correlated subquery maps the representative active subscription's
-            // plan to its configured sort_priority; expires_at DESC, id DESC
-            // LIMIT 1 picks the SAME row as Face::activeSubscription. A Face
-            // with no active row is COALESCE-d to the Free priority.
-            ->orderByRaw(
-                "COALESCE((
-                    SELECT CASE face_subscriptions.plan{$tierPriorityCase} END
-                    FROM face_subscriptions
-                    WHERE face_subscriptions.face_id = faces.id
-                      AND face_subscriptions.status = ?
-                      AND face_subscriptions.expires_at > ?
-                    ORDER BY face_subscriptions.expires_at DESC, face_subscriptions.id DESC
-                    LIMIT 1
-                ), ?)",
-                [
-                    ...$tierPriorityBindings,
-                    FaceSubscriptionStatus::Active->value,
-                    now(),
-                    $freeSortPriority,
-                ]
-            )
-            // FP-2.6 key 2 — manual admin featured boost, within the tier bucket.
-            ->orderBy('is_featured', 'desc')
-            // FP-2.6 keys 3 & 4 — the FP-1.6 profile-completeness CASE and
-            // created_at tiebreak, unchanged.
-            ->orderByRaw(
-                'CASE
-                    WHEN profile_photo IS NOT NULL AND tarif_journalier IS NOT NULL THEN 1
-                    WHEN profile_photo IS NOT NULL THEN 2
-                    ELSE 3
-                END'
-            )
-            ->orderBy('created_at', 'desc')
-            // FP-2.6 review patch — final unique tiebreaker so rows tying on
-            // every key above get a deterministic order (stable pagination).
-            ->orderBy('id', 'desc')
+            // Rotation: the order comes from the materialized ranking built
+            // nightly by faces:rebuild-listing-ranks. The current generation
+            // is MAX(generation) — the rebuild's transactional insert makes
+            // the switch atomic, no pointer table needed. The rank ORDERS,
+            // it never FILTERS: eligibility stays live (whereHas above), so
+            // a Face deactivated after the rebuild leaves a harmless hole.
+            ->leftJoin('face_listing_ranks', function (JoinClause $join): void {
+                $join->on('face_listing_ranks.face_id', '=', 'faces.id')
+                    ->whereRaw('face_listing_ranks.generation = (select max(generation) from face_listing_ranks)');
+            })
+            // Unranked Faces (created after the rebuild, or empty table before
+            // the first run) COALESCE to the unsigned-int max and fall to the
+            // end of the list; faces.id DESC is the deterministic tiebreak
+            // (and the whole-list fallback while the table is empty).
+            ->orderByRaw('COALESCE(face_listing_ranks.rank, 4294967295) asc')
+            ->orderBy('faces.id', 'desc')
             ->paginate($perPage);
 
         return response()->json([
@@ -109,28 +74,6 @@ class FaceController extends Controller
             ],
             'message' => 'Faces retrieved successfully',
         ]);
-    }
-
-    /**
-     * Resolve a tier's configured sort priority for the public ordering.
-     *
-     * Fails loud on a missing or non-integer config value: a broken
-     * config/face_subscription_tiers.php must surface, never silently
-     * coerce a bad value (null cast to 0, or a fractional like 1.9 cast
-     * to 1) and mis-rank a tier in the public list.
-     */
-    private function tierSortPriority(string $tier): int
-    {
-        $priority = config("face_subscription_tiers.tiers.{$tier}.capabilities.sort_priority");
-
-        if (! is_int($priority)) {
-            throw new RuntimeException(
-                "Missing or non-integer sort_priority for tier '{$tier}' in "
-                .'config/face_subscription_tiers.php — run `php artisan config:clear`.'
-            );
-        }
-
-        return $priority;
     }
 
     /**

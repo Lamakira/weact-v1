@@ -41,6 +41,7 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
  * @property \App\Enums\FaceGender|null $sexe
  * @property \Carbon\CarbonInterface|null $date_naissance
  * @property bool $is_available
+ * @property \Illuminate\Support\Carbon|null $last_page1_exposed_at
  * @property-read int|null $age
  * @property-read string $display_name
  * @property-read string|null $profile_photo_url
@@ -118,6 +119,7 @@ class Face extends Model
         'is_featured' => 'boolean',
         'show_age' => 'boolean',
         'rating_penalty' => 'float',
+        'last_page1_exposed_at' => 'datetime',
     ];
 
     /**
@@ -254,6 +256,8 @@ class Face extends Model
      * Resolution policy when multiple active subscription rows overlap:
      * longest `expires_at` wins; ties are broken by highest `id` (most recently
      * inserted row).
+     *
+     * @return HasOne<FaceSubscription, $this>
      */
     public function activeSubscription(): HasOne
     {

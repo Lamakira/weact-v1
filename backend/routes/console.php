@@ -11,6 +11,7 @@ use App\Console\Commands\ExpireUnreconfirmedUgcCandidaturesCommand;
 use App\Console\Commands\FailStalePendingFaceSubscriptionsCommand;
 use App\Console\Commands\ProcessUgcDeadlinesCommand;
 use App\Console\Commands\PurgeExpiredMediaCommand;
+use App\Console\Commands\RebuildFaceListingRanksCommand;
 use App\Console\Commands\ReconcileWalletCommand;
 use App\Console\Commands\RemindBookingPaymentCommand;
 use App\Console\Commands\RemindFaceSubscriptionRenewalsCommand;
@@ -47,6 +48,16 @@ app(Schedule::class)->command(FailStalePendingFaceSubscriptionsCommand::class)->
 app(Schedule::class)->command(RemindFaceSubscriptionRenewalsCommand::class)->hourly();
 app(Schedule::class)->command(PurgeExpiredMediaCommand::class)
     ->dailyAt('03:00')
+    ->timezone('UTC')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// Rotation du listing public : reconstruit chaque nuit le classement matérialisé
+// (quotas de palier via WRR lissé + équité LRU page 1) en une génération
+// atomique. Passe APRÈS les crons horaires d'expiration d'abonnements pour
+// classer chaque Face sur son palier à jour.
+app(Schedule::class)->command(RebuildFaceListingRanksCommand::class)
+    ->dailyAt('03:15')
     ->timezone('UTC')
     ->withoutOverlapping()
     ->onOneServer();
