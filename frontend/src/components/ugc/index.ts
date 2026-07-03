@@ -10,6 +10,7 @@ export { default as UgcBookingTimeline } from './UgcBookingTimeline.vue'
 export { default as UgcShipmentForm } from './UgcShipmentForm.vue'
 export { default as UgcShipmentTrackingCard } from './UgcShipmentTrackingCard.vue'
 export { default as UgcFaceTrackingCard } from './UgcFaceTrackingCard.vue'
+export { default as UgcDiscoveryBanner } from './UgcDiscoveryBanner.vue'
 export {
   UGC_COMMISSION_RATE,
   UGC_COMMISSION_FLOOR,
