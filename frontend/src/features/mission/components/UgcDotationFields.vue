@@ -104,7 +104,7 @@ const emit = defineEmits<{
       id="montant_remuneration"
       :model-value="montantRemuneration ?? ''"
       type="number"
-      label="Montant de la rémunération Face"
+      label="Montant de la rémunération par face"
       :icon="Wallet"
       :error="montantRemunerationError"
       required
