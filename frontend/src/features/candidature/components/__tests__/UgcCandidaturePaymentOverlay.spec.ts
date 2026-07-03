@@ -54,7 +54,9 @@ describe('UgcCandidaturePaymentOverlay (8-5)', () => {
     const text = wrapper.text()
 
     expect(text).toContain('Cash Face')
-    expect(text).toContain('Frais de service (10 %)')
+    expect(text).toContain('Frais de service')
+    expect(text).not.toContain('(10 %)') // le taux n'est plus affiché
+
     expect(text).toContain('Total à payer')
     expect(text).toContain(fmt(15000)) // cash
     expect(text).toContain(fmt(1500)) // frais = round(15000 * 0.10)

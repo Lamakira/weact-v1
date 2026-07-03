@@ -5,7 +5,7 @@ import UgcDotationFields from '../UgcDotationFields.vue'
 /**
  * Composant présentationnel pur (story 1.4 AC1/AC2/AC4) :
  *  - product → encart « 2 vidéos » verrouillé, pas de champ rémunération
- *  - hybrid → #nombre_videos éditable + champ « Montant de la rémunération Face »
+ *  - hybrid → #nombre_videos éditable + champ « Montant de la rémunération par face »
  *  - encart livrables 7j/14j toujours présent
  *  - émet les updates v-model
  */
@@ -31,12 +31,12 @@ describe('UgcDotationFields', () => {
     expect(wrapper.find('#montant_remuneration').exists()).toBe(false)
   })
 
-  it('2. hybrid : #nombre_videos éditable + champ "Montant de la rémunération Face"', () => {
+  it('2. hybrid : #nombre_videos éditable + champ "Montant de la rémunération par face"', () => {
     const wrapper = mountFields({ compensationType: 'hybrid' })
 
     expect(wrapper.find('#nombre_videos').exists()).toBe(true)
     expect(wrapper.find('#montant_remuneration').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Montant de la rémunération Face')
+    expect(wrapper.text()).toContain('Montant de la rémunération par face')
   })
 
   it('3. encart livrables présent et décrit les chronos 7j / 14j', () => {

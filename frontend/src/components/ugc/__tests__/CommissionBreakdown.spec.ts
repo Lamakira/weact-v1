@@ -47,6 +47,15 @@ describe('CommissionBreakdown', () => {
     expect(wrapper.find('[data-testid="commission-breakdown"]').exists()).toBe(true)
   })
 
+  it('hides the rate badge in mission publish mode (product-only recap shows the FCFA amount only)', () => {
+    const wrapper = mountBreak({ productValue: 50000, mode: 'mission' })
+    const text = normalize(wrapper.text())
+
+    expect(text).toContain('Commission WeAct')
+    expect(text).toContain('5 000') // le montant reste affiché
+    expect(text).not.toContain('10% min. 2 500') // le taux disparaît du récap de création
+  })
+
   it('shows the service fee + escrow footer and drops the commission-only copy when onPlatform (booking hybride)', () => {
     const wrapper = mountBreak({ productValue: 50000, payAmount: 15000, onPlatform: true })
     const text = normalize(wrapper.text())
@@ -71,6 +80,8 @@ describe('CommissionBreakdown', () => {
       // Face cash + service fee (per-Face cost at acceptance)
       expect(text).toContain('25 000') // cash
       expect(text).toContain('Commission WeAct')
+      // Le taux n'est jamais affiché dans le récap de publication (montant FCFA uniquement)
+      expect(text).not.toContain('(10 %)')
       expect(text).toContain('2 500') // 10% WeAct commission on 25000
       expect(text).toContain('27 500') // per-Face cost = cash + service fee
       expect(text).toContain('séquestrée') // escrow note

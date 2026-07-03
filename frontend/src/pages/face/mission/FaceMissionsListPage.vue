@@ -8,11 +8,11 @@ import {
   ChevronLeft,
   ChevronRight,
   SlidersHorizontal,
-  Video,
   X,
 } from 'lucide-vue-next'
 import { useFaceMissions, useMissionFilters } from '@/features/mission/composables'
 import { AvailableMissionCard, MissionFiltersPanel } from '@/features/mission/components'
+import { UgcDiscoveryBanner } from '@/components/ugc'
 
 /**
  * LOGIC & STATE MANAGEMENT
@@ -194,32 +194,11 @@ function toggleFiltersPanel(): void {
       <!-- Content Area -->
       <div class="flex-1 min-w-0">
         <!-- UGC Discovery Entry Point (ugc-disc-1) — always-on door to the gated UGC page -->
-        <RouterLink
+        <UgcDiscoveryBanner
           :to="{ name: 'face-ugc-missions' }"
-          data-testid="ugc-discovery-cta"
-          class="group mb-6 flex items-center gap-3 rounded-xl border border-weact-100 bg-weact-50 p-4 transition-[border-color,box-shadow] hover:border-weact-200 hover:shadow-sm min-[376px]:gap-4 min-[376px]:p-5"
-        >
-          <div
-            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-weact text-white shadow-sm min-[376px]:h-12 min-[376px]:w-12"
-          >
-            <Video class="h-5 w-5 min-[376px]:h-6 min-[376px]:w-6" aria-hidden="true" />
-          </div>
-          <div class="min-w-0 flex-1">
-            <p class="text-sm font-bold text-slate-800 min-[376px]:text-base">
-              Découvrez les missions UGC
-            </p>
-            <p class="mt-0.5 text-xs text-slate-600 min-[376px]:text-sm">
-              Tournez des vidéos, gagnez des produits + du cash
-            </p>
-          </div>
-          <span
-            class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-weact px-3 py-2 text-xs font-semibold text-white transition-opacity group-hover:opacity-90 min-[376px]:text-sm"
-          >
-            <span class="hidden min-[376px]:inline">Voir les missions UGC</span>
-            <span class="min-[376px]:hidden">Voir</span>
-            <ChevronRight class="h-4 w-4" aria-hidden="true" />
-          </span>
-        </RouterLink>
+          test-id="ugc-discovery-cta"
+          class="mb-6"
+        />
 
         <!-- Loading State -->
         <div v-if="isLoading && !missions.length" class="grid gap-4 min-[376px]:gap-6 sm:grid-cols-2 xl:grid-cols-3">

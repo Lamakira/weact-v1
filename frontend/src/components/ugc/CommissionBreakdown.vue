@@ -68,7 +68,7 @@ function formatFcfa(amount: number): string {
            sur la valeur produit ; le coût total scale avec le nombre de Faces. -->
       <template v-if="isMissionHybrid">
         <div class="flex items-center justify-between text-xs">
-          <span class="text-gray-500">Commission WeAct (10 %)</span>
+          <span class="text-gray-500">Commission WeAct</span>
           <span class="text-gray-700">{{ formatFcfa(serviceFee) }}</span>
         </div>
 
@@ -96,7 +96,7 @@ function formatFcfa(amount: number): string {
           </div>
           <p class="mt-1 text-[10px] text-gray-400">
             Publication gratuite. À l'acceptation de chaque Face, vous réglez la rémunération
-            + la commission WeAct (10 %). La rémunération est séquestrée par WeAct puis versée
+            + la commission WeAct. La rémunération est séquestrée par WeAct puis versée
             à la Face après validation des vidéos ; le produit reste géré directement par vous.
           </p>
         </div>
@@ -105,7 +105,7 @@ function formatFcfa(amount: number): string {
       <!-- Booking hybride réglé on-platform : frais de service + total + footer escrow honnête -->
       <template v-else-if="isOnPlatformHybrid">
         <div class="flex items-center justify-between text-xs">
-          <span class="text-gray-500">Frais de service (10 %)</span>
+          <span class="text-gray-500">Frais de service</span>
           <span class="text-gray-700">{{ formatFcfa(serviceFee) }}</span>
         </div>
 
@@ -127,7 +127,12 @@ function formatFcfa(amount: number): string {
         <div class="flex items-center justify-between text-xs">
           <span class="flex items-center gap-1.5 font-medium text-weact">
             Commission WeAct
-            <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+            <!-- Le taux n'est pas affiché dans le récap de PUBLICATION d'une mission ;
+                 il reste visible sur les récaps booking (périmètre validé PO 2026-07-03). -->
+            <span
+              v-if="mode !== 'mission'"
+              class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500"
+            >
               10% min. 2 500
             </span>
           </span>

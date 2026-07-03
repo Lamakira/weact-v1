@@ -61,7 +61,7 @@ const tiers: PricingTier[] = [
     key: 'decouverte',
     name: 'Découverte',
     tagline: 'Pour tester la plateforme',
-    priceLabel: '0',
+    priceLabel: 'Gratuit',
     isFree: true,
     description: "Crée ton profil et explore l'écosystème WeAct sans engagement.",
     cta: "S'inscrire",
@@ -254,7 +254,7 @@ const tierLabels: Record<string, string> = {
   elite: 'Élite',
 }
 const tierPrices: Record<string, string> = {
-  decouverte: '0',
+  decouverte: 'Gratuit',
   starter: '12 000',
   pro: '25 000',
   elite: '40 000',
@@ -718,7 +718,7 @@ watchEffect(() => {
                   tier.key === 'elite' ? 'text-gray-400' : 'text-gray-500',
                 ]"
               >
-                FCFA
+                FCFA / an
               </span>
             </div>
             <div
@@ -727,7 +727,7 @@ watchEffect(() => {
                 tier.key === 'elite' ? 'text-gray-500' : 'text-gray-400',
               ]"
             >
-              {{ tier.isFree ? 'Offre découverte' : 'par an · sans engagement' }}
+              {{ tier.isFree ? 'Offre découverte' : 'sans engagement' }}
             </div>
           </div>
 
@@ -915,7 +915,6 @@ watchEffect(() => {
                       :class="['text-[11px]', k === 'elite' ? 'text-gray-400' : 'text-gray-500']"
                       >FCFA / an</span
                     >
-                    <span v-else class="text-[11px] text-gray-500">· gratuit</span>
                   </div>
                   <RouterLink
                     :to="
