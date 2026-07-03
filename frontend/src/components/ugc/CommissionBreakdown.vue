@@ -105,7 +105,7 @@ function formatFcfa(amount: number): string {
       <!-- Booking hybride réglé on-platform : frais de service + total + footer escrow honnête -->
       <template v-else-if="isOnPlatformHybrid">
         <div class="flex items-center justify-between text-xs">
-          <span class="text-gray-500">Frais de service (10 %)</span>
+          <span class="text-gray-500">Frais de service</span>
           <span class="text-gray-700">{{ formatFcfa(serviceFee) }}</span>
         </div>
 

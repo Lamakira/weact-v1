@@ -141,7 +141,7 @@ watch(
                   <span>{{ formatXOF(pricing.cash) }}</span>
                 </div>
                 <div class="flex justify-between text-gray-600 dark:text-gray-400">
-                  <span>Frais de service (10 %)</span>
+                  <span>Frais de service</span>
                   <span>+ {{ formatXOF(pricing.frais) }}</span>
                 </div>
                 <div
