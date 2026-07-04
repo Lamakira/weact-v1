@@ -46,10 +46,14 @@ class ListFacesRequest extends FormRequest
 
     /**
      * Get validated per_page value with default, capped at 30.
+     *
+     * 16 = full grid rows on the public listing (4×4 desktop, 8×2 mobile,
+     * commit 55895ef9) AND the LRU page-1 exposure window
+     * (FaceListingRankingService::PAGE_ONE_WINDOW) — change them together.
      */
     public function getPerPage(): int
     {
-        $perPage = (int) ($this->validated()['per_page'] ?? 15);
+        $perPage = (int) ($this->validated()['per_page'] ?? 16);
 
         return min($perPage, 30);
     }

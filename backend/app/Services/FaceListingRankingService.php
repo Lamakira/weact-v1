@@ -24,11 +24,13 @@ use RuntimeException;
 class FaceListingRankingService
 {
     /**
-     * Size of the "page 1" exposure window (= the public listing's default
-     * per_page). The rebuild command stamps `last_page1_exposed_at` on the
-     * first PAGE_ONE_WINDOW Faces of each new generation.
+     * Size of the "page 1" exposure window — MUST equal what the real public
+     * page 1 displays: 16 = the public listing's default per_page, itself
+     * chosen for full grid rows (4×4 desktop, commit 55895ef9). The rebuild
+     * command stamps `last_page1_exposed_at` on the first PAGE_ONE_WINDOW
+     * Faces of each new generation.
      */
-    public const PAGE_ONE_WINDOW = 15;
+    public const PAGE_ONE_WINDOW = 16;
 
     /**
      * The quotas are percentages: they must sum to exactly this total, and

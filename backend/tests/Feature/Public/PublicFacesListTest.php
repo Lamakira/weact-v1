@@ -55,9 +55,9 @@ class PublicFacesListTest extends TestCase
                 'message',
             ]);
 
-        // Default pagination is 15 items
-        $this->assertEquals(15, $response->json('meta.per_page'));
-        $this->assertCount(15, $response->json('data'));
+        // Default pagination is 16 items (full grid rows, commit 55895ef9)
+        $this->assertEquals(16, $response->json('meta.per_page'));
+        $this->assertCount(16, $response->json('data'));
         $this->assertEquals(20, $response->json('meta.total'));
     }
 
@@ -939,9 +939,10 @@ class PublicFacesListTest extends TestCase
             $counts[$tierByUuid[$uuid]]++;
         }
 
-        // Deterministic smoothed-WRR split of the default 15-item page for
-        // quotas 60/25/10/5: 9 élite, 4 pro, 1 starter, 1 free.
-        $this->assertSame(['elite' => 9, 'pro' => 4, 'starter' => 1, 'free' => 1], $counts);
+        // Deterministic smoothed-WRR split of the default 16-item page for
+        // quotas 60/25/10/5: 10 élite, 4 pro, 1 starter, 1 free (slot 16 is
+        // an élite/starter tie, won by tier priority).
+        $this->assertSame(['elite' => 10, 'pro' => 4, 'starter' => 1, 'free' => 1], $counts);
     }
 
     public function test_expired_subscription_face_ranks_in_the_free_queue(): void

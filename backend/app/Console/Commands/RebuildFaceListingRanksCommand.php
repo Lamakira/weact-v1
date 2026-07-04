@@ -92,10 +92,10 @@ class RebuildFaceListingRanksCommand extends Command
                     DB::table('face_listing_ranks')->insert($chunk);
                 }
 
-                // LRU fairness state: the first 15 Faces are about to be
-                // exposed on page 1, push them to the back of their tier
-                // queue for the next rebuild. toBase(): this is bookkeeping,
-                // it must NOT bump the Faces' user-facing updated_at.
+                // LRU fairness state: the page-1 window (first PAGE_ONE_WINDOW
+                // Faces) is about to be exposed — push them to the back of
+                // their tier queue for the next rebuild. toBase(): this is
+                // bookkeeping, it must NOT bump the user-facing updated_at.
                 $pageOne = $ranking->pageOneWindow($sequence);
                 if ($pageOne !== []) {
                     Face::query()

@@ -112,9 +112,10 @@ class FaceListingRankingServiceTest extends TestCase
         $sequence = $this->service->buildSequence($queues, $this->weights);
         $counts = $this->countByTier($this->service->pageOneWindow($sequence));
 
-        // Deterministic smoothed-WRR outcome for 60/25/10/5 over 15 slots
-        // (ties broken by tier priority): 9 élite, 4 pro, 1 starter, 1 free.
-        $this->assertSame(['elite' => 9, 'pro' => 4, 'starter' => 1, 'free' => 1], $counts);
+        // Deterministic smoothed-WRR outcome for 60/25/10/5 over 16 slots
+        // (ties broken by tier priority — slot 16 is an élite/starter tie
+        // won by élite): 10 élite, 4 pro, 1 starter, 1 free.
+        $this->assertSame(['elite' => 10, 'pro' => 4, 'starter' => 1, 'free' => 1], $counts);
     }
 
     public function test_sequence_emits_every_face_exactly_once(): void
@@ -241,11 +242,11 @@ class FaceListingRankingServiceTest extends TestCase
         $this->assertSame([4, 7, 9], $queue);
     }
 
-    public function test_page_one_window_returns_the_first_fifteen_ids(): void
+    public function test_page_one_window_returns_the_first_sixteen_ids(): void
     {
         $sequence = range(101, 130);
 
-        $this->assertSame(range(101, 115), $this->service->pageOneWindow($sequence));
+        $this->assertSame(range(101, 116), $this->service->pageOneWindow($sequence));
         $this->assertSame([101, 102], $this->service->pageOneWindow([101, 102]));
     }
 

@@ -7,6 +7,7 @@ namespace Tests\Feature\Console;
 use App\Models\Face;
 use App\Models\FaceSubscription;
 use App\Models\User;
+use App\Services\FaceListingRankingService;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -103,7 +104,7 @@ class RebuildFaceListingRanksCommandTest extends TestCase
         );
     }
 
-    public function test_stamps_last_page1_exposed_at_for_the_first_fifteen_only(): void
+    public function test_stamps_last_page1_exposed_at_for_the_page_one_window_only(): void
     {
         $faces = [];
         for ($i = 0; $i < 20; $i++) {
@@ -117,13 +118,13 @@ class RebuildFaceListingRanksCommandTest extends TestCase
         $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
 
         $order = $this->generationOrder(1);
-        $pageOne = array_slice($order, 0, 15);
-        $rest = array_slice($order, 15);
+        $pageOne = array_slice($order, 0, FaceListingRankingService::PAGE_ONE_WINDOW);
+        $rest = array_slice($order, FaceListingRankingService::PAGE_ONE_WINDOW);
 
         $this->assertSame(
-            15,
+            FaceListingRankingService::PAGE_ONE_WINDOW,
             Face::whereIn('id', $pageOne)->whereNotNull('last_page1_exposed_at')->count(),
-            'The 15 best-ranked Faces must be stamped as page-1 exposed.',
+            'The best-ranked page-1 window must be stamped as exposed.',
         );
         $this->assertSame(
             count($rest),
@@ -166,10 +167,12 @@ class RebuildFaceListingRanksCommandTest extends TestCase
         $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
         $secondOrder = $this->generationOrder(2);
 
-        // The 5 never-exposed Faces (ranks 16-20 of run 1) jump to the head;
-        // the 15 exposed ones rotate to the back, keeping their id ASC order.
+        // The never-exposed Faces (ranks beyond the page-1 window of run 1)
+        // jump to the head; the exposed window rotates to the back, keeping
+        // its id ASC order.
+        $window = FaceListingRankingService::PAGE_ONE_WINDOW;
         $this->assertSame(
-            array_merge(array_slice($firstOrder, 15), array_slice($firstOrder, 0, 15)),
+            array_merge(array_slice($firstOrder, $window), array_slice($firstOrder, 0, $window)),
             $secondOrder,
         );
     }
