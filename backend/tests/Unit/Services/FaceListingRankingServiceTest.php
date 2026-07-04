@@ -20,15 +20,16 @@ class FaceListingRankingServiceTest extends TestCase
 
     /**
      * Nominal quotas, keyed by descending tier priority (elite first) as the
-     * rebuild command passes them.
+     * rebuild command passes them. Mirror of config/face_subscription_tiers
+     * (56/25/13/6 → the standard 16-slot page splits 9/4/2/1).
      *
      * @var array<string, int>
      */
     private array $weights = [
-        'elite' => 60,
+        'elite' => 56,
         'pro' => 25,
-        'starter' => 10,
-        'free' => 5,
+        'starter' => 13,
+        'free' => 6,
     ];
 
     protected function setUp(): void
@@ -112,10 +113,11 @@ class FaceListingRankingServiceTest extends TestCase
         $sequence = $this->service->buildSequence($queues, $this->weights);
         $counts = $this->countByTier($this->service->pageOneWindow($sequence));
 
-        // Deterministic smoothed-WRR outcome for 60/25/10/5 over 16 slots
-        // (ties broken by tier priority — slot 16 is an élite/starter tie
-        // won by élite): 10 élite, 4 pro, 1 starter, 1 free.
-        $this->assertSame(['elite' => 10, 'pro' => 4, 'starter' => 1, 'free' => 1], $counts);
+        // Deterministic smoothed-WRR outcome for 56/25/13/6 over 16 slots:
+        // 9 élite, 4 pro, 2 starter, 1 free — the PO-calibrated page-1 mix
+        // (Starter must visibly outrank Free: 2 slots vs 1, and its first
+        // slot comes at position 4 vs position 9 for free).
+        $this->assertSame(['elite' => 9, 'pro' => 4, 'starter' => 2, 'free' => 1], $counts);
     }
 
     public function test_sequence_emits_every_face_exactly_once(): void
@@ -163,7 +165,7 @@ class FaceListingRankingServiceTest extends TestCase
 
         // Slot 1 (elite wins, empty) -> pro. Slot 2 (pro wins) -> pro.
         // Slot 3 (elite wins, empty; pro drained) -> starter.
-        // Slot 4 (elite/starter tie -> elite, empty; pro+starter drained) -> free.
+        // Slot 4 (starter wins, drained; elite+pro empty) -> free.
         $this->assertSame([2001, 2002, 3001, 4001], $sequence);
     }
 

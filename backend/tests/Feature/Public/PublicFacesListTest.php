@@ -940,9 +940,9 @@ class PublicFacesListTest extends TestCase
         }
 
         // Deterministic smoothed-WRR split of the default 16-item page for
-        // quotas 60/25/10/5: 10 élite, 4 pro, 1 starter, 1 free (slot 16 is
-        // an élite/starter tie, won by tier priority).
-        $this->assertSame(['elite' => 10, 'pro' => 4, 'starter' => 1, 'free' => 1], $counts);
+        // quotas 56/25/13/6: 9 élite, 4 pro, 2 starter, 1 free (PO-calibrated
+        // so Starter visibly outranks Free).
+        $this->assertSame(['elite' => 9, 'pro' => 4, 'starter' => 2, 'free' => 1], $counts);
     }
 
     public function test_expired_subscription_face_ranks_in_the_free_queue(): void
