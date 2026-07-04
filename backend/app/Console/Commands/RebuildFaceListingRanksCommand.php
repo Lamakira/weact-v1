@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Enums\FaceSubscriptionTier;
 use App\Models\Face;
+use App\Services\FaceEntitlementService;
 use App\Services\FaceListingRankingService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use RuntimeException;
 
 class RebuildFaceListingRanksCommand extends Command
 {
@@ -40,7 +41,7 @@ class RebuildFaceListingRanksCommand extends Command
      * becomes MAX(generation) at commit (atomic switch), and any failure
      * rolls back so the previous generation keeps being served.
      */
-    public function handle(FaceListingRankingService $ranking): int
+    public function handle(FaceListingRankingService $ranking, FaceEntitlementService $entitlements): int
     {
         // The scheduler's withoutOverlapping() only fences cron runs; this
         // lock also covers a manual artisan run racing the nightly one (both
@@ -55,12 +56,12 @@ class RebuildFaceListingRanksCommand extends Command
         }
 
         try {
-            $weights = $this->tierWeightsByPriority();
+            $weights = $this->tierWeightsByPriority($entitlements);
             $queues = $this->buildTierQueues($ranking, array_keys($weights));
 
             $sequence = $ranking->buildSequence($queues, $weights);
 
-            $generation = DB::transaction(function () use (&$sequence, $ranking): int {
+            [$generation, $rankedCount, $stampedCount] = DB::transaction(function () use ($sequence, $ranking): array {
                 // TOCTOU guard: a Face hard-deleted between queue building
                 // (outside this transaction) and the insert below would
                 // violate the face_id FK and abort the WHOLE nightly rebuild.
@@ -106,14 +107,14 @@ class RebuildFaceListingRanksCommand extends Command
                     ->where('generation', '<', $generation - 1)
                     ->delete();
 
-                return $generation;
+                return [$generation, count($sequence), count($pageOne)];
             });
 
             $this->info(sprintf(
                 'Generation %d written: %d face(s) ranked, %d stamped as page-1 exposed.',
                 $generation,
-                count($sequence),
-                count($ranking->pageOneWindow($sequence)),
+                $rankedCount,
+                $stampedCount,
             ));
 
             return self::SUCCESS;
@@ -135,29 +136,43 @@ class RebuildFaceListingRanksCommand extends Command
      * — the key order carries the WRR tie-break and the redistribution
      * priority, both driven by the configured `sort_priority`.
      *
+     * The tier universe is the FaceSubscriptionTier enum, and each priority
+     * comes from the central validated accessor (strict is_int guard lives
+     * once, in FaceEntitlementService::buildCapabilities). Quotas are read
+     * from the already-loaded config array — the ranking service fail-louds
+     * on a missing or non-integer value.
+     *
      * @return array<string, mixed> tier => listing_quota (validated by the service)
      */
-    private function tierWeightsByPriority(): array
+    private function tierWeightsByPriority(FaceEntitlementService $entitlements): array
     {
         /** @var array<string, array<string, mixed>> $tiersConfig */
         $tiersConfig = config('face_subscription_tiers.tiers', []);
 
-        $tiers = array_keys($tiersConfig);
-        usort($tiers, fn (string $a, string $b): int => $this->tierSortPriority($a) <=> $this->tierSortPriority($b));
+        $priorities = [];
+        foreach (FaceSubscriptionTier::cases() as $tier) {
+            $priorities[$tier->value] = $entitlements->capabilitiesForTier($tier)->sortPriority;
+        }
+        asort($priorities);
 
         $weights = [];
-        foreach ($tiers as $tier) {
-            $weights[$tier] = config("face_subscription_tiers.tiers.{$tier}.capabilities.listing_quota");
+        foreach (array_keys($priorities) as $tierValue) {
+            $weights[$tierValue] = ($tiersConfig[$tierValue]['capabilities'] ?? [])['listing_quota'] ?? null;
         }
 
         return $weights;
     }
 
     /**
-     * Load the eligible Faces (active user, same live gate as the public
-     * controller) and group them into ordered per-tier queues.
+     * Load the eligible Faces (publiclyListable — the same shared scope the
+     * public controller uses) and group them into ordered per-tier queues.
      *
-     * A Face's tier is its `activeSubscription` plan, `free` otherwise.
+     * A Face's tier is its `activeSubscription` plan's tier, Free otherwise —
+     * the canonical plan→tier mapping, same as FaceEntitlementService. The
+     * queues only need 4 scalar fields, so only those columns are hydrated
+     * (the ofMany aggregation subquery is self-contained: the constrained
+     * eager-load columns MUST be qualified but need not include
+     * status/expires_at).
      *
      * @param  list<string>  $tiers
      * @return array<string, list<int>> tier => ordered face IDs
@@ -166,23 +181,21 @@ class RebuildFaceListingRanksCommand extends Command
     {
         $grouped = array_fill_keys($tiers, []);
 
-        // chunkById (id cursor), NOT offset chunk(): the live whereHas
+        // chunkById (id cursor), NOT offset chunk(): the live eligibility
         // predicate is re-evaluated per page, so concurrent user
         // deactivations would shift an OFFSET and silently skip Faces.
         Face::query()
-            ->whereHas('user', fn ($q) => $q->where('is_active', true))
-            ->with('activeSubscription')
+            ->publiclyListable()
+            ->select(['id', 'is_featured', 'profile_photo', 'last_page1_exposed_at'])
+            ->with(['activeSubscription' => fn ($q) => $q->select(
+                'face_subscriptions.id',
+                'face_subscriptions.face_id',
+                'face_subscriptions.plan',
+            )])
             ->chunkById(1000, function ($faces) use (&$grouped): void {
                 /** @var Face $face */
                 foreach ($faces as $face) {
-                    $tier = $face->activeSubscription?->plan->value ?? 'free';
-
-                    if (! array_key_exists($tier, $grouped)) {
-                        throw new RuntimeException(
-                            "Face #{$face->id} resolves to unknown tier '{$tier}' — "
-                            .'check config/face_subscription_tiers.php.'
-                        );
-                    }
+                    $tier = ($face->activeSubscription?->plan->tier() ?? FaceSubscriptionTier::Free)->value;
 
                     $grouped[$tier][] = [
                         'id' => (int) $face->id,
@@ -197,24 +210,5 @@ class RebuildFaceListingRanksCommand extends Command
             fn (array $faces): array => $ranking->orderTierQueue($faces),
             $grouped,
         );
-    }
-
-    /**
-     * Fail-loud sort_priority resolution (same guard as the historic public
-     * controller ordering): a missing or non-integer priority must surface,
-     * never silently mis-order the redistribution.
-     */
-    private function tierSortPriority(string $tier): int
-    {
-        $priority = config("face_subscription_tiers.tiers.{$tier}.capabilities.sort_priority");
-
-        if (! is_int($priority)) {
-            throw new RuntimeException(
-                "Missing or non-integer sort_priority for tier '{$tier}' in "
-                .'config/face_subscription_tiers.php — run `php artisan config:clear`.'
-            );
-        }
-
-        return $priority;
     }
 }

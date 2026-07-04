@@ -589,7 +589,7 @@ class PublicFacesListTest extends TestCase
     // ─── Materialized Listing Rotation ─────────────────────────────────
     //
     // The controller ORDER BY follows the rank materialized nightly by
-    // `faces:rebuild-listing-ranks` (COALESCE(rank, MAX_INT) ASC, id DESC).
+    // `faces:rebuild-listing-ranks` (rank IS NULL, rank ASC, id DESC).
     // Tier/rotation SEMANTICS (quotas, WRR, LRU, featured, photo-less) are
     // covered by FaceListingRankingServiceTest and
     // RebuildFaceListingRanksCommandTest; here we prove the controller
@@ -602,13 +602,7 @@ class PublicFacesListTest extends TestCase
      */
     private function makeListedFace(array $attributes = []): Face
     {
-        $face = Face::factory()->create($attributes);
-        User::factory()->create([
-            'userable_type' => Face::class,
-            'userable_id' => $face->id,
-        ]);
-
-        return $face;
+        return Face::factory()->withActiveUser()->create($attributes);
     }
 
     /**
@@ -731,7 +725,7 @@ class PublicFacesListTest extends TestCase
         $this->seedRankGeneration(1, [$b->id, $a->id]);
 
         // Created after the rebuild: no rank row. Under the pre-rotation
-        // id DESC fallback it would come FIRST — COALESCE must push it LAST.
+        // id DESC fallback it would come FIRST — `rank IS NULL` pushes it LAST.
         $late = $this->makeListedFace();
 
         $response = $this->getJson('/api/v1/public/faces?per_page=10');
@@ -950,84 +944,15 @@ class PublicFacesListTest extends TestCase
         $this->assertSame(['elite' => 9, 'pro' => 4, 'starter' => 1, 'free' => 1], $counts);
     }
 
-    public function test_second_rebuild_rotates_previously_exposed_faces_behind_unexposed_ones(): void
-    {
-        // Single tier, uniform attributes: the queue is pure LRU.
-        $faces = [];
-        for ($i = 0; $i < 20; $i++) {
-            $faces[] = $this->makeListedFace();
-        }
-
-        $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
-        $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
-
-        $response = $this->getJson('/api/v1/public/faces');
-        $response->assertOk();
-
-        // Run 1 exposed Faces 1-15 on page 1; run 2 must put the 5 never
-        // exposed (16-20) first, then the exposed ones rotate back in.
-        $expected = array_map(
-            fn (Face $f) => $f->uuid,
-            array_merge(array_slice($faces, 15), array_slice($faces, 0, 10)),
-        );
-        $this->assertSame($expected, array_column($response->json('data'), 'id'));
-    }
-
-    public function test_featured_face_leads_its_tier_after_command_run(): void
-    {
-        $plain = $this->makeListedFace();
-        $featured = $this->makeListedFace(['is_featured' => true]);
-        $other = $this->makeListedFace();
-
-        $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
-
-        $response = $this->getJson('/api/v1/public/faces?per_page=10');
-
-        $response->assertOk();
-        $this->assertSame(
-            [$featured->uuid, $plain->uuid, $other->uuid],
-            array_column($response->json('data'), 'id'),
-        );
-    }
-
-    public function test_face_without_photo_ranks_behind_photo_faces_of_its_tier(): void
-    {
-        $photoLess = $this->makeListedFace(['profile_photo' => null, 'profile_photo_thumbnail' => null]);
-        $photoOne = $this->makeListedFace(['profile_photo' => 'one.jpg', 'profile_photo_thumbnail' => 'one-thumb.jpg']);
-        $photoTwo = $this->makeListedFace(['profile_photo' => 'two.jpg', 'profile_photo_thumbnail' => 'two-thumb.jpg']);
-
-        $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
-
-        $response = $this->getJson('/api/v1/public/faces?per_page=10');
-
-        $response->assertOk();
-        $this->assertSame(
-            [$photoOne->uuid, $photoTwo->uuid, $photoLess->uuid],
-            array_column($response->json('data'), 'id'),
-        );
-    }
-
-    public function test_elite_subscriber_ranks_first_after_command_run(): void
-    {
-        $freeOne = $this->makeListedFace();
-        $freeTwo = $this->makeListedFace();
-        $elite = $this->makeListedFace();
-        FaceSubscription::factory()->elite()->active()->create(['face_id' => $elite->id]);
-
-        $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
-
-        $response = $this->getJson('/api/v1/public/faces?per_page=10');
-
-        $response->assertOk();
-        // Élite (quota 60) wins slot 1 of the WRR.
-        $this->assertSame(
-            [$elite->uuid, $freeOne->uuid, $freeTwo->uuid],
-            array_column($response->json('data'), 'id'),
-        );
-    }
-
     public function test_expired_subscription_face_ranks_in_the_free_queue(): void
     {
+        // KEEP this test even though tier classification is also covered at
+        // the command level: with the élite and pro queues EMPTY, every WRR
+        // slot here goes through the redistribution scan — this is the only
+        // test in the suite where the priority ORDER of that scan (elite →
+        // pro → starter → free) is observable. Inverting the priority
+        // ordering in tierWeightsByPriority() flips this expectation while
+        // every other test stays green.
         $expiredElite = $this->makeListedFace();
         FaceSubscription::factory()->elite()->expired()->create(['face_id' => $expiredElite->id]);
         $starter = $this->makeListedFace();
@@ -1081,14 +1006,29 @@ class PublicFacesListTest extends TestCase
 
     public function test_listing_does_not_depend_on_tier_sort_priority_config(): void
     {
-        // The listing no longer reads the tier config at request time — the
-        // fail-loud guards moved into the rebuild command and the ranking
-        // service. Even a broken sort_priority must not break the endpoint.
-        config(['face_subscription_tiers.tiers.pro.capabilities.sort_priority' => 1.9]);
+        // The listing no longer reads sort_priority at request time: the
+        // order is the materialized rank. Swapping the (valid) priorities
+        // AFTER the rebuild must leave the served order untouched. An
+        // INVALID priority is a different story — buildCapabilities now
+        // fail-louds on it everywhere, by design.
+        $free = $this->makeListedFace();
+        $elite = $this->makeListedFace();
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $elite->id]);
 
-        $this->makeListedFace();
+        $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
 
-        $this->getJson('/api/v1/public/faces')->assertOk();
+        config([
+            'face_subscription_tiers.tiers.elite.capabilities.sort_priority' => 4,
+            'face_subscription_tiers.tiers.free.capabilities.sort_priority' => 1,
+        ]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$elite->uuid, $free->uuid],
+            array_column($response->json('data'), 'id'),
+        );
     }
 
     public function test_failed_rebuild_keeps_serving_the_previous_generation(): void

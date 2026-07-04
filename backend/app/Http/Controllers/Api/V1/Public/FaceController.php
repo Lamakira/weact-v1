@@ -30,7 +30,7 @@ class FaceController extends Controller
             // The LEFT JOIN below adds face_listing_ranks columns to the row:
             // keep the hydrated model on faces.* only.
             ->select('faces.*')
-            ->whereHas('user', fn ($q) => $q->where('is_active', true))
+            ->publiclyListable()
             ->with('activeSubscription')
             ->withAvg('ratingsReceived', 'score')
             ->when($request->validated('categorie'), fn ($q, $cat) => $q->whereJsonContains('categories', $cat))
@@ -50,17 +50,19 @@ class FaceController extends Controller
             // nightly by faces:rebuild-listing-ranks. The current generation
             // is MAX(generation) — the rebuild's transactional insert makes
             // the switch atomic, no pointer table needed. The rank ORDERS,
-            // it never FILTERS: eligibility stays live (whereHas above), so
-            // a Face deactivated after the rebuild leaves a harmless hole.
+            // it never FILTERS: eligibility stays live (publiclyListable
+            // above), so a Face deactivated after the rebuild is just a hole.
             ->leftJoin('face_listing_ranks', function (JoinClause $join): void {
                 $join->on('face_listing_ranks.face_id', '=', 'faces.id')
                     ->whereRaw('face_listing_ranks.generation = (select max(generation) from face_listing_ranks)');
             })
             // Unranked Faces (created after the rebuild, or empty table before
-            // the first run) COALESCE to the unsigned-int max and fall to the
-            // end of the list; faces.id DESC is the deterministic tiebreak
-            // (and the whole-list fallback while the table is empty).
-            ->orderByRaw('COALESCE(face_listing_ranks.rank, 4294967295) asc')
+            // the first run) sort after ranked ones: `rank IS NULL` is 0 for
+            // ranked rows and 1 for unranked — no sentinel value to keep in
+            // sync with the column type. faces.id DESC is the deterministic
+            // tiebreak (and the whole-list fallback while the table is empty).
+            ->orderByRaw('face_listing_ranks.rank is null')
+            ->orderBy('face_listing_ranks.rank')
             ->orderBy('faces.id', 'desc')
             ->paginate($perPage);
 
@@ -115,7 +117,7 @@ class FaceController extends Controller
     {
         $face = Face::query()
             ->where('username', $username)
-            ->whereHas('user', fn ($q) => $q->where('is_active', true))
+            ->publiclyListable()
             ->with(['photos', 'videos', 'experiences', 'user', 'activeSubscription'])
             ->first();
 

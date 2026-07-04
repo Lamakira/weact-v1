@@ -22,13 +22,7 @@ class RebuildFaceListingRanksCommandTest extends TestCase
      */
     private function makeFace(array $attributes = []): Face
     {
-        $face = Face::factory()->create($attributes);
-        User::factory()->create([
-            'userable_type' => Face::class,
-            'userable_id' => $face->id,
-        ]);
-
-        return $face;
+        return Face::factory()->withActiveUser()->create($attributes);
     }
 
     /**
