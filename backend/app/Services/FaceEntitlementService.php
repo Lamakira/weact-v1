@@ -121,6 +121,11 @@ class FaceEntitlementService
             'ugc_access',
             'commission_rate',
             'sort_priority',
+            // Not exposed through TierCapabilities (the listing rebuild reads
+            // it from config directly), but required HERE so a tier added
+            // without a quota fails loud at first entitlement use — not
+            // silently at the next 03:15 rebuild.
+            'listing_quota',
             'has_elite_badge',
         ];
 

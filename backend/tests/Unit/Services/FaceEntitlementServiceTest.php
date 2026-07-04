@@ -129,6 +129,25 @@ class FaceEntitlementServiceTest extends TestCase
         }
     }
 
+    public function test_capabilities_rejects_config_missing_listing_quota(): void
+    {
+        $configKey = 'face_subscription_tiers.tiers.free.capabilities';
+        $original = config($configKey);
+
+        try {
+            $caps = $original;
+            unset($caps['listing_quota']);
+            config()->set($configKey, $caps);
+
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessage("Incomplete capabilities config for tier 'free'");
+
+            (new FaceEntitlementService)->capabilitiesForTier(FaceSubscriptionTier::Free);
+        } finally {
+            config()->set($configKey, $original);
+        }
+    }
+
     public function test_capabilities_rejects_non_integer_sort_priority_config(): void
     {
         $configKey = 'face_subscription_tiers.tiers.free.capabilities.sort_priority';
