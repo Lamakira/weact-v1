@@ -180,6 +180,38 @@ class RebuildFaceListingRanksCommandTest extends TestCase
         );
     }
 
+    public function test_non_active_subscription_states_never_buy_placement(): void
+    {
+        // Control: the only genuinely active élite subscription.
+        $activeElite = $this->makeFace();
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $activeElite->id]);
+
+        // One élite row per non-qualifying state — none may leave the free queue.
+        $cancelled = $this->makeFace();
+        FaceSubscription::factory()->elite()->cancelled()->create(['face_id' => $cancelled->id]);
+        $pending = $this->makeFace();
+        FaceSubscription::factory()->elite()->pendingPayment()->create(['face_id' => $pending->id]);
+        $failed = $this->makeFace();
+        FaceSubscription::factory()->elite()->failed()->create(['face_id' => $failed->id]);
+        // Stale-Active: status still Active but expires_at past (the hourly
+        // expiry cron has not run yet) — the relation's expires_at predicate
+        // is the only guard, this pins it.
+        $staleActive = $this->makeFace();
+        FaceSubscription::factory()->elite()->active()->create([
+            'face_id' => $staleActive->id,
+            'expires_at' => now()->subDay(),
+        ]);
+
+        $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
+
+        // Slot 1 = élite queue (weight 60) = the control Face only; the four
+        // others rank in the free queue (all never-exposed → id ASC).
+        $this->assertSame(
+            [$activeElite->id, $cancelled->id, $pending->id, $failed->id, $staleActive->id],
+            $this->generationOrder(1),
+        );
+    }
+
     public function test_rerun_is_idempotent_and_purges_generations_older_than_previous(): void
     {
         $this->makeFace();

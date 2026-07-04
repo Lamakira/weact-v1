@@ -180,11 +180,11 @@ const comparisonGroups: ComparisonGroup[] = [
         elite: 'Prioritaire',
       },
       {
-        name: 'Rang dans la recherche',
-        decouverte: '4ᵉ',
-        starter: '3ᵉ',
-        pro: '2ᵉ',
-        elite: '1ᵉʳ',
+        name: 'Places réservées par page de recherche',
+        decouverte: '5 %',
+        starter: '10 %',
+        pro: '25 %',
+        elite: '60 %',
       },
       { name: 'Badge VIP / Élite', decouverte: false, starter: false, pro: false, elite: true },
     ],
@@ -231,7 +231,7 @@ const faqs: FAQItem[] = [
   {
     question: 'Comment fonctionne la mise en avant ?',
     answer:
-      "Dans la recherche des producteurs, les profils sont triés par palier : Élite en premier, puis Pro, puis Starter, puis Découverte. À palier égal, c'est l'algorithme classique de pertinence qui s'applique.",
+      "Chaque page de la recherche des producteurs réserve une part des places à chaque palier : 60 % pour Élite, 25 % pour Pro, 10 % pour Starter et 5 % pour Découverte. Plus ton palier est élevé, plus tu occupes de places, et plus haut dans la page. À l'intérieur de chaque palier, une rotation quotidienne équitable fait passer chaque profil à son tour en première page — personne ne reste figé en bas de liste. Les profils mis en avant par WeAct ouvrent leur palier, et un profil sans photo est relégué en fin de file : complète ton profil pour profiter pleinement de ta visibilité.",
   },
 ]
 

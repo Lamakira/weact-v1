@@ -54,7 +54,7 @@ const mockResponse: PublicFacesResponse = {
   meta: {
     current_page: 1,
     last_page: 3,
-    per_page: 16,
+    per_page: 15,
     total: 35,
   },
   message: 'Faces retrieved successfully',
@@ -215,7 +215,8 @@ describe('PublicFacesView', () => {
     await mountView('/faces?page=2&search=Adjoua&categorie=acteur')
     await flushPromises()
 
-    expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(2, 16, {
+    // 15 = aligned with the backend LRU exposure window (PAGE_ONE_WINDOW)
+    expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(2, 15, {
       categorie: 'acteur',
       niche: undefined,
       ville: undefined,

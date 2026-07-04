@@ -12,7 +12,10 @@ import { useScrollReveal } from '@/composables/useScrollReveal'
 
 const { reinit } = useScrollReveal()
 
-// Initialize pagination composable with 15 items per page
+// 15 items per page — MUST stay aligned with the backend LRU exposure window
+// (FaceListingRankingService::PAGE_ONE_WINDOW): the nightly rebuild stamps the
+// first 15 ranks as "page-1 exposed"; a different page size here would show
+// unstamped Faces on page 1 and bias the rotation fairness.
 const {
   faces,
   isLoading,
@@ -26,7 +29,7 @@ const {
   loadPage,
   updateFilters,
   retry,
-} = usePaginatedFaces(16)
+} = usePaginatedFaces(15)
 
 // Filter options from API
 const categories = ref<FilterOption[]>([])
