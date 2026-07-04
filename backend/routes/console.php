@@ -3,6 +3,7 @@
 use App\Console\Commands\AutoCompleteBookingsCommand;
 use App\Console\Commands\AutoReleaseMissionFundsCommand;
 use App\Console\Commands\AutoValidateMissionAttendanceCommand;
+use App\Console\Commands\CheckFaceListingRanksFreshnessCommand;
 use App\Console\Commands\ExpireFaceSubscriptionsCommand;
 use App\Console\Commands\ExpireUnacceptedBookingsCommand;
 use App\Console\Commands\ExpireUnacceptedUgcDealsCommand;
@@ -61,6 +62,12 @@ app(Schedule::class)->command(RebuildFaceListingRanksCommand::class)
     ->timezone('UTC')
     ->withoutOverlapping()
     ->onOneServer();
+
+// Watchdog du classement : le mode dégradé (génération précédente servie) est
+// invisible pour les visiteurs, donc un rebuild qui ne tourne plus doit être
+// détecté de l'extérieur — Log::critical répété chaque heure tant que le
+// classement date de plus de 48 h (= 2 nuits ratées).
+app(Schedule::class)->command(CheckFaceListingRanksFreshnessCommand::class)->hourly();
 
 // Sanctum token hygiene: drop tokens expired (created_at + sanctum.expiration) for
 // more than 24h, so abandoned/non-expiring sessions don't accumulate forever.

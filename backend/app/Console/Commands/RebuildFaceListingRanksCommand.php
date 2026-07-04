@@ -74,6 +74,9 @@ class RebuildFaceListingRanksCommand extends Command
                 ));
 
                 $generation = ((int) DB::table('face_listing_ranks')->max('generation')) + 1;
+                // Single timestamp for the whole generation — read by the
+                // faces:check-listing-ranks-freshness staleness watchdog.
+                $generatedAt = now();
 
                 $rows = [];
                 foreach ($sequence as $index => $faceId) {
@@ -81,6 +84,7 @@ class RebuildFaceListingRanksCommand extends Command
                         'generation' => $generation,
                         'face_id' => $faceId,
                         'rank' => $index + 1,
+                        'created_at' => $generatedAt,
                     ];
                 }
 
