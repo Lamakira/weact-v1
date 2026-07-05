@@ -20,6 +20,7 @@ use App\Services\MissionPaymentService;
 use App\Services\WalletService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -334,6 +335,57 @@ class BookingPaymentTest extends TestCase
         $webhookEvent->refresh();
         $this->assertEquals('processed', $webhookEvent->status);
         $this->assertNotNull($webhookEvent->processed_at);
+    }
+
+    public function test_webhook_approved_on_no_longer_payable_booking_logs_critical_without_poisoning_queue(): void
+    {
+        Log::spy();
+
+        // Booking annulé entre l'initiation du paiement et le webhook approved :
+        // le client a potentiellement été débité sur un état invalide. Avant le
+        // durcissement, BookingService::markAsPaid faisait THROW (ValidationException)
+        // → retries inutiles puis failed_jobs muet. Désormais : pas de throw,
+        // CRITICAL + event processed, statut inchangé.
+        $cancelled = Booking::factory()->cancelledByProducer()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'fedapay_transaction_id' => 88888,
+        ]);
+
+        $webhookEvent = FedapayWebhookEvent::create([
+            'fedapay_event_id' => 'evt_approved_on_cancelled_booking',
+            'event_name' => 'transaction.approved',
+            'payload' => ['entity' => ['id' => 88888, 'reference' => 'ref_late_ok']],
+            'status' => 'received',
+        ]);
+
+        $job = new HandleFedapayWebhook(
+            $webhookEvent->id,
+            'transaction.approved',
+            ['entity' => ['id' => 88888, 'reference' => 'ref_late_ok']]
+        );
+
+        $job->handle(
+            app(BookingService::class),
+            app(MissionPaymentService::class),
+            app(WalletService::class),
+            app(\App\Services\FaceSubscriptionPaymentService::class),
+        );
+
+        $cancelled->refresh();
+        $this->assertEquals(BookingStatus::CancelledByProducer, $cancelled->status);
+
+        $webhookEvent->refresh();
+        $this->assertEquals('processed', $webhookEvent->status);
+
+        Log::shouldHaveReceived('critical')
+            ->withArgs(function (string $message, array $context) use ($cancelled): bool {
+                return $message === 'Fedapay webhook: booking settlement rejected by business guard — money possibly collected on an invalid state, manual review required'
+                    && ($context['booking_id'] ?? null) === $cancelled->id
+                    && ($context['booking_status'] ?? null) === 'cancelled_by_producer'
+                    && ($context['exception'] ?? null) === \Illuminate\Validation\ValidationException::class;
+            })
+            ->once();
     }
 
     public function test_financial_event_is_immutable(): void

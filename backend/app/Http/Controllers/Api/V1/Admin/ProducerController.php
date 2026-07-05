@@ -11,6 +11,7 @@ use App\Http\Requests\Admin\UpdateAdminProducerRequest;
 use App\Http\Resources\ProducerResource;
 use App\Models\Producer;
 use App\Models\User;
+use App\Support\Sql;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +27,7 @@ class ProducerController extends Controller
 
         // Search by first_name, last_name, agency_name, or user email
         if ($request->filled('search') && is_string($request->query('search'))) {
-            $search = str_replace(['%', '_'], ['\%', '\_'], $request->query('search'));
+            $search = Sql::escapeLike($request->query('search'));
             $query->where(function ($q) use ($search) {
                 $q->where('first_name', 'like', "%{$search}%")
                     ->orWhere('last_name', 'like', "%{$search}%")

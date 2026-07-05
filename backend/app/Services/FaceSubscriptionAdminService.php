@@ -66,7 +66,10 @@ class FaceSubscriptionAdminService
                 'starts_at' => $resolvedStarts,
                 'expires_at' => $resolvedExpires,
                 'cancelled_at' => null,
-                'paid_amount' => null,
+                // Décision PO 2026-07-06 : une activation manuelle enregistre
+                // 0 (aucun encaissement on-platform) — paid_at reste null, la
+                // ligne contribue structurellement 0 aux revenus D-1.
+                'paid_amount' => 0,
                 'currency' => 'XOF',
                 'provider' => null,
                 'provider_reference' => null,

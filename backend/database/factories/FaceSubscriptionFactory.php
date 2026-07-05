@@ -50,6 +50,11 @@ class FaceSubscriptionFactory extends Factory
 
     /**
      * Subscription awaiting payment confirmation.
+     *
+     * paid_amount/paid_at are reset to null to mirror production: initiate()
+     * creates pending rows unpaid, and only markAsPaid() fills both. Without
+     * the reset, the definition() default would leak phantom revenue into the
+     * D-1 aggregates (SUM(paid_amount) regardless of status).
      */
     public function pendingPayment(): static
     {
@@ -58,6 +63,8 @@ class FaceSubscriptionFactory extends Factory
             'starts_at' => null,
             'expires_at' => null,
             'cancelled_at' => null,
+            'paid_amount' => null,
+            'paid_at' => null,
         ]);
     }
 
@@ -108,6 +115,10 @@ class FaceSubscriptionFactory extends Factory
 
     /**
      * Subscription whose payment attempt failed.
+     *
+     * paid_amount/paid_at reset to null: a failed row was never settled
+     * (late approvals leave the row Failed with metadata only) — same
+     * phantom-revenue guard as pendingPayment().
      */
     public function failed(): static
     {
@@ -116,6 +127,8 @@ class FaceSubscriptionFactory extends Factory
             'starts_at' => null,
             'expires_at' => null,
             'cancelled_at' => null,
+            'paid_amount' => null,
+            'paid_at' => null,
         ]);
     }
 

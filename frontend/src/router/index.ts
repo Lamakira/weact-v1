@@ -456,6 +456,12 @@ const router = createRouter({
           meta: { title: 'Suspensions UGC - WEACT' },
         },
         {
+          path: 'subscriptions',
+          name: 'admin-subscriptions-list',
+          component: () => import('../pages/admin/AdminSubscriptionsListPage.vue'),
+          meta: { title: 'Abonnements - WEACT' },
+        },
+        {
           path: 'articles',
           name: 'admin-articles-list',
           component: () => import('../pages/admin/AdminArticlesListPage.vue'),
