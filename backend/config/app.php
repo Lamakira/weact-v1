@@ -73,6 +73,10 @@ return [
 
     'timezone' => 'UTC',
 
+    // Fuseau métier pour le bucketing des mois (revenus, séries mensuelles) ;
+    // le stockage reste en UTC. Le Bénin n'a pas d'heure d'été : UTC+01:00 fixe.
+    'business_timezone' => env('APP_BUSINESS_TIMEZONE', 'Africa/Porto-Novo'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Locale Configuration

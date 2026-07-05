@@ -78,6 +78,23 @@ class AdminFaceCrudTest extends TestCase
             ->assertJsonPath('data.0.username', 'jdupont');
     }
 
+    public function test_search_with_trailing_backslash_finds_literal_backslash_username(): void
+    {
+        // Backslash littéral : « \ » doit être échappé AVANT les wildcards —
+        // sans ça, « back\ » devient le pattern '%back\%' où '\%' est un %
+        // LITTÉRAL, et le username contenant réellement « back\ » devient
+        // introuvable.
+        Face::factory()->create(['username' => 'back\\slash']);
+        Face::factory()->create(['username' => 'backslash']);
+
+        $response = $this->withToken($this->adminToken)
+            ->getJson('/api/v1/admin/faces?search='.urlencode('back\\'));
+
+        $response->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.username', 'back\\slash');
+    }
+
     public function test_search_by_email_returns_filtered_results(): void
     {
         $face1 = Face::factory()->create();

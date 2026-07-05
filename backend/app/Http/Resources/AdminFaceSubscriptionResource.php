@@ -27,9 +27,16 @@ class AdminFaceSubscriptionResource extends JsonResource
             'expires_at' => $this->expires_at?->toIso8601String(),
             'cancelled_at' => $this->cancelled_at?->toIso8601String(),
             'paid_amount' => $this->paid_amount,
+            'paid_at' => $this->paid_at?->toIso8601String(),
             'currency' => $this->currency,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
+            'face' => $this->whenLoaded('face', fn (): array => [
+                'id' => $this->face->uuid,
+                'nom' => $this->face->nom,
+                'prenom' => $this->face->prenom,
+                'username' => $this->face->username,
+            ]),
             'audits' => AdminFaceSubscriptionAuditResource::collection(
                 $this->whenLoaded('audits'),
             ),

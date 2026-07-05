@@ -708,6 +708,11 @@ class SubscriptionPaymentInitiationTest extends TestCase
             abs($result->expires_at->diffInSeconds($beforeNow->copy()->addYear(), false))
         );
         $this->assertSame(50000, $result->paid_amount);
+        $this->assertNotNull($result->paid_at, 'markAsPaid must stamp paid_at (D-1 revenue dating)');
+        $this->assertLessThanOrEqual(
+            5,
+            abs($result->paid_at->diffInSeconds($beforeNow, false))
+        );
 
         $metadata = $result->metadata;
         $this->assertIsArray($metadata);
@@ -893,10 +898,13 @@ class SubscriptionPaymentInitiationTest extends TestCase
         $this->assertSame(FaceSubscriptionStatus::Active, $second->status);
     }
 
-    public function test_mark_as_paid_logs_warning_and_no_ops_on_failed_or_cancelled_row(): void
+    public function test_mark_as_paid_no_ops_on_failed_cancelled_or_expired_row(): void
     {
         Log::spy();
 
+        // Failed distant (aucune metadata de source locale) : depuis le
+        // correctif late-approval-after-remote-failure, escaladé en CRITICAL +
+        // audit — plus le warning générique.
         $failed = FaceSubscription::factory()->failed()->create([
             'face_id' => $this->face->id,
             'provider_reference' => 'tx_failed',
@@ -909,18 +917,52 @@ class SubscriptionPaymentInitiationTest extends TestCase
         );
 
         $this->assertSame(FaceSubscriptionStatus::Failed, $result->status);
+        $this->assertSame(
+            'manual_review_required',
+            $result->metadata['late_approved_after_remote_failure_reason'] ?? null
+        );
 
-        Log::shouldHaveReceived('warning')
+        Log::shouldHaveReceived('critical')
             ->withArgs(function (string $message, array $context) use ($failed): bool {
-                return $message === 'Fedapay webhook: ignoring approval for non-pending face subscription'
+                return $message === 'Fedapay webhook: approved payment arrived after remote face subscription failure — manual review required'
                     && ($context['face_subscription_id'] ?? null) === $failed->id
                     && ($context['current_status'] ?? null) === 'failed';
             });
 
-        // Cancelled row variant
+        // Expired : seul statut restant sur le chemin générique — garde la
+        // couverture du warning « non-pending » que les escalades Failed et
+        // Cancelled ne prennent plus.
+        $expired = FaceSubscription::factory()->expired()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => 'tx_expired',
+        ]);
+
+        $expiredResult = app(FaceSubscriptionPaymentService::class)->markAsPaid(
+            $expired,
+            'fedapay-ref-late-expired',
+            50000
+        );
+
+        $this->assertSame(FaceSubscriptionStatus::Expired, $expiredResult->status);
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(function (string $message, array $context) use ($expired): bool {
+                return $message === 'Fedapay webhook: ignoring approval for non-pending face subscription'
+                    && ($context['face_subscription_id'] ?? null) === $expired->id
+                    && ($context['current_status'] ?? null) === 'expired';
+            });
+
+        // Cancelled row variant : toujours un no-op (jamais de réactivation),
+        // mais depuis le correctif late-approval-after-cancellation une ligne
+        // annulée JAMAIS réglée (paid_amount null) est escaladée en CRITICAL +
+        // audit metadata — plus le simple warning générique (l'argent encaissé
+        // ne doit pas disparaître d'un log de routine). Le pendant déjà-réglé
+        // (paid_amount non-null → warning routine) est couvert par
+        // SubscriptionPaymentWebhookTest::test_webhook_approved_on_settled_cancelled_row_is_routine_noop_not_critical.
         $cancelled = FaceSubscription::factory()->cancelled()->create([
             'face_id' => $this->face->id,
             'provider_reference' => 'tx_cancelled',
+            'paid_amount' => null,
         ]);
 
         $cancelledResult = app(FaceSubscriptionPaymentService::class)->markAsPaid(
@@ -930,10 +972,14 @@ class SubscriptionPaymentInitiationTest extends TestCase
         );
 
         $this->assertSame(FaceSubscriptionStatus::Cancelled, $cancelledResult->status);
+        $this->assertSame(
+            'manual_review_required',
+            $cancelledResult->metadata['late_approved_after_cancellation_reason'] ?? null
+        );
 
-        Log::shouldHaveReceived('warning')
+        Log::shouldHaveReceived('critical')
             ->withArgs(function (string $message, array $context) use ($cancelled): bool {
-                return $message === 'Fedapay webhook: ignoring approval for non-pending face subscription'
+                return $message === 'Fedapay webhook: approved payment arrived on a cancelled face subscription — customer charged, manual review required'
                     && ($context['face_subscription_id'] ?? null) === $cancelled->id
                     && ($context['current_status'] ?? null) === 'cancelled';
             });

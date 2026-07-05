@@ -736,6 +736,275 @@ class SubscriptionPaymentWebhookTest extends TestCase
             ->once();
     }
 
+    public function test_webhook_approved_after_cancellation_marks_manual_review_and_is_idempotent(): void
+    {
+        Log::spy();
+
+        // Course annulation × webhook : la Face initie (provider_reference posé
+        // par finalizePendingWithRetry), un admin annule la ligne pending, puis
+        // le paiement approuvé arrive. Argent encaissé, ligne jamais réactivée
+        // sans décision explicite — mais tracé CRITICAL + audit metadata, pas
+        // un simple warning invisible.
+        $cancelled = FaceSubscription::factory()->pro()->cancelled()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => '800200',
+            'paid_amount' => null,
+            'paid_at' => null,
+            'metadata' => [
+                'quoted_amount' => 25000,
+                'quoted_currency' => 'XOF',
+            ],
+        ]);
+
+        $webhookEvent = $this->dispatchWebhook('evt_late_cancelled', 'transaction.approved', [
+            'id' => 'evt_late_cancelled',
+            'name' => 'transaction.approved',
+            'entity' => [
+                'id' => 800200,
+                'reference' => 'fedapay-late-cancelled',
+                'amount' => 25000,
+            ],
+        ]);
+
+        $reloaded = $cancelled->fresh();
+        $this->assertSame(FaceSubscriptionStatus::Cancelled, $reloaded->status);
+        $this->assertNull($reloaded->paid_amount);
+        $this->assertNull($reloaded->paid_at);
+        $this->assertSame('manual_review_required', $reloaded->metadata['late_approved_after_cancellation_reason']);
+        $this->assertSame('fedapay-late-cancelled', $reloaded->metadata['late_approved_fedapay_reference']);
+        $this->assertSame(25000, $reloaded->metadata['late_approved_paid_amount']);
+        $this->assertSame('evt_late_cancelled', $reloaded->metadata['late_approved_event_payload_summary']['event_id']);
+        $this->assertSame('processed', $webhookEvent->fresh()->status);
+
+        $firstAuditTimestamp = $reloaded->metadata['late_approved_after_cancellation_at'];
+
+        // Rejeu du même paiement (retry FedaPay / replay admin) : l'audit de
+        // première occurrence est préservé, le critical ne repart pas.
+        $this->dispatchWebhook('evt_late_cancelled_dup', 'transaction.approved', [
+            'id' => 'evt_late_cancelled_dup',
+            'name' => 'transaction.approved',
+            'entity' => [
+                'id' => 800200,
+                'reference' => 'fedapay-late-cancelled-second',
+                'amount' => 25000,
+            ],
+        ]);
+
+        $afterSecond = $cancelled->fresh();
+        $this->assertSame(FaceSubscriptionStatus::Cancelled, $afterSecond->status);
+        $this->assertSame('fedapay-late-cancelled', $afterSecond->metadata['late_approved_fedapay_reference']);
+        $this->assertSame($firstAuditTimestamp, $afterSecond->metadata['late_approved_after_cancellation_at']);
+
+        Log::shouldHaveReceived('critical')
+            ->withArgs(function (string $message, array $context) use ($cancelled): bool {
+                return $message === 'Fedapay webhook: approved payment arrived on a cancelled face subscription — customer charged, manual review required'
+                    && ($context['face_subscription_id'] ?? null) === $cancelled->id
+                    && ($context['fedapay_reference'] ?? null) === 'fedapay-late-cancelled';
+            })
+            ->once();
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(function (string $message, array $context) use ($cancelled, $firstAuditTimestamp): bool {
+                return $message === 'Fedapay webhook: duplicate late-approval webhook on cancelled subscription ignored — first late-approval audit preserved'
+                    && ($context['face_subscription_id'] ?? null) === $cancelled->id
+                    && ($context['fedapay_reference'] ?? null) === 'fedapay-late-cancelled-second'
+                    && ($context['first_late_approved_at'] ?? null) === $firstAuditTimestamp;
+            })
+            ->once();
+    }
+
+    public function test_webhook_approved_on_settled_cancelled_row_is_routine_noop_not_critical(): void
+    {
+        Log::spy();
+
+        // Ligne payée-puis-annulée (annulation admin d'un abonnement actif, ou
+        // supersession tier-change FP-2.5) : l'argent a déjà été honoré et
+        // compté dans les revenus D-1. Une ré-émission approved (nouvel event
+        // id) ne doit PAS déclencher le CRITICAL « customer charged » ni
+        // l'audit manual_review — sinon l'opérateur double-crédite.
+        $settledCancelled = FaceSubscription::factory()->pro()->cancelled()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => '800300',
+            'paid_amount' => 50000,
+            'paid_at' => now()->subMonth(),
+            'metadata' => ['quoted_amount' => 50000, 'confirmed_at' => now()->subMonth()->toIso8601String()],
+        ]);
+
+        $webhookEvent = $this->dispatchWebhook('evt_settled_cancelled', 'transaction.approved', [
+            'id' => 'evt_settled_cancelled',
+            'name' => 'transaction.approved',
+            'entity' => ['id' => 800300, 'reference' => 'fp-settled-cancelled', 'amount' => 50000],
+        ]);
+
+        $reloaded = $settledCancelled->fresh();
+        $this->assertSame(FaceSubscriptionStatus::Cancelled, $reloaded->status);
+        $this->assertSame(50000, $reloaded->paid_amount);
+        $this->assertArrayNotHasKey('late_approved_after_cancellation_at', $reloaded->metadata ?? []);
+        $this->assertSame('processed', $webhookEvent->fresh()->status);
+
+        Log::shouldNotHaveReceived('critical');
+        Log::shouldHaveReceived('warning')
+            ->withArgs(function (string $message, array $context) use ($settledCancelled): bool {
+                return $message === 'Fedapay webhook: duplicate approval on a settled cancelled face subscription ignored — payment already booked'
+                    && ($context['face_subscription_id'] ?? null) === $settledCancelled->id
+                    && ($context['paid_amount_booked'] ?? null) === 50000;
+            })
+            ->once();
+    }
+
+    public function test_webhook_approved_after_remote_failure_marks_manual_review_and_is_idempotent(): void
+    {
+        Log::spy();
+
+        // Ligne passée Failed par un settlement DISTANT (webhook declined
+        // traité d'abord) : markAsFailed n'écrit que failure_reason, donc la
+        // branche locally-failed ne matche pas. L'approved tardif = argent
+        // encaissé après échec enregistré → CRITICAL + audit, pas le warning
+        // générique.
+        $remoteFailed = FaceSubscription::factory()->pro()->failed()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => '800400',
+            'metadata' => [
+                'quoted_amount' => 25000,
+                'fedapay_reference' => 'fp-declined-first',
+                'failure_reason' => 'Payment transaction.declined',
+                'failed_at' => now()->subMinute()->toIso8601String(),
+            ],
+        ]);
+
+        $webhookEvent = $this->dispatchWebhook('evt_late_remote_failed', 'transaction.approved', [
+            'id' => 'evt_late_remote_failed',
+            'name' => 'transaction.approved',
+            'entity' => ['id' => 800400, 'reference' => 'fp-late-remote-failed', 'amount' => 25000],
+        ]);
+
+        $reloaded = $remoteFailed->fresh();
+        $this->assertSame(FaceSubscriptionStatus::Failed, $reloaded->status);
+        $this->assertNull($reloaded->paid_amount);
+        $this->assertNull($reloaded->paid_at);
+        $this->assertSame('manual_review_required', $reloaded->metadata['late_approved_after_remote_failure_reason']);
+        $this->assertSame('fp-late-remote-failed', $reloaded->metadata['late_approved_fedapay_reference']);
+        $this->assertSame(25000, $reloaded->metadata['late_approved_paid_amount']);
+        $this->assertSame('processed', $webhookEvent->fresh()->status);
+
+        $firstAuditTimestamp = $reloaded->metadata['late_approved_after_remote_failure_at'];
+
+        // Rejeu : audit de première occurrence préservé, un seul critical.
+        $this->dispatchWebhook('evt_late_remote_failed_dup', 'transaction.approved', [
+            'id' => 'evt_late_remote_failed_dup',
+            'name' => 'transaction.approved',
+            'entity' => ['id' => 800400, 'reference' => 'fp-late-remote-failed-second', 'amount' => 25000],
+        ]);
+
+        $afterSecond = $remoteFailed->fresh();
+        $this->assertSame('fp-late-remote-failed', $afterSecond->metadata['late_approved_fedapay_reference']);
+        $this->assertSame($firstAuditTimestamp, $afterSecond->metadata['late_approved_after_remote_failure_at']);
+
+        Log::shouldHaveReceived('critical')
+            ->withArgs(function (string $message, array $context) use ($remoteFailed): bool {
+                return $message === 'Fedapay webhook: approved payment arrived after remote face subscription failure — manual review required'
+                    && ($context['face_subscription_id'] ?? null) === $remoteFailed->id
+                    && ($context['failure_reason'] ?? null) === 'Payment transaction.declined';
+            })
+            ->once();
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $m, array $c): bool => $m === 'Fedapay webhook: duplicate late-approval webhook on remote-failed subscription ignored — first late-approval audit preserved'
+                && ($c['face_subscription_id'] ?? null) === $remoteFailed->id)
+            ->once();
+    }
+
+    public function test_webhook_mismatch_is_first_hit_wins_and_correct_amount_still_activates(): void
+    {
+        Log::spy();
+
+        // 1er webhook : montant faux (60000 ≠ quoted 50000) → mismatch audité,
+        // CRITICAL une fois, ligne laissée PendingPayment.
+        $this->dispatchWebhook('evt_mismatch_1', 'transaction.approved', [
+            'id' => 'evt_mismatch_1',
+            'name' => 'transaction.approved',
+            'entity' => ['id' => 777888, 'reference' => 'fp-mismatch-first', 'amount' => 60000],
+        ]);
+
+        $afterFirst = $this->pendingSubscription->fresh();
+        $this->assertSame(FaceSubscriptionStatus::PendingPayment, $afterFirst->status);
+        $firstDetectedAt = $afterFirst->metadata['amount_mismatch_detected_at'];
+
+        // 2e webhook, même montant faux, nouvel event id (retry provider ou
+        // clic « reprendre le paiement ») : audit préservé, pas de re-page.
+        $this->dispatchWebhook('evt_mismatch_2', 'transaction.approved', [
+            'id' => 'evt_mismatch_2',
+            'name' => 'transaction.approved',
+            'entity' => ['id' => 777888, 'reference' => 'fp-mismatch-second', 'amount' => 60000],
+        ]);
+
+        $afterSecond = $this->pendingSubscription->fresh();
+        $this->assertSame(FaceSubscriptionStatus::PendingPayment, $afterSecond->status);
+        $this->assertSame($firstDetectedAt, $afterSecond->metadata['amount_mismatch_detected_at']);
+        $this->assertSame('fp-mismatch-first', $afterSecond->metadata['fedapay_reference']);
+
+        Log::shouldHaveReceived('critical')
+            ->withArgs(fn (string $m): bool => $m === 'Fedapay webhook: paid_amount or currency mismatch — refusing activation, row left PendingPayment for admin review')
+            ->once();
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $m, array $c): bool => $m === 'Fedapay webhook: duplicate mismatch webhook ignored — first mismatch audit preserved'
+                && ($c['face_subscription_id'] ?? null) === $this->pendingSubscription->id)
+            ->once();
+
+        // 3e webhook au montant CORRECT : le garde first-hit-wins vit À
+        // L'INTÉRIEUR de la branche mismatch — le chemin de récupération doit
+        // toujours activer.
+        $this->dispatchWebhook('evt_mismatch_3', 'transaction.approved', [
+            'id' => 'evt_mismatch_3',
+            'name' => 'transaction.approved',
+            'entity' => ['id' => 777888, 'reference' => 'fp-correct-amount', 'amount' => 50000],
+        ]);
+
+        $afterThird = $this->pendingSubscription->fresh();
+        $this->assertSame(FaceSubscriptionStatus::Active, $afterThird->status);
+        $this->assertSame(50000, $afterThird->paid_amount);
+        $this->assertNotNull($afterThird->paid_at);
+    }
+
+    public function test_cancelled_branch_backfills_provider_reference_once(): void
+    {
+        // Sous-chemin course : ligne résolue pendante (provider_reference null,
+        // fallback custom_metadata) puis annulée avant le lockForUpdate. Appel
+        // service direct pour couvrir le backfill de provider_reference.
+        $cancelled = FaceSubscription::factory()->pro()->cancelled()->create([
+            'face_id' => $this->face->id,
+            'provider_reference' => null,
+            'paid_amount' => null,
+            'metadata' => ['quoted_amount' => 25000],
+        ]);
+
+        $service = app(FaceSubscriptionPaymentService::class);
+
+        $service->markAsPaid($cancelled, 'fp-race-cancel', 25000, [], '900100');
+
+        $reloaded = $cancelled->fresh();
+        $this->assertSame('900100', $reloaded->provider_reference);
+        $this->assertSame('manual_review_required', $reloaded->metadata['late_approved_after_cancellation_reason']);
+
+        // Rejeu avec une AUTRE référence : le backfill de première occurrence
+        // ne doit pas être écrasé (first-hit-wins).
+        $service->markAsPaid($cancelled->fresh(), 'fp-race-cancel-2', 25000, [], '900999');
+
+        $this->assertSame('900100', $cancelled->fresh()->provider_reference);
+    }
+
+    public function test_webhook_job_declares_retry_configuration(): void
+    {
+        // Sans $tries, un worker --tries=1 perd définitivement une activation
+        // payée sur un échec infra transitoire (fenêtre de déploiement
+        // code-avant-migrate incluse). Épinglé pour qu'un retour au défaut
+        // single-attempt casse un test.
+        $job = new HandleFedapayWebhook(1, 'transaction.approved', []);
+
+        $this->assertSame(3, $job->tries);
+        $this->assertSame([60, 300], $job->backoff());
+    }
+
     // -----------------------------------------------------------------------
     // FP-2.5 — tier change via webhook (AC #19, #20, #21)
     // -----------------------------------------------------------------------

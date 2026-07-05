@@ -89,6 +89,23 @@ class AdminProducerCrudTest extends TestCase
             ->assertJsonPath('data.0.agency_name', 'Studio Alpha');
     }
 
+    public function test_search_with_trailing_backslash_finds_literal_backslash_last_name(): void
+    {
+        // Backslash littéral : « \ » doit être échappé AVANT les wildcards —
+        // sans ça, « Back\ » devient le pattern '%Back\%' où '\%' est un %
+        // LITTÉRAL, et le nom contenant réellement « Back\ » devient
+        // introuvable.
+        Producer::factory()->create(['first_name' => 'Jean', 'last_name' => 'Back\\slash', 'type' => ProducerType::Particulier]);
+        Producer::factory()->create(['first_name' => 'Paul', 'last_name' => 'Backslash', 'type' => ProducerType::Particulier]);
+
+        $response = $this->withToken($this->adminToken)
+            ->getJson('/api/v1/admin/producers?search='.urlencode('Back\\'));
+
+        $response->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.last_name', 'Back\\slash');
+    }
+
     public function test_search_by_email_returns_filtered_results(): void
     {
         $producer1 = Producer::factory()->create();

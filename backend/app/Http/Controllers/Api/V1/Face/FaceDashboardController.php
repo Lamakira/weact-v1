@@ -112,14 +112,24 @@ class FaceDashboardController extends Controller
 
         // bookings.face_id references users.id, not faces.id
         $userId = $request->user()->id;
-        $sixMonthsAgo = Carbon::now()->subMonths(6)->startOfMonth();
-        $months = $this->generateMonthsRange($sixMonthsAgo);
+
+        // Bucketing des mois dans le fuseau métier (Africa/Porto-Novo,
+        // UTC+01:00 fixe — pas d'heure d'été au Bénin) ; le stockage reste
+        // UTC : la borne est reconvertie en UTC avant le binding, et
+        // CONVERT_TZ avec un offset numérique ne dépend pas des tables de
+        // timezones MySQL.
+        $businessSince = Carbon::now((string) config('app.business_timezone'))
+            ->subMonths(6)
+            ->startOfMonth();
+        $offset = $businessSince->format('P');
+        $sixMonthsAgo = $businessSince->copy()->utc();
+        $months = $this->generateMonthsRange($businessSince);
 
         // Bookings grouped by month and status bucket
         $rawData = DB::table('bookings')
             ->where('face_id', $userId)
             ->where('created_at', '>=', $sixMonthsAgo)
-            ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as month, status, COUNT(*) as count")
+            ->selectRaw("DATE_FORMAT(CONVERT_TZ(created_at, '+00:00', ?), '%Y-%m') as month, status, COUNT(*) as count", [$offset])
             ->groupBy('month', 'status')
             ->orderBy('month')
             ->get();
@@ -155,7 +165,7 @@ class FaceDashboardController extends Controller
             ->where('face_id', $userId)
             ->where('status', BookingStatus::Completed)
             ->where('updated_at', '>=', $sixMonthsAgo)
-            ->selectRaw("DATE_FORMAT(updated_at, '%Y-%m') as month, COUNT(*) as count")
+            ->selectRaw("DATE_FORMAT(CONVERT_TZ(updated_at, '+00:00', ?), '%Y-%m') as month, COUNT(*) as count", [$offset])
             ->groupBy('month')
             ->orderBy('month')
             ->get()
@@ -196,7 +206,12 @@ class FaceDashboardController extends Controller
         }
 
         $face = $result;
-        $sixMonthsAgo = Carbon::now()->subMonths(6)->startOfMonth();
+
+        // Borne et labels de mois dans le fuseau métier (Africa/Porto-Novo) ;
+        // les méthodes privées reconvertissent la borne en UTC avant le binding.
+        $sixMonthsAgo = Carbon::now((string) config('app.business_timezone'))
+            ->subMonths(6)
+            ->startOfMonth();
 
         // Get candidatures grouped by month and status
         $candidaturesByMonth = $this->getCandidaturesByMonth($face->id, $sixMonthsAgo);
@@ -216,15 +231,21 @@ class FaceDashboardController extends Controller
     /**
      * Get candidatures grouped by month and status for the last 6 months.
      *
+     * $since est exprimé dans le fuseau métier ; la borne est reconvertie en
+     * UTC avant le binding (stockage UTC) et le bucketing SQL passe par
+     * CONVERT_TZ avec l'offset numérique du fuseau métier.
+     *
      * @return array<int, array<string, mixed>>
      */
     private function getCandidaturesByMonth(int $faceId, Carbon $since): array
     {
+        $offset = $since->format('P');
+
         // Query candidatures grouped by month and status
         $rawData = DB::table('candidatures')
             ->where('face_id', $faceId)
-            ->where('created_at', '>=', $since)
-            ->selectRaw("DATE_FORMAT(created_at, '%Y-%m') as month, status, COUNT(*) as count")
+            ->where('created_at', '>=', $since->copy()->utc())
+            ->selectRaw("DATE_FORMAT(CONVERT_TZ(created_at, '+00:00', ?), '%Y-%m') as month, status, COUNT(*) as count", [$offset])
             ->groupBy('month', 'status')
             ->orderBy('month')
             ->get();
@@ -264,16 +285,21 @@ class FaceDashboardController extends Controller
      *
      * Uses updated_at to track when the candidature was marked as completed.
      *
+     * $since est exprimé dans le fuseau métier ; même convention que
+     * getCandidaturesByMonth (borne UTC au binding, bucketing CONVERT_TZ).
+     *
      * @return array<int, array<string, mixed>>
      */
     private function getMissionsCompletedByMonth(int $faceId, Carbon $since): array
     {
+        $offset = $since->format('P');
+
         // Query completed candidatures grouped by month
         $rawData = DB::table('candidatures')
             ->where('face_id', $faceId)
             ->where('status', CandidatureStatus::Completed)
-            ->where('updated_at', '>=', $since)
-            ->selectRaw("DATE_FORMAT(updated_at, '%Y-%m') as month, COUNT(*) as count")
+            ->where('updated_at', '>=', $since->copy()->utc())
+            ->selectRaw("DATE_FORMAT(CONVERT_TZ(updated_at, '+00:00', ?), '%Y-%m') as month, COUNT(*) as count", [$offset])
             ->groupBy('month')
             ->orderBy('month')
             ->get()
@@ -297,13 +323,16 @@ class FaceDashboardController extends Controller
     /**
      * Generate array of month strings from since date to current month.
      *
+     * Les labels sont générés dans le fuseau de $since (fuseau métier) pour
+     * rester alignés sur le bucketing SQL CONVERT_TZ.
+     *
      * @return array<int, string>
      */
     private function generateMonthsRange(Carbon $since): array
     {
         $months = [];
         $current = $since->copy();
-        $end = Carbon::now()->endOfMonth();
+        $end = Carbon::now($since->getTimezone())->endOfMonth();
 
         while ($current <= $end) {
             $months[] = $current->format('Y-m');

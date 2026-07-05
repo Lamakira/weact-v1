@@ -12,6 +12,7 @@ use App\Http\Requests\Api\V1\Public\ListFacesRequest;
 use App\Http\Resources\PublicFaceProfileResource;
 use App\Http\Resources\PublicFaceResource;
 use App\Models\Face;
+use App\Support\Sql;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Http\JsonResponse;
 
@@ -37,7 +38,7 @@ class FaceController extends Controller
             ->when($request->validated('niche'), fn ($q, $niche) => $q->whereJsonContains('niches', $niche))
             ->when($request->validated('ville'), fn ($q, $ville) => $q->where('ville', $ville))
             ->when($request->validated('search'), function ($q, $search) {
-                $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $search);
+                $escaped = Sql::escapeLike($search);
 
                 return $q->where(function ($query) use ($escaped) {
                     $query->where('prenom', 'like', "%{$escaped}%")
