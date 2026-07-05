@@ -121,6 +121,11 @@ class FaceEntitlementService
             'ugc_access',
             'commission_rate',
             'sort_priority',
+            // Not exposed through TierCapabilities (the listing rebuild reads
+            // it from config directly), but required HERE so a tier added
+            // without a quota fails loud at first entitlement use — not
+            // silently at the next 03:15 rebuild.
+            'listing_quota',
             'has_elite_badge',
         ];
 
@@ -144,6 +149,19 @@ class FaceEntitlementService
             );
         }
 
+        // Strict, not a silent (int) cast: a fractional priority like 1.9
+        // would coerce to 1 and collide with another tier, silently
+        // mis-ranking tier comparisons (status-endpoint CTA, listing rebuild
+        // redistribution order). Single guard for every sort_priority reader.
+        $sortPriority = $caps['sort_priority'];
+
+        if (! is_int($sortPriority)) {
+            throw new \RuntimeException(
+                "Missing or non-integer sort_priority for tier '{$tier->value}' in "
+                .'config/face_subscription_tiers.php — run `php artisan config:clear`.'
+            );
+        }
+
         return new TierCapabilities(
             tier: $tier,
             maxAlbumPhotos: (int) $caps['max_album_photos'],
@@ -152,7 +170,7 @@ class FaceEntitlementService
             maxUgcVideos: (int) $caps['max_ugc_videos'],
             ugcAccess: (bool) $caps['ugc_access'],
             commissionRate: $commissionRateValue,
-            sortPriority: (int) $caps['sort_priority'],
+            sortPriority: $sortPriority,
             hasEliteBadge: (bool) $caps['has_elite_badge'],
         );
     }

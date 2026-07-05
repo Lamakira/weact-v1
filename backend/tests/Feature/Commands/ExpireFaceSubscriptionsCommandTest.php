@@ -370,6 +370,13 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
 
         $this->artisan('subscriptions:expire-faces')->assertExitCode(0);
 
+        // The public order now comes from the materialized ranking: without a
+        // rebuild the ranks table is empty and the listing falls back to
+        // id DESC, which would make the assertions below pass vacuously.
+        // Rebuilding AFTER the expiration classifies faceA in the free queue
+        // and faceB in its paid-tier queue — the order becomes meaningful.
+        $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
+
         $response = $this->getJson('/api/v1/public/faces?per_page=10');
         $response->assertOk();
 

@@ -6,6 +6,7 @@ namespace Database\Factories;
 
 use App\Enums\FaceGender;
 use App\Models\Face;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -55,5 +56,19 @@ class FaceFactory extends Factory
             'profile_photo' => fake()->uuid().'.jpg',
             'profile_photo_thumbnail' => fake()->uuid().'.jpg',
         ]);
+    }
+
+    /**
+     * Attach an active User account (publicly listable Face) — the canonical
+     * Face↔User polymorphic pairing that a dozen test files used to re-inline.
+     */
+    public function withActiveUser(): static
+    {
+        return $this->afterCreating(function (Face $face): void {
+            User::factory()->create([
+                'userable_type' => Face::class,
+                'userable_id' => $face->id,
+            ]);
+        });
     }
 }

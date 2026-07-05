@@ -19,10 +19,10 @@ class AdminFaceSubscriptionResource extends JsonResource
     {
         return [
             'id' => $this->uuid,
-            'plan' => $this->plan?->value,
-            'plan_label' => $this->plan?->label(),
-            'status' => $this->status?->value,
-            'status_label' => $this->status?->label(),
+            'plan' => $this->plan->value,
+            'plan_label' => $this->plan->label(),
+            'status' => $this->status->value,
+            'status_label' => $this->status->label(),
             'starts_at' => $this->starts_at?->toIso8601String(),
             'expires_at' => $this->expires_at?->toIso8601String(),
             'cancelled_at' => $this->cancelled_at?->toIso8601String(),

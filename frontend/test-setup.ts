@@ -1,6 +1,6 @@
 import { beforeEach } from 'vitest'
-import { resetSharedCachedResourcesForTests } from '@/lib/createSharedCachedResource'
+import { resetAllSharedCachedResources } from '@/lib/createSharedCachedResource'
 
 beforeEach(() => {
-  resetSharedCachedResourcesForTests()
+  resetAllSharedCachedResources()
 })
