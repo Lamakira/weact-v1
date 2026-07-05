@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
-import { computed, ref } from 'vue'
 import SitewideSubscriptionPaymentBanner from '../SitewideSubscriptionPaymentBanner.vue'
+import {
+  setupSubscriptionStatusMock,
+  type StatusName,
+} from '@/features/face/composables/__tests__/subscriptionStatusTestUtils'
 
 const ctx = vi.hoisted(() => ({
   status: {} as Record<string, unknown>,
@@ -11,6 +14,9 @@ const ctx = vi.hoisted(() => ({
   routeName: 'faces' as string | null,
   // Non-empty = resolved route; [] simulates START_LOCATION (initial navigation).
   routeMatched: [{}] as object[],
+  // Mirrors the router: routes owning their subscription surface (pricing,
+  // face-billing) declare meta.ownSubscriptionSurface = true.
+  routeMeta: {} as Record<string, unknown>,
   routerPush: vi.fn(),
 }))
 
@@ -27,26 +33,12 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ isFace: ctx.isFace, user: ctx.authUser }),
 }))
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ name: ctx.routeName, matched: ctx.routeMatched }),
+  useRoute: () => ({ name: ctx.routeName, matched: ctx.routeMatched, meta: ctx.routeMeta }),
   useRouter: () => ({ push: ctx.routerPush }),
 }))
 
-const ALL_CTA = { upgrade_available: true, downgrade_available: true, renew_available: true }
-const PENDING_CTA = { upgrade_available: false, downgrade_available: false, renew_available: false }
-
-type StatusName = 'free' | 'pending_payment' | 'failed'
-
 function setupStatus(status: StatusName): void {
-  const current = ref<Record<string, unknown> | null>(
-    status === 'free'
-      ? { tier: 'free', plan: null, status: 'free' }
-      : { tier: 'free', plan: 'starter', status },
-  )
-  ctx.status.current = current
-  ctx.status.statusValue = computed(() => current.value?.status ?? 'free')
-  ctx.status.cta = ref(status === 'pending_payment' ? PENDING_CTA : ALL_CTA)
-  ctx.status.fetchStatus = vi.fn().mockResolvedValue(undefined)
-  ctx.status.refreshStatus = vi.fn().mockResolvedValue(undefined)
+  setupSubscriptionStatusMock(ctx.status, status)
 }
 
 let wrapper: VueWrapper | null = null
@@ -60,6 +52,14 @@ function expectNoStatusCall(): void {
   expect(ctx.verify).not.toHaveBeenCalled()
 }
 
+// The inner banner is a defineAsyncComponent: dynamicImportSettled waits for
+// the dynamic import to resolve, the flush lets the loaded component mount
+// and settle its own fetches.
+async function flushAsyncBanner(): Promise<void> {
+  await vi.dynamicImportSettled()
+  await flushPromises()
+}
+
 describe('SitewideSubscriptionPaymentBanner', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -69,6 +69,7 @@ describe('SitewideSubscriptionPaymentBanner', () => {
     ctx.authUser = null
     ctx.routeName = 'faces'
     ctx.routeMatched = [{}]
+    ctx.routeMeta = {}
   })
 
   afterEach(() => {
@@ -83,7 +84,6 @@ describe('SitewideSubscriptionPaymentBanner', () => {
     await flushPromises()
 
     expect(w.find('[data-testid="sitewide-subscription-banner-container"]').exists()).toBe(false)
-    expect(w.find('div').exists()).toBe(false)
     expectNoStatusCall()
   })
 
@@ -94,7 +94,7 @@ describe('SitewideSubscriptionPaymentBanner', () => {
     const w = mountBanner()
     await flushPromises()
 
-    expect(w.find('div').exists()).toBe(false)
+    expect(w.find('[data-testid="sitewide-subscription-banner-container"]').exists()).toBe(false)
     expectNoStatusCall()
   })
 
@@ -103,7 +103,7 @@ describe('SitewideSubscriptionPaymentBanner', () => {
     ctx.authUser = { id: 42 }
     setupStatus('pending_payment')
     const w = mountBanner()
-    await flushPromises()
+    await flushAsyncBanner()
 
     const container = w.find('[data-testid="sitewide-subscription-banner-container"]')
     expect(container.exists()).toBe(true)
@@ -118,32 +118,21 @@ describe('SitewideSubscriptionPaymentBanner', () => {
     ctx.authUser = { id: 42 }
     setupStatus('failed')
     const w = mountBanner()
-    await flushPromises()
+    await flushAsyncBanner()
 
     expect(w.find('[data-testid="pending-payment-failed-banner"]').exists()).toBe(true)
   })
 
-  it('renders nothing on the pricing route even for a Face with a pending payment', async () => {
+  it('renders nothing on a route that owns its subscription surface (meta.ownSubscriptionSurface, e.g. pricing)', async () => {
     ctx.isFace = true
     ctx.authUser = { id: 42 }
     ctx.routeName = 'pricing'
+    ctx.routeMeta = { ownSubscriptionSurface: true }
     setupStatus('pending_payment')
     const w = mountBanner()
     await flushPromises()
 
-    expect(w.find('div').exists()).toBe(false)
-    expectNoStatusCall()
-  })
-
-  it('renders nothing on the face-billing route even for a Face with a pending payment', async () => {
-    ctx.isFace = true
-    ctx.authUser = { id: 42 }
-    ctx.routeName = 'face-billing'
-    setupStatus('pending_payment')
-    const w = mountBanner()
-    await flushPromises()
-
-    expect(w.find('div').exists()).toBe(false)
+    expect(w.find('[data-testid="sitewide-subscription-banner-container"]').exists()).toBe(false)
     expectNoStatusCall()
   })
 
@@ -159,7 +148,7 @@ describe('SitewideSubscriptionPaymentBanner', () => {
     const w = mountBanner()
     await flushPromises()
 
-    expect(w.find('div').exists()).toBe(false)
+    expect(w.find('[data-testid="sitewide-subscription-banner-container"]').exists()).toBe(false)
     expectNoStatusCall()
   })
 
@@ -168,13 +157,14 @@ describe('SitewideSubscriptionPaymentBanner', () => {
     ctx.authUser = { id: 42 }
     setupStatus('free')
     const w = mountBanner()
-    await flushPromises()
+    await flushAsyncBanner()
 
     const container = w.find('[data-testid="sitewide-subscription-banner-container"]')
     expect(container.exists()).toBe(true)
-    // The inner banner renders only a comment placeholder: no ELEMENT child,
-    // which is what CSS :empty (empty:hidden) keys on — no phantom spacer.
-    expect(container.element.children.length).toBe(0)
+    // The inner banner renders only a comment placeholder. CSS :empty (what
+    // empty:hidden keys on) is defeated by ANY text node, even whitespace —
+    // assert the real selector, not just the element-children count.
+    expect(container.element.matches(':empty')).toBe(true)
     expect(container.classes()).toContain('empty:hidden')
   })
 })

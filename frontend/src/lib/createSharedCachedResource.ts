@@ -18,7 +18,8 @@ export interface SharedCachedResource<T> {
   invalidate: () => void
   clearError: () => void
   hasFreshData: () => boolean
-  __resetForTests?: () => void
+  /** Full reset (data → initialValue, marked stale, in-flight load fenced off). */
+  reset: () => void
 }
 
 const registry = new Map<string, SharedCachedResource<unknown>>()
@@ -43,6 +44,11 @@ export function createSharedCachedResource<T>(
 
   let lastFetchedAt = 0
   let inFlight: Promise<T> | null = null
+  // Bumped by reset(): a load started before the bump must not write anything
+  // back (data, error, isLoading, inFlight) — its continuations belong to the
+  // previous account/session and would otherwise repopulate the cache AFTER
+  // the purge, or clobber the fetch the next account just started.
+  let epoch = 0
 
   function hasFreshData(): boolean {
     return lastFetchedAt > 0 && (Date.now() - lastFetchedAt) < options.ttlMs
@@ -66,7 +72,8 @@ export function createSharedCachedResource<T>(
     lastFetchedAt = 0
   }
 
-  function resetForTests(): void {
+  function reset(): void {
+    epoch += 1
     data.value = options.initialValue
     isLoading.value = false
     error.value = null
@@ -88,16 +95,20 @@ export function createSharedCachedResource<T>(
     isLoading.value = true
     error.value = null
 
+    const fetchEpoch = epoch
     inFlight = options.load()
       .then((result) => {
+        if (fetchEpoch !== epoch) return result
         setData(result)
         return result
       })
       .catch((err: unknown) => {
+        if (fetchEpoch !== epoch) return data.value
         error.value = options.getErrorMessage(err)
         return data.value
       })
       .finally(() => {
+        if (fetchEpoch !== epoch) return
         isLoading.value = false
         inFlight = null
       })
@@ -115,7 +126,7 @@ export function createSharedCachedResource<T>(
     invalidate,
     clearError,
     hasFreshData,
-    __resetForTests: resetForTests,
+    reset,
   }
 
   registry.set(options.key, resource as SharedCachedResource<unknown>)
@@ -124,20 +135,18 @@ export function createSharedCachedResource<T>(
 }
 
 /**
- * Reset every registered shared cache (data → initialValue, marked stale).
+ * Reset every registered shared cache (data → initialValue, marked stale,
+ * in-flight loads fenced off via the epoch counter).
  *
- * MUST be called when the authenticated account changes (logout / 401 purge):
- * every registered resource caches per-account server state behind a TTL —
- * without this, an account logging in right after another on the same app
- * instance would read the previous account's data (profile fields,
- * subscription status, and with it the site-wide payment banner).
+ * MUST be called when the authenticated account changes (logout / 401 purge /
+ * in-place identity switch): every registered resource caches per-account
+ * server state behind a TTL — without this, an account logging in right after
+ * another on the same app instance would read the previous account's data
+ * (profile fields, subscription status, and with it the site-wide payment
+ * banner).
  */
 export function resetAllSharedCachedResources(): void {
   for (const resource of registry.values()) {
-    resource.__resetForTests?.()
+    resource.reset()
   }
-}
-
-export function resetSharedCachedResourcesForTests(): void {
-  resetAllSharedCachedResources()
 }

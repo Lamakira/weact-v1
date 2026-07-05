@@ -54,6 +54,16 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Actions
   function setUser(newUser: User) {
+    // Identity switch without a teardown (no clearAuth in between — e.g. a
+    // future in-place re-auth or account-switch flow): purge the per-account
+    // shared caches here too, so the invariant "no account reads another
+    // account's cached data" is guaranteed by the store itself rather than by
+    // the router's guest-guard topology. Same-id updates (profile refresh)
+    // keep their caches.
+    const previousId = user.value?.id
+    if (previousId != null && previousId !== newUser.id) {
+      resetAllSharedCachedResources()
+    }
     user.value = newUser
     setStoredUser(newUser)
   }

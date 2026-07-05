@@ -6,17 +6,24 @@
  * Gate BEFORE rendering PendingSubscriptionPaymentBanner: the banner mounts
  * useSubscriptionReconciler (status fetch + verify polling), so the v-if must
  * prevent any mount — and therefore any API call — for guests, Producers and
- * Admins. Routes with their own local subscription controls (pricing,
- * face-billing) are excluded to avoid duplicate banners.
+ * Admins. Routes that own their subscription surface (pricing, face-billing…)
+ * declare `meta.ownSubscriptionSurface` in the router — colocated with the
+ * route definition, rename-proof, and shared with the FaceLayout mount.
  *
  * The FaceLayout mount (dashboard /face/* pages) is separate and unchanged.
+ *
+ * The inner banner loads lazily: this wrapper is imported statically by
+ * App.vue, and a static PendingSubscriptionPaymentBanner import would drag
+ * the whole features/face service layer (faceApi & co.) into the entry chunk
+ * for every visitor — guests and Producers included — who can never render it.
  */
-import { computed } from 'vue'
+import { computed, defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
-import PendingSubscriptionPaymentBanner from '@/components/PendingSubscriptionPaymentBanner.vue'
 import { useAuthStore } from '@/stores/auth'
 
-const EXCLUDED_ROUTE_NAMES = ['pricing', 'face-billing']
+const PendingSubscriptionPaymentBanner = defineAsyncComponent(
+  () => import('@/components/PendingSubscriptionPaymentBanner.vue'),
+)
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -27,8 +34,7 @@ const shouldRender = computed(() => {
   // and matched is empty — mounting here would flash the banner (and fire a
   // status fetch) even when the destination is an excluded route.
   if (route.matched.length === 0) return false
-  const name = typeof route.name === 'string' ? route.name : ''
-  return !EXCLUDED_ROUTE_NAMES.includes(name)
+  return !route.meta.ownSubscriptionSurface
 })
 </script>
 

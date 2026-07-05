@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
-import { computed, defineComponent, h, ref, type Ref } from 'vue'
+import { defineComponent, h } from 'vue'
 import { useSubscriptionReconciler } from '../useSubscriptionReconciler'
+import {
+  ALL_CTA,
+  PENDING_CTA,
+  setupSubscriptionStatusMock,
+  type StatusName,
+  type SubscriptionStatusMockRefs,
+} from './subscriptionStatusTestUtils'
 
 const ctx = vi.hoisted(() => ({
   status: {} as Record<string, unknown>,
@@ -16,29 +23,19 @@ vi.mock('../../services/faceApi', () => ({
   faceApi: { verifySubscriptionPayment: ctx.verify },
 }))
 vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({ user: ctx.authUser }),
+  // Getter: the composable reads authStore.user at call time (Pinia refs are
+  // live) — the mock must reflect a mid-test ctx.authUser change the same way.
+  useAuthStore: () => ({
+    get user() {
+      return ctx.authUser
+    },
+  }),
 }))
-
-const ALL_CTA = { upgrade_available: true, downgrade_available: true, renew_available: true }
-const PENDING_CTA = { upgrade_available: false, downgrade_available: false, renew_available: false }
 
 const DISMISS_KEY = 'face-subscription-failure-dismissed:42'
 
-type StatusName = 'free' | 'pending_payment' | 'failed' | 'active'
-
-function setupStatus(status: StatusName): Ref<Record<string, unknown> | null> {
-  const current = ref<Record<string, unknown> | null>(
-    status === 'free'
-      ? { tier: 'free', plan: null, status: 'free' }
-      : { tier: status === 'active' ? 'starter' : 'free', plan: 'starter', status },
-  )
-  ctx.status.current = current
-  // Mirrors useSubscriptionStatus l.77 — the server-derived status value.
-  ctx.status.statusValue = computed(() => current.value?.status ?? 'free')
-  ctx.status.cta = ref(status === 'pending_payment' ? PENDING_CTA : ALL_CTA)
-  ctx.status.fetchStatus = vi.fn().mockResolvedValue(undefined)
-  ctx.status.refreshStatus = vi.fn().mockResolvedValue(undefined)
-  return current
+function setupStatus(status: StatusName): SubscriptionStatusMockRefs {
+  return setupSubscriptionStatusMock(ctx.status, status)
 }
 
 let api: ReturnType<typeof useSubscriptionReconciler> | null = null
@@ -96,6 +93,18 @@ describe('useSubscriptionReconciler', () => {
     expect(ctx.verify).not.toHaveBeenCalled()
   })
 
+  it('skips the forced status refresh while verify still reports pending (no change to fetch)', async () => {
+    // Steady-state poll tick: the payment has not moved — re-downloading the
+    // identical status payload every 6s would be pure waste.
+    ctx.verify.mockResolvedValue({ data: { subscription_id: 'sub_1', status: 'pending_payment' } })
+    setupStatus('pending_payment')
+    mountHarness()
+    await flushPromises()
+
+    expect(ctx.verify).toHaveBeenCalledTimes(1)
+    expect(ctx.status.refreshStatus).not.toHaveBeenCalled()
+  })
+
   it('reconciles again when the tab regains focus (visibilitychange → visible)', async () => {
     setupStatus('pending_payment')
     mountHarness()
@@ -117,14 +126,14 @@ describe('useSubscriptionReconciler', () => {
   })
 
   it('stops reconciling once the payment is no longer pending', async () => {
-    const current = setupStatus('pending_payment')
+    const { current, cta } = setupStatus('pending_payment')
     mountHarness()
     await flushPromises()
     expect(ctx.verify).toHaveBeenCalledTimes(1)
 
     // Payment resolved → CTAs re-enabled; a tab focus must no longer trigger verify.
     current.value = { tier: 'starter', plan: 'starter', status: 'active' }
-    ;(ctx.status.cta as Ref<unknown>).value = ALL_CTA
+    cta.value = ALL_CTA
     await flushPromises()
     ctx.verify.mockClear()
 
@@ -167,7 +176,7 @@ describe('useSubscriptionReconciler', () => {
   })
 
   it('clears the dismiss flag when a new pending attempt is observed, so a new failure re-surfaces', async () => {
-    const current = setupStatus('failed')
+    const { current, cta } = setupStatus('failed')
     mountHarness()
     await flushPromises()
     api!.dismissFailure()
@@ -175,13 +184,13 @@ describe('useSubscriptionReconciler', () => {
 
     // The Face retries: every retry goes through pending → the flag is erased.
     current.value = { tier: 'free', plan: 'starter', status: 'pending_payment' }
-    ;(ctx.status.cta as Ref<unknown>).value = PENDING_CTA
+    cta.value = PENDING_CTA
     await flushPromises()
     expect(localStorage.getItem(DISMISS_KEY)).toBeNull()
 
     // The retry fails too → the nudge must come back.
     current.value = { tier: 'free', plan: 'starter', status: 'failed' }
-    ;(ctx.status.cta as Ref<unknown>).value = ALL_CTA
+    cta.value = ALL_CTA
     await flushPromises()
     expect(api!.paymentFailed.value).toBe(true)
   })
@@ -223,6 +232,43 @@ describe('useSubscriptionReconciler', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('does not force a status refresh when verify resolves after the component unmounted', async () => {
+    // Route change to an excluded route while the verify POST is in flight:
+    // the continuation must not fire a forced GET on a dead component.
+    let resolveVerify: (value: unknown) => void = () => {}
+    ctx.verify.mockImplementation(() => new Promise((resolve) => (resolveVerify = resolve)))
+    setupStatus('pending_payment')
+    mountHarness()
+    await flushPromises()
+    expect(ctx.verify).toHaveBeenCalledTimes(1)
+
+    wrapper!.unmount()
+    wrapper = null
+
+    resolveVerify({ data: { subscription_id: 'sub_1', status: 'active' } })
+    await flushPromises()
+
+    expect(ctx.status.refreshStatus).not.toHaveBeenCalled()
+  })
+
+  it('does not force a status refresh when the user logged out during verify (no token-less GET)', async () => {
+    // Voluntary logout mid-tick: clearAuth removed the token while the verify
+    // POST was in flight — the forced GET would 401 and bounce the user onto
+    // login?message=session-expired.
+    let resolveVerify: (value: unknown) => void = () => {}
+    ctx.verify.mockImplementation(() => new Promise((resolve) => (resolveVerify = resolve)))
+    setupStatus('pending_payment')
+    mountHarness()
+    await flushPromises()
+    expect(ctx.verify).toHaveBeenCalledTimes(1)
+
+    ctx.authUser = null
+    resolveVerify({ data: { subscription_id: 'sub_1', status: 'active' } })
+    await flushPromises()
+
+    expect(ctx.status.refreshStatus).not.toHaveBeenCalled()
   })
 
   it('scopes the dismiss flag per user — another user on the same browser still sees the failure', async () => {

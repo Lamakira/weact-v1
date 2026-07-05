@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useSubscriptionStatus, FREE_CAPABILITIES } from '../useSubscriptionStatus'
 import { faceApi } from '../../services/faceApi'
-import { resetSharedCachedResourcesForTests } from '@/lib/createSharedCachedResource'
+import { resetAllSharedCachedResources } from '@/lib/createSharedCachedResource'
 import type {
   FaceSubscriptionTier,
   SubscriptionCurrent,
@@ -107,7 +107,7 @@ function statusData(
 describe('useSubscriptionStatus (FP-2.7 tier-aware contract)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    resetSharedCachedResourcesForTests()
+    resetAllSharedCachedResources()
   })
 
   it('fetchStatus calls faceApi.getSubscriptionStatus once and populates data', async () => {

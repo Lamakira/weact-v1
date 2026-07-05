@@ -30,6 +30,9 @@ const mocks = vi.hoisted(() => ({
   routerPush: vi.fn(),
   toastWarning: vi.fn(),
   resolved: vi.fn(() => Promise.resolve()),
+  // Flipped to false by the logout test: the tier watcher must not refetch
+  // when the tier flip comes from clearAuth() resetting the shared caches.
+  isAuthenticated: true,
 }))
 
 vi.mock('vue-router', () => ({
@@ -38,7 +41,12 @@ vi.mock('vue-router', () => ({
 }))
 
 vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({ isEmailVerified: true }),
+  useAuthStore: () => ({
+    isEmailVerified: true,
+    get isAuthenticated() {
+      return mocks.isAuthenticated
+    },
+  }),
 }))
 
 vi.mock('@/composables/useToast', () => ({
@@ -268,6 +276,7 @@ describe('ProfileEditPage subscription guards', () => {
     mocks.capabilities.value.max_acting_videos = 0
     mocks.capabilities.value.max_ugc_videos = 0
     mocks.tier = ref('free')
+    mocks.isAuthenticated = true
   })
 
   it('does not open the hidden album file input from grid shortcut when entitlement quota is reached', async () => {
@@ -337,6 +346,22 @@ describe('ProfileEditPage subscription guards', () => {
     expect(mocks.resolved.mock.calls.length).toBe(before + 3)
   })
 
+  it('does NOT refetch when the tier flip comes from a logout cache reset (unauthenticated)', async () => {
+    // Voluntary logout while the page is still mounted: clearAuth() resets the
+    // shared caches (tier → 'free') BEFORE router.push('/login') unmounts the
+    // page — refetching here would fire 3 token-less GETs (3× 401).
+    mocks.tier.value = 'pro'
+    mountPage()
+    await flushPromises()
+    const before = mocks.resolved.mock.calls.length
+
+    mocks.isAuthenticated = false
+    mocks.tier.value = 'free'
+    await flushPromises()
+
+    expect(mocks.resolved.mock.calls.length).toBe(before)
+  })
+
   it('mounts a MediaQuotaUpsell in each of the four Portfolio media sections (FP-3.3)', () => {
     const wrapper = mountPage()
     expect(wrapper.findAllComponents(MediaQuotaUpsell)).toHaveLength(4)
@@ -359,6 +384,7 @@ describe('ProfileEditPage tabs (Profile Tabs refonte)', () => {
     mocks.capabilities.value.max_acting_videos = 0
     mocks.capabilities.value.max_ugc_videos = 0
     mocks.tier = ref('free')
+    mocks.isAuthenticated = true
   })
 
   it('defaults to Profil → Infos perso and keeps the other panels hidden (v-show)', async () => {

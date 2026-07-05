@@ -25,7 +25,7 @@ import { useAuthStore } from '@/stores/auth'
  * Mounted dashboard-wide via PendingSubscriptionPaymentBanner (FaceLayout) and site-wide
  * via SitewideSubscriptionPaymentBanner (public App.vue branches, gated to Faces). The
  * Facturation tab and /pricing already run their own useSubscriptionPayment polling, so
- * the site-wide wrapper excludes those routes.
+ * both mounts skip routes flagged `meta.ownSubscriptionSurface` in the router.
  */
 const RECONCILE_POLL_MS = 6000
 
@@ -120,8 +120,18 @@ export function useSubscriptionReconciler(): {
     if (inFlight || !hasPendingPayment.value) return
     inFlight = true
     try {
-      await faceApi.verifySubscriptionPayment()
-      await refreshStatus()
+      const response = await faceApi.verifySubscriptionPayment()
+      // Continuation guard: no forced status GET on a dead component, and
+      // never with credentials a logout just revoked (the 401 would bounce a
+      // voluntary logout onto login?message=session-expired).
+      if (disposed || !authStore.user) return
+      // While the payment is STILL pending, the forced refresh would just
+      // re-download an identical payload every tick. Only refresh when verify
+      // reports the payment left the pending state (approved/declined) — the
+      // moment the CTAs/banner need the authoritative status payload.
+      if (response.data.status !== 'pending_payment') {
+        await refreshStatus()
+      }
     } catch {
       // Transient — the next tick or visibility change retries.
     } finally {

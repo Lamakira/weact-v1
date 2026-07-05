@@ -99,9 +99,10 @@ async function handleLogout(): Promise<void> {
     <UgcSuspensionBanner />
 
     <!-- Pending subscription payment nudge — shown on every Face page (except the
-         Facturation tab itself, which carries the full resume controls) so a Face
-         with an abandoned/unconfirmed payment is always guided to resume it. -->
-    <PendingSubscriptionPaymentBanner v-if="route.name !== 'face-billing'" />
+         routes that own their subscription surface, e.g. the Facturation tab which
+         carries the full resume controls) so a Face with an abandoned/unconfirmed
+         payment is always guided to resume it. -->
+    <PendingSubscriptionPaymentBanner v-if="!route.meta.ownSubscriptionSurface" />
 
     <!-- Email verification banner (shown if email not verified) -->
     <EmailVerificationBanner
