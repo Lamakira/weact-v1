@@ -366,6 +366,7 @@ class FaceSubscriptionPaymentService
                 'starts_at' => $startsAt,
                 'expires_at' => $expiresAt,
                 'paid_amount' => $paidAmount,
+                'paid_at' => now(),
                 'metadata' => array_merge(
                     is_array($locked->metadata) ? $locked->metadata : [],
                     [

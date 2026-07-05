@@ -708,6 +708,11 @@ class SubscriptionPaymentInitiationTest extends TestCase
             abs($result->expires_at->diffInSeconds($beforeNow->copy()->addYear(), false))
         );
         $this->assertSame(50000, $result->paid_amount);
+        $this->assertNotNull($result->paid_at, 'markAsPaid must stamp paid_at (D-1 revenue dating)');
+        $this->assertLessThanOrEqual(
+            5,
+            abs($result->paid_at->diffInSeconds($beforeNow, false))
+        );
 
         $metadata = $result->metadata;
         $this->assertIsArray($metadata);

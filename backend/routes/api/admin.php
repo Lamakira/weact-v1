@@ -152,6 +152,16 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'api.token', 'admin'])->g
             ->middleware('throttle:30,1')
             ->name('admin.ugc-suspensions.reject-appeal');
 
+        // Subscriptions back-office — cross-Face read-only list + KPIs.
+        // ⚠️ `stats` is declared BEFORE any `{subscription}` binding route to
+        // avoid the literal segment colliding with the route-model binding.
+        Route::get('/face-subscriptions', [AdminFaceSubscriptionController::class, 'list'])
+            ->middleware('throttle:30,1')
+            ->name('admin.face-subscriptions.list');
+        Route::get('/face-subscriptions/stats', [AdminFaceSubscriptionController::class, 'stats'])
+            ->middleware('throttle:30,1')
+            ->name('admin.face-subscriptions.stats');
+
         // Face subscription operations (FEATURE-FP-1.4)
         Route::get('/faces/{face}/subscriptions', [AdminFaceSubscriptionController::class, 'index'])
             ->middleware('throttle:30,1')
