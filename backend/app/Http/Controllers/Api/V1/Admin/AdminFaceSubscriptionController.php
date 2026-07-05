@@ -18,6 +18,7 @@ use App\Models\Admin;
 use App\Models\Face;
 use App\Models\FaceSubscription;
 use App\Services\FaceSubscriptionAdminService;
+use App\Support\Sql;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -64,18 +65,35 @@ class AdminFaceSubscriptionController extends Controller
             $query->where('plan', $request->query('plan'));
         }
 
-        // Filter by status (invalid values ignored)
+        // Filter by status (invalid values ignored). « active » applies the
+        // canonical scopeActive semantics (status + unexpired) so the list
+        // never contradicts the stats() KPIs when the expiry cron lags — and
+        // « expired » MIRRORS it: a stale-active row (status column still
+        // active, expires_at past, cron late) surfaces under « expired »,
+        // otherwise no status filter could show it at all. Its badge reads
+        // « Active » with a visibly past expiry date — cron lag, explicit.
         if ($request->filled('status') && is_string($request->query('status'))
             && in_array($request->query('status'), FaceSubscriptionStatus::values(), true)
         ) {
-            $query->where('status', $request->query('status'));
+            if ($request->query('status') === FaceSubscriptionStatus::Active->value) {
+                $query->active();
+            } elseif ($request->query('status') === FaceSubscriptionStatus::Expired->value) {
+                $query->where(function ($q) {
+                    $q->where('status', FaceSubscriptionStatus::Expired)
+                        ->orWhere(function ($qq) {
+                            $qq->where('status', FaceSubscriptionStatus::Active)
+                                ->where('expires_at', '<=', now());
+                        });
+                });
+            } else {
+                $query->where('status', $request->query('status'));
+            }
         }
 
-        // Search by Face nom, prenom, or username
+        // Search by Face nom, prenom, or username (trimmed: a trailing space
+        // pasted from WhatsApp/mail must not become a literal LIKE character)
         if ($request->filled('search') && is_string($request->query('search'))) {
-            // Escape the backslash FIRST, then the LIKE wildcards — otherwise
-            // a trailing '\' in the search term escapes the closing '%'.
-            $search = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $request->query('search'));
+            $search = Sql::escapeLike(trim($request->query('search')));
             $query->whereHas('face', function ($q) use ($search) {
                 $q->where('nom', 'like', "%{$search}%")
                     ->orWhere('prenom', 'like', "%{$search}%")
@@ -116,33 +134,42 @@ class AdminFaceSubscriptionController extends Controller
      * remains revenue); manual admin activations (paid_amount IS NULL) are
      * excluded by construction. Rows paid before the paid_at backfill that
      * could not be dated count in the total, never in period aggregates.
+     * Months are Africa/Porto-Novo calendar months (config
+     * app.business_timezone): the bounds are computed in the business
+     * timezone, then converted back to UTC before binding.
      */
     public function stats(): JsonResponse
     {
         $now = Carbon::now();
 
+        // Bornes du mois courant calculées dans le fuseau métier puis
+        // reconverties en UTC avant le binding — paid_at est stocké en UTC,
+        // et $now (UTC) reste la référence des comparaisons actives/expirations.
+        $businessNow = $now->copy()->setTimezone((string) config('app.business_timezone'));
+
         $activeByPlan = FaceSubscription::query()
+            ->active($now)
             ->selectRaw('plan, COUNT(*) as count')
-            ->where('status', FaceSubscriptionStatus::Active)
-            ->where('expires_at', '>', $now)
             ->groupBy('plan')
             ->pluck('count', 'plan')
             ->toArray();
 
         $revenueCurrentMonth = (int) FaceSubscription::query()
-            ->whereBetween('paid_at', [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()])
+            ->whereBetween('paid_at', [
+                $businessNow->copy()->startOfMonth()->utc(),
+                $businessNow->copy()->endOfMonth()->utc(),
+            ])
             ->sum('paid_amount');
 
         $revenueTotal = (int) FaceSubscription::query()
             ->whereNotNull('paid_amount')
             ->sum('paid_amount');
 
-        // Strictly > now so this card is always a SUBSET of active_by_plan
-        // (which uses the same bound): a row expiring at this exact instant
-        // must not be counted "expiring" while already excluded from actives.
+        // Both cards share the canonical scopeActive definition AND the same
+        // captured $now, making the subset invariant structural: a row
+        // expiring at this exact instant is excluded from both counts.
         $expiringWithin30Days = FaceSubscription::query()
-            ->where('status', FaceSubscriptionStatus::Active)
-            ->where('expires_at', '>', $now)
+            ->active($now)
             ->where('expires_at', '<=', $now->copy()->addDays(30))
             ->count();
 

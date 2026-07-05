@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Concerns\HasRouteUuid;
 use App\Enums\FaceSubscriptionPlan;
 use App\Enums\FaceSubscriptionStatus;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -105,12 +106,16 @@ class FaceSubscription extends Model
 
     /**
      * Scope to subscriptions that are currently active and unexpired.
+     *
+     * Pass `$at` when several queries must share the exact same instant
+     * (e.g. the admin stats endpoint, whose "expiring soon" card must stay
+     * a strict subset of "active"); defaults to now() otherwise.
      */
-    public function scopeActive(Builder $query): Builder
+    public function scopeActive(Builder $query, ?CarbonInterface $at = null): Builder
     {
         return $query
             ->where('status', FaceSubscriptionStatus::Active)
-            ->where('expires_at', '>', now());
+            ->where('expires_at', '>', $at ?? now());
     }
 
     /**

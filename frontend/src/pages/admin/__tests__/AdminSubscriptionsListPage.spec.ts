@@ -6,6 +6,7 @@ import type {
   AdminSubscriptionListItem,
   AdminSubscriptionStats,
 } from '@/features/admin/services/adminFaceSubscriptionsApi'
+import { formatAmount } from '@/features/admin/utils/subscriptionDisplay'
 import AdminSubscriptionsListPage from '../AdminSubscriptionsListPage.vue'
 
 const mockFetchSubscriptions = vi.fn()
@@ -145,7 +146,11 @@ describe('AdminSubscriptionsListPage', () => {
   })
 
   it('affiche les cartes KPIs à partir des stats', async () => {
-    statsRef.value = makeStats()
+    // Valeurs distinctes non-substrings l'une de l'autre : intervertir les
+    // bindings current_month ↔ total doit faire échouer le test.
+    statsRef.value = makeStats({
+      revenue: { current_month: 175000, total: 9430000, currency: 'XOF' },
+    })
     const wrapper = await mountPage()
 
     const active = wrapper.find('[data-testid="kpi-active"]')
@@ -154,8 +159,19 @@ describe('AdminSubscriptionsListPage', () => {
     expect(active.text()).toContain('Pro 5')
     expect(active.text()).toContain('Élite 1')
 
-    expect(wrapper.find('[data-testid="kpi-revenue-month"]').text()).toContain('150')
-    expect(wrapper.find('[data-testid="kpi-revenue-total"]').text()).toContain('1')
+    // Montants formatés via le même formatter que la page (séparateurs
+    // fr-FR = espaces fines insécables) — comparaison sur la chaîne complète.
+    const expectedMonth = formatAmount(175000, 'XOF')
+    const expectedTotal = formatAmount(9430000, 'XOF')
+    expect(expectedTotal).not.toBe(expectedMonth)
+
+    const monthText = wrapper.find('[data-testid="kpi-revenue-month"]').text()
+    const totalText = wrapper.find('[data-testid="kpi-revenue-total"]').text()
+    expect(monthText).toContain(expectedMonth)
+    expect(monthText).not.toContain(expectedTotal)
+    expect(totalText).toContain(expectedTotal)
+    expect(totalText).not.toContain(expectedMonth)
+
     expect(wrapper.find('[data-testid="kpi-expiring"]').text()).toContain('3')
     expect(wrapper.find('[data-testid="kpi-pending"]').text()).toContain('4')
     expect(wrapper.find('[data-testid="kpi-failed"]').text()).toContain('2')
@@ -190,6 +206,49 @@ describe('AdminSubscriptionsListPage', () => {
 
       vi.advanceTimersByTime(1)
       expect(mockFetchSubscriptions).toHaveBeenCalledWith({ page: 1, search: 'jane' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('désamorce le timer de recherche armé quand un filtre force un fetch immédiat (pas de rappel fantôme page 1)', async () => {
+    const wrapper = await mountPage()
+    mockFetchSubscriptions.mockClear()
+
+    vi.useFakeTimers()
+    try {
+      // Arme le debounce de recherche sans le laisser expirer.
+      await wrapper.find('[data-testid="search-input"]').setValue('jane')
+      vi.advanceTimersByTime(100)
+      expect(mockFetchSubscriptions).not.toHaveBeenCalled()
+
+      // Le changement de filtre déclenche un fetch immédiat…
+      await wrapper.find('[data-testid="plan-filter"]').setValue('pro')
+      expect(mockFetchSubscriptions).toHaveBeenCalledTimes(1)
+      expect(mockFetchSubscriptions).toHaveBeenCalledWith({ page: 1, search: 'jane', plan: 'pro' })
+
+      // …et le timer résiduel ne doit PAS refire loadSubscriptions(1) après coup.
+      vi.advanceTimersByTime(400)
+      expect(mockFetchSubscriptions).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('trim le terme de recherche et omet le param search si vide après trim', async () => {
+    const wrapper = await mountPage()
+    mockFetchSubscriptions.mockClear()
+
+    vi.useFakeTimers()
+    try {
+      await wrapper.find('[data-testid="search-input"]').setValue('  jane  ')
+      vi.advanceTimersByTime(300)
+      expect(mockFetchSubscriptions).toHaveBeenCalledWith({ page: 1, search: 'jane' })
+
+      mockFetchSubscriptions.mockClear()
+      await wrapper.find('[data-testid="search-input"]').setValue('   ')
+      vi.advanceTimersByTime(300)
+      expect(mockFetchSubscriptions).toHaveBeenCalledWith({ page: 1 })
     } finally {
       vi.useRealTimers()
     }
@@ -371,5 +430,48 @@ describe('AdminSubscriptionsListPage', () => {
     // expired : ni Prolonger ni Annuler ; pending : Annuler seulement
     expect(wrapper.findAll('[data-testid="extend-button"]')).toHaveLength(0)
     expect(wrapper.findAll('[data-testid="cancel-button"]')).toHaveLength(1)
+  })
+
+  it('clamp de page : une annulation qui vide la page courante refetch la dernière page réelle', async () => {
+    mockCancel.mockResolvedValue({ success: true, message: 'Abonnement annulé' })
+    // État initial : page 2 sur 2, une seule ligne (la dernière de la page).
+    subscriptionsRef.value = [makeSubscription({ id: 'sub-last-active' })]
+    paginationRef.value = { current_page: 2, last_page: 2, per_page: 15, total: 16 }
+
+    const wrapper = await mountPage()
+    mockFetchSubscriptions.mockClear()
+    mockFetchStats.mockClear()
+
+    // 1er refetch post-mutation (page 2) : la page est désormais vide et le
+    // backend clampe last_page à 1 → la page doit relancer un fetch en page 1.
+    mockFetchSubscriptions
+      .mockImplementationOnce(async () => {
+        subscriptionsRef.value = []
+        paginationRef.value = { current_page: 2, last_page: 1, per_page: 15, total: 15 }
+      })
+      .mockImplementationOnce(async () => {
+        subscriptionsRef.value = [makeSubscription({ id: 'sub-page-1' })]
+        paginationRef.value = { current_page: 1, last_page: 1, per_page: 15, total: 15 }
+      })
+
+    await wrapper.find('[data-testid="cancel-button"]').trigger('click')
+    await flushPromises()
+
+    const notes = document.querySelector<HTMLTextAreaElement>('[data-testid="cancel-notes"]')!
+    notes.value = 'Annulation de la dernière ligne de la page.'
+    notes.dispatchEvent(new Event('input'))
+    await flushPromises()
+
+    document.querySelector<HTMLButtonElement>('[data-testid="cancel-submit"]')!.click()
+    await flushPromises()
+
+    expect(mockCancel).toHaveBeenCalledWith('sub-last-active', {
+      notes: 'Annulation de la dernière ligne de la page.',
+    })
+    // Refetch de la page courante (2) PUIS clamp sur la dernière page réelle (1).
+    expect(mockFetchSubscriptions).toHaveBeenCalledTimes(2)
+    expect(mockFetchSubscriptions).toHaveBeenNthCalledWith(1, { page: 2 })
+    expect(mockFetchSubscriptions).toHaveBeenNthCalledWith(2, { page: 1 })
+    expect(mockFetchStats).toHaveBeenCalledTimes(1)
   })
 })

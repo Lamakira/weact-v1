@@ -90,6 +90,28 @@ class AdminMissionListTest extends TestCase
             ->assertJsonPath('data.0.lieu', 'Cotonou, Bénin');
     }
 
+    public function test_search_with_trailing_backslash_finds_literal_backslash_titre(): void
+    {
+        // Backslash littéral : « \ » doit être échappé AVANT les wildcards —
+        // sans ça, « back\ » devient le pattern '%back\%' où '\%' est un %
+        // LITTÉRAL, et le titre contenant réellement « back\ » devient
+        // introuvable.
+        $producer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+        Mission::factory()->create(['producer_id' => $producer->id, 'titre' => 'Promo back\\slash']);
+        Mission::factory()->create(['producer_id' => $producer->id, 'titre' => 'Promo backslash']);
+
+        $response = $this->withToken($this->adminToken)
+            ->getJson('/api/v1/admin/missions?search='.urlencode('back\\'));
+
+        $response->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.titre', 'Promo back\\slash');
+    }
+
     public function test_filter_by_status_returns_only_matching(): void
     {
         $producer = Producer::factory()->create();

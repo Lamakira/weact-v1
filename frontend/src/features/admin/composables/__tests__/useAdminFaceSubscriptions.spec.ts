@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
 const mockIndex = vi.fn()
+const mockList = vi.fn()
+const mockStats = vi.fn()
 const mockActivate = vi.fn()
 const mockExtend = vi.fn()
 const mockCancel = vi.fn()
@@ -11,6 +13,8 @@ const mockChangeTier = vi.fn()
 vi.mock('../../services/adminFaceSubscriptionsApi', () => ({
   adminFaceSubscriptionsApi: {
     index: (...args: unknown[]) => mockIndex(...args),
+    list: (...args: unknown[]) => mockList(...args),
+    stats: (...args: unknown[]) => mockStats(...args),
     activate: (...args: unknown[]) => mockActivate(...args),
     extend: (...args: unknown[]) => mockExtend(...args),
     cancel: (...args: unknown[]) => mockCancel(...args),
@@ -44,7 +48,7 @@ vi.mock('@/services/errorFormatter', () => ({
   ),
 }))
 
-import { useAdminFaceSubscriptions } from '../useAdminFaceSubscriptions'
+import { useAdminFaceSubscriptions, useAdminSubscriptionsList } from '../useAdminFaceSubscriptions'
 
 const faceId = 'face-uuid-1'
 const subscriptionId = 'sub-uuid-1'
@@ -588,5 +592,226 @@ describe('useAdminFaceSubscriptions - changeTier', () => {
     await expect(
       changeTier(subscriptionId, { notes: 'x', new_plan: 'elite' }),
     ).rejects.toMatchObject({ name: 'CanceledError' })
+  })
+})
+
+describe('useAdminSubscriptionsList - fetchStats latest-wins', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    localStorage.clear()
+  })
+
+  function makeStats(total: number) {
+    return {
+      active_by_plan: { starter: 2, pro: 5, elite: 1, total },
+      revenue: { current_month: 150000, total: 1200000, currency: 'XOF' },
+      expiring_within_30_days: 3,
+      pending_payment_count: 4,
+      failed_count: 2,
+    }
+  }
+
+  it('ignores a stale stats response that resolves after a newer one', async () => {
+    let resolveFirst: (value: unknown) => void
+    let resolveSecond: (value: unknown) => void
+    mockStats
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFirst = resolve
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveSecond = resolve
+        }),
+      )
+
+    const { stats, statsError, isStatsLoading, fetchStats } = useAdminSubscriptionsList()
+    const firstRequest = fetchStats()
+    const secondRequest = fetchStats()
+
+    resolveSecond!({ data: makeStats(42), message: 'OK' })
+    await secondRequest
+
+    resolveFirst!({ data: makeStats(8), message: 'OK' })
+    await firstRequest
+
+    expect(stats.value?.active_by_plan.total).toBe(42)
+    expect(statsError.value).toBeNull()
+    expect(isStatsLoading.value).toBe(false)
+  })
+
+  it('does not let a late-failing stale stats request null out fresh stats', async () => {
+    let rejectFirst: (reason: unknown) => void
+    let resolveSecond: (value: unknown) => void
+    mockStats
+      .mockReturnValueOnce(
+        new Promise((_resolve, reject) => {
+          rejectFirst = reject
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveSecond = resolve
+        }),
+      )
+
+    const { stats, statsError, isStatsLoading, fetchStats } = useAdminSubscriptionsList()
+    const firstRequest = fetchStats()
+    const secondRequest = fetchStats()
+
+    resolveSecond!({ data: makeStats(42), message: 'OK' })
+    await secondRequest
+
+    rejectFirst!({ response: { data: { error: { message: 'Trop de requêtes.' } } } })
+    await firstRequest
+
+    expect(stats.value?.active_by_plan.total).toBe(42)
+    expect(statsError.value).toBeNull()
+    expect(isStatsLoading.value).toBe(false)
+  })
+})
+
+describe('useAdminSubscriptionsList - fetchSubscriptions', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    localStorage.clear()
+  })
+
+  function makeMeta(overrides: Record<string, unknown> = {}) {
+    return { current_page: 1, last_page: 3, per_page: 15, total: 31, ...overrides }
+  }
+
+  it('mappe response.data dans subscriptions et response.meta dans pagination', async () => {
+    mockList.mockResolvedValue({
+      data: [makeSubscription({ id: 'sub-list-1' })],
+      meta: makeMeta({ current_page: 2, last_page: 4, total: 50 }),
+    })
+
+    const { subscriptions, pagination, error, isLoading, fetchSubscriptions } =
+      useAdminSubscriptionsList()
+    await fetchSubscriptions({ page: 2 })
+
+    expect(mockList).toHaveBeenCalledWith({ page: 2 })
+    expect(subscriptions.value).toHaveLength(1)
+    expect(subscriptions.value[0].id).toBe('sub-list-1')
+    expect(pagination.value).toEqual({
+      current_page: 2,
+      last_page: 4,
+      per_page: 15,
+      total: 50,
+    })
+    expect(error.value).toBeNull()
+    expect(isLoading.value).toBe(false)
+  })
+
+  it('en erreur : message posé, subscriptions vidées et pagination remise à null', async () => {
+    mockList
+      .mockResolvedValueOnce({
+        data: [makeSubscription({ id: 'sub-seed' })],
+        meta: makeMeta(),
+      })
+      .mockRejectedValueOnce({
+        response: { data: { error: { message: 'Accès refusé.' } } },
+      })
+
+    const { subscriptions, pagination, error, isLoading, fetchSubscriptions } =
+      useAdminSubscriptionsList()
+
+    await fetchSubscriptions()
+    expect(subscriptions.value).toHaveLength(1)
+    expect(pagination.value).not.toBeNull()
+
+    await fetchSubscriptions()
+
+    expect(error.value).toBe('Accès refusé.')
+    expect(subscriptions.value).toEqual([])
+    expect(pagination.value).toBeNull()
+    expect(isLoading.value).toBe(false)
+  })
+
+  it('latest-wins : une réponse périmée résolue pendant que la requête plus récente est en vol n\'écrit rien et ne coupe pas isLoading', async () => {
+    let resolveFirst: (value: unknown) => void
+    let resolveSecond: (value: unknown) => void
+    mockList
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFirst = resolve
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveSecond = resolve
+        }),
+      )
+
+    const { subscriptions, pagination, isLoading, fetchSubscriptions } =
+      useAdminSubscriptionsList()
+    const firstRequest = fetchSubscriptions({ page: 1 })
+    const secondRequest = fetchSubscriptions({ page: 2 })
+
+    resolveFirst!({
+      data: [makeSubscription({ id: 'sub-stale' })],
+      meta: makeMeta({ current_page: 1 }),
+    })
+    await firstRequest
+
+    // La réponse périmée ne doit ni écrire les données ni couper le chargement
+    // pendant que la requête la plus récente est encore en vol.
+    expect(subscriptions.value).toEqual([])
+    expect(pagination.value).toBeNull()
+    expect(isLoading.value).toBe(true)
+
+    resolveSecond!({
+      data: [makeSubscription({ id: 'sub-fresh' })],
+      meta: makeMeta({ current_page: 2 }),
+    })
+    await secondRequest
+
+    expect(subscriptions.value).toHaveLength(1)
+    expect(subscriptions.value[0].id).toBe('sub-fresh')
+    expect(pagination.value?.current_page).toBe(2)
+    expect(isLoading.value).toBe(false)
+  })
+
+  it('latest-wins : une réponse périmée résolue après la plus récente n\'écrase pas les données fraîches', async () => {
+    let resolveFirst: (value: unknown) => void
+    let resolveSecond: (value: unknown) => void
+    mockList
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveFirst = resolve
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveSecond = resolve
+        }),
+      )
+
+    const { subscriptions, pagination, error, isLoading, fetchSubscriptions } =
+      useAdminSubscriptionsList()
+    const firstRequest = fetchSubscriptions({ page: 1 })
+    const secondRequest = fetchSubscriptions({ page: 2 })
+
+    resolveSecond!({
+      data: [makeSubscription({ id: 'sub-fresh' })],
+      meta: makeMeta({ current_page: 2 }),
+    })
+    await secondRequest
+
+    resolveFirst!({
+      data: [makeSubscription({ id: 'sub-stale' })],
+      meta: makeMeta({ current_page: 1 }),
+    })
+    await firstRequest
+
+    expect(subscriptions.value).toHaveLength(1)
+    expect(subscriptions.value[0].id).toBe('sub-fresh')
+    expect(pagination.value?.current_page).toBe(2)
+    expect(error.value).toBeNull()
+    expect(isLoading.value).toBe(false)
   })
 })

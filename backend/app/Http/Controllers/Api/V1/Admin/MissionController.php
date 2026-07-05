@@ -8,6 +8,7 @@ use App\Enums\MissionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MissionResource;
 use App\Models\Mission;
+use App\Support\Sql;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -24,7 +25,7 @@ class MissionController extends Controller
 
         // Search by titre, lieu, or producer name/email
         if ($request->filled('search') && is_string($request->query('search'))) {
-            $search = str_replace(['%', '_'], ['\%', '\_'], $request->query('search'));
+            $search = Sql::escapeLike($request->query('search'));
             $query->where(function ($q) use ($search) {
                 $q->where('titre', 'like', "%{$search}%")
                     ->orWhere('lieu', 'like', "%{$search}%")

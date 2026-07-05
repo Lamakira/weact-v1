@@ -172,6 +172,57 @@ class AdminSubscriptionsListTest extends TestCase
             ->assertJsonPath('data.0.status', 'active');
     }
 
+    public function test_list_status_active_filter_excludes_stale_active_rows(): void
+    {
+        $live = FaceSubscription::factory()->active()->create();
+
+        // Stale-active : status=active mais expires_at passé (cron d'expiration
+        // en retard). Le filtre « active » applique la même sémantique que les
+        // KPIs de stats() — la ligne ne doit PAS apparaître, sinon la carte
+        // « Actives » et la table filtrée se contredisent.
+        FaceSubscription::factory()->create([
+            'status' => FaceSubscriptionStatus::Active,
+            'starts_at' => now()->subYear(),
+            'expires_at' => now()->subDay(),
+        ]);
+
+        $this->withAdminApiToken($this->admin)
+            ->getJson('/api/v1/admin/face-subscriptions?status=active')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $live->uuid);
+
+        // Sans filtre, la ligne stale reste visible (findable pour correction)
+        $this->withAdminApiToken($this->admin)
+            ->getJson('/api/v1/admin/face-subscriptions')
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+    }
+
+    public function test_list_status_expired_filter_includes_stale_active_rows(): void
+    {
+        // Miroir du filtre « active » : la ligne stale-active exclue d'« active »
+        // doit apparaître sous « expirée » — sinon AUCUN filtre ne la montre
+        // (statut brut encore « active », mais couverture terminée).
+        $genuinelyExpired = FaceSubscription::factory()->expired()->create();
+
+        $staleActive = FaceSubscription::factory()->create([
+            'status' => FaceSubscriptionStatus::Active,
+            'starts_at' => now()->subYear(),
+            'expires_at' => now()->subDay(),
+        ]);
+
+        FaceSubscription::factory()->active()->create();
+
+        $response = $this->withAdminApiToken($this->admin)
+            ->getJson('/api/v1/admin/face-subscriptions?status=expired')
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+
+        $ids = array_column($response->json('data'), 'id');
+        $this->assertEqualsCanonicalizing([$genuinelyExpired->uuid, $staleActive->uuid], $ids);
+    }
+
     public function test_list_ignores_invalid_filter_values(): void
     {
         FaceSubscription::factory()->active()->create();
@@ -231,6 +282,34 @@ class AdminSubscriptionsListTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.face.username', 'back\\slash');
+
+        // Underscore littéral : « awa_a » ne doit PAS matcher « awaxa » via un
+        // _ non échappé (wildcard un-caractère).
+        $underscoreFace = Face::factory()->create(['nom' => 'Doe', 'prenom' => 'Awa', 'username' => 'awa_a']);
+        FaceSubscription::factory()->active()->create(['face_id' => $underscoreFace->id]);
+
+        $lookalike = Face::factory()->create(['nom' => 'Doe', 'prenom' => 'Awa', 'username' => 'awaxa']);
+        FaceSubscription::factory()->active()->create(['face_id' => $lookalike->id]);
+
+        $this->withAdminApiToken($this->admin)
+            ->getJson('/api/v1/admin/face-subscriptions?search='.urlencode('awa_a'))
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.face.username', 'awa_a');
+    }
+
+    public function test_list_search_trims_surrounding_whitespace(): void
+    {
+        $face = Face::factory()->create(['nom' => 'Adjovi', 'prenom' => 'Awa', 'username' => 'awa-a']);
+        FaceSubscription::factory()->active()->create(['face_id' => $face->id]);
+
+        // Espace de fin typique d'un copier-coller WhatsApp/mail : sans trim,
+        // le motif devient '%Adjovi %' et la Face existante est introuvable.
+        $this->withAdminApiToken($this->admin)
+            ->getJson('/api/v1/admin/face-subscriptions?search='.urlencode(' Adjovi '))
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.face.nom', 'Adjovi');
     }
 
     public function test_list_paginates_with_default_15_and_caps_per_page_at_100(): void
@@ -363,6 +442,37 @@ class AdminSubscriptionsListTest extends TestCase
                 ->assertOk()
                 ->assertJsonPath('data.revenue.current_month', 75000)
                 ->assertJsonPath('data.revenue.total', 100000);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_stats_revenue_current_month_uses_benin_calendar_month(): void
+    {
+        // Frontière de mois : les mois de revenus sont des mois calendaires
+        // Africa/Porto-Novo (UTC+01:00 fixe, pas d'heure d'été). Un paiement
+        // à 23:30 UTC le dernier jour du mois UTC précédent = 00:30 au Bénin
+        // le 1er du mois courant → compté dans le mois courant.
+        Carbon::setTestNow(Carbon::parse('2026-07-15 12:00:00', 'UTC'));
+
+        try {
+            FaceSubscription::factory()->active()->create([
+                'paid_amount' => 40000,
+                'paid_at' => Carbon::parse('2026-06-30 23:30:00', 'UTC'),
+            ]);
+
+            // Contrôle : 22:30 UTC le 30 juin = 23:30 au Bénin → mois
+            // précédent, hors mois courant, dans le cumul.
+            FaceSubscription::factory()->active()->create([
+                'paid_amount' => 10000,
+                'paid_at' => Carbon::parse('2026-06-30 22:30:00', 'UTC'),
+            ]);
+
+            $this->withAdminApiToken($this->admin)
+                ->getJson('/api/v1/admin/face-subscriptions/stats')
+                ->assertOk()
+                ->assertJsonPath('data.revenue.current_month', 40000)
+                ->assertJsonPath('data.revenue.total', 50000);
         } finally {
             Carbon::setTestNow();
         }

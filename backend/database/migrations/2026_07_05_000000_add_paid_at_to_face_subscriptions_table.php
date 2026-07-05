@@ -2,10 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Support\FaceSubscriptionPaidAtBackfill;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
@@ -13,60 +12,36 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('face_subscriptions', function (Blueprint $table): void {
-            $table->timestamp('paid_at')->nullable()->index()->after('paid_amount');
-        });
-
-        // Backfill rétroactif (D-1) : date l'encaissement depuis metadata.confirmed_at
-        // pour toutes les lignes déjà payées (paid_amount non-null).
-        //
-        // En PHP + Carbon plutôt qu'en STR_TO_DATE SQL, pour deux raisons :
-        // 1. Une valeur hors-plage (ex. « 2026-06-31T… ») ferait échouer l'UPDATE
-        //    en mode SQL strict APRÈS l'ALTER TABLE (DDL déjà commité) — la
-        //    migration resterait bloquée en « duplicate column » au retry. Ici,
-        //    la ligne tombe simplement dans le compteur non-datable.
-        // 2. Carbon::parse honore un éventuel offset non-UTC (converti via
-        //    ->utc()) au lieu de le tronquer silencieusement.
-        // Idempotent : ne touche que les lignes où paid_at est encore NULL.
-        $backfilled = 0;
-        $nonDatable = 0;
-
-        DB::table('face_subscriptions')
-            ->select(['id', 'metadata'])
-            ->whereNotNull('paid_amount')
-            ->whereNull('paid_at')
-            ->orderBy('id')
-            ->chunkById(500, function ($rows) use (&$backfilled, &$nonDatable): void {
-                foreach ($rows as $row) {
-                    $meta = is_string($row->metadata) ? json_decode($row->metadata, true) : null;
-                    $confirmedAt = is_array($meta) ? ($meta['confirmed_at'] ?? null) : null;
-
-                    if (! is_string($confirmedAt) || trim($confirmedAt) === '') {
-                        $nonDatable++;
-
-                        continue;
-                    }
-
-                    try {
-                        $paidAt = Carbon::parse($confirmedAt)->utc();
-                    } catch (Throwable) {
-                        $nonDatable++;
-
-                        continue;
-                    }
-
-                    DB::table('face_subscriptions')
-                        ->where('id', $row->id)
-                        ->update(['paid_at' => $paidAt]);
-                    $backfilled++;
-                }
+        // Garde d'idempotence : le DDL MySQL est auto-committé, donc si le
+        // backfill ci-dessous crashe (lock-wait contre un webhook live,
+        // coupure, SIGTERM de déploiement), la migration n'est PAS enregistrée
+        // alors que la colonne existe déjà — sans cette garde, chaque retry
+        // mourrait en « Duplicate column name 'paid_at' » et bloquerait tout
+        // le pipeline de migrations.
+        if (! Schema::hasColumn('face_subscriptions', 'paid_at')) {
+            Schema::table('face_subscriptions', function (Blueprint $table): void {
+                // dateTime (pas timestamp) : homogène avec les colonnes métier
+                // sœurs starts_at/expires_at/cancelled_at — pas de conversion
+                // par time_zone de session ni de plafond 2038.
+                $table->dateTime('paid_at')->nullable()->index()->after('paid_amount');
             });
+        }
 
+        // Backfill rétroactif (D-1) : logique partagée avec la commande
+        // re-exécutable `face-subscriptions:backfill-paid-at` — voir
+        // App\Support\FaceSubscriptionPaidAtBackfill pour les choix (PHP +
+        // Carbon, non-datable, idempotence). Relancer la commande une fois
+        // après le redémarrage des workers : une activation commise par
+        // l'ANCIEN code dans la fenêtre migrate→queue:restart écrit
+        // paid_amount sans paid_at et échapperait à ce one-shot.
+        //
         // Lignes payées non-datables : comptées dans le cumul total des
         // revenus, absentes des agrégats par période.
+        $result = FaceSubscriptionPaidAtBackfill::run();
+
         Log::info('face_subscriptions paid_at backfill terminé', [
-            'backfilled_rows' => $backfilled,
-            'non_datable_rows' => $nonDatable,
+            'backfilled_rows' => $result['backfilled'],
+            'non_datable_rows' => $result['non_datable'],
         ]);
     }
 

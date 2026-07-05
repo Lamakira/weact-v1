@@ -10,12 +10,17 @@ import {
 import {
   useAdminFaceSubscriptions,
   useAdminSubscriptionsList,
-  type AdminSubscriptionActionResult,
 } from '@/features/admin/composables/useAdminFaceSubscriptions'
-import type {
-  AdminSubscriptionListItem,
-  AdminSubscriptionStatus,
-} from '@/features/admin/services/adminFaceSubscriptionsApi'
+import type { AdminSubscriptionListItem } from '@/features/admin/services/adminFaceSubscriptionsApi'
+import AdminSubscriptionCancelModal from '@/features/admin/components/AdminSubscriptionCancelModal.vue'
+import AdminSubscriptionExtendModal from '@/features/admin/components/AdminSubscriptionExtendModal.vue'
+import {
+  formatAmount,
+  formatSubscriptionDate,
+  isCancellable,
+  isExtendable,
+  statusBadgeClass,
+} from '@/features/admin/utils/subscriptionDisplay'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
@@ -48,7 +53,8 @@ const currentPage = computed(() => pagination.value?.current_page ?? 1)
 
 function buildParams(page: number = 1) {
   const params: Record<string, string | number> = { page }
-  if (searchQuery.value) params.search = searchQuery.value
+  const search = searchQuery.value.trim()
+  if (search) params.search = search
   if (planFilter.value) params.plan = planFilter.value
   if (statusFilter.value) params.status = statusFilter.value
   if (sortDirection.value === 'desc') params.sort = 'expires_at_desc'
@@ -59,13 +65,23 @@ function loadSubscriptions(page: number = 1) {
   fetchSubscriptions(buildParams(page))
 }
 
+// Toute action qui déclenche un fetch immédiat doit désamorcer le timer de
+// recherche encore armé, sinon il refire loadSubscriptions(1) 300 ms plus
+// tard (retour fantôme en page 1 + requête dupliquée).
+function clearSearchDebounce(): void {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout)
+    searchTimeout = null
+  }
+}
+
 onMounted(() => {
   loadSubscriptions()
   fetchStats()
 })
 
 onUnmounted(() => {
-  if (searchTimeout) clearTimeout(searchTimeout)
+  clearSearchDebounce()
 })
 
 // Levé par clearFilters : la remise à zéro des 3 refs déclencherait sinon
@@ -75,7 +91,7 @@ let suppressFilterWatchers = false
 
 watch(searchQuery, () => {
   if (suppressFilterWatchers) return
-  if (searchTimeout) clearTimeout(searchTimeout)
+  clearSearchDebounce()
   searchTimeout = setTimeout(() => {
     loadSubscriptions(1)
   }, 300)
@@ -83,20 +99,23 @@ watch(searchQuery, () => {
 
 watch([planFilter, statusFilter], () => {
   if (suppressFilterWatchers) return
+  clearSearchDebounce()
   loadSubscriptions(1)
 })
 
 function toggleSort(): void {
+  clearSearchDebounce()
   sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
   loadSubscriptions(1)
 }
 
 function goToPage(page: number): void {
+  clearSearchDebounce()
   loadSubscriptions(page)
 }
 
 function clearFilters(): void {
-  if (searchTimeout) clearTimeout(searchTimeout)
+  clearSearchDebounce()
   suppressFilterWatchers = true
   searchQuery.value = ''
   planFilter.value = ''
@@ -113,103 +132,11 @@ const hasActiveFilters = computed(
 
 // ---------- Helpers ----------
 
-const STATUS_BADGE_CLASS: Record<AdminSubscriptionStatus, string> = {
-  active: 'bg-green-100 text-green-700',
-  pending_payment: 'bg-amber-100 text-amber-700',
-  expired: 'bg-red-100 text-red-700',
-  cancelled: 'bg-gray-100 text-gray-600',
-  failed: 'bg-red-100 text-red-700',
-}
-
-function statusBadgeClass(status: AdminSubscriptionStatus | null): string {
-  if (!status) return 'bg-gray-100 text-gray-600'
-  return STATUS_BADGE_CLASS[status] ?? 'bg-gray-100 text-gray-600'
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return '—'
-  return d.toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  })
-}
-
-function formatAmount(amount: number | null | undefined, currency: string = 'XOF'): string {
-  if (amount === null || amount === undefined || !Number.isFinite(amount)) return '—'
-  try {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount)
-  } catch {
-    return `${new Intl.NumberFormat('fr-FR').format(amount)} ${currency || 'XOF'}`
-  }
-}
+const formatDate = formatSubscriptionDate
 
 function faceDisplayName(sub: AdminSubscriptionListItem): string {
   const parts = [sub.face?.prenom, sub.face?.nom].filter(Boolean)
   return parts.length > 0 ? parts.join(' ') : (sub.face?.username ?? '—')
-}
-
-function isExtendable(sub: AdminSubscriptionListItem): boolean {
-  return (
-    sub.status === 'active' &&
-    sub.expires_at !== null &&
-    new Date(sub.expires_at).getTime() > Date.now()
-  )
-}
-
-function isCancellable(sub: AdminSubscriptionListItem): boolean {
-  return sub.status === 'active' || sub.status === 'pending_payment'
-}
-
-// ---------- Focus management (pattern AdminFaceSubscriptionSection) ----------
-
-const lastFocusedElement = ref<HTMLElement | null>(null)
-const extendModalRef = ref<HTMLDivElement | null>(null)
-const cancelModalRef = ref<HTMLDivElement | null>(null)
-
-async function prepareModalFocus(modalRef: typeof extendModalRef): Promise<void> {
-  lastFocusedElement.value =
-    document.activeElement instanceof HTMLElement ? document.activeElement : null
-  await nextTick()
-  modalRef.value?.focus()
-}
-
-function restoreFocus(): void {
-  if (lastFocusedElement.value && document.contains(lastFocusedElement.value)) {
-    lastFocusedElement.value.focus({ preventScroll: true })
-  }
-  lastFocusedElement.value = null
-}
-
-function trapModalFocus(event: KeyboardEvent, root: HTMLDivElement | null): void {
-  if (!root) return
-
-  const focusable = Array.from(
-    root.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), select:not([disabled]), textarea:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    ),
-  ).filter((element) => element.offsetParent !== null)
-
-  if (focusable.length === 0) return
-
-  const first = focusable[0]
-  const last = focusable[focusable.length - 1]
-  if (!first || !last) return
-
-  if (event.shiftKey && document.activeElement === first) {
-    event.preventDefault()
-    last.focus()
-  } else if (!event.shiftKey && document.activeElement === last) {
-    event.preventDefault()
-    first.focus()
-  }
 }
 
 async function refreshAfterMutation(): Promise<void> {
@@ -226,143 +153,29 @@ async function refreshAfterMutation(): Promise<void> {
   await fetchStats()
 }
 
-// ---------- Modale Prolonger ----------
+// ---------- Modales Prolonger / Annuler (composants partagés avec la fiche Face) ----------
 
 const extendTarget = ref<AdminSubscriptionListItem | null>(null)
-const extendNotes = ref('')
-const extendAdditionalDays = ref<string>('')
-const extendSubmitting = ref(false)
-const extendConflictMessage = ref<string | null>(null)
-const extendErrors = ref<Record<string, string[]>>({})
-
-async function openExtend(sub: AdminSubscriptionListItem): Promise<void> {
-  extendTarget.value = sub
-  extendNotes.value = ''
-  extendAdditionalDays.value = ''
-  extendConflictMessage.value = null
-  extendErrors.value = {}
-  await prepareModalFocus(extendModalRef)
-}
-
-function closeExtend(): void {
-  if (extendSubmitting.value) return
-  extendTarget.value = null
-  restoreFocus()
-}
-
-async function submitExtend(): Promise<void> {
-  if (extendSubmitting.value) return
-  if (!extendTarget.value) return
-  extendSubmitting.value = true
-  extendConflictMessage.value = null
-  extendErrors.value = {}
-
-  const parsedAdditionalDays = Number(extendAdditionalDays.value)
-  if (
-    !Number.isInteger(parsedAdditionalDays) ||
-    parsedAdditionalDays < 1 ||
-    parsedAdditionalDays > 3650
-  ) {
-    extendErrors.value = {
-      additional_days: ['Saisissez un nombre entier entre 1 et 3650.'],
-    }
-    extendSubmitting.value = false
-    return
-  }
-
-  const payload = {
-    notes: extendNotes.value.trim(),
-    additional_days: parsedAdditionalDays,
-  }
-
-  let result: AdminSubscriptionActionResult
-  try {
-    result = await extend(extendTarget.value.id, payload)
-  } catch {
-    extendSubmitting.value = false
-    return
-  }
-
-  if (result.success) {
-    extendSubmitting.value = false
-    // closeExtend (et pas target=null direct) : restaure le focus sur le
-    // bouton d'origine — parité avec la fermeture manuelle.
-    closeExtend()
-    toast.success(result.message ?? 'Abonnement étendu')
-    await refreshAfterMutation()
-    return
-  }
-
-  extendSubmitting.value = false
-
-  if (result.code === 'VALIDATION_ERROR') {
-    extendErrors.value = result.errors ?? {}
-    extendConflictMessage.value = result.message ?? null
-  } else {
-    extendErrors.value = {}
-    extendConflictMessage.value = result.message ?? 'Une erreur est survenue'
-    // Liste ET stats : un 409 signifie que l'état a bougé ailleurs — les
-    // cartes KPI doivent suivre, pas seulement le tableau.
-    await refreshAfterMutation()
-  }
-}
-
-// ---------- Modale Annuler ----------
-
 const cancelTarget = ref<AdminSubscriptionListItem | null>(null)
-const cancelNotes = ref('')
-const cancelSubmitting = ref(false)
-const cancelConflictMessage = ref<string | null>(null)
-const cancelErrors = ref<Record<string, string[]>>({})
 
-async function openCancel(sub: AdminSubscriptionListItem): Promise<void> {
+function openExtend(sub: AdminSubscriptionListItem): void {
+  extendTarget.value = sub
+}
+
+function openCancel(sub: AdminSubscriptionListItem): void {
   cancelTarget.value = sub
-  cancelNotes.value = ''
-  cancelConflictMessage.value = null
-  cancelErrors.value = {}
-  await prepareModalFocus(cancelModalRef)
 }
 
-function closeCancel(): void {
-  if (cancelSubmitting.value) return
+async function onExtendSuccess(message: string | null): Promise<void> {
+  extendTarget.value = null
+  toast.success(message ?? 'Abonnement étendu')
+  await refreshAfterMutation()
+}
+
+async function onCancelSuccess(message: string | null): Promise<void> {
   cancelTarget.value = null
-  restoreFocus()
-}
-
-async function submitCancel(): Promise<void> {
-  if (cancelSubmitting.value) return
-  if (!cancelTarget.value) return
-  cancelSubmitting.value = true
-  cancelConflictMessage.value = null
-  cancelErrors.value = {}
-
-  const payload = { notes: cancelNotes.value.trim() }
-  let result: AdminSubscriptionActionResult
-  try {
-    result = await cancel(cancelTarget.value.id, payload)
-  } catch {
-    cancelSubmitting.value = false
-    return
-  }
-
-  if (result.success) {
-    cancelSubmitting.value = false
-    closeCancel()
-    toast.success(result.message ?? 'Abonnement annulé')
-    await refreshAfterMutation()
-    return
-  }
-
-  cancelSubmitting.value = false
-
-  if (result.code === 'VALIDATION_ERROR') {
-    cancelErrors.value = result.errors ?? {}
-    cancelConflictMessage.value = result.message ?? null
-  } else {
-    cancelErrors.value = {}
-    cancelConflictMessage.value = result.message ?? 'Une erreur est survenue'
-    await refreshAfterMutation()
-  }
+  toast.success(message ?? 'Abonnement annulé')
+  await refreshAfterMutation()
 }
 </script>
 
@@ -645,227 +458,20 @@ async function submitCancel(): Promise<void> {
       </div>
     </div>
 
-    <!-- ============ Modale Prolonger ============ -->
-    <Teleport to="body">
-      <Transition
-        enter-active-class="transition duration-200 ease-out"
-        enter-from-class="opacity-0"
-        enter-to-class="opacity-100"
-        leave-active-class="transition duration-150 ease-in"
-        leave-from-class="opacity-100"
-        leave-to-class="opacity-0"
-      >
-        <div
-          v-if="extendTarget"
-          ref="extendModalRef"
-          class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-          data-testid="subscriptions-extend-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="subscriptions-extend-title"
-          tabindex="-1"
-          @click.self="closeExtend"
-          @keydown.esc="closeExtend"
-          @keydown.tab="trapModalFocus($event, extendModalRef)"
-        >
-          <div class="w-full max-w-lg rounded-2xl bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div class="border-b border-gray-100 px-6 py-4 flex items-start justify-between">
-              <div>
-                <h3 id="subscriptions-extend-title" class="text-lg font-semibold text-gray-900">
-                  Prolonger l'abonnement
-                </h3>
-                <p class="mt-1 text-sm text-gray-500">
-                  Ajoutera la durée à l'expiration actuelle ({{ formatDate(extendTarget.expires_at) }}).
-                </p>
-              </div>
-              <button
-                type="button"
-                class="text-gray-400 hover:text-gray-600"
-                aria-label="Fermer"
-                @click="closeExtend"
-              >
-                <X class="h-5 w-5" />
-              </button>
-            </div>
-
-            <div class="space-y-4 px-6 py-5">
-              <div
-                v-if="extendConflictMessage"
-                class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-                data-testid="subscriptions-extend-error"
-              >
-                {{ extendConflictMessage }}
-              </div>
-
-              <div class="space-y-2">
-                <label class="text-sm font-medium text-gray-700" for="subscriptions-extend-notes">
-                  Notes <span class="text-red-500">*</span>
-                </label>
-                <textarea
-                  id="subscriptions-extend-notes"
-                  v-model="extendNotes"
-                  rows="3"
-                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="Raison de la prolongation (5 à 1000 caractères)..."
-                  data-testid="extend-notes"
-                />
-                <p
-                  v-if="extendErrors.notes?.length"
-                  class="text-xs text-red-600"
-                  data-testid="subscriptions-extend-field-error-notes"
-                >
-                  {{ extendErrors.notes[0] }}
-                </p>
-              </div>
-
-              <div class="space-y-2">
-                <label class="text-sm font-medium text-gray-700" for="subscriptions-extend-additional-days">
-                  Jours supplémentaires <span class="text-red-500">*</span>
-                </label>
-                <input
-                  id="subscriptions-extend-additional-days"
-                  v-model="extendAdditionalDays"
-                  type="number"
-                  min="1"
-                  max="3650"
-                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  data-testid="extend-additional-days"
-                />
-                <p class="text-xs text-gray-500">
-                  Nombre de jours à ajouter à la date d'expiration actuelle.
-                </p>
-                <p
-                  v-if="extendErrors.additional_days?.length"
-                  class="text-xs text-red-600"
-                  data-testid="subscriptions-extend-field-error-additional_days"
-                >
-                  {{ extendErrors.additional_days[0] }}
-                </p>
-              </div>
-            </div>
-
-            <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
-              <button
-                type="button"
-                class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
-                @click="closeExtend"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
-                :disabled="extendSubmitting"
-                data-testid="extend-submit"
-                @click="submitExtend"
-              >
-                <Loader2 v-if="extendSubmitting" class="h-4 w-4 animate-spin" />
-                Prolonger
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- ============ Modale Annuler ============ -->
-    <Teleport to="body">
-      <Transition
-        enter-active-class="transition duration-200 ease-out"
-        enter-from-class="opacity-0"
-        enter-to-class="opacity-100"
-        leave-active-class="transition duration-150 ease-in"
-        leave-from-class="opacity-100"
-        leave-to-class="opacity-0"
-      >
-        <div
-          v-if="cancelTarget"
-          ref="cancelModalRef"
-          class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
-          data-testid="subscriptions-cancel-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="subscriptions-cancel-title"
-          tabindex="-1"
-          @click.self="closeCancel"
-          @keydown.esc="closeCancel"
-          @keydown.tab="trapModalFocus($event, cancelModalRef)"
-        >
-          <div class="w-full max-w-lg rounded-2xl bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div class="border-b border-gray-100 px-6 py-4 flex items-start justify-between">
-              <div>
-                <h3 id="subscriptions-cancel-title" class="text-lg font-semibold text-gray-900">
-                  Annuler l'abonnement
-                </h3>
-                <p class="mt-1 text-sm text-gray-500">
-                  Cette action est immédiate. L'utilisateur ne pourra plus accéder aux fonctionnalités
-                  Premium, mais ses photos 3-4 et sa vidéo de casting ne seront PAS supprimées (elles
-                  deviendront simplement masquées publiquement).
-                </p>
-              </div>
-              <button
-                type="button"
-                class="text-gray-400 hover:text-gray-600"
-                aria-label="Fermer"
-                @click="closeCancel"
-              >
-                <X class="h-5 w-5" />
-              </button>
-            </div>
-
-            <div class="space-y-4 px-6 py-5">
-              <div
-                v-if="cancelConflictMessage"
-                class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-                data-testid="subscriptions-cancel-error"
-              >
-                {{ cancelConflictMessage }}
-              </div>
-
-              <div class="space-y-2">
-                <label class="text-sm font-medium text-gray-700" for="subscriptions-cancel-notes">
-                  Notes <span class="text-red-500">*</span>
-                </label>
-                <textarea
-                  id="subscriptions-cancel-notes"
-                  v-model="cancelNotes"
-                  rows="3"
-                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="Raison de l'annulation (5 à 1000 caractères)..."
-                  data-testid="cancel-notes"
-                />
-                <p
-                  v-if="cancelErrors.notes?.length"
-                  class="text-xs text-red-600"
-                  data-testid="subscriptions-cancel-field-error-notes"
-                >
-                  {{ cancelErrors.notes[0] }}
-                </p>
-              </div>
-            </div>
-
-            <div class="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
-              <button
-                type="button"
-                class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
-                @click="closeCancel"
-              >
-                Retour
-              </button>
-              <button
-                type="button"
-                class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
-                :disabled="cancelSubmitting"
-                data-testid="cancel-submit"
-                @click="submitCancel"
-              >
-                <Loader2 v-if="cancelSubmitting" class="h-4 w-4 animate-spin" />
-                Confirmer l'annulation
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+    <!-- Modales Prolonger / Annuler (partagées avec AdminFaceSubscriptionSection) -->
+    <AdminSubscriptionExtendModal
+      :target="extendTarget"
+      :submit-action="extend"
+      @close="extendTarget = null"
+      @success="onExtendSuccess"
+      @conflict="refreshAfterMutation"
+    />
+    <AdminSubscriptionCancelModal
+      :target="cancelTarget"
+      :submit-action="cancel"
+      @close="cancelTarget = null"
+      @success="onCancelSuccess"
+      @conflict="refreshAfterMutation"
+    />
   </div>
 </template>

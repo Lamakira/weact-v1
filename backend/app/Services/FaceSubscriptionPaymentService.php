@@ -270,6 +270,161 @@ class FaceSubscriptionPaymentService
                 return $fresh;
             }
 
+            // Mirror of the late-approval-after-failure branch above, for rows
+            // cancelled (admin or Face) between initiation and the webhook: the
+            // customer WAS charged but the row must never reactivate without an
+            // explicit decision. Still a no-op (webhook no-throw rule), but the
+            // dropped money is escalated to CRITICAL with an audit trail — a
+            // plain warning would make it vanish from every dashboard (paid_amount
+            // stays null, so D-1 revenue never sees it either).
+            if ($locked->status === FaceSubscriptionStatus::Cancelled) {
+                $metadata = is_array($locked->metadata) ? $locked->metadata : [];
+
+                // Already-settled guard: a paid-then-cancelled row (admin cancel
+                // of an active subscription, or an FP-2.5 tier-change superseded
+                // row — both keep paid_amount and provider_reference) receiving
+                // a re-emitted approval is NOT stranded money: that charge was
+                // honored and already sits in D-1 revenue. Paging CRITICAL here
+                // would invite a double credit/refund by the operator. Routine
+                // no-op instead. Every genuinely stranded charge (pending-,
+                // mismatch- or manual-activation-then-cancelled) has
+                // paid_amount null and keeps the escalation below.
+                if ($locked->paid_amount !== null) {
+                    Log::warning('Fedapay webhook: duplicate approval on a settled cancelled face subscription ignored — payment already booked', [
+                        'face_subscription_id' => $locked->id,
+                        'face_id' => $locked->face_id,
+                        'fedapay_reference' => $fedapayRef,
+                        'provider_reference' => $providerReference,
+                        'paid_amount_reported' => $paidAmount,
+                        'paid_amount_booked' => $locked->paid_amount,
+                    ]);
+
+                    return $locked;
+                }
+
+                // Idempotence: same first-hit-wins rule as the failure branch —
+                // a duplicate late-approval webhook must not overwrite the
+                // first-occurrence audit or re-fire the critical alert.
+                if (isset($metadata['late_approved_after_cancellation_at'])) {
+                    Log::warning('Fedapay webhook: duplicate late-approval webhook on cancelled subscription ignored — first late-approval audit preserved', [
+                        'face_subscription_id' => $locked->id,
+                        'face_id' => $locked->face_id,
+                        'fedapay_reference' => $fedapayRef,
+                        'provider_reference' => $providerReference,
+                        'paid_amount' => $paidAmount,
+                        'first_late_approved_at' => $metadata['late_approved_after_cancellation_at'],
+                    ]);
+
+                    return $locked;
+                }
+
+                $now = now()->toIso8601String();
+                $updates = [
+                    'metadata' => array_merge(
+                        $metadata,
+                        [
+                            'late_approved_after_cancellation_at' => $now,
+                            'late_approved_after_cancellation_reason' => 'manual_review_required',
+                            'late_approved_fedapay_reference' => $fedapayRef,
+                            'late_approved_provider_reference' => $providerReference,
+                            'late_approved_paid_amount' => $paidAmount,
+                            'late_approved_event_payload_summary' => [
+                                'event_id' => $rawWebhookPayload['id'] ?? null,
+                                'event_name' => $rawWebhookPayload['name'] ?? null,
+                                'transaction_status' => data_get($rawWebhookPayload, 'entity.status')
+                                    ?? data_get($rawWebhookPayload, 'data.status'),
+                            ],
+                        ],
+                    ),
+                ];
+
+                if ($providerReference !== null && $locked->provider_reference === null) {
+                    $updates['provider_reference'] = $providerReference;
+                }
+
+                $locked->update($updates);
+
+                Log::critical('Fedapay webhook: approved payment arrived on a cancelled face subscription — customer charged, manual review required', [
+                    'face_subscription_id' => $locked->id,
+                    'face_id' => $locked->face_id,
+                    'current_status' => $locked->status->value,
+                    'fedapay_reference' => $fedapayRef,
+                    'provider_reference' => $providerReference,
+                    'paid_amount' => $paidAmount,
+                ]);
+
+                /** @var FaceSubscription $fresh */
+                $fresh = $locked->fresh();
+
+                return $fresh;
+            }
+
+            // Same escalation for rows failed by a REMOTE settlement: markAsFailed
+            // (declined/canceled webhook, resume path) writes only failure_reason
+            // metadata, so localFailureSource() is null and the locally-failed
+            // branch above never matches. An approved event landing on such a row
+            // (out-of-order delivery, provider re-emission — amplified by the
+            // job's retry/backoff) is money actually charged after a recorded
+            // failure: no-op, but CRITICAL + audit, never the routine warning
+            // below. Failed rows are never settled, so no paid_amount guard.
+            if ($locked->status === FaceSubscriptionStatus::Failed) {
+                $metadata = is_array($locked->metadata) ? $locked->metadata : [];
+
+                if (isset($metadata['late_approved_after_remote_failure_at'])) {
+                    Log::warning('Fedapay webhook: duplicate late-approval webhook on remote-failed subscription ignored — first late-approval audit preserved', [
+                        'face_subscription_id' => $locked->id,
+                        'face_id' => $locked->face_id,
+                        'fedapay_reference' => $fedapayRef,
+                        'provider_reference' => $providerReference,
+                        'paid_amount' => $paidAmount,
+                        'first_late_approved_at' => $metadata['late_approved_after_remote_failure_at'],
+                    ]);
+
+                    return $locked;
+                }
+
+                $now = now()->toIso8601String();
+                $updates = [
+                    'metadata' => array_merge(
+                        $metadata,
+                        [
+                            'late_approved_after_remote_failure_at' => $now,
+                            'late_approved_after_remote_failure_reason' => 'manual_review_required',
+                            'late_approved_fedapay_reference' => $fedapayRef,
+                            'late_approved_provider_reference' => $providerReference,
+                            'late_approved_paid_amount' => $paidAmount,
+                            'late_approved_event_payload_summary' => [
+                                'event_id' => $rawWebhookPayload['id'] ?? null,
+                                'event_name' => $rawWebhookPayload['name'] ?? null,
+                                'transaction_status' => data_get($rawWebhookPayload, 'entity.status')
+                                    ?? data_get($rawWebhookPayload, 'data.status'),
+                            ],
+                        ],
+                    ),
+                ];
+
+                if ($providerReference !== null && $locked->provider_reference === null) {
+                    $updates['provider_reference'] = $providerReference;
+                }
+
+                $locked->update($updates);
+
+                Log::critical('Fedapay webhook: approved payment arrived after remote face subscription failure — manual review required', [
+                    'face_subscription_id' => $locked->id,
+                    'face_id' => $locked->face_id,
+                    'current_status' => $locked->status->value,
+                    'fedapay_reference' => $fedapayRef,
+                    'provider_reference' => $providerReference,
+                    'paid_amount' => $paidAmount,
+                    'failure_reason' => $metadata['failure_reason'] ?? null,
+                ]);
+
+                /** @var FaceSubscription $fresh */
+                $fresh = $locked->fresh();
+
+                return $fresh;
+            }
+
             if ($locked->status !== FaceSubscriptionStatus::PendingPayment) {
                 Log::warning('Fedapay webhook: ignoring approval for non-pending face subscription', [
                     'face_subscription_id' => $locked->id,
@@ -290,6 +445,29 @@ class FaceSubscriptionPaymentService
             $currencyMismatch = $expectedCurrency !== null && $reportedCurrency !== null && $reportedCurrency !== $expectedCurrency;
 
             if ($amountMismatch || $currencyMismatch) {
+                // First-hit-wins, same rule as the late-approval branches: a job
+                // retry (crash between the settlement commit and markProcessed)
+                // or a duplicate event must not overwrite the first *_detected_at
+                // forensic timestamps nor re-page the critical alert — and
+                // resumePending() makes the re-entry USER-triggerable (every
+                // « reprendre le paiement » on a mismatched row lands here).
+                // Guard is INSIDE the mismatch branch on purpose: a later event
+                // carrying the CORRECT amount skips this block entirely and
+                // still activates (recovery path preserved).
+                $existingMetadata = is_array($locked->metadata) ? $locked->metadata : [];
+
+                if (isset($existingMetadata['amount_mismatch_detected_at']) || isset($existingMetadata['currency_mismatch_detected_at'])) {
+                    Log::warning('Fedapay webhook: duplicate mismatch webhook ignored — first mismatch audit preserved', [
+                        'face_subscription_id' => $locked->id,
+                        'face_id' => $locked->face_id,
+                        'fedapay_reference' => $fedapayRef,
+                        'paid_amount_reported' => $paidAmount,
+                        'expected_amount' => $expectedAmount,
+                    ]);
+
+                    return $locked;
+                }
+
                 $now = now()->toIso8601String();
                 $mismatchMetadata = [
                     'fedapay_reference' => $fedapayRef,

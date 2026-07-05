@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateAdminFaceRequest;
 use App\Http\Resources\FaceResource;
 use App\Models\Face;
+use App\Support\Sql;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,7 @@ class FaceController extends Controller
 
         // Search by nom, prenom, username, or user email
         if ($request->filled('search') && is_string($request->query('search'))) {
-            $search = str_replace(['%', '_'], ['\%', '\_'], $request->query('search'));
+            $search = Sql::escapeLike($request->query('search'));
             $query->where(function ($q) use ($search) {
                 $q->where('nom', 'like', "%{$search}%")
                     ->orWhere('prenom', 'like', "%{$search}%")

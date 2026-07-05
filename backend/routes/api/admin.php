@@ -155,11 +155,18 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'api.token', 'admin'])->g
         // Subscriptions back-office — cross-Face read-only list + KPIs.
         // ⚠️ `stats` is declared BEFORE any `{subscription}` binding route to
         // avoid the literal segment colliding with the route-model binding.
+        // Dedicated throttle prefix: inline `throttle` keys on the admin id
+        // alone, so without a prefix these chatty routes (mount, debounced
+        // search, refetch after mutation) would drain the single 30/min bucket
+        // shared by EVERY other `throttle:30,1` admin route and 429 them all.
+        // 60/min (not 30): each inline mutation refetches list+stats (2-3 GETs)
+        // and an intense triage minute brushed the 30 ceiling; the bucket is
+        // per-admin AND page-local, so the higher limit exposes nothing else.
         Route::get('/face-subscriptions', [AdminFaceSubscriptionController::class, 'list'])
-            ->middleware('throttle:30,1')
+            ->middleware('throttle:60,1,face-subscriptions-page')
             ->name('admin.face-subscriptions.list');
         Route::get('/face-subscriptions/stats', [AdminFaceSubscriptionController::class, 'stats'])
-            ->middleware('throttle:30,1')
+            ->middleware('throttle:60,1,face-subscriptions-page')
             ->name('admin.face-subscriptions.stats');
 
         // Face subscription operations (FEATURE-FP-1.4)

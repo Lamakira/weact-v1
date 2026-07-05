@@ -56,6 +56,11 @@ export function useAdminSubscriptionsList() {
   // recherche + watch immédiat des filtres) — une réponse périmée plus lente
   // ne doit jamais écraser celle des filtres actifs.
   let requestSeq = 0
+  // Même garde, compteur séparé pour les stats : deux refresh KPI qui se
+  // chevauchent (mount + refreshAfterMutation) peuvent se résoudre dans le
+  // désordre — une réponse périmée (ou son échec tardif) ne doit ni écraser
+  // ni annuler les stats fraîches.
+  let statsSeq = 0
 
   async function fetchSubscriptions(params?: AdminSubscriptionListParams): Promise<void> {
     const seq = ++requestSeq
@@ -80,17 +85,22 @@ export function useAdminSubscriptionsList() {
   }
 
   async function fetchStats(): Promise<void> {
+    const seq = ++statsSeq
     isStatsLoading.value = true
     statsError.value = null
 
     try {
       const response = await adminFaceSubscriptionsApi.stats()
+      if (seq !== statsSeq) return
       stats.value = response.data
     } catch (err) {
+      if (seq !== statsSeq) return
       statsError.value = getApiErrorMessage(err) ?? 'Une erreur est survenue'
       stats.value = null
     } finally {
-      isStatsLoading.value = false
+      if (seq === statsSeq) {
+        isStatsLoading.value = false
+      }
     }
   }
 
