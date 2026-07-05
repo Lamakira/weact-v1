@@ -286,7 +286,9 @@ class AdminFaceSubscriptionControllerTest extends TestCase
         $this->assertNotNull($sub->starts_at);
         $this->assertNotNull($sub->expires_at);
         $this->assertTrue($sub->expires_at->equalTo($sub->starts_at->copy()->addDays(365)));
-        $this->assertNull($sub->paid_amount);
+        // Décision PO 2026-07-06 : activation manuelle = 0 encaissé on-platform.
+        $this->assertSame(0, $sub->paid_amount);
+        $this->assertNull($sub->paid_at);
         $this->assertNull($sub->provider);
         $this->assertNull($sub->provider_reference);
         $this->assertNull($sub->metadata);
@@ -303,7 +305,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
         $this->assertNotNull($audit->new_state['starts_at']);
         $this->assertNotNull($audit->new_state['expires_at']);
         $this->assertNull($audit->new_state['cancelled_at']);
-        $this->assertNull($audit->new_state['paid_amount']);
+        $this->assertSame(0, $audit->new_state['paid_amount']);
         $this->assertSame('XOF', $audit->new_state['currency']);
     }
 
@@ -574,6 +576,50 @@ class AdminFaceSubscriptionControllerTest extends TestCase
             ])->assertStatus(422)->assertJsonValidationErrors(['plan']);
 
         $this->assertDatabaseCount('face_subscriptions', 0);
+    }
+
+    public function test_backfill_migration_sets_zero_only_on_legacy_manual_activation_rows(): void
+    {
+        // Ligne legacy créée par l'ancien activate() : paid_amount NULL
+        // + audit manual_activate → backfillée à 0.
+        $legacyManual = FaceSubscription::factory()->active()->create([
+            'paid_amount' => null,
+            'paid_at' => null,
+        ]);
+        FaceSubscriptionAudit::factory()->create([
+            'face_subscription_id' => $legacyManual->id,
+            'admin_id' => $this->admin->id,
+        ]);
+
+        // Ligne annulée par admin (audit cancel) jamais payée → NULL préservé.
+        $cancelledUnpaid = FaceSubscription::factory()->cancelled()->create([
+            'paid_amount' => null,
+            'paid_at' => null,
+        ]);
+        FaceSubscriptionAudit::factory()->create([
+            'face_subscription_id' => $cancelledUnpaid->id,
+            'admin_id' => $this->admin->id,
+            'action' => FaceSubscriptionAdminAction::Cancel,
+        ]);
+
+        // Ligne pending sans audit → NULL préservé.
+        $pendingUnpaid = FaceSubscription::factory()->pendingPayment()->create([
+            'paid_amount' => null,
+            'paid_at' => null,
+        ]);
+
+        // Ligne payée webhook → montant intact.
+        $paid = FaceSubscription::factory()->active()->create([
+            'paid_amount' => 50000,
+        ]);
+
+        $migration = require database_path('migrations/2026_07_06_000000_backfill_manual_activation_paid_amount.php');
+        $migration->up();
+
+        $this->assertSame(0, $legacyManual->fresh()->paid_amount);
+        $this->assertNull($cancelledUnpaid->fresh()->paid_amount);
+        $this->assertNull($pendingUnpaid->fresh()->paid_amount);
+        $this->assertSame(50000, $paid->fresh()->paid_amount);
     }
 
     // ===================================================================
