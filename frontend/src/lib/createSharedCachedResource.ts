@@ -123,8 +123,21 @@ export function createSharedCachedResource<T>(
   return resource
 }
 
-export function resetSharedCachedResourcesForTests(): void {
+/**
+ * Reset every registered shared cache (data → initialValue, marked stale).
+ *
+ * MUST be called when the authenticated account changes (logout / 401 purge):
+ * every registered resource caches per-account server state behind a TTL —
+ * without this, an account logging in right after another on the same app
+ * instance would read the previous account's data (profile fields,
+ * subscription status, and with it the site-wide payment banner).
+ */
+export function resetAllSharedCachedResources(): void {
   for (const resource of registry.values()) {
     resource.__resetForTests?.()
   }
+}
+
+export function resetSharedCachedResourcesForTests(): void {
+  resetAllSharedCachedResources()
 }

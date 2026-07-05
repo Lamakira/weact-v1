@@ -1,6 +1,7 @@
-import { computed, onMounted, onUnmounted, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch, type ComputedRef } from 'vue'
 import { faceApi } from '../services/faceApi'
 import { useSubscriptionStatus } from './useSubscriptionStatus'
+import { useAuthStore } from '@/stores/auth'
 
 /**
  * Dashboard-wide auto-reconciliation of a pending subscription payment.
@@ -21,18 +22,30 @@ import { useSubscriptionStatus } from './useSubscriptionStatus'
  * status refresh. Because the status lives in a shared cached resource, every consumer
  * (profile capabilities, billing card, this banner) updates reactively once it resolves.
  *
- * Mounted once, dashboard-wide, via PendingSubscriptionPaymentBanner. The Facturation
- * tab and /pricing already run their own useSubscriptionPayment polling, so this is not
- * mounted there (the banner is hidden on the billing route).
+ * Mounted dashboard-wide via PendingSubscriptionPaymentBanner (FaceLayout) and site-wide
+ * via SitewideSubscriptionPaymentBanner (public App.vue branches, gated to Faces). The
+ * Facturation tab and /pricing already run their own useSubscriptionPayment polling, so
+ * the site-wide wrapper excludes those routes.
  */
 const RECONCILE_POLL_MS = 6000
 
+/**
+ * Per-user localStorage key prefix for the "Ignorer" flag on a failed payment.
+ * Scoped by user id so two Faces sharing a browser stay independent.
+ */
+const DISMISS_STORAGE_PREFIX = 'face-subscription-failure-dismissed:'
+
+function canUseStorage(): boolean {
+  return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
+}
+
 export function useSubscriptionReconciler(): {
   hasPendingPayment: ComputedRef<boolean>
-  paymentFailed: Ref<boolean>
+  paymentFailed: ComputedRef<boolean>
   dismissFailure: () => void
 } {
-  const { current, cta, fetchStatus, refreshStatus } = useSubscriptionStatus()
+  const { current, cta, statusValue, fetchStatus, refreshStatus } = useSubscriptionStatus()
+  const authStore = useAuthStore()
 
   // FP-2.3 forces every CTA false while a payment is pending (also catches an
   // active + pending tier-change). Never true for a free, never-paid Face.
@@ -42,16 +55,62 @@ export function useSubscriptionReconciler(): {
     return !c.upgrade_available && !c.downgrade_available && !c.renew_available
   })
 
-  // Set when a pending payment WE were watching resolved to `failed` (Fedapay
-  // decline / stale-pending cron). Lets dashboard pages surface a retry nudge
-  // instead of the pending banner silently vanishing. Session-transient + dismissable.
-  const paymentFailed = ref(false)
+  function storageKey(): string | null {
+    const userId = authStore.user?.id
+    return userId != null ? `${DISMISS_STORAGE_PREFIX}${userId}` : null
+  }
+
+  function readDismissed(): boolean {
+    const key = storageKey()
+    if (!key || !canUseStorage()) return false
+    try {
+      return window.localStorage.getItem(key) !== null
+    } catch {
+      return false
+    }
+  }
+
+  // Durable "Ignorer" flag for a failed payment — persisted per user so it
+  // survives navigation/reload. Cleared as soon as a NEW pending attempt is
+  // observed (any retry goes through pending), so a fresh failure re-surfaces.
+  const dismissed = ref(readDismissed())
+
+  // Derived from the SERVER status (not from an observed pending→failed
+  // transition): a Face whose payment failed sees the retry nudge on any page,
+  // even after a full reload, until they dismiss it.
+  const paymentFailed = computed(() => statusValue.value === 'failed' && !dismissed.value)
+
   function dismissFailure(): void {
-    paymentFailed.value = false
+    dismissed.value = true
+    const key = storageKey()
+    if (key && canUseStorage()) {
+      try {
+        window.localStorage.setItem(key, '1')
+      } catch {
+        // Storage blocked/full — the in-memory flag still hides the nudge for this session.
+      }
+    }
+  }
+
+  function clearDismissed(): void {
+    dismissed.value = false
+    const key = storageKey()
+    if (key && canUseStorage()) {
+      try {
+        window.localStorage.removeItem(key)
+      } catch {
+        // Storage blocked — in-memory flag is cleared regardless.
+      }
+    }
   }
 
   let timer: ReturnType<typeof setInterval> | null = null
   let inFlight = false
+  // Set by onUnmounted: the async continuation of onMounted (fetch → reconcile
+  // → start) must not fire a verify POST or arm the poll interval on a dead
+  // component — frequent with the site-wide mount, where route resolution can
+  // unmount the wrapper while the initial status fetch is still in flight.
+  let disposed = false
 
   function isVisible(): boolean {
     return typeof document === 'undefined' || document.visibilityState === 'visible'
@@ -78,7 +137,7 @@ export function useSubscriptionReconciler(): {
   }
 
   function start(): void {
-    if (timer || !hasPendingPayment.value || !isVisible()) return
+    if (disposed || timer || !hasPendingPayment.value || !isVisible()) return
     timer = setInterval(() => {
       if (!hasPendingPayment.value || !isVisible()) {
         stop()
@@ -106,29 +165,31 @@ export function useSubscriptionReconciler(): {
     } catch {
       // Swallow — a failed status read just leaves the banner hidden.
     }
+    if (disposed) return
     await reconcile()
     start()
   })
 
   onUnmounted(() => {
+    disposed = true
     stop()
     document.removeEventListener('visibilitychange', onVisibilityChange)
   })
 
-  watch(hasPendingPayment, (pending, wasPending) => {
+  // immediate: a reconciler mounted while the shared status cache ALREADY says
+  // pending (SPA navigation during an in-flight retry) must also clear the
+  // "Ignorer" flag — without it, only an observed false→true transition would,
+  // and the new failure would stay dismissed forever.
+  watch(hasPendingPayment, (pending) => {
     if (pending) {
-      // A fresh pending payment clears any previous failure nudge.
-      paymentFailed.value = false
+      // A fresh pending attempt clears any previous "Ignorer" so a new
+      // failure always re-surfaces the nudge.
+      clearDismissed()
       start()
       return
     }
     stop()
-    // pending → failed = a real decline / stale-pending timeout. pending → active
-    // (success) leaves paymentFailed false.
-    if (wasPending && current.value?.status === 'failed') {
-      paymentFailed.value = true
-    }
-  })
+  }, { immediate: true })
 
   return { hasPendingPayment, paymentFailed, dismissFailure }
 }

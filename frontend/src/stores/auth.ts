@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { User } from '@/features/auth/types'
+import { resetAllSharedCachedResources } from '@/lib/createSharedCachedResource'
 import apiClient, { getAuthToken, setAuthToken, removeAuthToken } from '@/services/apiClient'
 
 /**
@@ -71,6 +72,12 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     removeAuthToken()
     removeStoredUser()
+    // Every shared cached resource holds per-account server state (profile
+    // fields, subscription status…) behind a TTL: without this reset, the
+    // next account logging in within the TTL would read the previous
+    // account's data — e.g. the site-wide payment banner would show (and try
+    // to reconcile) someone else's pending payment.
+    resetAllSharedCachedResources()
   }
 
   /**
