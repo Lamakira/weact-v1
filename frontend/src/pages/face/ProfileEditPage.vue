@@ -35,6 +35,7 @@ import { useAvailability } from '@/features/face/composables/useAvailability'
 import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
 import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vue'
 import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
 import AlbumPhotoUpload from '@/features/face/components/AlbumPhotoUpload.vue'
@@ -59,6 +60,7 @@ import type { ExperienceFormData, TarifsFormData } from '@/features/face/types'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 const {
   profile,
@@ -257,8 +259,11 @@ const {
 // subscription tier changes mid-session — e.g. the dashboard reconciler just confirmed
 // a payment — refetch them so newly unlocked media stops rendering as locked without a
 // manual reload. (Navigating INTO the page is already covered by the onMounted fetch.)
+// The auth guard matters: logout resets the shared caches while this page is still
+// mounted (clearAuth runs before the /login navigation), flipping the tier to 'free' —
+// without it the watch would fire 3 token-less GETs (3× 401) on a voluntary logout.
 watch(subscriptionTier, (newTier, oldTier) => {
-  if (newTier === oldTier) return
+  if (newTier === oldTier || !authStore.isAuthenticated) return
   void Promise.all([fetchAlbumPhotos(), fetchVideos(), fetchCompletion()]).catch(() => {
     // Non-blocking — capability-driven gating already updated reactively.
   })

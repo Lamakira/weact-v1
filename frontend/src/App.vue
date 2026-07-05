@@ -5,6 +5,7 @@ import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
 import NavigationProgress from '@/components/layout/NavigationProgress.vue'
 import CookieConsentBanner from '@/components/cookie/CookieConsentBanner.vue'
+import SitewideSubscriptionPaymentBanner from '@/components/SitewideSubscriptionPaymentBanner.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notification'
 
@@ -80,6 +81,9 @@ const isLandingPage = computed(() => {
         <AppHeader />
       </div>
 
+      <!-- Site-wide subscription payment banner (Face only, gated routes) -->
+      <SitewideSubscriptionPaymentBanner />
+
       <!-- Main Content - Full width for landing page -->
       <main class="flex-1">
         <RouterView v-slot="{ Component }">
@@ -99,6 +103,9 @@ const isLandingPage = computed(() => {
     <div class="min-h-screen bg-gray-50 flex flex-col">
       <!-- Header -->
       <AppHeader />
+
+      <!-- Site-wide subscription payment banner (Face only, gated routes) -->
+      <SitewideSubscriptionPaymentBanner />
 
       <!-- Main Content -->
       <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-8">

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useFaceVideos } from '../useFaceVideos'
 import { faceApi } from '../../services/faceApi'
-import { resetSharedCachedResourcesForTests } from '@/lib/createSharedCachedResource'
+import { resetAllSharedCachedResources } from '@/lib/createSharedCachedResource'
 import type {
   FaceVideo,
   FaceVideosListResponse,
@@ -60,7 +60,7 @@ function makeValidFile(name = 'video.mp4', type = 'video/mp4', size = 1024): Fil
 describe('useFaceVideos', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    resetSharedCachedResourcesForTests()
+    resetAllSharedCachedResources()
 
     vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
       if (tag === 'video') {

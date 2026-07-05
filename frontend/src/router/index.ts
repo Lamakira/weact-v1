@@ -93,7 +93,9 @@ const router = createRouter({
       path: '/pricing',
       name: 'pricing',
       component: () => import('../views/PricingView.vue'),
-      meta: { title: 'Tarifs - WEACT' },
+      // ownSubscriptionSurface: the page runs its own useSubscriptionPayment
+      // polling/controls — the shared payment banners must not mount here.
+      meta: { title: 'Tarifs - WEACT', ownSubscriptionSurface: true },
     },
     // Auth routes (guest only)
     {
@@ -215,7 +217,9 @@ const router = createRouter({
           path: 'billing',
           name: 'face-billing',
           component: () => import('../pages/face/billing/FaceBillingPage.vue'),
-          meta: { title: 'Facturation & Abonnement - WEACT' },
+          // ownSubscriptionSurface: the tab carries the full resume/cancel
+          // controls — the shared payment banners must not mount here.
+          meta: { title: 'Facturation & Abonnement - WEACT', ownSubscriptionSurface: true },
         },
       ],
     },
