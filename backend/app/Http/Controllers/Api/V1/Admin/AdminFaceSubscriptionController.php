@@ -131,8 +131,9 @@ class AdminFaceSubscriptionController extends Controller
      *
      * Revenue follows decision D-1: SUM(paid_amount) dated by paid_at,
      * independent of the current status (a paid-then-expired/cancelled row
-     * remains revenue); manual admin activations (paid_amount IS NULL) are
-     * excluded by construction. Rows paid before the paid_at backfill that
+     * remains revenue); manual admin activations record paid_amount = 0
+     * (PO decision 2026-07-06, legacy NULL rows backfilled) and thus
+     * contribute nothing. Rows paid before the paid_at backfill that
      * could not be dated count in the total, never in period aggregates.
      * Months are Africa/Porto-Novo calendar months (config
      * app.business_timezone): the bounds are computed in the business

@@ -402,9 +402,10 @@ class AdminSubscriptionsListTest extends TestCase
     public function test_stats_revenue_excludes_manual_activation_but_counts_it_active(): void
     {
         // D-1 cas 2 : activation manuelle admin = geste commercial
-        // (paid_amount NULL) → exclue des revenus, comptée dans les actives.
+        // (paid_amount 0, décision PO 2026-07-06) → contribue 0 aux revenus,
+        // comptée dans les actives.
         FaceSubscription::factory()->pro()->active()->create([
-            'paid_amount' => null,
+            'paid_amount' => 0,
             'paid_at' => null,
         ]);
 
