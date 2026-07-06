@@ -8,6 +8,7 @@ use App\Exceptions\AlbumQuotaReachedException;
 use App\Jobs\GenerateImageVariants;
 use App\Models\Face;
 use App\Models\FacePhoto;
+use App\Support\ImageVariantGenerator;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -17,14 +18,6 @@ use Illuminate\Support\Str;
 class PhotoAlbumService
 {
     private const STORAGE_PATH = 'avatars/faces/albums';
-
-    private const THUMBNAIL_PATH = 'avatars/faces/albums/thumbnails';
-
-    private const MEDIUM_PATH = 'avatars/faces/albums/medium';
-
-    private const GRID_PATH = 'avatars/faces/albums/grid';
-
-    private const LARGE_PATH = 'avatars/faces/albums/large';
 
     /**
      * Add a photo to a Face's album. The request only stores the original and
@@ -90,43 +83,9 @@ class PhotoAlbumService
             return false;
         }
 
-        $disk = Storage::disk('public');
-
-        // Delete files from storage
-        if ($photo->filename) {
-            $photoPath = self::STORAGE_PATH.'/'.$photo->filename;
-            if ($disk->exists($photoPath)) {
-                $disk->delete($photoPath);
-            }
-        }
-
-        if ($photo->thumbnail) {
-            $thumbnailPath = self::THUMBNAIL_PATH.'/'.$photo->thumbnail;
-            if ($disk->exists($thumbnailPath)) {
-                $disk->delete($thumbnailPath);
-            }
-        }
-
-        if ($photo->medium) {
-            $mediumPath = self::MEDIUM_PATH.'/'.$photo->medium;
-            if ($disk->exists($mediumPath)) {
-                $disk->delete($mediumPath);
-            }
-        }
-
-        if ($photo->grid) {
-            $gridPath = self::GRID_PATH.'/'.$photo->grid;
-            if ($disk->exists($gridPath)) {
-                $disk->delete($gridPath);
-            }
-        }
-
-        if ($photo->large) {
-            $largePath = self::LARGE_PATH.'/'.$photo->large;
-            if ($disk->exists($largePath)) {
-                $disk->delete($largePath);
-            }
-        }
+        // File cleanup (original + every variant) is driven by the shared
+        // catalog in ImageVariantGenerator.
+        app(ImageVariantGenerator::class)->deleteFiles($photo);
 
         // Delete database record
         $photo->delete();

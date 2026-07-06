@@ -38,9 +38,13 @@ class GenerateImageVariantsCommand extends Command implements Isolatable
 
         // Generation runs INLINE (not via queued jobs): mass-dispatching 3000+
         // jobs would drown the shared database queue used by payment webhooks.
-        $this->processEntity('faces', Face::query()->whereNotNull('profile_photo'), $generator, $dryRun, $totals);
-        $this->processEntity('producers', Producer::query()->whereNotNull('profile_photo'), $generator, $dryRun, $totals);
-        $this->processEntity('face_photos', FacePhoto::query()->whereNotNull('filename'), $generator, $dryRun, $totals);
+        // Select only the columns generate() reads (key + original + variants)
+        // rather than hydrating every wide row over the whole-table retrofit.
+        $profileColumns = ['id', 'profile_photo', 'profile_photo_thumbnail', 'profile_photo_medium', 'profile_photo_grid', 'profile_photo_large'];
+
+        $this->processEntity('faces', Face::query()->select($profileColumns)->whereNotNull('profile_photo'), $generator, $dryRun, $totals);
+        $this->processEntity('producers', Producer::query()->select($profileColumns)->whereNotNull('profile_photo'), $generator, $dryRun, $totals);
+        $this->processEntity('face_photos', FacePhoto::query()->select(['id', 'filename', 'thumbnail', 'medium', 'grid', 'large'])->whereNotNull('filename'), $generator, $dryRun, $totals);
 
         Log::info('images:generate-variants terminé', ['dry_run' => $dryRun] + $totals);
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\HasImageVariantUrls;
 use App\Concerns\HasRouteUuid;
 use App\Enums\FaceCategory;
 use App\Enums\FaceGender;
@@ -71,7 +72,7 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
  */
 class Face extends Model
 {
-    use HasFactory, HasRouteUuid;
+    use HasFactory, HasImageVariantUrls, HasRouteUuid;
 
     /**
      * The attributes that are mass assignable.
@@ -189,63 +190,34 @@ class Face extends Model
     }
 
     /**
-     * Get the full URL for the profile photo.
+     * Profile-photo URLs — original + 150/800/400/1600 variants. The storage
+     * layout and the fallback policy live in the shared HasImageVariantUrls
+     * trait (driven by the ImageVariantGenerator catalog); these accessors only
+     * name the appended attributes the Resources and frontend expect.
      */
     protected function profilePhotoUrl(): Attribute
     {
-        return Attribute::make(
-            get: fn (): ?string => $this->profile_photo
-                ? asset('storage/avatars/faces/'.$this->profile_photo)
-                : null,
-        );
+        return Attribute::make(get: fn (): ?string => $this->resolveOriginalImageUrl());
     }
 
-    /**
-     * Get the full URL for the profile photo thumbnail.
-     */
     protected function thumbnailUrl(): Attribute
     {
-        return Attribute::make(
-            get: fn (): ?string => $this->profile_photo_thumbnail
-                ? asset('storage/avatars/faces/thumbnails/'.$this->profile_photo_thumbnail)
-                : $this->profile_photo_url, // fallback to original while the variant job is pending
-        );
+        return Attribute::make(get: fn (): ?string => $this->resolveVariantUrl('thumbnail'));
     }
 
-    /**
-     * Get the full URL for the medium profile photo (800px wide WebP).
-     */
     protected function mediumUrl(): Attribute
     {
-        return Attribute::make(
-            get: fn (): ?string => $this->profile_photo_medium
-                ? asset('storage/avatars/faces/medium/'.$this->profile_photo_medium)
-                : $this->profile_photo_url, // fallback to original if not generated yet
-        );
+        return Attribute::make(get: fn (): ?string => $this->resolveVariantUrl('medium'));
     }
 
-    /**
-     * Get the full URL for the grid profile photo (400px wide WebP).
-     */
     protected function gridUrl(): Attribute
     {
-        return Attribute::make(
-            get: fn (): ?string => $this->profile_photo_grid
-                ? asset('storage/avatars/faces/grid/'.$this->profile_photo_grid)
-                : $this->medium_url, // fallback to medium then original (legacy rows / pending job)
-        );
+        return Attribute::make(get: fn (): ?string => $this->resolveVariantUrl('grid'));
     }
 
-    /**
-     * Get the full URL for the large profile photo (1600px wide WebP).
-     */
     protected function largeUrl(): Attribute
     {
-        return Attribute::make(
-            get: fn (): ?string => $this->profile_photo_large
-                ? asset('storage/avatars/faces/large/'.$this->profile_photo_large)
-                : $this->profile_photo_url, // fallback to original if not generated yet
-        );
+        return Attribute::make(get: fn (): ?string => $this->resolveVariantUrl('large'));
     }
 
     /**

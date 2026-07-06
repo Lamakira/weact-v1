@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\HasImageVariantUrls;
 use App\Concerns\HasRouteUuid;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -30,6 +31,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class FacePhoto extends Model
 {
     use HasFactory;
+    use HasImageVariantUrls;
     use HasRouteUuid;
 
     protected $fillable = [
@@ -55,48 +57,35 @@ class FacePhoto extends Model
         return $this->belongsTo(Face::class);
     }
 
+    /**
+     * Album-photo URLs — original + 150/800/400/1600 variants. Storage layout
+     * and fallback policy live in the shared HasImageVariantUrls trait (driven
+     * by the ImageVariantGenerator catalog); these accessors only name the
+     * appended attributes (the original is `photo_url` here, not
+     * `profile_photo_url`).
+     */
     protected function photoUrl(): Attribute
     {
-        return Attribute::make(
-            get: fn () => $this->filename
-                ? asset('storage/avatars/faces/albums/'.$this->filename)
-                : null,
-        );
+        return Attribute::make(get: fn (): ?string => $this->resolveOriginalImageUrl());
     }
 
     protected function thumbnailUrl(): Attribute
     {
-        return Attribute::make(
-            get: fn () => $this->thumbnail
-                ? asset('storage/avatars/faces/albums/thumbnails/'.$this->thumbnail)
-                : $this->photo_url, // fallback to original while the variant job is pending
-        );
+        return Attribute::make(get: fn (): ?string => $this->resolveVariantUrl('thumbnail'));
     }
 
     protected function mediumUrl(): Attribute
     {
-        return Attribute::make(
-            get: fn () => $this->medium
-                ? asset('storage/avatars/faces/albums/medium/'.$this->medium)
-                : $this->photo_url, // fallback to original
-        );
+        return Attribute::make(get: fn (): ?string => $this->resolveVariantUrl('medium'));
     }
 
     protected function gridUrl(): Attribute
     {
-        return Attribute::make(
-            get: fn () => $this->grid
-                ? asset('storage/avatars/faces/albums/grid/'.$this->grid)
-                : $this->medium_url, // fallback to medium then original (legacy rows / pending job)
-        );
+        return Attribute::make(get: fn (): ?string => $this->resolveVariantUrl('grid'));
     }
 
     protected function largeUrl(): Attribute
     {
-        return Attribute::make(
-            get: fn () => $this->large
-                ? asset('storage/avatars/faces/albums/large/'.$this->large)
-                : $this->photo_url, // fallback to original
-        );
+        return Attribute::make(get: fn (): ?string => $this->resolveVariantUrl('large'));
     }
 }

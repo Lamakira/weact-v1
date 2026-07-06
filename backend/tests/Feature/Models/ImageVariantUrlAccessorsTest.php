@@ -52,7 +52,7 @@ class ImageVariantUrlAccessorsTest extends TestCase
         $this->assertSame(asset('storage/avatars/faces/photo.jpg'), $originalOnly->grid_url);
     }
 
-    public function test_face_large_url_uses_the_large_variant_or_falls_back_to_original(): void
+    public function test_face_large_url_uses_the_large_variant_or_falls_back_to_medium_then_original(): void
     {
         $withLarge = Face::factory()->create([
             'profile_photo' => 'photo.jpg',
@@ -60,11 +60,22 @@ class ImageVariantUrlAccessorsTest extends TestCase
         ]);
         $this->assertSame(asset('storage/avatars/faces/large/photo.webp'), $withLarge->large_url);
 
-        $withoutLarge = Face::factory()->create([
+        // Large pending but medium present: serve the 800px medium, never the
+        // multi-MB original (the profile hero binds large_url first).
+        $withMedium = Face::factory()->create([
             'profile_photo' => 'photo.jpg',
+            'profile_photo_medium' => 'photo.webp',
             'profile_photo_large' => null,
         ]);
-        $this->assertSame(asset('storage/avatars/faces/photo.jpg'), $withoutLarge->large_url);
+        $this->assertSame(asset('storage/avatars/faces/medium/photo.webp'), $withMedium->large_url);
+
+        // Neither large nor medium: fall through to the original.
+        $originalOnly = Face::factory()->create([
+            'profile_photo' => 'photo.jpg',
+            'profile_photo_medium' => null,
+            'profile_photo_large' => null,
+        ]);
+        $this->assertSame(asset('storage/avatars/faces/photo.jpg'), $originalOnly->large_url);
     }
 
     public function test_face_grid_and_large_urls_are_null_without_any_photo(): void
@@ -134,7 +145,7 @@ class ImageVariantUrlAccessorsTest extends TestCase
         $this->assertSame(asset('storage/avatars/faces/albums/photo.jpg'), $originalOnly->grid_url);
     }
 
-    public function test_face_photo_large_url_uses_the_large_variant_or_falls_back_to_original(): void
+    public function test_face_photo_large_url_uses_the_large_variant_or_falls_back_to_medium_then_original(): void
     {
         $withLarge = FacePhoto::factory()->create([
             'filename' => 'photo.jpg',
@@ -142,11 +153,21 @@ class ImageVariantUrlAccessorsTest extends TestCase
         ]);
         $this->assertSame(asset('storage/avatars/faces/albums/large/photo.webp'), $withLarge->large_url);
 
-        $withoutLarge = FacePhoto::factory()->create([
+        // Large pending but medium present: serve the 800px medium, not the original.
+        $withMedium = FacePhoto::factory()->create([
             'filename' => 'photo.jpg',
+            'medium' => 'photo.webp',
             'large' => null,
         ]);
-        $this->assertSame(asset('storage/avatars/faces/albums/photo.jpg'), $withoutLarge->large_url);
+        $this->assertSame(asset('storage/avatars/faces/albums/medium/photo.webp'), $withMedium->large_url);
+
+        // Neither large nor medium: fall through to the original.
+        $originalOnly = FacePhoto::factory()->create([
+            'filename' => 'photo.jpg',
+            'medium' => null,
+            'large' => null,
+        ]);
+        $this->assertSame(asset('storage/avatars/faces/albums/photo.jpg'), $originalOnly->large_url);
     }
 
     public function test_face_photo_thumbnail_url_falls_back_to_original_while_variant_is_pending(): void
@@ -206,7 +227,7 @@ class ImageVariantUrlAccessorsTest extends TestCase
         $this->assertSame(asset('storage/avatars/producers/photo.jpg'), $originalOnly->grid_url);
     }
 
-    public function test_producer_large_url_uses_the_large_variant_or_falls_back_to_original(): void
+    public function test_producer_large_url_uses_the_large_variant_or_falls_back_to_medium_then_original(): void
     {
         $withLarge = Producer::factory()->create([
             'profile_photo' => 'photo.jpg',
@@ -214,11 +235,21 @@ class ImageVariantUrlAccessorsTest extends TestCase
         ]);
         $this->assertSame(asset('storage/avatars/producers/large/photo.webp'), $withLarge->large_url);
 
-        $withoutLarge = Producer::factory()->create([
+        // Large pending but medium present: serve the 800px medium, not the original.
+        $withMedium = Producer::factory()->create([
             'profile_photo' => 'photo.jpg',
+            'profile_photo_medium' => 'photo.webp',
             'profile_photo_large' => null,
         ]);
-        $this->assertSame(asset('storage/avatars/producers/photo.jpg'), $withoutLarge->large_url);
+        $this->assertSame(asset('storage/avatars/producers/medium/photo.webp'), $withMedium->large_url);
+
+        // Neither large nor medium: fall through to the original.
+        $originalOnly = Producer::factory()->create([
+            'profile_photo' => 'photo.jpg',
+            'profile_photo_medium' => null,
+            'profile_photo_large' => null,
+        ]);
+        $this->assertSame(asset('storage/avatars/producers/photo.jpg'), $originalOnly->large_url);
     }
 
     public function test_producer_grid_and_large_urls_are_null_without_any_photo(): void

@@ -278,6 +278,35 @@ class GenerateImageVariantsJobTest extends TestCase
         $this->assertNull($face->profile_photo_large);
     }
 
+    public function test_restore_run_discards_written_files_when_the_row_was_deleted(): void
+    {
+        // Restore scenario (backup / partial disk loss): the DB columns are all
+        // already set but the variant files are gone, so every variant
+        // regenerates yet nothing is added to $updates.
+        $face = $this->makeFaceWithOriginal();
+        $webp = pathinfo((string) $face->profile_photo, PATHINFO_FILENAME).'.webp';
+        Face::query()->whereKey($face->id)->update([
+            'profile_photo_thumbnail' => $face->profile_photo,
+            'profile_photo_medium' => $webp,
+            'profile_photo_grid' => $webp,
+            'profile_photo_large' => $webp,
+        ]);
+        $face->refresh();
+
+        // The row disappears while this restore run is encoding.
+        Face::query()->whereKey($face->id)->delete();
+
+        $result = app(ImageVariantGenerator::class)->generate($face);
+
+        // Files written by this run must be cleaned up, not orphaned — the guard
+        // used to be skipped entirely when $updates was empty (restore path).
+        $this->assertSame([], $result['generated']);
+        $this->assertSame([], Storage::disk('public')->files('avatars/faces/thumbnails'));
+        $this->assertSame([], Storage::disk('public')->files('avatars/faces/medium'));
+        $this->assertSame([], Storage::disk('public')->files('avatars/faces/grid'));
+        $this->assertSame([], Storage::disk('public')->files('avatars/faces/large'));
+    }
+
     // =========================================================================
     // No-throw guarantees (anti queue-poison)
     // =========================================================================

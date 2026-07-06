@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Jobs\GenerateImageVariants;
 use App\Models\Producer;
+use App\Support\ImageVariantGenerator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -13,14 +14,6 @@ use Illuminate\Support\Str;
 class ProducerProfilePhotoService
 {
     private const STORAGE_PATH = 'avatars/producers';
-
-    private const THUMBNAIL_PATH = 'avatars/producers/thumbnails';
-
-    private const MEDIUM_PATH = 'avatars/producers/medium';
-
-    private const GRID_PATH = 'avatars/producers/grid';
-
-    private const LARGE_PATH = 'avatars/producers/large';
 
     /**
      * Upload a profile photo for a Producer. The request only stores the
@@ -59,48 +52,10 @@ class ProducerProfilePhotoService
      */
     public function deleteProfilePhoto(Producer $producer): bool
     {
-        $deleted = false;
-        $disk = Storage::disk('public');
-
-        if ($producer->profile_photo) {
-            $path = self::STORAGE_PATH.'/'.$producer->profile_photo;
-            if ($disk->exists($path)) {
-                $disk->delete($path);
-                $deleted = true;
-            }
-        }
-
-        if ($producer->profile_photo_thumbnail) {
-            $path = self::THUMBNAIL_PATH.'/'.$producer->profile_photo_thumbnail;
-            if ($disk->exists($path)) {
-                $disk->delete($path);
-                $deleted = true;
-            }
-        }
-
-        if ($producer->profile_photo_medium) {
-            $path = self::MEDIUM_PATH.'/'.$producer->profile_photo_medium;
-            if ($disk->exists($path)) {
-                $disk->delete($path);
-                $deleted = true;
-            }
-        }
-
-        if ($producer->profile_photo_grid) {
-            $path = self::GRID_PATH.'/'.$producer->profile_photo_grid;
-            if ($disk->exists($path)) {
-                $disk->delete($path);
-                $deleted = true;
-            }
-        }
-
-        if ($producer->profile_photo_large) {
-            $path = self::LARGE_PATH.'/'.$producer->profile_photo_large;
-            if ($disk->exists($path)) {
-                $disk->delete($path);
-                $deleted = true;
-            }
-        }
+        // File cleanup (original + every variant) is driven by the shared
+        // catalog in ImageVariantGenerator — no per-variant paths to keep in
+        // sync here.
+        $deleted = app(ImageVariantGenerator::class)->deleteFiles($producer);
 
         if ($producer->profile_photo
             || $producer->profile_photo_thumbnail
