@@ -24,7 +24,13 @@ export type EscrowStatusType = (typeof EscrowStatus)[keyof typeof EscrowStatus]
 
 export interface AttendanceEntry {
   id: number
-  face: { id: string; display_name: string; profile_photo_url: string | null }
+  face: {
+    id: string
+    display_name: string
+    profile_photo_url: string | null
+    // 150px avatar variant — server falls back to the original while pending
+    profile_photo_thumbnail_url: string | null
+  }
   montant_face_recoit: number
   attendance_status: AttendanceStatusType
   attendance_status_label: string

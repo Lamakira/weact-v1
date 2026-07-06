@@ -315,6 +315,40 @@ describe('PublicFaceProfileView (Integration)', () => {
     expect(photoSection.exists()).toBe(true)
   })
 
+  it('prefers the large variant for the hero photo', async () => {
+    vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
+      success: true,
+      profile: {
+        ...mockProfile,
+        profile_photo_large_url: 'https://example.com/large.webp',
+        profile_photo_medium_url: 'https://example.com/medium.webp',
+      },
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const photoSection = wrapper.findComponent('[data-testid="profile-photo-section"]')
+    expect(photoSection.props('photoUrl')).toBe('https://example.com/large.webp')
+  })
+
+  it('falls back to medium then original for the hero photo without large variant', async () => {
+    vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
+      success: true,
+      profile: {
+        ...mockProfile,
+        profile_photo_large_url: null,
+        profile_photo_medium_url: 'https://example.com/medium.webp',
+      },
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const photoSection = wrapper.findComponent('[data-testid="profile-photo-section"]')
+    expect(photoSection.props('photoUrl')).toBe('https://example.com/medium.webp')
+  })
+
   it('sets SEO meta tags when face is loaded', async () => {
     vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
       success: true,

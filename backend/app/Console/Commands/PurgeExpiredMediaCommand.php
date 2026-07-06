@@ -139,6 +139,12 @@ class PurgeExpiredMediaCommand extends Command
         if ($photo->medium) {
             $this->deletePathOrWarn($disk, 'avatars/faces/albums/medium/'.$photo->medium, 'album_photo_medium', $photo->id);
         }
+        if ($photo->grid) {
+            $this->deletePathOrWarn($disk, 'avatars/faces/albums/grid/'.$photo->grid, 'album_photo_grid', $photo->id);
+        }
+        if ($photo->large) {
+            $this->deletePathOrWarn($disk, 'avatars/faces/albums/large/'.$photo->large, 'album_photo_large', $photo->id);
+        }
     }
 
     private function purgeVideoFiles(FaceVideo $video): void

@@ -14,6 +14,7 @@ function makeFace(overrides: Partial<LandingFace> = {}): LandingFace {
     categories: [{ value: 'acteur', label: 'Acteur' }],
     is_available: true,
     profile_photo_url: 'https://example.com/photo.jpg',
+    profile_photo_grid_url: null,
     profile_photo_thumbnail_url: 'https://example.com/thumb.jpg',
     average_rating: 4.0,
     ...overrides,
@@ -68,6 +69,30 @@ describe('TalentsShowcase', () => {
     images.forEach((img) => {
       expect(img.attributes('src')).toBeTruthy()
       expect(img.attributes('alt')).toBeTruthy()
+    })
+  })
+
+  it('prefers the grid variant over the original when available', () => {
+    const wrapper = mountComponent({
+      talents: [makeFace({ id: 1, profile_photo_grid_url: 'https://example.com/grid.webp' })],
+    })
+    const img = wrapper.find('[data-testid="talent-card-1"] img')
+    expect(img.attributes('src')).toBe('https://example.com/grid.webp')
+  })
+
+  it('falls back to the original for legacy payloads without grid', () => {
+    const wrapper = mountComponent({
+      talents: [makeFace({ id: 1, profile_photo_grid_url: null })],
+    })
+    const img = wrapper.find('[data-testid="talent-card-1"] img')
+    expect(img.attributes('src')).toBe('https://example.com/photo.jpg')
+  })
+
+  it('lazy loads talent images', () => {
+    const wrapper = mountComponent()
+    const images = wrapper.findAll('[data-testid^="talent-card-"] img')
+    images.forEach((img) => {
+      expect(img.attributes('loading')).toBe('lazy')
     })
   })
 

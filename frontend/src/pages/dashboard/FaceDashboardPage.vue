@@ -186,9 +186,10 @@ function goToMessages(): void {
           <template v-else>
             <!-- Profile Photo / Fallback -->
             <div class="absolute inset-0 w-full h-full">
+              <!-- Grid variant (400px) fits this card; no lazy — likely the page's LCP -->
               <img
                 v-if="profile?.profile_photo_url"
-                :src="profile.profile_photo_url"
+                :src="profile.profile_photo_grid_url || profile.profile_photo_url"
                 :alt="fullName"
                 class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
               />

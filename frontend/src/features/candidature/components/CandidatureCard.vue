@@ -212,10 +212,11 @@ const formattedReconfirmDeadline = computed(() => {
     <div class="flex items-center gap-3 border-t border-border pt-3">
       <div class="relative h-8 w-8 overflow-hidden rounded-full border border-border bg-muted">
         <img
-          v-if="candidature.producer.profile_photo_url"
-          :src="candidature.producer.profile_photo_url"
+          v-if="candidature.producer.profile_photo_thumbnail_url || candidature.producer.profile_photo_url"
+          :src="candidature.producer.profile_photo_thumbnail_url || candidature.producer.profile_photo_url || undefined"
           :alt="candidature.producer.display_name"
           class="h-full w-full object-cover"
+          loading="lazy"
         />
         <div
           v-else

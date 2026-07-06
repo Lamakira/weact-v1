@@ -19,6 +19,9 @@ export interface OtherParticipant {
   id: string
   name: string
   photo_url: string | null
+  // 150px avatar variant — server falls back to the original while the
+  // variant job is pending, so it is only null when photo_url is null too
+  profile_photo_thumbnail_url: string | null
   type: 'face' | 'producer'
 }
 

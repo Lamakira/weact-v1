@@ -59,11 +59,14 @@ const availabilityBadgeClass = computed((): string => {
         :class="{ 'cursor-pointer': candidate.profile_photo_url }"
         @click="candidate.profile_photo_url && (showPhotoLightbox = true)"
       >
+        <!-- Avatar en 150px ; l'original ne se charge que dans la lightbox,
+             ouverte sur clic explicite (HQ à la demande) -->
         <img
           v-if="candidate.profile_photo_url"
-          :src="candidate.profile_photo_url"
+          :src="candidate.thumbnail_url || candidate.profile_photo_url"
           :alt="displayName"
           class="h-full w-full object-cover transition-transform duration-200 hover:scale-105"
+          loading="lazy"
         />
         <div
           v-else

@@ -15,6 +15,10 @@ const props = defineProps<{
  */
 const selectedIndex = ref<number | null>(null)
 
+// HQ on demand: the lightbox shows the large variant; the original is only
+// fetched after an explicit click on « Voir l'original »
+const showOriginal = ref(false)
+
 /**
  * Computed: Has photos
  */
@@ -34,10 +38,30 @@ const selectedPhoto = computed((): FacePhoto | null => {
 })
 
 /**
+ * Computed: Lightbox source (large variant, original on demand)
+ */
+const lightboxSrc = computed((): string => {
+  if (!selectedPhoto.value) return ''
+  return showOriginal.value
+    ? selectedPhoto.value.photo_url
+    : selectedPhoto.value.large_url || selectedPhoto.value.photo_url
+})
+
+/**
+ * Computed: HQ button visibility — hidden when the large variant already IS
+ * the original (legacy rows: server-side large_url falls back to photo_url)
+ */
+const canViewOriginal = computed((): boolean => {
+  const photo = selectedPhoto.value
+  return !!photo && !!photo.large_url && photo.large_url !== photo.photo_url
+})
+
+/**
  * Open lightbox
  */
 function openLightbox(index: number): void {
   selectedIndex.value = index
+  showOriginal.value = false
 }
 
 /**
@@ -45,6 +69,7 @@ function openLightbox(index: number): void {
  */
 function closeLightbox(): void {
   selectedIndex.value = null
+  showOriginal.value = false
 }
 
 /**
@@ -54,6 +79,7 @@ function prevPhoto(): void {
   if (selectedIndex.value === null) return
   selectedIndex.value =
     selectedIndex.value > 0 ? selectedIndex.value - 1 : props.photos.length - 1
+  showOriginal.value = false
 }
 
 /**
@@ -63,6 +89,7 @@ function nextPhoto(): void {
   if (selectedIndex.value === null) return
   selectedIndex.value =
     selectedIndex.value < props.photos.length - 1 ? selectedIndex.value + 1 : 0
+  showOriginal.value = false
 }
 
 /**
@@ -98,9 +125,10 @@ function handleKeydown(event: KeyboardEvent): void {
         @click="openLightbox(index)"
       >
         <img
-          :src="photo.photo_url"
+          :src="photo.grid_url || photo.photo_url"
           :alt="`Photo ${index + 1}`"
           class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+          loading="lazy"
         />
         <div
           class="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20"
@@ -138,10 +166,22 @@ function handleKeydown(event: KeyboardEvent): void {
 
         <!-- Image -->
         <img
-          :src="selectedPhoto.photo_url"
+          :src="lightboxSrc"
           :alt="`Photo ${selectedIndex! + 1}`"
           class="max-h-[85vh] max-w-[90vw] rounded-lg object-contain"
+          data-testid="lightbox-image"
         />
+
+        <!-- HQ on demand -->
+        <button
+          v-if="!showOriginal && canViewOriginal"
+          type="button"
+          class="absolute bottom-16 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-2 text-sm text-white transition-colors hover:bg-white/20"
+          data-testid="lightbox-view-original"
+          @click="showOriginal = true"
+        >
+          Voir l'original
+        </button>
 
         <!-- Navigation: Next -->
         <button

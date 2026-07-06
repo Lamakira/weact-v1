@@ -48,6 +48,8 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
  * @property-read string|null $profile_photo_url
  * @property-read string|null $thumbnail_url
  * @property-read string|null $medium_url
+ * @property-read string|null $grid_url
+ * @property-read string|null $large_url
  * @property-read string|null $presentation_video_url
  * @property-read string|null $presentation_video_thumbnail_url
  * @property-read string|null $formatted_location
@@ -87,6 +89,8 @@ class Face extends Model
         'profile_photo',
         'profile_photo_thumbnail',
         'profile_photo_medium',
+        'profile_photo_grid',
+        'profile_photo_large',
         'presentation_video',
         'presentation_video_thumbnail',
         'bio',
@@ -132,6 +136,8 @@ class Face extends Model
         'profile_photo_url',
         'thumbnail_url',
         'medium_url',
+        'grid_url',
+        'large_url',
         'display_name',
         'presentation_video_url',
         'presentation_video_thumbnail_url',
@@ -202,7 +208,7 @@ class Face extends Model
         return Attribute::make(
             get: fn (): ?string => $this->profile_photo_thumbnail
                 ? asset('storage/avatars/faces/thumbnails/'.$this->profile_photo_thumbnail)
-                : null,
+                : $this->profile_photo_url, // fallback to original while the variant job is pending
         );
     }
 
@@ -214,6 +220,30 @@ class Face extends Model
         return Attribute::make(
             get: fn (): ?string => $this->profile_photo_medium
                 ? asset('storage/avatars/faces/medium/'.$this->profile_photo_medium)
+                : $this->profile_photo_url, // fallback to original if not generated yet
+        );
+    }
+
+    /**
+     * Get the full URL for the grid profile photo (400px wide WebP).
+     */
+    protected function gridUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->profile_photo_grid
+                ? asset('storage/avatars/faces/grid/'.$this->profile_photo_grid)
+                : $this->medium_url, // fallback to medium then original (legacy rows / pending job)
+        );
+    }
+
+    /**
+     * Get the full URL for the large profile photo (1600px wide WebP).
+     */
+    protected function largeUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->profile_photo_large
+                ? asset('storage/avatars/faces/large/'.$this->profile_photo_large)
                 : $this->profile_photo_url, // fallback to original if not generated yet
         );
     }

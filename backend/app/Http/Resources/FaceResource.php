@@ -44,6 +44,8 @@ class FaceResource extends JsonResource
             'langues' => $this->langues,
             'profile_photo_url' => $this->profile_photo_url,
             'thumbnail_url' => $this->thumbnail_url,
+            // 400px card variant (server falls back grid → medium → original)
+            'profile_photo_grid_url' => $this->grid_url,
             'presentation_video_url' => ($isPrivileged || $capabilities->maxPresentationVideos >= 1)
                 ? $this->presentation_video_url
                 : null,
@@ -97,6 +99,8 @@ class FaceResource extends JsonResource
                         'id' => $photo->uuid,
                         'photo_url' => $photo->photo_url,
                         'medium_url' => $photo->medium_url,
+                        'grid_url' => $photo->grid_url,
+                        'large_url' => $photo->large_url,
                         'thumbnail_url' => $photo->thumbnail_url,
                         'position' => $photo->position,
                         'is_locked' => $locked,
@@ -110,6 +114,8 @@ class FaceResource extends JsonResource
                         'id' => $photo->uuid,
                         'photo_url' => $photo->photo_url,
                         'medium_url' => $photo->medium_url,
+                        'grid_url' => $photo->grid_url,
+                        'large_url' => $photo->large_url,
                         'thumbnail_url' => $photo->thumbnail_url,
                         'position' => $photo->position,
                     ])->all()),

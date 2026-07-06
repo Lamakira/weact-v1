@@ -319,10 +319,11 @@ const categoryLabel = computed(() => {
         class="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-border bg-muted lg:h-16 lg:w-16"
       >
         <img
-          v-if="candidature.face.profile_photo_url"
-          :src="candidature.face.profile_photo_url"
+          v-if="candidature.face.profile_photo_thumbnail_url || candidature.face.profile_photo_url"
+          :src="candidature.face.profile_photo_thumbnail_url || candidature.face.profile_photo_url || undefined"
           :alt="candidature.face.display_name"
           class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          loading="lazy"
         />
         <div
           v-else

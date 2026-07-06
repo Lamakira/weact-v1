@@ -75,6 +75,32 @@ describe('FaceCard', () => {
       expect(img.attributes('loading')).toBe('lazy')
     })
 
+    it('prefers the grid variant over medium and original', () => {
+      const wrapper = mountCard({
+        profile_photo_grid_url: 'https://example.com/grid.webp',
+        profile_photo_medium_url: 'https://example.com/medium.webp',
+        profile_photo_url: 'https://example.com/original.jpg',
+      })
+
+      expect(wrapper.find('img').attributes('src')).toBe('https://example.com/grid.webp')
+    })
+
+    it('falls back to medium then original when grid is missing', () => {
+      const withMedium = mountCard({
+        profile_photo_grid_url: null,
+        profile_photo_medium_url: 'https://example.com/medium.webp',
+        profile_photo_url: 'https://example.com/original.jpg',
+      })
+      expect(withMedium.find('img').attributes('src')).toBe('https://example.com/medium.webp')
+
+      const originalOnly = mountCard({
+        profile_photo_grid_url: null,
+        profile_photo_medium_url: null,
+        profile_photo_url: 'https://example.com/original.jpg',
+      })
+      expect(originalOnly.find('img').attributes('src')).toBe('https://example.com/original.jpg')
+    })
+
     it('displays placeholder when no photo provided', () => {
       const wrapper = mountCard({ profile_photo_thumbnail_url: null })
 

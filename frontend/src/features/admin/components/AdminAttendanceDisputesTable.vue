@@ -135,10 +135,11 @@ function submitResolve(): void {
             <td class="px-4 py-3 align-top">
               <div class="flex items-center gap-2">
                 <img
-                  v-if="dispute.face?.profile_photo_url"
-                  :src="dispute.face.profile_photo_url"
+                  v-if="dispute.face?.profile_photo_thumbnail_url || dispute.face?.profile_photo_url"
+                  :src="dispute.face.profile_photo_thumbnail_url || dispute.face.profile_photo_url || undefined"
                   :alt="dispute.face.display_name"
                   class="h-8 w-8 rounded-full object-cover"
+                  loading="lazy"
                   @error="($event.target as HTMLImageElement).style.display = 'none'"
                 />
                 <span class="font-medium text-gray-900">

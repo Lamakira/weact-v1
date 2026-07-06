@@ -38,6 +38,7 @@ class ReviewResource extends JsonResource
                 'display_name' => data_get($userable, 'display_name')
                     ?? ($rater !== null ? $rater->email : 'Utilisateur'),
                 'profile_photo_url' => data_get($userable, 'profile_photo_url'),
+                'profile_photo_thumbnail_url' => data_get($userable, 'thumbnail_url'),
             ],
         ];
     }

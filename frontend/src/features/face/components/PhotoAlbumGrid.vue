@@ -49,12 +49,36 @@ function isPhotoOverQuota(photo: FacePhoto): boolean {
  */
 const lightboxPhoto = ref<FacePhoto | null>(null)
 
+// HQ on demand: the lightbox shows the large variant; the original is only
+// fetched after an explicit click on « Voir l'original »
+const showOriginal = ref(false)
+
+const lightboxSrc = computed(() => {
+  if (!lightboxPhoto.value) return ''
+  return showOriginal.value
+    ? lightboxPhoto.value.photo_url
+    : lightboxPhoto.value.large_url || lightboxPhoto.value.photo_url
+})
+
+// Hide the HQ button when the large variant already IS the original
+// (legacy rows: server-side large_url falls back to photo_url)
+const canViewOriginal = computed(() => {
+  const photo = lightboxPhoto.value
+  return !!photo && !!photo.large_url && photo.large_url !== photo.photo_url
+})
+
 function openLightbox(photo: FacePhoto): void {
   lightboxPhoto.value = photo
+  showOriginal.value = false
 }
 
 function closeLightbox(): void {
   lightboxPhoto.value = null
+  showOriginal.value = false
+}
+
+function viewOriginal(): void {
+  showOriginal.value = true
 }
 
 /**
@@ -89,9 +113,10 @@ function handleAddClick(): void {
         <!-- Photo -->
         <template v-if="slot">
           <img
-            :src="slot.photo_url"
+            :src="slot.grid_url || slot.photo_url"
             :alt="`Photo ${index + 1}`"
             class="w-full h-full object-cover"
+            loading="lazy"
             :data-testid="`album-photo-${slot.id}`"
           />
 
@@ -236,10 +261,22 @@ function handleAddClick(): void {
           </button>
 
           <img
-            :src="lightboxPhoto.photo_url"
+            :src="lightboxSrc"
             :alt="'Photo'"
             class="max-w-full max-h-[85vh] rounded-lg object-contain"
+            data-testid="lightbox-image"
           />
+
+          <!-- HQ on demand -->
+          <button
+            v-if="!showOriginal && canViewOriginal"
+            type="button"
+            class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20 transition-colors"
+            data-testid="lightbox-view-original"
+            @click="viewOriginal"
+          >
+            Voir l'original
+          </button>
         </div>
       </Transition>
     </Teleport>

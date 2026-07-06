@@ -31,6 +31,8 @@ use Illuminate\Support\Str;
  * @property-read string|null $profile_photo_url
  * @property-read string|null $thumbnail_url
  * @property-read string|null $medium_url
+ * @property-read string|null $grid_url
+ * @property-read string|null $large_url
  * @property-read string|null $agency_logo_url
  * @property-read string|null $agency_logo_thumbnail_url
  * @property-read float|null $average_rating
@@ -117,6 +119,8 @@ class Producer extends Model
         'profile_photo',
         'profile_photo_thumbnail',
         'profile_photo_medium',
+        'profile_photo_grid',
+        'profile_photo_large',
         'bio',
         'agency_logo',
         'agency_logo_thumbnail',
@@ -131,6 +135,8 @@ class Producer extends Model
         'profile_photo_url',
         'thumbnail_url',
         'medium_url',
+        'grid_url',
+        'large_url',
         'display_name',
         'agency_logo_url',
         'agency_logo_thumbnail_url',
@@ -213,7 +219,7 @@ class Producer extends Model
         return Attribute::make(
             get: fn (): ?string => $this->profile_photo_thumbnail
                 ? asset('storage/avatars/producers/thumbnails/'.$this->profile_photo_thumbnail)
-                : null,
+                : $this->profile_photo_url, // fallback to original while the variant job is pending
         );
     }
 
@@ -228,6 +234,30 @@ class Producer extends Model
                 : ($this->profile_photo
                     ? asset('storage/avatars/producers/'.$this->profile_photo)
                     : null),
+        );
+    }
+
+    /**
+     * Get the full URL for the grid profile photo (400px wide WebP).
+     */
+    protected function gridUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->profile_photo_grid
+                ? asset('storage/avatars/producers/grid/'.$this->profile_photo_grid)
+                : $this->medium_url, // fallback to medium then original (legacy rows / pending job)
+        );
+    }
+
+    /**
+     * Get the full URL for the large profile photo (1600px wide WebP).
+     */
+    protected function largeUrl(): Attribute
+    {
+        return Attribute::make(
+            get: fn (): ?string => $this->profile_photo_large
+                ? asset('storage/avatars/producers/large/'.$this->profile_photo_large)
+                : $this->profile_photo_url, // fallback to original if not generated yet
         );
     }
 
