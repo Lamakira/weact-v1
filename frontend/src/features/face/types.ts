@@ -36,8 +36,8 @@ export interface ProfilePhotoResult {
 export interface FacePhoto {
   id: string
   photo_url: string
-  // Server-side fallback chains: grid_url → medium → original,
-  // large_url → original (legacy rows / variant job still pending)
+  // Server-side fallback chains (legacy rows / variant job still pending):
+  // grid_url → medium → original, large_url → medium → original
   grid_url: string | null
   large_url: string | null
   thumbnail_url: string

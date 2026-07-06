@@ -28,6 +28,7 @@ import { getCategoryLabels, getNicheLabels } from '@/features/admin/utils/faceLa
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import AdminFaceSubscriptionSection from '@/features/admin/components/AdminFaceSubscriptionSection.vue'
 import { useToast } from '@/composables/useToast'
+import { useHqLightbox } from '@/composables/useHqLightbox'
 import { COUNTRY_OPTIONS, COUNTRY_OPTION_VALUES } from '@/shared/constants/territoryOptions'
 
 const route = useRoute()
@@ -52,21 +53,10 @@ const lightboxPhoto = computed((): AdminFacePhoto | null => {
 })
 
 // HQ à la demande : la lightbox affiche la variante large ; l'original ne se
-// charge qu'au clic explicite sur « Voir l'original »
-const showOriginal = ref(false)
-
-const lightboxSrc = computed((): string => {
-  if (!lightboxPhoto.value) return ''
-  return showOriginal.value
-    ? lightboxPhoto.value.photo_url
-    : lightboxPhoto.value.large_url || lightboxPhoto.value.photo_url
-})
-
-// Masqué quand la variante large EST déjà l'original (fallback serveur legacy)
-const canViewOriginal = computed((): boolean => {
-  const photo = lightboxPhoto.value
-  return !!photo && !!photo.large_url && photo.large_url !== photo.photo_url
-})
+// charge qu'au clic explicite sur « Voir l'original ». Règles src/can-view et
+// reset showOriginal centralisés dans useHqLightbox.
+const { showOriginal, lightboxSrc, canViewOriginal, reset: resetHqView } =
+  useHqLightbox(lightboxPhoto)
 
 // Video modal state
 const videoModalUrl = ref<string | null>(null)
@@ -206,7 +196,7 @@ function goBack(): void {
 // Lightbox functions
 function openLightbox(index: number): void {
   lightboxIndex.value = index
-  showOriginal.value = false
+  resetHqView()
   nextTick(() => {
     lightboxModalRef.value?.focus()
   })
@@ -214,21 +204,21 @@ function openLightbox(index: number): void {
 
 function closeLightbox(): void {
   lightboxIndex.value = null
-  showOriginal.value = false
+  resetHqView()
 }
 
 function prevPhoto(): void {
   if (lightboxIndex.value === null || !face.value) return
   lightboxIndex.value =
     lightboxIndex.value > 0 ? lightboxIndex.value - 1 : face.value.photos.length - 1
-  showOriginal.value = false
+  resetHqView()
 }
 
 function nextPhoto(): void {
   if (lightboxIndex.value === null || !face.value) return
   lightboxIndex.value =
     lightboxIndex.value < face.value.photos.length - 1 ? lightboxIndex.value + 1 : 0
-  showOriginal.value = false
+  resetHqView()
 }
 
 function handleLightboxKeydown(event: KeyboardEvent): void {

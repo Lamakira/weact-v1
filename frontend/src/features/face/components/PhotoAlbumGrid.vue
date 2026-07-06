@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { Lock } from 'lucide-vue-next'
 import type { FacePhoto } from '../types'
+import { useHqLightbox } from '@/composables/useHqLightbox'
 
 interface Props {
   photos: FacePhoto[]
@@ -50,31 +51,19 @@ function isPhotoOverQuota(photo: FacePhoto): boolean {
 const lightboxPhoto = ref<FacePhoto | null>(null)
 
 // HQ on demand: the lightbox shows the large variant; the original is only
-// fetched after an explicit click on « Voir l'original »
-const showOriginal = ref(false)
-
-const lightboxSrc = computed(() => {
-  if (!lightboxPhoto.value) return ''
-  return showOriginal.value
-    ? lightboxPhoto.value.photo_url
-    : lightboxPhoto.value.large_url || lightboxPhoto.value.photo_url
-})
-
-// Hide the HQ button when the large variant already IS the original
-// (legacy rows: server-side large_url falls back to photo_url)
-const canViewOriginal = computed(() => {
-  const photo = lightboxPhoto.value
-  return !!photo && !!photo.large_url && photo.large_url !== photo.photo_url
-})
+// fetched after an explicit click on « Voir l'original ». The src/can-view
+// rules and the showOriginal reset live in useHqLightbox.
+const { showOriginal, lightboxSrc, canViewOriginal, reset: resetHqView } =
+  useHqLightbox(lightboxPhoto)
 
 function openLightbox(photo: FacePhoto): void {
   lightboxPhoto.value = photo
-  showOriginal.value = false
+  resetHqView()
 }
 
 function closeLightbox(): void {
   lightboxPhoto.value = null
-  showOriginal.value = false
+  resetHqView()
 }
 
 function viewOriginal(): void {

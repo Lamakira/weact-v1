@@ -31,7 +31,7 @@ function makeAttendanceForm(): AttendanceFormResponse {
       entries: [
         {
           id: 1,
-          face: { id: 'face-1', display_name: 'Face A', profile_photo_url: null },
+          face: { id: 'face-1', display_name: 'Face A', profile_photo_url: null, profile_photo_thumbnail_url: null },
           montant_face_recoit: 90000,
           attendance_status: 'pending',
           attendance_status_label: 'En attente',
@@ -43,7 +43,7 @@ function makeAttendanceForm(): AttendanceFormResponse {
         },
         {
           id: 2,
-          face: { id: 'face-2', display_name: 'Face B', profile_photo_url: null },
+          face: { id: 'face-2', display_name: 'Face B', profile_photo_url: null, profile_photo_thumbnail_url: null },
           montant_face_recoit: 90000,
           attendance_status: 'pending',
           attendance_status_label: 'En attente',
