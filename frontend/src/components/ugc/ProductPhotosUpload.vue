@@ -113,12 +113,12 @@ function removePhoto(index: number): void {
       {{ title }} <span class="font-normal text-gray-400">{{ displayedHint }}</span>
     </p>
 
-    <!-- Préviews (vignettes, au-dessus de la zone d'ajout) -->
-    <div v-if="previews.length" class="mb-3 flex flex-wrap gap-3">
+    <!-- Préviews (grandes tuiles responsives, au-dessus de la zone d'ajout) -->
+    <div v-if="previews.length" class="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
       <div
         v-for="(preview, index) in previews"
         :key="preview"
-        class="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-gray-200"
+        class="relative aspect-[4/3] overflow-hidden rounded-lg border border-gray-200"
         data-testid="product-photo-preview"
       >
         <img :src="preview" :alt="`Photo du produit ${index + 1}`" class="h-full w-full object-cover" />
