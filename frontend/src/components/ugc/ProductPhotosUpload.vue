@@ -113,12 +113,12 @@ function removePhoto(index: number): void {
       {{ title }} <span class="font-normal text-gray-400">{{ displayedHint }}</span>
     </p>
 
-    <div class="flex items-start gap-3">
-      <!-- Préviews -->
+    <!-- Préviews (vignettes, au-dessus de la zone d'ajout) -->
+    <div v-if="previews.length" class="mb-3 flex flex-wrap gap-3">
       <div
         v-for="(preview, index) in previews"
         :key="preview"
-        class="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-gray-200"
+        class="relative h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-gray-200"
         data-testid="product-photo-preview"
       >
         <img :src="preview" :alt="`Photo du produit ${index + 1}`" class="h-full w-full object-cover" />
@@ -132,19 +132,19 @@ function removePhoto(index: number): void {
           <X :size="12" />
         </button>
       </div>
-
-      <!-- Zone d'ajout -->
-      <button
-        v-if="!isFull"
-        type="button"
-        class="flex h-20 w-20 shrink-0 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-gray-300 text-gray-400 transition-colors hover:border-weact hover:text-weact"
-        data-testid="add-product-photo"
-        @click="triggerFileInput"
-      >
-        <ImagePlus :size="20" />
-        <span class="text-[10px] font-medium">Ajouter</span>
-      </button>
     </div>
+
+    <!-- Zone d'ajout : pleine largeur, grande surface cliquable -->
+    <button
+      v-if="!isFull"
+      type="button"
+      class="flex w-full flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-gray-300 py-8 text-gray-400 transition-colors hover:border-weact hover:bg-weact/5 hover:text-weact"
+      data-testid="add-product-photo"
+      @click="triggerFileInput"
+    >
+      <ImagePlus :size="26" />
+      <span class="text-xs font-medium">Ajouter une photo</span>
+    </button>
 
     <p class="mt-1.5 text-[11px] text-gray-400">Format JPG ou PNG. Taille max : 8 Mo par photo.</p>
 
