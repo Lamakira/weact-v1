@@ -81,11 +81,12 @@ const emit = defineEmits<{
       @update:model-value="emit('update:nomProduit', $event)"
     />
 
-    <!-- Photos du produit (0-2, facultatives, création seulement — spec photos produit) -->
+    <!-- Photos du produit (1-2, obligatoires, création seulement — spec photos produit, symétrie réception Face) -->
     <ProductPhotosUpload
       v-if="showProductPhotos"
       :model-value="productPhotos"
       :error="productPhotosError"
+      hint="(obligatoire, 1 à 2)"
       @update:model-value="emit('update:productPhotos', $event)"
     />
 

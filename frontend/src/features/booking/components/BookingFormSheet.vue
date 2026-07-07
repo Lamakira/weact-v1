@@ -120,6 +120,9 @@ const productPhotos = ref<File[]>([])
 const productPhotosError = ref<string>('')
 
 const isUgc = computed(() => type_contenu.value === 'UGC')
+// Photos produit obligatoires (1-2) pour l'UGC uniquement — calque la garde
+// confirm-disabled de la modale de réception Face. Un booking non-UGC n'a pas de photos.
+const ugcPhotosMissing = computed(() => isUgc.value && productPhotos.value.length === 0)
 // Montant « À payer maintenant » — DOIT refléter le récap CommissionBreakdown :
 // produit-seul (ou hybride sans cash saisi) = commission sur la valeur produit ;
 // hybride avec cash = rémunération + frais de service 10 % (computeUgcHybridProducerTotal).
@@ -220,6 +223,13 @@ function handleKeydown(e: KeyboardEvent): void {
 }
 
 const onSubmit = handleSubmit(async (values) => {
+  // Garde photos produit UGC : au moins une photo requise (le bouton est déjà
+  // désactivé, garde défensive miroir du backend `product_photos.required`).
+  if (values.type_contenu === 'UGC' && productPhotos.value.length === 0) {
+    productPhotosError.value = 'Au moins une photo du produit est requise.'
+    return
+  }
+
   const data: CreateBookingData = {
     face_id: props.faceId,
     type_contenu: values.type_contenu,
@@ -466,7 +476,7 @@ const onSubmit = handleSubmit(async (values) => {
                 <Button
                   type="submit"
                   class="w-full"
-                  :disabled="isSubmitting"
+                  :disabled="isSubmitting || ugcPhotosMissing"
                   data-testid="submit-booking"
                 >
                   <Loader2 v-if="isSubmitting" :size="18" class="animate-spin mr-2" />

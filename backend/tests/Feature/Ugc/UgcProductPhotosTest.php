@@ -149,12 +149,16 @@ class UgcProductPhotosTest extends TestCase
         }
     }
 
-    public function test_ugc_booking_without_photos_is_unchanged(): void
+    public function test_ugc_booking_without_photos_is_rejected(): void
     {
+        // Décision PO 2026-07-07 : au moins une photo produit est obligatoire (1-2).
+        // Une création UGC sans photo est refusée en 422, rien n'est persisté.
         $this->actingAs($this->producerUser)
             ->post('/api/v1/bookings', $this->validUgcBookingData(), ['Accept' => 'application/json'])
-            ->assertCreated();
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.product_photos.0', 'Au moins une photo du produit est requise.');
 
+        $this->assertSame(0, Booking::count());
         $this->assertSame(0, ProductPhoto::count());
         $this->assertSame([], Storage::disk('local')->allFiles());
     }

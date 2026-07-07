@@ -160,6 +160,11 @@ const productPhotos = ref<File[]>([])
 const productPhotosError = ref<string>('')
 
 const isUgc = computed(() => type_mission.value === 'ugc')
+// Photos produit obligatoires (1-2) pour l'UGC à la CRÉATION uniquement — calque la garde
+// confirm-disabled de la modale de réception Face. Masquées/non requises en édition (v1).
+const ugcPhotosMissing = computed(
+  () => isUgc.value && props.mode === 'create' && productPhotos.value.length === 0,
+)
 const ugcCommission = computed(() => computeUgcCommission(Number(valeur_produit.value) || 0))
 const submitLabel = computed(() => {
   if (props.mode === 'edit') return 'Enregistrer les modifications'
@@ -218,6 +223,13 @@ const pricingHint = computed(() => {
 })
 
 const onSubmit = handleSubmit(async (values) => {
+  // Garde photos produit UGC à la création : au moins une photo requise (le bouton est
+  // déjà désactivé, garde défensive miroir du backend `product_photos.required`).
+  if (values.type_mission === 'ugc' && props.mode === 'create' && productPhotos.value.length === 0) {
+    productPhotosError.value = 'Au moins une photo du produit est requise.'
+    return
+  }
+
   // Base payload WITHOUT budget ni champs de tournage (ajoutés conditionnellement ci-dessous —
   // budget dérivé serveur + date/lieu/durée masqués pour l'UGC, D-1.4.d / D-8.1.e)
   const data: CreateMissionData = {
@@ -616,7 +628,7 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
       </Button>
       <Button
         type="submit"
-        :disabled="isProcessing"
+        :disabled="isProcessing || ugcPhotosMissing"
         class="min-w-[180px] bg-weact hover:bg-weact/90 text-white shadow-lg shadow-weact/20"
         data-testid="submit-button"
       >
