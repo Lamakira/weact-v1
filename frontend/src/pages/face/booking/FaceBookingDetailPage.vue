@@ -49,6 +49,7 @@ import {
   UgcShipmentForm,
   UgcShipmentTrackingCard,
   UgcFaceTrackingCard,
+  ProductPhotoGallery,
   ugcTunnelStep,
   UGC_UNBOXING_DAYS,
   type ConfirmShipmentPayload,
@@ -750,6 +751,14 @@ onUnmounted(() => {
                 </div>
               </div>
             </div>
+            <!-- Photos produit (spec photos produit) — URLs signées, visibles des
+                 deux parties ; aucune section sans photo (bookings pré-deploy) -->
+            <ProductPhotoGallery
+              v-if="booking.product_photos?.length"
+              class="mb-4"
+              title="Photos du produit"
+              :photos="booking.product_photos"
+            />
             <CommissionBreakdown
               :product-value="booking.valeur_produit ?? 0"
               :pay-amount="booking.montant_remuneration ?? 0"

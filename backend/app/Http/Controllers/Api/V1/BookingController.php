@@ -92,7 +92,7 @@ class BookingController extends Controller
         );
 
         return response()->json([
-            'data' => new BookingResource($booking->load(['face', 'producer'])),
+            'data' => new BookingResource($booking->load(['face', 'producer', 'productPhotos'])),
             'message' => 'Demande de booking envoyee',
         ], 201);
     }
@@ -109,6 +109,7 @@ class BookingController extends Controller
             'producer.userable',
             'shipment',
             'deliverables',
+            'productPhotos',
             'raterBookingRating' => function ($query) {
                 $query
                     ->where('rater_id', auth()->id())

@@ -23,7 +23,7 @@ import { ApplyToMissionModal } from '@/features/candidature/components'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import MissionApplyBlock from './MissionApplyBlock.vue'
-import { ugcCandidatureTunnelStep, UGC_UNBOXING_DAYS } from '@/components/ugc'
+import { ugcCandidatureTunnelStep, UGC_UNBOXING_DAYS, ProductPhotoGallery } from '@/components/ugc'
 import { useCancelCandidature, useReconfirmCandidature } from '@/features/candidature/composables'
 import { authApi } from '@/features/auth/services/authApi'
 import type { Face } from '@/features/auth/types'
@@ -601,6 +601,16 @@ onMounted(() => {
           <section class="rounded-2xl border border-gray-100 bg-white p-4 min-[376px]:p-6 shadow-sm">
             <h2 class="mb-2.5 text-sm font-semibold text-gray-900">{{ isUgc ? 'Brief' : 'Description' }}</h2>
             <p class="whitespace-pre-line text-sm leading-relaxed text-gray-600">{{ mission.description }}</p>
+          </section>
+
+          <!-- Photos produit (spec photos produit) — URLs publiques directes ;
+               aucune section sans photo (missions pré-deploy) -->
+          <section
+            v-if="isUgc && mission.product_photos?.length"
+            class="rounded-2xl border border-gray-100 bg-white p-4 min-[376px]:p-6 shadow-sm"
+          >
+            <h2 class="mb-2.5 text-sm font-semibold text-gray-900">Photos du produit</h2>
+            <ProductPhotoGallery :photos="mission.product_photos" />
           </section>
 
           <!-- Livrables UGC -->

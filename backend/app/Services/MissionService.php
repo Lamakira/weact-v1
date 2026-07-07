@@ -24,6 +24,7 @@ class MissionService
     public function __construct(
         private readonly MissionPaymentService $missionPaymentService,
         private readonly UgcCommissionService $ugcCommissionService,
+        private readonly ProductPhotoService $productPhotoService,
     ) {}
 
     /**
@@ -90,30 +91,53 @@ class MissionService
         $status = $isHybrid ? MissionStatus::Published : MissionStatus::PendingPayment;
         $commission = $isHybrid ? null : $this->ugcCommissionService->compute($valeurProduit);
 
-        /** @var Mission $mission */
-        $mission = $producer->missions()->create([
-            'titre' => $data['titre'],
-            'description' => $data['description'],
-            'date_tournage' => null, // dotation UGC : pas de tournage (invariant serveur, même si input forgé)
-            'profil_recherche' => $data['profil_recherche'],
-            'budget' => $montantRemuneration,                     // D-1.3.b : dérivé (0 si produit seul)
-            'date_limite_candidature' => $data['date_limite_candidature'],
-            'nombre_faces_voulu' => $data['nombre_faces_voulu'] ?? 1,
-            'type_mission' => MissionType::Ugc->value,
-            'type_mission_autre' => null,
-            'genre_voulu' => $data['genre_voulu'],
-            'lieu' => null, // dotation UGC : pas de lieu de tournage (invariant serveur)
-            'duree' => null, // dotation UGC : pas de durée de tournage (invariant serveur)
-            'status' => $status,                                  // D-8.4.c : hybride = Published, produit-seul = PendingPayment
-            'type_compensation' => $compensation,
-            'nom_produit' => $data['nom_produit'],
-            'valeur_produit' => $valeurProduit,
-            'nombre_videos' => $nombreVideos,
-            'montant_remuneration' => $isHybrid ? $montantRemuneration : null,
-            'commission_ugc' => $commission,                      // D-8.4.c : null pour l'hybride
-        ]);
+        // Photos produit (spec photos produit) : création + stockage originaux + rows
+        // en transaction — sur throw, ProductPhotoService nettoie les fichiers écrits
+        // et la mission est rollbackée. Jobs de variantes afterCommit.
+        /** @var list<\Illuminate\Http\UploadedFile> $productPhotos */
+        $productPhotos = $data['product_photos'] ?? [];
 
-        return $mission;
+        return DB::transaction(function () use (
+            $producer,
+            $data,
+            $compensation,
+            $valeurProduit,
+            $nombreVideos,
+            $isHybrid,
+            $montantRemuneration,
+            $status,
+            $commission,
+            $productPhotos,
+        ): Mission {
+            /** @var Mission $mission */
+            $mission = $producer->missions()->create([
+                'titre' => $data['titre'],
+                'description' => $data['description'],
+                'date_tournage' => null, // dotation UGC : pas de tournage (invariant serveur, même si input forgé)
+                'profil_recherche' => $data['profil_recherche'],
+                'budget' => $montantRemuneration,                     // D-1.3.b : dérivé (0 si produit seul)
+                'date_limite_candidature' => $data['date_limite_candidature'],
+                'nombre_faces_voulu' => $data['nombre_faces_voulu'] ?? 1,
+                'type_mission' => MissionType::Ugc->value,
+                'type_mission_autre' => null,
+                'genre_voulu' => $data['genre_voulu'],
+                'lieu' => null, // dotation UGC : pas de lieu de tournage (invariant serveur)
+                'duree' => null, // dotation UGC : pas de durée de tournage (invariant serveur)
+                'status' => $status,                                  // D-8.4.c : hybride = Published, produit-seul = PendingPayment
+                'type_compensation' => $compensation,
+                'nom_produit' => $data['nom_produit'],
+                'valeur_produit' => $valeurProduit,
+                'nombre_videos' => $nombreVideos,
+                'montant_remuneration' => $isHybrid ? $montantRemuneration : null,
+                'commission_ugc' => $commission,                      // D-8.4.c : null pour l'hybride
+            ]);
+
+            // Photos d'une mission = disque PUBLIC (vitrine visible des candidates,
+            // URLs asset directes) — décision PO 2026-07-06.
+            $this->productPhotoService->attach($mission, $productPhotos, 'public');
+
+            return $mission;
+        });
     }
 
     /**
@@ -162,6 +186,9 @@ class MissionService
     public function deleteMission(Mission $mission): void
     {
         $this->cancelActiveCandidatesOnDelete($mission);
+        // Photos produit : fichiers (catalogue partagé) + rows AVANT le hard-delete —
+        // les colonnes morph n'ont pas de FK cascade (spec photos produit).
+        $this->productPhotoService->detachAll($mission);
         $mission->delete();
     }
 

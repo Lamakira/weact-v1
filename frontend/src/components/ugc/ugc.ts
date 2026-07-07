@@ -103,6 +103,21 @@ export interface UgcUploadProgress {
 }
 
 /**
+ * Photo produit d'une dotation UGC — miroir de ProductPhotoResource (spec
+ * photos produit). URLs disk-aware côté serveur : mission = asset public
+ * direct ; booking = URL signée TTL court. `grid_url`/`large_url` retombent
+ * sur l'original tant que les variantes ne sont pas générées — le shape
+ * satisfait HqLightboxPhoto (useHqLightbox).
+ */
+export interface ProductPhoto {
+  id: string
+  position: number
+  photo_url: string | null
+  grid_url: string | null
+  large_url: string | null
+}
+
+/**
  * Métadonnées d'un livrable vidéo — miroir de DeliverableResource (4.1).
  * JAMAIS de video_path ni d'URL signée (lecture Producteur = 4.4).
  * `kind`/`validation_status` `string` OUVERTS (parité tunnel_status) :

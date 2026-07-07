@@ -11,6 +11,8 @@ export { default as UgcShipmentForm } from './UgcShipmentForm.vue'
 export { default as UgcShipmentTrackingCard } from './UgcShipmentTrackingCard.vue'
 export { default as UgcFaceTrackingCard } from './UgcFaceTrackingCard.vue'
 export { default as UgcDiscoveryBanner } from './UgcDiscoveryBanner.vue'
+export { default as ProductPhotosUpload } from './ProductPhotosUpload.vue'
+export { default as ProductPhotoGallery } from './ProductPhotoGallery.vue'
 export {
   UGC_COMMISSION_RATE,
   UGC_COMMISSION_FLOOR,
@@ -26,6 +28,7 @@ export {
   tunnelStatusToPillKind,
   ugcTunnelStep,
   ugcCandidatureTunnelStep,
+  type ProductPhoto,
   type Shipment,
   type ConfirmShipmentPayload,
   type ShipmentResponse,

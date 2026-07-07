@@ -14,6 +14,7 @@ use App\ValueObjects\BookingPricing;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\File;
 use Illuminate\Validation\Validator;
 
 class CreateBookingRequest extends FormRequest
@@ -73,6 +74,16 @@ class CreateBookingRequest extends FormRequest
             $rules['nom_produit'] = ['required', 'string', 'max:255'];
             $rules['valeur_produit'] = ['required', 'integer', 'min:1', 'max:'.self::MAX_UNSIGNED_INTEGER];
 
+            // Photos produit (spec photos produit) : 0 à 2, optionnelles, calque album
+            // (File::image jpg/png 8 Mo). Règles posées ICI (jamais dans le trait
+            // partagé MissionValidationRules — leçon ugc-1-3).
+            $rules['product_photos'] = ['nullable', 'array', 'max:2'];
+            $rules['product_photos.*'] = [
+                File::image()
+                    ->types(['jpg', 'jpeg', 'png'])
+                    ->max(8 * 1024), // 8 Mo en Ko
+            ];
+
             if ($this->input('type_compensation') === CompensationType::Hybrid->value) {
                 $rules['nombre_videos'] = ['required', 'integer', 'min:2', 'max:20']; // était min:1 (ugc-4-0, option B)
                 $rules['montant_remuneration'] = ['required', 'integer', 'min:1', 'max:'.self::MAX_UNSIGNED_INTEGER];
@@ -119,6 +130,11 @@ class CreateBookingRequest extends FormRequest
             'montant_remuneration.integer' => 'Le montant de la rémunération doit être un nombre entier.',
             'montant_remuneration.min' => 'Le montant de la rémunération doit être supérieur ou égal à :min.',
             'montant_remuneration.max' => 'Le montant de la rémunération est trop élevé.',
+            'product_photos.array' => 'Les photos du produit doivent être une liste de fichiers.',
+            'product_photos.max' => 'Vous ne pouvez joindre que :max photos du produit.',
+            'product_photos.*.image' => 'Chaque photo du produit doit être une image.',
+            'product_photos.*.mimes' => 'Chaque photo du produit doit être au format JPG ou PNG.',
+            'product_photos.*.max' => 'Chaque photo du produit ne doit pas dépasser 8 Mo.',
         ];
     }
 

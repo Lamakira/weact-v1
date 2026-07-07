@@ -30,7 +30,7 @@ class MissionController extends Controller
      */
     public function show(Request $request, Mission $mission): JsonResponse
     {
-        $mission->load('producer');
+        $mission->load(['producer', 'productPhotos']);
 
         $face = $request->user()->userable;
         $candidature = Candidature::where('face_id', $face->id)

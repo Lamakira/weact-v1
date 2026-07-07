@@ -154,6 +154,11 @@ const { value: nombre_videos, errorMessage: nombreVideosError } =
 const { value: montant_remuneration, errorMessage: montantRemunerationError } =
   useField<number | string | undefined>('montant_remuneration')
 
+// Photos produit (0-2, facultatives, création seulement — spec photos produit).
+// Hors vee-validate : fichiers locaux avec préviews, envoyés en FormData.
+const productPhotos = ref<File[]>([])
+const productPhotosError = ref<string>('')
+
 const isUgc = computed(() => type_mission.value === 'ugc')
 const ugcCommission = computed(() => computeUgcCommission(Number(valeur_produit.value) || 0))
 const submitLabel = computed(() => {
@@ -234,6 +239,10 @@ const onSubmit = handleSubmit(async (values) => {
       data.nombre_videos = Number(values.nombre_videos)
       data.montant_remuneration = Number(values.montant_remuneration)
     }
+    // Upload uniquement à la création (v1) — jamais joint au payload d'édition.
+    if (props.mode === 'create' && productPhotos.value.length > 0) {
+      data.product_photos = productPhotos.value
+    }
   } else {
     data.budget = values.budget as number // Validated by schema before submit
     data.date_tournage = values.date_tournage
@@ -277,6 +286,11 @@ const onSubmit = handleSubmit(async (values) => {
     Object.entries(result.errors).forEach(([field, messages]) => {
       if (messages && messages.length > 0 && validFields.includes(field as ValidField)) {
         setFieldError(field as ValidField, messages[0])
+      }
+      // Erreurs photos produit (clés `product_photos` ou `product_photos.N`) —
+      // hors vee-validate, affichées sous l'uploader.
+      if (messages && messages.length > 0 && field.startsWith('product_photos')) {
+        productPhotosError.value = messages[0] ?? ''
       }
     })
   }
@@ -443,11 +457,14 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
             v-model:valeur-produit="valeur_produit"
             v-model:nombre-videos="nombre_videos"
             v-model:montant-remuneration="montant_remuneration"
+            v-model:product-photos="productPhotos"
+            :show-product-photos="mode === 'create'"
             :compensation-type-error="typeCompensationError"
             :nom-produit-error="nomProduitError"
             :valeur-produit-error="valeurProduitError"
             :nombre-videos-error="nombreVideosError"
             :montant-remuneration-error="montantRemunerationError"
+            :product-photos-error="productPhotosError || undefined"
           />
           <CommissionBreakdown
             mode="mission"

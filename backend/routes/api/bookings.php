@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\BookingMessageController;
 use App\Http\Controllers\Api\V1\BookingRatingController;
 use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\ProductPhotoMediaController;
 use App\Http\Controllers\Api\V1\WalletController;
 use Illuminate\Support\Facades\Route;
 
@@ -96,4 +97,20 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'api.token'])->group(function (
     Route::post('/wallet/withdraw', [WalletController::class, 'withdraw'])
         ->middleware(['face_or_producer', 'throttle:withdrawals'])
         ->name('wallet.withdraw');
+});
+
+// Photos produit UGC d'un booking — streaming du disque privé (spec photos produit).
+// HORS du groupe auth:sanctum+api.token : un <img src> natif ne peut pas porter le
+// header api.token → la signature EST la garde (calque producer.deliverables.*,
+// D-4.4.c). Les URLs signées (TTL court) ne sont mintées que par les accessors de
+// ProductPhoto, sérialisés dans des réponses booking scopées aux DEUX parties
+// (Face destinataire + Producteur propriétaire). Les photos de mission (disque
+// public) ne passent jamais ici.
+Route::prefix('v1')->middleware(['signed', 'throttle:120,1'])->group(function (): void {
+    Route::get('/product-photos/{productPhoto}/original', [ProductPhotoMediaController::class, 'original'])
+        ->name('product-photos.original');
+    Route::get('/product-photos/{productPhoto}/grid', [ProductPhotoMediaController::class, 'grid'])
+        ->name('product-photos.grid');
+    Route::get('/product-photos/{productPhoto}/large', [ProductPhotoMediaController::class, 'large'])
+        ->name('product-photos.large');
 });

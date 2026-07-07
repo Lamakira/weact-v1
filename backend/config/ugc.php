@@ -49,6 +49,11 @@ return [
     // signée hors api.token (un <video src> natif ne porte pas le header). TTL
     // court : borne la fuite d'une URL ; le refetch post-action la renouvelle.
     'video_url_ttl_minutes' => 30,
+    // TTL (minutes) des URLs SIGNÉES des photos produit d'un booking UGC
+    // (disque privé — jamais d'URL publique, contrairement aux photos de
+    // mission qui vivent sur `public`). Calqué sur video_url_ttl_minutes :
+    // même rationale (route signée hors api.token, TTL court, refetch renouvelle).
+    'product_photo_url_ttl_minutes' => 30,
     // Seuils d'escalade des notifications de deadline livrable (4.5, OI-5 — PO-tunable).
     // Fractions de progress ASCENDANTES, alignées sur les paliers couleur du front
     // (ChronoBadge/ChronoRing : 0.4 ambre, 0.6 orange, 0.85 rouge ; teal = base, sans
