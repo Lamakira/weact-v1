@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Concerns\HasRouteUuid;
 use App\Enums\UgcTunnelStatus;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 /**
@@ -32,6 +33,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read Booking|Candidature|null $owner
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, ProductPhoto> $receptionPhotos
  */
 class Shipment extends Model
 {
@@ -72,5 +74,27 @@ class Shipment extends Model
     public function owner(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    /**
+     * Toutes les photos produit portées par ce Shipment — relation générique
+     * utilisée par ProductPhotoService::attach() ($owner->productPhotos()->create()).
+     * Un Shipment ne porte que des photos de réception (kind='reception').
+     */
+    public function productPhotos(): MorphMany
+    {
+        return $this->morphMany(ProductPhoto::class, 'owner')->orderBy('position');
+    }
+
+    /**
+     * Photos de réception (preuve « produit reçu » uploadée par la Face à la
+     * confirmation) — morphMany filtrée kind='reception', exposée aux deux
+     * parties via ShipmentResource (whenLoaded).
+     */
+    public function receptionPhotos(): MorphMany
+    {
+        return $this->morphMany(ProductPhoto::class, 'owner')
+            ->where('kind', 'reception')
+            ->orderBy('position');
     }
 }

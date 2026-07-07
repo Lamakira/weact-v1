@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { Package, Truck } from 'lucide-vue-next'
 import StatusPill from './StatusPill.vue'
+import ProductPhotoGallery from './ProductPhotoGallery.vue'
 import { tunnelStatusToPillKind, type Shipment } from './ugc'
 
 const props = defineProps<{ shipment: Shipment }>()
@@ -53,6 +54,15 @@ function formatDateTime(iso: string): string {
     </dl>
 
     <p v-if="shipment.note_envoi" class="mt-3 rounded-lg bg-gray-50 p-3 text-sm text-gray-700">{{ shipment.note_envoi }}</p>
+
+    <!-- Preuve « produit reçu » (spec réception) : photos jointes par la Face, URLs
+         signées. Tolère l'absence (shipments pré-deploy : aucune section). -->
+    <ProductPhotoGallery
+      v-if="shipment.reception_photos?.length"
+      class="mt-4 border-t border-gray-100 pt-4"
+      title="Photos du produit reçu"
+      :photos="shipment.reception_photos"
+    />
 
     <p
       v-if="shipment.tunnel_status === 'shipped'"

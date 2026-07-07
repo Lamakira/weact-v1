@@ -23,7 +23,7 @@ import { ApplyToMissionModal } from '@/features/candidature/components'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import MissionApplyBlock from './MissionApplyBlock.vue'
-import { ugcCandidatureTunnelStep, UGC_UNBOXING_DAYS, ProductPhotoGallery } from '@/components/ugc'
+import { ugcCandidatureTunnelStep, UGC_UNBOXING_DAYS, ProductPhotoGallery, ProductPhotosUpload } from '@/components/ugc'
 import { useCancelCandidature, useReconfirmCandidature } from '@/features/candidature/composables'
 import { authApi } from '@/features/auth/services/authApi'
 import type { Face } from '@/features/auth/types'
@@ -93,7 +93,19 @@ const ugcTrackingStep = computed(() =>
 )
 
 const showReceiptModal = ref(false)
-const receiptModalMessage = `Le chrono Unboxing (${UGC_UNBOXING_DAYS} jours) démarre dès la confirmation — cette action est définitive.`
+// Photos de réception (spec réception) : 1-2 obligatoires avant de confirmer.
+const receiptPhotos = ref<File[]>([])
+const receiptModalMessage = `Joins 1 à 2 photos du produit reçu, puis confirme. Le chrono Unboxing (${UGC_UNBOXING_DAYS} jours) démarre dès la confirmation — cette action est définitive.`
+
+function openReceiptModal(): void {
+  receiptPhotos.value = []
+  showReceiptModal.value = true
+}
+
+function closeReceiptModal(): void {
+  showReceiptModal.value = false
+  receiptPhotos.value = []
+}
 
 const {
   isSubmitting: isSubmittingReceipt,
@@ -324,11 +336,14 @@ async function handleCancelConfirm(): Promise<void> {
  * UGC RECEIPT CONFIRMATION (3.4)
  */
 async function handleConfirmReceipt(): Promise<void> {
-  showReceiptModal.value = false
   const shipment = candidatureShipment.value
-  if (!shipment || !candidature.value) return
+  // Garde UI (bouton désactivé sans photo) + défense en profondeur (backend 1-2 photos).
+  if (!shipment || !candidature.value || receiptPhotos.value.length === 0) return
 
-  const updated = await confirmReceipt(shipment.id)
+  const photos = receiptPhotos.value
+  closeReceiptModal()
+
+  const updated = await confirmReceipt(shipment.id, photos)
   if (updated) {
     // Assignation locale via le setter existant (D-3.4.d) — le statut candidature ne bouge pas.
     // Snapshot relu après l'await : la ref peut avoir été remplacée/vidée pendant la requête.
@@ -714,7 +729,7 @@ onMounted(() => {
               @cancel="openCancelModal"
               @reconfirm="handleReconfirm"
               @resend-verification="handleResendVerification"
-              @confirm-receipt="showReceiptModal = true"
+              @confirm-receipt="openReceiptModal"
               @upload="handleUploadDeliverable"
             />
           </div>
@@ -760,7 +775,7 @@ onMounted(() => {
                 @cancel="openCancelModal"
                 @reconfirm="handleReconfirm"
                 @resend-verification="handleResendVerification"
-                @confirm-receipt="showReceiptModal = true"
+                @confirm-receipt="openReceiptModal"
                 @upload="handleUploadDeliverable"
               />
             </div>
@@ -817,7 +832,7 @@ onMounted(() => {
           @cancel="openCancelModal"
           @reconfirm="handleReconfirm"
           @resend-verification="handleResendVerification"
-          @confirm-receipt="showReceiptModal = true"
+          @confirm-receipt="openReceiptModal"
           @upload="handleUploadDeliverable"
         />
       </div>
@@ -845,7 +860,8 @@ onMounted(() => {
       @cancel="closeCancelModal"
     />
 
-    <!-- Confirmation « Produit reçu » (3.4, D-3.4.c) — state dédié, chrono 7j irréversible -->
+    <!-- Confirmation « Produit reçu » (3.4, D-3.4.c) — state dédié, chrono 7j irréversible.
+         Spec réception : 1-2 photos du produit reçu obligatoires avant de confirmer. -->
     <ConfirmModal
       :is-open="showReceiptModal"
       title="Confirmer la réception ?"
@@ -853,8 +869,16 @@ onMounted(() => {
       confirm-text="Oui, j'ai reçu le produit"
       cancel-text="Pas encore"
       variant="warning"
+      :confirm-disabled="receiptPhotos.length === 0"
       @confirm="handleConfirmReceipt"
-      @cancel="showReceiptModal = false"
-    />
+      @cancel="closeReceiptModal"
+    >
+      <ProductPhotosUpload
+        v-model="receiptPhotos"
+        :max-photos="2"
+        title="Photos du produit reçu"
+        hint="(obligatoire, 1 à 2)"
+      />
+    </ConfirmModal>
   </div>
 </template>

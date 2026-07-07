@@ -56,7 +56,7 @@ class CandidatureController extends Controller
         }
 
         $query = Candidature::where('mission_id', $mission->id)
-            ->with(['face.activeSubscription', 'conversation', 'shipment', 'deliverables'])
+            ->with(['face.activeSubscription', 'conversation', 'shipment.receptionPhotos', 'deliverables'])
             ->latest();
 
         // Apply status filter if provided

@@ -62,7 +62,7 @@ class MissionController extends Controller
 
         // 3.3 (AC8) : la Face engagée voit son tracking — CandidatureResource
         // expose `shipment` via whenLoaded depuis 3.1, il suffit de le charger.
-        $candidature?->loadMissing(['shipment', 'deliverables']);
+        $candidature?->loadMissing(['shipment.receptionPhotos', 'deliverables']);
 
         return response()->json([
             'data' => new MissionResource($mission),

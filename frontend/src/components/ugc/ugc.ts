@@ -78,6 +78,10 @@ export interface Shipment {
     ville: string | null
     pays: string | null
   }
+  /** Photos de réception (preuve « produit reçu » uploadée par la Face — spec réception).
+   *  URLs signées (disque privé). Absente/vide pour les shipments pré-deploy — les UI
+   *  tolèrent l'absence (aucune section vide). */
+  reception_photos?: ProductPhoto[]
   created_at: string
 }
 

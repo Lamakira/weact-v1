@@ -5,7 +5,7 @@ import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, X
 import type { ProducerCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
 import WBadge from '@/components/ui/WBadge.vue'
-import { StatusPill, tunnelStatusToPillKind } from '@/components/ugc'
+import { StatusPill, tunnelStatusToPillKind, ProductPhotoGallery } from '@/components/ugc'
 
 /**
  * Props
@@ -492,6 +492,15 @@ const categoryLabel = computed(() => {
       </StatusPill>
       <span>{{ candidature.shipment.transporteur }} · {{ candidature.shipment.numero_suivi }}</span>
     </div>
+
+    <!-- Preuve « produit reçu » (spec réception) : photos de réception jointes par la
+         Face, visibles du Producteur. Tolère l'absence (shipments pré-deploy). -->
+    <ProductPhotoGallery
+      v-if="candidature.shipment?.reception_photos?.length"
+      class="mt-3 border-t border-border/50 pt-3"
+      title="Photos du produit reçu"
+      :photos="candidature.shipment.reception_photos"
+    />
 
     <!-- Reject Confirmation Dialog -->
     <Teleport to="body">

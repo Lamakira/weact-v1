@@ -9,12 +9,15 @@ interface Props {
   confirmText?: string
   cancelText?: string
   variant?: 'danger' | 'warning'
+  /** Désactive le bouton de confirmation (ex : contenu de slot obligatoire non rempli). */
+  confirmDisabled?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   confirmText: 'Confirmer',
   cancelText: 'Annuler',
   variant: 'danger',
+  confirmDisabled: false,
 })
 
 const emit = defineEmits<{
@@ -101,6 +104,11 @@ onUnmounted(() => {
                 </p>
               </div>
 
+              <!-- Contenu additionnel optionnel (ex : sélecteur de photos obligatoire) -->
+              <div v-if="$slots.default" class="mt-6">
+                <slot />
+              </div>
+
               <!-- Actions -->
               <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
                 <button
@@ -112,9 +120,10 @@ onUnmounted(() => {
                 </button>
                 <button
                   type="button"
+                  :disabled="confirmDisabled"
                   @click="emit('confirm')"
                   :class="[
-                    'w-full sm:flex-1 px-5 py-2.5 text-sm font-semibold text-white rounded-lg transition-all duration-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2',
+                    'w-full sm:flex-1 px-5 py-2.5 text-sm font-semibold text-white rounded-lg transition-all duration-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
                     variant === 'danger'
                       ? 'bg-red-500 hover:bg-red-600 focus:ring-red-500'
                       : 'bg-weact-500 hover:bg-weact-600 focus:ring-weact-500',

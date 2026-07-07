@@ -16,13 +16,22 @@ const props = withDefaults(
     modelValue?: File[]
     maxPhotos?: number
     error?: string
+    /** Intitulé en gras (défaut spec A : « Photos du produit »). */
+    title?: string
+    /** Parenthèse d'aide à droite du titre (défaut spec A : « (facultatif, N max) »). */
+    hint?: string
   }>(),
   {
     modelValue: () => [],
     maxPhotos: 2,
     error: undefined,
+    title: 'Photos du produit',
+    hint: undefined,
   },
 )
+
+// Défaut préservant l'affichage spec A quand aucun hint n'est passé.
+const displayedHint = computed(() => props.hint ?? `(facultatif, ${props.maxPhotos} max)`)
 
 const emit = defineEmits<{
   'update:modelValue': [files: File[]]
@@ -101,7 +110,7 @@ function removePhoto(index: number): void {
 <template>
   <div data-testid="product-photos-upload">
     <p class="mb-1.5 text-xs font-medium text-gray-600">
-      Photos du produit <span class="font-normal text-gray-400">(facultatif, {{ maxPhotos }} max)</span>
+      {{ title }} <span class="font-normal text-gray-400">{{ displayedHint }}</span>
     </p>
 
     <div class="flex items-start gap-3">

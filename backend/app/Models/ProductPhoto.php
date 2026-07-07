@@ -15,8 +15,9 @@ use Illuminate\Support\Facades\URL;
 
 /**
  * Photo produit d'une dotation UGC — owner polymorphe : Booking (deal direct) |
- * Mission (appel à projets). Uploadée UNIQUEMENT à la création (0-2 photos,
- * kind='product' — la spec B ajoutera `reception`/Shipment).
+ * Mission (appel à projets, kind='product', 0-2 photos à la création) |
+ * Shipment (kind='reception', 1-2 photos obligatoires à la confirmation de
+ * réception côté Face, toujours sur disque privé).
  *
  * Stockage mixte (décision PO 2026-07-06) : la colonne `disk` est posée à la
  * création et rend la row autoportante — `public` pour une Mission (vitrine
@@ -39,7 +40,7 @@ use Illuminate\Support\Facades\URL;
  * @property-read string|null $photo_url
  * @property-read string|null $grid_url
  * @property-read string|null $large_url
- * @property-read Booking|Mission|null $owner
+ * @property-read Booking|Mission|Shipment|null $owner
  */
 class ProductPhoto extends Model
 {

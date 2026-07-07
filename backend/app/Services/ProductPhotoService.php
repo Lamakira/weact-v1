@@ -8,6 +8,7 @@ use App\Jobs\GenerateImageVariants;
 use App\Models\Booking;
 use App\Models\Mission;
 use App\Models\ProductPhoto;
+use App\Models\Shipment;
 use App\Support\ImageVariantGenerator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -28,8 +29,9 @@ class ProductPhotoService
 {
     /**
      * @param  list<UploadedFile>  $photos
+     * @param  string  $kind  'product' (Booking|Mission, à la création) | 'reception' (Shipment, à la réception)
      */
-    public function attach(Booking|Mission $owner, array $photos, string $disk): void
+    public function attach(Booking|Mission|Shipment $owner, array $photos, string $disk, string $kind = 'product'): void
     {
         if ($photos === []) {
             return;
@@ -56,7 +58,7 @@ class ProductPhotoService
 
                 /** @var ProductPhoto $productPhoto */
                 $productPhoto = $owner->productPhotos()->create([
-                    'kind' => 'product',
+                    'kind' => $kind,
                     'position' => $index + 1,
                     'disk' => $disk,
                     'filename' => $filename,

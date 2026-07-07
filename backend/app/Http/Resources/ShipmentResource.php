@@ -44,6 +44,10 @@ class ShipmentResource extends JsonResource
                 'ville' => $this->destinataire_ville,
                 'pays' => $this->destinataire_pays,
             ],
+            // Preuve « produit reçu » (spec réception) : photos privées, URLs
+            // signées, visibles des deux parties. Absente (whenLoaded) pour les
+            // shipments pré-deploy ou non eager-loadés — aucune section vide.
+            'reception_photos' => ProductPhotoResource::collection($this->whenLoaded('receptionPhotos')),
             'created_at' => $this->created_at?->toIso8601String(),
         ];
     }

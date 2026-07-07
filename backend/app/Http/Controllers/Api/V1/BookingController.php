@@ -65,7 +65,7 @@ class BookingController extends Controller
 
         $user = $request->user();
 
-        $query = Booking::with(['face.userable', 'producer.userable', 'shipment'])
+        $query = Booking::with(['face.userable', 'producer.userable', 'shipment.receptionPhotos'])
             ->where(function ($q) use ($user) {
                 $q->where('face_id', $user->id)
                     ->orWhere('producer_id', $user->id);
@@ -107,7 +107,7 @@ class BookingController extends Controller
         $booking->load([
             'face.userable',
             'producer.userable',
-            'shipment',
+            'shipment.receptionPhotos',
             'deliverables',
             'productPhotos',
             'raterBookingRating' => function ($query) {

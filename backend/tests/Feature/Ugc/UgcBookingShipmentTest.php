@@ -17,6 +17,7 @@ use App\Models\Shipment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
 use Tests\Feature\Ugc\Concerns\BuildsUgcShipments;
 use Tests\TestCase;
 
@@ -43,6 +44,9 @@ class UgcBookingShipmentTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Photos de réception (spec réception) : disque UGC privé (`local`).
+        Storage::fake('local');
 
         $this->producer = Producer::factory()->create();
         $this->producerUser = User::factory()->create([
@@ -368,11 +372,12 @@ class UgcBookingShipmentTest extends TestCase
         $shipment = $this->makeShippedShipment($booking);
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(2), ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJsonPath('message', 'Réception confirmée — le chrono Unboxing démarre')
             ->assertJsonPath('data.tunnel_status', UgcTunnelStatus::Received->value)
-            ->assertJsonPath('data.unboxing_deadline_at', fn ($value) => $value !== null);
+            ->assertJsonPath('data.unboxing_deadline_at', fn ($value) => $value !== null)
+            ->assertJsonCount(2, 'data.reception_photos');
 
         $shipment->refresh();
         $this->assertSame(UgcTunnelStatus::Received, $shipment->tunnel_status);
@@ -389,7 +394,7 @@ class UgcBookingShipmentTest extends TestCase
         $shipment = $this->makeShippedShipment($booking);
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(), ['Accept' => 'application/json'])
             ->assertOk()
             ->assertJsonPath('data.unboxing_deadline_at', now()->addDays(3)->toIso8601String());
     }
@@ -400,21 +405,26 @@ class UgcBookingShipmentTest extends TestCase
         $shipment = $this->makeShippedShipment($booking);
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(), ['Accept' => 'application/json'])
             ->assertOk();
 
         $recuLe = $shipment->fresh()->recu_le;
 
         $this->travel(1)->hours();
 
+        // La 2ᵉ confirmation joint aussi des photos (le FormRequest les impose),
+        // mais l'idempotence (recu_le) rejette AVANT tout stockage : aucune photo
+        // ajoutée (I/O matrix « double confirmation »).
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(2), ['Accept' => 'application/json'])
             ->assertUnprocessable()
             ->assertJsonPath('error.code', 'ALREADY_RECEIVED');
 
         // Le 2ᵉ clic ne réinitialise JAMAIS le chrono (D-3.3.d).
         $this->assertTrue($shipment->fresh()->recu_le->equalTo($recuLe));
         $this->assertSame(1, Notification::where('type', 'ugc_product_received')->count());
+        // Idempotence AVANT stockage : la 1ʳᵉ confirmation a posé 1 photo, la 2ᵉ 0.
+        $this->assertSame(1, $shipment->receptionPhotos()->count());
     }
 
     public function test_confirm_receipt_notifies_producer(): void
@@ -423,7 +433,7 @@ class UgcBookingShipmentTest extends TestCase
         $shipment = $this->makeShippedShipment($booking);
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(2), ['Accept' => 'application/json'])
             ->assertOk();
 
         $notification = Notification::where('user_id', $this->producerUser->id)
@@ -435,6 +445,9 @@ class UgcBookingShipmentTest extends TestCase
         $this->assertSame($shipment->uuid, data_get($notification->data, 'shipment_id'));
         $this->assertStringContainsString('Tenue Shade Fit', (string) data_get($notification->data, 'message'));
         $this->assertStringContainsString('Aïcha Bello', (string) data_get($notification->data, 'message'));
+        // Preuve « produit reçu » : la notification porte le compteur de photos.
+        $this->assertSame(2, data_get($notification->data, 'reception_photos_count'));
+        $this->assertStringContainsString('2 photos du produit reçu', (string) data_get($notification->data, 'message'));
     }
 
     public function test_producer_cannot_confirm_receipt(): void
@@ -460,11 +473,14 @@ class UgcBookingShipmentTest extends TestCase
             'userable_id' => $otherFace->id,
         ]);
 
+        // Photos valides jointes : le FormRequest passe (« est une Face »), mais
+        // le Gate ownership rejette AVANT le service → 403, rien persisté.
         $this->actingAs($otherFaceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(), ['Accept' => 'application/json'])
             ->assertForbidden();
 
         $this->assertNull($shipment->fresh()->recu_le);
+        $this->assertSame(0, $shipment->receptionPhotos()->count());
     }
 
     public function test_confirm_receipt_rejected_when_refund_requested(): void
@@ -475,13 +491,14 @@ class UgcBookingShipmentTest extends TestCase
         $booking->update(['commission_refund_requested_at' => now()]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt");
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(), ['Accept' => 'application/json']);
 
         $response->assertUnprocessable()
             ->assertJsonPath('error.code', 'INVALID_STATUS');
 
         $this->assertStringContainsString('en cours de remboursement', (string) $response->json('error.message'));
         $this->assertNull($shipment->fresh()->recu_le);
+        $this->assertSame(0, $shipment->receptionPhotos()->count());
     }
 
     public function test_confirm_receipt_rejected_on_cancelled_booking(): void
@@ -493,7 +510,7 @@ class UgcBookingShipmentTest extends TestCase
         $booking->update(['status' => BookingStatus::CancelledByProducer]);
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(), ['Accept' => 'application/json'])
             ->assertUnprocessable()
             ->assertJsonPath('error.code', 'INVALID_STATUS');
 
@@ -509,7 +526,7 @@ class UgcBookingShipmentTest extends TestCase
         $shipment->update(['tunnel_status' => UgcTunnelStatus::Suspended]);
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(), ['Accept' => 'application/json'])
             ->assertUnprocessable()
             ->assertJsonPath('error.code', 'INVALID_STATUS');
 
@@ -522,14 +539,16 @@ class UgcBookingShipmentTest extends TestCase
         $shipment = $this->makeShippedShipment($booking);
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(2), ['Accept' => 'application/json'])
             ->assertOk();
 
         $this->actingAs($this->faceUser)
             ->getJson("/api/v1/bookings/{$booking->uuid}")
             ->assertOk()
             ->assertJsonPath('data.shipment.recu_le', fn ($value) => $value !== null)
-            ->assertJsonPath('data.shipment.unboxing_deadline_at', fn ($value) => $value !== null);
+            ->assertJsonPath('data.shipment.unboxing_deadline_at', fn ($value) => $value !== null)
+            // Les photos de réception sont exposées aux deux parties (whenLoaded).
+            ->assertJsonCount(2, 'data.shipment.reception_photos');
     }
 
     public function test_unauthenticated_confirm_receipt_gets_401(): void

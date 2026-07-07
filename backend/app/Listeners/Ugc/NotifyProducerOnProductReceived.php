@@ -26,6 +26,13 @@ class NotifyProducerOnProductReceived
             $shipment = $event->shipment;
             $owner = $shipment->owner;
             $days = (int) config('ugc.deliverable_days.unboxing', 7);
+            // Preuve « produit reçu » (spec réception) : la Face a joint des
+            // photos ; le compteur les signale au Producteur (destinataire de la
+            // preuve). 0 pour les shipments pré-deploy (rétrocompat).
+            $photosCount = $shipment->receptionPhotos()->count();
+            $photosPhrase = $photosCount > 0
+                ? " {$photosCount} photo".($photosCount > 1 ? 's' : '').' du produit reçu jointe'.($photosCount > 1 ? 's' : '').'.'
+                : '';
 
             if ($owner instanceof Booking) {
                 $producerUserId = $owner->producer_id; // users.id (piège FK n°1)
@@ -56,8 +63,9 @@ class NotifyProducerOnProductReceived
                 'user_id' => $producerUserId,
                 'type' => 'ugc_product_received',
                 'data' => [
-                    'message' => "{$shipment->destinataire_nom} a confirmé la réception de « {$productName} » — le chrono Unboxing ({$days} jours) démarre.",
+                    'message' => "{$shipment->destinataire_nom} a confirmé la réception de « {$productName} » — le chrono Unboxing ({$days} jours) démarre.{$photosPhrase}",
                     'shipment_id' => $shipment->uuid,
+                    'reception_photos_count' => $photosCount,
                     'url' => $url,
                 ],
             ]);
