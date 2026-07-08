@@ -68,6 +68,8 @@ class PublicFaceProfileResource extends JsonResource
             'is_available' => $this->is_available,
             'profile_photo_url' => $this->profile_photo_url,
             'profile_photo_medium_url' => $this->medium_url,
+            'profile_photo_grid_url' => $this->grid_url,
+            'profile_photo_large_url' => $this->large_url,
             'presentation_video_url' => $presentationVisible ? $this->presentation_video_url : null,
             'presentation_video_thumbnail_url' => $presentationVisible ? $this->presentation_video_thumbnail_url : null,
             'average_rating' => $this->average_rating,

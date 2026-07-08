@@ -49,6 +49,7 @@ class AdminAttendanceDisputeResource extends JsonResource
                     'id' => $face->uuid,
                     'display_name' => $face->display_name,
                     'profile_photo_url' => $face->profile_photo_url,
+                    'profile_photo_thumbnail_url' => $face->thumbnail_url,
                 ];
             }),
             'montant_face_recoit' => (int) $this->montant_face_recoit,

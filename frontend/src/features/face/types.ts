@@ -10,6 +10,8 @@ export interface FaceProfile {
   username: string
   profile_photo_url: string | null
   thumbnail_url: string | null
+  // 400px card variant — server falls back grid → medium → original
+  profile_photo_grid_url: string | null
   average_rating: number | null
   ratings_count: number
   tarif_horaire: number | null
@@ -34,6 +36,10 @@ export interface ProfilePhotoResult {
 export interface FacePhoto {
   id: string
   photo_url: string
+  // Server-side fallback chains (legacy rows / variant job still pending):
+  // grid_url → medium → original, large_url → medium → original
+  grid_url: string | null
+  large_url: string | null
   thumbnail_url: string
   position: number
 }

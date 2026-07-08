@@ -23,9 +23,15 @@ const availabilityLabel = computed(() => {
   return props.face.is_available ? 'Disponible' : 'Indisponible'
 })
 
-// Use medium (800px WebP) for cards — much faster than full originals, still sharp on Retina
+// Use grid (400px WebP) for cards — the server already falls back grid → medium
+// → original for legacy rows; the client chain covers stale cached payloads
 const photoUrl = computed(() => {
-  return props.face.profile_photo_medium_url || props.face.profile_photo_url || props.face.profile_photo_thumbnail_url
+  return (
+    props.face.profile_photo_grid_url ||
+    props.face.profile_photo_medium_url ||
+    props.face.profile_photo_url ||
+    props.face.profile_photo_thumbnail_url
+  )
 })
 
 const hasPhoto = computed(() => {

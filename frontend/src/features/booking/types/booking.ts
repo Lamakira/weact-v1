@@ -2,7 +2,7 @@
  * Booking feature types
  */
 
-import type { Deliverable, Shipment } from '@/components/ugc'
+import type { Deliverable, ProductPhoto, Shipment } from '@/components/ugc'
 
 // Booking status enum
 export const BookingStatus = {
@@ -171,6 +171,9 @@ export interface Booking {
   // Livrables vidéo UGC (4.6, `whenLoaded`) — portés à la carte de suivi Face
   // pour la review_note du bandeau de refus + le start du chrono Avis (D-4.6.b).
   deliverables?: Deliverable[]
+  // Photos produit UGC (spec photos produit, `whenLoaded`) — clé OMISE sur les
+  // listes, chargée sur show/store. URLs signées (disque privé, deux parties).
+  product_photos?: ProductPhoto[]
   created_at: string
   updated_at: string
 }
@@ -191,6 +194,8 @@ export interface CreateBookingData {
   valeur_produit?: number
   nombre_videos?: number
   montant_remuneration?: number
+  // Photos produit (0-2, facultatives) — leur présence bascule l'envoi en FormData
+  product_photos?: File[]
 }
 
 // Booking API response

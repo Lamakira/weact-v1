@@ -72,4 +72,25 @@ describe('UgcShipmentTrackingCard', () => {
     const received = mountCard({ tunnel_status: 'received', tunnel_status_label: 'Produit reçu' })
     expect(received.find('[data-testid="chrono-reminder"]').exists()).toBe(false)
   })
+
+  it('renders the reception photos gallery when the Face has attached proof', () => {
+    const wrapper = mountCard({
+      tunnel_status: 'received',
+      tunnel_status_label: 'Produit reçu',
+      reception_photos: [
+        { id: 'p1', position: 1, photo_url: '/x/p1', grid_url: '/x/p1/grid', large_url: '/x/p1/large' },
+        { id: 'p2', position: 2, photo_url: '/x/p2', grid_url: '/x/p2/grid', large_url: '/x/p2/large' },
+      ],
+    })
+
+    expect(wrapper.find('[data-testid="product-photo-gallery"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Photos du produit reçu')
+    expect(wrapper.findAll('[data-testid="product-photo-thumb"]')).toHaveLength(2)
+  })
+
+  it('renders no reception section for a pre-deploy shipment without photos', () => {
+    // Tolérance zéro-photo (rétrocompat) : aucune section, aucun placeholder.
+    const wrapper = mountCard({ tunnel_status: 'received', tunnel_status_label: 'Produit reçu' })
+    expect(wrapper.find('[data-testid="product-photo-gallery"]').exists()).toBe(false)
+  })
 })

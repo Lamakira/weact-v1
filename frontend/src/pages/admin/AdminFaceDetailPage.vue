@@ -28,6 +28,7 @@ import { getCategoryLabels, getNicheLabels } from '@/features/admin/utils/faceLa
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import AdminFaceSubscriptionSection from '@/features/admin/components/AdminFaceSubscriptionSection.vue'
 import { useToast } from '@/composables/useToast'
+import { useHqLightbox } from '@/composables/useHqLightbox'
 import { COUNTRY_OPTIONS, COUNTRY_OPTION_VALUES } from '@/shared/constants/territoryOptions'
 
 const route = useRoute()
@@ -50,6 +51,12 @@ const lightboxPhoto = computed((): AdminFacePhoto | null => {
   if (lightboxIndex.value === null || !face.value) return null
   return face.value.photos[lightboxIndex.value] ?? null
 })
+
+// HQ à la demande : la lightbox affiche la variante large ; l'original ne se
+// charge qu'au clic explicite sur « Voir l'original ». Règles src/can-view et
+// reset showOriginal centralisés dans useHqLightbox.
+const { showOriginal, lightboxSrc, canViewOriginal, reset: resetHqView } =
+  useHqLightbox(lightboxPhoto)
 
 // Video modal state
 const videoModalUrl = ref<string | null>(null)
@@ -189,6 +196,7 @@ function goBack(): void {
 // Lightbox functions
 function openLightbox(index: number): void {
   lightboxIndex.value = index
+  resetHqView()
   nextTick(() => {
     lightboxModalRef.value?.focus()
   })
@@ -196,18 +204,21 @@ function openLightbox(index: number): void {
 
 function closeLightbox(): void {
   lightboxIndex.value = null
+  resetHqView()
 }
 
 function prevPhoto(): void {
   if (lightboxIndex.value === null || !face.value) return
   lightboxIndex.value =
     lightboxIndex.value > 0 ? lightboxIndex.value - 1 : face.value.photos.length - 1
+  resetHqView()
 }
 
 function nextPhoto(): void {
   if (lightboxIndex.value === null || !face.value) return
   lightboxIndex.value =
     lightboxIndex.value < face.value.photos.length - 1 ? lightboxIndex.value + 1 : 0
+  resetHqView()
 }
 
 function handleLightboxKeydown(event: KeyboardEvent): void {
@@ -876,10 +887,22 @@ function closeVideoModal(): void {
         </button>
 
         <img
-          :src="lightboxPhoto.photo_url"
+          :src="lightboxSrc"
           :alt="`Photo ${lightboxIndex! + 1}`"
           class="max-h-[85vh] max-w-[90vw] rounded-lg object-contain"
+          data-testid="lightbox-image"
         />
+
+        <!-- HQ à la demande -->
+        <button
+          v-if="!showOriginal && canViewOriginal"
+          type="button"
+          class="absolute bottom-16 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-2 text-sm text-white transition-colors hover:bg-white/20"
+          data-testid="lightbox-view-original"
+          @click="showOriginal = true"
+        >
+          Voir l'original
+        </button>
 
         <button
           v-if="face && face.photos.length > 1"

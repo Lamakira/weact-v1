@@ -37,6 +37,9 @@ final class SendUgcProductReceivedEmail
                 producerName: $this->producerNameFor($owner),
                 productName: $this->productNameFor($owner),
                 dealUrl: $this->producerDealUrlFor($owner),
+                // Preuve « produit reçu » (spec réception) : compteur des photos
+                // jointes par la Face — 0 pour un shipment pré-deploy.
+                photosCount: $shipment->receptionPhotos()->count(),
             ));
         } catch (\Throwable $e) {
             Log::warning('UgcProductReceivedMail queue failed', [

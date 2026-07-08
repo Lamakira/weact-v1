@@ -14,11 +14,12 @@ defineProps<{
     <!-- Rater Avatar -->
     <div class="flex-shrink-0">
       <img
-        v-if="review.rater.profile_photo_url"
-        :src="review.rater.profile_photo_url"
+        v-if="review.rater.profile_photo_thumbnail_url || review.rater.profile_photo_url"
+        :src="review.rater.profile_photo_thumbnail_url || review.rater.profile_photo_url || undefined"
         :alt="review.rater.display_name"
         class="w-10 h-10 rounded-full object-cover"
         data-testid="rater-avatar"
+        loading="lazy"
       />
       <div
         v-else

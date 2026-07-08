@@ -117,6 +117,9 @@ export interface ProducerSummary {
   display_name: string
   type: 'agency' | 'particulier'
   profile_photo_url: string | null
+  // 150px avatar variant — server falls back to the original while the
+  // variant job is pending
+  profile_photo_thumbnail_url: string | null
 }
 
 // Face candidature for list view (includes mission and producer summary)
@@ -173,6 +176,9 @@ export interface FaceSummary {
   id: string
   display_name: string
   profile_photo_url: string | null
+  // 150px avatar variant — server falls back to the original while the
+  // variant job is pending
+  profile_photo_thumbnail_url: string | null
   category: string | null
   city: string | null
   tarif_horaire: number | null
@@ -214,6 +220,10 @@ export interface ProducerCandidatureListResponse {
 export interface FacePhoto {
   id: string
   photo_url: string
+  // Server-side fallback chains (legacy rows / variant job still pending):
+  // grid_url → medium → original, large_url → medium → original
+  grid_url: string | null
+  large_url: string | null
   thumbnail_url: string
   position: number
 }

@@ -53,10 +53,11 @@ const participantLabel = computed(() => {
         class="relative flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-primary"
       >
         <img
-          v-if="participant.photo_url"
-          :src="participant.photo_url"
+          v-if="participant.profile_photo_thumbnail_url || participant.photo_url"
+          :src="participant.profile_photo_thumbnail_url || participant.photo_url || undefined"
           :alt="participant.name"
           class="size-full rounded-full object-cover"
+          loading="lazy"
         />
         <span v-else class="text-sm font-semibold tracking-wider">
           {{ initials }}

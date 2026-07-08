@@ -37,6 +37,7 @@ export interface LandingFace {
   categories: Array<{ value: string; label: string }>
   is_available: boolean
   profile_photo_url: string | null
+  profile_photo_grid_url: string | null
   profile_photo_thumbnail_url: string | null
   average_rating: number | null
 }

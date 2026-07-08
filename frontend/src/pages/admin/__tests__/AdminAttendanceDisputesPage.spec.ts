@@ -52,6 +52,7 @@ function makeDispute(overrides: Partial<AdminDispute> = {}): AdminDispute {
       id: 'face-uuid',
       display_name: 'Amina K.',
       profile_photo_url: null,
+      profile_photo_thumbnail_url: null,
     },
     montant_face_recoit: 90000,
     attendance_status: 'disputed',

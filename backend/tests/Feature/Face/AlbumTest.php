@@ -111,9 +111,19 @@ class AlbumTest extends TestCase
         $this->assertEquals($this->face->id, $photo->face_id);
         $this->assertEquals(1, $photo->position);
 
-        // Verify files exist in storage
+        // Verify files exist in storage. The sync test queue runs the
+        // GenerateImageVariants job inline (after the upload transaction
+        // commits), so every variant asserted here is produced through the
+        // queued path, not in the HTTP request.
         Storage::disk('public')->assertExists('avatars/faces/albums/'.$photo->filename);
         Storage::disk('public')->assertExists('avatars/faces/albums/thumbnails/'.$photo->thumbnail);
+
+        $this->assertNotNull($photo->medium);
+        $this->assertNotNull($photo->grid);
+        $this->assertNotNull($photo->large);
+        Storage::disk('public')->assertExists('avatars/faces/albums/medium/'.$photo->medium);
+        Storage::disk('public')->assertExists('avatars/faces/albums/grid/'.$photo->grid);
+        Storage::disk('public')->assertExists('avatars/faces/albums/large/'.$photo->large);
     }
 
     public function test_can_upload_png_album_photo(): void
@@ -352,13 +362,20 @@ class AlbumTest extends TestCase
 
     public function test_can_delete_album_photo(): void
     {
+        $webpName = 'variant.webp';
         $photo = FacePhoto::factory()->create([
             'face_id' => $this->face->id,
+            'medium' => $webpName,
+            'grid' => $webpName,
+            'large' => $webpName,
         ]);
 
         // Create actual files in storage
         Storage::disk('public')->put('avatars/faces/albums/'.$photo->filename, 'photo content');
         Storage::disk('public')->put('avatars/faces/albums/thumbnails/'.$photo->thumbnail, 'thumbnail content');
+        Storage::disk('public')->put('avatars/faces/albums/medium/'.$webpName, 'medium content');
+        Storage::disk('public')->put('avatars/faces/albums/grid/'.$webpName, 'grid content');
+        Storage::disk('public')->put('avatars/faces/albums/large/'.$webpName, 'large content');
 
         $response = $this->actingAs($this->faceUser)
             ->deleteJson("/api/v1/face/album/{$photo->uuid}");
@@ -371,9 +388,12 @@ class AlbumTest extends TestCase
         // Verify database record deleted
         $this->assertDatabaseMissing('face_photos', ['id' => $photo->id]);
 
-        // Verify files deleted
+        // Verify files deleted (original + all four variants)
         Storage::disk('public')->assertMissing('avatars/faces/albums/'.$photo->filename);
         Storage::disk('public')->assertMissing('avatars/faces/albums/thumbnails/'.$photo->thumbnail);
+        Storage::disk('public')->assertMissing('avatars/faces/albums/medium/'.$webpName);
+        Storage::disk('public')->assertMissing('avatars/faces/albums/grid/'.$webpName);
+        Storage::disk('public')->assertMissing('avatars/faces/albums/large/'.$webpName);
     }
 
     public function test_positions_reorder_after_delete(): void

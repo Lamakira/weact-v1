@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { Lock } from 'lucide-vue-next'
 import type { FacePhoto } from '../types'
+import { useHqLightbox } from '@/composables/useHqLightbox'
 
 interface Props {
   photos: FacePhoto[]
@@ -49,12 +50,24 @@ function isPhotoOverQuota(photo: FacePhoto): boolean {
  */
 const lightboxPhoto = ref<FacePhoto | null>(null)
 
+// HQ on demand: the lightbox shows the large variant; the original is only
+// fetched after an explicit click on « Voir l'original ». The src/can-view
+// rules and the showOriginal reset live in useHqLightbox.
+const { showOriginal, lightboxSrc, canViewOriginal, reset: resetHqView } =
+  useHqLightbox(lightboxPhoto)
+
 function openLightbox(photo: FacePhoto): void {
   lightboxPhoto.value = photo
+  resetHqView()
 }
 
 function closeLightbox(): void {
   lightboxPhoto.value = null
+  resetHqView()
+}
+
+function viewOriginal(): void {
+  showOriginal.value = true
 }
 
 /**
@@ -89,9 +102,10 @@ function handleAddClick(): void {
         <!-- Photo -->
         <template v-if="slot">
           <img
-            :src="slot.photo_url"
+            :src="slot.grid_url || slot.photo_url"
             :alt="`Photo ${index + 1}`"
             class="w-full h-full object-cover"
+            loading="lazy"
             :data-testid="`album-photo-${slot.id}`"
           />
 
@@ -236,10 +250,22 @@ function handleAddClick(): void {
           </button>
 
           <img
-            :src="lightboxPhoto.photo_url"
+            :src="lightboxSrc"
             :alt="'Photo'"
             class="max-w-full max-h-[85vh] rounded-lg object-contain"
+            data-testid="lightbox-image"
           />
+
+          <!-- HQ on demand -->
+          <button
+            v-if="!showOriginal && canViewOriginal"
+            type="button"
+            class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20 transition-colors"
+            data-testid="lightbox-view-original"
+            @click="viewOriginal"
+          >
+            Voir l'original
+          </button>
         </div>
       </Transition>
     </Teleport>

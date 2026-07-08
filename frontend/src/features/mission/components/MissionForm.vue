@@ -154,7 +154,17 @@ const { value: nombre_videos, errorMessage: nombreVideosError } =
 const { value: montant_remuneration, errorMessage: montantRemunerationError } =
   useField<number | string | undefined>('montant_remuneration')
 
+// Photos produit (0-2, facultatives, création seulement — spec photos produit).
+// Hors vee-validate : fichiers locaux avec préviews, envoyés en FormData.
+const productPhotos = ref<File[]>([])
+const productPhotosError = ref<string>('')
+
 const isUgc = computed(() => type_mission.value === 'ugc')
+// Photos produit obligatoires (1-2) pour l'UGC à la CRÉATION uniquement — calque la garde
+// confirm-disabled de la modale de réception Face. Masquées/non requises en édition (v1).
+const ugcPhotosMissing = computed(
+  () => isUgc.value && props.mode === 'create' && productPhotos.value.length === 0,
+)
 const ugcCommission = computed(() => computeUgcCommission(Number(valeur_produit.value) || 0))
 const submitLabel = computed(() => {
   if (props.mode === 'edit') return 'Enregistrer les modifications'
@@ -213,6 +223,13 @@ const pricingHint = computed(() => {
 })
 
 const onSubmit = handleSubmit(async (values) => {
+  // Garde photos produit UGC à la création : au moins une photo requise (le bouton est
+  // déjà désactivé, garde défensive miroir du backend `product_photos.required`).
+  if (values.type_mission === 'ugc' && props.mode === 'create' && productPhotos.value.length === 0) {
+    productPhotosError.value = 'Au moins une photo du produit est requise.'
+    return
+  }
+
   // Base payload WITHOUT budget ni champs de tournage (ajoutés conditionnellement ci-dessous —
   // budget dérivé serveur + date/lieu/durée masqués pour l'UGC, D-1.4.d / D-8.1.e)
   const data: CreateMissionData = {
@@ -233,6 +250,10 @@ const onSubmit = handleSubmit(async (values) => {
     if (values.type_compensation === 'hybrid') {
       data.nombre_videos = Number(values.nombre_videos)
       data.montant_remuneration = Number(values.montant_remuneration)
+    }
+    // Upload uniquement à la création (v1) — jamais joint au payload d'édition.
+    if (props.mode === 'create' && productPhotos.value.length > 0) {
+      data.product_photos = productPhotos.value
     }
   } else {
     data.budget = values.budget as number // Validated by schema before submit
@@ -277,6 +298,11 @@ const onSubmit = handleSubmit(async (values) => {
     Object.entries(result.errors).forEach(([field, messages]) => {
       if (messages && messages.length > 0 && validFields.includes(field as ValidField)) {
         setFieldError(field as ValidField, messages[0])
+      }
+      // Erreurs photos produit (clés `product_photos` ou `product_photos.N`) —
+      // hors vee-validate, affichées sous l'uploader.
+      if (messages && messages.length > 0 && field.startsWith('product_photos')) {
+        productPhotosError.value = messages[0] ?? ''
       }
     })
   }
@@ -443,11 +469,14 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
             v-model:valeur-produit="valeur_produit"
             v-model:nombre-videos="nombre_videos"
             v-model:montant-remuneration="montant_remuneration"
+            v-model:product-photos="productPhotos"
+            :show-product-photos="mode === 'create'"
             :compensation-type-error="typeCompensationError"
             :nom-produit-error="nomProduitError"
             :valeur-produit-error="valeurProduitError"
             :nombre-videos-error="nombreVideosError"
             :montant-remuneration-error="montantRemunerationError"
+            :product-photos-error="productPhotosError || undefined"
           />
           <CommissionBreakdown
             mode="mission"
@@ -599,7 +628,7 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
       </Button>
       <Button
         type="submit"
-        :disabled="isProcessing"
+        :disabled="isProcessing || ugcPhotosMissing"
         class="min-w-[180px] bg-weact hover:bg-weact/90 text-white shadow-lg shadow-weact/20"
         data-testid="submit-button"
       >

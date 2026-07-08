@@ -67,13 +67,35 @@ export const missionApi = {
   },
 
   /**
-   * Create a new mission
-   * @param data The mission data to create
+   * Create a new mission.
+   *
+   * Avec des photos produit (spec photos produit), le payload passe en
+   * FormData multipart : les champs scalaires deviennent des strings (les
+   * FormRequests Laravel valident les strings numériques) et chaque fichier
+   * part sous `product_photos[]`. Sans photo, l'envoi JSON reste inchangé.
    */
   async createMission(data: CreateMissionData): Promise<MissionResponse> {
     await getCsrfCookie()
 
-    const response = await apiClient.post<MissionResponse>('/producer/missions', data)
+    const { product_photos, ...fields } = data
+    if (!product_photos || product_photos.length === 0) {
+      const response = await apiClient.post<MissionResponse>('/producer/missions', fields)
+      return response.data
+    }
+
+    const formData = new FormData()
+    Object.entries(fields).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        formData.append(key, String(value))
+      }
+    })
+    product_photos.forEach((file) => formData.append('product_photos[]', file))
+
+    const response = await apiClient.post<MissionResponse>('/producer/missions', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
     return response.data
   },
 

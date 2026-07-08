@@ -9,6 +9,8 @@ function makePhoto(id: number, position: number): FacePhoto {
   return {
     id: String(id),
     photo_url: `http://localhost/storage/albums/photo${id}.jpg`,
+    grid_url: `http://localhost/storage/albums/grid/photo${id}.webp`,
+    large_url: `http://localhost/storage/albums/large/photo${id}.webp`,
     thumbnail_url: `http://localhost/storage/albums/thumbnails/photo${id}.jpg`,
     position,
   }
@@ -151,5 +153,85 @@ describe('PhotoAlbumGrid (FP-2.7 tier-aware)', () => {
     expect(wrapper.find('[data-testid="album-locked-badge-5"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="album-locked-badge-6"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="album-locked-badge-4"]').exists()).toBe(false)
+  })
+
+  describe('image variants (interim optimization)', () => {
+    it('renders grid thumbnails with the grid variant, lazily loaded', () => {
+      const wrapper = mount(PhotoAlbumGrid, {
+        props: { photos: [photo1], maxAlbumPhotos: 4 },
+      })
+
+      const img = wrapper.find(`[data-testid="album-photo-${photo1.id}"]`)
+      expect(img.attributes('src')).toBe(photo1.grid_url)
+      expect(img.attributes('loading')).toBe('lazy')
+    })
+
+    it('falls back to the original in the grid when grid_url is empty (legacy payload)', () => {
+      const legacy = { ...photo1, grid_url: '' }
+      const wrapper = mount(PhotoAlbumGrid, {
+        props: { photos: [legacy], maxAlbumPhotos: 4 },
+      })
+
+      const img = wrapper.find(`[data-testid="album-photo-${legacy.id}"]`)
+      expect(img.attributes('src')).toBe(legacy.photo_url)
+    })
+
+    it('opens the lightbox on the large variant, never the original by default', async () => {
+      const wrapper = mount(PhotoAlbumGrid, {
+        props: { photos: [photo1], maxAlbumPhotos: 4 },
+        global: { stubs: { teleport: true } },
+      })
+
+      await wrapper.find(`[data-testid="view-photo-${photo1.id}"]`).trigger('click')
+
+      const lightboxImg = wrapper.find('[data-testid="lightbox-image"]')
+      expect(lightboxImg.exists()).toBe(true)
+      expect(lightboxImg.attributes('src')).toBe(photo1.large_url)
+    })
+
+    it('swaps to the original only after clicking « Voir l\'original »', async () => {
+      const wrapper = mount(PhotoAlbumGrid, {
+        props: { photos: [photo1], maxAlbumPhotos: 4 },
+        global: { stubs: { teleport: true } },
+      })
+
+      await wrapper.find(`[data-testid="view-photo-${photo1.id}"]`).trigger('click')
+
+      const button = wrapper.find('[data-testid="lightbox-view-original"]')
+      expect(button.exists()).toBe(true)
+      expect(button.text()).toBe("Voir l'original")
+
+      await button.trigger('click')
+
+      expect(wrapper.find('[data-testid="lightbox-image"]').attributes('src')).toBe(photo1.photo_url)
+      // Once the original is displayed, the button disappears
+      expect(wrapper.find('[data-testid="lightbox-view-original"]').exists()).toBe(false)
+    })
+
+    it('hides « Voir l\'original » when the large variant already is the original (legacy)', async () => {
+      const legacy = { ...photo1, large_url: photo1.photo_url }
+      const wrapper = mount(PhotoAlbumGrid, {
+        props: { photos: [legacy], maxAlbumPhotos: 4 },
+        global: { stubs: { teleport: true } },
+      })
+
+      await wrapper.find(`[data-testid="view-photo-${legacy.id}"]`).trigger('click')
+
+      expect(wrapper.find('[data-testid="lightbox-image"]').attributes('src')).toBe(legacy.photo_url)
+      expect(wrapper.find('[data-testid="lightbox-view-original"]').exists()).toBe(false)
+    })
+
+    it('hides « Voir l\'original » when large_url is missing (legacy payload)', async () => {
+      const legacy = { ...photo1, large_url: null }
+      const wrapper = mount(PhotoAlbumGrid, {
+        props: { photos: [legacy], maxAlbumPhotos: 4 },
+        global: { stubs: { teleport: true } },
+      })
+
+      await wrapper.find(`[data-testid="view-photo-${legacy.id}"]`).trigger('click')
+
+      expect(wrapper.find('[data-testid="lightbox-image"]').attributes('src')).toBe(legacy.photo_url)
+      expect(wrapper.find('[data-testid="lightbox-view-original"]').exists()).toBe(false)
+    })
   })
 })

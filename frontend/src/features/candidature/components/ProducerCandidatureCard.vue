@@ -5,7 +5,7 @@ import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, X
 import type { ProducerCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
 import WBadge from '@/components/ui/WBadge.vue'
-import { StatusPill, tunnelStatusToPillKind } from '@/components/ugc'
+import { StatusPill, tunnelStatusToPillKind, ProductPhotoGallery } from '@/components/ugc'
 
 /**
  * Props
@@ -319,10 +319,11 @@ const categoryLabel = computed(() => {
         class="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-border bg-muted lg:h-16 lg:w-16"
       >
         <img
-          v-if="candidature.face.profile_photo_url"
-          :src="candidature.face.profile_photo_url"
+          v-if="candidature.face.profile_photo_thumbnail_url || candidature.face.profile_photo_url"
+          :src="candidature.face.profile_photo_thumbnail_url || candidature.face.profile_photo_url || undefined"
           :alt="candidature.face.display_name"
           class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          loading="lazy"
         />
         <div
           v-else
@@ -491,6 +492,15 @@ const categoryLabel = computed(() => {
       </StatusPill>
       <span>{{ candidature.shipment.transporteur }} · {{ candidature.shipment.numero_suivi }}</span>
     </div>
+
+    <!-- Preuve « produit reçu » (spec réception) : photos de réception jointes par la
+         Face, visibles du Producteur. Tolère l'absence (shipments pré-deploy). -->
+    <ProductPhotoGallery
+      v-if="candidature.shipment?.reception_photos?.length"
+      class="mt-3 border-t border-border/50 pt-3"
+      title="Photos du produit reçu"
+      :photos="candidature.shipment.reception_photos"
+    />
 
     <!-- Reject Confirmation Dialog -->
     <Teleport to="body">

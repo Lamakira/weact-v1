@@ -12,6 +12,14 @@
         Le chrono Unboxing démarre&nbsp;: la Face va maintenant tourner ses vidéos.
     </p>
 
+    @if(($photosCount ?? 0) > 0)
+        <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
+            📸 {{ $photosCount }} photo{{ $photosCount > 1 ? 's' : '' }} du produit reçu
+            {{ $photosCount > 1 ? 'sont jointes' : 'est jointe' }} à ce deal&nbsp;: comparez-{{ $photosCount > 1 ? 'les' : 'la' }}
+            avec le produit envoyé depuis le suivi du deal.
+        </p>
+    @endif
+
     {{-- CTA button --}}
     <table width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
         <tr>

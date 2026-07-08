@@ -498,6 +498,23 @@ class UgcDeliverableService
     }
 
     /**
+     * Supprime les fichiers disque d'un livrable (vidéo + miniature) sur le
+     * disque UGC privé, SANS toucher la row (le caller possède le cycle de vie).
+     * Idempotent : un chemin absent/vide est ignoré (un Storage::delete d'un
+     * fichier inexistant ne lève pas). Seam public exposé pour le nettoyage
+     * transverse des médias UGC orphelins (UgcMediaCleanupService + commande de
+     * réconciliation ugc:purge-orphan-media) — délègue au même cleanupMedia que
+     * les chemins d'erreur/re-upload de upload().
+     */
+    public function deleteFiles(Deliverable $deliverable): void
+    {
+        $this->cleanupMedia([
+            'video_path' => $deliverable->video_path,
+            'thumbnail_path' => (string) ($deliverable->thumbnail_path ?? ''),
+        ]);
+    }
+
+    /**
      * @param  array{video_path: string, thumbnail_path: string}  $media
      */
     private function cleanupMedia(array $media): void

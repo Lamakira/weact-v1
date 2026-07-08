@@ -215,9 +215,23 @@ async function mountPage(
           </div>`,
         },
         ConfirmModal: {
-          props: ['isOpen'],
+          props: ['isOpen', 'confirmDisabled'],
           emits: ['confirm', 'cancel'],
-          template: '<button v-if="isOpen" data-testid="receipt-modal-confirm" @click="$emit(\'confirm\')"/>',
+          // Rend le slot (le sélecteur de photos de réception y vit) + reflète confirmDisabled.
+          template: `<div v-if="isOpen">
+            <slot />
+            <button data-testid="receipt-modal-confirm" :disabled="confirmDisabled" @click="$emit('confirm')"></button>
+          </div>`,
+        },
+        ProductPhotosUpload: {
+          props: ['modelValue', 'maxPhotos', 'title', 'hint'],
+          emits: ['update:modelValue'],
+          methods: {
+            selectPhoto() {
+              this.$emit('update:modelValue', [new File(['x'], 'reception.jpg', { type: 'image/jpeg' })])
+            },
+          },
+          template: '<button data-testid="select-reception-photo" @click="selectPhoto"></button>',
         },
         BookingStatusBadge: { template: '<div/>' },
         PaymentOverlay: { template: '<div/>' },
@@ -830,10 +844,16 @@ describe('FaceBookingDetailPage — carte de suivi Face & réception (story 3.4)
     await wrapper.find('[data-testid="face-tracking-card-stub"]').trigger('click')
     expect(mockConfirmReceipt).not.toHaveBeenCalled()
 
+    // Photos de réception obligatoires (spec réception) : confirmation bloquée tant
+    // qu'aucune photo n'est jointe, puis les photos partent avec la confirmation.
+    expect(wrapper.find('[data-testid="receipt-modal-confirm"]').attributes('disabled')).toBeDefined()
+    await wrapper.find('[data-testid="select-reception-photo"]').trigger('click')
+    expect(wrapper.find('[data-testid="receipt-modal-confirm"]').attributes('disabled')).toBeUndefined()
+
     await wrapper.find('[data-testid="receipt-modal-confirm"]').trigger('click')
     await flushPromises()
 
-    expect(mockConfirmReceipt).toHaveBeenCalledWith('shipment-uuid-1')
+    expect(mockConfirmReceipt).toHaveBeenCalledWith('shipment-uuid-1', [expect.any(File)])
     expect(mockFetchBooking).toHaveBeenCalledTimes(1) // mount uniquement — pas de refetch
     expect(mockToastSuccess).toHaveBeenCalledWith('Réception confirmée — le chrono Unboxing démarre')
     expect((mockBooking.value?.shipment as Record<string, unknown>).tunnel_status).toBe('received')
@@ -848,6 +868,7 @@ describe('FaceBookingDetailPage — carte de suivi Face & réception (story 3.4)
     const wrapper = await mountPage(makeUgcBooking({ shipment: makeShipment() }))
 
     await wrapper.find('[data-testid="face-tracking-card-stub"]').trigger('click')
+    await wrapper.find('[data-testid="select-reception-photo"]').trigger('click')
     await wrapper.find('[data-testid="receipt-modal-confirm"]').trigger('click')
     await flushPromises()
 
@@ -865,6 +886,7 @@ describe('FaceBookingDetailPage — carte de suivi Face & réception (story 3.4)
     const wrapper = await mountPage(makeUgcBooking({ shipment: makeShipment() }))
 
     await wrapper.find('[data-testid="face-tracking-card-stub"]').trigger('click')
+    await wrapper.find('[data-testid="select-reception-photo"]').trigger('click')
     await wrapper.find('[data-testid="receipt-modal-confirm"]').trigger('click')
     await flushPromises()
 

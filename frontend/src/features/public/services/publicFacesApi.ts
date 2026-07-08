@@ -25,6 +25,8 @@ export interface PublicFace {
   is_available: boolean
   profile_photo_url: string | null
   profile_photo_medium_url: string | null
+  profile_photo_grid_url: string | null
+  profile_photo_large_url: string | null
   profile_photo_thumbnail_url: string | null
   average_rating: number | null
   has_elite_badge: boolean

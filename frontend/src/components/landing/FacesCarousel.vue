@@ -90,7 +90,7 @@ const countDisplay = computed((): string | null => {
             class="relative group/card aspect-[4/5] overflow-hidden rounded-2xl border border-gray-100 shadow-md hover:border-[#198496]/50 hover:shadow-2xl transition-all"
           >
             <img
-              :src="profile.profile_photo_url ?? profile.profile_photo_thumbnail_url ?? ''"
+              :src="profile.profile_photo_grid_url ?? profile.profile_photo_url ?? profile.profile_photo_thumbnail_url ?? ''"
               :alt="profile.prenom"
               class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-110"
               loading="lazy"
@@ -114,7 +114,7 @@ const countDisplay = computed((): string | null => {
             class="relative group/card aspect-[4/5] overflow-hidden rounded-2xl border border-gray-100 shadow-md hover:border-[#198496]/50 hover:shadow-2xl transition-all"
           >
             <img
-              :src="profile.profile_photo_url ?? profile.profile_photo_thumbnail_url ?? ''"
+              :src="profile.profile_photo_grid_url ?? profile.profile_photo_url ?? profile.profile_photo_thumbnail_url ?? ''"
               :alt="profile.prenom"
               class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-110"
               loading="lazy"

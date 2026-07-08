@@ -9,6 +9,7 @@ use App\Models\Face;
 use App\Models\FacePhoto;
 use App\Models\FaceVideo;
 use App\Services\FaceMediaRetentionService;
+use App\Support\ImageVariantGenerator;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Support\Facades\DB;
@@ -130,14 +131,15 @@ class PurgeExpiredMediaCommand extends Command
     {
         $disk = Storage::disk('public');
 
-        if ($photo->filename) {
-            $this->deletePathOrWarn($disk, 'avatars/faces/albums/'.$photo->filename, 'album_photo', $photo->id);
-        }
-        if ($photo->thumbnail) {
-            $this->deletePathOrWarn($disk, 'avatars/faces/albums/thumbnails/'.$photo->thumbnail, 'album_photo_thumbnail', $photo->id);
-        }
-        if ($photo->medium) {
-            $this->deletePathOrWarn($disk, 'avatars/faces/albums/medium/'.$photo->medium, 'album_photo_medium', $photo->id);
+        // Paths come from the shared catalog (ImageVariantGenerator) so a new
+        // variant never has to be remembered here again; the per-asset warning
+        // logging stays local to this retention command.
+        foreach (app(ImageVariantGenerator::class)->referencedFiles($photo) as $file) {
+            $assetKind = $file['variant'] === null
+                ? 'album_photo'
+                : 'album_photo_'.$file['variant'];
+
+            $this->deletePathOrWarn($disk, $file['path'], $assetKind, $photo->id);
         }
     }
 

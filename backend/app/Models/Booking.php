@@ -57,6 +57,7 @@ use Illuminate\Support\Facades\Auth;
  * @property-read \App\Models\BookingRating|null $raterBookingRating
  * @property-read \App\Models\Shipment|null $shipment
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Deliverable> $deliverables
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\ProductPhoto> $productPhotos
  */
 class Booking extends Model
 {
@@ -231,6 +232,18 @@ class Booking extends Model
     public function deliverables(): MorphMany
     {
         return $this->morphMany(Deliverable::class, 'owner')->orderBy('chrono_started_at');
+    }
+
+    /**
+     * Photos produit de la dotation UGC (0-2, uploadées à la création — spec
+     * photos produit). Rows sur disque PRIVÉ (colonne `disk`) : URLs signées
+     * réservées aux deux parties, minées par ProductPhotoResource.
+     *
+     * @return MorphMany<ProductPhoto, $this>
+     */
+    public function productPhotos(): MorphMany
+    {
+        return $this->morphMany(ProductPhoto::class, 'owner')->orderBy('position');
     }
 
     /**

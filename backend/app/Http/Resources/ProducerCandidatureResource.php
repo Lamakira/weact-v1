@@ -43,6 +43,7 @@ class ProducerCandidatureResource extends JsonResource
                 'id' => $this->face->uuid,
                 'display_name' => trim($this->face->prenom.' '.$this->face->nom),
                 'profile_photo_url' => $this->face->profile_photo_url,
+                'profile_photo_thumbnail_url' => $this->face->thumbnail_url,
                 'category' => $firstCategory,
                 'city' => $this->face->ville,
                 'tarif_horaire' => $this->face->tarif_horaire,

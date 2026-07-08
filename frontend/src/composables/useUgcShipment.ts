@@ -17,7 +17,7 @@ interface UseUgcShipmentReturn {
     ownerId: string,
     payload: ConfirmShipmentPayload,
   ) => Promise<Shipment | null>
-  confirmReceipt: (shipmentId: string) => Promise<Shipment | null>
+  confirmReceipt: (shipmentId: string, photos: File[]) => Promise<Shipment | null>
   clearError: () => void
 }
 
@@ -66,13 +66,16 @@ export function useUgcShipment(): UseUgcShipmentReturn {
     }
   }
 
-  /** « Produit reçu » (3.4) — même état isSubmitting/error/errorCode que confirmShipment. */
-  async function confirmReceipt(shipmentId: string): Promise<Shipment | null> {
+  /**
+   * « Produit reçu » (3.4) — même état isSubmitting/error/errorCode que confirmShipment.
+   * Les 1-2 photos de réception (spec réception) sont transmises en FormData par faceApi.
+   */
+  async function confirmReceipt(shipmentId: string, photos: File[]): Promise<Shipment | null> {
     isSubmitting.value = true
     clearError()
 
     try {
-      const response = await faceApi.confirmShipmentReceipt(shipmentId)
+      const response = await faceApi.confirmShipmentReceipt(shipmentId, photos)
       return response.data
     } catch (err) {
       error.value = getApiErrorMessage(err)

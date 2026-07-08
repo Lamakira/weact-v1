@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { User, Image as ImageIcon, Lock, X } from 'lucide-vue-next'
 
 interface Props {
   photoUrl: string | null
+  /** Original photo (HQ), loaded only on explicit request in the lightbox */
+  originalPhotoUrl?: string | null
   prenom: string
   isAvailable: boolean
   hasAlbumPhotos: boolean
@@ -11,13 +13,33 @@ interface Props {
   showAlbumLock?: boolean
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
+  originalPhotoUrl: null,
   showAlbumLock: true,
 })
 
 const emit = defineEmits<{ 'album-click': [] }>()
 
 const lightboxOpen = ref(false)
+
+// HQ on demand: the lightbox shows the (large) display photo; the original is
+// only fetched after an explicit click on « Voir l'original »
+const showOriginal = ref(false)
+
+const lightboxSrc = computed(() => {
+  return showOriginal.value && props.originalPhotoUrl ? props.originalPhotoUrl : props.photoUrl
+})
+
+// Hidden when no original is known or the display photo already IS the
+// original (legacy rows: server-side large_url falls back to the original)
+const canViewOriginal = computed(() => {
+  return !!props.originalPhotoUrl && props.originalPhotoUrl !== props.photoUrl
+})
+
+function openLightbox(): void {
+  lightboxOpen.value = true
+  showOriginal.value = false
+}
 
 function scrollToAlbum(): void {
   const el = document.getElementById('album-photos')
@@ -41,7 +63,7 @@ function scrollToAlbum(): void {
           :alt="`Photo de profil de ${prenom}`"
           class="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105 cursor-zoom-in"
           data-testid="profile-photo"
-          @click="lightboxOpen = true"
+          @click="openLightbox"
         />
       </template>
 
@@ -132,10 +154,22 @@ function scrollToAlbum(): void {
             <X :size="24" />
           </button>
           <img
-            :src="photoUrl"
+            :src="lightboxSrc ?? undefined"
             :alt="`Photo de profil de ${prenom}`"
             class="max-h-[90vh] max-w-full rounded-xl object-contain shadow-2xl"
+            data-testid="lightbox-image"
           />
+
+          <!-- HQ on demand -->
+          <button
+            v-if="!showOriginal && canViewOriginal"
+            type="button"
+            class="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20 transition-colors"
+            data-testid="lightbox-view-original"
+            @click="showOriginal = true"
+          >
+            Voir l'original
+          </button>
         </div>
       </Transition>
     </Teleport>

@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { Image, X, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import type { FacePhoto } from '../types'
+import { useHqLightbox } from '@/composables/useHqLightbox'
 
 /**
  * Props
@@ -33,11 +34,18 @@ const selectedPhoto = computed((): FacePhoto | null => {
   return props.photos[selectedIndex.value] || null
 })
 
+// HQ on demand: the lightbox shows the large variant; the original is only
+// fetched after an explicit click on « Voir l'original ». Shared src/can-view
+// rules and the showOriginal reset live in useHqLightbox.
+const { showOriginal, lightboxSrc, canViewOriginal, reset: resetHqView } =
+  useHqLightbox(selectedPhoto)
+
 /**
  * Open lightbox
  */
 function openLightbox(index: number): void {
   selectedIndex.value = index
+  resetHqView()
 }
 
 /**
@@ -45,6 +53,7 @@ function openLightbox(index: number): void {
  */
 function closeLightbox(): void {
   selectedIndex.value = null
+  resetHqView()
 }
 
 /**
@@ -54,6 +63,7 @@ function prevPhoto(): void {
   if (selectedIndex.value === null) return
   selectedIndex.value =
     selectedIndex.value > 0 ? selectedIndex.value - 1 : props.photos.length - 1
+  resetHqView()
 }
 
 /**
@@ -63,6 +73,7 @@ function nextPhoto(): void {
   if (selectedIndex.value === null) return
   selectedIndex.value =
     selectedIndex.value < props.photos.length - 1 ? selectedIndex.value + 1 : 0
+  resetHqView()
 }
 
 /**
@@ -98,9 +109,10 @@ function handleKeydown(event: KeyboardEvent): void {
         @click="openLightbox(index)"
       >
         <img
-          :src="photo.photo_url"
+          :src="photo.grid_url || photo.photo_url"
           :alt="`Photo ${index + 1}`"
           class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+          loading="lazy"
         />
         <div
           class="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/20"
@@ -138,10 +150,22 @@ function handleKeydown(event: KeyboardEvent): void {
 
         <!-- Image -->
         <img
-          :src="selectedPhoto.photo_url"
+          :src="lightboxSrc"
           :alt="`Photo ${selectedIndex! + 1}`"
           class="max-h-[85vh] max-w-[90vw] rounded-lg object-contain"
+          data-testid="lightbox-image"
         />
+
+        <!-- HQ on demand -->
+        <button
+          v-if="!showOriginal && canViewOriginal"
+          type="button"
+          class="absolute bottom-16 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-4 py-2 text-sm text-white transition-colors hover:bg-white/20"
+          data-testid="lightbox-view-original"
+          @click="showOriginal = true"
+        >
+          Voir l'original
+        </button>
 
         <!-- Navigation: Next -->
         <button

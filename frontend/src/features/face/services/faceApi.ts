@@ -550,11 +550,24 @@ export const faceApi = {
    * Endpoint owner-agnostic (binding Shipment, D-3.3.b). 200 → ShipmentResource
    * à jour (recu_le + unboxing_deadline_at) ; 422 ALREADY_RECEIVED → refetch
    * côté appelant (D-3.4.d).
+   *
+   * Spec réception : 1-2 photos du produit reçu obligatoires — envoyées en
+   * FormData multipart sous `reception_photos[]` (calque createBooking/uploadDeliverable).
    */
-  async confirmShipmentReceipt(shipmentId: string): Promise<ShipmentResponse> {
+  async confirmShipmentReceipt(shipmentId: string, photos: File[]): Promise<ShipmentResponse> {
     await getCsrfCookie()
+
+    const formData = new FormData()
+    photos.forEach((photo) => formData.append('reception_photos[]', photo))
+
     const response = await apiClient.post<ShipmentResponse>(
       `/face/shipments/${shipmentId}/confirm-receipt`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      },
     )
     return response.data
   },

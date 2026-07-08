@@ -111,10 +111,12 @@ describe('useUgcShipment', () => {
       makeShipmentResponse({ tunnel_status: 'received' }),
     )
 
+    const photos = [new File(['x'], 'reception.jpg', { type: 'image/jpeg' })]
     const { confirmReceipt, error, errorCode } = useUgcShipment()
-    const shipment = await confirmReceipt('shipment-uuid-1')
+    const shipment = await confirmReceipt('shipment-uuid-1', photos)
 
-    expect(faceApi.confirmShipmentReceipt).toHaveBeenCalledWith('shipment-uuid-1')
+    // Spec réception : les 1-2 photos sont transmises à faceApi (puis en FormData).
+    expect(faceApi.confirmShipmentReceipt).toHaveBeenCalledWith('shipment-uuid-1', photos)
     expect(shipment).toMatchObject({ id: 'shipment-uuid-1', tunnel_status: 'received' })
     expect(error.value).toBeNull()
     expect(errorCode.value).toBeNull()
@@ -131,7 +133,9 @@ describe('useUgcShipment', () => {
     const { confirmReceipt, isSubmitting } = useUgcShipment()
     expect(isSubmitting.value).toBe(false)
 
-    const pending = confirmReceipt('shipment-uuid-1')
+    const pending = confirmReceipt('shipment-uuid-1', [
+      new File(['x'], 'reception.jpg', { type: 'image/jpeg' }),
+    ])
     expect(isSubmitting.value).toBe(true)
 
     resolveRequest(makeShipmentResponse())
@@ -145,7 +149,9 @@ describe('useUgcShipment', () => {
     )
 
     const { confirmReceipt, error, errorCode } = useUgcShipment()
-    const shipment = await confirmReceipt('shipment-uuid-1')
+    const shipment = await confirmReceipt('shipment-uuid-1', [
+      new File(['x'], 'reception.jpg', { type: 'image/jpeg' }),
+    ])
 
     expect(shipment).toBeNull()
     expect(error.value).toBe('La réception de ce produit a déjà été confirmée.')
