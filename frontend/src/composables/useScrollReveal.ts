@@ -1,4 +1,4 @@
-import { onMounted, onUnmounted, onActivated, nextTick } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 
 /**
  * useScrollReveal — Applies IntersectionObserver to elements with
@@ -43,29 +43,9 @@ export function useScrollReveal(rootSelector?: string) {
     targets.forEach((el) => observer!.observe(el))
   }
 
-  /**
-   * Force every reveal target to its visible state immediately, without
-   * relying on the IntersectionObserver firing. Used on <keep-alive>
-   * re-activation: the content was already revealed before the user left, so
-   * re-playing the scroll animation (which is flaky mid page-transition and can
-   * leave an element stuck hidden) is both unnecessary and buggy.
-   */
-  function revealAll() {
-    const root = rootSelector ? document.querySelector(rootSelector) : document
-    ;(root ?? document)
-      .querySelectorAll<HTMLElement>('.reveal, .reveal-left, .reveal-right, .stagger-item')
-      .forEach((el) => el.classList.add('is-visible'))
-  }
-
   onMounted(() => {
     // Small delay so elements are in the DOM
     setTimeout(init, 50)
-  })
-
-  // Fires only for components cached by <keep-alive>. On return, show the
-  // already-seen content at once instead of re-animating it.
-  onActivated(() => {
-    void nextTick(revealAll)
   })
 
   onUnmounted(() => {

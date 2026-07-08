@@ -106,11 +106,9 @@ export function usePaginatedArticles(perPage: number = 15) {
     loadPage(currentPage.value, currentCategory.value)
   }
 
-  // Watch for URL changes and reload. Stable string key so the watch fires only
-  // on tracked-value changes, not on every route.query reference change —
-  // prevents <keep-alive> back-nav refetches (see usePaginatedFaces).
+  // Watch for URL changes and reload
   watch(
-    () => JSON.stringify([route.query.page, route.query.category]),
+    () => [route.query.page, route.query.category],
     () => {
       loadPage(currentPage.value, currentCategory.value)
     },

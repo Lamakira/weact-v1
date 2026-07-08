@@ -199,12 +199,9 @@ export function usePaginatedMissions(perPage: number = 15) {
     void router.replace({ query: nextQuery })
   }
 
-  // Watch the route query to keep URL and data in sync. Stable string key so
-  // the watch fires only on tracked-value changes, not on every route.query
-  // reference change — prevents <keep-alive> back-nav refetches (see
-  // usePaginatedFaces for the full rationale).
+  // Watch the route query to keep URL and data in sync.
   watch(
-    () => JSON.stringify(trackedQueryKeys.map((key) => route.query[key])),
+    () => trackedQueryKeys.map((key) => route.query[key]),
     () => {
       filters.value = parseFiltersFromQuery(route.query)
       void fetchMissions(currentPage.value, filters.value)

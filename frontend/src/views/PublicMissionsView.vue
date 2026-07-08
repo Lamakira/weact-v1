@@ -12,9 +12,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { getMissionTypeOptions } from '@/features/mission/types'
 import { useAuthStore } from '@/stores/auth'
 
-// Named so <keep-alive :include> in App.vue can cache this listing on back-nav.
-defineOptions({ name: 'PublicMissionsView' })
-
 const {
   missions,
   isLoading,
