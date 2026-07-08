@@ -1,0 +1,35 @@
+name: Staging source guard
+
+# Refuse toute pull request vers `staging` dont la branche source n'est pas `main`.
+# Combiné au ruleset `staging` (ce job en check OBLIGATOIRE), cela garantit que
+# seul `main` peut être mergé dans `staging` :
+#   - source = main            -> l'étape est sautée -> job vert -> merge autorisé
+#   - source != main           -> l'étape échoue     -> job rouge -> merge bloqué
+#   - branche sans ce workflow -> le check ne remonte jamais -> merge bloqué
+#     (un check obligatoire manquant empêche le merge)
+#
+# Note : pour un événement pull_request, GitHub exécute la version du workflow
+# présente sur la branche SOURCE. Ce fichier doit donc vivre sur `main` (la seule
+# source autorisée) pour s'exécuter sur les PR main -> staging.
+
+on:
+  pull_request:
+    branches: [staging]
+
+permissions:
+  contents: read
+
+jobs:
+  staging-source-guard:
+    name: staging-source-guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuser une source autre que main
+        if: github.head_ref != 'main'
+        env:
+          # Passage par une variable d'environnement (jamais interpolé directement
+          # dans le shell) pour éviter toute injection via un nom de branche piégé.
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          echo "::error::Seule la branche 'main' peut etre mergee dans 'staging'. Source de cette PR : $HEAD_REF"
+          exit 1
