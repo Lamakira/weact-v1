@@ -53,6 +53,10 @@ async function handleLogout(): Promise<void> {
     @logout="handleLogout"
   >
     <!-- Child routes render here -->
-    <router-view />
+    <router-view v-slot="{ Component }">
+      <keep-alive :include="['AdminFacesListPage', 'AdminProducersListPage', 'AdminMissionsListPage', 'AdminListPage', 'AdminArticlesListPage']">
+        <component :is="Component" />
+      </keep-alive>
+    </router-view>
   </DashboardLayout>
 </template>

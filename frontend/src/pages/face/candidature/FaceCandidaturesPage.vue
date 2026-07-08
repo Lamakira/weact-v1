@@ -20,6 +20,8 @@ import { useToast } from '@/composables/useToast'
 import type { CandidatureStatusType } from '@/features/candidature/types'
 import { CandidatureStatusLabel } from '@/features/candidature/types'
 
+defineOptions({ name: 'FaceCandidaturesPage' })
+
 /**
  * LOGIC & STATE MANAGEMENT
  */
@@ -252,7 +254,9 @@ onMounted(() => {
 
 // Watch for URL changes (browser back/forward)
 watch(
-  () => route.query,
+  // Stable key so the watch fires only on real status/page changes, not on
+  // every route.query reference change (avoids refetch on <keep-alive> return).
+  () => JSON.stringify([route.query.status, route.query.page]),
   () => {
     syncFromUrl()
   },

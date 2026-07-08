@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onActivated } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AlertCircle, RefreshCw, ClipboardList, Inbox, ArrowRight, Plus } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
@@ -9,6 +9,8 @@ import { MissionCard, DeleteMissionDialog, CloseMissionDialog, ReopenMissionDial
 import { UgcPaymentOverlay } from '@/components/ugc'
 import type { MissionStatusType } from '@/features/mission/types'
 import type { Mission } from '@/features/mission/types'
+
+defineOptions({ name: 'MissionsListPage' })
 
 /**
  * LOGIC & STATE MANAGEMENT
@@ -64,6 +66,17 @@ onMounted(async () => {
   if (typeof payId === 'string' && payId) {
     handlePayCommission(payId)
   }
+})
+
+// Keep-alive caches this page; refresh on RETURN (not first mount) so a change
+// made on a detail/child page is reflected. onMounted handles the initial load.
+let hasBeenActivated = false
+onActivated(() => {
+  if (!hasBeenActivated) {
+    hasBeenActivated = true
+    return
+  }
+  refreshMissions()
 })
 
 function navigateToPublish(): void {

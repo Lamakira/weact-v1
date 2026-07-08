@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { onMounted, onActivated, computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { Plus, ShieldCheck, AlertCircle, Loader2, Pencil, Trash2 } from 'lucide-vue-next'
 import { useAdmins } from '@/features/admin/composables/useAdmins'
 import { useAdminAuthStore } from '@/stores/adminAuth'
 import { getAdminRoleLabel, getAdminRoleColor } from '@/features/admin/utils/adminLabels'
 import { useToast } from '@/composables/useToast'
+
+defineOptions({ name: 'AdminListPage' })
 
 const router = useRouter()
 const adminAuthStore = useAdminAuthStore()
@@ -16,6 +18,17 @@ const currentAdminId = computed(() => adminAuthStore.admin?.id)
 
 onMounted(() => {
   fetchAdmins()
+})
+
+// Keep-alive caches this page; refresh on RETURN (not first mount) so a change
+// made on a detail/child page is reflected. onMounted handles the initial load.
+let hasBeenActivated = false
+onActivated(() => {
+  if (!hasBeenActivated) {
+    hasBeenActivated = true
+    return
+  }
+  fetchAdmins(currentPage.value)
 })
 
 const hasAdmins = computed(() => admins.value.length > 0)

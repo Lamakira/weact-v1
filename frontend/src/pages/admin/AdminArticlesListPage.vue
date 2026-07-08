@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
+import { onMounted, onActivated, onUnmounted, computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, FileText, AlertCircle, Loader2, X, Plus, Pencil, Trash2 } from 'lucide-vue-next'
 import { useAdminArticles } from '@/features/admin/composables/useAdminArticles'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
+
+defineOptions({ name: 'AdminArticlesListPage' })
 
 const router = useRouter()
 const { articles, pagination, isLoading, error, fetchArticles, toggleStatus, deleteArticle } =
@@ -40,6 +42,17 @@ function loadArticles(page: number = 1): void {
 
 onMounted(() => {
   loadArticles()
+})
+
+// Keep-alive caches this page; refresh on RETURN (not first mount) so a change
+// made on a detail/child page is reflected. onMounted handles the initial load.
+let hasBeenActivated = false
+onActivated(() => {
+  if (!hasBeenActivated) {
+    hasBeenActivated = true
+    return
+  }
+  loadArticles(currentPage.value)
 })
 
 onUnmounted(() => {

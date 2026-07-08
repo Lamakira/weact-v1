@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
+import { onMounted, onActivated, onUnmounted, computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, Users, AlertCircle, Loader2, X, Crown } from 'lucide-vue-next'
 import { useAdminFaces } from '@/features/admin/composables/useAdminFaces'
 import { getCategoryColor } from '@/features/admin/utils/faceLabels'
+
+defineOptions({ name: 'AdminFacesListPage' })
 
 const router = useRouter()
 const { faces, pagination, isLoading, error, fetchFaces } = useAdminFaces()
@@ -31,6 +33,17 @@ function loadFaces(page: number = 1) {
 
 onMounted(() => {
   loadFaces()
+})
+
+// Keep-alive caches this page; refresh on RETURN (not first mount) so a change
+// made on a detail/child page is reflected. onMounted handles the initial load.
+let hasBeenActivated = false
+onActivated(() => {
+  if (!hasBeenActivated) {
+    hasBeenActivated = true
+    return
+  }
+  loadFaces(currentPage.value)
 })
 
 onUnmounted(() => {

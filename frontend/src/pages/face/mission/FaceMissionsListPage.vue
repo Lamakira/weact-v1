@@ -14,6 +14,8 @@ import { useFaceMissions, useMissionFilters } from '@/features/mission/composabl
 import { AvailableMissionCard, MissionFiltersPanel } from '@/features/mission/components'
 import { UgcDiscoveryBanner } from '@/components/ugc'
 
+defineOptions({ name: 'FaceMissionsListPage' })
+
 /**
  * LOGIC & STATE MANAGEMENT
  */

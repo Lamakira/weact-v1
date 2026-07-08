@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, watch } from 'vue'
+import { onMounted, onActivated, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Loader2,
@@ -12,6 +12,8 @@ import { useBookingsList } from '@/features/booking/composables'
 import { BookingCard, BookingStatusFilter } from '@/features/booking/components'
 import type { BookingFilterStatus } from '@/features/booking/types'
 import { BookingFilterLabel } from '@/features/booking/types'
+
+defineOptions({ name: 'ProducerBookingsListPage' })
 
 const route = useRoute()
 const router = useRouter()
@@ -108,6 +110,17 @@ function goToFacesList(): void {
 
 onMounted(() => {
   syncFromUrl()
+})
+
+// Keep-alive caches this page; refresh on RETURN (not first mount) so a change
+// made on a detail/child page is reflected. onMounted handles the initial load.
+let hasBeenActivated = false
+onActivated(() => {
+  if (!hasBeenActivated) {
+    hasBeenActivated = true
+    return
+  }
+  fetchBookings(currentPage.value)
 })
 
 watch(

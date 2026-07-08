@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
+import { onMounted, onActivated, onUnmounted, computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, Users, AlertCircle, Loader2, X } from 'lucide-vue-next'
 import { useAdminProducers } from '@/features/admin/composables/useAdminProducers'
 import { getProducerTypeLabel, getProducerTypeColor } from '@/features/admin/utils/producerLabels'
+
+defineOptions({ name: 'AdminProducersListPage' })
 
 const router = useRouter()
 const { producers, pagination, isLoading, error, fetchProducers } = useAdminProducers()
@@ -29,6 +31,17 @@ function loadProducers(page: number = 1) {
 
 onMounted(() => {
   loadProducers()
+})
+
+// Keep-alive caches this page; refresh on RETURN (not first mount) so a change
+// made on a detail/child page is reflected. onMounted handles the initial load.
+let hasBeenActivated = false
+onActivated(() => {
+  if (!hasBeenActivated) {
+    hasBeenActivated = true
+    return
+  }
+  loadProducers(currentPage.value)
 })
 
 onUnmounted(() => {

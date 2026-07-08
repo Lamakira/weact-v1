@@ -13,6 +13,8 @@ import { BookingCard, BookingStatusFilter } from '@/features/booking/components'
 import type { BookingFilterStatus } from '@/features/booking/types'
 import { BookingFilterLabel } from '@/features/booking/types'
 
+defineOptions({ name: 'FaceBookingsListPage' })
+
 const route = useRoute()
 const router = useRouter()
 
@@ -111,7 +113,9 @@ onMounted(() => {
 })
 
 watch(
-  () => route.query,
+  // Stable key so the watch fires only on real status/page changes, not on
+  // every route.query reference change (avoids refetch on <keep-alive> return).
+  () => JSON.stringify([route.query.status, route.query.page]),
   () => {
     if (skipNextWatch) {
       skipNextWatch = false

@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
+import { onMounted, onActivated, onUnmounted, computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, Briefcase, AlertCircle, Loader2, X } from 'lucide-vue-next'
 import { useAdminMissions } from '@/features/admin/composables/useAdminMissions'
+
+defineOptions({ name: 'AdminMissionsListPage' })
 
 const router = useRouter()
 const { missions, pagination, isLoading, error, fetchMissions } = useAdminMissions()
@@ -30,6 +32,17 @@ function loadMissions(page: number = 1) {
 
 onMounted(() => {
   loadMissions()
+})
+
+// Keep-alive caches this page; refresh on RETURN (not first mount) so a change
+// made on a detail/child page is reflected. onMounted handles the initial load.
+let hasBeenActivated = false
+onActivated(() => {
+  if (!hasBeenActivated) {
+    hasBeenActivated = true
+    return
+  }
+  loadMissions(currentPage.value)
 })
 
 onUnmounted(() => {

@@ -122,6 +122,10 @@ async function handleLogout(): Promise<void> {
     />
 
     <!-- Child routes render here -->
-    <router-view />
+    <router-view v-slot="{ Component }">
+      <keep-alive :include="['FaceMissionsListPage', 'FaceUgcMissionsListPage', 'FaceCandidaturesPage', 'FaceBookingsListPage']">
+        <component :is="Component" />
+      </keep-alive>
+    </router-view>
   </DashboardLayout>
 </template>

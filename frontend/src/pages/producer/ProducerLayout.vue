@@ -85,7 +85,7 @@ async function handleLogout(): Promise<void> {
     <router-view v-slot="{ Component }">
       <!-- Cache the faces listing (Groupe A) so back-nav from a profile
            restores the grid + scroll instead of remounting + refetching. -->
-      <keep-alive :include="['ProducerFacesListPage']">
+      <keep-alive :include="['ProducerFacesListPage', 'MissionsListPage', 'ProducerBookingsListPage']">
         <component :is="Component" />
       </keep-alive>
     </router-view>
