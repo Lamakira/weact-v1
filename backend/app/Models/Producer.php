@@ -28,6 +28,7 @@ use Illuminate\Support\Str;
  * @property string|null $last_name
  * @property string|null $bio
  * @property string|null $slug
+ * @property-read User|null $user
  * @property-read string $display_name
  * @property-read string|null $profile_photo_url
  * @property-read string|null $thumbnail_url

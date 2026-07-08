@@ -16,6 +16,7 @@ use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
 use App\Services\Ugc\UgcCommissionService;
+use App\Services\Ugc\UgcMediaCleanupService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -25,6 +26,7 @@ class MissionService
         private readonly MissionPaymentService $missionPaymentService,
         private readonly UgcCommissionService $ugcCommissionService,
         private readonly ProductPhotoService $productPhotoService,
+        private readonly UgcMediaCleanupService $ugcMediaCleanupService,
     ) {}
 
     /**
@@ -186,9 +188,12 @@ class MissionService
     public function deleteMission(Mission $mission): void
     {
         $this->cancelActiveCandidatesOnDelete($mission);
-        // Photos produit : fichiers (catalogue partagé) + rows AVANT le hard-delete —
-        // les colonnes morph n'ont pas de FK cascade (spec photos produit).
-        $this->productPhotoService->detachAll($mission);
+        // Médias UGC : fichiers + rows AVANT le hard-delete — les tables enfants
+        // morph (product_photos, shipments, deliverables) n'ont pas de FK cascade.
+        // Couvre les product_photos de la mission ET, pour chaque candidature, son
+        // shipment (+ photos de réception) et ses livrables (le trou historique de
+        // detachAll, qui n'atteignait que les product_photos de la mission).
+        $this->ugcMediaCleanupService->purgeForMission($mission);
         $mission->delete();
     }
 

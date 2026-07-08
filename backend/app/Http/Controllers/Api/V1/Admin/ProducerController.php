@@ -11,6 +11,7 @@ use App\Http\Requests\Admin\UpdateAdminProducerRequest;
 use App\Http\Resources\ProducerResource;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\Ugc\UgcMediaCleanupService;
 use App\Support\Sql;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -155,6 +156,12 @@ class ProducerController extends Controller
         }
 
         DB::transaction(function () use ($producer) {
+            // Médias UGC (bookings du Producteur + product_photos publiques de
+            // mission + tout le sous-arbre candidatures) : fichiers + rows AVANT la
+            // cascade. Chemin admin qui contourne deleteMission — les tables enfants
+            // morph n'ont pas de FK (orphelinage disque public + DB sinon).
+            app(UgcMediaCleanupService::class)->purgeForProducerUser($producer->user);
+
             /** @var User|null $user */
             $user = $producer->user;
 

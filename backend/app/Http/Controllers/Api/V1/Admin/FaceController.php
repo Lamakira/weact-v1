@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateAdminFaceRequest;
 use App\Http\Resources\FaceResource;
 use App\Models\Face;
+use App\Services\Ugc\UgcMediaCleanupService;
 use App\Support\Sql;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -141,6 +142,11 @@ class FaceController extends Controller
         }
 
         DB::transaction(function () use ($face) {
+            // Médias UGC (bookings de la Face + shipments/livrables/photos de
+            // réception des candidatures) : fichiers + rows AVANT la cascade — les
+            // tables enfants morph n'ont pas de FK (orphelinage disque + DB sinon).
+            app(UgcMediaCleanupService::class)->purgeForFaceUser($face->user);
+
             // Delete associated user first
             $face->user?->tokens()->delete();
             $face->user?->delete();
