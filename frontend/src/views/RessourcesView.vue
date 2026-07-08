@@ -4,6 +4,9 @@ import { usePaginatedArticles } from '@/features/public/composables/usePaginated
 import { Pagination } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
 
+// Named so <keep-alive :include> in App.vue can cache this listing on back-nav.
+defineOptions({ name: 'RessourcesView' })
+
 const {
   articles,
   isLoading,

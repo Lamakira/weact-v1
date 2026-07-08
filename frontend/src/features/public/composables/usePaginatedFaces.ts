@@ -147,9 +147,14 @@ export function usePaginatedFaces(perPage: number = 15) {
     loadPage(currentPage.value)
   }
 
-  // Watch for URL changes (page or filters) and reload data
+  // Watch for URL changes (page or filters) and reload data.
+  // Stable string key (not a fresh array) so the watch fires only when the
+  // tracked query VALUES change — not on every route.query reference change.
+  // Without this, a <keep-alive>-cached instance refetches on back-navigation
+  // whenever an unrelated param is added/removed (e.g. the profile's ?returnTo),
+  // which re-creates the grid and defeats the cache.
   watch(
-    () => [route.query.page, route.query.categorie, route.query.niche, route.query.ville, route.query.search],
+    () => JSON.stringify([route.query.page, route.query.categorie, route.query.niche, route.query.ville, route.query.search]),
     () => {
       loadPage(currentPage.value)
     }
