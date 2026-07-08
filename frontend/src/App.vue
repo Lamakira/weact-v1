@@ -111,12 +111,7 @@ const isLandingPage = computed(() => {
       <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
         <RouterView v-slot="{ Component }">
           <Transition name="page" mode="out-in">
-            <!-- Cache the browse-and-return listings (Groupe A) so the back
-                 button restores the grid + scroll instead of remounting and
-                 re-fetching (skeleton). Read-only detail pages, so no staleness. -->
-            <keep-alive :include="['PublicFacesView', 'PublicMissionsView', 'RessourcesView']">
-              <component :is="Component" :key="route.path" />
-            </keep-alive>
+            <component :is="Component" :key="route.path" />
           </Transition>
         </RouterView>
       </main>

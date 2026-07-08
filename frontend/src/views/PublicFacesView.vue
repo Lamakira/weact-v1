@@ -10,10 +10,6 @@ import { Pagination } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useScrollReveal } from '@/composables/useScrollReveal'
 
-// Named so <keep-alive :include> in App.vue can cache this listing across
-// back-navigation (browse → profile → back) instead of remounting + refetching.
-defineOptions({ name: 'PublicFacesView' })
-
 const { reinit } = useScrollReveal()
 
 // 16 items per page = full grid rows (4×4 desktop, 8×2 mobile, commit
