@@ -5,14 +5,21 @@ declare(strict_types=1);
 namespace Tests\Feature\Admin;
 
 use App\Enums\CandidatureStatus;
+use App\Enums\EscrowStatus;
 use App\Enums\FaceCategory;
+use App\Enums\MissionPaymentStatus;
+use App\Enums\MissionStatus;
 use App\Models\Admin;
+use App\Models\Booking;
 use App\Models\Candidature;
+use App\Models\EscrowTransaction;
 use App\Models\Experience;
 use App\Models\Face;
 use App\Models\FacePhoto;
 use App\Models\FaceSubscription;
 use App\Models\Mission;
+use App\Models\MissionPayment;
+use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -445,6 +452,114 @@ class AdminFaceCrudTest extends TestCase
 
         $response->assertOk();
         $this->assertDatabaseMissing('faces', ['id' => $face->id]);
+    }
+
+    // ─── DESTROY : GARDE ESCROW (spec-admin-delete-escrow-guard) ──
+
+    public function test_delete_blocked_by_locked_candidature_escrow(): void
+    {
+        // Candidature terminale (Completed) — la garde candidatures-actives est
+        // silencieuse — mais son escrow est resté Locked à tort. Seule la garde
+        // escrow doit bloquer : c'est exactement la classe de bug ciblée.
+        $face = Face::factory()->create();
+        User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+        $producer = Producer::factory()->create();
+        $mission = Mission::factory()->create([
+            'producer_id' => $producer->id,
+            'status' => MissionStatus::Closed,
+        ]);
+        $candidature = Candidature::factory()->create([
+            'face_id' => $face->id,
+            'mission_id' => $mission->id,
+            'status' => CandidatureStatus::Completed,
+        ]);
+
+        $payment = MissionPayment::create([
+            'mission_id' => $mission->id,
+            'producer_id' => $producer->id,
+            'nombre_faces_retenues' => 1,
+            'budget_par_face' => 100000,
+            'montant_sous_total' => 100000,
+            'commission_producteur' => 10000,
+            'montant_total_producteur' => 110000,
+            'commission_faces_total' => 10000,
+            'montant_total_faces' => 90000,
+            'status' => MissionPaymentStatus::Paid,
+            'paid_at' => now(),
+        ]);
+        MissionPaymentCandidature::create([
+            'mission_payment_id' => $payment->id,
+            'candidature_id' => $candidature->id,
+            'face_id' => $face->id,
+            'montant_face_recoit' => 90000,
+            'escrow_status' => EscrowStatus::Locked,
+            'locked_at' => now(),
+        ]);
+
+        $response = $this->withToken($this->adminToken)
+            ->deleteJson("/api/v1/admin/faces/{$face->uuid}");
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'locked_escrow')
+            ->assertJsonPath('error.message', 'Impossible de supprimer ce profil : des fonds sont encore bloqués en séquestre. Dénouez le(s) deal(s) concerné(s) avant suppression.');
+
+        // Lecture pure : rien n'a bougé.
+        $this->assertDatabaseHas('faces', ['id' => $face->id]);
+        $this->assertDatabaseHas('mission_payment_candidatures', [
+            'candidature_id' => $candidature->id,
+            'escrow_status' => EscrowStatus::Locked->value,
+        ]);
+    }
+
+    public function test_delete_blocked_by_locked_booking_escrow(): void
+    {
+        $face = Face::factory()->create();
+        $faceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+        $booking = Booking::factory()->create(['face_id' => $faceUser->id]);
+        EscrowTransaction::factory()->create([
+            'booking_id' => $booking->id,
+            'status' => EscrowStatus::Locked->value,
+        ]);
+
+        $response = $this->withToken($this->adminToken)
+            ->deleteJson("/api/v1/admin/faces/{$face->uuid}");
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'locked_escrow');
+
+        $this->assertDatabaseHas('faces', ['id' => $face->id]);
+        $this->assertDatabaseHas('escrow_transactions', [
+            'booking_id' => $booking->id,
+            'status' => EscrowStatus::Locked->value,
+        ]);
+    }
+
+    public function test_delete_allowed_when_booking_escrow_released(): void
+    {
+        // Escrow présent mais Released (déjà dénoué) : la garde escrow ne doit PAS
+        // bloquer — elle ne remonte que du Locked. La suppression procède.
+        $face = Face::factory()->create();
+        $faceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+        $booking = Booking::factory()->create(['face_id' => $faceUser->id]);
+        EscrowTransaction::factory()->released()->create(['booking_id' => $booking->id]);
+
+        $response = $this->withToken($this->adminToken)
+            ->deleteJson("/api/v1/admin/faces/{$face->uuid}");
+
+        $response->assertOk()
+            ->assertJsonPath('message', 'Profil Face supprimé avec succès');
+
+        $this->assertDatabaseMissing('faces', ['id' => $face->id]);
+        $this->assertDatabaseMissing('users', ['id' => $faceUser->id]);
     }
 
     // ─── AUTH GUARDS ──────────────────────────────────────────────
