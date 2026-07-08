@@ -13,6 +13,9 @@ import FilterBar from '@/features/public/components/FilterBar.vue'
 import { Pagination } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
 
+// Named so <keep-alive :include> in ProducerLayout can cache this listing on back-nav.
+defineOptions({ name: 'ProducerFacesListPage' })
+
 const {
   faces,
   isLoading,
