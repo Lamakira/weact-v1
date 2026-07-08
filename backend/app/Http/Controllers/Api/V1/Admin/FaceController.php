@@ -10,6 +10,7 @@ use App\Http\Requests\Admin\UpdateAdminFaceRequest;
 use App\Http\Resources\FaceResource;
 use App\Models\Face;
 use App\Services\Ugc\UgcMediaCleanupService;
+use App\Support\LockedEscrowGuard;
 use App\Support\Sql;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -122,6 +123,20 @@ class FaceController extends Controller
      */
     public function destroy(Face $face): JsonResponse
     {
+        // Garde escrow (lecture pure, en amont) : refuser tant que des fonds sont
+        // réellement bloqués en séquestre (candidature OU booking hybride). Rendre
+        // l'invariant explicite — un escrow resté `Locked` à tort sur un statut
+        // terminal passerait au travers de la garde candidatures-actives ci-dessous
+        // et l'argent disparaîtrait à la cascade. Aucun mouvement d'argent ici.
+        if (LockedEscrowGuard::forFace($face)) {
+            return response()->json([
+                'error' => [
+                    'code' => 'locked_escrow',
+                    'message' => 'Impossible de supprimer ce profil : des fonds sont encore bloqués en séquestre. Dénouez le(s) deal(s) concerné(s) avant suppression.',
+                ],
+            ], 422);
+        }
+
         // Check for active candidatures
         $activeCandidatures = $face->candidatures()
             ->whereIn('status', [

@@ -5,12 +5,18 @@ declare(strict_types=1);
 namespace Tests\Feature\Admin;
 
 use App\Enums\CandidatureStatus;
+use App\Enums\EscrowStatus;
+use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Enums\ProducerType;
 use App\Models\Admin;
+use App\Models\Booking;
 use App\Models\Candidature;
+use App\Models\EscrowTransaction;
 use App\Models\Face;
 use App\Models\Mission;
+use App\Models\MissionPayment;
+use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -325,6 +331,112 @@ class AdminProducerCrudTest extends TestCase
 
         $response->assertOk();
         $this->assertDatabaseMissing('producers', ['id' => $producer->id]);
+    }
+
+    // ─── DESTROY : GARDE ESCROW (spec-admin-delete-escrow-guard) ──
+
+    public function test_delete_blocked_by_locked_candidature_escrow(): void
+    {
+        // Mission fermée + candidature terminale (Completed) : les gardes existantes
+        // sont silencieuses, seul l'escrow resté Locked à tort doit bloquer.
+        $producer = Producer::factory()->create();
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+        $mission = Mission::factory()->create([
+            'producer_id' => $producer->id,
+            'status' => MissionStatus::Closed,
+        ]);
+        $face = Face::factory()->create();
+        $candidature = Candidature::factory()->create([
+            'face_id' => $face->id,
+            'mission_id' => $mission->id,
+            'status' => CandidatureStatus::Completed,
+        ]);
+
+        $payment = MissionPayment::create([
+            'mission_id' => $mission->id,
+            'producer_id' => $producer->id,
+            'nombre_faces_retenues' => 1,
+            'budget_par_face' => 100000,
+            'montant_sous_total' => 100000,
+            'commission_producteur' => 10000,
+            'montant_total_producteur' => 110000,
+            'commission_faces_total' => 10000,
+            'montant_total_faces' => 90000,
+            'status' => MissionPaymentStatus::Paid,
+            'paid_at' => now(),
+        ]);
+        MissionPaymentCandidature::create([
+            'mission_payment_id' => $payment->id,
+            'candidature_id' => $candidature->id,
+            'face_id' => $face->id,
+            'montant_face_recoit' => 90000,
+            'escrow_status' => EscrowStatus::Locked,
+            'locked_at' => now(),
+        ]);
+
+        $response = $this->withToken($this->adminToken)
+            ->deleteJson("/api/v1/admin/producers/{$producer->uuid}");
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'locked_escrow')
+            ->assertJsonPath('error.message', 'Impossible de supprimer ce producteur : des fonds sont encore bloqués en séquestre. Dénouez le(s) deal(s) concerné(s) avant suppression.');
+
+        $this->assertDatabaseHas('producers', ['id' => $producer->id]);
+        $this->assertDatabaseHas('mission_payment_candidatures', [
+            'candidature_id' => $candidature->id,
+            'escrow_status' => EscrowStatus::Locked->value,
+        ]);
+    }
+
+    public function test_delete_blocked_by_locked_booking_escrow(): void
+    {
+        $producer = Producer::factory()->create();
+        $producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+        $booking = Booking::factory()->create(['producer_id' => $producerUser->id]);
+        EscrowTransaction::factory()->create([
+            'booking_id' => $booking->id,
+            'status' => EscrowStatus::Locked->value,
+        ]);
+
+        $response = $this->withToken($this->adminToken)
+            ->deleteJson("/api/v1/admin/producers/{$producer->uuid}");
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'locked_escrow');
+
+        $this->assertDatabaseHas('producers', ['id' => $producer->id]);
+        $this->assertDatabaseHas('escrow_transactions', [
+            'booking_id' => $booking->id,
+            'status' => EscrowStatus::Locked->value,
+        ]);
+    }
+
+    public function test_delete_allowed_when_booking_escrow_released(): void
+    {
+        // Escrow Released (déjà dénoué) : la garde ne remonte que du Locked, la
+        // suppression procède.
+        $producer = Producer::factory()->create();
+        $producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+        $booking = Booking::factory()->create(['producer_id' => $producerUser->id]);
+        EscrowTransaction::factory()->released()->create(['booking_id' => $booking->id]);
+
+        $response = $this->withToken($this->adminToken)
+            ->deleteJson("/api/v1/admin/producers/{$producer->uuid}");
+
+        $response->assertOk()
+            ->assertJsonPath('message', 'Profil Producteur supprimé avec succès');
+
+        $this->assertDatabaseMissing('producers', ['id' => $producer->id]);
+        $this->assertDatabaseMissing('users', ['id' => $producerUser->id]);
     }
 
     // ─── SHOW DETAIL (Story 13-7) ────────────────────────────────
