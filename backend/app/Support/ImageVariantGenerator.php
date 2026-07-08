@@ -7,6 +7,7 @@ namespace App\Support;
 use App\Models\Face;
 use App\Models\FacePhoto;
 use App\Models\Producer;
+use App\Models\ProductPhoto;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Intervention\Image\Interfaces\ImageInterface;
@@ -29,6 +30,17 @@ class ImageVariantGenerator
 {
     public const DISK = 'public';
 
+    /**
+     * Disque de stockage par-modèle : les entités historiques (avatars, album)
+     * restent sur `public` ; ProductPhoto porte SA colonne `disk` (posée à la
+     * création — `public` pour une Mission, disque UGC privé pour un Booking).
+     * generate()/deleteFiles() lisent ce résolveur, jamais la constante seule.
+     */
+    public static function diskFor(Face|Producer|FacePhoto|ProductPhoto $model): string
+    {
+        return $model instanceof ProductPhoto ? $model->disk : self::DISK;
+    }
+
     private const THUMBNAIL_SIZE = 150;
 
     private const MEDIUM_WIDTH = 800;
@@ -47,10 +59,10 @@ class ImageVariantGenerator
      *
      * @return array{generated: list<string>, skipped: list<string>, missing_source: bool}
      */
-    public function generate(Face|Producer|FacePhoto $model, bool $dryRun = false): array
+    public function generate(Face|Producer|FacePhoto|ProductPhoto $model, bool $dryRun = false): array
     {
         $config = self::layoutFor($model);
-        $disk = Storage::disk(self::DISK);
+        $disk = Storage::disk(self::diskFor($model));
 
         $originalFilename = $model->getAttribute($config['original_column']);
 
@@ -184,9 +196,9 @@ class ImageVariantGenerator
      * The single delete counterpart to generate(): both derive their paths from
      * configFor(), so the three photo services never re-hardcode the layout.
      */
-    public function deleteFiles(Face|Producer|FacePhoto $model): bool
+    public function deleteFiles(Face|Producer|FacePhoto|ProductPhoto $model): bool
     {
-        $disk = Storage::disk(self::DISK);
+        $disk = Storage::disk(self::diskFor($model));
         $deletedAny = false;
 
         foreach ($this->referencedFiles($model) as $file) {
@@ -209,7 +221,7 @@ class ImageVariantGenerator
      *
      * @return list<array{path: string, variant: string|null}>
      */
-    public function referencedFiles(Face|Producer|FacePhoto $model): array
+    public function referencedFiles(Face|Producer|FacePhoto|ProductPhoto $model): array
     {
         $config = self::layoutFor($model);
 
@@ -259,9 +271,21 @@ class ImageVariantGenerator
      *
      * @return array{dir: string, original_column: string, variants: array<string, array{column: string, dir: string, width: int, height?: int, format: string, quality: int}>}
      */
-    public static function layoutFor(Face|Producer|FacePhoto $model): array
+    public static function layoutFor(Face|Producer|FacePhoto|ProductPhoto $model): array
     {
         return match (true) {
+            // Photos produit UGC : grid 400 + large 1600 WebP SEULEMENT (vignettes
+            // détail + lightbox, pas des avatars — ni thumbnail 150 ni medium 800).
+            // Même layout relatif sur les deux disques (diskFor résout `public`
+            // vs disque UGC privé selon la row).
+            $model instanceof ProductPhoto => [
+                'dir' => 'products',
+                'original_column' => 'filename',
+                'variants' => [
+                    'grid' => ['column' => 'grid', 'dir' => 'products/grid', 'width' => self::GRID_WIDTH, 'format' => 'webp', 'quality' => self::QUALITY],
+                    'large' => ['column' => 'large', 'dir' => 'products/large', 'width' => self::LARGE_WIDTH, 'format' => 'webp', 'quality' => self::LARGE_QUALITY],
+                ],
+            ],
             $model instanceof Face => [
                 'dir' => 'avatars/faces',
                 'original_column' => 'profile_photo',

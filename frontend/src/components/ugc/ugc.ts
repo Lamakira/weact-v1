@@ -78,6 +78,10 @@ export interface Shipment {
     ville: string | null
     pays: string | null
   }
+  /** Photos de réception (preuve « produit reçu » uploadée par la Face — spec réception).
+   *  URLs signées (disque privé). Absente/vide pour les shipments pré-deploy — les UI
+   *  tolèrent l'absence (aucune section vide). */
+  reception_photos?: ProductPhoto[]
   created_at: string
 }
 
@@ -100,6 +104,21 @@ export interface UgcUploadProgress {
   loaded: number
   total: number
   percentage: number
+}
+
+/**
+ * Photo produit d'une dotation UGC — miroir de ProductPhotoResource (spec
+ * photos produit). URLs disk-aware côté serveur : mission = asset public
+ * direct ; booking = URL signée TTL court. `grid_url`/`large_url` retombent
+ * sur l'original tant que les variantes ne sont pas générées — le shape
+ * satisfait HqLightboxPhoto (useHqLightbox).
+ */
+export interface ProductPhoto {
+  id: string
+  position: number
+  photo_url: string | null
+  grid_url: string | null
+  large_url: string | null
 }
 
 /**

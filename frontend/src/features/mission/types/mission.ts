@@ -2,7 +2,7 @@
  * Mission feature types
  */
 
-import type { Deliverable, Shipment } from '@/components/ugc'
+import type { Deliverable, ProductPhoto, Shipment } from '@/components/ugc'
 
 // Mission status enum
 export const MissionStatus = {
@@ -115,6 +115,9 @@ export interface Mission {
   is_accepting_candidatures: boolean
   has_paid_payment: boolean
   candidatures_count?: number
+  // Photos produit UGC (spec photos produit, `whenLoaded`) — clé OMISE sur les
+  // listes, chargée sur les détails. URLs publiques directes (disque public).
+  product_photos?: ProductPhoto[]
   producer?: MissionProducer
   created_at: string
   updated_at: string
@@ -140,6 +143,9 @@ export interface CreateMissionData {
   valeur_produit?: number
   nombre_videos?: number
   montant_remuneration?: number
+  // Photos produit (0-2, facultatives, création seulement) — leur présence
+  // bascule l'envoi en FormData
+  product_photos?: File[]
 }
 
 // Candidature data (minimal version for mission detail response)

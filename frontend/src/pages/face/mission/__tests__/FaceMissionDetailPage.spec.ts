@@ -1096,9 +1096,23 @@ describe('FaceMissionDetailPage', () => {
               </div>`,
             },
             ConfirmModal: {
-              props: ['isOpen'],
+              props: ['isOpen', 'confirmDisabled'],
               emits: ['confirm', 'cancel'],
-              template: '<button v-if="isOpen" data-testid="receipt-modal-confirm" @click="$emit(\'confirm\')"/>',
+              // Rend le slot (sélecteur de photos de réception) + reflète confirmDisabled.
+              template: `<div v-if="isOpen">
+                <slot />
+                <button data-testid="receipt-modal-confirm" :disabled="confirmDisabled" @click="$emit('confirm')"></button>
+              </div>`,
+            },
+            ProductPhotosUpload: {
+              props: ['modelValue', 'maxPhotos', 'title', 'hint'],
+              emits: ['update:modelValue'],
+              methods: {
+                selectPhoto() {
+                  this.$emit('update:modelValue', [new File(['x'], 'reception.jpg', { type: 'image/jpeg' })])
+                },
+              },
+              template: '<button data-testid="select-reception-photo" @click="selectPhoto"></button>',
             },
             RouterLink: {
               template: '<a><slot /></a>',
@@ -1157,10 +1171,15 @@ describe('FaceMissionDetailPage', () => {
       await wrapper.find('[data-testid="face-tracking-card-stub"]').trigger('click')
       expect(mockConfirmReceipt).not.toHaveBeenCalled()
 
+      // Photos de réception obligatoires (spec réception) : confirmation bloquée sans photo.
+      expect(wrapper.find('[data-testid="receipt-modal-confirm"]').attributes('disabled')).toBeDefined()
+      await wrapper.find('[data-testid="select-reception-photo"]').trigger('click')
+      expect(wrapper.find('[data-testid="receipt-modal-confirm"]').attributes('disabled')).toBeUndefined()
+
       await wrapper.find('[data-testid="receipt-modal-confirm"]').trigger('click')
       await flushPromises()
 
-      expect(mockConfirmReceipt).toHaveBeenCalledWith('shipment-uuid-1')
+      expect(mockConfirmReceipt).toHaveBeenCalledWith('shipment-uuid-1', [expect.any(File)])
       // Assignation locale via le setter existant — pas de refetch (D-3.4.d).
       expect(mockSetCandidature).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'candidature-1', shipment: receivedShipment }),
@@ -1185,6 +1204,7 @@ describe('FaceMissionDetailPage', () => {
       mockFetchMission.mockClear()
 
       await wrapper.find('[data-testid="face-tracking-card-stub"]').trigger('click')
+      await wrapper.find('[data-testid="select-reception-photo"]').trigger('click')
       await wrapper.find('[data-testid="receipt-modal-confirm"]').trigger('click')
       await flushPromises()
 
@@ -1209,6 +1229,7 @@ describe('FaceMissionDetailPage', () => {
       mockFetchMission.mockClear()
 
       await wrapper.find('[data-testid="face-tracking-card-stub"]').trigger('click')
+      await wrapper.find('[data-testid="select-reception-photo"]').trigger('click')
       await wrapper.find('[data-testid="receipt-modal-confirm"]').trigger('click')
       await flushPromises()
 

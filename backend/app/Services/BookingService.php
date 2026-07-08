@@ -42,6 +42,7 @@ class BookingService
         private readonly FaceEntitlementService $faceEntitlementService,
         private readonly UgcCommissionService $ugcCommissionService,
         private readonly UgcRefundService $ugcRefundService,
+        private readonly ProductPhotoService $productPhotoService,
     ) {}
 
     /**
@@ -159,28 +160,59 @@ class BookingService
             $montantFaceRecoit = 0;
         }
 
-        return Booking::create([
-            'face_id' => $faceUser->id,
-            'producer_id' => $producer->id,
-            'status' => BookingStatus::Pending,
-            // UGC dotations have no shoot date/duration/location — never persist them, even
-            // if a client sends them (the form omits them; this enforces the invariant server-side).
-            'date_debut' => null,
-            'date_fin' => null,
-            'duree_heures' => null,
-            'type_contenu' => 'UGC',
-            'lieu' => null,
-            'message' => $data['message'] ?? null,
-            'tarif_base' => 0,                                    // D-1.1.b : pas de tarif horaire
-            'montant_face_recoit' => $montantFaceRecoit,          // net Face (0 si produit seul)
-            'montant_total_producteur' => $montantTotalProducteur,
-            'type_compensation' => $compensation,
-            'nom_produit' => $data['nom_produit'],
-            'valeur_produit' => $valeurProduit,
-            'nombre_videos' => $nombreVideos,
-            'montant_remuneration' => $isHybrid ? $montantRemuneration : null,
-            'commission_ugc' => $commission,
-        ]);
+        // Photos produit (spec photos produit) : création + stockage originaux + rows
+        // en transaction — sur throw, ProductPhotoService nettoie les fichiers écrits
+        // et le booking est rollbacké. Jobs de variantes afterCommit.
+        /** @var list<\Illuminate\Http\UploadedFile> $productPhotos */
+        $productPhotos = $data['product_photos'] ?? [];
+
+        return DB::transaction(function () use (
+            $producer,
+            $faceUser,
+            $data,
+            $compensation,
+            $valeurProduit,
+            $nombreVideos,
+            $isHybrid,
+            $montantRemuneration,
+            $commission,
+            $montantTotalProducteur,
+            $montantFaceRecoit,
+            $productPhotos,
+        ): Booking {
+            $booking = Booking::create([
+                'face_id' => $faceUser->id,
+                'producer_id' => $producer->id,
+                'status' => BookingStatus::Pending,
+                // UGC dotations have no shoot date/duration/location — never persist them, even
+                // if a client sends them (the form omits them; this enforces the invariant server-side).
+                'date_debut' => null,
+                'date_fin' => null,
+                'duree_heures' => null,
+                'type_contenu' => 'UGC',
+                'lieu' => null,
+                'message' => $data['message'] ?? null,
+                'tarif_base' => 0,                                    // D-1.1.b : pas de tarif horaire
+                'montant_face_recoit' => $montantFaceRecoit,          // net Face (0 si produit seul)
+                'montant_total_producteur' => $montantTotalProducteur,
+                'type_compensation' => $compensation,
+                'nom_produit' => $data['nom_produit'],
+                'valeur_produit' => $valeurProduit,
+                'nombre_videos' => $nombreVideos,
+                'montant_remuneration' => $isHybrid ? $montantRemuneration : null,
+                'commission_ugc' => $commission,
+            ]);
+
+            // Photos d'un booking = disque UGC PRIVÉ (URLs signées, deux parties) —
+            // jamais `public`, contrairement aux photos de mission (décision PO 2026-07-06).
+            $this->productPhotoService->attach(
+                $booking,
+                $productPhotos,
+                (string) config('ugc.storage_disk', 'local'),
+            );
+
+            return $booking;
+        });
     }
 
     /**

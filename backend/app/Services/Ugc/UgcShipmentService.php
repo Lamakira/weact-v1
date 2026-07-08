@@ -16,6 +16,7 @@ use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Shipment;
+use App\Services\ProductPhotoService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -30,6 +31,10 @@ use Illuminate\Support\Str;
  */
 class UgcShipmentService
 {
+    public function __construct(
+        private readonly ProductPhotoService $productPhotoService,
+    ) {}
+
     /**
      * @param  array{transporteur: string, numero_suivi: string, note_envoi?: string|null}  $data
      * @return array{outcome: string, shipment?: Shipment}
@@ -102,17 +107,27 @@ class UgcShipmentService
      * réception (recu_le, D-3.3.d) ; gardes owner ré-exécutées sous
      * transaction (statut + refund — action #5 rétro). Dispatch POST-COMMIT.
      *
+     * Les photos de réception (1-2, obligatoires côté HTTP — spec réception)
+     * sont stockées DANS la transaction, uniquement sur l'issue `received`
+     * (après les gardes idempotence/statut/owner) : un échec de stockage
+     * rollback le passage `Shipped → Received` ET n'émet pas ProductReceived
+     * (post-commit préservé). Le défaut `[]` sert les appels internes/tests
+     * unitaires directs (le chemin HTTP passe par ConfirmReceiptRequest, qui
+     * impose 1-2 photos).
+     *
+     * @param  list<\Illuminate\Http\UploadedFile>  $photos
      * @return array{outcome: string, shipment?: Shipment}
      */
-    public function markReceived(Shipment $shipment): array
+    public function markReceived(Shipment $shipment, array $photos = []): array
     {
-        $result = DB::transaction(function () use ($shipment): array {
+        $result = DB::transaction(function () use ($shipment, $photos): array {
             /** @var Shipment $locked */
             $locked = Shipment::query()->lockForUpdate()->findOrFail($shipment->id);
 
             // Idempotence sur le FAIT de réception : un second clic ne
             // réinitialise JAMAIS le chrono, quelle que soit la position du
-            // tunnel (qui avancera aux épics 4-5).
+            // tunnel (qui avancera aux épics 4-5). AVANT tout stockage : une
+            // re-confirmation n'ajoute jamais de photos (I/O matrix).
             if ($locked->recu_le !== null) {
                 return ['outcome' => 'already'];
             }
@@ -137,6 +152,17 @@ class UgcShipmentService
                 'tunnel_status' => UgcTunnelStatus::Received,
                 'recu_le' => now(),
             ]);
+
+            // Preuve « produit reçu » : disque privé, kind='reception'. attach()
+            // écrit les originaux puis les rows DANS cette transaction ; un throw
+            // (disque plein, row en échec) nettoie les fichiers et remonte pour
+            // rollback le passage Received + empêcher le dispatch post-commit.
+            $this->productPhotoService->attach(
+                $locked,
+                $photos,
+                (string) config('ugc.storage_disk', 'local'),
+                'reception',
+            );
 
             return ['outcome' => 'received', 'shipment' => $locked];
         });

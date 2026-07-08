@@ -51,6 +51,9 @@ class MissionResource extends JsonResource
             'montant_remuneration' => $this->montant_remuneration,
             'commission_ugc' => $this->when(! $requesterIsFace, $this->commission_ugc),
             'commission_paid_at' => $this->when(! $requesterIsFace, fn () => $this->commission_paid_at?->toIso8601String()),
+            // Photos produit UGC (spec photos produit) — whenLoaded : la clé est OMISE
+            // sur les listes (pas de photo sur les teasers), chargée sur les détails.
+            'product_photos' => ProductPhotoResource::collection($this->whenLoaded('productPhotos')),
             'is_accepting_candidatures' => $this->isAcceptingCandidatures(),
             'has_paid_payment' => \App\Models\MissionPayment::where('mission_id', $this->id)->where('status', 'paid')->exists(),
             'candidatures_count' => $this->candidatures_count ?? ($this->whenLoaded('candidatures') ? $this->candidatures->count() : 0),
