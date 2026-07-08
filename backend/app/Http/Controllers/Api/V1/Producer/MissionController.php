@@ -72,7 +72,7 @@ class MissionController extends Controller
         }
 
         return response()->json([
-            'data' => new MissionResource($mission->load('producer')),
+            'data' => new MissionResource($mission->load(['producer', 'productPhotos'])),
         ]);
     }
 
@@ -96,7 +96,7 @@ class MissionController extends Controller
             : 'Mission publiée avec succès';
 
         return response()->json([
-            'data' => new MissionResource($mission),
+            'data' => new MissionResource($mission->load('productPhotos')),
             'message' => $message,
         ], 201);
     }

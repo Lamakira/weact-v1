@@ -48,6 +48,12 @@ class PurgeExpiredMediaCommandTest extends TestCase
         if ($photo->medium) {
             Storage::disk('public')->put('avatars/faces/albums/medium/'.$photo->medium, 'medium bytes');
         }
+        if ($photo->grid) {
+            Storage::disk('public')->put('avatars/faces/albums/grid/'.$photo->grid, 'grid bytes');
+        }
+        if ($photo->large) {
+            Storage::disk('public')->put('avatars/faces/albums/large/'.$photo->large, 'large bytes');
+        }
     }
 
     private function seedVideoFilesOnDisk(FaceVideo $video): void
@@ -100,6 +106,12 @@ class PurgeExpiredMediaCommandTest extends TestCase
 
         $photos = FacePhoto::factory()->createSequentialForFace($face, 4);
         foreach ($photos as $photo) {
+            // Seed the grid/large variant columns + files so the purge is
+            // proven to reclaim them too (interim image optimization).
+            $photo->update([
+                'grid' => "grid-{$photo->position}.webp",
+                'large' => "large-{$photo->position}.webp",
+            ]);
             $this->seedPhotoFilesOnDisk($photo);
         }
 
@@ -122,10 +134,18 @@ class PurgeExpiredMediaCommandTest extends TestCase
         $photosBy = $photos->keyBy('position');
         Storage::disk('public')->assertExists('avatars/faces/albums/'.$photosBy[1]->filename);
         Storage::disk('public')->assertExists('avatars/faces/albums/thumbnails/'.$photosBy[1]->thumbnail);
+        Storage::disk('public')->assertExists('avatars/faces/albums/grid/grid-1.webp');
+        Storage::disk('public')->assertExists('avatars/faces/albums/large/large-1.webp');
         Storage::disk('public')->assertMissing('avatars/faces/albums/'.$photosBy[2]->filename);
         Storage::disk('public')->assertMissing('avatars/faces/albums/thumbnails/'.$photosBy[2]->thumbnail);
+        Storage::disk('public')->assertMissing('avatars/faces/albums/grid/grid-2.webp');
+        Storage::disk('public')->assertMissing('avatars/faces/albums/large/large-2.webp');
         Storage::disk('public')->assertMissing('avatars/faces/albums/'.$photosBy[3]->filename);
+        Storage::disk('public')->assertMissing('avatars/faces/albums/grid/grid-3.webp');
+        Storage::disk('public')->assertMissing('avatars/faces/albums/large/large-3.webp');
         Storage::disk('public')->assertMissing('avatars/faces/albums/'.$photosBy[4]->filename);
+        Storage::disk('public')->assertMissing('avatars/faces/albums/grid/grid-4.webp');
+        Storage::disk('public')->assertMissing('avatars/faces/albums/large/large-4.webp');
     }
 
     public function test_command_purges_acting_and_ugc_videos_after_retention_window_elapses_elite_to_free(): void

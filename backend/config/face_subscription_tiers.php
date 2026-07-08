@@ -27,6 +27,13 @@ return [
                 'ugc_access' => false,
                 'commission_rate' => 0.15,
                 'sort_priority' => 4,
+                // Share (%) of public-listing slots granted to this tier by the
+                // nightly weighted round-robin. The four quotas MUST sum to 100
+                // (fail-loud guard in FaceListingRankingService). 56/25/13/6 is
+                // calibrated so the standard 16-slot page splits exactly
+                // 9 élite / 4 pro / 2 starter / 1 free — Starter must visibly
+                // outrank Free (PO decision 2026-07-04).
+                'listing_quota' => 6,
                 'has_elite_badge' => false,
             ],
         ],
@@ -40,6 +47,7 @@ return [
                 'ugc_access' => true,
                 'commission_rate' => 0.10,
                 'sort_priority' => 3,
+                'listing_quota' => 13,
                 'has_elite_badge' => false,
             ],
         ],
@@ -53,6 +61,7 @@ return [
                 'ugc_access' => true,
                 'commission_rate' => 0.10,
                 'sort_priority' => 2,
+                'listing_quota' => 25,
                 'has_elite_badge' => false,
             ],
         ],
@@ -66,6 +75,7 @@ return [
                 'ugc_access' => true,
                 'commission_rate' => 0.05,
                 'sort_priority' => 1,
+                'listing_quota' => 56,
                 'has_elite_badge' => true,
             ],
         ],

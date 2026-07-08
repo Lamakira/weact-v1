@@ -269,10 +269,11 @@ watch(refreshError, (newError) => {
                 :class="conversation.unread_count > 0 ? 'ring-2 ring-primary' : 'ring-1 ring-gray-200'"
               >
                 <img
-                  v-if="conversation.other_participant.photo_url"
-                  :src="conversation.other_participant.photo_url"
+                  v-if="conversation.other_participant.profile_photo_thumbnail_url || conversation.other_participant.photo_url"
+                  :src="conversation.other_participant.profile_photo_thumbnail_url || conversation.other_participant.photo_url || undefined"
                   :alt="conversation.other_participant.name"
                   class="h-full w-full object-cover"
+                  loading="lazy"
                 />
                 <div
                   v-else

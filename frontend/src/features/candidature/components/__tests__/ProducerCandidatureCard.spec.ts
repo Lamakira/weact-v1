@@ -17,6 +17,7 @@ const pendingCandidature = {
     id: 'face-1',
     display_name: 'Alice Martin',
     profile_photo_url: null,
+    profile_photo_thumbnail_url: null,
     city: 'Paris',
     category: 'acteur',
     tarif_horaire: null,

@@ -129,6 +129,48 @@ class FaceEntitlementServiceTest extends TestCase
         }
     }
 
+    public function test_capabilities_rejects_config_missing_listing_quota(): void
+    {
+        $configKey = 'face_subscription_tiers.tiers.free.capabilities';
+        $original = config($configKey);
+
+        try {
+            $caps = $original;
+            unset($caps['listing_quota']);
+            config()->set($configKey, $caps);
+
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessage("Incomplete capabilities config for tier 'free'");
+
+            (new FaceEntitlementService)->capabilitiesForTier(FaceSubscriptionTier::Free);
+        } finally {
+            config()->set($configKey, $original);
+        }
+    }
+
+    public function test_capabilities_rejects_non_integer_sort_priority_config(): void
+    {
+        $configKey = 'face_subscription_tiers.tiers.free.capabilities.sort_priority';
+        $originalPriority = config($configKey);
+
+        try {
+            // Strict is_int, not a silent (int) cast: 1.9 would coerce to 1
+            // and collide with another tier's priority.
+            foreach ([1.9, '4', null, true] as $invalidPriority) {
+                config()->set($configKey, $invalidPriority);
+
+                try {
+                    (new FaceEntitlementService)->capabilitiesForTier(FaceSubscriptionTier::Free);
+                    $this->fail('Invalid sort_priority ['.var_export($invalidPriority, true).'] should fail loudly.');
+                } catch (\RuntimeException $exception) {
+                    $this->assertStringContainsString('sort_priority', $exception->getMessage());
+                }
+            }
+        } finally {
+            config()->set($configKey, $originalPriority);
+        }
+    }
+
     // ===================================================================
     // Free fallback — no row and every non-granting subscription state
     // ===================================================================

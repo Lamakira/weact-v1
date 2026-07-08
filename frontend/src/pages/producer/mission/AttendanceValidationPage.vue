@@ -324,10 +324,11 @@ watch(missionUuid, loadForm, { immediate: true })
         >
           <div class="flex items-center gap-3 flex-1 min-w-0">
             <img
-              v-if="entry.face.profile_photo_url && !failedImages.has(entry.id)"
-              :src="entry.face.profile_photo_url"
+              v-if="(entry.face.profile_photo_thumbnail_url || entry.face.profile_photo_url) && !failedImages.has(entry.id)"
+              :src="entry.face.profile_photo_thumbnail_url || entry.face.profile_photo_url || undefined"
               :alt="entry.face.display_name"
               class="w-12 h-12 rounded-full object-cover"
+              loading="lazy"
               @error="handleImageError(entry.id)"
             />
             <div

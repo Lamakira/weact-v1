@@ -10,8 +10,10 @@ use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class CreateUgcBookingTest extends TestCase
@@ -29,6 +31,9 @@ class CreateUgcBookingTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Photos produit booking = disque UGC privé (`local`).
+        Storage::fake('local');
 
         $this->producer = Producer::factory()->create();
         $this->producerUser = User::factory()->create([
@@ -62,6 +67,8 @@ class CreateUgcBookingTest extends TestCase
             'nom_produit' => 'Tenue Shade Fit',
             'valeur_produit' => 20000, // → commission plancher 2500
             'lieu' => 'Cotonou',
+            // Photos produit obligatoires (1-2) depuis la décision PO 2026-07-07.
+            'product_photos' => [UploadedFile::fake()->image('produit.jpg', 900, 900)],
         ];
     }
 
@@ -272,6 +279,21 @@ class CreateUgcBookingTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors('valeur_produit');
+    }
+
+    public function test_ugc_booking_requires_product_photos(): void
+    {
+        // Décision PO 2026-07-07 : au moins une photo produit est obligatoire (1-2).
+        $data = $this->getValidUgcProductData();
+        unset($data['product_photos']);
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('product_photos')
+            ->assertJsonPath('errors.product_photos.0', 'Au moins une photo du produit est requise.');
+
+        $this->assertDatabaseCount('bookings', 0);
     }
 
     public function test_ugc_rejects_invalid_compensation_type(): void

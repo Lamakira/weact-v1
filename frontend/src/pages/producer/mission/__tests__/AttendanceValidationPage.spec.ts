@@ -98,7 +98,7 @@ function makeAttendanceForm(overrides: Partial<AttendanceFormResponse['data']['e
       entries: [
         {
           id: 1,
-          face: { id: 'face-1', display_name: 'Face A', profile_photo_url: null },
+          face: { id: 'face-1', display_name: 'Face A', profile_photo_url: null, profile_photo_thumbnail_url: null },
           montant_face_recoit: 90000,
           attendance_status: 'pending',
           attendance_status_label: 'En attente',
@@ -111,7 +111,7 @@ function makeAttendanceForm(overrides: Partial<AttendanceFormResponse['data']['e
         },
         {
           id: 2,
-          face: { id: 'face-2', display_name: 'Face B', profile_photo_url: null },
+          face: { id: 'face-2', display_name: 'Face B', profile_photo_url: null, profile_photo_thumbnail_url: null },
           montant_face_recoit: 90000,
           attendance_status: 'pending',
           attendance_status_label: 'En attente',
@@ -140,7 +140,7 @@ function makeMixedAttendanceForm(): AttendanceFormResponse {
       entries: [
         {
           id: 1,
-          face: { id: 'face-1', display_name: 'Face A', profile_photo_url: null },
+          face: { id: 'face-1', display_name: 'Face A', profile_photo_url: null, profile_photo_thumbnail_url: null },
           montant_face_recoit: 90000,
           attendance_status: 'present',
           attendance_status_label: 'Présente',
@@ -152,7 +152,7 @@ function makeMixedAttendanceForm(): AttendanceFormResponse {
         },
         {
           id: 2,
-          face: { id: 'face-2', display_name: 'Face B', profile_photo_url: null },
+          face: { id: 'face-2', display_name: 'Face B', profile_photo_url: null, profile_photo_thumbnail_url: null },
           montant_face_recoit: 90000,
           attendance_status: 'absent',
           attendance_status_label: 'Absente',
@@ -164,7 +164,7 @@ function makeMixedAttendanceForm(): AttendanceFormResponse {
         },
         {
           id: 3,
-          face: { id: 'face-3', display_name: 'Face C', profile_photo_url: null },
+          face: { id: 'face-3', display_name: 'Face C', profile_photo_url: null, profile_photo_thumbnail_url: null },
           montant_face_recoit: 90000,
           attendance_status: 'pending',
           attendance_status_label: 'En attente',

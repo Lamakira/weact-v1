@@ -19,6 +19,7 @@ final class UgcProductReceivedMail extends BaseMail
         public readonly string $producerName,
         public readonly string $productName,
         public readonly string $dealUrl,
+        public readonly int $photosCount = 0,
     ) {}
 
     protected function subjectLine(): string
@@ -35,6 +36,7 @@ final class UgcProductReceivedMail extends BaseMail
                 'productName' => $this->productName,
                 'destinataireNom' => (string) $this->shipment->destinataire_nom,
                 'dealUrl' => $this->dealUrl,
+                'photosCount' => $this->photosCount,
             ],
         );
     }

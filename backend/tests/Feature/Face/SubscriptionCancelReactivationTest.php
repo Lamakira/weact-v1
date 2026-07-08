@@ -124,11 +124,15 @@ class SubscriptionCancelReactivationTest extends TestCase
         $this->statusEndpoint()->assertJsonPath('data.current.status', 'cancelled');
 
         // Prove the webhook actually RESOLVED the cancelled row (by provider_reference)
-        // and was blocked by the non-pending guard at FaceSubscriptionPaymentService.php:273,
-        // i.e. the safety is real and not a silent lookup miss.
+        // and was blocked. This row was PAID before the admin cancel
+        // (paid_amount=50000) : the replay is a re-emission on money already
+        // booked in D-1 revenue → routine no-op, NOT the « customer charged »
+        // critical (which would invite a double credit). The unpaid-cancelled
+        // escalation is covered by scenario 4a below.
         Log::shouldHaveReceived('warning')
-            ->withArgs(fn (string $m, array $c): bool => $m === 'Fedapay webhook: ignoring approval for non-pending face subscription'
-                && ($c['face_subscription_id'] ?? null) === $row->id)
+            ->withArgs(fn (string $m, array $c): bool => $m === 'Fedapay webhook: duplicate approval on a settled cancelled face subscription ignored — payment already booked'
+                && ($c['face_subscription_id'] ?? null) === $row->id
+                && ($c['paid_amount_booked'] ?? null) === 50000)
             ->once();
     }
 
@@ -250,9 +254,11 @@ class SubscriptionCancelReactivationTest extends TestCase
             'BUG scenario 4a: admin-cancelled pending row reactivated by approved webhook',
         );
 
-        // Confirm the webhook resolved the cancelled row and hit the non-pending guard.
-        Log::shouldHaveReceived('warning')
-            ->withArgs(fn (string $m, array $c): bool => $m === 'Fedapay webhook: ignoring approval for non-pending face subscription'
+        // Confirm the webhook resolved the cancelled row and hit the
+        // late-approval-after-cancellation branch (CRITICAL + audit metadata
+        // since the code-review fix, replacing the generic non-pending warning).
+        Log::shouldHaveReceived('critical')
+            ->withArgs(fn (string $m, array $c): bool => $m === 'Fedapay webhook: approved payment arrived on a cancelled face subscription — customer charged, manual review required'
                 && ($c['face_subscription_id'] ?? null) === $pending->id)
             ->once();
     }

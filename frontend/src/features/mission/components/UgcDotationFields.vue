@@ -1,20 +1,36 @@
 <script setup lang="ts">
 import { Video, Package, Coins, Film, Wallet } from 'lucide-vue-next'
 import { FloatingField } from '@/components/ui/form'
-import { CompensationToggle, type UgcCompensationType } from '@/components/ugc'
+import { CompensationToggle, ProductPhotosUpload, type UgcCompensationType } from '@/components/ugc'
 
-defineProps<{
-  compensationType: UgcCompensationType
-  nomProduit: string
-  valeurProduit: number | string | undefined
-  nombreVideos: number | string | undefined
-  montantRemuneration: number | string | undefined
-  compensationTypeError?: string
-  nomProduitError?: string
-  valeurProduitError?: string
-  nombreVideosError?: string
-  montantRemunerationError?: string
-}>()
+withDefaults(
+  defineProps<{
+    compensationType: UgcCompensationType
+    nomProduit: string
+    valeurProduit: number | string | undefined
+    nombreVideos: number | string | undefined
+    montantRemuneration: number | string | undefined
+    productPhotos?: File[]
+    /** Upload uniquement à la création (v1) — masqué en mode édition. */
+    showProductPhotos?: boolean
+    compensationTypeError?: string
+    nomProduitError?: string
+    valeurProduitError?: string
+    nombreVideosError?: string
+    montantRemunerationError?: string
+    productPhotosError?: string
+  }>(),
+  {
+    productPhotos: () => [],
+    showProductPhotos: true,
+    compensationTypeError: undefined,
+    nomProduitError: undefined,
+    valeurProduitError: undefined,
+    nombreVideosError: undefined,
+    montantRemunerationError: undefined,
+    productPhotosError: undefined,
+  },
+)
 
 const emit = defineEmits<{
   'update:compensationType': [value: UgcCompensationType]
@@ -22,6 +38,7 @@ const emit = defineEmits<{
   'update:valeurProduit': [value: string | number]
   'update:nombreVideos': [value: string | number]
   'update:montantRemuneration': [value: string | number]
+  'update:productPhotos': [value: File[]]
 }>()
 </script>
 
@@ -62,6 +79,15 @@ const emit = defineEmits<{
       :error="nomProduitError"
       required
       @update:model-value="emit('update:nomProduit', $event)"
+    />
+
+    <!-- Photos du produit (1-2, obligatoires, création seulement — spec photos produit, symétrie réception Face) -->
+    <ProductPhotosUpload
+      v-if="showProductPhotos"
+      :model-value="productPhotos"
+      :error="productPhotosError"
+      hint="(obligatoire, 1 à 2)"
+      @update:model-value="emit('update:productPhotos', $event)"
     />
 
     <!-- Valeur marchande -->

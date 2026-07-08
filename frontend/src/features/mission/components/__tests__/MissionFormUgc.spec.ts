@@ -31,6 +31,24 @@ vi.mock('@/composables/useToast', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }),
 }))
 
+// ProductPhotosUpload crée des préviews via URL.createObjectURL (absent de jsdom).
+global.URL.createObjectURL = vi.fn(() => 'blob:mock-url')
+global.URL.revokeObjectURL = vi.fn()
+
+function makeImageFile(name = 'produit.jpg'): File {
+  const file = new File(['x'], name, { type: 'image/jpeg' })
+  Object.defineProperty(file, 'size', { value: 1024 })
+  return file
+}
+
+/** Joint une photo produit valide via l'uploader (calque ProductPhotosUpload.spec). */
+async function attachProductPhoto(wrapper: ReturnType<typeof mountForm>): Promise<void> {
+  const input = wrapper.find('[data-testid="product-photos-input"]')
+  Object.defineProperty(input.element, 'files', { value: [makeImageFile()], writable: true })
+  await input.trigger('change')
+  await flushPromises()
+}
+
 const router = createRouter({
   history: createWebHistory(),
   routes: [{ path: '/', component: { template: '<div />' } }],
@@ -92,6 +110,8 @@ async function fillValidUgcForm(
     await wrapper.find('#nombre_videos').setValue('3')
     await wrapper.find('#montant_remuneration').setValue('15000')
   }
+  // Photos produit obligatoires (1-2) à la création depuis la décision PO 2026-07-07.
+  await attachProductPhoto(wrapper)
   await flushPromises()
 }
 
@@ -171,6 +191,44 @@ describe('MissionForm — UGC integration', () => {
 
     expect(wrapper.find('#nombre_videos').exists()).toBe(true)
     expect(wrapper.find('#montant_remuneration').exists()).toBe(true)
+  })
+
+  it('5b. UGC création : le bouton reste désactivé tant qu\'aucune photo produit n\'est jointe', async () => {
+    const wrapper = mountForm({ mode: 'create' })
+
+    await wrapper.find('select#type_mission').setValue('ugc')
+    await flushPromises()
+    await fillStandardFields(wrapper)
+    await wrapper.find('#nom_produit').setValue('Sérum éclat')
+    await wrapper.find('#valeur_produit').setValue('25000')
+    await flushPromises()
+
+    // Sans photo → soumission bloquée (miroir de la garde confirm-disabled réception).
+    expect(wrapper.find('[data-testid="submit-button"]').attributes('disabled')).toBeDefined()
+
+    await attachProductPhoto(wrapper)
+
+    // Une photo jointe → bouton actif.
+    expect(wrapper.find('[data-testid="submit-button"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('5c. UGC création sans photo : soumission bloquée + erreur française sous l\'uploader', async () => {
+    const wrapper = mountForm({ mode: 'create' })
+
+    await wrapper.find('select#type_mission').setValue('ugc')
+    await flushPromises()
+    await fillStandardFields(wrapper)
+    await wrapper.find('#nom_produit').setValue('Sérum éclat')
+    await wrapper.find('#valeur_produit').setValue('25000')
+    await flushPromises()
+
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(createMissionMock).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="product-photos-error"]').text()).toContain(
+      'Au moins une photo du produit est requise.',
+    )
   })
 
   it('6. soumission UGC product → payload SANS budget ni champs hybrides', async () => {

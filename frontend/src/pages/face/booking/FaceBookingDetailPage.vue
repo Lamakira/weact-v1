@@ -49,6 +49,8 @@ import {
   UgcShipmentForm,
   UgcShipmentTrackingCard,
   UgcFaceTrackingCard,
+  ProductPhotoGallery,
+  ProductPhotosUpload,
   ugcTunnelStep,
   UGC_UNBOXING_DAYS,
   type ConfirmShipmentPayload,
@@ -125,10 +127,22 @@ const ugcTimelineCurrent = computed(() =>
 
 // Carte de suivi Face (3.4) — remplace la timeline H dès qu'un shipment existe (D-3.4.e).
 const showReceiptModal = ref(false)
+// Photos de réception (spec réception) : 1-2 obligatoires avant de confirmer.
+const receiptPhotos = ref<File[]>([])
 const showFaceTrackingCard = computed(
   () => isFace.value && isUgc.value && !!booking.value?.shipment,
 )
-const receiptModalMessage = `Le chrono Unboxing (${UGC_UNBOXING_DAYS} jours) démarre dès la confirmation — cette action est définitive.`
+const receiptModalMessage = `Joins 1 à 2 photos du produit reçu, puis confirme. Le chrono Unboxing (${UGC_UNBOXING_DAYS} jours) démarre dès la confirmation — cette action est définitive.`
+
+function openReceiptModal(): void {
+  receiptPhotos.value = []
+  showReceiptModal.value = true
+}
+
+function closeReceiptModal(): void {
+  showReceiptModal.value = false
+  receiptPhotos.value = []
+}
 
 // Chat (3.1 AC8) : l'UGC ouvre à Accepted ; le cash garde sa constante (D-3.2.d).
 const canShowChat = computed(() => {
@@ -436,10 +450,14 @@ async function handleConfirmShipment(payload: ConfirmShipmentPayload): Promise<v
 }
 
 async function handleConfirmReceipt(): Promise<void> {
-  showReceiptModal.value = false
-  if (!booking.value?.shipment) return
+  // Le bouton « Confirmer » de la modale est désactivé tant qu'aucune photo n'est
+  // jointe (garde UI) ; défense en profondeur ici (le backend impose 1-2 photos).
+  if (!booking.value?.shipment || receiptPhotos.value.length === 0) return
 
-  const shipment = await confirmReceipt(booking.value.shipment.id)
+  const photos = receiptPhotos.value
+  closeReceiptModal()
+
+  const shipment = await confirmReceipt(booking.value.shipment.id, photos)
   if (shipment) {
     // D-3.3.i/D-3.4.d : la 200 porte la ShipmentResource à jour — pas de refetch.
     // La ref peut avoir été vidée pendant l'await (navigation, refetch concurrent).
@@ -632,7 +650,7 @@ onUnmounted(() => {
         :is-uploading="isUploadingDeliverable"
         :upload-progress="uploadProgress"
         :deliverables="booking.deliverables ?? []"
-        @confirm-receipt="showReceiptModal = true"
+        @confirm-receipt="openReceiptModal"
         @upload="handleUploadDeliverable"
       />
 
@@ -750,6 +768,14 @@ onUnmounted(() => {
                 </div>
               </div>
             </div>
+            <!-- Photos produit (spec photos produit) — URLs signées, visibles des
+                 deux parties ; aucune section sans photo (bookings pré-deploy) -->
+            <ProductPhotoGallery
+              v-if="booking.product_photos?.length"
+              class="mb-4"
+              title="Photos du produit"
+              :photos="booking.product_photos"
+            />
             <CommissionBreakdown
               :product-value="booking.valeur_produit ?? 0"
               :pay-amount="booking.montant_remuneration ?? 0"
@@ -989,7 +1015,8 @@ onUnmounted(() => {
       @cancel="showCancellationDialog = false"
     />
 
-    <!-- Confirmation « Produit reçu » (3.4, D-3.4.c) — chrono 7j irréversible -->
+    <!-- Confirmation « Produit reçu » (3.4, D-3.4.c) — chrono 7j irréversible.
+         Spec réception : 1-2 photos du produit reçu obligatoires avant de confirmer. -->
     <ConfirmModal
       :is-open="showReceiptModal"
       title="Confirmer la réception ?"
@@ -997,9 +1024,17 @@ onUnmounted(() => {
       confirm-text="Oui, j'ai reçu le produit"
       cancel-text="Pas encore"
       variant="warning"
+      :confirm-disabled="receiptPhotos.length === 0"
       @confirm="handleConfirmReceipt"
-      @cancel="showReceiptModal = false"
-    />
+      @cancel="closeReceiptModal"
+    >
+      <ProductPhotosUpload
+        v-model="receiptPhotos"
+        :max-photos="2"
+        title="Photos du produit reçu"
+        hint="(obligatoire, 1 à 2)"
+      />
+    </ConfirmModal>
 
     <!-- No-show confirmation dialog -->
     <Teleport to="body">

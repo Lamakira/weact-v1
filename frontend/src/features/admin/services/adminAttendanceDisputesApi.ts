@@ -12,6 +12,8 @@ export interface AdminDisputeFacePayload {
   id: string
   display_name: string
   profile_photo_url: string | null
+  // 150px avatar variant — server falls back to the original while pending
+  profile_photo_thumbnail_url: string | null
 }
 
 export interface AdminDispute {

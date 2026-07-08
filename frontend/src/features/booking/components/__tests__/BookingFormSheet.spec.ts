@@ -24,6 +24,24 @@ vi.mock('@/composables/useToast', () => ({
   }),
 }))
 
+// ProductPhotosUpload crée des préviews via URL.createObjectURL (absent de jsdom).
+global.URL.createObjectURL = vi.fn(() => 'blob:mock-url')
+global.URL.revokeObjectURL = vi.fn()
+
+function makeImageFile(name = 'produit.jpg'): File {
+  const file = new File(['x'], name, { type: 'image/jpeg' })
+  Object.defineProperty(file, 'size', { value: 1024 })
+  return file
+}
+
+/** Joint une photo produit valide via l'uploader (calque ProductPhotosUpload.spec). */
+async function attachProductPhoto(wrapper: ReturnType<typeof mountForm>): Promise<void> {
+  const input = wrapper.find('[data-testid="product-photos-input"]')
+  Object.defineProperty(input.element, 'files', { value: [makeImageFile()], writable: true })
+  await input.trigger('change')
+  await flushPromises()
+}
+
 const mountForm = (propsOverride: Record<string, unknown> = {}) =>
   mount(BookingFormSheet, {
     props: {
@@ -146,11 +164,49 @@ describe('BookingFormSheet — UGC', () => {
       await wrapper.find('#nombre_videos').setValue('3')
       await wrapper.find('#montant_remuneration').setValue('15000')
     }
+    // Photos produit obligatoires (1-2) depuis la décision PO 2026-07-07.
+    await attachProductPhoto(wrapper)
     await flushPromises()
   }
 
   beforeEach(() => {
     createBookingMock.mockReset()
+  })
+
+  it('disables the submit button until a product photo is attached (UGC)', async () => {
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await wrapper.find('select#type_contenu').setValue('UGC')
+    await flushPromises()
+    await wrapper.find('#nom_produit').setValue('Tenue Shade Fit M')
+    await wrapper.find('#valeur_produit').setValue('45000')
+    await flushPromises()
+
+    // Sans photo → soumission bloquée (miroir de la garde confirm-disabled réception).
+    expect(wrapper.find('[data-testid="submit-booking"]').attributes('disabled')).toBeDefined()
+
+    await attachProductPhoto(wrapper)
+
+    // Une photo jointe → bouton actif.
+    expect(wrapper.find('[data-testid="submit-booking"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('blocks submission and shows a French error when UGC is submitted without a photo', async () => {
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await wrapper.find('select#type_contenu').setValue('UGC')
+    await flushPromises()
+    await wrapper.find('#nom_produit').setValue('Tenue Shade Fit M')
+    await wrapper.find('#valeur_produit').setValue('45000')
+    await flushPromises()
+
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(createBookingMock).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="product-photos-error"]').text()).toContain(
+      'Au moins une photo du produit est requise.',
+    )
   })
 
   it('reveals the UGC block and hides the cash pricing preview when UGC is selected', async () => {

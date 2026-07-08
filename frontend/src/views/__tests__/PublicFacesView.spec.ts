@@ -215,6 +215,8 @@ describe('PublicFacesView', () => {
     await mountView('/faces?page=2&search=Adjoua&categorie=acteur')
     await flushPromises()
 
+    // 16 = full grid rows, aligned with the backend LRU exposure window
+    // (PAGE_ONE_WINDOW) and the API default per_page
     expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(2, 16, {
       categorie: 'acteur',
       niche: undefined,

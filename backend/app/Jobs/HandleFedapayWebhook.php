@@ -21,13 +21,40 @@ use App\Services\MissionPaymentService;
 use App\Services\Ugc\UgcCommissionPaymentService;
 use App\Services\WalletService;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 class HandleFedapayWebhook implements ShouldQueue
 {
     use Queueable;
+
+    /**
+     * Retries cover INFRA failures (DB unavailable, schema drift during a
+     * deploy window such as code-before-migrate on a new column). The
+     * face-subscription and UGC settlement branches are no-throw by design
+     * (log + no-op) and idempotent under replay (webhookEvent 'processed'
+     * guard + first-hit-wins settlement guards). Caveat: the legacy
+     * booking/mission markAsPaid paths CAN throw deterministic business
+     * exceptions (booking no longer Accepted, mission missing) — those
+     * retries are wasted but harmless (the throw fully rolls back its
+     * transaction before any write survives, then lands in failed_jobs).
+     * Without $tries, a --tries=1 worker permanently loses a paid
+     * face-subscription activation on a transient failure.
+     */
+    public int $tries = 3;
+
+    /**
+     * @return array<int, int>
+     */
+    public function backoff(): array
+    {
+        return [60, 300];
+    }
 
     /**
      * @param  array<string, mixed>  $payload
@@ -91,15 +118,36 @@ class HandleFedapayWebhook implements ShouldQueue
                     default => Log::info('Fedapay webhook: unhandled UGC booking event', ['event' => $this->eventName]),
                 };
             } else {
-                match ($this->eventName) {
-                    'transaction.approved' => $bookingService->markAsPaid($booking, $fedapayRef),
-                    'transaction.declined', 'transaction.canceled' => $bookingService->markPaymentFailed(
-                        $booking,
-                        $fedapayRef,
-                        "Payment {$this->eventName}"
-                    ),
-                    default => Log::info('Fedapay webhook: unhandled event', ['event' => $this->eventName]),
-                };
+                // Deterministic business rejections (booking no longer payable —
+                // cancelled/refused between initiation and webhook) must neither
+                // burn retries nor vanish as a bare failed_jobs row: the customer
+                // may have been charged on an invalid state. Escalate CRITICAL
+                // and let the event be marked processed; infra exceptions
+                // (QueryException) still propagate so $tries can retry them.
+                try {
+                    match ($this->eventName) {
+                        'transaction.approved' => $bookingService->markAsPaid($booking, $fedapayRef),
+                        'transaction.declined', 'transaction.canceled' => $bookingService->markPaymentFailed(
+                            $booking,
+                            $fedapayRef,
+                            "Payment {$this->eventName}"
+                        ),
+                        default => Log::info('Fedapay webhook: unhandled event', ['event' => $this->eventName]),
+                    };
+                } catch (ValidationException|ModelNotFoundException|RuntimeException $e) {
+                    if ($e instanceof QueryException) {
+                        throw $e;
+                    }
+
+                    Log::critical('Fedapay webhook: booking settlement rejected by business guard — money possibly collected on an invalid state, manual review required', [
+                        'booking_id' => $booking->id,
+                        'booking_status' => $booking->status->value,
+                        'event_name' => $this->eventName,
+                        'fedapay_transaction_id' => $transactionId,
+                        'exception' => $e::class,
+                        'exception_message' => $e->getMessage(),
+                    ]);
+                }
             }
 
             $this->markProcessed($webhookEvent);
@@ -111,18 +159,38 @@ class HandleFedapayWebhook implements ShouldQueue
         $missionPayment = MissionPayment::where('fedapay_transaction_id', (string) $transactionId)->first();
 
         if ($missionPayment) {
-            match ($this->eventName) {
-                'transaction.approved' => $missionPaymentService->markAsPaid($missionPayment, $fedapayRef),
-                'transaction.declined', 'transaction.canceled' => Log::warning('Mission payment declined or canceled by webhook', [
+            // Same deterministic-rejection guard as the booking branch above
+            // (markAsPaid can throw RuntimeException « Mission introuvable » or
+            // ModelNotFoundException) — CRITICAL + processed, never a bare
+            // failed_jobs row; QueryException still propagates for retry.
+            try {
+                match ($this->eventName) {
+                    'transaction.approved' => $missionPaymentService->markAsPaid($missionPayment, $fedapayRef),
+                    'transaction.declined', 'transaction.canceled' => Log::warning('Mission payment declined or canceled by webhook', [
+                        'payment_id' => $missionPayment->id,
+                        'mission_id' => $missionPayment->mission_id,
+                        'producer_id' => $missionPayment->producer_id,
+                        'phase' => 'webhook',
+                        'remote_transaction_id' => $missionPayment->fedapay_transaction_id,
+                        'event_name' => $this->eventName,
+                    ]),
+                    default => Log::info('Fedapay webhook: unhandled event', ['event' => $this->eventName]),
+                };
+            } catch (ValidationException|ModelNotFoundException|RuntimeException $e) {
+                if ($e instanceof QueryException) {
+                    throw $e;
+                }
+
+                Log::critical('Fedapay webhook: mission payment settlement rejected by business guard — money possibly collected on an invalid state, manual review required', [
                     'payment_id' => $missionPayment->id,
                     'mission_id' => $missionPayment->mission_id,
                     'producer_id' => $missionPayment->producer_id,
-                    'phase' => 'webhook',
-                    'remote_transaction_id' => $missionPayment->fedapay_transaction_id,
                     'event_name' => $this->eventName,
-                ]),
-                default => Log::info('Fedapay webhook: unhandled event', ['event' => $this->eventName]),
-            };
+                    'fedapay_transaction_id' => $transactionId,
+                    'exception' => $e::class,
+                    'exception_message' => $e->getMessage(),
+                ]);
+            }
 
             $this->markProcessed($webhookEvent);
 

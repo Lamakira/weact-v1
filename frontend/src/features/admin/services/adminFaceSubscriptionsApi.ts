@@ -31,6 +31,13 @@ export interface AdminFaceSubscriptionAudit {
   created_at: string | null
 }
 
+export interface AdminSubscriptionFaceSummary {
+  id: string
+  nom: string | null
+  prenom: string | null
+  username: string | null
+}
+
 export interface AdminFaceSubscription {
   id: string
   plan: AdminSubscriptionPlan | null
@@ -41,10 +48,59 @@ export interface AdminFaceSubscription {
   expires_at: string | null
   cancelled_at: string | null
   paid_amount: number | null
+  paid_at?: string | null
   currency: string
   created_at: string | null
   updated_at: string | null
+  /** Présent uniquement sur la liste transversale (relation `face` eager-loaded). */
+  face?: AdminSubscriptionFaceSummary
   audits: AdminFaceSubscriptionAudit[]
+}
+
+/** Ligne de la liste transversale : bloc `face` présent, audits non chargés. */
+export type AdminSubscriptionListItem = Omit<AdminFaceSubscription, 'audits' | 'face'> & {
+  face: AdminSubscriptionFaceSummary
+}
+
+export interface AdminSubscriptionListParams {
+  page?: number
+  per_page?: number
+  plan?: string
+  status?: string
+  search?: string
+  sort?: 'expires_at_asc' | 'expires_at_desc'
+}
+
+export interface AdminSubscriptionListResponse {
+  data: AdminSubscriptionListItem[]
+  meta: {
+    current_page: number
+    last_page: number
+    per_page: number
+    total: number
+  }
+}
+
+export interface AdminSubscriptionStats {
+  active_by_plan: {
+    starter: number
+    pro: number
+    elite: number
+    total: number
+  }
+  revenue: {
+    current_month: number
+    total: number
+    currency: string
+  }
+  expiring_within_30_days: number
+  pending_payment_count: number
+  failed_count: number
+}
+
+export interface AdminSubscriptionStatsResponse {
+  data: AdminSubscriptionStats
+  message: string
 }
 
 export interface AdminFaceSubscriptionIndexResponse {
@@ -91,6 +147,25 @@ interface RequestOptions {
 }
 
 export const adminFaceSubscriptionsApi = {
+  async list(
+    params: AdminSubscriptionListParams = {},
+    options: RequestOptions = {},
+  ): Promise<AdminSubscriptionListResponse> {
+    const response = await adminApiClient.get<AdminSubscriptionListResponse>(
+      '/admin/face-subscriptions',
+      { params, signal: options.signal },
+    )
+    return response.data
+  },
+
+  async stats(options: RequestOptions = {}): Promise<AdminSubscriptionStatsResponse> {
+    const response = await adminApiClient.get<AdminSubscriptionStatsResponse>(
+      '/admin/face-subscriptions/stats',
+      { signal: options.signal },
+    )
+    return response.data
+  },
+
   async index(
     faceId: string,
     options: RequestOptions = {},

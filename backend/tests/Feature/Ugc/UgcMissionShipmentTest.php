@@ -15,6 +15,7 @@ use App\Models\Producer;
 use App\Models\Shipment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\Feature\Ugc\Concerns\BuildsUgcShipments;
 use Tests\TestCase;
 
@@ -40,6 +41,9 @@ class UgcMissionShipmentTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Photos de réception (spec réception) : disque UGC privé (`local`).
+        Storage::fake('local');
 
         $this->producer = Producer::factory()->create();
         $this->producerUser = User::factory()->create([
@@ -368,9 +372,10 @@ class UgcMissionShipmentTest extends TestCase
         // Owner candidature : candidatures.face_id = faces.id — la policy
         // matche via userable_type/userable_id (piège FK n°2).
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(2), ['Accept' => 'application/json'])
             ->assertOk()
-            ->assertJsonPath('data.tunnel_status', UgcTunnelStatus::Received->value);
+            ->assertJsonPath('data.tunnel_status', UgcTunnelStatus::Received->value)
+            ->assertJsonCount(2, 'data.reception_photos');
 
         $shipment->refresh();
         $this->assertSame(UgcTunnelStatus::Received, $shipment->tunnel_status);
@@ -385,7 +390,7 @@ class UgcMissionShipmentTest extends TestCase
         $shipment = $this->makeShippedShipment($candidature);
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(), ['Accept' => 'application/json'])
             ->assertOk();
 
         // Résolution producers.id → users.id (calque NotifyProducerOnUgcDealAccepted).
@@ -405,17 +410,19 @@ class UgcMissionShipmentTest extends TestCase
         $shipment = $this->makeShippedShipment($candidature);
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(), ['Accept' => 'application/json'])
             ->assertOk();
 
         $recuLe = $shipment->fresh()->recu_le;
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(2), ['Accept' => 'application/json'])
             ->assertUnprocessable()
             ->assertJsonPath('error.code', 'ALREADY_RECEIVED');
 
         $this->assertTrue($shipment->fresh()->recu_le->equalTo($recuLe));
+        // Idempotence AVANT stockage : seule la 1ʳᵉ confirmation a posé sa photo.
+        $this->assertSame(1, $shipment->receptionPhotos()->count());
     }
 
     public function test_other_face_cannot_confirm_candidature_receipt(): void
@@ -430,11 +437,14 @@ class UgcMissionShipmentTest extends TestCase
             'userable_id' => $otherFace->id,
         ]);
 
+        // Photos valides jointes : FormRequest OK (« est une Face »), Gate
+        // ownership rejette AVANT le service → 403, rien persisté.
         $this->actingAs($otherFaceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(), ['Accept' => 'application/json'])
             ->assertForbidden();
 
         $this->assertNull($shipment->fresh()->recu_le);
+        $this->assertSame(0, $shipment->receptionPhotos()->count());
     }
 
     public function test_producer_cannot_confirm_candidature_receipt(): void
@@ -459,13 +469,14 @@ class UgcMissionShipmentTest extends TestCase
         $mission->update(['commission_refund_requested_at' => now()]);
 
         $response = $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt");
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(), ['Accept' => 'application/json']);
 
         $response->assertUnprocessable()
             ->assertJsonPath('error.code', 'INVALID_STATUS');
 
         $this->assertStringContainsString('en cours de remboursement', (string) $response->json('error.message'));
         $this->assertNull($shipment->fresh()->recu_le);
+        $this->assertSame(0, $shipment->receptionPhotos()->count());
     }
 
     public function test_confirm_receipt_rejected_on_cancelled_candidature(): void
@@ -479,7 +490,7 @@ class UgcMissionShipmentTest extends TestCase
         $candidature->update(['status' => CandidatureStatus::Cancelled]);
 
         $this->actingAs($this->faceUser)
-            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt")
+            ->post("/api/v1/face/shipments/{$shipment->uuid}/confirm-receipt", $this->receiptPhotos(), ['Accept' => 'application/json'])
             ->assertUnprocessable()
             ->assertJsonPath('error.code', 'INVALID_STATUS');
 

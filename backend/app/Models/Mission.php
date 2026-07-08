@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Str;
 
 /**
@@ -54,6 +55,7 @@ use Illuminate\Support\Str;
  * @property-read \App\Models\Producer|null $producer
  * @property-read \App\Models\MissionPayment|null $payment
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Candidature> $candidatures
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\ProductPhoto> $productPhotos
  */
 class Mission extends Model
 {
@@ -204,6 +206,18 @@ class Mission extends Model
     public function payment(): HasOne
     {
         return $this->hasOne(MissionPayment::class);
+    }
+
+    /**
+     * Photos produit de la dotation UGC (0-2, uploadées à la création — spec
+     * photos produit). Rows sur disque `public` (colonne `disk`) : vitrine
+     * visible des candidates, URLs asset directes.
+     *
+     * @return MorphMany<ProductPhoto, $this>
+     */
+    public function productPhotos(): MorphMany
+    {
+        return $this->morphMany(ProductPhoto::class, 'owner')->orderBy('position');
     }
 
     /**

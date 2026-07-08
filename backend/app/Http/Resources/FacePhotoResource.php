@@ -23,6 +23,8 @@ class FacePhotoResource extends JsonResource
             'id' => $this->uuid,
             'photo_url' => $this->photo_url,
             'medium_url' => $this->medium_url,
+            'grid_url' => $this->grid_url,
+            'large_url' => $this->large_url,
             'thumbnail_url' => $this->thumbnail_url,
             'position' => $this->position,
         ];

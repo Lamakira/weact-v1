@@ -31,7 +31,7 @@ function makeCandidature(overrides: Partial<FaceCandidature> = {}): FaceCandidat
     message_motivation: null,
     created_at: '2026-06-10T08:00:00+00:00',
     mission: { id: 'mission-uuid-1', titre: 'Unboxing sneakers', date_tournage: '2026-07-01', lieu: 'Cotonou', budget: 0 },
-    producer: { id: 'prod-uuid-1', display_name: 'Shade Fit', type: 'agency', profile_photo_url: null },
+    producer: { id: 'prod-uuid-1', display_name: 'Shade Fit', type: 'agency', profile_photo_url: null, profile_photo_thumbnail_url: null },
     conversation_id: 'conv-uuid-1',
     ...overrides,
   }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Concerns\HasImageVariantUrls;
 use App\Concerns\HasRouteUuid;
 use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
@@ -27,10 +28,13 @@ use Illuminate\Support\Str;
  * @property string|null $last_name
  * @property string|null $bio
  * @property string|null $slug
+ * @property-read User|null $user
  * @property-read string $display_name
  * @property-read string|null $profile_photo_url
  * @property-read string|null $thumbnail_url
  * @property-read string|null $medium_url
+ * @property-read string|null $grid_url
+ * @property-read string|null $large_url
  * @property-read string|null $agency_logo_url
  * @property-read string|null $agency_logo_thumbnail_url
  * @property-read float|null $average_rating
@@ -45,7 +49,7 @@ use Illuminate\Support\Str;
  */
 class Producer extends Model
 {
-    use HasFactory, HasRouteUuid;
+    use HasFactory, HasImageVariantUrls, HasRouteUuid;
 
     /**
      * Boot the model.
@@ -117,6 +121,8 @@ class Producer extends Model
         'profile_photo',
         'profile_photo_thumbnail',
         'profile_photo_medium',
+        'profile_photo_grid',
+        'profile_photo_large',
         'bio',
         'agency_logo',
         'agency_logo_thumbnail',
@@ -131,6 +137,8 @@ class Producer extends Model
         'profile_photo_url',
         'thumbnail_url',
         'medium_url',
+        'grid_url',
+        'large_url',
         'display_name',
         'agency_logo_url',
         'agency_logo_thumbnail_url',
@@ -194,41 +202,35 @@ class Producer extends Model
     }
 
     /**
-     * Get the full URL for the profile photo.
+     * Profile-photo URLs — original + 150/800/400/1600 variants. Storage layout
+     * and fallback policy live in the shared HasImageVariantUrls trait (driven
+     * by the ImageVariantGenerator catalog); these accessors only name the
+     * appended attributes. Agency-logo URLs below are a separate, un-variant'd
+     * asset and stay hand-written.
      */
     protected function profilePhotoUrl(): Attribute
     {
-        return Attribute::make(
-            get: fn (): ?string => $this->profile_photo
-                ? asset('storage/avatars/producers/'.$this->profile_photo)
-                : null,
-        );
+        return Attribute::make(get: fn (): ?string => $this->resolveOriginalImageUrl());
     }
 
-    /**
-     * Get the full URL for the profile photo thumbnail.
-     */
     protected function thumbnailUrl(): Attribute
     {
-        return Attribute::make(
-            get: fn (): ?string => $this->profile_photo_thumbnail
-                ? asset('storage/avatars/producers/thumbnails/'.$this->profile_photo_thumbnail)
-                : null,
-        );
+        return Attribute::make(get: fn (): ?string => $this->resolveVariantUrl('thumbnail'));
     }
 
-    /**
-     * Get the full URL for the medium profile photo (800px wide WebP).
-     */
     protected function mediumUrl(): Attribute
     {
-        return Attribute::make(
-            get: fn (): ?string => $this->profile_photo_medium
-                ? asset('storage/avatars/producers/medium/'.$this->profile_photo_medium)
-                : ($this->profile_photo
-                    ? asset('storage/avatars/producers/'.$this->profile_photo)
-                    : null),
-        );
+        return Attribute::make(get: fn (): ?string => $this->resolveVariantUrl('medium'));
+    }
+
+    protected function gridUrl(): Attribute
+    {
+        return Attribute::make(get: fn (): ?string => $this->resolveVariantUrl('grid'));
+    }
+
+    protected function largeUrl(): Attribute
+    {
+        return Attribute::make(get: fn (): ?string => $this->resolveVariantUrl('large'));
     }
 
     /**

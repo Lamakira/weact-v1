@@ -2,6 +2,9 @@ import { ref, type Ref } from 'vue'
 import {
   adminFaceSubscriptionsApi,
   type AdminFaceSubscription,
+  type AdminSubscriptionListItem,
+  type AdminSubscriptionListParams,
+  type AdminSubscriptionStats,
   type ActivatePayload,
   type ExtendPayload,
   type CancelPayload,
@@ -26,6 +29,92 @@ export interface AdminSubscriptionActionResult {
 interface FaceDisplay {
   id: string
   display_name: string
+}
+
+interface PaginationMeta {
+  current_page: number
+  last_page: number
+  per_page: number
+  total: number
+}
+
+/**
+ * Composable for the cross-Face subscriptions back-office list + KPIs.
+ * Mirrors the useAdminFaces list pattern (simple fetch, no abort plumbing);
+ * inline mutations (extend/cancel) reuse useAdminFaceSubscriptions below.
+ */
+export function useAdminSubscriptionsList() {
+  const subscriptions: Ref<AdminSubscriptionListItem[]> = ref([])
+  const pagination: Ref<PaginationMeta | null> = ref(null)
+  const stats: Ref<AdminSubscriptionStats | null> = ref(null)
+  const isLoading = ref(false)
+  const isStatsLoading = ref(false)
+  const error: Ref<string | null> = ref(null)
+  const statsError: Ref<string | null> = ref(null)
+
+  // Latest-wins : la page déclenche des requêtes concurrentes (debounce de
+  // recherche + watch immédiat des filtres) — une réponse périmée plus lente
+  // ne doit jamais écraser celle des filtres actifs.
+  let requestSeq = 0
+  // Même garde, compteur séparé pour les stats : deux refresh KPI qui se
+  // chevauchent (mount + refreshAfterMutation) peuvent se résoudre dans le
+  // désordre — une réponse périmée (ou son échec tardif) ne doit ni écraser
+  // ni annuler les stats fraîches.
+  let statsSeq = 0
+
+  async function fetchSubscriptions(params?: AdminSubscriptionListParams): Promise<void> {
+    const seq = ++requestSeq
+    isLoading.value = true
+    error.value = null
+
+    try {
+      const response = await adminFaceSubscriptionsApi.list(params ?? {})
+      if (seq !== requestSeq) return
+      subscriptions.value = response.data
+      pagination.value = response.meta
+    } catch (err) {
+      if (seq !== requestSeq) return
+      error.value = getApiErrorMessage(err) ?? 'Une erreur est survenue'
+      subscriptions.value = []
+      pagination.value = null
+    } finally {
+      if (seq === requestSeq) {
+        isLoading.value = false
+      }
+    }
+  }
+
+  async function fetchStats(): Promise<void> {
+    const seq = ++statsSeq
+    isStatsLoading.value = true
+    statsError.value = null
+
+    try {
+      const response = await adminFaceSubscriptionsApi.stats()
+      if (seq !== statsSeq) return
+      stats.value = response.data
+    } catch (err) {
+      if (seq !== statsSeq) return
+      statsError.value = getApiErrorMessage(err) ?? 'Une erreur est survenue'
+      stats.value = null
+    } finally {
+      if (seq === statsSeq) {
+        isStatsLoading.value = false
+      }
+    }
+  }
+
+  return {
+    subscriptions,
+    pagination,
+    stats,
+    isLoading,
+    isStatsLoading,
+    error,
+    statsError,
+    fetchSubscriptions,
+    fetchStats,
+  }
 }
 
 export function useAdminFaceSubscriptions() {

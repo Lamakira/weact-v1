@@ -78,7 +78,7 @@ const countDisplay = computed((): string | null => {
           class="w-[160px] sm:w-[240px] lg:w-[300px] flex-none group/card relative aspect-[4/5] overflow-hidden rounded-[24px] transition-all duration-500 hover:-translate-y-2"
         >
           <img
-            :src="talent.profile_photo_url ?? talent.profile_photo_thumbnail_url ?? ''"
+            :src="talent.profile_photo_grid_url ?? talent.profile_photo_url ?? talent.profile_photo_thumbnail_url ?? ''"
             :alt="talent.prenom"
             class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover/card:scale-110"
             loading="lazy"

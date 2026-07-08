@@ -62,9 +62,18 @@ class ProfilePhotoTest extends TestCase
         $this->assertNotNull($this->producer->profile_photo);
         $this->assertNotNull($this->producer->profile_photo_thumbnail);
 
-        // Verify files exist in storage
+        // Verify files exist in storage. The sync test queue runs the
+        // GenerateImageVariants job inline, so every variant asserted here is
+        // produced through the queued path, not in the HTTP request.
         Storage::disk('public')->assertExists('avatars/producers/'.$this->producer->profile_photo);
         Storage::disk('public')->assertExists('avatars/producers/thumbnails/'.$this->producer->profile_photo_thumbnail);
+
+        $this->assertNotNull($this->producer->profile_photo_medium);
+        $this->assertNotNull($this->producer->profile_photo_grid);
+        $this->assertNotNull($this->producer->profile_photo_large);
+        Storage::disk('public')->assertExists('avatars/producers/medium/'.$this->producer->profile_photo_medium);
+        Storage::disk('public')->assertExists('avatars/producers/grid/'.$this->producer->profile_photo_grid);
+        Storage::disk('public')->assertExists('avatars/producers/large/'.$this->producer->profile_photo_large);
     }
 
     public function test_producer_can_upload_png_profile_photo(): void
@@ -211,10 +220,14 @@ class ProfilePhotoTest extends TestCase
         $this->producer->refresh();
         $photoPath = 'avatars/producers/'.$this->producer->profile_photo;
         $thumbnailPath = 'avatars/producers/thumbnails/'.$this->producer->profile_photo_thumbnail;
+        $gridPath = 'avatars/producers/grid/'.$this->producer->profile_photo_grid;
+        $largePath = 'avatars/producers/large/'.$this->producer->profile_photo_large;
 
         // Verify photo exists
         Storage::disk('public')->assertExists($photoPath);
         Storage::disk('public')->assertExists($thumbnailPath);
+        Storage::disk('public')->assertExists($gridPath);
+        Storage::disk('public')->assertExists($largePath);
 
         // Delete the photo
         $response = $this->actingAs($this->producerUser)
@@ -228,11 +241,15 @@ class ProfilePhotoTest extends TestCase
         // Verify files are deleted
         Storage::disk('public')->assertMissing($photoPath);
         Storage::disk('public')->assertMissing($thumbnailPath);
+        Storage::disk('public')->assertMissing($gridPath);
+        Storage::disk('public')->assertMissing($largePath);
 
         // Verify database is updated
         $this->producer->refresh();
         $this->assertNull($this->producer->profile_photo);
         $this->assertNull($this->producer->profile_photo_thumbnail);
+        $this->assertNull($this->producer->profile_photo_grid);
+        $this->assertNull($this->producer->profile_photo_large);
     }
 
     public function test_producer_can_get_profile(): void

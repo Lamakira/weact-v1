@@ -8,6 +8,8 @@ use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class CreateUgcMissionTest extends TestCase
@@ -21,6 +23,9 @@ class CreateUgcMissionTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Photos produit mission = disque `public`.
+        Storage::fake('public');
 
         $this->producer = Producer::factory()->create();
         $this->producerUser = User::factory()->create([
@@ -48,6 +53,8 @@ class CreateUgcMissionTest extends TestCase
             'type_compensation' => 'product',
             'nom_produit' => 'Tenue Shade Fit',
             'valeur_produit' => 20000, // → commission plancher 2500
+            // Photos produit obligatoires (1-2) depuis la décision PO 2026-07-07.
+            'product_photos' => [UploadedFile::fake()->image('produit.jpg', 900, 900)],
             // PAS de 'budget' : dérivé serveur (D-1.3.b)
         ];
     }
@@ -229,6 +236,21 @@ class CreateUgcMissionTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors('valeur_produit');
+    }
+
+    public function test_ugc_mission_requires_product_photos(): void
+    {
+        // Décision PO 2026-07-07 : au moins une photo produit est obligatoire (1-2).
+        $data = $this->getValidUgcMissionData();
+        unset($data['product_photos']);
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/producer/missions', $data)
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('product_photos')
+            ->assertJsonPath('errors.product_photos.0', 'Au moins une photo du produit est requise.');
+
+        $this->assertDatabaseCount('missions', 0);
     }
 
     public function test_ugc_requires_valid_type_compensation(): void

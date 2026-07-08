@@ -4,7 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { useSubscriptionPayment } from '../useSubscriptionPayment'
 import { useSubscriptionStatus } from '../useSubscriptionStatus'
 import { faceApi } from '../../services/faceApi'
-import { resetSharedCachedResourcesForTests } from '@/lib/createSharedCachedResource'
+import { resetAllSharedCachedResources } from '@/lib/createSharedCachedResource'
 import type {
   FaceSubscriptionPlan,
   FaceSubscriptionTier,
@@ -102,7 +102,7 @@ describe('useSubscriptionPayment (FP-2.7 tier-aware contract)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    resetSharedCachedResourcesForTests()
+    resetAllSharedCachedResources()
     sessionStorage.clear()
     vi.useFakeTimers()
     openSpy = vi.spyOn(window, 'open').mockImplementation(() => ({}) as Window)
@@ -509,7 +509,7 @@ describe('cancelPending + visibility-aware auto-verify (FP-2.15.1)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    resetSharedCachedResourcesForTests()
+    resetAllSharedCachedResources()
     sessionStorage.clear()
     vi.useFakeTimers()
     openSpy = vi.spyOn(window, 'open').mockImplementation(() => ({}) as Window)
@@ -834,7 +834,7 @@ describe('resumePayment via backend (FP-2.15.2)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    resetSharedCachedResourcesForTests()
+    resetAllSharedCachedResources()
     sessionStorage.clear()
     vi.useFakeTimers()
     openSpy = vi.spyOn(window, 'open').mockImplementation(() => ({}) as Window)

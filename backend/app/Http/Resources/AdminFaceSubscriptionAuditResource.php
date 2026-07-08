@@ -28,7 +28,7 @@ class AdminFaceSubscriptionAuditResource extends JsonResource
             'new_state' => $this->new_state,
             'admin' => [
                 'id' => $admin?->uuid,
-                'name' => $admin?->name ?? 'Admin supprimé',
+                'name' => $admin->name ?? 'Admin supprimé',
                 'role' => $admin?->role?->value,
             ],
             'created_at' => $this->created_at?->toIso8601String(),

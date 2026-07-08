@@ -60,6 +60,7 @@ class FaceCandidatureResource extends JsonResource
                     'display_name' => $producer?->display_name,
                     'type' => $producer?->currentType()?->value,
                     'profile_photo_url' => $producer?->profile_photo_url,
+                    'profile_photo_thumbnail_url' => $producer?->thumbnail_url,
                 ]
             ),
             'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->uuid),

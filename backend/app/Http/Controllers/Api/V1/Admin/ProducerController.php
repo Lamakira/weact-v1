@@ -11,6 +11,9 @@ use App\Http\Requests\Admin\UpdateAdminProducerRequest;
 use App\Http\Resources\ProducerResource;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\Ugc\UgcMediaCleanupService;
+use App\Support\LockedEscrowGuard;
+use App\Support\Sql;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +29,7 @@ class ProducerController extends Controller
 
         // Search by first_name, last_name, agency_name, or user email
         if ($request->filled('search') && is_string($request->query('search'))) {
-            $search = str_replace(['%', '_'], ['\%', '\_'], $request->query('search'));
+            $search = Sql::escapeLike($request->query('search'));
             $query->where(function ($q) use ($search) {
                 $q->where('first_name', 'like', "%{$search}%")
                     ->orWhere('last_name', 'like', "%{$search}%")
@@ -118,6 +121,20 @@ class ProducerController extends Controller
      */
     public function destroy(Producer $producer): JsonResponse
     {
+        // Garde escrow (lecture pure, en amont) : refuser tant que des fonds sont
+        // réellement bloqués en séquestre — candidature de l'une de ses missions OU
+        // booking hybride. Rendre l'invariant explicite : un escrow resté `Locked` à
+        // tort sur un statut terminal passerait au travers des gardes ci-dessous et
+        // l'argent disparaîtrait à la cascade. Aucun mouvement d'argent ici.
+        if (LockedEscrowGuard::forProducer($producer)) {
+            return response()->json([
+                'error' => [
+                    'code' => 'locked_escrow',
+                    'message' => 'Impossible de supprimer ce producteur : des fonds sont encore bloqués en séquestre. Dénouez le(s) deal(s) concerné(s) avant suppression.',
+                ],
+            ], 422);
+        }
+
         // Check for active missions (Published)
         $activeMissions = $producer->missions()
             ->where('status', MissionStatus::Published)
@@ -154,6 +171,12 @@ class ProducerController extends Controller
         }
 
         DB::transaction(function () use ($producer) {
+            // Médias UGC (bookings du Producteur + product_photos publiques de
+            // mission + tout le sous-arbre candidatures) : fichiers + rows AVANT la
+            // cascade. Chemin admin qui contourne deleteMission — les tables enfants
+            // morph n'ont pas de FK (orphelinage disque public + DB sinon).
+            app(UgcMediaCleanupService::class)->purgeForProducerUser($producer->user);
+
             /** @var User|null $user */
             $user = $producer->user;
 

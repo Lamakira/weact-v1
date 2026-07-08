@@ -13,6 +13,7 @@ const mockReviews: Review[] = [
     rater: {
       display_name: 'Jean Dupont',
       profile_photo_url: null,
+      profile_photo_thumbnail_url: null,
     },
   },
   {
@@ -24,6 +25,7 @@ const mockReviews: Review[] = [
     rater: {
       display_name: 'Marie Martin',
       profile_photo_url: 'https://example.com/photo.jpg',
+      profile_photo_thumbnail_url: null,
     },
   },
 ]

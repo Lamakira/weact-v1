@@ -9,6 +9,7 @@ use App\Enums\MissionType;
 use App\Models\Producer;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\File;
 
 class StoreMissionRequest extends FormRequest
 {
@@ -52,6 +53,18 @@ class StoreMissionRequest extends FormRequest
             $rules['nom_produit'] = ['required', 'string', 'max:255'];
             $rules['valeur_produit'] = ['required', 'integer', 'min:1', 'max:4294967295'];
 
+            // Photos produit (spec photos produit) : 1 à 2, obligatoires (décision PO
+            // 2026-07-07, symétrie avec les photos de réception Face), calque album
+            // (File::image jpg/png 8 Mo). Règles posées ICI (jamais dans le trait
+            // partagé MissionValidationRules — leçon ugc-1-3, UpdateMissionRequest
+            // resterait sinon silencieusement ouvert à l'upload).
+            $rules['product_photos'] = ['required', 'array', 'min:1', 'max:2'];
+            $rules['product_photos.*'] = [
+                File::image()
+                    ->types(['jpg', 'jpeg', 'png'])
+                    ->max(8 * 1024), // 8 Mo en Ko
+            ];
+
             if ($this->input('type_compensation') === CompensationType::Hybrid->value) {
                 $rules['nombre_videos'] = ['required', 'integer', 'min:2', 'max:20']; // était min:1 (ugc-4-0, option B)
                 $rules['montant_remuneration'] = ['required', 'integer', 'min:1', 'max:4294967295'];
@@ -86,6 +99,13 @@ class StoreMissionRequest extends FormRequest
             'montant_remuneration.integer' => 'Le montant de la rémunération doit être un nombre entier.',
             'montant_remuneration.min' => 'Le montant de la rémunération doit être un nombre positif.',
             'montant_remuneration.max' => 'Le montant de la rémunération dépasse le maximum autorisé.',
+            'product_photos.required' => 'Au moins une photo du produit est requise.',
+            'product_photos.array' => 'Les photos du produit doivent être une liste de fichiers.',
+            'product_photos.min' => 'Au moins une photo du produit est requise.',
+            'product_photos.max' => 'Vous ne pouvez joindre que :max photos du produit.',
+            'product_photos.*.image' => 'Chaque photo du produit doit être une image.',
+            'product_photos.*.mimes' => 'Chaque photo du produit doit être au format JPG ou PNG.',
+            'product_photos.*.max' => 'Chaque photo du produit ne doit pas dépasser 8 Mo.',
         ]);
     }
 }

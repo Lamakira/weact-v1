@@ -18,7 +18,7 @@ final class NotifyFaceOnSubscriptionActivated
             $subscription = $event->subscription;
             $subscription->loadMissing('face.user');
 
-            $faceUser = $subscription->face?->user;
+            $faceUser = $subscription->face->user;
             if (! $faceUser) {
                 Log::warning('FaceSubscriptionActivated notification skipped — Face user missing', [
                     'face_subscription_id' => $subscription->id,

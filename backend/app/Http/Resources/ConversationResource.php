@@ -68,6 +68,7 @@ class ConversationResource extends JsonResource
                 'id' => $producer->uuid,
                 'name' => $producer->display_name,
                 'photo_url' => $producer->profile_photo_url,
+                'profile_photo_thumbnail_url' => $producer->thumbnail_url,
                 'type' => 'producer',
             ];
         }
@@ -83,6 +84,7 @@ class ConversationResource extends JsonResource
             'id' => $face->uuid,
             'name' => $face->display_name,
             'photo_url' => $face->profile_photo_url,
+            'profile_photo_thumbnail_url' => $face->thumbnail_url,
             'type' => 'face',
         ];
     }

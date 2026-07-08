@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { User } from '@/features/auth/types'
+import { resetAllSharedCachedResources } from '@/lib/createSharedCachedResource'
 import apiClient, { getAuthToken, setAuthToken, removeAuthToken } from '@/services/apiClient'
 
 /**
@@ -53,6 +54,16 @@ export const useAuthStore = defineStore('auth', () => {
 
   // Actions
   function setUser(newUser: User) {
+    // Identity switch without a teardown (no clearAuth in between — e.g. a
+    // future in-place re-auth or account-switch flow): purge the per-account
+    // shared caches here too, so the invariant "no account reads another
+    // account's cached data" is guaranteed by the store itself rather than by
+    // the router's guest-guard topology. Same-id updates (profile refresh)
+    // keep their caches.
+    const previousId = user.value?.id
+    if (previousId != null && previousId !== newUser.id) {
+      resetAllSharedCachedResources()
+    }
     user.value = newUser
     setStoredUser(newUser)
   }
@@ -71,6 +82,12 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     removeAuthToken()
     removeStoredUser()
+    // Every shared cached resource holds per-account server state (profile
+    // fields, subscription status…) behind a TTL: without this reset, the
+    // next account logging in within the TTL would read the previous
+    // account's data — e.g. the site-wide payment banner would show (and try
+    // to reconcile) someone else's pending payment.
+    resetAllSharedCachedResources()
   }
 
   /**

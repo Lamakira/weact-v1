@@ -21,14 +21,10 @@ final class SendFaceSubscriptionActivatedEmail
             $subscription = $event->subscription;
             $subscription->loadMissing('face.user');
 
+            // face_id is FK-constrained with cascade delete: a subscription
+            // row cannot outlive its Face — and the outer catch keeps even a
+            // corrupt-row crash non-fatal.
             $face = $subscription->face;
-            if (! $face instanceof Face) {
-                Log::warning('FaceSubscriptionActivatedMail skipped — face missing', [
-                    'face_subscription_id' => $subscription->id,
-                ]);
-
-                return;
-            }
 
             /** @var User|null $faceUser */
             $faceUser = $face->user;

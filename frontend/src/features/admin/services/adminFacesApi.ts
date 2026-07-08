@@ -7,6 +7,10 @@ export interface AdminFacePhoto {
   id: string
   photo_url: string
   thumbnail_url: string
+  // Server-side fallback chains (legacy rows / variant job still pending):
+  // grid_url → medium → original, large_url → medium → original
+  grid_url: string | null
+  large_url: string | null
   position: number
 }
 

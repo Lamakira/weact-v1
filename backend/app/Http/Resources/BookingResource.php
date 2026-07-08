@@ -53,6 +53,9 @@ class BookingResource extends JsonResource
             'accepted_at' => $this->accepted_at?->toISOString(),
             'shipment' => new ShipmentResource($this->whenLoaded('shipment')),
             'deliverables' => DeliverableResource::collection($this->whenLoaded('deliverables')),
+            // Photos produit UGC (spec photos produit) — whenLoaded : la clé est OMISE
+            // sur les listes (pas de photo sur les teasers), chargée sur show/store.
+            'product_photos' => ProductPhotoResource::collection($this->whenLoaded('productPhotos')),
             'face' => new UserResource($this->whenLoaded('face')),
             'producer' => new UserResource($this->whenLoaded('producer')),
             'can_accept' => $user && $user->can('accept', $this->resource),
