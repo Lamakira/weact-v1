@@ -6,6 +6,9 @@ import { useAdminArticles } from '@/features/admin/composables/useAdminArticles'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
 
+// Named so <keep-alive :include> in AdminLayout can cache this listing.
+defineOptions({ name: 'AdminArticlesListPage' })
+
 const router = useRouter()
 const { articles, pagination, isLoading, error, fetchArticles, toggleStatus, deleteArticle } =
   useAdminArticles()

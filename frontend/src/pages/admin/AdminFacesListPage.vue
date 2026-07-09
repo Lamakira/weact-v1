@@ -5,6 +5,9 @@ import { Search, Users, AlertCircle, Loader2, X, Crown } from 'lucide-vue-next'
 import { useAdminFaces } from '@/features/admin/composables/useAdminFaces'
 import { getCategoryColor } from '@/features/admin/utils/faceLabels'
 
+// Named so <keep-alive :include> in AdminLayout can cache this listing.
+defineOptions({ name: 'AdminFacesListPage' })
+
 const router = useRouter()
 const { faces, pagination, isLoading, error, fetchFaces } = useAdminFaces()
 

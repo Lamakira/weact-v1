@@ -5,6 +5,9 @@ import { Search, Users, AlertCircle, Loader2, X } from 'lucide-vue-next'
 import { useAdminProducers } from '@/features/admin/composables/useAdminProducers'
 import { getProducerTypeLabel, getProducerTypeColor } from '@/features/admin/utils/producerLabels'
 
+// Named so <keep-alive :include> in AdminLayout can cache this listing.
+defineOptions({ name: 'AdminProducersListPage' })
+
 const router = useRouter()
 const { producers, pagination, isLoading, error, fetchProducers } = useAdminProducers()
 

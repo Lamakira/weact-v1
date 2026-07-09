@@ -52,7 +52,13 @@ async function handleLogout(): Promise<void> {
     :show-notifications="false"
     @logout="handleLogout"
   >
-    <!-- Child routes render here -->
-    <router-view />
+    <!-- Child routes render here. keep-alive caches the browse-and-return
+         listings so back-nav restores them (the layout persists because App.vue
+         keys the admin branch by matched[0].path). -->
+    <router-view v-slot="{ Component }">
+      <keep-alive :include="['AdminFacesListPage', 'AdminProducersListPage', 'AdminMissionsListPage', 'AdminListPage', 'AdminArticlesListPage']">
+        <component :is="Component" />
+      </keep-alive>
+    </router-view>
   </DashboardLayout>
 </template>

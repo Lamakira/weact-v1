@@ -85,7 +85,7 @@ async function handleLogout(): Promise<void> {
          listings so back-nav restores them — works only because App.vue now keys
          this layout by its own route, so the layout instance persists. -->
     <router-view v-slot="{ Component }">
-      <keep-alive :include="['MissionsListPage']">
+      <keep-alive :include="['MissionsListPage', 'ProducerBookingsListPage']">
         <component :is="Component" />
       </keep-alive>
     </router-view>

@@ -121,7 +121,13 @@ async function handleLogout(): Promise<void> {
       v-if="personalInfoLoaded && !hasWhatsapp"
     />
 
-    <!-- Child routes render here -->
-    <router-view />
+    <!-- Child routes render here. keep-alive caches the browse-and-return
+         listings so back-nav restores them (the layout persists because App.vue
+         keys the dashboard branch by matched[0].path). -->
+    <router-view v-slot="{ Component }">
+      <keep-alive :include="['FaceMissionsListPage', 'FaceUgcMissionsListPage', 'FaceCandidaturesPage', 'FaceBookingsListPage']">
+        <component :is="Component" />
+      </keep-alive>
+    </router-view>
   </DashboardLayout>
 </template>

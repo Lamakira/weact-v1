@@ -4,6 +4,9 @@ import { useRouter } from 'vue-router'
 import { Search, Briefcase, AlertCircle, Loader2, X } from 'lucide-vue-next'
 import { useAdminMissions } from '@/features/admin/composables/useAdminMissions'
 
+// Named so <keep-alive :include> in AdminLayout can cache this listing.
+defineOptions({ name: 'AdminMissionsListPage' })
+
 const router = useRouter()
 const { missions, pagination, isLoading, error, fetchMissions } = useAdminMissions()
 

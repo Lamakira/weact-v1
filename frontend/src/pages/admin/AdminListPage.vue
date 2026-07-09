@@ -7,6 +7,9 @@ import { useAdminAuthStore } from '@/stores/adminAuth'
 import { getAdminRoleLabel, getAdminRoleColor } from '@/features/admin/utils/adminLabels'
 import { useToast } from '@/composables/useToast'
 
+// Named so <keep-alive :include> in AdminLayout can cache this listing.
+defineOptions({ name: 'AdminListPage' })
+
 const router = useRouter()
 const adminAuthStore = useAdminAuthStore()
 const toast = useToast()

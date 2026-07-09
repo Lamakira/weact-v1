@@ -14,6 +14,9 @@ import { useFaceMissions, useMissionFilters } from '@/features/mission/composabl
 import { AvailableMissionCard, MissionFiltersPanel } from '@/features/mission/components'
 import { UgcDiscoveryBanner } from '@/components/ugc'
 
+// Named so <keep-alive :include> in FaceLayout can cache this listing.
+defineOptions({ name: 'FaceMissionsListPage' })
+
 /**
  * LOGIC & STATE MANAGEMENT
  */

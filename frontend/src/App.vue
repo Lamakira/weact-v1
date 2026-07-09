@@ -58,11 +58,13 @@ const isLandingPage = computed(() => {
     </RouterView>
   </template>
 
-  <!-- Admin routes: full-screen, uses AdminLayout internally -->
+  <!-- Admin routes: full-screen, uses AdminLayout internally.
+       Key by the layout's own route (matched[0]) so AdminLayout persists across
+       child navigations and its inner <keep-alive> can cache the admin listings. -->
   <template v-else-if="isAdminRoute">
     <RouterView v-slot="{ Component }">
       <Transition name="page" mode="out-in">
-        <component :is="Component" :key="route.path" />
+        <component :is="Component" :key="route.matched[0]?.path" />
       </Transition>
     </RouterView>
   </template>

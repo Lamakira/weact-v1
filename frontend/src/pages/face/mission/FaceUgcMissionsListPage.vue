@@ -5,6 +5,9 @@ import { Inbox, AlertCircle, RefreshCw, ChevronLeft, ChevronRight } from 'lucide
 import { useUgcMissionDiscovery } from '@/features/mission/composables'
 import { UgcMissionCard, UgcPaywallBanner } from '@/features/mission/components'
 
+// Named so <keep-alive :include> in FaceLayout can cache this listing.
+defineOptions({ name: 'FaceUgcMissionsListPage' })
+
 /**
  * Découverte des missions UGC (écran 6A). Gating d'affichage piloté
  * exclusivement par meta.can_access_ugc de la réponse (D-2.2.b).
