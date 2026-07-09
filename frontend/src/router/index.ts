@@ -299,6 +299,18 @@ const router = createRouter({
           component: () => import('../pages/producer/ProducerFacesListPage.vue'),
         },
         {
+          // Frontier-local Face profile: renders the SAME PublicFaceProfileView but
+          // under ProducerLayout, so browsing /producer/faces → a profile → back
+          // stays within /producer/* (matched[0] = /producer). That keeps the layout
+          // instance alive, letting <keep-alive> cache the faces list (grid + scroll
+          // restored, no rotation reshuffle). The public /faces/:username route stays
+          // for everyone; this one inherits the parent's requiresAuth + role:Producer.
+          path: 'faces/:username',
+          name: 'producer-face-profile',
+          component: () => import('../views/PublicFaceProfileView.vue'),
+          meta: { title: 'Profil | WEACT' },
+        },
+        {
           path: 'messages',
           name: 'producer-messages',
           component: () => import('../pages/producer/messaging/ProducerConversationsPage.vue'),

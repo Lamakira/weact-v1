@@ -225,11 +225,20 @@ const faceUsername = computed(() => {
 const backToListUrl = computed(() => {
   const returnTo = route.query.returnTo
 
-  if (typeof returnTo === 'string' && (returnTo === '/faces' || returnTo.startsWith('/faces?') || returnTo.startsWith('/faces#'))) {
+  // Frontier-aware default: a producer viewing a profile from their dashboard
+  // (/producer/faces/:username) returns into the dashboard list; a public visitor
+  // returns to /faces. Only same-frontier list URLs are honored (open-redirect
+  // guard) — a crafted cross-frontier returnTo falls back to this frontier's list.
+  const listPath = route.fullPath.startsWith('/producer/') ? '/producer/faces' : '/faces'
+
+  if (
+    typeof returnTo === 'string' &&
+    (returnTo === listPath || returnTo.startsWith(`${listPath}?`) || returnTo.startsWith(`${listPath}#`))
+  ) {
     return returnTo
   }
 
-  return '/faces'
+  return listPath
 })
 
 // Fetch face on mount and when username changes

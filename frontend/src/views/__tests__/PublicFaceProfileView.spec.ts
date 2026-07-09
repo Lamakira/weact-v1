@@ -19,6 +19,9 @@ const accessHolder = vi.hoisted(
 // Mock route params - mutable for different test scenarios
 const mockParams: Record<string, string> = { username: 'adjoua' }
 const mockQuery: Record<string, string> = {}
+// Mutable so a test can put the view under the producer frontier
+// (/producer/faces/:username) and exercise the frontier-aware back link.
+let mockFullPath = '/faces/adjoua'
 const mockRouter = {
   push: vi.fn(),
 }
@@ -27,7 +30,9 @@ vi.mock('vue-router', () => ({
   useRoute: () => ({
     params: mockParams,
     query: mockQuery,
-    fullPath: '/faces/adjoua',
+    get fullPath() {
+      return mockFullPath
+    },
   }),
   useRouter: () => mockRouter,
   RouterLink: {
@@ -191,6 +196,7 @@ describe('PublicFaceProfileView (Integration)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockParams.username = 'adjoua'
+    mockFullPath = '/faces/adjoua'
     Object.keys(mockQuery).forEach((key) => delete mockQuery[key])
     if (accessHolder.accessLevel) accessHolder.accessLevel.value = 'guest'
     if (accessHolder.fullProfile) accessHolder.fullProfile.value = null
@@ -287,6 +293,37 @@ describe('PublicFaceProfileView (Integration)', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="back-to-list"]').attributes('href')).toBe('/faces?page=5&search=Adjoua')
+  })
+
+  it('under the producer frontier, back link preserves the producer list page', async () => {
+    mockFullPath = '/producer/faces/adjoua?returnTo=%2Fproducer%2Ffaces%3Fpage%3D2'
+    mockQuery.returnTo = '/producer/faces?page=2'
+
+    vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
+      success: true,
+      profile: mockProfile,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="back-to-list"]').attributes('href')).toBe('/producer/faces?page=2')
+  })
+
+  it('under the producer frontier, a cross-frontier /faces returnTo is rejected (open-redirect guard)', async () => {
+    mockFullPath = '/producer/faces/adjoua?returnTo=%2Ffaces%3Fpage%3D5'
+    mockQuery.returnTo = '/faces?page=5'
+
+    vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
+      success: true,
+      profile: mockProfile,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Falls back to the current (producer) frontier's list, never the public one.
+    expect(wrapper.find('[data-testid="back-to-list"]').attributes('href')).toBe('/producer/faces')
   })
 
   it('renders profile info section in success state', async () => {
@@ -394,6 +431,7 @@ describe('PublicFaceProfileView — UGC booking redirect (story 1.6)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockParams.username = 'adjoua'
+    mockFullPath = '/faces/adjoua'
     Object.keys(mockQuery).forEach((key) => delete mockQuery[key])
     vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
       success: true,
