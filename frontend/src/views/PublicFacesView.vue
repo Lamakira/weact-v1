@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, nextTick } from 'vue'
 import { Users, AlertCircle, RefreshCw } from 'lucide-vue-next'
+
+// Named so App.vue's <keep-alive :include> can cache this listing across a
+// browse-and-return to a Face profile (Group A). Must match the :include entry.
+defineOptions({ name: 'PublicFacesView' })
+
 import { usePaginatedFaces } from '@/features/public/composables/usePaginatedFaces'
 import { fetchFilterOptions, type FilterOption, type FacesFilterParams } from '@/features/public/services/publicFacesApi'
 import FaceCard from '@/features/public/components/FaceCard.vue'

@@ -116,7 +116,22 @@ const isLandingPage = computed(() => {
       <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
         <RouterView v-slot="{ Component }">
           <Transition name="page" mode="out-in">
-            <component :is="Component" :key="route.path" />
+            <!-- keep-alive caches the "browse a listing → open a detail → back"
+                 public listings (Group A) so back-nav restores the grid + scroll
+                 instead of remounting + refetching (skeleton). Rotation-sensitive
+                 too: a refetch of /faces would reshuffle the rotated grid. Only
+                 the three param-less list routes are included; every other page
+                 in this branch (profiles, detail views, static pages) mounts and
+                 unmounts normally. :key="route.path" is stable per listing
+                 (/faces, /missions, /ressources carry no path params), so each
+                 caches into exactly one slot; :max is a defensive cap on that
+                 invariant (footgun guard if an :include name ever gains params). -->
+            <keep-alive
+              :include="['PublicFacesView', 'PublicMissionsView', 'RessourcesView']"
+              :max="5"
+            >
+              <component :is="Component" :key="route.path" />
+            </keep-alive>
           </Transition>
         </RouterView>
       </main>

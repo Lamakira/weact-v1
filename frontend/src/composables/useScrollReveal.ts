@@ -11,6 +11,14 @@ export function useScrollReveal(rootSelector?: string) {
   let observer: IntersectionObserver | null = null
 
   function init() {
+    // Disconnect any previous observer before creating a new one. init() runs
+    // again on every reinit() (e.g. after each async data load, and repeatedly
+    // while a listing is kept alive under <keep-alive>), and onUnmounted does NOT
+    // fire on keep-alive deactivation — so without this each call would leak an
+    // observer still holding the now-detached grid nodes.
+    observer?.disconnect()
+    observer = null
+
     const root = rootSelector ? document.querySelector(rootSelector) : document
 
     const targets = (root ?? document).querySelectorAll<HTMLElement>(

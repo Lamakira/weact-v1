@@ -16,9 +16,33 @@ import { BENIN_CITY_VALUES } from '@/shared/constants/beninCities'
  * - URL query param sync for pagination and filters
  * - Automatic fetch on page/filter change
  */
+const TRACKED_QUERY_KEYS = ['page', 'categorie', 'niche', 'ville', 'search'] as const
+
 export function usePaginatedFaces(perPage: number = 15) {
   const route = useRoute()
   const router = useRouter()
+
+  // Captured at setup — when this page first mounts it IS the active route, so
+  // this snapshots the listing's own route name. The query watcher below uses it
+  // to tell "I'm the active listing" from "I'm a <keep-alive>-cached page whose
+  // query churned because we navigated to a Face profile". Snapshotting avoids
+  // hard-coding the route string.
+  const listRouteName = route.name
+
+  // Signature of the page+filters the currently-displayed data was fetched for.
+  // Lets the watcher skip a redundant refetch when a keep-alive return restores
+  // the same query (a refetch would flash the skeleton AND reshuffle the rotated
+  // public grid).
+  const loadedSignature = ref<string | null>(null)
+
+  function querySignature(): string {
+    const normalized: Record<string, string> = {}
+    for (const key of TRACKED_QUERY_KEYS) {
+      const value = route.query[key]
+      if (typeof value === 'string' && value !== '') normalized[key] = value
+    }
+    return JSON.stringify(normalized)
+  }
 
   function getValidCityFilter(rawCity: unknown): string | undefined {
     if (typeof rawCity !== 'string' || rawCity === '') {
@@ -88,6 +112,9 @@ export function usePaginatedFaces(perPage: number = 15) {
       return // Watch will trigger load
     }
 
+    // Committing to a fetch for this exact query → record its signature so a
+    // later keep-alive return with the same query is served from cache.
+    loadedSignature.value = querySignature()
     isLoading.value = true
     error.value = null
     const currentRequestId = ++requestId
@@ -147,10 +174,24 @@ export function usePaginatedFaces(perPage: number = 15) {
     loadPage(currentPage.value)
   }
 
-  // Watch for URL changes (page or filters) and reload data
+  // Watch for URL changes (page or filters) and reload data.
+  //
+  // This page is cached under <keep-alive>, so this watcher keeps running while
+  // the page is off-screen (Vue 3.5 does not pause a deactivated child's
+  // watchers). Two query churns must NOT trigger a reload:
+  //  - navigating AWAY to a profile drops our query params → route.name is no
+  //    longer this listing → a naive reload would refetch page 1 and clobber the
+  //    cached grid;
+  //  - returning restores the exact same query → the cache is still valid, so a
+  //    refetch is pure waste (skeleton flash + reshuffle of the rotated grid).
+  // A genuine page/filter change while ON the listing changes the signature and
+  // falls through to loadPage. (Pausing on deactivated does NOT work: the
+  // pre-flush watcher fires before onDeactivated — see keepAliveQueryGuard.spec.)
   watch(
-    () => [route.query.page, route.query.categorie, route.query.niche, route.query.ville, route.query.search],
+    () => TRACKED_QUERY_KEYS.map((key) => route.query[key]),
     () => {
+      if (route.name !== listRouteName) return
+      if (querySignature() === loadedSignature.value) return
       loadPage(currentPage.value)
     }
   )
