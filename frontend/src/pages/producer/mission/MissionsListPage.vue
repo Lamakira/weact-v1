@@ -10,6 +10,9 @@ import { UgcPaymentOverlay } from '@/components/ugc'
 import type { MissionStatusType } from '@/features/mission/types'
 import type { Mission } from '@/features/mission/types'
 
+// Named so <keep-alive :include> in ProducerLayout can cache this listing.
+defineOptions({ name: 'MissionsListPage' })
+
 /**
  * LOGIC & STATE MANAGEMENT
  */

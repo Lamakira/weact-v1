@@ -81,7 +81,13 @@ async function handleLogout(): Promise<void> {
       data-testid="email-verification-banner"
     />
 
-    <!-- Child routes render here -->
-    <router-view />
+    <!-- Child routes render here. keep-alive caches the browse-and-return
+         listings so back-nav restores them — works only because App.vue now keys
+         this layout by its own route, so the layout instance persists. -->
+    <router-view v-slot="{ Component }">
+      <keep-alive :include="['MissionsListPage']">
+        <component :is="Component" />
+      </keep-alive>
+    </router-view>
   </DashboardLayout>
 </template>

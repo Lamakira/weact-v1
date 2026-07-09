@@ -46,11 +46,14 @@ const isLandingPage = computed(() => {
   <!-- Navigation progress bar (global, all layouts, fixed at top) -->
   <NavigationProgress />
 
-  <!-- Dashboard routes: full-screen, no header/footer -->
+  <!-- Dashboard routes: full-screen, no header/footer.
+       Key by the LAYOUT's own route (matched[0]) so the layout instance PERSISTS
+       across child navigations. With :key="route.path", the layout remounts on
+       every child nav and destroys the <keep-alive> inside Face/ProducerLayout. -->
   <template v-if="isDashboardRoute">
     <RouterView v-slot="{ Component }">
       <Transition name="page" mode="out-in">
-        <component :is="Component" :key="route.path" />
+        <component :is="Component" :key="route.matched[0]?.path" />
       </Transition>
     </RouterView>
   </template>
