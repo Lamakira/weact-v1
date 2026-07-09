@@ -257,6 +257,11 @@ onMounted(() => {
 watch(
   () => route.query,
   () => {
+    // Cached by keep-alive: this watcher keeps firing while the page is
+    // off-screen. Act only when actually on this route, so navigating to a
+    // detail (which drops the query) can't corrupt state; it fires once on
+    // return, refreshing the list (statuses change inter-actor).
+    if (route.name !== 'face-candidatures') return
     syncFromUrl()
   },
 )
