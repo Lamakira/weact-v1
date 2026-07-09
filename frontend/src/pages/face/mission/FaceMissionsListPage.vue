@@ -13,6 +13,7 @@ import {
 import { useFaceMissions, useMissionFilters } from '@/features/mission/composables'
 import { AvailableMissionCard, MissionFiltersPanel } from '@/features/mission/components'
 import { UgcDiscoveryBanner } from '@/components/ugc'
+import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 
 // Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
 defineOptions({ name: 'FaceMissionsListPage' })
@@ -66,6 +67,16 @@ onMounted(() => {
   initFromUrl()
   fetchMissions(1, filters.value)
 })
+
+// #7 — this page is cached under <keep-alive> in FaceLayout, so onMounted does
+// NOT re-run on return. Unlike its siblings (FaceCandidatures/FaceBookings watch
+// route.query and so refetch on return), this page has no such watch. Without
+// this, opening a mission detail (applying, or a producer closing it) and coming
+// back would leave stale mission statuses until a full reload. Re-fetch the
+// current page with the current filters on reactivation. refreshMissions keeps the
+// current page (not page 1); the grid stays visible during the refetch (the
+// skeleton only shows when the list is empty), so there's no flash on return.
+useRefreshOnReturn(() => refreshMissions(filters.value))
 
 function handleApplyFilters(): void {
   syncToUrl()
