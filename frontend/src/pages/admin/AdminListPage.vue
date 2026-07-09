@@ -8,7 +8,7 @@ import { getAdminRoleLabel, getAdminRoleColor } from '@/features/admin/utils/adm
 import { useToast } from '@/composables/useToast'
 import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 
-// Named so <keep-alive :include> in AdminLayout can cache this listing.
+// Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
 defineOptions({ name: 'AdminListPage' })
 
 const router = useRouter()

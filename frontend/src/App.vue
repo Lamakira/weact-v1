@@ -119,13 +119,21 @@ const isLandingPage = computed(() => {
             <!-- keep-alive caches the "browse a listing → open a detail → back"
                  public listings (Group A) so back-nav restores the grid + scroll
                  instead of remounting + refetching (skeleton). Rotation-sensitive
-                 too: a refetch of /faces would reshuffle the rotated grid. Only
-                 the three param-less list routes are included; every other page
-                 in this branch (profiles, detail views, static pages) mounts and
-                 unmounts normally. :key="route.path" is stable per listing
-                 (/faces, /missions, /ressources carry no path params), so each
-                 caches into exactly one slot; :max is a defensive cap on that
-                 invariant (footgun guard if an :include name ever gains params). -->
+                 too: a refetch of /faces would reshuffle the rotated grid.
+
+                 NOTE: unlike the dashboard/admin layouts (which drive caching by
+                 route meta.keepAlive), this branch keeps a name-based :include. The
+                 <Transition mode="out-in"> forces a SINGLE child, so the keep-alive
+                 must be that child and stay always-mounted (its cache has to survive
+                 the visit to the non-cached profile/detail route). Selective caching
+                 in an always-mounted keep-alive can only be name-based (include), and
+                 a meta-driven v-if would either unmount the keep-alive (wiping the
+                 cache) or need a second sibling (two children → invalid under the
+                 transition). The three public view names are specific (no collision).
+
+                 :key="route.path" is stable per listing (/faces, /missions,
+                 /ressources carry no path params) so each caches into one slot; :max
+                 is a defensive cap (footgun guard if a listed view ever gains params). -->
             <keep-alive
               :include="['PublicFacesView', 'PublicMissionsView', 'RessourcesView']"
               :max="5"

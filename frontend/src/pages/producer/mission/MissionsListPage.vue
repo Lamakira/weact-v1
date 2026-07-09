@@ -11,7 +11,7 @@ import type { MissionStatusType } from '@/features/mission/types'
 import type { Mission } from '@/features/mission/types'
 import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 
-// Named so <keep-alive :include> in ProducerLayout can cache this listing.
+// Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
 defineOptions({ name: 'MissionsListPage' })
 
 /**

@@ -7,7 +7,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
 import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 
-// Named so <keep-alive :include> in AdminLayout can cache this listing.
+// Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
 defineOptions({ name: 'AdminArticlesListPage' })
 
 const router = useRouter()

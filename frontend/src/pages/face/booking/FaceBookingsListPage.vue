@@ -13,7 +13,7 @@ import { BookingCard, BookingStatusFilter } from '@/features/booking/components'
 import type { BookingFilterStatus } from '@/features/booking/types'
 import { BookingFilterLabel } from '@/features/booking/types'
 
-// Named so <keep-alive :include> in FaceLayout can cache this listing.
+// Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
 defineOptions({ name: 'FaceBookingsListPage' })
 
 const route = useRoute()

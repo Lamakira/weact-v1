@@ -6,7 +6,7 @@ import { useAdminFaces } from '@/features/admin/composables/useAdminFaces'
 import { getCategoryColor } from '@/features/admin/utils/faceLabels'
 import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 
-// Named so <keep-alive :include> in AdminLayout can cache this listing.
+// Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
 defineOptions({ name: 'AdminFacesListPage' })
 
 const router = useRouter()

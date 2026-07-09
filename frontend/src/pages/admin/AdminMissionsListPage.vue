@@ -5,7 +5,7 @@ import { Search, Briefcase, AlertCircle, Loader2, X } from 'lucide-vue-next'
 import { useAdminMissions } from '@/features/admin/composables/useAdminMissions'
 import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 
-// Named so <keep-alive :include> in AdminLayout can cache this listing.
+// Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
 defineOptions({ name: 'AdminMissionsListPage' })
 
 const router = useRouter()

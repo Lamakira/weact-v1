@@ -164,6 +164,8 @@ const router = createRouter({
           path: 'missions',
           name: 'face-missions',
           component: () => import('../pages/face/mission/FaceMissionsListPage.vue'),
+          // keepAlive: cached in FaceLayout so browse-and-return restores the list.
+          meta: { keepAlive: true },
         },
         {
           path: 'missions/:id',
@@ -174,7 +176,7 @@ const router = createRouter({
           path: 'ugc-missions',
           name: 'face-ugc-missions',
           component: () => import('../pages/face/mission/FaceUgcMissionsListPage.vue'),
-          meta: { title: 'Missions UGC - WEACT' },
+          meta: { title: 'Missions UGC - WEACT', keepAlive: true },
         },
         {
           path: 'ugc/suspension',
@@ -186,6 +188,7 @@ const router = createRouter({
           path: 'candidatures',
           name: 'face-candidatures',
           component: () => import('../pages/face/candidature/FaceCandidaturesPage.vue'),
+          meta: { keepAlive: true },
         },
         {
           path: 'messages',
@@ -201,6 +204,7 @@ const router = createRouter({
           path: 'bookings',
           name: 'face-bookings',
           component: () => import('../pages/face/booking/FaceBookingsListPage.vue'),
+          meta: { keepAlive: true },
         },
         {
           path: 'bookings/:id',
@@ -260,6 +264,7 @@ const router = createRouter({
           path: 'missions',
           name: 'producer-missions',
           component: () => import('../pages/producer/mission/MissionsListPage.vue'),
+          meta: { keepAlive: true },
         },
         {
           path: 'missions/publish',
@@ -297,6 +302,7 @@ const router = createRouter({
           path: 'faces',
           name: 'producer-faces-list',
           component: () => import('../pages/producer/ProducerFacesListPage.vue'),
+          meta: { keepAlive: true },
         },
         {
           // Frontier-local Face profile: renders the SAME PublicFaceProfileView but
@@ -330,6 +336,7 @@ const router = createRouter({
           path: 'bookings',
           name: 'producer-bookings',
           component: () => import('../pages/producer/booking/ProducerBookingsListPage.vue'),
+          meta: { keepAlive: true },
         },
         {
           path: 'bookings/:id',
@@ -393,7 +400,7 @@ const router = createRouter({
           path: 'admins',
           name: 'admin-admins-list',
           component: () => import('../pages/admin/AdminListPage.vue'),
-          meta: { title: 'Administrateurs - WEACT' },
+          meta: { title: 'Administrateurs - WEACT', keepAlive: true },
         },
         {
           path: 'admins/create',
@@ -411,7 +418,7 @@ const router = createRouter({
           path: 'faces',
           name: 'admin-faces-list',
           component: () => import('../pages/admin/AdminFacesListPage.vue'),
-          meta: { title: 'Gestion des Faces - WEACT' },
+          meta: { title: 'Gestion des Faces - WEACT', keepAlive: true },
         },
         {
           path: 'faces/:id',
@@ -423,7 +430,7 @@ const router = createRouter({
           path: 'producers',
           name: 'admin-producers-list',
           component: () => import('../pages/admin/AdminProducersListPage.vue'),
-          meta: { title: 'Gestion des Producteurs - WEACT' },
+          meta: { title: 'Gestion des Producteurs - WEACT', keepAlive: true },
         },
         {
           path: 'producers/:id',
@@ -435,7 +442,7 @@ const router = createRouter({
           path: 'missions',
           name: 'admin-missions-list',
           component: () => import('../pages/admin/AdminMissionsListPage.vue'),
-          meta: { title: 'Gestion des Missions - WEACT' },
+          meta: { title: 'Gestion des Missions - WEACT', keepAlive: true },
         },
         {
           path: 'missions/:id',
@@ -477,7 +484,7 @@ const router = createRouter({
           path: 'articles',
           name: 'admin-articles-list',
           component: () => import('../pages/admin/AdminArticlesListPage.vue'),
-          meta: { title: 'Gestion des Articles - WEACT' },
+          meta: { title: 'Gestion des Articles - WEACT', keepAlive: true },
         },
         {
           path: 'articles/create',

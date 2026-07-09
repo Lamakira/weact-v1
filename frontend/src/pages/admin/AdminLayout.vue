@@ -6,11 +6,13 @@
  * Child routes render via <router-view> in the content area.
  */
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { LayoutDashboard, FileText, ShieldCheck, Briefcase, UserCheck, Building, TrendingUp, Scale, MessageCircle, Ban, CreditCard } from 'lucide-vue-next'
 import { useAdminAuth } from '@/features/admin/composables/useAdminAuth'
 import { useAdminAuthStore } from '@/stores/adminAuth'
 import { DashboardLayout, type SidebarItem } from '@/components/layout'
 
+const route = useRoute()
 const adminAuthStore = useAdminAuthStore()
 const { logout, isLoading } = useAdminAuth()
 
@@ -52,13 +54,21 @@ async function handleLogout(): Promise<void> {
     :show-notifications="false"
     @logout="handleLogout"
   >
-    <!-- Child routes render here. keep-alive caches the browse-and-return
-         listings so back-nav restores them (the layout persists because App.vue
-         keys the admin branch by matched[0].path). -->
+    <!-- Child routes render here. keep-alive caches the browse-and-return listings
+         so back-nav restores them (the layout persists because App.vue keys the
+         admin branch by matched[0].path). Which routes cache is driven by their
+         router `meta.keepAlive` flag (not a name-based :include), so renaming a page
+         can't silently disable its cache and generic names (e.g. AdminListPage)
+         can't collide. -->
     <router-view v-slot="{ Component }">
-      <keep-alive :include="['AdminFacesListPage', 'AdminProducersListPage', 'AdminMissionsListPage', 'AdminListPage', 'AdminArticlesListPage']">
-        <component :is="Component" />
+      <!-- keep-alive stays ALWAYS mounted (no v-if on it) so its cache survives
+           visits to non-cached child routes (a detail page, the dashboard, …).
+           The inner v-if only decides whether the CURRENT route enters the cache;
+           non-flagged routes render in the sibling below, outside keep-alive. -->
+      <keep-alive>
+        <component :is="Component" v-if="route.meta.keepAlive" />
       </keep-alive>
+      <component :is="Component" v-if="!route.meta.keepAlive" />
     </router-view>
   </DashboardLayout>
 </template>

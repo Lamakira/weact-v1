@@ -6,6 +6,7 @@
  * Child routes render via <router-view> in the content area.
  */
 import { onMounted, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { LayoutDashboard, FileText, MessageCircle, User, PlusCircle, Users, CalendarCheck, Wallet, BadgeCheck, FolderDown } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
@@ -14,6 +15,7 @@ import { useProducerProfilePhoto } from '@/features/producer/composables/useProd
 import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 
+const route = useRoute()
 const authStore = useAuthStore()
 const { logout, isLoading } = useAuth()
 const { profile, fetchProfile } = useProducerProfilePhoto()
@@ -81,13 +83,21 @@ async function handleLogout(): Promise<void> {
       data-testid="email-verification-banner"
     />
 
-    <!-- Child routes render here. keep-alive caches the browse-and-return
-         listings so back-nav restores them — works only because App.vue now keys
-         this layout by its own route, so the layout instance persists. -->
+    <!-- Child routes render here. keep-alive caches the browse-and-return listings
+         so back-nav restores them — works only because App.vue now keys this layout
+         by its own route, so the layout instance persists. Which routes cache is
+         driven by their router `meta.keepAlive` flag (not a name-based :include),
+         so renaming a page can't silently disable its cache and generic names
+         (e.g. MissionsListPage) can't collide. -->
     <router-view v-slot="{ Component }">
-      <keep-alive :include="['MissionsListPage', 'ProducerBookingsListPage', 'ProducerFacesListPage']">
-        <component :is="Component" />
+      <!-- keep-alive stays ALWAYS mounted (no v-if on it) so its cache survives
+           visits to non-cached child routes (a detail page, the dashboard, …).
+           The inner v-if only decides whether the CURRENT route enters the cache;
+           non-flagged routes render in the sibling below, outside keep-alive. -->
+      <keep-alive>
+        <component :is="Component" v-if="route.meta.keepAlive" />
       </keep-alive>
+      <component :is="Component" v-if="!route.meta.keepAlive" />
     </router-view>
   </DashboardLayout>
 </template>

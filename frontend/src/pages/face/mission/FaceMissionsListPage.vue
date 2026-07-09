@@ -14,7 +14,7 @@ import { useFaceMissions, useMissionFilters } from '@/features/mission/composabl
 import { AvailableMissionCard, MissionFiltersPanel } from '@/features/mission/components'
 import { UgcDiscoveryBanner } from '@/components/ugc'
 
-// Named so <keep-alive :include> in FaceLayout can cache this listing.
+// Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
 defineOptions({ name: 'FaceMissionsListPage' })
 
 /**

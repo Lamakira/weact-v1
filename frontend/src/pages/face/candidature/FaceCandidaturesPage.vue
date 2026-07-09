@@ -20,7 +20,7 @@ import { useToast } from '@/composables/useToast'
 import type { CandidatureStatusType } from '@/features/candidature/types'
 import { CandidatureStatusLabel } from '@/features/candidature/types'
 
-// Named so <keep-alive :include> in FaceLayout can cache this listing.
+// Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
 defineOptions({ name: 'FaceCandidaturesPage' })
 
 /**

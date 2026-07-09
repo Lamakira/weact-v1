@@ -6,7 +6,8 @@ import { useUgcMissionDiscovery } from '@/features/mission/composables'
 import { UgcMissionCard, UgcPaywallBanner } from '@/features/mission/components'
 import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 
-// Named so <keep-alive :include> in FaceLayout can cache this listing.
+// Explicit name (devtools; also used by its keep-alive spec). Caching is driven
+// by the route's meta.keepAlive flag.
 defineOptions({ name: 'FaceUgcMissionsListPage' })
 
 /**

@@ -6,7 +6,7 @@ import { useAdminProducers } from '@/features/admin/composables/useAdminProducer
 import { getProducerTypeLabel, getProducerTypeColor } from '@/features/admin/utils/producerLabels'
 import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 
-// Named so <keep-alive :include> in AdminLayout can cache this listing.
+// Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
 defineOptions({ name: 'AdminProducersListPage' })
 
 const router = useRouter()

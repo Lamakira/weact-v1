@@ -13,9 +13,9 @@ import FilterBar from '@/features/public/components/FilterBar.vue'
 import { Pagination } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
 
-// Named so <keep-alive :include> in ProducerLayout can cache this listing across a
-// browse-and-return to a Face profile. Cacheable only because the profile now has a
-// frontier-local route (/producer/faces/:username) that keeps ProducerLayout mounted.
+// Explicit name (devtools). Caching is driven by this route's meta.keepAlive flag.
+// Cacheable at all only because the profile now has a frontier-local route
+// (/producer/faces/:username) that keeps ProducerLayout mounted during the round-trip.
 defineOptions({ name: 'ProducerFacesListPage' })
 
 const {
