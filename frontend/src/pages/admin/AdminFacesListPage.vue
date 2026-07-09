@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { Search, Users, AlertCircle, Loader2, X, Crown } from 'lucide-vue-next'
 import { useAdminFaces } from '@/features/admin/composables/useAdminFaces'
 import { getCategoryColor } from '@/features/admin/utils/faceLabels'
+import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 
 // Named so <keep-alive :include> in AdminLayout can cache this listing.
 defineOptions({ name: 'AdminFacesListPage' })
@@ -35,6 +36,10 @@ function loadFaces(page: number = 1) {
 onMounted(() => {
   loadFaces()
 })
+
+// Cached by keep-alive: refresh on return so a change made on a Face detail
+// page (suspension, edit…) is reflected in the restored list.
+useRefreshOnReturn(() => loadFaces(currentPage.value))
 
 onUnmounted(() => {
   if (searchTimeout) clearTimeout(searchTimeout)

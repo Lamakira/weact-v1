@@ -5,6 +5,7 @@ import { Search, FileText, AlertCircle, Loader2, X, Plus, Pencil, Trash2 } from 
 import { useAdminArticles } from '@/features/admin/composables/useAdminArticles'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
+import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 
 // Named so <keep-alive :include> in AdminLayout can cache this listing.
 defineOptions({ name: 'AdminArticlesListPage' })
@@ -44,6 +45,9 @@ function loadArticles(page: number = 1): void {
 onMounted(() => {
   loadArticles()
 })
+
+// Cached by keep-alive: refresh on return so create/edit/delete are reflected.
+useRefreshOnReturn(() => loadArticles(currentPage.value))
 
 onUnmounted(() => {
   if (searchTimeout) clearTimeout(searchTimeout)

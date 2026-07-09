@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, Briefcase, AlertCircle, Loader2, X } from 'lucide-vue-next'
 import { useAdminMissions } from '@/features/admin/composables/useAdminMissions'
+import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 
 // Named so <keep-alive :include> in AdminLayout can cache this listing.
 defineOptions({ name: 'AdminMissionsListPage' })
@@ -34,6 +35,9 @@ function loadMissions(page: number = 1) {
 onMounted(() => {
   loadMissions()
 })
+
+// Cached by keep-alive: refresh on return so detail-page changes are reflected.
+useRefreshOnReturn(() => loadMissions(currentPage.value))
 
 onUnmounted(() => {
   if (searchTimeout) clearTimeout(searchTimeout)

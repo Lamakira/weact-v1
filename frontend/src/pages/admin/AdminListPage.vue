@@ -6,6 +6,7 @@ import { useAdmins } from '@/features/admin/composables/useAdmins'
 import { useAdminAuthStore } from '@/stores/adminAuth'
 import { getAdminRoleLabel, getAdminRoleColor } from '@/features/admin/utils/adminLabels'
 import { useToast } from '@/composables/useToast'
+import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 
 // Named so <keep-alive :include> in AdminLayout can cache this listing.
 defineOptions({ name: 'AdminListPage' })
@@ -20,6 +21,9 @@ const currentAdminId = computed(() => adminAuthStore.admin?.id)
 onMounted(() => {
   fetchAdmins()
 })
+
+// Cached by keep-alive: refresh on return so create/edit changes are reflected.
+useRefreshOnReturn(() => fetchAdmins(currentPage.value))
 
 const hasAdmins = computed(() => admins.value.length > 0)
 const totalPages = computed(() => pagination.value?.last_page ?? 1)

@@ -9,6 +9,7 @@ import { MissionCard, DeleteMissionDialog, CloseMissionDialog, ReopenMissionDial
 import { UgcPaymentOverlay } from '@/components/ugc'
 import type { MissionStatusType } from '@/features/mission/types'
 import type { Mission } from '@/features/mission/types'
+import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 
 // Named so <keep-alive :include> in ProducerLayout can cache this listing.
 defineOptions({ name: 'MissionsListPage' })
@@ -61,12 +62,25 @@ const isUgcPayOpen = ref(false)
  */
 onMounted(async () => {
   await fetchMissions()
+  maybeOpenPayTunnel()
+})
 
-  // Auto-open the commission tunnel when arriving from UGC mission creation (?pay={id}).
+// Auto-open the commission tunnel when arriving from UGC mission creation
+// (?pay={id}). Extracted so it also runs on keep-alive re-activation below.
+function maybeOpenPayTunnel(): void {
   const payId = route.query.pay
   if (typeof payId === 'string' && payId) {
     handlePayCommission(payId)
   }
+}
+
+// Cached by keep-alive: on return, refresh the list AND re-check ?pay. The
+// post-publish redirect (producer-missions?pay={id}) reactivates this cached
+// instance — onMounted no longer runs — so without this the commission tunnel
+// never opens and the mission stays pending_payment (revenue gap).
+useRefreshOnReturn(async () => {
+  await refreshMissions()
+  maybeOpenPayTunnel()
 })
 
 function navigateToPublish(): void {

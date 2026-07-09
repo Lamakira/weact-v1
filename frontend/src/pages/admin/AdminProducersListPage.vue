@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { Search, Users, AlertCircle, Loader2, X } from 'lucide-vue-next'
 import { useAdminProducers } from '@/features/admin/composables/useAdminProducers'
 import { getProducerTypeLabel, getProducerTypeColor } from '@/features/admin/utils/producerLabels'
+import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 
 // Named so <keep-alive :include> in AdminLayout can cache this listing.
 defineOptions({ name: 'AdminProducersListPage' })
@@ -33,6 +34,9 @@ function loadProducers(page: number = 1) {
 onMounted(() => {
   loadProducers()
 })
+
+// Cached by keep-alive: refresh on return so detail-page changes are reflected.
+useRefreshOnReturn(() => loadProducers(currentPage.value))
 
 onUnmounted(() => {
   if (searchTimeout) clearTimeout(searchTimeout)
