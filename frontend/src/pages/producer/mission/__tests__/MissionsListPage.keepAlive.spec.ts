@@ -220,3 +220,81 @@ describe('MissionsListPage — keep-alive return with ?pay under an active statu
     expect(overlay.props('amount')).toBe(2500)
   })
 })
+
+describe('MissionsListPage — stale ?pay in history / already-paid mission (bug F11)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockRoute.query = {}
+    // Same baseline as the F3 suite: 'published' filter active, the
+    // pending_payment UGC mission only present in allMissions.
+    mockStatusFilter.value = 'published'
+    mockFilteredMissions.value = [publishedMission]
+    mockAllMissions.value = [publishedMission, ugcPendingMission]
+    mockIsLoading.value = false
+    mockError.value = null
+    mockIsEmpty.value = false
+    mockHasNoMissions.value = false
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  // T-a — fix volet (a) CONSOMMATION : once ?pay has been processed, the page
+  // must rewrite the history entry via router.replace with a query WITHOUT
+  // `pay` (other keys preserved), so a later Back does not carry ?pay again.
+  // RED today: maybeOpenPayTunnel never calls router.replace.
+  it('consumes ?pay from the URL after opening the tunnel (router.replace without pay)', async () => {
+    const { wrapper, current } = mountKeepAliveHost()
+    await flushPromises()
+
+    // Deactivate (producer leaves for PublishMissionPage)…
+    current.value = 'other'
+    await flushPromises()
+
+    // …then return via the ?pay redirect, alongside another query key that
+    // the consumption MUST preserve.
+    mockRoute.query = { pay: 'ugc-mission-1', ref: 'checkout' }
+    current.value = 'page'
+    await flushPromises()
+
+    // Sanity: the ?pay WAS processed (tunnel open) — consumption is asserted
+    // on top of a processed ?pay, not instead of it.
+    expect(wrapper.findComponent(overlayStub).exists()).toBe(true)
+
+    // MAIN ASSERT (bug F11-a): the history entry must be rewritten.
+    expect(mockRouter.replace).toHaveBeenCalledTimes(1)
+    const replaceArg = mockRouter.replace.mock.calls[0]?.[0] as
+      | { query?: Record<string, unknown> }
+      | undefined
+    expect(replaceArg?.query).toBeDefined()
+    expect(replaceArg?.query).not.toHaveProperty('pay')
+    expect(replaceArg?.query).toMatchObject({ ref: 'checkout' })
+  })
+
+  // T-b — fix volet (b) GARDE STATUT : a stale ?pay (Back onto the old
+  // producer-missions?pay={id} history entry) points to a mission that has
+  // since been paid → status 'published'. The tunnel must NOT open.
+  // RED today: handlePayCommission finds the mission in allMissions and opens
+  // the overlay with no status check.
+  it('does not open the tunnel for an already-paid (published) mission', async () => {
+    const { wrapper, current } = mountKeepAliveHost()
+    await flushPromises()
+    expect(wrapper.findComponent(overlayStub).exists()).toBe(false)
+
+    // Deactivate, then simulate Back onto the stale history entry
+    // producer-missions?pay={id} for a mission that is ALREADY published
+    // (present in BOTH the filtered list and allMissions).
+    current.value = 'other'
+    await flushPromises()
+
+    mockRoute.query = { pay: 'mission-published-1' }
+    current.value = 'page'
+    await flushPromises()
+
+    // MAIN ASSERT (bug F11-b): status !== 'pending_payment' → no tunnel.
+    // The page renders the overlay under `v-if="payingMission"`, so mere
+    // existence means handlePayCommission accepted the paid mission.
+    expect(wrapper.findComponent(overlayStub).exists()).toBe(false)
+  })
+})

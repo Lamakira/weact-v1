@@ -5,12 +5,12 @@
  * Uses DashboardLayout with Producer-specific sidebar items.
  * Child routes render via <router-view> in the content area.
  */
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { LayoutDashboard, FileText, MessageCircle, User, PlusCircle, Users, CalendarCheck, Wallet, BadgeCheck, FolderDown } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
-import { DashboardLayout, type SidebarItem } from '@/components/layout'
+import { DashboardLayout, KeepAliveRouterView, type SidebarItem } from '@/components/layout'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
 import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
@@ -61,6 +61,17 @@ onMounted(async () => {
   }
 })
 
+// The layout now persists across child navigations (App.vue keys it by the
+// layout's own route): refresh the sidebar "Validation livrables" badge on
+// each one, as the per-navigation remount used to do before keep-alive.
+// (Mirrors the route.path watch FaceLayout already has for its banner.)
+watch(
+  () => route.path,
+  () => {
+    void ugcValidationCountStore.fetchCount()
+  },
+)
+
 async function handleLogout(): Promise<void> {
   await logout()
 }
@@ -83,25 +94,8 @@ async function handleLogout(): Promise<void> {
       data-testid="email-verification-banner"
     />
 
-    <!-- Child routes render here. keep-alive caches the browse-and-return listings
-         so back-nav restores them — works only because App.vue now keys this layout
-         by its own route, so the layout instance persists. Which routes cache is
-         driven by their router `meta.keepAlive` flag (not a name-based :include),
-         so renaming a page can't silently disable its cache and generic names
-         (e.g. MissionsListPage) can't collide. -->
-    <router-view v-slot="{ Component }">
-      <!-- keep-alive stays ALWAYS mounted (no v-if on it) so its cache survives
-           visits to non-cached child routes (a detail page, the dashboard, …).
-           The inner v-if only decides whether the CURRENT route enters the cache;
-           non-flagged routes render in the sibling below, outside keep-alive.
-           The sibling is keyed by route.path: detail pages fetch in onMounted only,
-           so a detail→detail navigation on the same record (e.g. two notification
-           clicks) must remount, not patch the instance in place — while query-only
-           changes keep the instance (the pages' query watchers handle those). -->
-      <keep-alive>
-        <component :is="Component" v-if="route.meta.keepAlive" />
-      </keep-alive>
-      <component :is="Component" v-if="!route.meta.keepAlive" :key="route.path" />
-    </router-view>
+    <!-- Child routes render here — meta.keepAlive-driven caching + page
+         transitions live in the shared KeepAliveRouterView (see its header). -->
+    <KeepAliveRouterView />
   </DashboardLayout>
 </template>

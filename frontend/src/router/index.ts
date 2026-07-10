@@ -6,9 +6,29 @@ import { useNavigationProgress } from '@/composables/useNavigationProgress'
 
 const navigationProgress = useNavigationProgress()
 
+// Window-scroll memory for the <keep-alive>-cached public listings (Group A).
+// Browser back/forward restores through savedPosition, but the detail pages'
+// own "back to list" links are PUSH navigations: without this, the grid comes
+// back from cache while the viewport jumps to the top. Restore only when
+// arriving FROM the listing's own detail page — from anywhere else (navbar,
+// dashboard) the public branch may have been remounted and a fresh grid must
+// start at the top. Dashboard listings scroll an internal container handled by
+// DashboardLayout, not the window — they are not concerned here.
+const LISTING_RETURN_SOURCES: Record<string, string> = {
+  'public-faces-list': 'public-face-profile',
+  'public-missions-list': 'public-mission-detail',
+  'ressources-list': 'ressources-detail',
+}
+const publicListingScrollPositions = new Map<string, number>()
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  scrollBehavior(to, _from, savedPosition) {
+  scrollBehavior(to, from, savedPosition) {
+    // Called before the new scroll is applied: window.scrollY still holds the
+    // position of the page being left — remember it for the listings.
+    if (typeof from.name === 'string' && from.name in LISTING_RETURN_SOURCES) {
+      publicListingScrollPositions.set(from.fullPath, window.scrollY)
+    }
     // If user used browser back/forward, restore saved position
     if (savedPosition) {
       return savedPosition
@@ -16,6 +36,17 @@ const router = createRouter({
     // If navigating to a hash anchor, scroll to it
     if (to.hash) {
       return { el: to.hash, behavior: 'smooth' }
+    }
+    // Push back from a detail to its cached listing (the "back to list" link):
+    // restore the remembered offset for this exact fullPath.
+    if (
+      typeof to.name === 'string' &&
+      LISTING_RETURN_SOURCES[to.name] === from.name
+    ) {
+      const remembered = publicListingScrollPositions.get(to.fullPath)
+      if (remembered !== undefined) {
+        return { top: remembered }
+      }
     }
     // Otherwise scroll to top
     return { top: 0 }

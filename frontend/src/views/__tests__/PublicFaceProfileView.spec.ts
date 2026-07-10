@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
+
+// The view schedules work at mount (useScrollReveal's 50ms init timer):
+// unmount every wrapper after each test so component-lifecycle cleanups run
+// and nothing fires after the file's environment is torn down (flaky
+// "Unhandled Error" otherwise).
+enableAutoUnmount(afterEach)
 import type { Ref } from 'vue'
 import PublicFaceProfileView from '../PublicFaceProfileView.vue'
 import * as publicFacesApi from '@/features/public/services/publicFacesApi'

@@ -51,12 +51,17 @@ export function useScrollReveal(rootSelector?: string) {
     targets.forEach((el) => observer!.observe(el))
   }
 
+  let initTimeout: ReturnType<typeof setTimeout> | null = null
+
   onMounted(() => {
     // Small delay so elements are in the DOM
-    setTimeout(init, 50)
+    initTimeout = setTimeout(init, 50)
   })
 
   onUnmounted(() => {
+    // Clear the pending mount timer too: left alive it would run init() after
+    // the component (or a test environment) is gone.
+    if (initTimeout) clearTimeout(initTimeout)
     observer?.disconnect()
   })
 

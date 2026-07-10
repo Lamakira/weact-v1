@@ -10,7 +10,7 @@ import { useRoute } from 'vue-router'
 import { LayoutDashboard, FileText, MessageCircle, User, Briefcase, CalendarCheck, Wallet, CreditCard, Video } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
-import { DashboardLayout, type SidebarItem } from '@/components/layout'
+import { DashboardLayout, KeepAliveRouterView, type SidebarItem } from '@/components/layout'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
 import { usePersonalInfo } from '@/features/face/composables/usePersonalInfo'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
@@ -121,25 +121,8 @@ async function handleLogout(): Promise<void> {
       v-if="personalInfoLoaded && !hasWhatsapp"
     />
 
-    <!-- Child routes render here. keep-alive caches the browse-and-return listings
-         so back-nav restores them (the layout persists because App.vue keys the
-         dashboard branch by matched[0].path). Which routes cache is driven by their
-         router `meta.keepAlive` flag (not a name-based :include): renaming a page
-         can no longer silently disable its cache, and generic component names can't
-         collide. Non-flagged routes render outside keep-alive (mount/unmount). -->
-    <router-view v-slot="{ Component }">
-      <!-- keep-alive stays ALWAYS mounted (no v-if on it) so its cache survives
-           visits to non-cached child routes (a detail page, the dashboard, …).
-           The inner v-if only decides whether the CURRENT route enters the cache;
-           non-flagged routes render in the sibling below, outside keep-alive.
-           The sibling is keyed by route.path: detail pages fetch in onMounted only,
-           so a detail→detail navigation on the same record (e.g. two notification
-           clicks) must remount, not patch the instance in place — while query-only
-           changes keep the instance (the pages' query watchers handle those). -->
-      <keep-alive>
-        <component :is="Component" v-if="route.meta.keepAlive" />
-      </keep-alive>
-      <component :is="Component" v-if="!route.meta.keepAlive" :key="route.path" />
-    </router-view>
+    <!-- Child routes render here — meta.keepAlive-driven caching + page
+         transitions live in the shared KeepAliveRouterView (see its header). -->
+    <KeepAliveRouterView />
   </DashboardLayout>
 </template>

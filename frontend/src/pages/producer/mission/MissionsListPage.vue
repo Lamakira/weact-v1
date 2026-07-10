@@ -7,7 +7,7 @@ import { useToast } from '@/composables/useToast'
 import { useMissionsList, useDeleteMission, useCloseMission, useReopenMission, useCompleteMission } from '@/features/mission/composables'
 import { MissionCard, DeleteMissionDialog, CloseMissionDialog, ReopenMissionDialog, CompleteMissionDialog, MissionStatusFilter } from '@/features/mission/components'
 import { UgcPaymentOverlay } from '@/components/ugc'
-import type { MissionStatusType } from '@/features/mission/types'
+import { MissionStatus, type MissionStatusType } from '@/features/mission/types'
 import type { Mission } from '@/features/mission/types'
 import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 
@@ -71,6 +71,12 @@ function maybeOpenPayTunnel(): void {
   const payId = route.query.pay
   if (typeof payId === 'string' && payId) {
     handlePayCommission(payId)
+    // Consume ?pay: rewrite the current history entry without it (other keys
+    // preserved), so a later Back to this URL can't replay the tunnel once the
+    // commission is settled.
+    const query = { ...route.query }
+    delete query.pay
+    void router.replace({ query })
   }
 }
 
@@ -104,7 +110,10 @@ function handlePayCommission(id: string): void {
   // filter across a keep-alive round-trip, and no filter option matches the
   // pending_payment mission a ?pay return must open the tunnel for.
   const mission = allMissions.value.find((m) => m.id === id)
-  if (mission) {
+  // Status guard: only a pending_payment mission has a commission to pay — a
+  // stale ?pay (deep link, history entry) for an already-paid mission must not
+  // reopen the payment tunnel.
+  if (mission && mission.status === MissionStatus.PENDING_PAYMENT) {
     payingMission.value = mission
     isUgcPayOpen.value = true
   }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
+import { onMounted, onUnmounted, onDeactivated, computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, Users, AlertCircle, Loader2, X } from 'lucide-vue-next'
 import { useAdminProducers } from '@/features/admin/composables/useAdminProducers'
@@ -39,6 +39,13 @@ onMounted(() => {
 useRefreshOnReturn(() => loadProducers(currentPage.value))
 
 onUnmounted(() => {
+  if (searchTimeout) clearTimeout(searchTimeout)
+})
+
+// Cached by keep-alive: onUnmounted no longer fires when leaving the page —
+// cancel a pending search debounce on deactivation too, so it can't fetch
+// off-screen and race the return refresh.
+onDeactivated(() => {
   if (searchTimeout) clearTimeout(searchTimeout)
 })
 

@@ -1,8 +1,12 @@
 /**
- * Regression guard for the meta-driven keep-alive used by the dashboard/admin
- * layouts (cleanup #12: cache by router `meta.keepAlive`, not a name-based
- * :include, so a rename can't silently disable a cache and generic component
- * names — AdminListPage, MissionsListPage — can't collide).
+ * Regression guard for the REAL shared KeepAliveRouterView SFC
+ * (src/components/layout/KeepAliveRouterView.vue) — the meta-driven keep-alive
+ * outlet used by the dashboard/admin layouts (cleanup #12: cache by router
+ * `meta.keepAlive`, not a name-based :include, so a rename can't silently
+ * disable a cache and generic component names — AdminListPage,
+ * MissionsListPage — can't collide). Earlier versions of this spec mounted a
+ * local re-copy of the layouts' template, which could drift from the shipped
+ * code; it now mounts the extracted SFC itself.
  *
  * The pattern MUST keep <keep-alive> ALWAYS mounted (no v-if on it), with the
  * v-if on the INNER component:
@@ -10,18 +14,24 @@
  *   <keep-alive>
  *     <component :is="Component" v-if="route.meta.keepAlive" />
  *   </keep-alive>
- *   <component :is="Component" v-if="!route.meta.keepAlive" />
+ *   <component :is="Component" v-if="!route.meta.keepAlive" :key="route.path" />
  *
  * A tempting-but-wrong variant puts the v-if on <keep-alive> itself — that
  * UNMOUNTS the keep-alive whenever the current route isn't cached (a detail page,
  * the dashboard), wiping the cache, so the "cached" list remounts on return. This
  * test locks in the correct behavior: a flagged route survives a visit to a
  * non-flagged sibling (mounted exactly once), while a non-flagged route remounts.
+ *
+ * NOTE: the SFC also wraps each sibling in a <transition name="dash-page">.
+ * @vue/test-utils stubs Transitions by default, so the transitions don't
+ * perturb these mount-count assertions (structural coverage only — the
+ * animation itself isn't verifiable here).
  */
 import { describe, it, expect, vi } from 'vitest'
-import { defineComponent, h, onMounted, KeepAlive } from 'vue'
+import { defineComponent, h, onMounted } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
-import { createRouter, createMemoryHistory, RouterView, useRoute } from 'vue-router'
+import { createRouter, createMemoryHistory } from 'vue-router'
+import KeepAliveRouterView from '@/components/layout/KeepAliveRouterView.vue'
 
 function setup() {
   const keptMounted = vi.fn()
@@ -43,24 +53,6 @@ function setup() {
   })
   const OtherPage = defineComponent({ name: 'OtherPage', setup: () => () => h('div', 'other') })
 
-  // Mirrors the FaceLayout/ProducerLayout/AdminLayout template: an always-mounted
-  // keep-alive whose inner child is gated by route.meta.keepAlive, plus a sibling
-  // bare component for non-flagged routes.
-  const Layout = defineComponent({
-    setup() {
-      const route = useRoute()
-      return () =>
-        h(RouterView, null, {
-          default: ({ Component }: { Component: unknown }) => [
-            h(KeepAlive, null, () =>
-              route.meta.keepAlive && Component ? h(Component as never) : null,
-            ),
-            !route.meta.keepAlive && Component ? h(Component as never) : null,
-          ],
-        })
-    },
-  })
-
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -70,16 +62,16 @@ function setup() {
     ],
   })
 
-  return { Layout, router, keptMounted, plainMounted }
+  return { router, keptMounted, plainMounted }
 }
 
-describe('meta.keepAlive-driven keep-alive', () => {
+describe('meta.keepAlive-driven keep-alive (KeepAliveRouterView)', () => {
   it('a flagged route is cached across a visit to a non-flagged route (mounted once)', async () => {
-    const { Layout, router, keptMounted } = setup()
+    const { router, keptMounted } = setup()
 
     router.push('/kept')
     await router.isReady()
-    mount(Layout, { global: { plugins: [router] } })
+    mount(KeepAliveRouterView, { global: { plugins: [router] } })
     await flushPromises()
     expect(keptMounted).toHaveBeenCalledTimes(1)
 
@@ -92,11 +84,11 @@ describe('meta.keepAlive-driven keep-alive', () => {
   })
 
   it('a non-flagged route is NOT cached (remounts on return)', async () => {
-    const { Layout, router, plainMounted } = setup()
+    const { router, plainMounted } = setup()
 
     router.push('/plain')
     await router.isReady()
-    mount(Layout, { global: { plugins: [router] } })
+    mount(KeepAliveRouterView, { global: { plugins: [router] } })
     await flushPromises()
     expect(plainMounted).toHaveBeenCalledTimes(1)
 

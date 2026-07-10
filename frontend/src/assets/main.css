@@ -210,6 +210,30 @@
   transform: translateY(-6px);
 }
 
+/* ── Dashboard Page Transitions (KeepAliveRouterView) ──
+   Mirror of .page-* for the child-route swaps inside the persistent
+   dashboard/admin layouts. */
+.dash-page-enter-active {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.dash-page-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  /* Absolute leave: the two sibling Transitions (cached/non-cached) crossfade in place instead of stacking vertically. */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+}
+.dash-page-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.dash-page-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
 /* ── Scroll Reveal ── */
 .reveal {
   opacity: 0;

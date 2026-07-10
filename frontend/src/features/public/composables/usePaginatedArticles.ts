@@ -5,6 +5,7 @@ import {
   type PublicArticle,
 } from '../services/publicArticlesApi'
 import type { PaginationMeta } from '../services/publicFacesApi'
+import { useKeepAliveListingGuard } from './useKeepAliveListingGuard'
 
 /**
  * Composable for managing paginated articles list with URL sync and category filter
@@ -21,23 +22,8 @@ export function usePaginatedArticles(perPage: number = 15) {
   const route = useRoute()
   const router = useRouter()
 
-  // Captured at setup — snapshots this listing's own route name so the query
-  // watcher can tell "I'm the active listing" from "I'm a <keep-alive>-cached
-  // page whose query churned because we navigated to an article detail".
-  const listRouteName = route.name
-
-  // Signature of the query the currently-displayed data was fetched for — lets
-  // the watcher serve a keep-alive return from cache instead of refetching.
-  const loadedSignature = ref<string | null>(null)
-
-  function querySignature(): string {
-    const normalized: Record<string, string> = {}
-    for (const key of TRACKED_QUERY_KEYS) {
-      const value = route.query[key]
-      if (typeof value === 'string' && value !== '') normalized[key] = value
-    }
-    return JSON.stringify(normalized)
-  }
+  // Keep-alive reload guard (rationale in useKeepAliveListingGuard).
+  const { markLoaded, markFailed, shouldSkipReload } = useKeepAliveListingGuard(TRACKED_QUERY_KEYS)
 
   // State
   const articles = ref<PublicArticle[]>([])
@@ -86,7 +72,7 @@ export function usePaginatedArticles(perPage: number = 15) {
 
     // Record the query we're fetching for so a later keep-alive return with the
     // same query is served from cache rather than refetched.
-    loadedSignature.value = querySignature()
+    markLoaded()
     isLoading.value = true
     error.value = null
     const currentRequestId = ++requestId
@@ -98,9 +84,8 @@ export function usePaginatedArticles(perPage: number = 15) {
       meta.value = response.meta
     } catch (err: unknown) {
       if (currentRequestId !== requestId) return
-      // This query is NOT loaded: forget its signature so a keep-alive return
-      // retries the fetch instead of restoring the error screen from cache.
-      loadedSignature.value = null
+      // Failed query → not loaded (see useKeepAliveListingGuard).
+      markFailed()
       console.error('Failed to fetch articles:', err)
       error.value = 'Une erreur est survenue lors du chargement des articles. Veuillez réessayer.'
       articles.value = []
@@ -133,18 +118,11 @@ export function usePaginatedArticles(perPage: number = 15) {
   }
 
   // Watch for URL changes and reload.
-  //
-  // Cached under <keep-alive>, this watcher keeps running off-screen (Vue 3.5).
-  // Ignore the query churn from navigating AWAY to an article detail (route.name
-  // is no longer this listing → a naive reload would clobber the cached grid),
-  // and skip a refetch when a return restores the same query (the cache is valid;
-  // refetching would only flash the skeleton). A genuine page/category change
-  // while ON the listing changes the signature and falls through to loadPage.
+  // Keep-alive churn (leave/return) must not reload — see useKeepAliveListingGuard.
   watch(
     () => TRACKED_QUERY_KEYS.map((key) => route.query[key]),
     () => {
-      if (route.name !== listRouteName) return
-      if (querySignature() === loadedSignature.value) return
+      if (shouldSkipReload()) return
       loadPage(currentPage.value, currentCategory.value)
     },
   )
