@@ -9,7 +9,8 @@
  * - Hamburger menu with slide-in overlay on mobile
  * - Shared between Face and Producer dashboards
  */
-import { watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { X, LogOut, Loader2 } from 'lucide-vue-next'
 import DashboardSidebar, { type SidebarItem } from './DashboardSidebar.vue'
 import DashboardHeader from './DashboardHeader.vue'
@@ -44,6 +45,33 @@ const emit = defineEmits<{
 }>()
 
 const { isMobileOpen, closeMobile, collapse } = useSidebarState()
+
+const route = useRoute()
+
+// The <main> below is the dashboards' ONLY scroller (the wrapper is h-screen
+// overflow-hidden, the window never scrolls) and this layout now persists
+// across child navigations (App.vue keys it by the layout's own route), so
+// nothing resets its scrollTop anymore. Handle it per navigation: a page
+// cached by <keep-alive> gets its saved offset back on return; any other page
+// starts at the top. router.scrollBehavior can't do this — it only drives the
+// window scroller.
+const contentEl = ref<HTMLElement | null>(null)
+const savedScrollPositions = new Map<string, number>()
+
+watch(
+  () => route.fullPath,
+  (to, from) => {
+    const el = contentEl.value
+    if (!el) return
+    // Pre-flush: the DOM still shows the page being left — save its offset.
+    if (from) savedScrollPositions.set(from, el.scrollTop)
+    void nextTick(() => {
+      const target = contentEl.value
+      if (!target) return
+      target.scrollTop = route.meta.keepAlive ? (savedScrollPositions.get(to) ?? 0) : 0
+    })
+  },
+)
 
 /** Close mobile sidebar when clicking outside */
 function handleBackdropClick() {
@@ -201,6 +229,7 @@ function handleLogout() {
 
         <!-- Content (scrollable) -->
         <main
+          ref="contentEl"
           class="flex-1 p-6 lg:p-12 overflow-y-auto overflow-x-hidden relative"
           data-testid="dashboard-content"
         >

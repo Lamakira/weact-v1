@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from 'vue'
+import { useDismissOnDeactivate } from '@/composables/useDismissOnDeactivate'
 import { Trash2, AlertTriangle, X } from 'lucide-vue-next'
 
 interface Props {
@@ -24,6 +25,10 @@ const emit = defineEmits<{
   (e: 'confirm'): void
   (e: 'cancel'): void
 }>()
+
+// Close when the host page is deactivated by <keep-alive> — the teleported
+// overlay would otherwise stay in <body> on top of the next page.
+useDismissOnDeactivate(() => props.isOpen, () => emit('cancel'))
 
 const handleEscape = (e: KeyboardEvent) => {
   if (e.key === 'Escape' && props.isOpen) {

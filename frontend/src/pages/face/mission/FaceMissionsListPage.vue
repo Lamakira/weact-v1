@@ -14,6 +14,7 @@ import { useFaceMissions, useMissionFilters } from '@/features/mission/composabl
 import { AvailableMissionCard, MissionFiltersPanel } from '@/features/mission/components'
 import { UgcDiscoveryBanner } from '@/components/ugc'
 import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
+import { useDismissOnDeactivate } from '@/composables/useDismissOnDeactivate'
 
 // Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
 defineOptions({ name: 'FaceMissionsListPage' })
@@ -77,6 +78,15 @@ onMounted(() => {
 // current page (not page 1); the grid stays visible during the refetch (the
 // skeleton only shows when the list is empty), so there's no flash on return.
 useRefreshOnReturn(() => refreshMissions(filters.value))
+
+// The mobile filters bottom-sheet is teleported to <body>: close it when this
+// cached page is deactivated, or it would stay on top of the next page.
+useDismissOnDeactivate(
+  () => showFiltersPanel.value,
+  () => {
+    showFiltersPanel.value = false
+  },
+)
 
 function handleApplyFilters(): void {
   syncToUrl()

@@ -100,7 +100,10 @@ function handleViewAttendance(id: string): void {
 }
 
 function handlePayCommission(id: string): void {
-  const mission = missions.value.find((m) => m.id === id)
+  // Search the UNFILTERED list: this cached page can keep an active status
+  // filter across a keep-alive round-trip, and no filter option matches the
+  // pending_payment mission a ?pay return must open the tunnel for.
+  const mission = allMissions.value.find((m) => m.id === id)
   if (mission) {
     payingMission.value = mission
     isUgcPayOpen.value = true
