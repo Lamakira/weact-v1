@@ -170,6 +170,9 @@ export function usePaginatedMissions(perPage: number = 15) {
       meta.value = response.meta
     } catch (err: unknown) {
       if (currentRequestId !== requestId) return
+      // This query is NOT loaded: forget its signature so a keep-alive return
+      // retries the fetch instead of restoring the error screen from cache.
+      loadedSignature.value = null
       console.error('Failed to fetch missions:', err)
       error.value = 'Une erreur est survenue lors du chargement des missions. Veuillez réessayer.'
       missions.value = []

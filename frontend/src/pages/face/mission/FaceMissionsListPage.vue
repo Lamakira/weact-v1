@@ -55,6 +55,7 @@ const {
   resetFilters,
   syncToUrl,
   initFromUrl,
+  reinitFromUrl,
 } = useMissionFilters()
 
 // Mobile filter panel visibility
@@ -70,14 +71,19 @@ onMounted(() => {
 })
 
 // #7 — this page is cached under <keep-alive> in FaceLayout, so onMounted does
-// NOT re-run on return. Unlike its siblings (FaceCandidatures/FaceBookings watch
-// route.query and so refetch on return), this page has no such watch. Without
-// this, opening a mission detail (applying, or a producer closing it) and coming
-// back would leave stale mission statuses until a full reload. Re-fetch the
-// current page with the current filters on reactivation. refreshMissions keeps the
-// current page (not page 1); the grid stays visible during the refetch (the
-// skeleton only shows when the list is empty), so there's no flash on return.
-useRefreshOnReturn(() => refreshMissions(filters.value))
+// NOT re-run on return. Without this, opening a mission detail (applying, or a
+// producer closing it) and coming back would leave stale mission statuses until
+// a full reload. On reactivation, FIRST reconcile the filters with the current
+// URL (the source of truth for APPLIED filters): the filter refs are bound live
+// to the panel inputs, so they may hold drafts typed but never applied, or
+// filters the URL no longer carries (a sidebar click lands on a clean URL —
+// pre-keep-alive, that remounted the page with fresh state). Then re-fetch the
+// current page; the grid stays visible during the refetch (the skeleton only
+// shows when the list is empty), so there's no flash on return.
+useRefreshOnReturn(() => {
+  reinitFromUrl()
+  return refreshMissions(filters.value)
+})
 
 // The mobile filters bottom-sheet is teleported to <body>: close it when this
 // cached page is deactivated, or it would stay on top of the next page.

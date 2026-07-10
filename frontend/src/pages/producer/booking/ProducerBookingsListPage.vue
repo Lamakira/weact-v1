@@ -58,7 +58,6 @@ function syncFromUrl(): void {
  * Update URL when filter or page changes (skip watcher to avoid double-fetch)
  */
 function updateUrl(): void {
-  skipNextWatch = true
   const query: Record<string, string> = {}
   if (statusFilter.value) {
     query.status = statusFilter.value
@@ -66,6 +65,16 @@ function updateUrl(): void {
   if (currentPage.value > 1) {
     query.page = String(currentPage.value)
   }
+  // Replacing with an identical query is a "duplicated navigation": vue-router
+  // aborts it and the query watcher never ticks, so an armed skipNextWatch
+  // would survive in this keep-alive-cached instance and swallow the next
+  // return's refresh. Only arm the flag when a navigation will actually happen.
+  const current = route.query
+  const unchanged =
+    Object.keys(current).length === Object.keys(query).length &&
+    Object.entries(query).every(([key, value]) => current[key] === value)
+  if (unchanged) return
+  skipNextWatch = true
   router.replace({ query })
 }
 

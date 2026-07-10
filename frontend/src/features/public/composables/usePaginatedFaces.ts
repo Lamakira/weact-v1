@@ -127,6 +127,11 @@ export function usePaginatedFaces(perPage: number = 15) {
       meta.value = response.meta
     } catch (err: unknown) {
       if (currentRequestId !== requestId) return
+      // This query is NOT loaded: forget its signature so a keep-alive return
+      // retries the fetch instead of restoring the error screen from cache.
+      // (Only the most recent request reaches this line — superseded ones
+      // returned above — so a fresher request's signature can't be erased.)
+      loadedSignature.value = null
       console.error('Failed to fetch faces:', err)
       error.value = 'Une erreur est survenue lors du chargement des talents. Veuillez réessayer.'
       faces.value = []

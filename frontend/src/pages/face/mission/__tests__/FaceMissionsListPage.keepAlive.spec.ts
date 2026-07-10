@@ -40,6 +40,7 @@ const mockHasActiveFilters = ref(false)
 const mockResetFilters = vi.fn()
 const mockSyncToUrl = vi.fn()
 const mockInitFromUrl = vi.fn()
+const mockReinitFromUrl = vi.fn()
 
 // Both composables live in the same barrel — one mock covers both.
 vi.mock('@/features/mission/composables', () => ({
@@ -71,6 +72,7 @@ vi.mock('@/features/mission/composables', () => ({
     resetFilters: mockResetFilters,
     syncToUrl: mockSyncToUrl,
     initFromUrl: mockInitFromUrl,
+    reinitFromUrl: mockReinitFromUrl,
   }),
 }))
 
