@@ -8,10 +8,31 @@ import CookieConsentBanner from '@/components/cookie/CookieConsentBanner.vue'
 import SitewideSubscriptionPaymentBanner from '@/components/SitewideSubscriptionPaymentBanner.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notification'
+import {
+  cancelPublicRouteEnter,
+  finishPublicRouteEnter,
+  getPublicScrollNavigationToken,
+} from '@/router/publicScrollRestoration'
 
 const route = useRoute()
 const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
+const enteringPublicRoutes = new WeakMap<Element, symbol>()
+
+function rememberEnteringPublicRoute(element: Element): void {
+  const navigationToken = getPublicScrollNavigationToken(route.fullPath)
+  if (navigationToken) enteringPublicRoutes.set(element, navigationToken)
+}
+
+function finishEnteringPublicRoute(element: Element): void {
+  const navigationToken = enteringPublicRoutes.get(element)
+  if (navigationToken) finishPublicRouteEnter(navigationToken)
+}
+
+function cancelEnteringPublicRoute(element: Element): void {
+  const navigationToken = enteringPublicRoutes.get(element)
+  if (navigationToken) cancelPublicRouteEnter(navigationToken)
+}
 
 // Bootstrap notification store on app reload for authenticated users
 onMounted(() => {
@@ -115,7 +136,13 @@ const isLandingPage = computed(() => {
       <!-- Main Content -->
       <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
         <RouterView v-slot="{ Component }">
-          <Transition name="page" mode="out-in">
+          <Transition
+            name="page"
+            mode="out-in"
+            @before-enter="rememberEnteringPublicRoute"
+            @after-enter="finishEnteringPublicRoute"
+            @enter-cancelled="cancelEnteringPublicRoute"
+          >
             <!-- keep-alive caches the "browse a listing → open a detail → back"
                  public listings (Group A) so back-nav restores the grid + scroll
                  instead of remounting + refetching (skeleton). Rotation-sensitive

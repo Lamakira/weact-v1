@@ -16,6 +16,12 @@
 import { describe, it, expect } from 'vitest'
 import type { RouteLocationNormalized } from 'vue-router'
 import router from '@/router'
+import {
+  beginPublicScrollNavigation,
+  cancelPublicRouteEnter,
+  finishPublicRouteEnter,
+  getPublicScrollNavigationToken,
+} from '@/router/publicScrollRestoration'
 
 const scrollBehavior = router.options.scrollBehavior!
 
@@ -32,11 +38,41 @@ function callScrollBehavior(
   from: RouteLocationNormalized,
   savedPosition: { left: number; top: number } | null,
 ) {
+  beginPublicScrollNavigation(to.fullPath)
   return scrollBehavior(to, from, savedPosition)
 }
 
 describe('scrollBehavior — push back to a cached public listing (finding #10)', () => {
-  it('restores the remembered window offset on the "back to list" push', () => {
+  it('defers the remembered offset until the cached listing has finished entering', async () => {
+    const listing = loc('public-faces-list', '/faces?page=deferred')
+    const detail = loc(
+      'public-face-profile',
+      '/faces/adjoua?returnTo=%2Ffaces%3Fpage%3Ddeferred',
+    )
+
+    setWindowScrollY(900)
+    callScrollBehavior(detail, listing, null)
+
+    setWindowScrollY(0)
+    const restoration = callScrollBehavior(listing, detail, null)
+    expect(restoration).toBeInstanceOf(Promise)
+
+    let settled = false
+    void Promise.resolve(restoration).then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+
+    // With mode="out-in", the detail page is still the document whose short
+    // scroll range would clamp 900 here. The promise must stay pending until
+    // the entering listing's transition-completion hook releases it.
+    expect(settled).toBe(false)
+    const navigationToken = getPublicScrollNavigationToken(listing.fullPath)
+    expect(navigationToken).not.toBeNull()
+    cancelPublicRouteEnter(navigationToken!)
+  })
+
+  it('restores the remembered window offset on the "back to list" push', async () => {
     // Leave /faces?page=3 scrolled at 500 towards a profile → lands at top.
     setWindowScrollY(500)
     expect(
@@ -50,13 +86,27 @@ describe('scrollBehavior — push back to a cached public listing (finding #10)'
     // The profile's "Retour aux talents" link is a PUSH back to the listing:
     // the cached grid must reappear at the remembered offset, not the top.
     setWindowScrollY(0)
-    expect(
-      callScrollBehavior(
-        loc('public-faces-list', '/faces?page=3'),
-        loc('public-face-profile', '/faces/adjoua?returnTo=%2Ffaces%3Fpage%3D3'),
-        null,
-      ),
-    ).toEqual({ top: 500 })
+    const restoration = callScrollBehavior(
+      loc('public-faces-list', '/faces?page=3'),
+      loc('public-face-profile', '/faces/adjoua?returnTo=%2Ffaces%3Fpage%3D3'),
+      null,
+    )
+    const navigationToken = getPublicScrollNavigationToken('/faces?page=3')
+    expect(navigationToken).not.toBeNull()
+    finishPublicRouteEnter(navigationToken!)
+    await expect(restoration).resolves.toEqual({ top: 500 })
+  })
+
+  it('cancels a pending restoration when a newer navigation targets the same fullPath', async () => {
+    const listing = loc('public-faces-list', '/faces?page=same')
+    const detail = loc('public-face-profile', '/faces/adjoua')
+
+    setWindowScrollY(700)
+    callScrollBehavior(detail, listing, null)
+    const staleRestoration = callScrollBehavior(listing, detail, null)
+
+    beginPublicScrollNavigation(listing.fullPath)
+    await expect(staleRestoration).resolves.toBe(false)
   })
 
   it('savedPosition (browser back/forward) keeps priority over the memory', () => {

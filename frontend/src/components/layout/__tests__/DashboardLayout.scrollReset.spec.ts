@@ -20,9 +20,14 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory, type Router } from 'vue-router'
-import { defineComponent, nextTick } from 'vue'
+import { defineComponent, h, inject, nextTick } from 'vue'
 import DashboardLayout from '../DashboardLayout.vue'
+import {
+  restoreDashboardScrollKey,
+  type RestoreDashboardScroll,
+} from '../dashboardScrollRestoration'
 import { LayoutDashboard, FileText } from 'lucide-vue-next'
+import { useRoute } from 'vue-router'
 
 // Mock the logo import
 vi.mock('@/assets/images/logonoir.png', () => ({
@@ -73,15 +78,33 @@ const sidebarItems = [
   { label: 'Détail', icon: FileText, to: '/parent/detail' },
 ]
 
+let capturedRestoreDashboardScroll: RestoreDashboardScroll | undefined
+
+const AfterEnterTrigger = defineComponent({
+  setup() {
+    const restoreDashboardScroll = inject(restoreDashboardScrollKey)
+    capturedRestoreDashboardScroll = restoreDashboardScroll
+    const route = useRoute()
+    return () => h('button', {
+      'data-testid': 'after-enter-trigger',
+      onClick: () => restoreDashboardScroll?.({
+        fullPath: route.fullPath,
+        keepAlive: Boolean(route.meta.keepAlive),
+      }),
+    })
+  },
+})
+
 /** Hôte : rend DashboardLayout avec le <router-view/> enfant dans son slot */
 const LayoutHost = defineComponent({
-  components: { DashboardLayout },
+  components: { AfterEnterTrigger, DashboardLayout },
   data() {
     return { sidebarItems }
   },
   template: `
     <DashboardLayout :sidebar-items="sidebarItems" title="Test">
       <router-view />
+      <AfterEnterTrigger />
     </DashboardLayout>
   `,
 })
@@ -180,5 +203,47 @@ describe('DashboardLayout — scroll reset/restore du <main> (bug F4)', () => {
     // CONTRAT : restauration de la position sauvegardée pour /parent/list = 500.
     // BUG ACTUEL : rien n'est sauvegardé/restauré → le <main> reste à 42.
     expect(main.scrollTop).toBe(500)
+  })
+
+  it('reapplies the saved offset after enter when the browser clamped the early restoration', async () => {
+    const router = makeRouter()
+    const { wrapper, main } = await mountOnList(router)
+
+    main.scrollTop = 500
+    await router.push('/parent/detail')
+    await flushPromises()
+    main.scrollTop = 42
+
+    await router.push('/parent/list')
+    await flushPromises()
+    await nextTick()
+    expect(main.scrollTop).toBe(500)
+
+    // Reproduce the browser's clamp while an out-in transition temporarily
+    // has no scrollable destination content, then signal transition entry.
+    main.scrollTop = 0
+    await wrapper.find('[data-testid="after-enter-trigger"]').trigger('click')
+
+    expect(main.scrollTop).toBe(500)
+  })
+
+  it('ignores a stale transition callback after a newer navigation wins', async () => {
+    const router = makeRouter()
+    const { main } = await mountOnList(router)
+
+    main.scrollTop = 500
+    await router.push('/parent/detail')
+    await flushPromises()
+
+    main.scrollTop = 42
+    await router.push('/parent/list')
+    await flushPromises()
+
+    // The real outlet captures its destination before enter. Calling the
+    // provider with an older destination must not alter the current page.
+    main.scrollTop = 321
+    capturedRestoreDashboardScroll?.({ fullPath: '/parent/detail', keepAlive: false })
+
+    expect(main.scrollTop).toBe(321)
   })
 })

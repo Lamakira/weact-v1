@@ -32,6 +32,7 @@ import { defineComponent, h, onMounted } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import KeepAliveRouterView from '@/components/layout/KeepAliveRouterView.vue'
+import { restoreDashboardScrollKey } from '@/components/layout/dashboardScrollRestoration'
 
 function setup() {
   const keptMounted = vi.fn()
@@ -66,6 +67,40 @@ function setup() {
 }
 
 describe('meta.keepAlive-driven keep-alive (KeepAliveRouterView)', () => {
+  it('signals dashboard scroll restoration after the destination enters', async () => {
+    const { router } = setup()
+    const restoreDashboardScroll = vi.fn()
+
+    router.push('/kept')
+    await router.isReady()
+    mount(KeepAliveRouterView, {
+      global: {
+        plugins: [router],
+        provide: { [restoreDashboardScrollKey as symbol]: restoreDashboardScroll },
+        stubs: { Transition: false },
+      },
+    })
+    await flushPromises()
+
+    const callsAfterMount = restoreDashboardScroll.mock.calls.length
+    await router.push('/other')
+    await flushPromises()
+
+    await vi.waitFor(() => {
+      expect(restoreDashboardScroll.mock.calls.length).toBeGreaterThan(callsAfterMount)
+    })
+
+    const callsAfterPlainEntry = restoreDashboardScroll.mock.calls.length
+    await router.push('/kept')
+    await vi.waitFor(() => {
+      expect(restoreDashboardScroll.mock.calls.length).toBeGreaterThan(callsAfterPlainEntry)
+    })
+    expect(restoreDashboardScroll).toHaveBeenLastCalledWith({
+      fullPath: '/kept',
+      keepAlive: true,
+    })
+  })
+
   it('a flagged route is cached across a visit to a non-flagged route (mounted once)', async () => {
     const { router, keptMounted } = setup()
 

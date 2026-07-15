@@ -3,6 +3,10 @@ import HomeView from '../views/HomeView.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAdminAuthStore } from '@/stores/adminAuth'
 import { useNavigationProgress } from '@/composables/useNavigationProgress'
+import {
+  beginPublicScrollNavigation,
+  deferPublicScrollRestoration,
+} from './publicScrollRestoration'
 
 const navigationProgress = useNavigationProgress()
 
@@ -45,7 +49,7 @@ const router = createRouter({
     ) {
       const remembered = publicListingScrollPositions.get(to.fullPath)
       if (remembered !== undefined) {
-        return { top: remembered }
+        return deferPublicScrollRestoration(to.fullPath, { top: remembered })
       }
     }
     // Otherwise scroll to top
@@ -599,6 +603,10 @@ const router = createRouter({
 
 // Navigation guards
 router.beforeEach((to, _from, next) => {
+  // Gives transition callbacks a navigation-specific identity and cancels any
+  // deferred restoration whose enter was interrupted by this navigation.
+  beginPublicScrollNavigation(to.fullPath)
+
   // Démarre la barre de chargement dès le début de toute navigation
   // (les redirections des guards ci-dessous relancent beforeEach : start() est idempotent).
   navigationProgress.start()

@@ -70,7 +70,9 @@ onMounted(async () => {
 function maybeOpenPayTunnel(): void {
   const payId = route.query.pay
   if (typeof payId === 'string' && payId) {
-    handlePayCommission(payId)
+    const didOpen = handlePayCommission(payId)
+    if (!didOpen) return
+
     // Consume ?pay: rewrite the current history entry without it (other keys
     // preserved), so a later Back to this URL can't replay the tunnel once the
     // commission is settled.
@@ -89,6 +91,11 @@ useRefreshOnReturn(async () => {
   maybeOpenPayTunnel()
 })
 
+async function retryMissions(): Promise<void> {
+  await refreshMissions()
+  maybeOpenPayTunnel()
+}
+
 function navigateToPublish(): void {
   router.push({ name: 'publish-mission' })
 }
@@ -105,7 +112,7 @@ function handleViewAttendance(id: string): void {
   router.push({ name: 'producer-mission-attendance', params: { id } })
 }
 
-function handlePayCommission(id: string): void {
+function handlePayCommission(id: string): boolean {
   // Search the UNFILTERED list: this cached page can keep an active status
   // filter across a keep-alive round-trip, and no filter option matches the
   // pending_payment mission a ?pay return must open the tunnel for.
@@ -116,7 +123,10 @@ function handlePayCommission(id: string): void {
   if (mission && mission.status === MissionStatus.PENDING_PAYMENT) {
     payingMission.value = mission
     isUgcPayOpen.value = true
+    return true
   }
+
+  return false
 }
 
 function handleCommissionSettled(): void {
@@ -305,7 +315,7 @@ async function confirmComplete(): Promise<void> {
         <button
           type="button"
           class="mt-6 flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-2 text-sm font-medium transition-colors hover:bg-muted"
-          @click="refreshMissions"
+          @click="retryMissions"
         >
           <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': isLoading }" />
           Réessayer
@@ -378,7 +388,7 @@ async function confirmComplete(): Promise<void> {
             type="button"
             class="group p-2 text-muted-foreground transition-colors hover:text-primary"
             title="Rafraîchir la liste"
-            @click="refreshMissions"
+            @click="retryMissions"
           >
             <RefreshCw class="h-5 w-5" :class="{ 'animate-spin': isLoading }" />
           </button>

@@ -37,9 +37,28 @@
  * .dash-page-leave-active (main.css) turns into an in-place crossfade
  * instead of a vertical stack.
  */
+import { inject } from 'vue'
 import { useRoute } from 'vue-router'
+import {
+  restoreDashboardScrollKey,
+  type DashboardScrollDestination,
+} from './dashboardScrollRestoration'
 
 const route = useRoute()
+const restoreDashboardScroll = inject(restoreDashboardScrollKey, () => {})
+const enteringDestinations = new WeakMap<Element, DashboardScrollDestination>()
+
+function rememberEnteringDestination(element: Element): void {
+  enteringDestinations.set(element, {
+    fullPath: route.fullPath,
+    keepAlive: Boolean(route.meta.keepAlive),
+  })
+}
+
+function restoreEnteringDestination(element: Element): void {
+  const destination = enteringDestinations.get(element)
+  if (destination) restoreDashboardScroll(destination)
+}
 </script>
 
 <template>
@@ -47,12 +66,22 @@ const route = useRoute()
        éventuelles au-dessus (WhatsApp, email) restent hors de la zone. -->
   <div class="relative">
     <router-view v-slot="{ Component }">
-      <transition name="dash-page" mode="out-in">
+      <transition
+        name="dash-page"
+        mode="out-in"
+        @before-enter="rememberEnteringDestination"
+        @after-enter="restoreEnteringDestination"
+      >
         <keep-alive>
           <component :is="Component" v-if="route.meta.keepAlive" />
         </keep-alive>
       </transition>
-      <transition name="dash-page" mode="out-in">
+      <transition
+        name="dash-page"
+        mode="out-in"
+        @before-enter="rememberEnteringDestination"
+        @after-enter="restoreEnteringDestination"
+      >
         <component :is="Component" v-if="!route.meta.keepAlive" :key="route.path" />
       </transition>
     </router-view>

@@ -272,6 +272,56 @@ describe('MissionsListPage — stale ?pay in history / already-paid mission (bug
     expect(replaceArg?.query).toMatchObject({ ref: 'checkout' })
   })
 
+  it('retains ?pay when the mission is missing, then consumes it after a later refresh finds the mission', async () => {
+    const { wrapper, current } = mountKeepAliveHost()
+    await flushPromises()
+
+    current.value = 'other'
+    await flushPromises()
+
+    mockAllMissions.value = [publishedMission]
+    mockRoute.query = { pay: 'ugc-mission-1', ref: 'checkout' }
+    current.value = 'page'
+    await flushPromises()
+
+    expect(wrapper.findComponent(overlayStub).exists()).toBe(false)
+    expect(mockRouter.replace).not.toHaveBeenCalled()
+
+    current.value = 'other'
+    await flushPromises()
+    mockAllMissions.value = [publishedMission, ugcPendingMission]
+    current.value = 'page'
+    await flushPromises()
+
+    expect(wrapper.findComponent(overlayStub).exists()).toBe(true)
+    expect(mockRouter.replace).toHaveBeenCalledTimes(1)
+    expect(mockRouter.replace).toHaveBeenCalledWith({ query: { ref: 'checkout' } })
+  })
+
+  it('retries the retained ?pay after the in-page refresh succeeds', async () => {
+    mockRoute.query = { pay: 'ugc-mission-1', ref: 'retry' }
+    mockAllMissions.value = [publishedMission]
+    mockFilteredMissions.value = []
+    mockError.value = 'Échec temporaire'
+    mockRefreshMissions.mockImplementationOnce(async () => {
+      mockAllMissions.value = [publishedMission, ugcPendingMission]
+      mockFilteredMissions.value = [publishedMission]
+      mockError.value = null
+    })
+
+    const { wrapper } = mountKeepAliveHost()
+    await flushPromises()
+
+    expect(mockRouter.replace).not.toHaveBeenCalled()
+    const retryButton = wrapper.findAll('button').find((button) => button.text().includes('Réessayer'))
+    expect(retryButton).toBeDefined()
+    await retryButton!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findComponent(overlayStub).exists()).toBe(true)
+    expect(mockRouter.replace).toHaveBeenCalledWith({ query: { ref: 'retry' } })
+  })
+
   // T-b — fix volet (b) GARDE STATUT : a stale ?pay (Back onto the old
   // producer-missions?pay={id} history entry) points to a mission that has
   // since been paid → status 'published'. The tunnel must NOT open.
@@ -296,5 +346,6 @@ describe('MissionsListPage — stale ?pay in history / already-paid mission (bug
     // The page renders the overlay under `v-if="payingMission"`, so mere
     // existence means handlePayCommission accepted the paid mission.
     expect(wrapper.findComponent(overlayStub).exists()).toBe(false)
+    expect(mockRouter.replace).not.toHaveBeenCalled()
   })
 })

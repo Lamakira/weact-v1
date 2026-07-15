@@ -9,13 +9,17 @@
  * - Hamburger menu with slide-in overlay on mobile
  * - Shared between Face and Producer dashboards
  */
-import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, watch, nextTick, onMounted, onUnmounted, provide } from 'vue'
 import { useRoute } from 'vue-router'
 import { X, LogOut, Loader2 } from 'lucide-vue-next'
 import DashboardSidebar, { type SidebarItem } from './DashboardSidebar.vue'
 import DashboardHeader from './DashboardHeader.vue'
 import { useSidebarState } from '@/composables/useSidebarState'
 import logoPng from '@/assets/images/logonoir.png'
+import {
+  restoreDashboardScrollKey,
+  type DashboardScrollDestination,
+} from './dashboardScrollRestoration'
 
 interface Props {
   sidebarItems: SidebarItem[]
@@ -58,6 +62,23 @@ const route = useRoute()
 const contentEl = ref<HTMLElement | null>(null)
 const savedScrollPositions = new Map<string, number>()
 
+function restoreScroll(destination: DashboardScrollDestination): void {
+  // Ignore a nextTick or transition hook belonging to a navigation that was
+  // superseded before it completed.
+  if (route.fullPath !== destination.fullPath) return
+
+  const target = contentEl.value
+  if (!target) return
+  target.scrollTop = destination.keepAlive
+    ? (savedScrollPositions.get(destination.fullPath) ?? 0)
+    : 0
+}
+
+// KeepAliveRouterView owns the child-route transition. Its after-enter hook
+// calls this once the destination content exists, so an early assignment that
+// the browser clamped while mode="out-in" was between pages is not final.
+provide(restoreDashboardScrollKey, restoreScroll)
+
 watch(
   () => route.fullPath,
   (to, from) => {
@@ -65,11 +86,11 @@ watch(
     if (!el) return
     // Pre-flush: the DOM still shows the page being left — save its offset.
     if (from) savedScrollPositions.set(from, el.scrollTop)
-    void nextTick(() => {
-      const target = contentEl.value
-      if (!target) return
-      target.scrollTop = route.meta.keepAlive ? (savedScrollPositions.get(to) ?? 0) : 0
-    })
+    // Retain the immediate reset for DashboardLayout consumers without the
+    // shared transition outlet; transitioned dashboards restore again after
+    // enter through the provided callback above.
+    const destination = { fullPath: to, keepAlive: Boolean(route.meta.keepAlive) }
+    void nextTick(() => restoreScroll(destination))
   },
 )
 

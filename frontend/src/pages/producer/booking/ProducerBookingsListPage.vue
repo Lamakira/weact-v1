@@ -13,6 +13,14 @@ import { BookingCard, BookingStatusFilter } from '@/features/booking/components'
 import type { BookingFilterStatus } from '@/features/booking/types'
 import { BookingFilterLabel } from '@/features/booking/types'
 
+const bookingFilterStatuses = new Set(Object.keys(BookingFilterLabel))
+
+function normalizeStatusQuery(value: unknown): BookingFilterStatus {
+  return typeof value === 'string' && bookingFilterStatuses.has(value)
+    ? value as BookingFilterStatus
+    : ''
+}
+
 // Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
 defineOptions({ name: 'ProducerBookingsListPage' })
 
@@ -44,10 +52,10 @@ let skipNextWatch = false
  * Sync filter with URL query params
  */
 function syncFromUrl(): void {
-  const urlStatus = route.query.status as BookingFilterStatus | undefined
+  const urlStatus = normalizeStatusQuery(route.query.status)
   const urlPage = parseInt(route.query.page as string, 10) || 1
 
-  if (urlStatus !== undefined && urlStatus !== statusFilter.value) {
+  if (urlStatus !== statusFilter.value) {
     statusFilter.value = urlStatus
   }
 
