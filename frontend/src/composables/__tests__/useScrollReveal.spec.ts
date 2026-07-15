@@ -12,7 +12,7 @@
  * and onUnmounted never fires while a listing is cached).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, KeepAlive, nextTick, ref } from 'vue'
 import { mount } from '@vue/test-utils'
 import { useScrollReveal } from '../useScrollReveal'
 
@@ -84,6 +84,68 @@ describe('useScrollReveal', () => {
 
     expect(MockIntersectionObserver.instances).toHaveLength(2)
     expect(MockIntersectionObserver.instances[0].disconnect).toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('makes a cached Face card visible again when the listing is reactivated', async () => {
+    const listingActive = ref(true)
+
+    const FacesListing = defineComponent({
+      name: 'PublicFacesView',
+      setup() {
+        useScrollReveal('[data-testid="faces-listing"]')
+        return () => h('div', { 'data-testid': 'faces-listing' }, [
+          h('a', { class: 'stagger-item', 'data-testid': 'face-card-1' }, 'Adjoua'),
+          h('a', { class: 'stagger-item', 'data-testid': 'face-card-2' }, 'Koffi'),
+        ])
+      },
+    })
+
+    const Detail = defineComponent({
+      setup: () => () => h('button', { 'data-testid': 'back-to-list' }, 'Retour aux talents'),
+    })
+
+    const Harness = defineComponent({
+      setup: () => () =>
+        h(KeepAlive, { include: ['PublicFacesView'] }, () =>
+          listingActive.value ? h(FacesListing) : h(Detail),
+        ),
+    })
+
+    const wrapper = mount(Harness, { attachTo: document.body })
+    await nextTick()
+    const clickedCard = wrapper.get('[data-testid="face-card-1"]')
+    const unseenCard = wrapper.get('[data-testid="face-card-2"]')
+    // The initial KeepAlive activation must preserve observer-driven reveals.
+    expect(clickedCard.classes()).not.toContain('is-visible')
+
+    clickedCard.element.classList.add('is-visible')
+    ;(clickedCard.element as HTMLElement).dataset.scrollRevealSeen = 'true'
+    ;(clickedCard.element as HTMLElement).style.transition = 'all 1s ease'
+    ;(clickedCard.element as HTMLElement).style.transitionDelay = '20ms'
+
+    // Opening the profile deactivates (but does not unmount) the public listing.
+    listingActive.value = false
+    await nextTick()
+
+    // In the browser the reveal state can be lost while the cached node is moved
+    // through the route transition's off-DOM storage. Without a reactivation guard,
+    // the CSS rule `.stagger-item { opacity: 0 }` makes this one card disappear.
+    clickedCard.element.classList.remove('is-visible')
+
+    // The app's "Retour aux talents" navigation reactivates the same cached list.
+    listingActive.value = true
+    await nextTick()
+    await nextTick()
+
+    expect(wrapper.get('[data-testid="face-card-1"]').classes()).toContain('is-visible')
+    expect(wrapper.get('[data-testid="face-card-2"]').classes()).not.toContain('is-visible')
+    expect(unseenCard.element.getAttribute('data-scroll-reveal-seen')).toBeNull()
+    expect((clickedCard.element as HTMLElement).style.transition).toBe('all 1s ease')
+    expect((clickedCard.element as HTMLElement).style.transitionDelay).toBe('20ms')
+    expect(MockIntersectionObserver.instances).toHaveLength(1)
+    expect(MockIntersectionObserver.instances[0].observe).toHaveBeenCalledWith(unseenCard.element)
+    expect(MockIntersectionObserver.instances[0].observe).not.toHaveBeenCalledWith(clickedCard.element)
     wrapper.unmount()
   })
 })

@@ -17,7 +17,7 @@ import { Pagination } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useScrollReveal } from '@/composables/useScrollReveal'
 
-const { reinit } = useScrollReveal()
+const { reinit } = useScrollReveal('[data-testid="public-faces-view"]')
 
 // 16 items per page = full grid rows (4×4 desktop, 8×2 mobile, commit
 // 55895ef9) — MUST stay aligned with the backend LRU exposure window
