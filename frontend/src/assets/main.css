@@ -234,13 +234,23 @@
   transform: translateY(-6px);
 }
 
-/* ── Scroll Reveal ── */
+/* ── Scroll Reveal ──
+ * The revealed state is keyed on the `data-scroll-reveal-seen` marker as well as
+ * on `.is-visible`; both are written by useScrollReveal, but only the marker is
+ * durable. Vue rewrites an element's `class` wholesale whenever a binding on that
+ * same element changes — opening a Face profile gives its card's RouterLink the
+ * `router-link-active` class — which drops an imperatively-added `is-visible` and
+ * would send an already-revealed card back to `opacity: 0`. A data attribute
+ * belongs to no vnode, so Vue never patches it away.
+ * useScrollReveal.ts owns the marker name; keep both in sync (there is a test).
+ */
 .reveal {
   opacity: 0;
   transform: translateY(28px);
   transition: opacity 0.55s ease, transform 0.55s ease;
 }
-.reveal.is-visible {
+.reveal.is-visible,
+.reveal[data-scroll-reveal-seen='true'] {
   opacity: 1;
   transform: translateY(0);
 }
@@ -249,7 +259,8 @@
   transform: translateX(-32px);
   transition: opacity 0.55s ease, transform 0.55s ease;
 }
-.reveal-left.is-visible {
+.reveal-left.is-visible,
+.reveal-left[data-scroll-reveal-seen='true'] {
   opacity: 1;
   transform: translateX(0);
 }
@@ -258,7 +269,8 @@
   transform: translateX(32px);
   transition: opacity 0.55s ease, transform 0.55s ease;
 }
-.reveal-right.is-visible {
+.reveal-right.is-visible,
+.reveal-right[data-scroll-reveal-seen='true'] {
   opacity: 1;
   transform: translateX(0);
 }
@@ -291,7 +303,8 @@
   transform: translateY(20px);
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
-.stagger-item.is-visible {
+.stagger-item.is-visible,
+.stagger-item[data-scroll-reveal-seen='true'] {
   opacity: 1;
   transform: translateY(0);
 }

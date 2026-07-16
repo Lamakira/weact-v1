@@ -17,7 +17,11 @@ import { Pagination } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useScrollReveal } from '@/composables/useScrollReveal'
 
-const { reinit } = useScrollReveal('[data-testid="public-faces-view"]')
+// Scope the reveal to this view's own subtree: it stays cached under
+// <keep-alive> while the user reads a Face profile, and a document-wide scan
+// would then observe the profile's elements instead of this grid's cards.
+const rootEl = ref<HTMLElement | null>(null)
+const { reinit } = useScrollReveal(rootEl)
 
 // 16 items per page = full grid rows (4×4 desktop, 8×2 mobile, commit
 // 55895ef9) — MUST stay aligned with the backend LRU exposure window
@@ -79,7 +83,7 @@ watch(faces, async () => {
 </script>
 
 <template>
-  <div data-testid="public-faces-view">
+  <div ref="rootEl" data-testid="public-faces-view">
     <!-- Page Header -->
     <header class="mb-8 text-center">
       <p class="text-gray-600 text-lg max-w-2xl mx-auto">
