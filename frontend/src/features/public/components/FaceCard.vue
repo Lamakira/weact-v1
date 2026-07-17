@@ -84,14 +84,6 @@ const profileUrl = computed(() => {
       class="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/60 to-transparent"
     />
 
-    <!-- Élite Badge Overlay (top-left, halo blanc pour contraste sur n'importe quelle photo) -->
-    <WBadge
-      v-if="face.has_elite_badge"
-      tier="elite"
-      :size="22"
-      class="absolute top-3 left-3 drop-shadow-[0_0_3px_rgba(255,255,255,0.95)]"
-    />
-
     <!-- Availability Indicator -->
     <div
       class="absolute top-3 right-3 flex items-center gap-1.5 rounded-full bg-white/95 backdrop-blur-sm px-2 py-1 shadow-sm"
@@ -108,9 +100,21 @@ const profileUrl = computed(() => {
 
     <!-- Info overlay (bottom) -->
     <div class="absolute inset-x-0 bottom-0 p-2.5 sm:p-3 flex flex-col gap-1">
-      <p class="text-sm sm:text-base font-bold text-white truncate">
-        {{ face.prenom }}
-      </p>
+      <!-- Élite badge inline, après le prénom. min-w-0 + truncate sur le nom pour
+           qu'il se tronque sans pousser le badge hors de la carte ; le badge reste
+           collé à la fin du nom (flex-shrink-0). Halo blanc conservé (le badge vert
+           passe désormais sur le dégradé sombre du bas plutôt que sur la photo). -->
+      <div class="flex items-center gap-1.5">
+        <p class="min-w-0 truncate text-sm sm:text-base font-bold text-white">
+          {{ face.prenom }}
+        </p>
+        <WBadge
+          v-if="face.has_elite_badge"
+          tier="elite"
+          :size="18"
+          class="drop-shadow-[0_0_3px_rgba(255,255,255,0.95)]"
+        />
+      </div>
       <p
         v-if="face.ville"
         class="text-xs sm:text-sm text-white/70 truncate"

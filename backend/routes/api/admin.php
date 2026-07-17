@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminResetPasswordController;
 use App\Http\Controllers\Api\V1\Admin\AdminUgcSuspensionController;
 use App\Http\Controllers\Api\V1\Admin\ArticleController;
 use App\Http\Controllers\Api\V1\Admin\AuthController;
+use App\Http\Controllers\Api\V1\Admin\BookingController;
 use App\Http\Controllers\Api\V1\Admin\FaceController;
 use App\Http\Controllers\Api\V1\Admin\MissionController;
 use App\Http\Controllers\Api\V1\Admin\ProducerController;
@@ -110,6 +111,10 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'api.token', 'admin'])->g
         // Mission management routes (read-only)
         Route::get('/missions', [MissionController::class, 'index'])->name('admin.missions.index');
         Route::get('/missions/{mission}', [MissionController::class, 'show'])->name('admin.missions.show');
+
+        // Booking management routes (read-only)
+        Route::get('/bookings', [BookingController::class, 'index'])->name('admin.bookings.index');
+        Route::get('/bookings/{booking}', [BookingController::class, 'show'])->name('admin.bookings.show');
 
         // Engagements — unified "Faces à contacter" monitoring (read-only)
         Route::get('/engagements', [AdminEngagementController::class, 'index'])
