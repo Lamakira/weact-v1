@@ -44,6 +44,16 @@ class MockIntersectionObserver {
   }
 }
 
+/**
+ * A transition event carrying the property it is about. Built by hand because
+ * happy-dom's `TransitionEvent` constructor drops `propertyName` from its init
+ * dict on the floor — it exists and it does not throw, it just hands back an
+ * event whose `propertyName` is `undefined`, which would make every assertion
+ * below pass or fail for the wrong reason.
+ */
+const transitionEvent = (type: string, propertyName: string, bubbles = false) =>
+  Object.assign(new Event(type, { bubbles }), { propertyName })
+
 let exposedReinit: (() => void) | null = null
 
 const Host = defineComponent({
@@ -146,13 +156,14 @@ describe('useScrollReveal', () => {
       expect(secondCard.style.transitionDelay).toBe('80ms')
 
       // A child's transition (the card photo's zoom) bubbles up but is not the
-      // reveal: the delay must still be in force for the reveal itself.
-      secondCard.firstChild?.dispatchEvent(new Event('transitionend', { bubbles: true }))
+      // reveal: the delay must still be in force for the reveal itself. It fades
+      // the same property, so only its target sets it apart.
+      secondCard.firstChild?.dispatchEvent(transitionEvent('transitionend', 'opacity', true))
       expect(secondCard.style.transitionDelay).toBe('80ms')
 
       // The reveal has now played. Left in place, the delay would also postpone
       // every later transition on this node — the card's own hover.
-      secondCard.dispatchEvent(new Event('transitionend'))
+      secondCard.dispatchEvent(transitionEvent('transitionend', 'opacity'))
       expect(secondCard.style.transitionDelay).toBe('')
       wrapper.unmount()
     })
@@ -169,7 +180,50 @@ describe('useScrollReveal', () => {
       // subtree, which cancels the transition instead of ending it. The card is
       // never revealed again — the marker keeps it out of the observer — so this
       // is the last chance to drop the delay before it slows every hover.
-      secondCard.dispatchEvent(new Event('transitioncancel'))
+      secondCard.dispatchEvent(transitionEvent('transitioncancel', 'opacity'))
+      expect(secondCard.style.transitionDelay).toBe('')
+      wrapper.unmount()
+    })
+
+    it('keeps its stagger delay when a transition that is not the reveal ends on the card', () => {
+      const wrapper = mount(Grid, { attachTo: document.body })
+      vi.advanceTimersByTime(60)
+      const secondCard = wrapper.get('[data-testid="card-2"]').element as HTMLElement
+
+      MockIntersectionObserver.instances[0].enter(secondCard)
+      expect(secondCard.style.transitionDelay).toBe('80ms')
+
+      // Hardening, not a live bug: main.css's reveal rules are unlayered, so they
+      // outrank the `transition-all` utility on the same RouterLink and pin it to
+      // `opacity, transform` — a hover moves neither, and cannot reach this
+      // handler today. What is pinned here is that the delay belongs to the
+      // reveal alone, so that staying true does not depend on a cascade this file
+      // cannot see, one @layer away from changing.
+      secondCard.dispatchEvent(transitionEvent('transitionend', 'box-shadow'))
+      expect(secondCard.style.transitionDelay).toBe('80ms')
+
+      // Only the property the reveal actually fades ends it.
+      secondCard.dispatchEvent(transitionEvent('transitionend', 'opacity'))
+      expect(secondCard.style.transitionDelay).toBe('')
+      wrapper.unmount()
+    })
+
+    it('drops its stagger delay even when no transition event ever fires', () => {
+      const wrapper = mount(Grid, { attachTo: document.body })
+      vi.advanceTimersByTime(60)
+      const secondCard = wrapper.get('[data-testid="card-2"]').element as HTMLElement
+
+      MockIntersectionObserver.instances[0].enter(secondCard)
+      expect(secondCard.style.transitionDelay).toBe('80ms')
+
+      // The transition events are a fast path, not a guarantee: a reveal that
+      // never transitions fires neither. main.css has no reduced-motion block
+      // today, so this is latent rather than live — but adding one would zero
+      // every reveal's duration, and the marker means a card is revealed once and
+      // never revisited. Stranding the delay is therefore permanent, and takes
+      // both listeners with it.
+      vi.advanceTimersByTime(2000)
+
       expect(secondCard.style.transitionDelay).toBe('')
       wrapper.unmount()
     })
