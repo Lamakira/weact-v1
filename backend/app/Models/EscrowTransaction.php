@@ -7,7 +7,20 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property int $booking_id
+ * @property int $amount
+ * @property string $status
+ * @property string|null $fedapay_ref
+ * @property Carbon|null $locked_at
+ * @property Carbon|null $released_at
+ * @property Carbon|null $refunded_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ */
 class EscrowTransaction extends Model
 {
     use HasFactory;
