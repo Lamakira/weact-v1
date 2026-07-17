@@ -718,7 +718,18 @@ watchEffect(() => {
                   tier.key === 'elite' ? 'text-gray-400' : 'text-gray-500',
                 ]"
               >
-                FCFA / an
+                FCFA
+              </span>
+              <!-- « / an » porté à la hauteur du prix : c'est un tarif ANNUEL, le
+                   suffixe discret laissait croire à un prix mensuel. -->
+              <span
+                v-if="!tier.isFree"
+                :class="[
+                  'text-3xl font-bold tracking-tight leading-none',
+                  tier.key === 'elite' ? 'text-white' : 'text-gray-900',
+                ]"
+              >
+                / an
               </span>
             </div>
             <div

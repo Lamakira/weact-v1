@@ -200,18 +200,29 @@ describe('FaceCard', () => {
     })
   })
 
-  describe('FP-2.12.1 — Élite badge (WBadge V13, overlay top-left)', () => {
-    it('renders WBadge in elite tier at 22px with halo when face.has_elite_badge is true', () => {
+  describe('FP-2.12.1 — Élite badge (WBadge, inline après le prénom)', () => {
+    it('renders WBadge in elite tier with halo when face.has_elite_badge is true', () => {
       const wrapper = mountCard({ has_elite_badge: true })
       const badge = wrapper.findComponent(WBadge)
       expect(badge.exists()).toBe(true)
       expect(badge.props('tier')).toBe('elite')
-      expect(badge.props('size')).toBe(22)
-      // Top-left overlay placement (not bottom-inline with name) for visibility on dark photos
-      expect(badge.classes()).toContain('top-3')
-      expect(badge.classes()).toContain('left-3')
-      // White drop-shadow halo for contrast on any background photo
+      expect(badge.props('size')).toBe(18)
+      // Inline with the name, not a top-left overlay.
+      expect(badge.classes()).not.toContain('top-3')
+      expect(badge.classes()).not.toContain('left-3')
+      // White drop-shadow halo for contrast against the dark bottom gradient.
       expect(badge.classes()).toContain('drop-shadow-[0_0_3px_rgba(255,255,255,0.95)]')
+    })
+
+    it('places the badge after the name in document order', () => {
+      const wrapper = mountCard({ has_elite_badge: true, prenom: 'Adjoua' })
+      const badge = wrapper.findComponent(WBadge)
+      const name = wrapper.get('p.font-bold')
+      // The name must precede the badge — "le nom puis le badge".
+      expect(
+        name.element.compareDocumentPosition(badge.element) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
     })
 
     it('does not render WBadge when face.has_elite_badge is false', () => {
