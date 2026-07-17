@@ -486,6 +486,18 @@ const router = createRouter({
           meta: { title: 'Détail Mission - WEACT' },
         },
         {
+          path: 'bookings',
+          name: 'admin-bookings-list',
+          component: () => import('../pages/admin/AdminBookingsListPage.vue'),
+          meta: { title: 'Gestion des Réservations - WEACT', keepAlive: true },
+        },
+        {
+          path: 'bookings/:id',
+          name: 'admin-booking-detail',
+          component: () => import('../pages/admin/AdminBookingDetailPage.vue'),
+          meta: { title: 'Détail Réservation - WEACT' },
+        },
+        {
           path: 'engagements',
           name: 'admin-engagements',
           component: () => import('../pages/admin/AdminFaceContactsPage.vue'),
