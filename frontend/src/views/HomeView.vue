@@ -671,42 +671,53 @@ function formatDate(date: string): string {
 
         <!-- Desktop: Premium centered cards -->
         <div class="hidden md:grid md:grid-cols-3 gap-6 lg:gap-8">
+          <!-- The reveal rides a wrapper, not the card: main.css's reveal rules are
+               unlayered, so they outrank every Tailwind utility whatever its
+               specificity. Merged onto the card, `.stagger-item`'s
+               `transition: opacity, transform` beat its own `transition-all
+               duration-500` and pinned it, so the hover lift, border and shadow
+               snapped instead of easing. `h-full` keeps the cards equal height:
+               the wrapper is the grid item that stretches now. -->
           <div
             v-for="(feature, index) in content.whyWeact.features"
             :key="index"
-            class="stagger-item relative text-center p-6 lg:p-8 rounded-2xl border border-gray-200 bg-white hover:border-[#198496]/30 hover:shadow-[0_20px_50px_rgba(25,132,150,0.08)] hover:-translate-y-2 transition-all duration-500 group overflow-hidden"
-            :data-testid="`feature-card-${index + 1}`"
+            class="stagger-item"
           >
-            <!-- Decorative Background Elements -->
             <div
-              class="absolute -top-10 -right-10 w-32 h-32 bg-[#198496]/5 rounded-full blur-3xl group-hover:bg-[#198496]/10 transition-colors duration-500"
-            ></div>
-            <div
-              class="absolute -bottom-10 -left-10 w-24 h-24 bg-gray-50 rounded-full blur-2xl opacity-50"
-            ></div>
-
-            <div class="relative z-10">
-              <!-- Icon with refined border & shadow -->
+              class="relative h-full text-center p-6 lg:p-8 rounded-2xl border border-gray-200 bg-white hover:border-[#198496]/30 hover:shadow-[0_20px_50px_rgba(25,132,150,0.08)] hover:-translate-y-2 transition-all duration-500 group overflow-hidden"
+              :data-testid="`feature-card-${index + 1}`"
+            >
+              <!-- Decorative Background Elements -->
               <div
-                class="w-16 h-16 bg-white border border-gray-100 text-[#198496] rounded-2xl flex items-center justify-center mx-auto shadow-sm ring-4 ring-gray-50/50 group-hover:scale-110 group-hover:border-[#198496]/20 group-hover:ring-[#198496]/5 transition-all duration-500"
-              >
-                <component :is="feature.icon" class="w-7 h-7" />
-              </div>
+                class="absolute -top-10 -right-10 w-32 h-32 bg-[#198496]/5 rounded-full blur-3xl group-hover:bg-[#198496]/10 transition-colors duration-500"
+              ></div>
+              <div
+                class="absolute -bottom-10 -left-10 w-24 h-24 bg-gray-50 rounded-full blur-2xl opacity-50"
+              ></div>
 
-              <!-- Content -->
-              <div class="mt-5">
-                <h3 class="font-bold text-gray-900 text-lg mb-2 group-hover:text-[#198496] transition-colors duration-300">
-                  {{ feature.title }}
-                </h3>
-                <p class="text-sm text-gray-700 leading-relaxed">
-                  {{ feature.description }}
-                </p>
-              </div>
+              <div class="relative z-10">
+                <!-- Icon with refined border & shadow -->
+                <div
+                  class="w-16 h-16 bg-white border border-gray-100 text-[#198496] rounded-2xl flex items-center justify-center mx-auto shadow-sm ring-4 ring-gray-50/50 group-hover:scale-110 group-hover:border-[#198496]/20 group-hover:ring-[#198496]/5 transition-all duration-500"
+                >
+                  <component :is="feature.icon" class="w-7 h-7" />
+                </div>
 
-              <!-- Premium Accent Indicator -->
-              <div class="mt-5 flex justify-center items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-2 group-hover:translate-y-0">
-                <div class="w-1.5 h-1.5 rounded-full bg-[#198496]"></div>
-                <div class="w-8 h-[1px] bg-gradient-to-r from-[#198496] to-transparent"></div>
+                <!-- Content -->
+                <div class="mt-5">
+                  <h3 class="font-bold text-gray-900 text-lg mb-2 group-hover:text-[#198496] transition-colors duration-300">
+                    {{ feature.title }}
+                  </h3>
+                  <p class="text-sm text-gray-700 leading-relaxed">
+                    {{ feature.description }}
+                  </p>
+                </div>
+
+                <!-- Premium Accent Indicator -->
+                <div class="mt-5 flex justify-center items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-2 group-hover:translate-y-0">
+                  <div class="w-1.5 h-1.5 rounded-full bg-[#198496]"></div>
+                  <div class="w-8 h-[1px] bg-gradient-to-r from-[#198496] to-transparent"></div>
+                </div>
               </div>
             </div>
           </div>

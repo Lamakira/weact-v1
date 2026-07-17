@@ -5,6 +5,7 @@ import {
   type PublicArticle,
 } from '../services/publicArticlesApi'
 import type { PaginationMeta } from '../services/publicFacesApi'
+import { useKeepAliveListingGuard } from './useKeepAliveListingGuard'
 
 /**
  * Composable for managing paginated articles list with URL sync and category filter
@@ -15,9 +16,14 @@ import type { PaginationMeta } from '../services/publicFacesApi'
  * - Stale request prevention with requestId counter
  * - Automatic fetch on page/category change
  */
+const TRACKED_QUERY_KEYS = ['page', 'category'] as const
+
 export function usePaginatedArticles(perPage: number = 15) {
   const route = useRoute()
   const router = useRouter()
+
+  // Keep-alive reload guard (rationale in useKeepAliveListingGuard).
+  const { markLoaded, markFailed, shouldSkipReload } = useKeepAliveListingGuard(TRACKED_QUERY_KEYS)
 
   // State
   const articles = ref<PublicArticle[]>([])
@@ -64,6 +70,9 @@ export function usePaginatedArticles(perPage: number = 15) {
       return // Watch will trigger load
     }
 
+    // Record the query we're fetching for so a later keep-alive return with the
+    // same query is served from cache rather than refetched.
+    markLoaded()
     isLoading.value = true
     error.value = null
     const currentRequestId = ++requestId
@@ -75,6 +84,8 @@ export function usePaginatedArticles(perPage: number = 15) {
       meta.value = response.meta
     } catch (err: unknown) {
       if (currentRequestId !== requestId) return
+      // Failed query → not loaded (see useKeepAliveListingGuard).
+      markFailed()
       console.error('Failed to fetch articles:', err)
       error.value = 'Une erreur est survenue lors du chargement des articles. Veuillez réessayer.'
       articles.value = []
@@ -106,10 +117,12 @@ export function usePaginatedArticles(perPage: number = 15) {
     loadPage(currentPage.value, currentCategory.value)
   }
 
-  // Watch for URL changes and reload
+  // Watch for URL changes and reload.
+  // Keep-alive churn (leave/return) must not reload — see useKeepAliveListingGuard.
   watch(
-    () => [route.query.page, route.query.category],
+    () => TRACKED_QUERY_KEYS.map((key) => route.query[key]),
     () => {
+      if (shouldSkipReload()) return
       loadPage(currentPage.value, currentCategory.value)
     },
   )

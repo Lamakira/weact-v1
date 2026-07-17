@@ -40,7 +40,12 @@ const hasPhoto = computed(() => {
 
 const profileUrl = computed(() => {
   const returnTo = encodeURIComponent(route.fullPath)
-  return `/faces/${props.face.username}?returnTo=${returnTo}`
+  // Frontier-aware: from the producer dashboard (/producer/faces) link to the
+  // frontier-local profile (/producer/faces/:username) so the browse-and-return
+  // stays under ProducerLayout and the list stays cached; elsewhere use the public
+  // profile. startsWith('/producer/') (trailing slash) avoids matching /producers/.
+  const base = route.fullPath.startsWith('/producer/') ? '/producer/faces' : '/faces'
+  return `${base}/${props.face.username}?returnTo=${returnTo}`
 })
 </script>
 

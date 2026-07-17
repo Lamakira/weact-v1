@@ -3,12 +3,36 @@ import HomeView from '../views/HomeView.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAdminAuthStore } from '@/stores/adminAuth'
 import { useNavigationProgress } from '@/composables/useNavigationProgress'
+import {
+  beginPublicScrollNavigation,
+  deferPublicScrollRestoration,
+} from './publicScrollRestoration'
 
 const navigationProgress = useNavigationProgress()
 
+// Window-scroll memory for the <keep-alive>-cached public listings (Group A).
+// Browser back/forward restores through savedPosition, but the detail pages'
+// own "back to list" links are PUSH navigations: without this, the grid comes
+// back from cache while the viewport jumps to the top. Restore only when
+// arriving FROM the listing's own detail page — from anywhere else (navbar,
+// dashboard) the public branch may have been remounted and a fresh grid must
+// start at the top. Dashboard listings scroll an internal container handled by
+// DashboardLayout, not the window — they are not concerned here.
+const LISTING_RETURN_SOURCES: Record<string, string> = {
+  'public-faces-list': 'public-face-profile',
+  'public-missions-list': 'public-mission-detail',
+  'ressources-list': 'ressources-detail',
+}
+const publicListingScrollPositions = new Map<string, number>()
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  scrollBehavior(to, _from, savedPosition) {
+  scrollBehavior(to, from, savedPosition) {
+    // Called before the new scroll is applied: window.scrollY still holds the
+    // position of the page being left — remember it for the listings.
+    if (typeof from.name === 'string' && from.name in LISTING_RETURN_SOURCES) {
+      publicListingScrollPositions.set(from.fullPath, window.scrollY)
+    }
     // If user used browser back/forward, restore saved position
     if (savedPosition) {
       return savedPosition
@@ -16,6 +40,17 @@ const router = createRouter({
     // If navigating to a hash anchor, scroll to it
     if (to.hash) {
       return { el: to.hash, behavior: 'smooth' }
+    }
+    // Push back from a detail to its cached listing (the "back to list" link):
+    // restore the remembered offset for this exact fullPath.
+    if (
+      typeof to.name === 'string' &&
+      LISTING_RETURN_SOURCES[to.name] === from.name
+    ) {
+      const remembered = publicListingScrollPositions.get(to.fullPath)
+      if (remembered !== undefined) {
+        return deferPublicScrollRestoration(to.fullPath, { top: remembered })
+      }
     }
     // Otherwise scroll to top
     return { top: 0 }
@@ -164,6 +199,8 @@ const router = createRouter({
           path: 'missions',
           name: 'face-missions',
           component: () => import('../pages/face/mission/FaceMissionsListPage.vue'),
+          // keepAlive: cached in FaceLayout so browse-and-return restores the list.
+          meta: { keepAlive: true },
         },
         {
           path: 'missions/:id',
@@ -174,7 +211,7 @@ const router = createRouter({
           path: 'ugc-missions',
           name: 'face-ugc-missions',
           component: () => import('../pages/face/mission/FaceUgcMissionsListPage.vue'),
-          meta: { title: 'Missions UGC - WEACT' },
+          meta: { title: 'Missions UGC - WEACT', keepAlive: true },
         },
         {
           path: 'ugc/suspension',
@@ -186,6 +223,7 @@ const router = createRouter({
           path: 'candidatures',
           name: 'face-candidatures',
           component: () => import('../pages/face/candidature/FaceCandidaturesPage.vue'),
+          meta: { keepAlive: true },
         },
         {
           path: 'messages',
@@ -201,6 +239,7 @@ const router = createRouter({
           path: 'bookings',
           name: 'face-bookings',
           component: () => import('../pages/face/booking/FaceBookingsListPage.vue'),
+          meta: { keepAlive: true },
         },
         {
           path: 'bookings/:id',
@@ -260,6 +299,7 @@ const router = createRouter({
           path: 'missions',
           name: 'producer-missions',
           component: () => import('../pages/producer/mission/MissionsListPage.vue'),
+          meta: { keepAlive: true },
         },
         {
           path: 'missions/publish',
@@ -297,6 +337,19 @@ const router = createRouter({
           path: 'faces',
           name: 'producer-faces-list',
           component: () => import('../pages/producer/ProducerFacesListPage.vue'),
+          meta: { keepAlive: true },
+        },
+        {
+          // Frontier-local Face profile: renders the SAME PublicFaceProfileView but
+          // under ProducerLayout, so browsing /producer/faces → a profile → back
+          // stays within /producer/* (matched[0] = /producer). That keeps the layout
+          // instance alive, letting <keep-alive> cache the faces list (grid + scroll
+          // restored, no rotation reshuffle). The public /faces/:username route stays
+          // for everyone; this one inherits the parent's requiresAuth + role:Producer.
+          path: 'faces/:username',
+          name: 'producer-face-profile',
+          component: () => import('../views/PublicFaceProfileView.vue'),
+          meta: { title: 'Profil | WEACT' },
         },
         {
           path: 'messages',
@@ -318,6 +371,7 @@ const router = createRouter({
           path: 'bookings',
           name: 'producer-bookings',
           component: () => import('../pages/producer/booking/ProducerBookingsListPage.vue'),
+          meta: { keepAlive: true },
         },
         {
           path: 'bookings/:id',
@@ -381,7 +435,7 @@ const router = createRouter({
           path: 'admins',
           name: 'admin-admins-list',
           component: () => import('../pages/admin/AdminListPage.vue'),
-          meta: { title: 'Administrateurs - WEACT' },
+          meta: { title: 'Administrateurs - WEACT', keepAlive: true },
         },
         {
           path: 'admins/create',
@@ -399,7 +453,7 @@ const router = createRouter({
           path: 'faces',
           name: 'admin-faces-list',
           component: () => import('../pages/admin/AdminFacesListPage.vue'),
-          meta: { title: 'Gestion des Faces - WEACT' },
+          meta: { title: 'Gestion des Faces - WEACT', keepAlive: true },
         },
         {
           path: 'faces/:id',
@@ -411,7 +465,7 @@ const router = createRouter({
           path: 'producers',
           name: 'admin-producers-list',
           component: () => import('../pages/admin/AdminProducersListPage.vue'),
-          meta: { title: 'Gestion des Producteurs - WEACT' },
+          meta: { title: 'Gestion des Producteurs - WEACT', keepAlive: true },
         },
         {
           path: 'producers/:id',
@@ -423,7 +477,7 @@ const router = createRouter({
           path: 'missions',
           name: 'admin-missions-list',
           component: () => import('../pages/admin/AdminMissionsListPage.vue'),
-          meta: { title: 'Gestion des Missions - WEACT' },
+          meta: { title: 'Gestion des Missions - WEACT', keepAlive: true },
         },
         {
           path: 'missions/:id',
@@ -465,7 +519,7 @@ const router = createRouter({
           path: 'articles',
           name: 'admin-articles-list',
           component: () => import('../pages/admin/AdminArticlesListPage.vue'),
-          meta: { title: 'Gestion des Articles - WEACT' },
+          meta: { title: 'Gestion des Articles - WEACT', keepAlive: true },
         },
         {
           path: 'articles/create',
@@ -549,6 +603,10 @@ const router = createRouter({
 
 // Navigation guards
 router.beforeEach((to, _from, next) => {
+  // Gives transition callbacks a navigation-specific identity and cancels any
+  // deferred restoration whose enter was interrupted by this navigation.
+  beginPublicScrollNavigation(to.fullPath)
+
   // Démarre la barre de chargement dès le début de toute navigation
   // (les redirections des guards ci-dessous relancent beforeEach : start() est idempotent).
   navigationProgress.start()

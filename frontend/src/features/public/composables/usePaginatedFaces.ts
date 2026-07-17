@@ -7,6 +7,7 @@ import {
   type FacesFilterParams,
 } from '../services/publicFacesApi'
 import { BENIN_CITY_VALUES } from '@/shared/constants/beninCities'
+import { useKeepAliveListingGuard } from './useKeepAliveListingGuard'
 
 /**
  * Composable for managing paginated faces list with URL sync and filters
@@ -16,9 +17,14 @@ import { BENIN_CITY_VALUES } from '@/shared/constants/beninCities'
  * - URL query param sync for pagination and filters
  * - Automatic fetch on page/filter change
  */
+const TRACKED_QUERY_KEYS = ['page', 'categorie', 'niche', 'ville', 'search'] as const
+
 export function usePaginatedFaces(perPage: number = 15) {
   const route = useRoute()
   const router = useRouter()
+
+  // Keep-alive reload guard (rationale in useKeepAliveListingGuard).
+  const { markLoaded, markFailed, shouldSkipReload } = useKeepAliveListingGuard(TRACKED_QUERY_KEYS)
 
   function getValidCityFilter(rawCity: unknown): string | undefined {
     if (typeof rawCity !== 'string' || rawCity === '') {
@@ -88,6 +94,9 @@ export function usePaginatedFaces(perPage: number = 15) {
       return // Watch will trigger load
     }
 
+    // Committing to a fetch for this exact query → record its signature so a
+    // later keep-alive return with the same query is served from cache.
+    markLoaded()
     isLoading.value = true
     error.value = null
     const currentRequestId = ++requestId
@@ -100,6 +109,10 @@ export function usePaginatedFaces(perPage: number = 15) {
       meta.value = response.meta
     } catch (err: unknown) {
       if (currentRequestId !== requestId) return
+      // Failed query → not loaded (see useKeepAliveListingGuard). Only the most
+      // recent request reaches this line — superseded ones returned above — so
+      // a fresher request's signature can't be erased.
+      markFailed()
       console.error('Failed to fetch faces:', err)
       error.value = 'Une erreur est survenue lors du chargement des talents. Veuillez réessayer.'
       faces.value = []
@@ -147,10 +160,12 @@ export function usePaginatedFaces(perPage: number = 15) {
     loadPage(currentPage.value)
   }
 
-  // Watch for URL changes (page or filters) and reload data
+  // Watch for URL changes (page or filters) and reload data.
+  // Keep-alive churn (leave/return) must not reload — see useKeepAliveListingGuard.
   watch(
-    () => [route.query.page, route.query.categorie, route.query.niche, route.query.ville, route.query.search],
+    () => TRACKED_QUERY_KEYS.map((key) => route.query[key]),
     () => {
+      if (shouldSkipReload()) return
       loadPage(currentPage.value)
     }
   )

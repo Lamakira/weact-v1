@@ -12,6 +12,14 @@ const router = createRouter({
     { path: '/', name: 'home', component: { template: '<div>Home</div>' } },
     { path: '/faces', name: 'public-faces-list', component: { template: '<div>Faces List</div>' } },
     { path: '/faces/:username', name: 'public-face-profile', component: { template: '<div>Face Profile</div>' } },
+    {
+      path: '/producer',
+      component: { template: '<div><router-view /></div>' },
+      children: [
+        { path: 'faces', name: 'producer-faces-list', component: { template: '<div>Producer Faces</div>' } },
+        { path: 'faces/:username', name: 'producer-face-profile', component: { template: '<div>Producer Profile</div>' } },
+      ],
+    },
   ],
 })
 
@@ -158,6 +166,16 @@ describe('FaceCard', () => {
       const wrapper = mountCard()
 
       expect(wrapper.attributes('href')).toBe('/faces/adjoua-dossou?returnTo=%2Ffaces%3Fpage%3D5%26search%3DAdjoua')
+    })
+
+    it('links to the frontier-local profile when browsed from the producer dashboard', async () => {
+      await router.push('/producer/faces?page=2')
+      const wrapper = mountCard()
+
+      // Same-frontier target keeps ProducerLayout mounted so the list stays cached.
+      expect(wrapper.attributes('href')).toBe(
+        '/producer/faces/adjoua-dossou?returnTo=%2Fproducer%2Ffaces%3Fpage%3D2',
+      )
     })
 
     it('is keyboard accessible with RouterLink', () => {

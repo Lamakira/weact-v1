@@ -9,7 +9,7 @@ import { computed } from 'vue'
 import { LayoutDashboard, FileText, ShieldCheck, Briefcase, UserCheck, Building, TrendingUp, Scale, MessageCircle, Ban, CreditCard } from 'lucide-vue-next'
 import { useAdminAuth } from '@/features/admin/composables/useAdminAuth'
 import { useAdminAuthStore } from '@/stores/adminAuth'
-import { DashboardLayout, type SidebarItem } from '@/components/layout'
+import { DashboardLayout, KeepAliveRouterView, type SidebarItem } from '@/components/layout'
 
 const adminAuthStore = useAdminAuthStore()
 const { logout, isLoading } = useAdminAuth()
@@ -52,7 +52,8 @@ async function handleLogout(): Promise<void> {
     :show-notifications="false"
     @logout="handleLogout"
   >
-    <!-- Child routes render here -->
-    <router-view />
+    <!-- Child routes render here — meta.keepAlive-driven caching + page
+         transitions live in the shared KeepAliveRouterView (see its header). -->
+    <KeepAliveRouterView />
   </DashboardLayout>
 </template>

@@ -4,6 +4,11 @@ import { useRouter } from 'vue-router'
 import { Inbox, AlertCircle, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { useUgcMissionDiscovery } from '@/features/mission/composables'
 import { UgcMissionCard, UgcPaywallBanner } from '@/features/mission/components'
+import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
+
+// Explicit name (devtools; also used by its keep-alive spec). Caching is driven
+// by the route's meta.keepAlive flag.
+defineOptions({ name: 'FaceUgcMissionsListPage' })
 
 /**
  * Découverte des missions UGC (écran 6A). Gating d'affichage piloté
@@ -32,6 +37,16 @@ const {
 onMounted(() => {
   fetchMissions(1)
 })
+
+// #6 — this page is cached under <keep-alive> in FaceLayout, so onMounted does
+// NOT re-run on return. A Face who resumes/confirms a subscription payment on
+// /face/billing (an in-SPA navigation, no reload) would otherwise come back to a
+// stale paywall (cards still locked → /pricing) until a full reload. Re-fetch the
+// current page on reactivation so canAccessUgc/paywall reflect the new state.
+// refreshMissions re-fetches the CURRENT page (not page 1), preserving pagination;
+// the grid stays visible during the refetch (skeleton only shows when items are
+// empty), and the paywall banner is refetch-stable — so no flash on return.
+useRefreshOnReturn(refreshMissions)
 
 function handleCardClick(id: string): void {
   if (!canAccessUgc.value) {

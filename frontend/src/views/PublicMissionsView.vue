@@ -12,6 +12,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { getMissionTypeOptions } from '@/features/mission/types'
 import { useAuthStore } from '@/stores/auth'
 
+// This name must match App.vue's public-branch <keep-alive :include> so this
+// listing is cached across a Group A browse-and-return to a mission detail. (That
+// branch stays name-based because its <Transition> can't host a meta-driven v-if
+// without unmounting the keep-alive — see App.vue. The dashboard layouts use meta.)
+defineOptions({ name: 'PublicMissionsView' })
+
 const {
   missions,
   isLoading,

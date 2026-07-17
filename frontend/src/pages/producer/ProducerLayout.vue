@@ -5,15 +5,17 @@
  * Uses DashboardLayout with Producer-specific sidebar items.
  * Child routes render via <router-view> in the content area.
  */
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { LayoutDashboard, FileText, MessageCircle, User, PlusCircle, Users, CalendarCheck, Wallet, BadgeCheck, FolderDown } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
-import { DashboardLayout, type SidebarItem } from '@/components/layout'
+import { DashboardLayout, KeepAliveRouterView, type SidebarItem } from '@/components/layout'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
 import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 
+const route = useRoute()
 const authStore = useAuthStore()
 const { logout, isLoading } = useAuth()
 const { profile, fetchProfile } = useProducerProfilePhoto()
@@ -59,6 +61,17 @@ onMounted(async () => {
   }
 })
 
+// The layout now persists across child navigations (App.vue keys it by the
+// layout's own route): refresh the sidebar "Validation livrables" badge on
+// each one, as the per-navigation remount used to do before keep-alive.
+// (Mirrors the route.path watch FaceLayout already has for its banner.)
+watch(
+  () => route.path,
+  () => {
+    void ugcValidationCountStore.fetchCount()
+  },
+)
+
 async function handleLogout(): Promise<void> {
   await logout()
 }
@@ -81,7 +94,8 @@ async function handleLogout(): Promise<void> {
       data-testid="email-verification-banner"
     />
 
-    <!-- Child routes render here -->
-    <router-view />
+    <!-- Child routes render here — meta.keepAlive-driven caching + page
+         transitions live in the shared KeepAliveRouterView (see its header). -->
+    <KeepAliveRouterView />
   </DashboardLayout>
 </template>

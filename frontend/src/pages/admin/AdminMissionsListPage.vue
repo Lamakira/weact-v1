@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
+import { onMounted, onUnmounted, onDeactivated, computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, Briefcase, AlertCircle, Loader2, X } from 'lucide-vue-next'
 import { useAdminMissions } from '@/features/admin/composables/useAdminMissions'
+import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
+
+// Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
+defineOptions({ name: 'AdminMissionsListPage' })
 
 const router = useRouter()
 const { missions, pagination, isLoading, error, fetchMissions } = useAdminMissions()
@@ -32,7 +36,17 @@ onMounted(() => {
   loadMissions()
 })
 
+// Cached by keep-alive: refresh on return so detail-page changes are reflected.
+useRefreshOnReturn(() => loadMissions(currentPage.value))
+
 onUnmounted(() => {
+  if (searchTimeout) clearTimeout(searchTimeout)
+})
+
+// Cached by keep-alive: onUnmounted no longer fires when leaving the page —
+// cancel a pending search debounce on deactivation too, so it can't fetch
+// off-screen and race the return refresh.
+onDeactivated(() => {
   if (searchTimeout) clearTimeout(searchTimeout)
 })
 

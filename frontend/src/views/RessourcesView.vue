@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { FileText, AlertCircle, RefreshCw } from 'lucide-vue-next'
 import { usePaginatedArticles } from '@/features/public/composables/usePaginatedArticles'
+
+// This name must match App.vue's public-branch <keep-alive :include> so this
+// listing is cached across a Group A browse-and-return to an article detail. (That
+// branch stays name-based because its <Transition> can't host a meta-driven v-if
+// without unmounting the keep-alive — see App.vue. The dashboard layouts use meta.)
+defineOptions({ name: 'RessourcesView' })
 import { Pagination } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
 

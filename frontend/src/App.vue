@@ -8,10 +8,31 @@ import CookieConsentBanner from '@/components/cookie/CookieConsentBanner.vue'
 import SitewideSubscriptionPaymentBanner from '@/components/SitewideSubscriptionPaymentBanner.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notification'
+import {
+  cancelPublicRouteEnter,
+  finishPublicRouteEnter,
+  getPublicScrollNavigationToken,
+} from '@/router/publicScrollRestoration'
 
 const route = useRoute()
 const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
+const enteringPublicRoutes = new WeakMap<Element, symbol>()
+
+function rememberEnteringPublicRoute(element: Element): void {
+  const navigationToken = getPublicScrollNavigationToken(route.fullPath)
+  if (navigationToken) enteringPublicRoutes.set(element, navigationToken)
+}
+
+function finishEnteringPublicRoute(element: Element): void {
+  const navigationToken = enteringPublicRoutes.get(element)
+  if (navigationToken) finishPublicRouteEnter(navigationToken)
+}
+
+function cancelEnteringPublicRoute(element: Element): void {
+  const navigationToken = enteringPublicRoutes.get(element)
+  if (navigationToken) cancelPublicRouteEnter(navigationToken)
+}
 
 // Bootstrap notification store on app reload for authenticated users
 onMounted(() => {
@@ -46,20 +67,25 @@ const isLandingPage = computed(() => {
   <!-- Navigation progress bar (global, all layouts, fixed at top) -->
   <NavigationProgress />
 
-  <!-- Dashboard routes: full-screen, no header/footer -->
+  <!-- Dashboard routes: full-screen, no header/footer.
+       Key by the LAYOUT's own route (matched[0]) so the layout instance PERSISTS
+       across child navigations. With :key="route.path", the layout remounts on
+       every child nav and destroys the <keep-alive> inside Face/ProducerLayout. -->
   <template v-if="isDashboardRoute">
     <RouterView v-slot="{ Component }">
       <Transition name="page" mode="out-in">
-        <component :is="Component" :key="route.path" />
+        <component :is="Component" :key="route.matched[0]?.path" />
       </Transition>
     </RouterView>
   </template>
 
-  <!-- Admin routes: full-screen, uses AdminLayout internally -->
+  <!-- Admin routes: full-screen, uses AdminLayout internally.
+       Key by the layout's own route (matched[0]) so AdminLayout persists across
+       child navigations and its inner <keep-alive> can cache the admin listings. -->
   <template v-else-if="isAdminRoute">
     <RouterView v-slot="{ Component }">
       <Transition name="page" mode="out-in">
-        <component :is="Component" :key="route.path" />
+        <component :is="Component" :key="route.matched[0]?.path" />
       </Transition>
     </RouterView>
   </template>
@@ -110,8 +136,37 @@ const isLandingPage = computed(() => {
       <!-- Main Content -->
       <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
         <RouterView v-slot="{ Component }">
-          <Transition name="page" mode="out-in">
-            <component :is="Component" :key="route.path" />
+          <Transition
+            name="page"
+            mode="out-in"
+            @before-enter="rememberEnteringPublicRoute"
+            @after-enter="finishEnteringPublicRoute"
+            @enter-cancelled="cancelEnteringPublicRoute"
+          >
+            <!-- keep-alive caches the "browse a listing → open a detail → back"
+                 public listings (Group A) so back-nav restores the grid + scroll
+                 instead of remounting + refetching (skeleton). Rotation-sensitive
+                 too: a refetch of /faces would reshuffle the rotated grid.
+
+                 NOTE: unlike the dashboard/admin layouts (which drive caching by
+                 route meta.keepAlive), this branch keeps a name-based :include. The
+                 <Transition mode="out-in"> forces a SINGLE child, so the keep-alive
+                 must be that child and stay always-mounted (its cache has to survive
+                 the visit to the non-cached profile/detail route). Selective caching
+                 in an always-mounted keep-alive can only be name-based (include), and
+                 a meta-driven v-if would either unmount the keep-alive (wiping the
+                 cache) or need a second sibling (two children → invalid under the
+                 transition). The three public view names are specific (no collision).
+
+                 :key="route.path" is stable per listing (/faces, /missions,
+                 /ressources carry no path params) so each caches into one slot; :max
+                 is a defensive cap (footgun guard if a listed view ever gains params). -->
+            <keep-alive
+              :include="['PublicFacesView', 'PublicMissionsView', 'RessourcesView']"
+              :max="5"
+            >
+              <component :is="Component" :key="route.path" />
+            </keep-alive>
           </Transition>
         </RouterView>
       </main>
