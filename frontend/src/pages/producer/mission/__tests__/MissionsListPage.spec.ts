@@ -4,11 +4,14 @@ import { defineComponent, h, ref } from 'vue'
 import type { Mission } from '@/features/mission/types'
 
 const routerPushSpy = vi.fn()
+// maybeOpenPayTunnel consumes ?pay via router.replace — the mock must resolve
+// (the page fires it with `void`, an undefined return would reject unhandled).
+const routerReplaceSpy = vi.fn().mockResolvedValue(undefined)
 const fetchMissionsSpy = vi.fn().mockResolvedValue(undefined)
 const routeQuery: { value: Record<string, unknown> } = { value: {} }
 
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: routerPushSpy }),
+  useRouter: () => ({ push: routerPushSpy, replace: routerReplaceSpy }),
   useRoute: () => ({ query: routeQuery.value }),
 }))
 

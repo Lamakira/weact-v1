@@ -20,6 +20,17 @@ import { useToast } from '@/composables/useToast'
 import type { CandidatureStatusType } from '@/features/candidature/types'
 import { CandidatureStatusLabel } from '@/features/candidature/types'
 
+const candidatureFilterStatuses = new Set(Object.keys(CandidatureStatusLabel))
+
+function normalizeStatusQuery(value: unknown): CandidatureStatusType | '' {
+  return typeof value === 'string' && candidatureFilterStatuses.has(value)
+    ? value as CandidatureStatusType
+    : ''
+}
+
+// Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
+defineOptions({ name: 'FaceCandidaturesPage' })
+
 /**
  * LOGIC & STATE MANAGEMENT
  */
@@ -167,10 +178,10 @@ function handleCancelModalClose(): void {
  * Sync filter with URL query params
  */
 function syncFromUrl(): void {
-  const urlStatus = route.query.status as CandidatureStatusType | '' | undefined
+  const urlStatus = normalizeStatusQuery(route.query.status)
   const urlPage = route.query.page ? parseInt(route.query.page as string, 10) : 1
 
-  if (urlStatus !== undefined && urlStatus !== statusFilter.value) {
+  if (urlStatus !== statusFilter.value) {
     statusFilter.value = urlStatus
   }
 
@@ -254,6 +265,11 @@ onMounted(() => {
 watch(
   () => route.query,
   () => {
+    // Cached by keep-alive: this watcher keeps firing while the page is
+    // off-screen. Act only when actually on this route, so navigating to a
+    // detail (which drops the query) can't corrupt state; it fires once on
+    // return, refreshing the list (statuses change inter-actor).
+    if (route.name !== 'face-candidatures') return
     syncFromUrl()
   },
 )

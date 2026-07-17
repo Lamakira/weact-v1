@@ -7,6 +7,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { X, Loader2, CheckCircle2, AlertCircle, ShieldCheck, ExternalLink } from 'lucide-vue-next'
 import PayTile from './PayTile.vue'
+import { useDismissOnDeactivate } from '@/composables/useDismissOnDeactivate'
 
 const props = defineProps<{
   modelValue: boolean
@@ -20,6 +21,11 @@ const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   settled: []
 }>()
+
+// Close when the host page is deactivated by <keep-alive> — the teleported
+// overlay would otherwise stay in <body> on top of the next page. (Same
+// semantics as before keep-alive: navigating away dismissed the tunnel.)
+useDismissOnDeactivate(() => props.modelValue, () => emit('update:modelValue', false))
 
 const { isInitiating, paymentStatus, error, initiate, stopPolling, reset } =
   useUgcCommissionPayment()

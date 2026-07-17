@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
+import { onMounted, onUnmounted, onDeactivated, computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Search, Users, AlertCircle, Loader2, X, Crown } from 'lucide-vue-next'
 import { useAdminFaces } from '@/features/admin/composables/useAdminFaces'
 import { getCategoryColor } from '@/features/admin/utils/faceLabels'
+import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
+
+// Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
+defineOptions({ name: 'AdminFacesListPage' })
 
 const router = useRouter()
 const { faces, pagination, isLoading, error, fetchFaces } = useAdminFaces()
@@ -33,7 +37,18 @@ onMounted(() => {
   loadFaces()
 })
 
+// Cached by keep-alive: refresh on return so a change made on a Face detail
+// page (suspension, edit…) is reflected in the restored list.
+useRefreshOnReturn(() => loadFaces(currentPage.value))
+
 onUnmounted(() => {
+  if (searchTimeout) clearTimeout(searchTimeout)
+})
+
+// Cached by keep-alive: onUnmounted no longer fires when leaving the page —
+// cancel a pending search debounce on deactivation too, so it can't fetch
+// off-screen and race the return refresh.
+onDeactivated(() => {
   if (searchTimeout) clearTimeout(searchTimeout)
 })
 

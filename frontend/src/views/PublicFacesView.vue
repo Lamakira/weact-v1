@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, nextTick } from 'vue'
 import { Users, AlertCircle, RefreshCw } from 'lucide-vue-next'
+
+// This name must match App.vue's public-branch <keep-alive :include> so this
+// listing is cached across a Group A browse-and-return to a Face profile. (That
+// branch stays name-based because its <Transition> can't host a meta-driven v-if
+// without unmounting the keep-alive — see App.vue. The dashboard layouts use meta.)
+defineOptions({ name: 'PublicFacesView' })
+
 import { usePaginatedFaces } from '@/features/public/composables/usePaginatedFaces'
 import { fetchFilterOptions, type FilterOption, type FacesFilterParams } from '@/features/public/services/publicFacesApi'
 import FaceCard from '@/features/public/components/FaceCard.vue'
@@ -10,7 +17,11 @@ import { Pagination } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useScrollReveal } from '@/composables/useScrollReveal'
 
-const { reinit } = useScrollReveal()
+// Scope the reveal to this view's own subtree: it stays cached under
+// <keep-alive> while the user reads a Face profile, and a document-wide scan
+// would then observe the profile's elements instead of this grid's cards.
+const rootEl = ref<HTMLElement | null>(null)
+const { reinit } = useScrollReveal(rootEl)
 
 // 16 items per page = full grid rows (4×4 desktop, 8×2 mobile, commit
 // 55895ef9) — MUST stay aligned with the backend LRU exposure window
@@ -72,7 +83,7 @@ watch(faces, async () => {
 </script>
 
 <template>
-  <div data-testid="public-faces-view">
+  <div ref="rootEl" data-testid="public-faces-view">
     <!-- Page Header -->
     <header class="mb-8 text-center">
       <p class="text-gray-600 text-lg max-w-2xl mx-auto">
@@ -184,12 +195,24 @@ watch(faces, async () => {
         class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6"
         data-testid="faces-grid"
       >
-        <FaceCard
+        <!-- The reveal rides a wrapper, not the card itself: the two want
+             different `transition-property` values on one node and only one can
+             win. main.css's reveal rules are unlayered, so they outrank every
+             Tailwind utility however specific: merged onto the card, the reveal's
+             `transition: opacity, transform` beat its `transition-all
+             duration-300` and pinned it, leaving the hover to snap instead of
+             ease (the zoom still applied — Tailwind v4 scales via the standalone
+             `scale` property, which composes with the reveal's `transform` — it
+             just arrived instantly, as did the shadow and border). On two
+             elements each owns its own transition, and neither depends on the
+             layer order to get it. -->
+        <div
           v-for="face in faces"
           :key="face.id"
-          :face="face"
           class="stagger-item"
-        />
+        >
+          <FaceCard :face="face" />
+        </div>
       </div>
 
       <!-- Pagination -->

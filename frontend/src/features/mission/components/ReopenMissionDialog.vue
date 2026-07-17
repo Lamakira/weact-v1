@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
+import { useDismissOnDeactivate } from '@/composables/useDismissOnDeactivate'
 
 interface Props {
   isOpen: boolean
@@ -15,6 +16,10 @@ const emit = defineEmits<{
   cancel: []
   confirm: []
 }>()
+
+// Close when the host page is deactivated by <keep-alive> — the teleported
+// overlay would otherwise stay in <body> on top of the next page.
+useDismissOnDeactivate(() => props.isOpen, () => emit('cancel'))
 
 const handleCancel = () => {
   if (!props.isLoading) {

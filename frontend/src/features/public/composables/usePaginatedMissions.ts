@@ -11,6 +11,7 @@ import {
   type PublicMissionFilters,
 } from '../services/publicMissionsApi'
 import type { PaginationMeta } from '../services/publicFacesApi'
+import { useKeepAliveListingGuard } from './useKeepAliveListingGuard'
 
 /**
  * Composable for managing paginated missions list with URL sync
@@ -24,7 +25,12 @@ import type { PaginationMeta } from '../services/publicFacesApi'
 export function usePaginatedMissions(perPage: number = 15) {
   const route = useRoute()
   const router = useRouter()
+  // Also consumed by buildQuery below to preserve untracked query params.
   const trackedQueryKeys = ['page', 'type_mission', 'lieu', 'budget_min', 'budget_max'] as const
+
+  // Keep-alive reload guard (rationale in useKeepAliveListingGuard).
+  const { signatureOf, markLoaded, markFailed, shouldSkipReload } =
+    useKeepAliveListingGuard(trackedQueryKeys)
 
   // State
   const missions = ref<PublicMission[]>([])
@@ -112,20 +118,6 @@ export function usePaginatedMissions(perPage: number = 15) {
     return query
   }
 
-  function getQuerySignature(query: LocationQuery | LocationQueryRaw): string {
-    const normalized: Record<string, string> = {}
-
-    trackedQueryKeys.forEach((key) => {
-      const value = query[key]
-
-      if (typeof value === 'string' && value !== '') {
-        normalized[key] = value
-      }
-    })
-
-    return JSON.stringify(normalized)
-  }
-
   /**
    * Load missions for a specific page
    */
@@ -133,7 +125,7 @@ export function usePaginatedMissions(perPage: number = 15) {
     const validPage = Math.max(1, page)
     const nextQuery = buildQuery(validPage)
 
-    if (getQuerySignature(nextQuery) !== getQuerySignature(route.query)) {
+    if (signatureOf(nextQuery) !== signatureOf(route.query)) {
       await router.push({
         query: nextQuery,
       })
@@ -147,6 +139,9 @@ export function usePaginatedMissions(perPage: number = 15) {
     page: number = currentPage.value,
     activeFilters: PublicMissionFilters = filters.value,
   ): Promise<void> {
+    // Record the query we're fetching for so a later keep-alive return with the
+    // same query is served from cache rather than refetched.
+    markLoaded()
     isLoading.value = true
     error.value = null
     const currentRequestId = ++requestId
@@ -159,6 +154,8 @@ export function usePaginatedMissions(perPage: number = 15) {
       meta.value = response.meta
     } catch (err: unknown) {
       if (currentRequestId !== requestId) return
+      // Failed query → not loaded (see useKeepAliveListingGuard).
+      markFailed()
       console.error('Failed to fetch missions:', err)
       error.value = 'Une erreur est survenue lors du chargement des missions. Veuillez réessayer.'
       missions.value = []
@@ -190,7 +187,7 @@ export function usePaginatedMissions(perPage: number = 15) {
     const normalizedFilters = normalizeFilters(newFilters)
     const nextQuery = buildQuery(1, normalizedFilters)
 
-    if (getQuerySignature(nextQuery) === getQuerySignature(route.query)) {
+    if (signatureOf(nextQuery) === signatureOf(route.query)) {
       filters.value = normalizedFilters
       void fetchMissions(1, normalizedFilters)
       return
@@ -200,9 +197,13 @@ export function usePaginatedMissions(perPage: number = 15) {
   }
 
   // Watch the route query to keep URL and data in sync.
+  // Keep-alive churn (leave/return) must not reload — see useKeepAliveListingGuard.
+  // `immediate` still runs on first mount, where route.name IS this listing and
+  // the signature differs from null.
   watch(
     () => trackedQueryKeys.map((key) => route.query[key]),
     () => {
+      if (shouldSkipReload()) return
       filters.value = parseFiltersFromQuery(route.query)
       void fetchMissions(currentPage.value, filters.value)
     },

@@ -10,7 +10,7 @@ import { useRoute } from 'vue-router'
 import { LayoutDashboard, FileText, MessageCircle, User, Briefcase, CalendarCheck, Wallet, CreditCard, Video } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
-import { DashboardLayout, type SidebarItem } from '@/components/layout'
+import { DashboardLayout, KeepAliveRouterView, type SidebarItem } from '@/components/layout'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
 import { usePersonalInfo } from '@/features/face/composables/usePersonalInfo'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
@@ -121,7 +121,8 @@ async function handleLogout(): Promise<void> {
       v-if="personalInfoLoaded && !hasWhatsapp"
     />
 
-    <!-- Child routes render here -->
-    <router-view />
+    <!-- Child routes render here — meta.keepAlive-driven caching + page
+         transitions live in the shared KeepAliveRouterView (see its header). -->
+    <KeepAliveRouterView />
   </DashboardLayout>
 </template>

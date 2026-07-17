@@ -13,6 +13,17 @@ import { BookingCard, BookingStatusFilter } from '@/features/booking/components'
 import type { BookingFilterStatus } from '@/features/booking/types'
 import { BookingFilterLabel } from '@/features/booking/types'
 
+const bookingFilterStatuses = new Set(Object.keys(BookingFilterLabel))
+
+function normalizeStatusQuery(value: unknown): BookingFilterStatus {
+  return typeof value === 'string' && bookingFilterStatuses.has(value)
+    ? value as BookingFilterStatus
+    : ''
+}
+
+// Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
+defineOptions({ name: 'ProducerBookingsListPage' })
+
 const route = useRoute()
 const router = useRouter()
 
@@ -41,10 +52,10 @@ let skipNextWatch = false
  * Sync filter with URL query params
  */
 function syncFromUrl(): void {
-  const urlStatus = route.query.status as BookingFilterStatus | undefined
+  const urlStatus = normalizeStatusQuery(route.query.status)
   const urlPage = parseInt(route.query.page as string, 10) || 1
 
-  if (urlStatus !== undefined && urlStatus !== statusFilter.value) {
+  if (urlStatus !== statusFilter.value) {
     statusFilter.value = urlStatus
   }
 
@@ -55,7 +66,6 @@ function syncFromUrl(): void {
  * Update URL when filter or page changes (skip watcher to avoid double-fetch)
  */
 function updateUrl(): void {
-  skipNextWatch = true
   const query: Record<string, string> = {}
   if (statusFilter.value) {
     query.status = statusFilter.value
@@ -63,6 +73,16 @@ function updateUrl(): void {
   if (currentPage.value > 1) {
     query.page = String(currentPage.value)
   }
+  // Replacing with an identical query is a "duplicated navigation": vue-router
+  // aborts it and the query watcher never ticks, so an armed skipNextWatch
+  // would survive in this keep-alive-cached instance and swallow the next
+  // return's refresh. Only arm the flag when a navigation will actually happen.
+  const current = route.query
+  const unchanged =
+    Object.keys(current).length === Object.keys(query).length &&
+    Object.entries(query).every(([key, value]) => current[key] === value)
+  if (unchanged) return
+  skipNextWatch = true
   router.replace({ query })
 }
 
@@ -113,6 +133,11 @@ onMounted(() => {
 watch(
   () => route.query,
   () => {
+    // Cached by keep-alive: this watcher keeps firing while the page is
+    // off-screen. Act only when actually on this route, so navigating to a
+    // booking detail (which drops the query) can't corrupt pagination (bug #4);
+    // it fires once on return, refreshing the list.
+    if (route.name !== 'producer-bookings') return
     if (skipNextWatch) {
       skipNextWatch = false
       return

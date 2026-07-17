@@ -116,6 +116,23 @@ export function useMissionFilters() {
     syncToUrl()
   }
 
+  /**
+   * Resets every filter ref to its default, then re-ingests the CURRENT URL
+   * query. Unlike initFromUrl (which only touches keys present in the query),
+   * this makes the refs match the URL exactly — for a <keep-alive>-cached page
+   * being re-activated, which must discard stale drafts and drop filters the
+   * URL no longer carries. State-only: never writes to the router (resetFilters
+   * does, so it cannot be used during a navigation).
+   */
+  function reinitFromUrl(): void {
+    lieu.value = ''
+    budgetMin.value = undefined
+    budgetMax.value = undefined
+    dateTournage.value = ''
+    typeMission.value = ''
+    initFromUrl()
+  }
+
   // Watch for external URL changes (e.g., back/forward navigation)
   watch(
     () => route.query,
@@ -143,5 +160,6 @@ export function useMissionFilters() {
     applyFilters,
     syncToUrl,
     initFromUrl,
+    reinitFromUrl,
   }
 }

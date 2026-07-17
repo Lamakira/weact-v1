@@ -7,8 +7,12 @@ import { useToast } from '@/composables/useToast'
 import { useMissionsList, useDeleteMission, useCloseMission, useReopenMission, useCompleteMission } from '@/features/mission/composables'
 import { MissionCard, DeleteMissionDialog, CloseMissionDialog, ReopenMissionDialog, CompleteMissionDialog, MissionStatusFilter } from '@/features/mission/components'
 import { UgcPaymentOverlay } from '@/components/ugc'
-import type { MissionStatusType } from '@/features/mission/types'
+import { MissionStatus, type MissionStatusType } from '@/features/mission/types'
 import type { Mission } from '@/features/mission/types'
+import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
+
+// Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
+defineOptions({ name: 'MissionsListPage' })
 
 /**
  * LOGIC & STATE MANAGEMENT
@@ -58,13 +62,39 @@ const isUgcPayOpen = ref(false)
  */
 onMounted(async () => {
   await fetchMissions()
+  maybeOpenPayTunnel()
+})
 
-  // Auto-open the commission tunnel when arriving from UGC mission creation (?pay={id}).
+// Auto-open the commission tunnel when arriving from UGC mission creation
+// (?pay={id}). Extracted so it also runs on keep-alive re-activation below.
+function maybeOpenPayTunnel(): void {
   const payId = route.query.pay
   if (typeof payId === 'string' && payId) {
-    handlePayCommission(payId)
+    const didOpen = handlePayCommission(payId)
+    if (!didOpen) return
+
+    // Consume ?pay: rewrite the current history entry without it (other keys
+    // preserved), so a later Back to this URL can't replay the tunnel once the
+    // commission is settled.
+    const query = { ...route.query }
+    delete query.pay
+    void router.replace({ query })
   }
+}
+
+// Cached by keep-alive: on return, refresh the list AND re-check ?pay. The
+// post-publish redirect (producer-missions?pay={id}) reactivates this cached
+// instance — onMounted no longer runs — so without this the commission tunnel
+// never opens and the mission stays pending_payment (revenue gap).
+useRefreshOnReturn(async () => {
+  await refreshMissions()
+  maybeOpenPayTunnel()
 })
+
+async function retryMissions(): Promise<void> {
+  await refreshMissions()
+  maybeOpenPayTunnel()
+}
 
 function navigateToPublish(): void {
   router.push({ name: 'publish-mission' })
@@ -82,12 +112,21 @@ function handleViewAttendance(id: string): void {
   router.push({ name: 'producer-mission-attendance', params: { id } })
 }
 
-function handlePayCommission(id: string): void {
-  const mission = missions.value.find((m) => m.id === id)
-  if (mission) {
+function handlePayCommission(id: string): boolean {
+  // Search the UNFILTERED list: this cached page can keep an active status
+  // filter across a keep-alive round-trip, and no filter option matches the
+  // pending_payment mission a ?pay return must open the tunnel for.
+  const mission = allMissions.value.find((m) => m.id === id)
+  // Status guard: only a pending_payment mission has a commission to pay — a
+  // stale ?pay (deep link, history entry) for an already-paid mission must not
+  // reopen the payment tunnel.
+  if (mission && mission.status === MissionStatus.PENDING_PAYMENT) {
     payingMission.value = mission
     isUgcPayOpen.value = true
+    return true
   }
+
+  return false
 }
 
 function handleCommissionSettled(): void {
@@ -276,7 +315,7 @@ async function confirmComplete(): Promise<void> {
         <button
           type="button"
           class="mt-6 flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-2 text-sm font-medium transition-colors hover:bg-muted"
-          @click="refreshMissions"
+          @click="retryMissions"
         >
           <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': isLoading }" />
           Réessayer
@@ -349,7 +388,7 @@ async function confirmComplete(): Promise<void> {
             type="button"
             class="group p-2 text-muted-foreground transition-colors hover:text-primary"
             title="Rafraîchir la liste"
-            @click="refreshMissions"
+            @click="retryMissions"
           >
             <RefreshCw class="h-5 w-5" :class="{ 'animate-spin': isLoading }" />
           </button>
