@@ -195,12 +195,24 @@ watch(faces, async () => {
         class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6"
         data-testid="faces-grid"
       >
-        <FaceCard
+        <!-- The reveal rides a wrapper, not the card itself: the two want
+             different `transition-property` values on one node and only one can
+             win. main.css's reveal rules are unlayered, so they outrank every
+             Tailwind utility however specific: merged onto the card, the reveal's
+             `transition: opacity, transform` beat its `transition-all
+             duration-300` and pinned it, leaving the hover to snap instead of
+             ease (the zoom still applied — Tailwind v4 scales via the standalone
+             `scale` property, which composes with the reveal's `transform` — it
+             just arrived instantly, as did the shadow and border). On two
+             elements each owns its own transition, and neither depends on the
+             layer order to get it. -->
+        <div
           v-for="face in faces"
           :key="face.id"
-          :face="face"
           class="stagger-item"
-        />
+        >
+          <FaceCard :face="face" />
+        </div>
       </div>
 
       <!-- Pagination -->
