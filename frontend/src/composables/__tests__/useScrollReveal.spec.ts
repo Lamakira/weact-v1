@@ -12,11 +12,11 @@
  * and onUnmounted never fires while a listing is cached).
  *
  * And the vanishing cached card: a revealed element is kept visible by the
- * `data-scroll-reveal-seen` marker, because the `is-visible` class next to it is
- * wiped whenever Vue rewrites the element's class attribute (a Face card's
- * RouterLink gaining `router-link-active` when the user opens it). Half of that
- * fix lives in main.css, which happy-dom does not load — hence the stylesheet
- * contract test at the bottom.
+ * `data-scroll-reveal-seen` marker — a data attribute rather than a class, because
+ * Vue rewrites the class attribute wholesale whenever a binding on the same
+ * element changes (a Face card's RouterLink gaining `router-link-active` when the
+ * user opens it). Half of that mechanism lives in main.css, so the contract test
+ * at the bottom feeds the real stylesheet to happy-dom and asserts the cascade.
  */
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -137,7 +137,6 @@ describe('useScrollReveal', () => {
       MockIntersectionObserver.instances[0].enter(card)
 
       expect(card.dataset.scrollRevealSeen).toBe('true')
-      expect(card.classList.contains('is-visible')).toBe(true)
       expect(MockIntersectionObserver.instances[0].unobserve).toHaveBeenCalledWith(card)
 
       // A later reinit() (a fetch resolving, a filter change) must not observe it
@@ -228,7 +227,50 @@ describe('useScrollReveal', () => {
       wrapper.unmount()
     })
 
-    it('stays revealed when Vue rewrites its class and the cached listing comes back', async () => {
+    it('survives Vue rewriting the class attribute, where a class would not', async () => {
+      // The reason the revealed state is a data attribute and not a class. Vue
+      // rewrites `class` wholesale when a binding on the node changes — a card's
+      // RouterLink gaining `router-link-active` — taking any imperatively-added
+      // class with it. This mounts that exact shape rather than mimicking the
+      // wipe by hand, so the test fails if the marker ever becomes a class.
+      const opened = ref(false)
+      const Card = defineComponent({
+        setup() {
+          const root = ref<HTMLElement | null>(null)
+          useScrollReveal(root)
+          return () =>
+            h('div', { ref: root }, [
+              h(
+                'a',
+                {
+                  class: ['stagger-item', opened.value && 'router-link-active'],
+                  'data-testid': 'card',
+                },
+                'Adjoua',
+              ),
+            ])
+        },
+      })
+
+      const wrapper = mount(Card, { attachTo: document.body })
+      vi.advanceTimersByTime(60)
+      const card = wrapper.get('[data-testid="card"]').element as HTMLElement
+      MockIntersectionObserver.instances[0].enter(card)
+
+      // Stands in for the class the composable would add if it used one.
+      card.classList.add('control-class')
+      expect(card.dataset.scrollRevealSeen).toBe('true')
+
+      opened.value = true
+      await nextTick()
+
+      expect(card.classList.contains('router-link-active')).toBe(true) // the rewrite happened
+      expect(card.classList.contains('control-class')).toBe(false) // a class does not survive it
+      expect(card.dataset.scrollRevealSeen).toBe('true') // the marker does
+      wrapper.unmount()
+    })
+
+    it('stays revealed when the cached listing is deactivated and comes back', async () => {
       const listingActive = ref(true)
 
       const FacesListing = defineComponent({
@@ -253,24 +295,36 @@ describe('useScrollReveal', () => {
       const unseenCard = wrapper.get('[data-testid="card-2"]').element as HTMLElement
       MockIntersectionObserver.instances[0].enter(clickedCard)
 
-      // Opening the profile gives the clicked card's RouterLink an active class;
-      // Vue rewrites the whole class attribute, dropping `is-visible`. It then
-      // deactivates (but does not unmount) the public listing.
-      clickedCard.classList.remove('is-visible')
+      // Opening a profile deactivates — but does not unmount — the public listing;
+      // the app's "Retour aux talents" then brings it back from the cache.
       listingActive.value = false
       await nextTick()
-
-      // The app's "Retour aux talents" navigation reactivates the cached list.
       listingActive.value = true
       await nextTick()
 
-      // The marker survived the class rewrite, so main.css still shows the card.
       expect(clickedCard.dataset.scrollRevealSeen).toBe('true')
       expect(unseenCard.dataset.scrollRevealSeen).toBeUndefined()
       // Reactivation is not a reason to rebuild anything: the below-fold card is
       // still registered with the observer built at mount.
       expect(MockIntersectionObserver.instances).toHaveLength(1)
       expect(MockIntersectionObserver.instances[0].observe).toHaveBeenCalledWith(unseenCard)
+      wrapper.unmount()
+    })
+
+    it('builds no observer once every target has been revealed', () => {
+      const wrapper = mount(Grid, { attachTo: document.body })
+      vi.advanceTimersByTime(60)
+      const [first, second] = ['card-1', 'card-2'].map(
+        (id) => wrapper.get(`[data-testid="${id}"]`).element as HTMLElement,
+      )
+
+      MockIntersectionObserver.instances[0].enter(first)
+      MockIntersectionObserver.instances[0].enter(second)
+
+      // Every card is now seen, and reinit() runs on each fetch a cached listing
+      // resolves. With nothing left to watch there is nothing to build.
+      exposedReinit?.()
+      expect(MockIntersectionObserver.instances).toHaveLength(1)
       wrapper.unmount()
     })
 
@@ -312,19 +366,34 @@ describe('useScrollReveal', () => {
     })
   })
 
-  it('is backed by a stylesheet that keys the revealed state on the marker', () => {
-    // happy-dom loads no stylesheet, so the half of the fix that lives in CSS can
-    // only be pinned here: every reveal class must stay visible on the marker
-    // alone, since `is-visible` next to it does not survive a class rewrite.
+  it('is backed by a stylesheet that reveals on the marker alone', () => {
+    // The other half of the mechanism lives in CSS: setting the marker is what
+    // makes an element visible, so assert the cascade actually says so rather
+    // than that a selector appears in the file. A rule commented out, emptied, or
+    // overridden lower down would satisfy a text search and still leave every
+    // cached card at opacity 0.
     // (Read through node:url — happy-dom's global URL does not keep the file
     // scheme — and never through cwd, which follows wherever vitest was started.)
     const mainCss = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), '../../assets/main.css'),
       'utf-8',
     )
+    const stylesheet = document.createElement('style')
+    stylesheet.textContent = mainCss
+    document.head.appendChild(stylesheet)
 
-    REVEAL_TARGET_CLASSES.forEach((className) => {
-      expect(mainCss).toMatch(new RegExp(`\\.${className}\\[data-scroll-reveal-seen=['"]true['"]\\]`))
-    })
+    try {
+      REVEAL_TARGET_CLASSES.forEach((className) => {
+        const el = document.createElement('div')
+        el.className = className
+        document.body.appendChild(el)
+
+        expect(getComputedStyle(el).opacity, `.${className} starts hidden`).toBe('0')
+        el.dataset.scrollRevealSeen = 'true'
+        expect(getComputedStyle(el).opacity, `.${className} is revealed by the marker`).toBe('1')
+      })
+    } finally {
+      stylesheet.remove()
+    }
   })
 })

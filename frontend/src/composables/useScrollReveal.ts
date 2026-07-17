@@ -31,12 +31,13 @@ const REVEAL_SETTLE_MS = 400 + 150
  * .reveal, .reveal-left, .reveal-right, or .stagger-item classes
  * within `root` (defaults to the whole document).
  *
- * A revealed element is marked `data-scroll-reveal-seen="true"` — and that marker,
- * not the `is-visible` class added alongside it, is what keeps it visible: Vue
- * rewrites `class` wholesale whenever a binding on the same element changes, so an
- * imperatively-added class does not survive (main.css keys the revealed state on
- * both — see the comment there). The marker also tells init() not to observe that
- * element again, which would replay the stagger on an already-seen card.
+ * A revealed element is marked `data-scroll-reveal-seen="true"`, and that marker is
+ * the whole of the revealed state: main.css keys the visible styles on it, and
+ * init() reads it to leave an already-seen element out of the observer rather than
+ * replay its stagger. A data attribute is deliberate — Vue rewrites `class`
+ * wholesale whenever a binding on the same element changes (a RouterLink gaining
+ * `router-link-active` is enough), so a class added from here would not survive,
+ * while no vnode owns a data attribute.
  *
  * @param root the component's own root element, as a template ref. Pass it when the
  *   component is cached by `<keep-alive>`: while deactivated its subtree is detached
@@ -103,7 +104,6 @@ export function useScrollReveal(root?: Ref<HTMLElement | null>) {
     if (el.classList.contains('stagger-item')) staggerReveal(el)
 
     el.dataset.scrollRevealSeen = 'true'
-    el.classList.add('is-visible')
     observer?.unobserve(el)
   }
 
@@ -122,7 +122,14 @@ export function useScrollReveal(root?: Ref<HTMLElement | null>) {
     observer?.disconnect()
     observer = null
 
-    const targets = container.querySelectorAll<HTMLElement>(REVEAL_TARGET_SELECTOR)
+    // Skip what has already been revealed: re-observing it would replay the
+    // stagger on a card the user has already seen. Filtering here rather than at
+    // observe() time also lets the guard below cover the case where every target
+    // is already seen — on a fully revealed listing, reinit() runs on each fetch
+    // and would otherwise build an observer that watches nothing.
+    const targets = [...container.querySelectorAll<HTMLElement>(REVEAL_TARGET_SELECTOR)].filter(
+      (el) => el.dataset.scrollRevealSeen !== 'true',
+    )
 
     if (targets.length === 0) return
 
@@ -135,9 +142,7 @@ export function useScrollReveal(root?: Ref<HTMLElement | null>) {
       { threshold: 0.12, rootMargin: '0px 0px -40px 0px' },
     )
 
-    targets.forEach((el) => {
-      if (el.dataset.scrollRevealSeen !== 'true') observer!.observe(el)
-    })
+    targets.forEach((el) => observer!.observe(el))
   }
 
   let initTimeout: ReturnType<typeof setTimeout> | null = null

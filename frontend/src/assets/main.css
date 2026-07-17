@@ -235,13 +235,18 @@
 }
 
 /* ── Scroll Reveal ──
- * The revealed state is keyed on the `data-scroll-reveal-seen` marker as well as
- * on `.is-visible`; both are written by useScrollReveal, but only the marker is
- * durable. Vue rewrites an element's `class` wholesale whenever a binding on that
- * same element changes — opening a Face profile gives its card's RouterLink the
- * `router-link-active` class — which drops an imperatively-added `is-visible` and
- * would send an already-revealed card back to `opacity: 0`. A data attribute
- * belongs to no vnode, so Vue never patches it away.
+ * The revealed state is keyed on the `data-scroll-reveal-seen` marker, written by
+ * useScrollReveal. A data attribute rather than a class: Vue rewrites an element's
+ * `class` wholesale whenever a binding on that same element changes — a card's
+ * RouterLink gaining `router-link-active` is enough — which would drop a class
+ * added imperatively and send an already-revealed element back to `opacity: 0`.
+ * No vnode owns a data attribute, so Vue never patches it away.
+ *
+ * These rules are UNLAYERED, so they beat every Tailwind utility whatever its
+ * specificity. Keep them off any element that styles the same properties through
+ * utilities — `transition`/`transform` here — or the utility loses silently: put
+ * the reveal on a wrapper instead (see PublicFacesView).
+ *
  * useScrollReveal.ts owns the marker name; keep both in sync (there is a test).
  */
 .reveal {
@@ -249,7 +254,6 @@
   transform: translateY(28px);
   transition: opacity 0.55s ease, transform 0.55s ease;
 }
-.reveal.is-visible,
 .reveal[data-scroll-reveal-seen='true'] {
   opacity: 1;
   transform: translateY(0);
@@ -259,7 +263,6 @@
   transform: translateX(-32px);
   transition: opacity 0.55s ease, transform 0.55s ease;
 }
-.reveal-left.is-visible,
 .reveal-left[data-scroll-reveal-seen='true'] {
   opacity: 1;
   transform: translateX(0);
@@ -269,7 +272,6 @@
   transform: translateX(32px);
   transition: opacity 0.55s ease, transform 0.55s ease;
 }
-.reveal-right.is-visible,
 .reveal-right[data-scroll-reveal-seen='true'] {
   opacity: 1;
   transform: translateX(0);
@@ -303,7 +305,6 @@
   transform: translateY(20px);
   transition: opacity 0.4s ease, transform 0.4s ease;
 }
-.stagger-item.is-visible,
 .stagger-item[data-scroll-reveal-seen='true'] {
   opacity: 1;
   transform: translateY(0);
