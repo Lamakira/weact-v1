@@ -23,6 +23,21 @@
  * The inner v-if only decides whether the CURRENT route enters the cache;
  * non-flagged routes render in the sibling below, outside keep-alive.
  *
+ * The cached branch MUST carry an explicit :key — do not "simplify" it away.
+ * <keep-alive> indexes its cache by `vnode.key ?? vnode.type`, and one would
+ * expect the type to discriminate the pages here. It does NOT: the compiler
+ * injects a hardcoded `{ key: 0 }` on a keyed-less v-if branch, so EVERY cached
+ * page collides on the single entry `0`. Navigating cached→cached then hits a
+ * false cache hit, activate() patches two different component types, and Vue
+ * throws `parentComponent.ctx.deactivate is not a function` — the render aborts
+ * and the layout stays frozen on the first page visited (regression introduced
+ * by the keep-alive v2 extraction, reported from the admin panel — it hit the
+ * Face and Producer layouts too). route.name gives one entry per page and is
+ * param/query-insensitive, so a parameterised route promoted to keepAlive later
+ * cannot grow the cache unboundedly (there is no :max here).
+ * Covered by keepAliveCacheKeyCollision.spec — it needs TWO cached routes; a
+ * single one cannot collide with itself, which is why the older specs missed it.
+ *
  * The sibling is keyed by route.path: detail pages fetch in onMounted only,
  * so a detail→detail navigation on the same record (e.g. two notification
  * clicks) must remount, not patch the instance in place — while query-only
@@ -73,7 +88,7 @@ function restoreEnteringDestination(element: Element): void {
         @after-enter="restoreEnteringDestination"
       >
         <keep-alive>
-          <component :is="Component" v-if="route.meta.keepAlive" />
+          <component :is="Component" v-if="route.meta.keepAlive" :key="route.name" />
         </keep-alive>
       </transition>
       <transition
