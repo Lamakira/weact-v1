@@ -169,6 +169,29 @@ class FaceListingRankingServiceTest extends TestCase
         $this->assertSame([2001, 2002, 3001, 4001], $sequence);
     }
 
+    public function test_a_small_top_tier_absorbs_every_slot_of_the_empty_tiers_below_it(): void
+    {
+        // The exact production shape: pro and starter empty, 15 élite, a deep
+        // free queue. Élite owns 9 slots by quota and absorbs the 4+2 orphan
+        // slots of the empty tiers, reaching 15 of the 16 page-1 places.
+        //
+        // PO decision (2026-07-22): an Élite must not lose a page-1 slot to a
+        // Découverte because no Pro subscriber exists. The known cost is that
+        // 15 Élites filling 15 slots are all permanently on screen, so only
+        // the last slot renews and the carousel is frozen for this shape — it
+        // unfreezes on its own once the tier outgrows its slot count. This
+        // test exists to make a future "fix" of that freeze a DELIBERATE
+        // renegotiation instead of a silent one.
+        $queues = $this->makeQueues(['elite' => 15, 'pro' => 0, 'starter' => 0, 'free' => 60]);
+
+        $counts = $this->countByTier($this->service->pageOneWindow(
+            $this->service->buildSequence($queues, $this->weights)
+        ));
+
+        $this->assertSame(15, $counts['elite']);
+        $this->assertSame(1, $counts['free']);
+    }
+
     public function test_single_populated_tier_receives_all_slots_in_queue_order(): void
     {
         $queues = $this->makeQueues(['elite' => 0, 'pro' => 0, 'starter' => 0, 'free' => 4]);

@@ -365,9 +365,20 @@ class RotateFaceListingRanksCommand extends Command
             // Faces could never reach page 1, which is the exact opposite of
             // what the carousel is for. It advances by one place per tick.
             $step = max(1, $slots[$tier] ?? 0);
-            // A tier holding no more Faces than it has page-1 slots always
-            // shows all of them: the modulo collapses its shift to 0, which is
-            // exactly the wanted no-op.
+
+            // Degenerate step: when the queue length DIVIDES the step, every
+            // tick shifts by a whole number of turns and lands back exactly
+            // where it started — the queue is frozen forever, not just for one
+            // tick. The obvious case is a tier owning as many slots as it has
+            // Faces (9 Faces, 9 slots), which is how the production listing
+            // froze. Such a tier does show all its Faces whatever we do, so no
+            // shift can change WHICH ones are visible — but leaving the step at
+            // a full turn also freezes their ORDER, which reads as a dead page.
+            // Falling back to one place per tick keeps it visibly alive.
+            if ($size > 1 && $step % $size === 0) {
+                $step = 1;
+            }
+
             $shift = $size === 0 ? 0 : ($step * $tickIndex) % $size;
 
             $rotated[$tier] = $shift === 0
