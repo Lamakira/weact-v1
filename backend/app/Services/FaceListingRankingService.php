@@ -96,35 +96,29 @@ class FaceListingRankingService
             /** @var string $winner always set: $validated is never empty here */
             $current[$winner] -= self::TOTAL_WEIGHT;
 
-            // Redistribution: an exhausted winner hands its slot to the queue
-            // with the MOST Faces still waiting to be shown, ties broken by
-            // tier priority.
+            // Redistribution: an exhausted winner hands its slot to the first
+            // non-empty queue in priority order — UPWARD, so the surplus of an
+            // empty tier benefits the paying tiers above it.
             //
-            // The v1 nightly ranking handed it to the highest-priority queue
-            // with anything left, to pack page 1 with the most valuable Faces.
-            // The carousel made that rule actively harmful, and production
-            // proved it: with pro and starter empty, their 4+2 slots piled onto
-            // elite, which owned 15 of the 16 page-1 slots for exactly 15
-            // Faces. A tier that fills every slot it owns has no subset left to
-            // rotate — the page froze, and the 56 % quota sold to elite was
-            // silently over-delivered to 94 %.
+            // PO decision (2026-07-22), taken with its cost in full view: an
+            // Élite must not lose a page-1 slot to a Découverte just because no
+            // Pro subscriber exists. The slots of the empty tiers belong to the
+            // tier that paid the most, not to the free pool.
             //
-            // "Most Faces left" sends the surplus where it can actually be
-            // rotated (the deep free queue in practice) instead of saturating a
-            // small top tier. The priority tie-break keeps the commercial
-            // invariant intact: at equal depth a paying tier still outranks a
-            // free one. And since every queue is scanned, a slot nobody below
-            // can absorb still finds the last queue holding Faces — a single
-            // populated tier receives every slot, and the sequence never has
-            // holes.
+            // The accepted consequence is that the carousel FREEZES whenever
+            // the top tier has no more Faces than the slots it ends up owning:
+            // 15 Élites absorbing 15 of the 16 page-1 slots are all on screen
+            // permanently, leaving no subset to rotate. Only the single
+            // Découverte slot renews. This resolves itself as the tier grows
+            // past its slot count, or as soon as Pro/Starter subscribers take
+            // their own slots back. Do NOT "fix" this by sending the surplus
+            // downward without asking — that trade was made deliberately.
             $drawTier = $winner;
             if ($pointers[$drawTier] >= count($orderedQueues[$drawTier])) {
-                $deepest = -1;
                 foreach ($orderedQueues as $tier => $queue) {
-                    $remaining = count($queue) - $pointers[$tier];
-                    if ($remaining > $deepest) {
-                        $deepest = $remaining;
+                    if ($pointers[$tier] < count($queue)) {
                         $drawTier = $tier;
+                        break;
                     }
                 }
             }
