@@ -143,12 +143,18 @@ describe('F8 — keep-alive return after a FAILED fetch must retry (error is not
     await router.push('/faces?page=2')
     await flushPromises()
     expect(fetchPublicFaces).toHaveBeenCalledTimes(2)
-    expect(fetchPublicFaces).toHaveBeenLastCalledWith(2, 16, {
-      categorie: undefined,
-      niche: undefined,
-      ville: undefined,
-      search: undefined,
-    })
+    expect(fetchPublicFaces).toHaveBeenLastCalledWith(
+      2,
+      16,
+      {
+        categorie: undefined,
+        niche: undefined,
+        ville: undefined,
+        search: undefined,
+      },
+      // The first attempt failed, so no ranking generation could be pinned.
+      null
+    )
   })
 
   it('usePaginatedFaces (witness): NO refetch on keep-alive return after a SUCCESSFUL fetch', async () => {

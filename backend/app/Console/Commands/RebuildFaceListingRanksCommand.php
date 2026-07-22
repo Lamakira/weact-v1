@@ -8,6 +8,7 @@ use App\Enums\FaceSubscriptionTier;
 use App\Models\Face;
 use App\Services\FaceEntitlementService;
 use App\Services\FaceListingRankingService;
+use App\Support\FaceListingRotation;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -43,25 +44,33 @@ class RebuildFaceListingRanksCommand extends Command
      */
     public function handle(FaceListingRankingService $ranking, FaceEntitlementService $entitlements): int
     {
-        // The scheduler's withoutOverlapping() only fences cron runs; this
-        // lock also covers a manual artisan run racing the nightly one (both
-        // would read the same MAX(generation) and one would die mid-insert on
-        // the (generation, face_id) unique constraint).
-        $lock = Cache::lock('faces:rebuild-listing-ranks', 600);
+        // ONE writer of face_listing_ranks at a time — the SAME named lock as
+        // faces:rotate-listing-ranks. The scheduler's withoutOverlapping()
+        // only fences a command against itself, and the carousel tick runs
+        // every five minutes: it lands on 03:00 and can still be running when
+        // this rebuild starts at 03:15 (and a manual rebuild can race it at
+        // any hour). Both compute MAX(generation)+1, so the loser would die on
+        // the (generation, face_id) unique constraint — losing a whole night
+        // of fairness if the loser is this command.
+        $lock = Cache::lock(FaceListingRotation::WRITE_LOCK, FaceListingRotation::WRITE_LOCK_TTL_SECONDS);
 
         if (! $lock->get()) {
-            $this->warn('Another rebuild already holds the lock — skipping.');
+            $this->warn('Another writer already holds the face_listing_ranks lock — skipping.');
 
             return self::SUCCESS;
         }
 
         try {
-            $weights = $this->tierWeightsByPriority($entitlements);
+            $weights = FaceListingRotation::tierWeightsByPriority($entitlements);
             $queues = $this->buildTierQueues($ranking, array_keys($weights));
 
             $sequence = $ranking->buildSequence($queues, $weights);
+            // Snapshot of the per-tier queues, persisted alongside the
+            // generation: it is the ONLY input of faces:rotate-listing-ranks,
+            // which may not re-read Faces nor subscriptions.
+            $tierPositions = $this->tierPositions($queues);
 
-            [$generation, $rankedCount, $stampedCount] = DB::transaction(function () use ($sequence, $ranking): array {
+            [$generation, $rankedCount, $stampedCount] = DB::transaction(function () use ($sequence, $ranking, $tierPositions): array {
                 // TOCTOU guard: a Face hard-deleted between queue building
                 // (outside this transaction) and the insert below would
                 // violate the face_id FK and abort the WHOLE nightly rebuild.
@@ -85,6 +94,13 @@ class RebuildFaceListingRanksCommand extends Command
                         'face_id' => $faceId,
                         'rank' => $index + 1,
                         'created_at' => $generatedAt,
+                        // A Face dropped by the TOCTOU guard above leaves a
+                        // hole in its tier's `tier_rank` numbering — harmless:
+                        // the tick only ORDERS BY tier_rank, it never assumes
+                        // the queue is dense.
+                        'tier' => $tierPositions[$faceId]['tier'] ?? null,
+                        'tier_rank' => $tierPositions[$faceId]['tier_rank'] ?? null,
+                        'source' => FaceListingRotation::SOURCE_NIGHTLY,
                     ];
                 }
 
@@ -104,11 +120,26 @@ class RebuildFaceListingRanksCommand extends Command
                         ->update(['last_page1_exposed_at' => now()]);
                 }
 
-                // Keep generations N and N-1 only. N-1 is never served once N
-                // commits (readers always join MAX(generation)); it is kept
-                // for post-mortem inspection of the last rotation.
+                // Purge. The new nightly base N is the served generation;
+                // everything older is dead — including the tick generations
+                // derived from the PREVIOUS base, which now pile up one per
+                // rotation interval. So we keep N plus the latest previous
+                // `nightly` generation (post-mortem of the last rebuild):
+                // keeping "N-1" no longer means anything now that N-1 is
+                // usually a tick. When no previous base is identifiable
+                // (first run after the migration, or ranks seeded without a
+                // `source`), the whole history goes.
+                $previousNightly = DB::table('face_listing_ranks')
+                    ->where('source', FaceListingRotation::SOURCE_NIGHTLY)
+                    ->where('generation', '<', $generation)
+                    ->max('generation');
+
                 DB::table('face_listing_ranks')
-                    ->where('generation', '<', $generation - 1)
+                    ->where('generation', '<', $generation)
+                    ->when(
+                        $previousNightly !== null,
+                        fn ($query) => $query->where('generation', '!=', (int) $previousNightly),
+                    )
                     ->delete();
 
                 return [$generation, count($sequence), count($pageOne)];
@@ -136,35 +167,28 @@ class RebuildFaceListingRanksCommand extends Command
     }
 
     /**
-     * listing_quota per tier, keyed by DESCENDING tier priority (elite first)
-     * — the key order carries the WRR tie-break and the redistribution
-     * priority, both driven by the configured `sort_priority`.
+     * Flatten the per-tier queues into a per-Face lookup of (tier, position in
+     * its tier queue) — the two columns persisted alongside each rank row.
      *
-     * The tier universe is the FaceSubscriptionTier enum, and each priority
-     * comes from the central validated accessor (strict is_int guard lives
-     * once, in FaceEntitlementService::buildCapabilities). Quotas are read
-     * from the already-loaded config array — the ranking service fail-louds
-     * on a missing or non-integer value.
+     * They are what lets faces:rotate-listing-ranks rebuild the exact same
+     * queues later WITHOUT re-reading `faces` or `face_subscriptions`: the
+     * tick shifts each queue and re-interleaves, it never re-evaluates
+     * eligibility or fairness.
      *
-     * @return array<string, mixed> tier => listing_quota (validated by the service)
+     * @param  array<string, list<int>>  $queues  tier => ordered face IDs
+     * @return array<int, array{tier: string, tier_rank: int}>
      */
-    private function tierWeightsByPriority(FaceEntitlementService $entitlements): array
+    private function tierPositions(array $queues): array
     {
-        /** @var array<string, array<string, mixed>> $tiersConfig */
-        $tiersConfig = config('face_subscription_tiers.tiers', []);
+        $positions = [];
 
-        $priorities = [];
-        foreach (FaceSubscriptionTier::cases() as $tier) {
-            $priorities[$tier->value] = $entitlements->capabilitiesForTier($tier)->sortPriority;
-        }
-        asort($priorities);
-
-        $weights = [];
-        foreach (array_keys($priorities) as $tierValue) {
-            $weights[$tierValue] = ($tiersConfig[$tierValue]['capabilities'] ?? [])['listing_quota'] ?? null;
+        foreach ($queues as $tier => $faceIds) {
+            foreach ($faceIds as $index => $faceId) {
+                $positions[$faceId] = ['tier' => $tier, 'tier_rank' => $index + 1];
+            }
         }
 
-        return $weights;
+        return $positions;
     }
 
     /**

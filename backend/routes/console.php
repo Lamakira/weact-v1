@@ -17,6 +17,7 @@ use App\Console\Commands\ReconcileWalletCommand;
 use App\Console\Commands\RemindBookingPaymentCommand;
 use App\Console\Commands\RemindFaceSubscriptionRenewalsCommand;
 use App\Console\Commands\RemindShootingDayCommand;
+use App\Console\Commands\RotateFaceListingRanksCommand;
 use App\Console\Commands\SettleDisputedMissionAttendanceCommand;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Inspiring;
@@ -60,6 +61,17 @@ app(Schedule::class)->command(PurgeExpiredMediaCommand::class)
 app(Schedule::class)->command(RebuildFaceListingRanksCommand::class)
     ->dailyAt('03:15')
     ->timezone('UTC')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// Carrousel du listing public : toutes les 5 minutes, décale chaque file de
+// palier de la génération nocturne du nombre de places que ce palier possède
+// en page 1, ré-entrelace et écrit une génération de tick. Ne relit ni les
+// Faces ni les abonnements — l'équité reste entièrement dans le rebuild
+// nocturne. Même discipline que lui : withoutOverlapping() + onOneServer().
+// Désactivable sans redéploiement via face_listing_rotation.tick_minutes = 0.
+app(Schedule::class)->command(RotateFaceListingRanksCommand::class)
+    ->everyFiveMinutes()
     ->withoutOverlapping()
     ->onOneServer();
 

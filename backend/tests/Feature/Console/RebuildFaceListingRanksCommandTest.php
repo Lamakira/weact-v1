@@ -8,6 +8,7 @@ use App\Models\Face;
 use App\Models\FaceSubscription;
 use App\Models\User;
 use App\Services\FaceListingRankingService;
+use App\Support\FaceListingRotation;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -138,11 +139,11 @@ class RebuildFaceListingRanksCommandTest extends TestCase
         );
     }
 
-    public function test_skips_without_writing_when_another_rebuild_holds_the_lock(): void
+    public function test_skips_without_writing_when_another_writer_holds_the_lock(): void
     {
         $this->makeFace();
 
-        $lock = Cache::lock('faces:rebuild-listing-ranks', 600);
+        $lock = Cache::lock(FaceListingRotation::WRITE_LOCK, FaceListingRotation::WRITE_LOCK_TTL_SECONDS);
         $this->assertTrue($lock->get(), 'Test setup: the lock must be acquirable.');
 
         try {
