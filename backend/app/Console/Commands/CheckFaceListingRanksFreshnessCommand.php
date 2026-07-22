@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Models\Face;
+use App\Support\FaceListingRotation;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -40,7 +41,15 @@ class CheckFaceListingRanksFreshnessCommand extends Command
      */
     public function handle(): int
     {
-        $latestGeneratedAt = DB::table('face_listing_ranks')->max('created_at');
+        // ONLY the nightly generations count. faces:rotate-listing-ranks writes
+        // a fresh generation every few minutes, so measuring MAX(created_at)
+        // over the whole table would keep this watchdog permanently green
+        // while the nightly rebuild is dead — exactly the failure it exists to
+        // catch. A rotation cannot repair staleness: it permutes the last
+        // nightly base, it never re-evaluates fairness or eligibility.
+        $latestGeneratedAt = DB::table('face_listing_ranks')
+            ->where('source', FaceListingRotation::SOURCE_NIGHTLY)
+            ->max('created_at');
 
         if ($latestGeneratedAt === null) {
             // Empty table is healthy only while there is nothing to rank.

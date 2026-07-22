@@ -12,9 +12,11 @@ use App\Http\Requests\Api\V1\Public\ListFacesRequest;
 use App\Http\Resources\PublicFaceProfileResource;
 use App\Http\Resources\PublicFaceResource;
 use App\Models\Face;
+use App\Support\FaceListingRotation;
 use App\Support\Sql;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 
 class FaceController extends Controller
 {
@@ -26,6 +28,7 @@ class FaceController extends Controller
     public function index(ListFacesRequest $request): JsonResponse
     {
         $perPage = $request->getPerPage();
+        ['generation' => $generation, 'latest' => $servesLatest] = $this->resolveGeneration($request);
 
         $faces = Face::query()
             // The LEFT JOIN below adds face_listing_ranks columns to the row:
@@ -47,15 +50,33 @@ class FaceController extends Controller
                         ->orWhere('bio', 'like', "%{$escaped}%");
                 });
             })
-            // Rotation: the order comes from the materialized ranking built
-            // nightly by faces:rebuild-listing-ranks. The current generation
-            // is MAX(generation) — the rebuild's transactional insert makes
-            // the switch atomic, no pointer table needed. The rank ORDERS,
-            // it never FILTERS: eligibility stays live (publiclyListable
-            // above), so a Face deactivated after the rebuild is just a hole.
-            ->leftJoin('face_listing_ranks', function (JoinClause $join): void {
-                $join->on('face_listing_ranks.face_id', '=', 'faces.id')
-                    ->whereRaw('face_listing_ranks.generation = (select max(generation) from face_listing_ranks)');
+            // Rotation: the order comes from the materialized ranking built by
+            // faces:rebuild-listing-ranks (nightly fairness) and permuted by
+            // faces:rotate-listing-ranks (carousel). Which generation is
+            // served is decided ONCE, above, by resolveGeneration(); each
+            // generation is written in a single transaction, so it only ever
+            // becomes visible complete. The rank ORDERS, it never FILTERS:
+            // eligibility stays live (publiclyListable above), so a Face
+            // deactivated after the rebuild is just a hole.
+            ->leftJoin('face_listing_ranks', function (JoinClause $join) use ($generation, $servesLatest): void {
+                $join->on('face_listing_ranks.face_id', '=', 'faces.id');
+
+                if ($servesLatest) {
+                    // "The current window" is resolved INSIDE the statement, as
+                    // a correlated subquery: a retention purge committing
+                    // between a separate SELECT MAX(...) and this query would
+                    // otherwise leave the join matching nothing at all, and the
+                    // WHOLE public listing would silently fall back to id DESC.
+                    $join->whereRaw('face_listing_ranks.generation = (select max(generation) from face_listing_ranks)');
+
+                    return;
+                }
+
+                // A generation explicitly resolved (pinned by the visitor, or
+                // the nightly base of a filtered request). 0 is impossible
+                // (generations start at 1): an empty table matches nothing and
+                // the whole list falls back to id DESC.
+                $join->where('face_listing_ranks.generation', '=', $generation ?? 0);
             })
             // Unranked Faces (created after the rebuild, or empty table before
             // the first run) sort after ranked ones: `rank IS NULL` is 0 for
@@ -74,9 +95,83 @@ class FaceController extends Controller
                 'last_page' => $faces->lastPage(),
                 'per_page' => $faces->perPage(),
                 'total' => $faces->total(),
+                // The generation actually served. The client echoes it back on
+                // the next pages of the SAME browsing session so a rotation
+                // firing in between cannot duplicate or skip a Face. Never a
+                // URL parameter — useKeepAliveListingGuard compares URL
+                // signatures and an extra key there would fake a reload.
+                'generation' => $generation,
             ],
             'message' => 'Faces retrieved successfully',
         ]);
+    }
+
+    /**
+     * Decide which ranking generation this request is ordered by.
+     *
+     * Four cases, in this order:
+     *
+     *  0. The carousel is OFF (`face_listing_rotation.tick_minutes <= 0`) →
+     *     the latest `nightly` generation, ALWAYS. The kill switch has to give
+     *     back exactly the pre-carousel behaviour: serving MAX(generation)
+     *     would keep serving the LAST permutation the rotation happened to
+     *     write before being switched off, and no pin may override that.
+     *  1. A filter is active (`categorie`, `niche`, `ville`, `search`) → the
+     *     latest `nightly` generation, ALWAYS. A filtered result is a search,
+     *     not a shop window: it must not reshuffle under the visitor every
+     *     five minutes. Falls back to MAX(generation) when no generation is
+     *     identifiable as nightly (ranks written before the `source` column).
+     *  2. The client pins a generation it already received and that generation
+     *     still exists → serve it, so its page 2 really is the continuation of
+     *     its page 1.
+     *  3. Otherwise → the current carousel window, MAX(generation). A pinned
+     *     generation purged by the retention window silently lands here:
+     *     continuity is a courtesy, never a 4xx.
+     *
+     * `latest` says whether the caller must join on a CORRELATED MAX(...)
+     * subquery instead of the returned number: cases 0-2 name one precise
+     * generation, case 3 means "whatever is current when the query runs" and
+     * must not be frozen into a value a purge can invalidate in between.
+     * `generation` is then only reported back in `meta` (a stale value there
+     * costs at most one ignored pin, never a mis-ordered page).
+     *
+     * `generation` is null only when the table holds nothing at all — the join
+     * then matches no row and the listing degrades to its id DESC fallback.
+     *
+     * @return array{generation: ?int, latest: bool}
+     */
+    private function resolveGeneration(ListFacesRequest $request): array
+    {
+        $latest = DB::table('face_listing_ranks')->max('generation');
+        $latest = $latest === null ? null : (int) $latest;
+
+        // filled(), not truthiness: presence is the question asked here.
+        $hasFilter = $request->filled('categorie')
+            || $request->filled('niche')
+            || $request->filled('ville')
+            || $request->filled('search');
+
+        if (FaceListingRotation::tickMinutes() <= 0 || $hasFilter) {
+            $nightly = FaceListingRotation::latestNightlyGeneration();
+
+            return $nightly === null
+                ? ['generation' => $latest, 'latest' => true]
+                : ['generation' => $nightly, 'latest' => false];
+        }
+
+        $requested = $request->getGeneration();
+
+        if ($requested === null || $requested > ($latest ?? 0)) {
+            return ['generation' => $latest, 'latest' => true];
+        }
+
+        $exists = DB::table('face_listing_ranks')
+            ->where('generation', $requested)
+            ->exists();
+
+        return $exists
+            ? ['generation' => $requested, 'latest' => false]
+            : ['generation' => $latest, 'latest' => true];
     }
 
     /**

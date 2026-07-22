@@ -37,7 +37,10 @@ vi.mock('@/features/public/services/publicMissionsApi', () => ({
 
 const facesResponse = {
   data: [{ id: 1 }, { id: 2 }],
-  meta: { current_page: 2, last_page: 3, per_page: 16, total: 40 },
+  // `generation` = the rotating public ranking the page was served from. It is
+  // pinned in the composable's local state and replayed on the NEXT page — it
+  // must never appear in the URL, whose signature drives this very guard.
+  meta: { current_page: 2, last_page: 3, per_page: 16, total: 40, generation: 7 },
   message: 'ok',
 }
 const missionsResponse = {
@@ -104,12 +107,18 @@ describe('Group A public listing kept alive across a browse-and-return', () => {
 
     // Initial mount loads page 2 exactly once.
     expect(fetchPublicFaces).toHaveBeenCalledTimes(1)
-    expect(fetchPublicFaces).toHaveBeenLastCalledWith(2, 16, {
-      categorie: undefined,
-      niche: undefined,
-      ville: undefined,
-      search: undefined,
-    })
+    expect(fetchPublicFaces).toHaveBeenLastCalledWith(
+      2,
+      16,
+      {
+        categorie: undefined,
+        niche: undefined,
+        ville: undefined,
+        search: undefined,
+      },
+      // Nothing pinned yet on the first request of the session.
+      null
+    )
 
     // Browse to a profile — the FaceCard link drops the listing's query params.
     await router.push('/faces/adjoua-dossou?returnTo=%2Ffaces%3Fpage%3D2')
@@ -127,12 +136,20 @@ describe('Group A public listing kept alive across a browse-and-return', () => {
     await router.push('/faces?page=3')
     await flushPromises()
     expect(fetchPublicFaces).toHaveBeenCalledTimes(2)
-    expect(fetchPublicFaces).toHaveBeenLastCalledWith(3, 16, {
-      categorie: undefined,
-      niche: undefined,
-      ville: undefined,
-      search: undefined,
-    })
+    expect(fetchPublicFaces).toHaveBeenLastCalledWith(
+      3,
+      16,
+      {
+        categorie: undefined,
+        niche: undefined,
+        ville: undefined,
+        search: undefined,
+      },
+      // The pinned generation rides on the HTTP request only…
+      7
+    )
+    // …and NOT on the URL: the router query the guard signs stays page-only.
+    expect(router.currentRoute.value.query).toEqual({ page: '3' })
 
     // The listing was cached, never remounted, across the whole trip.
     expect(listMounted).toHaveBeenCalledTimes(1)

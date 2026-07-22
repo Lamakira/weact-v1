@@ -65,6 +65,30 @@ export function usePaginatedFaces(perPage: number = 15) {
   const hasPreviousPage = computed(() => currentPage.value > 1)
   const isEmpty = computed(() => !isLoading.value && faces.value.length === 0)
 
+  // Pinned ranking generation for the public carousel — the listing rotates
+  // every few minutes, so paging must stay anchored on the ranking page 1 was
+  // served from, otherwise page 2 could repeat or skip Faces.
+  //
+  // DELIBERATELY a plain `let`, NOT a URL query param and NOT a ref:
+  //  - the URL is signed by useKeepAliveListingGuard to decide whether a
+  //    keep-alive return must refetch; an extra key there would make every
+  //    return look like a genuine query change and refetch for nothing;
+  //  - nothing renders it, so reactivity would be pure overhead.
+  // Its lifetime is the composable instance's, i.e. the listing component's —
+  // and that component is KEPT ALIVE (KeepAliveRouterView), so the pin really
+  // survives navigating away and back, for as long as the tab lives. It is
+  // dropped only by a filter change or by the server answering with another
+  // generation, never by a simple leave/return.
+  let pinnedGeneration: number | null = null
+  // Filter set the pin belongs to: a different filter set is a different
+  // listing, whose first response must re-pin from scratch.
+  let pinnedFilterSignature: string | null = null
+
+  function filterSignature(): string {
+    const { categorie, niche, ville, search } = filters.value
+    return JSON.stringify([categorie ?? '', niche ?? '', ville ?? '', search ?? ''])
+  }
+
   /**
    * Load faces for a specific page with current filters
    */
@@ -101,12 +125,32 @@ export function usePaginatedFaces(perPage: number = 15) {
     error.value = null
     const currentRequestId = ++requestId
 
+    // Filters changed since the pin was taken → drop it, the new listing gets
+    // its own reference generation from its own first response.
+    const signature = filterSignature()
+    if (signature !== pinnedFilterSignature) {
+      pinnedFilterSignature = signature
+      pinnedGeneration = null
+    }
+
     try {
-      const response = await fetchPublicFaces(validPage, perPage, filters.value)
+      const response = await fetchPublicFaces(validPage, perPage, filters.value, pinnedGeneration)
       // Discard stale responses from superseded requests
       if (currentRequestId !== requestId) return
       faces.value = response.data
       meta.value = response.meta
+      // Pin the generation the API actually served — and RE-pin whenever it
+      // differs from what we asked for. The server arbitrates: a filtered
+      // request is always answered from the nightly ranking, the carousel is
+      // switched off, or the pinned generation has been purged. Replaying a
+      // dead pin forever would make every page come from a different ranking,
+      // which is exactly the duplicate/skip the pin exists to prevent.
+      if (
+        typeof response.meta.generation === 'number' &&
+        response.meta.generation !== pinnedGeneration
+      ) {
+        pinnedGeneration = response.meta.generation
+      }
     } catch (err: unknown) {
       if (currentRequestId !== requestId) return
       // Failed query → not loaded (see useKeepAliveListingGuard). Only the most
