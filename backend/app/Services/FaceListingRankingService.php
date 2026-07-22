@@ -97,7 +97,22 @@ class FaceListingRankingService
             $current[$winner] -= self::TOTAL_WEIGHT;
 
             // Redistribution: an exhausted winner hands its slot to the first
-            // non-empty queue in priority order.
+            // non-empty queue in priority order — UPWARD, so the surplus of an
+            // empty tier benefits the paying tiers above it.
+            //
+            // PO decision (2026-07-22), taken with its cost in full view: an
+            // Élite must not lose a page-1 slot to a Découverte just because no
+            // Pro subscriber exists. The slots of the empty tiers belong to the
+            // tier that paid the most, not to the free pool.
+            //
+            // The accepted consequence is that the carousel FREEZES whenever
+            // the top tier has no more Faces than the slots it ends up owning:
+            // 15 Élites absorbing 15 of the 16 page-1 slots are all on screen
+            // permanently, leaving no subset to rotate. Only the single
+            // Découverte slot renews. This resolves itself as the tier grows
+            // past its slot count, or as soon as Pro/Starter subscribers take
+            // their own slots back. Do NOT "fix" this by sending the surplus
+            // downward without asking — that trade was made deliberately.
             $drawTier = $winner;
             if ($pointers[$drawTier] >= count($orderedQueues[$drawTier])) {
                 foreach ($orderedQueues as $tier => $queue) {

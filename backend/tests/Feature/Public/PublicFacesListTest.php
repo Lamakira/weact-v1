@@ -970,7 +970,7 @@ class PublicFacesListTest extends TestCase
 
         $response->assertOk();
         // No active row => free queue: the active starter outranks the
-        // expired élite (élite/pro slots redistribute to starter first).
+        // expired élite (equal depth, priority breaks the tie).
         $this->assertSame(
             [$starter->uuid, $expiredElite->uuid],
             array_column($response->json('data'), 'id'),
