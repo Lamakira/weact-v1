@@ -610,7 +610,7 @@ class PublicFacesListTest extends TestCase
      *
      * @param  list<int>  $faceIdsInRankOrder
      */
-    private function seedRankGeneration(int $generation, array $faceIdsInRankOrder): void
+    private function seedRankGeneration(int $generation, array $faceIdsInRankOrder, ?string $source = null): void
     {
         $rows = [];
         foreach ($faceIdsInRankOrder as $index => $faceId) {
@@ -618,6 +618,11 @@ class PublicFacesListTest extends TestCase
                 'generation' => $generation,
                 'face_id' => $faceId,
                 'rank' => $index + 1,
+                // NULL by default: a generation with no `source` is not
+                // identifiable as the nightly base, which is exactly the state
+                // the pre-carousel tests exercise (the filtered path then
+                // falls back to MAX(generation)).
+                'source' => $source,
             ];
         }
 
@@ -1116,5 +1121,301 @@ class PublicFacesListTest extends TestCase
         foreach ($response->json('data') as $row) {
             $this->assertFalse($row['has_elite_badge'], "Non-Active Élite face {$row['username']} must not earn the badge");
         }
+    }
+
+    // ─── Carousel: which generation the request is served from ────────
+
+    public function test_unfiltered_list_serves_the_latest_generation_and_reports_it(): void
+    {
+        $a = $this->makeListedFace();
+        $b = $this->makeListedFace();
+        $c = $this->makeListedFace();
+
+        $this->seedRankGeneration(1, [$a->id, $b->id, $c->id], 'nightly');
+        $this->seedRankGeneration(2, [$c->id, $b->id, $a->id], 'tick');
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$c->uuid, $b->uuid, $a->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+        // The served generation is echoed back so the client can pin it for
+        // its next pages — it is NOT a URL parameter of the public page.
+        $this->assertSame(2, $response->json('meta.generation'));
+    }
+
+    public function test_a_filtered_list_is_served_by_the_nightly_base_not_by_a_tick(): void
+    {
+        // A filtered result is a search, not a shop window: it must not
+        // reshuffle under the visitor every five minutes.
+        $a = $this->makeListedFace(['categories' => [FaceCategory::ACTEUR->value]]);
+        $b = $this->makeListedFace(['categories' => [FaceCategory::ACTEUR->value]]);
+        $c = $this->makeListedFace(['categories' => [FaceCategory::ACTEUR->value]]);
+
+        $this->seedRankGeneration(1, [$a->id, $b->id, $c->id], 'nightly');
+        $this->seedRankGeneration(2, [$c->id, $b->id, $a->id], 'tick');
+
+        $response = $this->getJson('/api/v1/public/faces?categorie=acteur&per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$a->uuid, $b->uuid, $c->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+        $this->assertSame(1, $response->json('meta.generation'));
+    }
+
+    public function test_a_filtered_list_ignores_a_pinned_tick_generation(): void
+    {
+        $a = $this->makeListedFace(['ville' => 'Cotonou']);
+        $b = $this->makeListedFace(['ville' => 'Cotonou']);
+
+        $this->seedRankGeneration(1, [$a->id, $b->id], 'nightly');
+        $this->seedRankGeneration(2, [$b->id, $a->id], 'tick');
+
+        // Even explicitly asked for, a tick generation never orders a filtered
+        // result: the nightly base wins.
+        $response = $this->getJson('/api/v1/public/faces?ville=Cotonou&generation=2&per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$a->uuid, $b->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+        $this->assertSame(1, $response->json('meta.generation'));
+    }
+
+    public function test_a_filtered_list_falls_back_to_max_generation_without_a_nightly_base(): void
+    {
+        // Ranks written before the `source` column existed: nothing is
+        // identifiable as the nightly base, and the filtered path degrades to
+        // the pre-carousel behaviour instead of losing its ordering.
+        $a = $this->makeListedFace(['categories' => [FaceCategory::ACTEUR->value]]);
+        $b = $this->makeListedFace(['categories' => [FaceCategory::ACTEUR->value]]);
+
+        $this->seedRankGeneration(1, [$a->id, $b->id]);
+        $this->seedRankGeneration(2, [$b->id, $a->id]);
+
+        $response = $this->getJson('/api/v1/public/faces?categorie=acteur&per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$b->uuid, $a->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+        $this->assertSame(2, $response->json('meta.generation'));
+    }
+
+    public function test_pinning_a_generation_keeps_page_two_a_continuation_of_page_one(): void
+    {
+        $faces = [];
+        for ($i = 0; $i < 20; $i++) {
+            $faces[] = $this->makeListedFace();
+        }
+        $ids = array_map(fn (Face $f) => $f->id, $faces);
+        $uuidById = collect($faces)->keyBy('id')->map(fn (Face $f) => $f->uuid);
+
+        // Generation 1 and its rotated successor are DELIBERATELY reversed:
+        // paging without a pin would mix the two windows.
+        $this->seedRankGeneration(1, $ids, 'nightly');
+        $this->seedRankGeneration(2, array_reverse($ids), 'tick');
+
+        $pageOne = $this->getJson('/api/v1/public/faces?per_page=10&page=1');
+        $pageOne->assertOk();
+        $servedGeneration = $pageOne->json('meta.generation');
+        $this->assertSame(2, $servedGeneration);
+
+        // A rotation fires between the two requests.
+        $this->seedRankGeneration(3, $ids, 'tick');
+
+        $pageTwo = $this->getJson("/api/v1/public/faces?per_page=10&page=2&generation={$servedGeneration}");
+        $pageTwo->assertOk();
+        $this->assertSame($servedGeneration, $pageTwo->json('meta.generation'));
+
+        $expected = array_map(fn (int $id) => $uuidById[$id], array_reverse($ids));
+        $returned = array_merge(
+            array_column($pageOne->json('data'), 'id'),
+            array_column($pageTwo->json('data'), 'id'),
+        );
+
+        $this->assertSame($expected, $returned);
+        $this->assertSame($returned, array_values(array_unique($returned)), 'No Face may appear twice.');
+    }
+
+    public function test_a_purged_pinned_generation_falls_back_silently(): void
+    {
+        $a = $this->makeListedFace();
+        $b = $this->makeListedFace();
+
+        // Generation 1 has been purged by the retention window; only 5 exists.
+        $this->seedRankGeneration(5, [$b->id, $a->id], 'tick');
+
+        foreach ([1, 4, 99] as $purged) {
+            $response = $this->getJson("/api/v1/public/faces?generation={$purged}&per_page=10");
+
+            // Continuity is a courtesy, never a resource: no 4xx.
+            $response->assertOk();
+            $this->assertSame(5, $response->json('meta.generation'));
+            $this->assertSame(
+                [$b->uuid, $a->uuid],
+                array_column($response->json('data'), 'id'),
+            );
+        }
+    }
+
+    public function test_generation_parameter_is_validated(): void
+    {
+        $this->makeListedFace();
+
+        $this->getJson('/api/v1/public/faces?generation=0')->assertStatus(422);
+        $this->getJson('/api/v1/public/faces?generation=abc')->assertStatus(422);
+    }
+
+    public function test_the_unpinned_listing_resolves_the_current_generation_inside_the_query(): void
+    {
+        // "The current window" must be resolved by a CORRELATED subquery, in
+        // the same statement as the join — not frozen into a number read by a
+        // separate SELECT. A retention purge committing between the two would
+        // leave the join matching nothing and drop the WHOLE public listing
+        // onto its id-DESC fallback, silently.
+        $a = $this->makeListedFace();
+        $b = $this->makeListedFace();
+        $this->seedRankGeneration(7, [$b->id, $a->id], 'tick');
+
+        /** @var list<string> $executed */
+        $executed = [];
+        DB::listen(function ($query) use (&$executed): void {
+            $executed[] = $query->sql;
+        });
+
+        $this->getJson('/api/v1/public/faces?per_page=10')->assertOk();
+
+        $joined = array_values(array_filter(
+            $executed,
+            fn (string $sql): bool => str_contains($sql, 'left join') && str_contains($sql, 'face_listing_ranks'),
+        ));
+
+        $this->assertNotEmpty($joined, 'The listing must join the ranking table.');
+        foreach ($joined as $sql) {
+            $this->assertStringContainsString(
+                'select max(generation) from face_listing_ranks',
+                $sql,
+                'The unpinned listing must resolve MAX(generation) inside its own statement.',
+            );
+        }
+    }
+
+    public function test_a_pinned_generation_is_joined_on_its_exact_value(): void
+    {
+        // The mirror of the test above: an explicitly resolved generation
+        // (pinned, or the nightly base of a filtered request) is a fixed
+        // number — re-resolving MAX inside the query would defeat the pin.
+        $a = $this->makeListedFace();
+        $b = $this->makeListedFace();
+        $this->seedRankGeneration(1, [$a->id, $b->id], 'nightly');
+        $this->seedRankGeneration(2, [$b->id, $a->id], 'tick');
+
+        /** @var list<string> $executed */
+        $executed = [];
+        DB::listen(function ($query) use (&$executed): void {
+            $executed[] = $query->sql;
+        });
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10&generation=1');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$a->uuid, $b->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+        foreach ($executed as $sql) {
+            $this->assertStringNotContainsString('select max(generation) from face_listing_ranks', $sql);
+        }
+    }
+
+    public function test_an_empty_generation_parameter_is_ignored_not_rejected(): void
+    {
+        // A public page must not answer 422 because a proxy, or a hand-built
+        // URL, kept the key without a value. Empty = no pin, same path.
+        $a = $this->makeListedFace();
+        $b = $this->makeListedFace();
+
+        $this->seedRankGeneration(1, [$a->id, $b->id], 'nightly');
+        $this->seedRankGeneration(2, [$b->id, $a->id], 'tick');
+
+        $response = $this->getJson('/api/v1/public/faces?generation=&per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(2, $response->json('meta.generation'));
+        $this->assertSame(
+            [$b->uuid, $a->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+    }
+
+    public function test_meta_generation_is_null_while_nothing_has_been_ranked(): void
+    {
+        $this->makeListedFace();
+
+        $response = $this->getJson('/api/v1/public/faces');
+
+        $response->assertOk();
+        $this->assertNull($response->json('meta.generation'));
+    }
+
+    public function test_a_disabled_carousel_serves_the_nightly_order_whatever_the_pin(): void
+    {
+        // THE kill switch: `tick_minutes = 0` + `config:clear` must give back
+        // EXACTLY the pre-carousel behaviour. Serving MAX(generation) would
+        // keep serving the last permutation the rotation happened to write
+        // before being switched off — the incident would survive its own fix.
+        $a = $this->makeListedFace();
+        $b = $this->makeListedFace();
+        $c = $this->makeListedFace();
+
+        $this->seedRankGeneration(1, [$a->id, $b->id, $c->id], 'nightly');
+        $this->seedRankGeneration(2, [$c->id, $b->id, $a->id], 'tick');
+        $this->seedRankGeneration(3, [$b->id, $c->id, $a->id], 'tick');
+
+        config(['face_listing_rotation.tick_minutes' => 0]);
+
+        // No pin, a pin on the last tick, a pin on an older tick: the nightly
+        // order wins in all three cases.
+        foreach (['', '&generation=3', '&generation=2'] as $pin) {
+            $response = $this->getJson("/api/v1/public/faces?per_page=10{$pin}");
+
+            $response->assertOk();
+            $this->assertSame(
+                [$a->uuid, $b->uuid, $c->uuid],
+                array_column($response->json('data'), 'id'),
+                "A disabled carousel must serve the nightly order (pin: '{$pin}').",
+            );
+            $this->assertSame(1, $response->json('meta.generation'));
+        }
+    }
+
+    public function test_a_disabled_carousel_without_a_nightly_base_keeps_the_legacy_order(): void
+    {
+        // Ranks written before the `source` column existed: nothing is
+        // identifiable as nightly, so the kill switch degrades to
+        // MAX(generation) — the pre-carousel behaviour, again.
+        $a = $this->makeListedFace();
+        $b = $this->makeListedFace();
+
+        $this->seedRankGeneration(1, [$a->id, $b->id]);
+        $this->seedRankGeneration(2, [$b->id, $a->id]);
+
+        config(['face_listing_rotation.tick_minutes' => 0]);
+
+        $response = $this->getJson('/api/v1/public/faces?per_page=10');
+
+        $response->assertOk();
+        $this->assertSame(
+            [$b->uuid, $a->uuid],
+            array_column($response->json('data'), 'id'),
+        );
+        $this->assertSame(2, $response->json('meta.generation'));
     }
 }

@@ -41,6 +41,15 @@ class ListFacesRequest extends FormRequest
             'niche' => ['sometimes', 'nullable', Rule::enum(FaceNiche::class)],
             'ville' => ['sometimes', 'nullable', 'string', Rule::in(BeninCities::values())],
             'search' => ['sometimes', 'nullable', 'string', 'min:2', 'max:255'],
+            // Génération de classement épinglée par le visiteur (carrousel).
+            // Jamais dans l'URL de la page : le front la garde en état local et
+            // ne la met que dans la requête HTTP.
+            //
+            // `nullable` : une page PUBLIQUE ne rend pas 422 sur un
+            // `?generation=` vide (proxy qui recopie les clés, URL construite à
+            // la main, client qui sérialise un null). Absente ou vide = pas
+            // d'épinglage, exactement le même chemin.
+            'generation' => ['sometimes', 'nullable', 'integer', 'min:1'],
         ];
     }
 
@@ -64,5 +73,20 @@ class ListFacesRequest extends FormRequest
     public function getPage(): int
     {
         return (int) $this->validated('page', 1);
+    }
+
+    /**
+     * Génération de classement demandée, ou null si le visiteur n'en épingle
+     * aucune (première page d'un parcours, ou rotation désactivée).
+     *
+     * Le contrôleur reste seul juge : une génération purgée entre-temps, ou un
+     * filtre actif, la font ignorer silencieusement — jamais de 4xx, ce
+     * paramètre est une préférence de continuité, pas une ressource.
+     */
+    public function getGeneration(): ?int
+    {
+        $generation = $this->validated('generation');
+
+        return $generation === null ? null : (int) $generation;
     }
 }

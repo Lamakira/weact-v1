@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { reactive } from 'vue'
 import { usePaginatedFaces } from '../usePaginatedFaces'
 import * as publicFacesApi from '../../services/publicFacesApi'
 import type { PublicFacesResponse, PublicFace } from '../../services/publicFacesApi'
@@ -59,6 +60,7 @@ const mockResponse: PublicFacesResponse = {
     last_page: 3,
     per_page: 15,
     total: 35,
+    generation: 42,
   },
   message: 'Faces retrieved successfully',
 }
@@ -114,12 +116,18 @@ describe('usePaginatedFaces', () => {
 
       await loadPage(1)
 
-      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(1, 15, {
-        categorie: undefined,
-        niche: undefined,
-        ville: undefined,
-        search: undefined,
-      })
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(
+        1,
+        15,
+        {
+          categorie: undefined,
+          niche: undefined,
+          ville: undefined,
+          search: undefined,
+        },
+        // No generation pinned yet on the very first request.
+        null
+      )
     })
 
     it('sets loading state during fetch', async () => {
@@ -390,12 +398,17 @@ describe('usePaginatedFaces', () => {
       const { loadPage } = usePaginatedFaces(15)
       await loadPage(1)
 
-      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(1, 15, {
-        categorie: undefined,
-        niche: undefined,
-        ville: undefined,
-        search: 'Adjoua',
-      })
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(
+        1,
+        15,
+        {
+          categorie: undefined,
+          niche: undefined,
+          ville: undefined,
+          search: 'Adjoua',
+        },
+        null
+      )
     })
 
     it('page resets to 1 when search changes via updateFilters', async () => {
@@ -416,12 +429,17 @@ describe('usePaginatedFaces', () => {
       const { loadPage } = usePaginatedFaces(15)
       await loadPage(1)
 
-      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(1, 15, {
-        categorie: 'acteur',
-        niche: undefined,
-        ville: 'Cotonou',
-        search: 'Adjoua',
-      })
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(
+        1,
+        15,
+        {
+          categorie: 'acteur',
+          niche: undefined,
+          ville: 'Cotonou',
+          search: 'Adjoua',
+        },
+        null
+      )
     })
 
     it('hasActiveFilters is true when search is present', () => {
@@ -439,6 +457,136 @@ describe('usePaginatedFaces', () => {
       await clearFilters()
 
       expect(mockPush).toHaveBeenCalledWith({ query: {} })
+    })
+  })
+
+  // ─── Carousel generation pinning ──────────────────────────────────
+  //
+  // The public listing rotates every few minutes. Paging must stay anchored on
+  // the ranking page 1 was served from — and that anchor must NEVER reach the
+  // URL, because useKeepAliveListingGuard signs the URL to decide whether a
+  // keep-alive return refetches.
+
+  describe('Ranking generation pinning', () => {
+    /**
+     * The composable reads the query through computeds, so a query change
+     * observed by a LIVE instance has to be a mutation of a reactive object —
+     * reassigning `mockQuery` (what the other suites do before instantiating)
+     * would leave the already-created computeds on their cached value.
+     */
+    function liveQuery(initial: Record<string, string | undefined> = {}) {
+      mockQuery = reactive({ ...initial })
+      return mockQuery
+    }
+
+    it('sends no generation on the first request and pins the served one', async () => {
+      const { loadPage } = usePaginatedFaces(15)
+
+      await loadPage(1)
+
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenLastCalledWith(1, 15, expect.anything(), null)
+    })
+
+    it('replays the pinned generation on the next page', async () => {
+      const query = liveQuery()
+      const { loadPage } = usePaginatedFaces(15)
+
+      await loadPage(1)
+      // The router has moved the listing to page 2.
+      query.page = '2'
+      await loadPage(2)
+
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenLastCalledWith(2, 15, expect.anything(), 42)
+    })
+
+    it('never writes the generation into the URL', async () => {
+      const { loadPage } = usePaginatedFaces(15)
+
+      await loadPage(1)
+      // Navigating to page 2 goes through the router: the pushed query must
+      // carry the page and nothing else — the guard signs this URL.
+      await loadPage(2)
+
+      expect(mockPush).toHaveBeenCalledWith({ query: { page: '2' } })
+      for (const call of mockPush.mock.calls) {
+        expect(Object.keys(call[0].query)).not.toContain('generation')
+      }
+      expect(mockReplace).not.toHaveBeenCalled()
+    })
+
+    it('drops the pin when a filter changes', async () => {
+      const query = liveQuery()
+      const { loadPage } = usePaginatedFaces(15)
+
+      await loadPage(1)
+      // A new filter set is a different listing: it must be re-pinned from its
+      // own first response, not from the unfiltered one.
+      query.ville = 'Cotonou'
+      await loadPage(1)
+
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenLastCalledWith(
+        1,
+        15,
+        expect.objectContaining({ ville: 'Cotonou' }),
+        null
+      )
+    })
+
+    it('keeps the pin across pages of the same filtered listing', async () => {
+      const query = liveQuery({ ville: 'Cotonou' })
+      const { loadPage } = usePaginatedFaces(15)
+
+      await loadPage(1)
+      query.page = '2'
+      await loadPage(2)
+
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenLastCalledWith(
+        2,
+        15,
+        expect.objectContaining({ ville: 'Cotonou' }),
+        42
+      )
+    })
+
+    it('re-pins when the server answers with another generation', async () => {
+      const query = liveQuery()
+      const { loadPage } = usePaginatedFaces(15)
+
+      await loadPage(1)
+
+      // The pinned generation has been purged by the retention window: the API
+      // silently serves the current one and says so in meta.generation.
+      // Replaying the dead pin forever would make every following page come
+      // from a different ranking — duplicates and skipped Faces, i.e. exactly
+      // what the pin exists to prevent.
+      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue({
+        ...mockResponse,
+        meta: { ...mockResponse.meta, generation: 77 },
+      })
+
+      query.page = '2'
+      await loadPage(2)
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenLastCalledWith(2, 15, expect.anything(), 42)
+
+      query.page = '3'
+      await loadPage(3)
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenLastCalledWith(3, 15, expect.anything(), 77)
+    })
+
+    it('pins nothing when the API reports no ranking generation', async () => {
+      vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue({
+        ...mockResponse,
+        meta: { ...mockResponse.meta, generation: null },
+      })
+
+      const query = liveQuery()
+      const { loadPage } = usePaginatedFaces(15)
+
+      await loadPage(1)
+      query.page = '2'
+      await loadPage(2)
+
+      expect(publicFacesApi.fetchPublicFaces).toHaveBeenLastCalledWith(2, 15, expect.anything(), null)
     })
   })
 })

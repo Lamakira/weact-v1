@@ -217,12 +217,18 @@ describe('PublicFacesView', () => {
 
     // 16 = full grid rows, aligned with the backend LRU exposure window
     // (PAGE_ONE_WINDOW) and the API default per_page
-    expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(2, 16, {
-      categorie: 'acteur',
-      niche: undefined,
-      ville: undefined,
-      search: 'Adjoua',
-    })
+    expect(publicFacesApi.fetchPublicFaces).toHaveBeenCalledWith(
+      2,
+      16,
+      {
+        categorie: 'acteur',
+        niche: undefined,
+        ville: undefined,
+        search: 'Adjoua',
+      },
+      // No ranking generation pinned yet on the first request.
+      null
+    )
   })
 
   it('renders registration links with the expected destinations', async () => {

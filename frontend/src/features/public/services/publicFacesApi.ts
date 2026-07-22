@@ -89,6 +89,12 @@ export interface PaginationMeta {
   last_page: number
   per_page: number
   total: number
+  /**
+   * Ranking generation the listing was ordered by (public faces carousel).
+   * Null while no ranking has ever been built. Optional so the other
+   * paginated listings can keep reusing this shape.
+   */
+  generation?: number | null
 }
 
 /**
@@ -133,15 +139,22 @@ export interface PublicFacesResponse {
 /**
  * Fetch paginated list of public faces with optional filters
  *
+ * The public listing rotates every few minutes, so paging through it needs a
+ * fixed reference point: `generation` pins the ranking the visitor already saw
+ * on page 1. It travels ONLY as an HTTP query parameter — never in the page
+ * URL, which useKeepAliveListingGuard signs to decide whether to refetch.
+ *
  * @param page - Page number (1-indexed)
  * @param perPage - Items per page (default: 15, max: 30)
  * @param filters - Optional filter parameters
+ * @param generation - Optional pinned ranking generation (from a previous meta.generation)
  * @returns Promise with faces data and pagination meta
  */
 export async function fetchPublicFaces(
   page: number = 1,
   perPage: number = 15,
-  filters: FacesFilterParams = {}
+  filters: FacesFilterParams = {},
+  generation?: number | null
 ): Promise<PublicFacesResponse> {
   // Clamp perPage to max 30
   const validPerPage = Math.min(Math.max(1, perPage), 30)
@@ -155,6 +168,9 @@ export async function fetchPublicFaces(
   if (filters.niche) params.niche = filters.niche
   if (filters.ville) params.ville = filters.ville
   if (filters.search && filters.search.length >= 2) params.search = filters.search
+  // A purged generation is not an error: the API silently falls back to the
+  // current one and reports it back in meta.generation.
+  if (typeof generation === 'number') params.generation = generation
 
   const response = await publicApiClient.get<PublicFacesResponse>('/public/faces', {
     params,
