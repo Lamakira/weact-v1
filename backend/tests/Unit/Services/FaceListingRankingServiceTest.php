@@ -120,6 +120,48 @@ class FaceListingRankingServiceTest extends TestCase
         $this->assertSame(['elite' => 9, 'pro' => 4, 'starter' => 2, 'free' => 1], $counts);
     }
 
+    public function test_the_cascade_never_pushes_a_tier_past_its_own_page_one_quota(): void
+    {
+        // Production distribution, 2026-07-22: élite 15, pro 0, starter 0,
+        // free 3137 (only free is scaled down here — it stays far deeper than
+        // the window, so the outcome is identical).
+        //
+        // Pro and starter being empty, their 4 + 2 page-1 slots cascade to the
+        // highest-priority non-empty queue, i.e. élite, which ends up holding
+        // 15 of the 16 slots — three times its 56 % quota. Free, which has
+        // 3137 members, gets ONE.
+        //
+        // Two consequences, both unacceptable:
+        //  - commercial: the whole page 1 is the same 15 subscribers forever,
+        //    there is nothing left to sell to a Face who wants exposure;
+        //  - mechanical: 15 slots for a 15-deep queue freezes the carousel
+        //    (see RotateFaceListingRanksCommandTest).
+        //
+        // A tier's quota is a CEILING on page 1 as long as another non-empty
+        // queue can absorb the surplus. The cascade must still exist for the
+        // deep tail (nothing else to draw from), it must not overrun the
+        // window while free has thousands of Faces waiting.
+        $queues = $this->makeQueues(['elite' => 15, 'pro' => 0, 'starter' => 0, 'free' => 50]);
+
+        $counts = $this->countByTier($this->service->pageOneWindow(
+            $this->service->buildSequence($queues, $this->weights)
+        ));
+
+        $this->assertLessThanOrEqual(
+            9,
+            $counts['elite'],
+            "Élite owns 9 of the 16 page-1 slots (quota 56 %) but took {$counts['elite']}: "
+            .'the slots of the empty tiers cascaded past its own quota.',
+        );
+        // Same statement, seen from the tier that is starved: everything élite
+        // does not own goes to the only other populated tier.
+        $this->assertGreaterThanOrEqual(
+            7,
+            $counts['free'],
+            "Free is the only other populated tier and got {$counts['free']} of 16 slots.",
+        );
+    }
+
     public function test_sequence_emits_every_face_exactly_once(): void
     {
         $queues = $this->makeQueues(['elite' => 7, 'pro' => 13, 'starter' => 3, 'free' => 9]);
@@ -154,19 +196,40 @@ class FaceListingRankingServiceTest extends TestCase
         $this->assertSame([1, 2, 3, 4, 5, 6, 7, 8], $this->service->buildSequence($queues, $weights));
     }
 
-    public function test_slots_of_an_empty_tier_go_to_the_highest_priority_non_empty_queue(): void
+    public function test_slots_of_an_empty_tier_go_to_the_queue_with_the_most_faces_left(): void
     {
-        // Elite is empty: its won slots must be redistributed to pro first
-        // (highest-priority non-empty), then down the priority order — the
-        // sequence has no holes and drains every queue.
+        // Redistribution targets DEPTH (Faces still waiting), not rank, with
+        // priority only breaking ties. On shallow queues like these the two
+        // rules agree — pro is both the deepest and the highest-priority
+        // non-empty queue — which is precisely the point: the rewrite changes
+        // the outcome ONLY where a saturated top tier faces a deep one (see
+        // test_a_saturated_top_tier_never_swallows_more_than_its_own_quota).
         $queues = $this->makeQueues(['elite' => 0, 'pro' => 2, 'starter' => 1, 'free' => 1]);
 
         $sequence = $this->service->buildSequence($queues, $this->weights);
 
-        // Slot 1 (elite wins, empty) -> pro. Slot 2 (pro wins) -> pro.
-        // Slot 3 (elite wins, empty; pro drained) -> starter.
-        // Slot 4 (starter wins, drained; elite+pro empty) -> free.
+        // Slot 1 (elite wins, empty) -> pro, the deepest queue (2 left).
+        // Slot 2 (pro wins) -> pro.
+        // Slot 3 (elite wins, empty; pro drained) -> starter, tie 1-1 with
+        //   free broken by priority — a paying tier stays ahead of free.
+        // Slot 4 (starter wins, drained) -> free, the only queue left.
         $this->assertSame([2001, 2002, 3001, 4001], $sequence);
+    }
+
+    public function test_a_saturated_top_tier_never_swallows_more_than_its_own_quota(): void
+    {
+        // The production shape that froze the carousel: pro and starter empty,
+        // a small elite tier, a deep free tier. Elite owns 9 of the 16 page-1
+        // slots (quota 56) and must not receive the 4+2 orphan slots of the
+        // empty tiers — free has 3000+ Faces to rotate through them.
+        $queues = $this->makeQueues(['elite' => 15, 'pro' => 0, 'starter' => 0, 'free' => 60]);
+
+        $counts = $this->countByTier($this->service->pageOneWindow(
+            $this->service->buildSequence($queues, $this->weights)
+        ));
+
+        $this->assertSame(9, $counts['elite']);
+        $this->assertSame(7, $counts['free']);
     }
 
     public function test_single_populated_tier_receives_all_slots_in_queue_order(): void

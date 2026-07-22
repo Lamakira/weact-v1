@@ -955,10 +955,13 @@ class PublicFacesListTest extends TestCase
         // KEEP this test even though tier classification is also covered at
         // the command level: with the élite and pro queues EMPTY, every WRR
         // slot here goes through the redistribution scan — this is the only
-        // test in the suite where the priority ORDER of that scan (elite →
-        // pro → starter → free) is observable. Inverting the priority
-        // ordering in tierWeightsByPriority() flips this expectation while
-        // every other test stays green.
+        // test in the suite where the DIRECTION of that scan is observable.
+        //
+        // That scan now targets the queue with the MOST Faces left to show,
+        // ties broken by priority. Both queues hold exactly one Face here, so
+        // the tie-break decides — and it must keep the paying starter ahead of
+        // the expired élite sitting in the free queue. This is the test that
+        // pins that commercial invariant against the redistribution rewrite.
         $expiredElite = $this->makeListedFace();
         FaceSubscription::factory()->elite()->expired()->create(['face_id' => $expiredElite->id]);
         $starter = $this->makeListedFace();
@@ -970,7 +973,7 @@ class PublicFacesListTest extends TestCase
 
         $response->assertOk();
         // No active row => free queue: the active starter outranks the
-        // expired élite (élite/pro slots redistribute to starter first).
+        // expired élite (equal depth, priority breaks the tie).
         $this->assertSame(
             [$starter->uuid, $expiredElite->uuid],
             array_column($response->json('data'), 'id'),

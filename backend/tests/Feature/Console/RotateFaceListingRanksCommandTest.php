@@ -124,6 +124,139 @@ class RotateFaceListingRanksCommandTest extends TestCase
         }
     }
 
+    /**
+     * Seed the REAL production distribution (2026-07-22), scaled down on the
+     * free tier only: 15 élite / 0 pro / 0 starter / 50 free.
+     *
+     * Free is the only tier whose depth is scaled (3137 -> 50): it is already
+     * far deeper than the whole page-1 window, so its behaviour is identical
+     * and the fixture stays cheap. Élite is kept at its EXACT production count
+     * — 15 is the number the bug hangs on.
+     */
+    private function seedProductionDistribution(): void
+    {
+        foreach (range(1, 15) as $ignored) {
+            FaceSubscription::factory()->elite()->active()->create(['face_id' => $this->makeFace()->id]);
+        }
+        foreach (range(1, 50) as $ignored) {
+            $this->makeFace();
+        }
+    }
+
+    public function test_the_production_distribution_still_renews_page_one_at_each_tick(): void
+    {
+        // FIDELITY: production 2026-07-22 — élite 15, pro 0, starter 0,
+        // free 3137 (scaled to 50 here, see seedProductionDistribution()).
+        //
+        // Observed in production between the nightly generation 19 and the
+        // tick generation 22 (3 ticks = 15 minutes): ONE single Face out of
+        // the 16 of page 1 had changed — the one at rank 9, the only `free`
+        // of the window. The 15 élites were identical AND in the same order.
+        //
+        // THRESHOLD: at least half of the window (8 of 16) must be Faces that
+        // were NOT on page 1 before the tick. Rationale: the carousel exists so
+        // that a visitor coming back five minutes later sees a different page 1
+        // — renewing 1 vignette out of 16 (6 %) is indistinguishable from a
+        // frozen listing, and renewing half the grid is the weakest claim that
+        // still deserves the word "renewal". The threshold is deliberately
+        // BELOW what a healthy rotation gives (a 9-slot élite queue of depth 15
+        // shifted by 9, plus the 7 free slots shifted by 7, renews 13 of 16) so
+        // that the test pins the DEFECT, not one particular fix.
+        $this->seedProductionDistribution();
+
+        $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
+        $baseGeneration = $this->latestGeneration();
+        $window = FaceListingRankingService::PAGE_ONE_WINDOW;
+        $basePageOne = array_slice($this->generationOrder($baseGeneration), 0, $window);
+
+        $this->travelTicks(1);
+        $this->artisan('faces:rotate-listing-ranks')->assertExitCode(0);
+
+        $tickPageOne = array_slice($this->generationOrder($this->latestGeneration()), 0, $window);
+
+        $renewed = count(array_diff($tickPageOne, $basePageOne));
+
+        $this->assertGreaterThanOrEqual(
+            (int) ($window / 2),
+            $renewed,
+            sprintf(
+                'One tick renewed %d of the %d Faces of page 1 — the carousel is frozen '
+                .'(élite owns %d of the %d page-1 slots, so its queue of 15 cannot rotate).',
+                $renewed,
+                $window,
+                count(array_intersect(
+                    $basePageOne,
+                    DB::table('face_listing_ranks')
+                        ->where('generation', $baseGeneration)
+                        ->where('tier', 'elite')
+                        ->pluck('face_id')
+                        ->map(fn ($id) => (int) $id)
+                        ->all(),
+                )),
+                $window,
+            ),
+        );
+    }
+
+    public function test_a_tier_owning_as_many_slots_as_its_queue_is_deep_still_rotates(): void
+    {
+        // LATENT bug, independent of the cascade: rotateQueues() shifts a queue
+        // by `(slots × T) mod size`. When the size DIVIDES the slot count the
+        // shift is 0 for EVERY T — the queue is frozen forever, not just on one
+        // unlucky tick. 9 élites for the 9 élite slots of a nominal page 1 is
+        // enough to trigger it; production hit the same degeneracy with 15/15
+        // after the cascade handed élite the empty tiers' slots.
+        //
+        // Hand-seeded base (no rebuild) so the slot count is EXACTLY 9 élite +
+        // 7 free, i.e. the nominal 56/25/13/6 split with pro and starter empty,
+        // without depending on how the cascade is fixed elsewhere.
+        $elites = [];
+        foreach (range(1, 9) as $ignored) {
+            $elites[] = $this->makeFace()->id;
+        }
+        $frees = [];
+        foreach (range(1, 20) as $ignored) {
+            $frees[] = $this->makeFace()->id;
+        }
+
+        $rows = [];
+        foreach ($elites as $index => $faceId) {
+            $rows[] = [
+                'generation' => 1, 'face_id' => $faceId, 'rank' => $index + 1,
+                'created_at' => now(), 'tier' => 'elite', 'tier_rank' => $index + 1,
+                'source' => 'nightly',
+            ];
+        }
+        foreach ($frees as $index => $faceId) {
+            $rows[] = [
+                'generation' => 1, 'face_id' => $faceId, 'rank' => 10 + $index,
+                'created_at' => now(), 'tier' => 'free', 'tier_rank' => $index + 1,
+                'source' => 'nightly',
+            ];
+        }
+        DB::table('face_listing_ranks')->insert($rows);
+
+        $this->travelTicks(1);
+        $this->artisan('faces:rotate-listing-ranks')->assertExitCode(0);
+
+        $tickGeneration = $this->latestGeneration();
+
+        // Control: the free queue (7 slots for 20 Faces) does rotate, so a
+        // failure below is about the degenerate shift and nothing else.
+        $this->assertNotSame(
+            $frees,
+            $this->tierQueue($tickGeneration, 'free'),
+            'Test setup: the free queue must rotate, otherwise the tick did not run.',
+        );
+
+        $this->assertNotSame(
+            $elites,
+            $this->tierQueue($tickGeneration, 'elite'),
+            'A tier whose queue length divides its page-1 slot count gets a shift of '
+            .'(9 × T) mod 9 = 0 for every T: its queue never moves again.',
+        );
+    }
+
     public function test_rebuild_persists_the_tier_snapshot_the_rotation_feeds_on(): void
     {
         $elite = $this->makeFace();
@@ -571,8 +704,15 @@ class RotateFaceListingRanksCommandTest extends TestCase
             [$starters[1], $starters[2], $starters[3], $starters[0]],
             $this->tierQueue($this->latestGeneration(), 'starter'),
         );
-        // The élite queue is 16 deep for 16 slots: a full turn, unchanged.
-        $this->assertSame($elites, $this->tierQueue($this->latestGeneration(), 'elite'));
+        // The élite queue is 16 deep for 16 slots, so its nominal step is a
+        // WHOLE turn — which used to land it back on itself at every tick and
+        // freeze it forever (the production symptom). The step degenerates to
+        // one place per tick instead: showing all 16 either way, at least
+        // their order keeps moving.
+        $this->assertSame(
+            [...array_slice($elites, 1), $elites[0]],
+            $this->tierQueue($this->latestGeneration(), 'elite'),
+        );
 
         // Three ticks in, the starter Face that was LAST in the base reaches
         // page 1 — the whole point of giving a slot-less tier a step.
