@@ -225,7 +225,8 @@ export interface PaginatedMissionsResponse {
 }
 
 // ─── Découverte UGC (story 2.2) ───────────────────────────────────────────
-// Miroir strict de UgcMissionTeaserResource (backend 2.1, D-2.1.c — 10 clés).
+// Miroir strict de UgcMissionTeaserResource (backend 2.1, D-2.1.c — 10 clés,
+// + product_photos depuis la vitrine photo des cartes = 11).
 export interface UgcMissionTeaser {
   id: string
   titre: string
@@ -234,6 +235,9 @@ export interface UgcMissionTeaser {
   nom_produit: string | null
   valeur_produit: number | null
   nombre_videos: number | null
+  // Photos produit (`whenLoaded`) — la découverte UGC les charge pour les deux
+  // branches : la carte verrouillée montre la photo (argument d'upsell).
+  product_photos?: ProductPhoto[]
   lieu: string
   date_limite_candidature: string | null
   created_at: string | null

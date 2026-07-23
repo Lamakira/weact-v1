@@ -228,8 +228,9 @@ class UgcMissionDiscoveryTest extends TestCase
             $this->assertArrayNotHasKey($forbidden, $item, "Le teaser ne doit pas fuiter `{$forbidden}`.");
         }
 
-        // Set exact des 10 champs D-2.1.c — toute clé ajoutée au teaser doit être
-        // une décision explicite, pas un effet de bord.
+        // Set exact des 11 champs (10 de D-2.1.c + product_photos, seule extension
+        // consentie) — toute clé ajoutée au teaser doit être une décision
+        // explicite, pas un effet de bord.
         $this->assertEqualsCanonicalizing([
             'id',
             'titre',
@@ -238,10 +239,78 @@ class UgcMissionDiscoveryTest extends TestCase
             'nom_produit',
             'valeur_produit',
             'nombre_videos',
+            'product_photos',
             'lieu',
             'date_limite_candidature',
             'created_at',
-        ], array_keys($item), 'Le teaser doit exposer exactement les 10 champs D-2.1.c.');
+        ], array_keys($item), 'Le teaser doit exposer exactement les 11 champs (D-2.1.c + product_photos).');
+    }
+
+    // ===================================================================
+    // Vitrine photo produit sur les cartes (écran 6A)
+    // ===================================================================
+
+    /**
+     * Attache des photos produit publiques à une mission (calque
+     * ProductPhotoService::attach : owner morph posé par la relation).
+     */
+    private function attachProductPhotos(Mission $mission, int $count): void
+    {
+        for ($position = 0; $position < $count; $position++) {
+            $mission->productPhotos()->create([
+                'kind' => 'product',
+                'position' => $position,
+                'disk' => 'public',
+                'filename' => "photo-{$position}.jpg",
+            ]);
+        }
+    }
+
+    public function test_eligible_face_list_exposes_product_photos_ordered_by_position(): void
+    {
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        $mission = $this->makePublishedUgcMission();
+        $this->attachProductPhotos($mission, 2);
+
+        $response = $this->actingAs($this->faceUser)->getJson('/api/v1/face/ugc/missions');
+
+        $response->assertStatus(200)
+            ->assertJsonCount(2, 'data.0.product_photos')
+            ->assertJsonStructure([
+                'data' => [
+                    '*' => ['product_photos' => ['*' => ['id', 'position', 'photo_url', 'grid_url', 'large_url']]],
+                ],
+            ])
+            ->assertJsonPath('data.0.product_photos.0.position', 0)
+            ->assertJsonPath('data.0.product_photos.1.position', 1);
+    }
+
+    public function test_free_face_teaser_exposes_product_photos_for_upsell(): void
+    {
+        $mission = $this->makePublishedUgcMission();
+        $this->attachProductPhotos($mission, 1);
+
+        $response = $this->actingAs($this->faceUser)->getJson('/api/v1/face/ugc/missions');
+
+        // La carte verrouillée montre la photo (décision PO) : disque public,
+        // aucune URL signée ni champ sensible n'accompagne la row.
+        $response->assertStatus(200)
+            ->assertJsonPath('meta.can_access_ugc', false)
+            ->assertJsonCount(1, 'data.0.product_photos')
+            ->assertJsonPath('data.0.product_photos.0.position', 0);
+        $this->assertNotNull($response->json('data.0.product_photos.0.grid_url'));
+    }
+
+    public function test_missions_without_product_photos_expose_an_empty_array(): void
+    {
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        $this->makePublishedUgcMission();
+
+        $response = $this->actingAs($this->faceUser)->getJson('/api/v1/face/ugc/missions');
+
+        // Relation chargée mais vide : la clé existe et vaut [] (la carte
+        // retombe sur son en-tête sans photo, jamais de vignette cassée).
+        $response->assertStatus(200)->assertJsonPath('data.0.product_photos', []);
     }
 
     public function test_free_face_gets_complete_paywall_meta(): void
