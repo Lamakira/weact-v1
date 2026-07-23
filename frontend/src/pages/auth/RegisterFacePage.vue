@@ -32,7 +32,7 @@ function handleSuccess() {
   // Show email verification reminder
   toast.info(
     'Un email de vérification a été envoyé. Veuillez vérifier votre boîte de réception.',
-    { timeout: 8000 }
+    { duration: 8000 }
   )
   // Redirect post-registration: honor ?redirect= bounce-back from /login (FP-2.15),
   // else default to the post-registration upsell page (FP-3.5). A valid ?redirect=
