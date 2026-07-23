@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { Lock, MapPin, Video } from 'lucide-vue-next'
 import StatusPill from '@/components/ugc/StatusPill.vue'
+import type { ProductPhoto } from '@/components/ugc'
 import type { Mission, UgcMissionTeaser } from '../types'
 
 const props = defineProps<{
@@ -43,6 +44,27 @@ const isOpen = computed(() => {
   return endOfDeadlineDay.getTime() >= Date.now()
 })
 
+// Vitrine photo produit : les DEUX branches (éligible et teaser) reçoivent
+// product_photos depuis la découverte UGC. Photo nette même verrouillée
+// (décision PO) — c'est l'argument d'upsell de la carte.
+const photos = computed<ProductPhoto[]>(() => props.item.product_photos ?? [])
+
+// Première photo = position la plus basse (relation ordonnée par `position`
+// côté serveur). Vignette `grid` ~400px, repli sur l'original tant que le job
+// de variantes n'a pas tourné (parité ProductPhotoGallery).
+const coverSrc = computed<string>(() => {
+  const cover = photos.value[0]
+  return cover?.grid_url || cover?.photo_url || ''
+})
+
+// Une row sans aucune URL exploitable ne doit pas produire un <img> cassé :
+// la carte retombe alors sur son en-tête historique.
+const hasCover = computed(() => coverSrc.value !== '')
+
+const coverAlt = computed(() =>
+  props.item.nom_produit ? `Photo du produit ${props.item.nom_produit}` : 'Photo du produit',
+)
+
 function formatFcfa(amount: number): string {
   return `${(amount || 0).toLocaleString('fr-FR')} FCFA`
 }
@@ -63,10 +85,63 @@ function handleClick(): void {
     @keydown.enter="handleClick"
     @keydown.space.prevent="handleClick"
   >
-    <!-- Header band (teal léger) : badge UGC + tag compensation + kicker + titre -->
+    <!-- Bandeau photo produit (16:9) : badges en surimpression sur un dégradé
+         pour rester lisibles quelle que soit la photo. Absent sans photo. -->
+    <div
+      v-if="hasCover"
+      class="relative aspect-[4/3] overflow-hidden bg-muted"
+      data-testid="ugc-card-cover"
+    >
+      <img
+        :src="coverSrc"
+        :alt="coverAlt"
+        class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+        loading="lazy"
+        decoding="async"
+      />
+
+      <div
+        class="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/70 via-black/25 to-transparent px-4 pb-3 pt-10"
+      >
+        <span
+          class="inline-flex items-center rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white"
+        >
+          UGC
+        </span>
+        <span
+          v-if="item.type_compensation_label"
+          class="inline-flex items-center rounded-full bg-white/90 px-2.5 py-0.5 text-[11px] font-medium text-primary"
+        >
+          {{ item.type_compensation_label }}
+        </span>
+      </div>
+
+      <!-- Compteur des photos restantes (la galerie complète est sur le détail) -->
+      <span
+        v-if="photos.length > 1"
+        class="absolute right-3 top-3 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white"
+        data-testid="ugc-card-photo-count"
+      >
+        +{{ photos.length - 1 }}
+      </span>
+
+      <!-- Cadenas : voile léger, la photo reste NETTE (décision PO) -->
+      <div
+        v-if="locked"
+        class="absolute inset-0 flex items-center justify-center bg-black/25"
+        data-testid="ugc-card-lock-overlay"
+      >
+        <div class="flex h-9 w-9 items-center justify-center rounded-full bg-primary shadow-md">
+          <Lock class="h-4 w-4 text-white" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Header band (teal léger) : badge UGC + tag compensation + kicker + titre.
+         Les badges et le cadenas ne s'y affichent que sans photo de couverture. -->
     <div class="relative bg-primary/5 p-4">
       <div :class="{ 'blur-[2px]': locked }">
-        <div class="flex items-center gap-2">
+        <div v-if="!hasCover" class="flex items-center gap-2">
           <span
             class="inline-flex items-center rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white"
           >
@@ -81,7 +156,8 @@ function handleClick(): void {
         </div>
         <p
           v-if="item.nom_produit"
-          class="mt-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+          class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+          :class="{ 'mt-3': !hasCover }"
         >
           {{ item.nom_produit }}
         </p>
@@ -92,9 +168,9 @@ function handleClick(): void {
         </h3>
       </div>
 
-      <!-- Overlay cadenas (carte verrouillée) -->
+      <!-- Overlay cadenas (carte verrouillée, sans photo de couverture) -->
       <div
-        v-if="locked"
+        v-if="locked && !hasCover"
         class="absolute inset-0 flex items-center justify-center bg-card/40"
         data-testid="ugc-card-lock-overlay"
       >

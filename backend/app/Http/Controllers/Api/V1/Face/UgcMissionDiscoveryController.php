@@ -34,6 +34,10 @@ class UgcMissionDiscoveryController extends Controller
             ->where('type_mission', MissionType::Ugc->value)
             ->whereProducerActive()
             ->notExpired() // exclut les missions UGC dont la date limite de candidature est passée
+            // Photos produit : chargées pour LES DEUX branches (décision PO — la
+            // photo est l'argument d'upsell, la carte verrouillée la montre aussi).
+            // Disque public côté mission : aucune URL signée, rien à protéger ici.
+            ->with('productPhotos')
             // Le teaser n'expose jamais le producer — eager-load réservé à la branche éligible
             ->when($canAccessUgc, fn ($query) => $query->with('producer'))
             ->orderBy('created_at', 'desc')
