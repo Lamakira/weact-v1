@@ -12,9 +12,9 @@ const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
 
-// Success message for password reset redirect
-const successMessage = ref<string | null>(null)
-// Warning message for session expired redirect
+// Warning message for session expired redirect. Conservé inline : c'est un
+// avertissement, pas une confirmation — il doit rester à l'écran le temps que
+// l'utilisateur se reconnecte. Seuls les messages de SUCCÈS passent en toast.
 const warningMessage = ref<string | null>(null)
 
 onMounted(() => {
@@ -22,7 +22,7 @@ onMounted(() => {
 
   // Check for password reset success message from query
   if (message === 'password-reset-success') {
-    successMessage.value = 'Mot de passe réinitialisé avec succès. Vous pouvez maintenant vous connecter.'
+    toast.success('Mot de passe réinitialisé. Vous pouvez maintenant vous connecter.')
     // Clean up the URL (preserve redirect if present)
     router.replace({ path: '/login', query: route.query.redirect ? { redirect: route.query.redirect } : {} })
   } else if (message === 'session-expired') {
@@ -84,24 +84,6 @@ function handleLoginSuccess(): void {
         <p class="text-gray-600 mb-4 text-center">
           C'est parti !
         </p>
-
-        <!-- Success Message (e.g., after password reset) -->
-        <div
-          v-if="successMessage"
-          class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg"
-          data-testid="success-message"
-        >
-          <div class="flex items-center">
-            <svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fill-rule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                clip-rule="evenodd"
-              />
-            </svg>
-            <span class="text-sm font-medium text-green-800">{{ successMessage }}</span>
-          </div>
-        </div>
 
         <!-- Warning Message (e.g., after session expiration) -->
         <div

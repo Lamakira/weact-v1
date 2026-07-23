@@ -13,8 +13,11 @@ import {
 } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { useAdminFinance } from '@/features/admin/composables/useAdminFinance'
+import { useToast } from '@/composables/useToast'
 import AdminWithdrawalRequestsTable from '@/features/admin/components/AdminWithdrawalRequestsTable.vue'
 import { Skeleton } from '@/components/ui/skeleton'
+
+const toast = useToast()
 
 const {
   overview,
@@ -41,6 +44,23 @@ onMounted(() => {
   fetchWithdrawals()
   fetchWithdrawalRequests()
 })
+
+// Confirmation par toast (le bandeau inline du tableau a été retiré). Le message
+// serveur reste la source de vérité — il précise le montant traité ; on ne
+// retombe sur un libellé générique que s'il est absent. En cas d'échec, le
+// composable remplit withdrawalRequestError et le tableau l'affiche inline :
+// une erreur doit rester à l'écran, contrairement à une confirmation.
+async function handleApproveWithdrawalRequest(id: string): Promise<void> {
+  if (await approveWithdrawalRequest(id)) {
+    toast.success(withdrawalRequestSuccess.value ?? 'Demande de retrait approuvée.')
+  }
+}
+
+async function handleRejectWithdrawalRequest(id: string, notes: string): Promise<void> {
+  if (await rejectWithdrawalRequest(id, notes)) {
+    toast.success(withdrawalRequestSuccess.value ?? 'Demande de retrait rejetée.')
+  }
+}
 
 function formatCurrency(amount: number): string {
   return (
@@ -307,12 +327,11 @@ function handleRefresh(): void {
         :is-loading="isLoadingWithdrawalRequests"
         :is-submitting="isSubmittingWithdrawalRequest"
         :error="withdrawalRequestError"
-        :success-message="withdrawalRequestSuccess"
         @refresh="fetchWithdrawalRequests(currentWithdrawalRequestsStatus)"
         @status-change="fetchWithdrawalRequests($event, 1)"
         @page-change="fetchWithdrawalRequests(currentWithdrawalRequestsStatus, $event)"
-        @approve="approveWithdrawalRequest"
-        @reject="rejectWithdrawalRequest"
+        @approve="handleApproveWithdrawalRequest"
+        @reject="handleRejectWithdrawalRequest"
       />
     </div>
 

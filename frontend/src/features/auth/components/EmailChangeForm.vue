@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { Mail, X, Loader2, CheckCircle } from 'lucide-vue-next'
+import { Mail, X, Loader2 } from 'lucide-vue-next'
 import { useEmailChange } from '../composables/useEmailChange'
 import { useToast } from '@/composables/useToast'
 
+// isSuccess n'est plus consommé ici : la confirmation d'envoi passe par le
+// toast de handleSubmit, le bandeau inline qui le doublonnait a été retiré.
 const {
   pendingEmail,
   isLoading,
-  isSuccess,
   error,
   fieldErrors,
   requestChange,
@@ -78,17 +79,8 @@ async function handleCancel(): Promise<void> {
       </div>
     </div>
 
-    <!-- Success message -->
-    <div
-      v-if="isSuccess && !pendingEmail"
-      class="rounded-xl bg-green-50 border border-green-200 p-3 mb-3"
-      data-testid="success-message"
-    >
-      <div class="flex items-center gap-2">
-        <CheckCircle class="w-4 h-4 text-green-600" />
-        <p class="text-sm text-green-700">Email de confirmation envoyé !</p>
-      </div>
-    </div>
+    <!-- Confirmation d'envoi : toast uniquement (déjà émis par handleSubmit),
+         plus de bandeau inline qui doublonnait le message. -->
 
     <!-- Toggle form button -->
     <button

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-vue-next'
+import { AlertCircle, Loader2 } from 'lucide-vue-next'
 import { Textarea } from '@/components/ui/textarea'
 import Pagination from '@/components/ui/pagination/Pagination.vue'
 import type { AdminDispute, DisputeOutcome } from '../services/adminAttendanceDisputesApi'
@@ -12,7 +12,6 @@ defineProps<{
   isLoading: boolean
   isSubmitting: boolean
   error: string | null
-  successMessage: string | null
 }>()
 
 const emit = defineEmits<{
@@ -80,14 +79,9 @@ function submitResolve(): void {
 
 <template>
   <div class="space-y-4">
-    <!-- Banner: success / error -->
-    <div
-      v-if="successMessage"
-      class="flex items-start gap-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
-    >
-      <CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0" />
-      <span>{{ successMessage }}</span>
-    </div>
+    <!-- Banner: erreurs seulement. Le succès passe par un toast (la page en
+         émet déjà un) : un message de confirmation transitoire n'a pas à
+         pousser le tableau vers le bas. -->
     <div
       v-if="error"
       class="flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800"
