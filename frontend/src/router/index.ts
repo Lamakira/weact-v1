@@ -194,6 +194,14 @@ const router = createRouter({
           path: 'profile',
           name: 'face-profile',
           component: () => import('../pages/face/ProfileEditPage.vue'),
+          // Les onglets (Identité, Physique…) reflètent leur état dans l'URL
+          // (?tab=&section=) : ces navigations ne changent pas de page, elles
+          // ne doivent donc pas ramener le <main> du dashboard en haut. Sur
+          // mobile, les onglets sont loin sous le pli et le reset obligeait à
+          // re-scroller à chaque clic. À poser sur toute route dont la query
+          // porte de l'état de vue — surtout PAS sur les listes paginées
+          // (?page=), qui veulent bien repartir du haut à chaque page.
+          meta: { preserveScrollOnQueryChange: true },
         },
         {
           path: 'missions',
