@@ -75,7 +75,6 @@ function handlePageChange(page: number): void {
       :is-loading="isLoading"
       :is-submitting="isResolving"
       :error="error"
-      :success-message="resolveSuccess"
       @refresh="handleRefresh"
       @page-change="handlePageChange"
       @resolve="handleResolve"

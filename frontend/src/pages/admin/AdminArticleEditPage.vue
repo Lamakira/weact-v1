@@ -3,7 +3,9 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ArrowLeft, Loader2, AlertCircle, ImagePlus } from 'lucide-vue-next'
 import { useAdminArticles } from '@/features/admin/composables/useAdminArticles'
+import { useToast } from '@/composables/useToast'
 
+const toast = useToast()
 const router = useRouter()
 const route = useRoute()
 const { article, isLoading, error, fetchArticle, updateArticle } = useAdminArticles()
@@ -22,7 +24,6 @@ const existingImageUrl = ref<string | null>(null)
 
 const formErrors = ref<Record<string, string[]>>({})
 const errorMessage = ref('')
-const successMessage = ref('')
 
 onMounted(async () => {
   isFetching.value = true
@@ -69,7 +70,6 @@ function removeImage(): void {
 async function handleSubmit(): Promise<void> {
   formErrors.value = {}
   errorMessage.value = ''
-  successMessage.value = ''
 
   const result = await updateArticle(articleId.value, {
     title: title.value,
@@ -81,10 +81,7 @@ async function handleSubmit(): Promise<void> {
   })
 
   if (result.success) {
-    successMessage.value = result.message ?? 'Article mis à jour avec succès'
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 3000)
+    toast.success(result.message ?? 'Article mis à jour avec succès')
   } else {
     formErrors.value = result.errors ?? {}
     errorMessage.value = result.message ?? 'Une erreur est survenue'
@@ -118,14 +115,6 @@ function goBack(): void {
     </div>
 
     <template v-else>
-      <!-- Success Message -->
-      <div
-        v-if="successMessage"
-        class="rounded-lg bg-green-50 border border-green-200 p-4 text-sm text-green-700"
-      >
-        {{ successMessage }}
-      </div>
-
       <!-- Error Message -->
       <div
         v-if="errorMessage"

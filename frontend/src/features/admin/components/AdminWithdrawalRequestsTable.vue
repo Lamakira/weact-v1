@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { CheckCircle2, CircleAlert, Loader2, RefreshCw } from 'lucide-vue-next'
+import { CircleAlert, Loader2, RefreshCw } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import Pagination from '@/components/ui/pagination/Pagination.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
@@ -15,7 +15,6 @@ const props = defineProps<{
   isLoading: boolean
   isSubmitting: boolean
   error: string | null
-  successMessage: string | null
 }>()
 
 const emit = defineEmits<{
@@ -174,13 +173,8 @@ function submitReject(): void {
       {{ error }}
     </div>
 
-    <div
-      v-if="successMessage"
-      class="mx-6 mt-6 flex items-center gap-3 rounded-xl border border-green-100 bg-green-50 p-4 text-sm text-green-700"
-    >
-      <CheckCircle2 class="h-5 w-5 shrink-0" />
-      {{ successMessage }}
-    </div>
+    <!-- Le succès d'une approbation/rejet passe par un toast : plus de bandeau
+         inline qui décale le tableau au moment où on lit une ligne. -->
 
     <div v-if="isLoading" class="space-y-3 p-6">
       <div v-for="i in 5" :key="i" class="h-12 rounded-xl bg-gray-100/80" />

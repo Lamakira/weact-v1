@@ -83,7 +83,6 @@ function handlePageChange(page: number): void {
       :is-loading="isLoading"
       :is-acting="isActing"
       :error="error"
-      :success-message="actionSuccess"
       @refresh="handleRefresh"
       @page-change="handlePageChange"
       @reactivate="handleReactivate"

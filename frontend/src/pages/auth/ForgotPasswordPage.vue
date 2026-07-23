@@ -4,7 +4,11 @@ import { usePasswordReset } from '@/features/auth/composables/usePasswordReset'
 import logoNoir from '@/assets/images/logonoir.png'
 
 const email = ref('')
-const { isLoading, error, successMessage, forgotPassword } = usePasswordReset()
+// Plus de bandeau de succès : la confirmation passe par un toast (émis par le
+// composable). Le formulaire reste donc affiché après l'envoi — l'utilisateur
+// peut relancer la demande s'il s'est trompé d'adresse, ce que la version
+// précédente interdisait en le masquant.
+const { isLoading, error, forgotPassword } = usePasswordReset()
 
 async function handleSubmit(): Promise<void> {
   await forgotPassword(email.value)
@@ -29,27 +33,6 @@ async function handleSubmit(): Promise<void> {
 
     <div class="mt-8 w-full max-w-md">
       <div class="bg-white py-8 px-6 shadow rounded-lg sm:px-10">
-        <!-- Success Message -->
-        <div
-          v-if="successMessage"
-          class="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg"
-          data-testid="success-message"
-        >
-          <div class="flex items-center">
-            <svg class="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path
-                fill-rule="evenodd"
-                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                clip-rule="evenodd"
-              />
-            </svg>
-            <span class="text-sm font-medium text-green-800">{{ successMessage }}</span>
-          </div>
-          <p class="mt-2 text-sm text-green-700">
-            Vérifiez votre boîte de réception et suivez les instructions pour réinitialiser votre mot de passe.
-          </p>
-        </div>
-
         <!-- Error Message -->
         <div
           v-if="error"
@@ -68,7 +51,7 @@ async function handleSubmit(): Promise<void> {
           </div>
         </div>
 
-        <form @submit.prevent="handleSubmit" class="space-y-6" v-if="!successMessage">
+        <form @submit.prevent="handleSubmit" class="space-y-6">
           <!-- Email -->
           <div>
             <label for="email" class="block text-sm font-medium text-gray-700">

@@ -80,16 +80,33 @@ function restoreScroll(destination: DashboardScrollDestination): void {
 provide(restoreDashboardScrollKey, restoreScroll)
 
 watch(
-  () => route.fullPath,
+  () => ({ fullPath: route.fullPath, path: route.path }),
   (to, from) => {
     const el = contentEl.value
     if (!el) return
     // Pre-flush: the DOM still shows the page being left — save its offset.
-    if (from) savedScrollPositions.set(from, el.scrollTop)
+    if (from) savedScrollPositions.set(from.fullPath, el.scrollTop)
+
+    // Query-only navigation on a route that opted in via
+    // meta.preserveScrollOnQueryChange (profile tabs): the query carries view
+    // state, not a new page — the component is not even remounted, since
+    // KeepAliveRouterView keys its branches by route.name / route.path, so no
+    // transition runs either. Keep the reading position. Without this, a tab
+    // click throws the <main> back to the top — invisible on desktop where the
+    // tabs sit high, but on the stacked mobile layout the user lands above the
+    // fold and has to scroll all the way down to the tabs again. Paginated
+    // lists (?page=) deliberately do NOT opt in: they want the top of the list.
+    if (from && to.path === from.path && route.meta.preserveScrollOnQueryChange) {
+      // Keep the offset addressable under the new fullPath so a later return to
+      // this exact URL (keep-alive) restores where the user actually was.
+      savedScrollPositions.set(to.fullPath, el.scrollTop)
+      return
+    }
+
     // Retain the immediate reset for DashboardLayout consumers without the
     // shared transition outlet; transitioned dashboards restore again after
     // enter through the provided callback above.
-    const destination = { fullPath: to, keepAlive: Boolean(route.meta.keepAlive) }
+    const destination = { fullPath: to.fullPath, keepAlive: Boolean(route.meta.keepAlive) }
     void nextTick(() => restoreScroll(destination))
   },
 )

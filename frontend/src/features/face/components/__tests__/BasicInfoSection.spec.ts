@@ -3,6 +3,19 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import BasicInfoSection from '../BasicInfoSection.vue'
 
+// La confirmation d'enregistrement n'est plus un bandeau inline : elle passe
+// par un toast (le bandeau vert poussait le formulaire vers le bas).
+const mockToastSuccess = vi.fn()
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => ({
+    success: mockToastSuccess,
+    error: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn(),
+    clear: vi.fn(),
+  }),
+}))
+
 // Mock the composable
 const mockFetchBasicInfo = vi.fn()
 const mockUpdateBasicInfo = vi.fn()
@@ -158,7 +171,7 @@ describe('BasicInfoSection', () => {
     })
   })
 
-  it('shows success message after successful update', async () => {
+  it('toasts the server message after a successful update, without inline banner', async () => {
     mockUpdateBasicInfo.mockResolvedValue({
       success: true,
       message: 'Informations mises à jour avec succès',
@@ -171,28 +184,11 @@ describe('BasicInfoSection', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    const successMessage = wrapper.find('[data-testid="success-message"]')
-    expect(successMessage.exists()).toBe(true)
-    expect(successMessage.text()).toContain('Informations mises à jour avec succès')
+    expect(mockToastSuccess).toHaveBeenCalledWith('Informations mises à jour avec succès')
+    expect(wrapper.find('[data-testid="success-message"]').exists()).toBe(false)
   })
 
-  it('success message has role="status" for accessibility', async () => {
-    mockUpdateBasicInfo.mockResolvedValue({
-      success: true,
-      message: 'Informations mises à jour avec succès',
-    })
-
-    const wrapper = mount(BasicInfoSection)
-    await flushPromises()
-
-    await wrapper.find('form').trigger('submit')
-    await flushPromises()
-
-    const successMessage = wrapper.find('[data-testid="success-message"]')
-    expect(successMessage.attributes('role')).toBe('status')
-  })
-
-  it('does not show success message after failed update', async () => {
+  it('does not toast after a failed update', async () => {
     mockUpdateBasicInfo.mockResolvedValue({
       success: false,
       message: 'Erreur de validation',
@@ -204,7 +200,7 @@ describe('BasicInfoSection', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="success-message"]').exists()).toBe(false)
+    expect(mockToastSuccess).not.toHaveBeenCalled()
   })
 
   it('has proper accessibility labels', () => {
@@ -274,7 +270,7 @@ describe('BasicInfoSection', () => {
     expect(usernameInput.attributes('required')).toBeDefined()
   })
 
-  it('renders with default success message when API returns no message', async () => {
+  it('falls back to a default toast message when the API returns none', async () => {
     mockUpdateBasicInfo.mockResolvedValue({
       success: true,
       // No message provided
@@ -286,9 +282,7 @@ describe('BasicInfoSection', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    const successMessage = wrapper.find('[data-testid="success-message"]')
-    expect(successMessage.exists()).toBe(true)
-    expect(successMessage.text()).toContain('Informations mises à jour avec succès')
+    expect(mockToastSuccess).toHaveBeenCalledWith('Informations mises à jour avec succès')
   })
 
   describe('flat variant', () => {

@@ -64,19 +64,21 @@ describe('LoginPage', () => {
     expect(wrapper.find('[data-testid="login-form"]').exists()).toBe(true)
   })
 
-  it('displays success message when redirected from password reset', async () => {
+  it('toasts the confirmation when redirected from password reset, without inline banner', async () => {
     const wrapper = await mountComponent({ message: 'password-reset-success' })
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="success-message"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="success-message"]').text()).toContain('Mot de passe réinitialisé avec succès')
+    expect(mockToast.success).toHaveBeenCalledWith(
+      'Mot de passe réinitialisé. Vous pouvez maintenant vous connecter.',
+    )
+    expect(wrapper.find('[data-testid="success-message"]').exists()).toBe(false)
   })
 
-  it('does not display success message without query param', async () => {
-    const wrapper = await mountComponent()
+  it('does not toast a confirmation without query param', async () => {
+    await mountComponent()
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="success-message"]').exists()).toBe(false)
+    expect(mockToast.success).not.toHaveBeenCalled()
   })
 
   it('has a forgot password link', async () => {

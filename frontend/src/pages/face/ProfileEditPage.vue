@@ -284,11 +284,11 @@ const isFullByEntitlement = computed(
 // Ref to ExperiencesList component for resetting form states
 const experiencesListRef = ref<InstanceType<typeof ExperiencesList> | null>(null)
 
-// Toast notifications
+// Toast notifications. Toutes les confirmations de cette page passent par là :
+// le bandeau vert inline a été retiré parce qu'il s'insérait AU-DESSUS des
+// onglets et poussait tout le contenu vers le bas au moment même où l'on venait
+// d'enregistrer une section.
 const toast = useToast()
-
-// Success message
-const successMessage = ref<string | null>(null)
 
 // =============================================================
 // Tabbed layout (families → sections) — Profile Tabs refonte
@@ -511,11 +511,10 @@ onMounted(async () => {
  * Handle photo upload
  */
 async function handleUpload(file: File): Promise<void> {
-  successMessage.value = null
   const result = await uploadPhoto(file)
 
   if (result.success && result.message) {
-    successMessage.value = result.message
+    toast.success(result.message)
     await fetchCompletion() // Refresh completion after profile photo upload
   }
 }
@@ -524,11 +523,10 @@ async function handleUpload(file: File): Promise<void> {
  * Handle photo delete
  */
 async function handleDelete(): Promise<void> {
-  successMessage.value = null
   const result = await deletePhoto()
 
   if (result.success && result.message) {
-    successMessage.value = result.message
+    toast.success(result.message)
     await fetchCompletion() // Refresh completion after profile photo delete
   }
 }
@@ -540,11 +538,10 @@ const albumFileInputRef = ref<HTMLInputElement | null>(null)
  * Handle album photo upload
  */
 async function handleAlbumUpload(file: File): Promise<void> {
-  successMessage.value = null
   const result = await addAlbumPhoto(file)
 
   if (result.success && result.message) {
-    successMessage.value = result.message
+    toast.success(result.message)
   }
 }
 
@@ -552,11 +549,10 @@ async function handleAlbumUpload(file: File): Promise<void> {
  * Handle album photo delete
  */
 async function handleAlbumDelete(photoId: string): Promise<void> {
-  successMessage.value = null
   const result = await deleteAlbumPhoto(photoId)
 
   if (result.success && result.message) {
-    successMessage.value = result.message
+    toast.success(result.message)
   }
 }
 
@@ -576,11 +572,10 @@ function handleAlbumAddClick(): void {
  * Handle video upload
  */
 async function handleVideoUpload(file: File): Promise<void> {
-  successMessage.value = null
   const result = await uploadVideo(file)
 
   if (result.success && result.message) {
-    successMessage.value = result.message
+    toast.success(result.message)
     await fetchCompletion() // Refresh completion after presentation video upload
   }
 }
@@ -604,12 +599,11 @@ async function handleAddFaceVideo(
   type: 'acting' | 'ugc',
   file: File,
 ): Promise<void> {
-  successMessage.value = null
   const result = await uploadFaceVideo(type, file)
 
   if (result.success) {
     if (result.message) {
-      successMessage.value = result.message
+      toast.success(result.message)
     }
     if (type === 'acting') {
       await fetchCompletion() // acting_video is a completion criterion
@@ -621,7 +615,6 @@ async function handleAddFaceVideo(
  * Handle face video delete (acting or ugc).
  */
 async function handleDeleteFaceVideo(videoId: string): Promise<void> {
-  successMessage.value = null
   // Capture the type before delete so we know whether to refresh completion.
   const target = faceVideos.value.find((v) => v.id === videoId)
   const wasActing = target?.type === 'acting'
@@ -629,7 +622,7 @@ async function handleDeleteFaceVideo(videoId: string): Promise<void> {
   const result = await deleteFaceVideo(videoId)
   if (result.success) {
     if (result.message) {
-      successMessage.value = result.message
+      toast.success(result.message)
     }
     if (wasActing) {
       await fetchCompletion()
@@ -935,21 +928,6 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 
       <!-- Right Main Content -->
       <div class="flex-1 min-w-0">
-        <!-- Success message -->
-        <div
-          v-if="successMessage"
-          class="mb-6 rounded-xl bg-green-50 p-4 border border-green-200"
-          role="status"
-          data-testid="success-message"
-        >
-          <div class="flex items-center gap-2">
-            <svg class="w-5 h-5 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p class="text-sm text-green-700">{{ successMessage }}</p>
-          </div>
-        </div>
-
         <!-- Family tabs (underlined) -->
         <nav
           role="tablist"

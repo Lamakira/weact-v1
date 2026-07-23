@@ -82,7 +82,7 @@ async function handleDelete() {
     router.push({ name: 'home' })
     toast.success(response.data.message || 'Votre compte a été supprimé. Vos données ont été anonymisées.')
     if (response.data.warning) {
-      toast.warning(response.data.warning, { timeout: 7000 })
+      toast.warning(response.data.warning, { duration: 7000 })
     }
   } catch (err) {
     deleteError.value = formatApiError(err, 'Erreur lors de la suppression. Vérifiez votre mot de passe.')

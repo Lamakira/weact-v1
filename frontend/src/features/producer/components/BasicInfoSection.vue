@@ -2,6 +2,9 @@
 import { reactive, watch, onMounted, computed } from 'vue'
 import { useProducerBasicInfo } from '../composables/useProducerBasicInfo'
 import type { ProducerBasicInfoFormData } from '../types'
+import { useToast } from '@/composables/useToast'
+
+const toast = useToast()
 
 const { basicInfo, isLoading, isSaving, error, fetchBasicInfo, updateBasicInfo, clearError } =
   useProducerBasicInfo()
@@ -12,11 +15,6 @@ const form = reactive({
   // Particulier fields
   first_name: '',
   last_name: '',
-})
-
-const successMessage = reactive({
-  show: false,
-  text: '',
 })
 
 // Computed to check if this is an agency type
@@ -44,7 +42,6 @@ onMounted(() => {
 
 const handleSubmit = async () => {
   clearError()
-  successMessage.show = false
 
   let data: ProducerBasicInfoFormData
 
@@ -62,13 +59,7 @@ const handleSubmit = async () => {
   const result = await updateBasicInfo(data)
 
   if (result.success) {
-    successMessage.show = true
-    successMessage.text = result.message || 'Informations mises à jour avec succès'
-
-    // Hide success message after 3 seconds
-    setTimeout(() => {
-      successMessage.show = false
-    }, 3000)
+    toast.success(result.message || 'Informations mises à jour avec succès')
   }
 }
 </script>
@@ -112,28 +103,6 @@ const handleSubmit = async () => {
 
       <!-- Form -->
       <form v-else @submit.prevent="handleSubmit" class="space-y-3">
-        <!-- Success Message -->
-        <div
-          v-if="successMessage.show"
-          class="p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2"
-          role="status"
-          data-testid="success-message"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5 text-green-500 flex-shrink-0"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-          >
-            <path
-              fill-rule="evenodd"
-              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-              clip-rule="evenodd"
-            />
-          </svg>
-          <span class="text-sm text-green-700 font-medium">{{ successMessage.text }}</span>
-        </div>
-
         <!-- Error State -->
         <div
           v-if="error"
