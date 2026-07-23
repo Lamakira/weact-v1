@@ -26,7 +26,11 @@ export function usePasswordReset() {
     try {
       await authApi.forgotPassword(email)
       successMessage.value = 'Email envoyé'
-      toast.success('Un email de réinitialisation a été envoyé')
+      // Le bandeau inline de la page a été retiré : le toast porte désormais
+      // aussi la consigne qui y figurait (« vérifiez votre boîte de réception »).
+      toast.success(
+        'Un email de réinitialisation a été envoyé — vérifiez votre boîte de réception.',
+      )
       return true
     } catch (err) {
       const errorMessage = getApiErrorMessage(err)

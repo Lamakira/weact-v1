@@ -4,7 +4,7 @@
  * Producer profile editing page.
  * This component is rendered inside ProducerLayout via nested routing.
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
 import { useProducerBio } from '@/features/producer/composables/useProducerBio'
@@ -46,9 +46,6 @@ const toast = useToast()
 // Computed: Check if producer is an agency
 const isAgency = computed(() => profile.value?.type === 'agency')
 
-// Success message
-const successMessage = ref<string | null>(null)
-
 // Fetch profile and bio on mount
 onMounted(async () => {
   await Promise.all([fetchProfile(), fetchBio()])
@@ -58,11 +55,9 @@ onMounted(async () => {
  * Handle photo upload
  */
 async function handleUpload(file: File): Promise<void> {
-  successMessage.value = null
   const result = await uploadPhoto(file)
 
   if (result.success && result.message) {
-    successMessage.value = result.message
     toast.success(result.message)
   }
 }
@@ -71,11 +66,9 @@ async function handleUpload(file: File): Promise<void> {
  * Handle photo delete
  */
 async function handleDelete(): Promise<void> {
-  successMessage.value = null
   const result = await deletePhoto()
 
   if (result.success && result.message) {
-    successMessage.value = result.message
     toast.success(result.message)
   }
 }
@@ -84,11 +77,9 @@ async function handleDelete(): Promise<void> {
  * Handle bio save
  */
 async function handleBioSave(newBio: string | null): Promise<void> {
-  successMessage.value = null
   const result = await saveBio(newBio)
 
   if (result.success && result.message) {
-    successMessage.value = result.message
     toast.success(result.message)
   }
 }
@@ -122,32 +113,6 @@ async function handleBioSave(newBio: string | null): Promise<void> {
 
     <!-- Profile content -->
     <div v-else class="bg-white rounded-2xl border border-gray-100">
-      <!-- Success message -->
-      <div
-        v-if="successMessage"
-        class="mx-6 mt-6 rounded-xl bg-green-50 p-4 border border-green-200"
-        role="status"
-        data-testid="success-message"
-      >
-        <div class="flex items-center gap-2">
-          <svg
-            class="w-5 h-5 text-green-600"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke-width="1.5"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          <p class="text-sm text-green-700">{{ successMessage }}</p>
-        </div>
-      </div>
-
       <!-- Visual identity section: Photo (particulier) OR Logo (agency) -->
       <div id="section-visual-identity" class="px-6 py-4 border-b border-gray-100">
         <h2 class="text-base font-semibold text-slate-800 mb-3">

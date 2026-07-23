@@ -14,6 +14,20 @@ vi.mock('@/features/auth/services/authApi', () => ({
 
 import { authApi } from '@/features/auth/services/authApi'
 
+// La confirmation d'envoi n'est plus un bandeau inline : usePasswordReset émet
+// un toast qui porte aussi la consigne « vérifiez votre boîte de réception ».
+const mockToast = {
+  success: vi.fn(),
+  error: vi.fn(),
+  warning: vi.fn(),
+  info: vi.fn(),
+  clear: vi.fn(),
+}
+
+vi.mock('@/composables/useToast', () => ({
+  useToast: () => mockToast,
+}))
+
 describe('ForgotPasswordPage', () => {
   let router: ReturnType<typeof createRouter>
 
@@ -57,7 +71,7 @@ describe('ForgotPasswordPage', () => {
     expect(authApi.forgotPassword).toHaveBeenCalledWith('test@example.com')
   })
 
-  it('displays success message after successful submission', async () => {
+  it('toasts the confirmation after a successful submission and keeps the form usable', async () => {
     vi.mocked(authApi.forgotPassword).mockResolvedValueOnce(undefined)
 
     const wrapper = mountComponent()
@@ -66,8 +80,12 @@ describe('ForgotPasswordPage', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="success-message"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="success-message"]').text()).toContain('Email envoyé')
+    expect(mockToast.success).toHaveBeenCalledWith(
+      'Un email de réinitialisation a été envoyé — vérifiez votre boîte de réception.',
+    )
+    expect(wrapper.find('[data-testid="success-message"]').exists()).toBe(false)
+    // Le formulaire n'est plus masqué : on peut relancer avec une autre adresse.
+    expect(wrapper.find('[data-testid="email-input"]').exists()).toBe(true)
   })
 
   it('displays error message on API failure', async () => {
