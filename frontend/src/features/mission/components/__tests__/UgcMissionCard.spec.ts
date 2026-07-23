@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { MapPin } from 'lucide-vue-next'
 import UgcMissionCard from '../UgcMissionCard.vue'
+import type { ProductPhoto } from '@/components/ugc'
 import type { Mission, UgcMissionTeaser } from '../../types'
 
 // Mission UGC complète (branche éligible). La réponse réelle ne contient pas
@@ -71,6 +72,19 @@ function createTeaser(overrides: Partial<UgcMissionTeaser> = {}): UgcMissionTeas
     lieu: 'Cotonou',
     date_limite_candidature: '2026-06-24T00:00:00Z',
     created_at: '2026-06-09T00:00:00Z',
+    ...overrides,
+  }
+}
+
+// Photo produit — miroir de ProductPhotoResource (mission = disque public,
+// URLs directes ; grid_url retombe sur l'original avant génération des variantes).
+function createPhoto(overrides: Partial<ProductPhoto> = {}): ProductPhoto {
+  return {
+    id: 'photo-uuid-1',
+    position: 0,
+    photo_url: 'https://cdn.test/original.jpg',
+    grid_url: 'https://cdn.test/grid.webp',
+    large_url: 'https://cdn.test/large.webp',
     ...overrides,
   }
 }
@@ -243,6 +257,91 @@ describe('UgcMissionCard', () => {
     })
 
     expect(wrapper.text()).toContain('Candidatures ouvertes')
+  })
+
+  // ─── Vitrine photo produit ──────────────────────────────────────────────
+
+  it('renders the product cover from the first photo, preferring the grid variant', () => {
+    const wrapper = mount(UgcMissionCard, {
+      props: {
+        item: createEligibleMission({
+          product_photos: [
+            createPhoto({ id: 'p1', position: 0, grid_url: 'https://cdn.test/first-grid.webp' }),
+            createPhoto({ id: 'p2', position: 1, grid_url: 'https://cdn.test/second-grid.webp' }),
+          ],
+        }),
+        locked: false,
+      },
+    })
+
+    const cover = wrapper.get('[data-testid="ugc-card-cover"]')
+    const img = cover.get('img')
+    expect(img.attributes('src')).toBe('https://cdn.test/first-grid.webp')
+    expect(img.attributes('loading')).toBe('lazy')
+    expect(img.attributes('alt')).toBe('Photo du produit Sneakers Shade Fit')
+    // Photo restante annoncée : la galerie complète vit sur le détail
+    expect(wrapper.get('[data-testid="ugc-card-photo-count"]').text()).toBe('+1')
+  })
+
+  it('falls back to the original URL when the grid variant is not generated yet', () => {
+    const wrapper = mount(UgcMissionCard, {
+      props: {
+        item: createEligibleMission({
+          product_photos: [createPhoto({ grid_url: null, photo_url: 'https://cdn.test/raw.jpg' })],
+        }),
+        locked: false,
+      },
+    })
+
+    expect(wrapper.get('[data-testid="ugc-card-cover"] img').attributes('src')).toBe(
+      'https://cdn.test/raw.jpg',
+    )
+    // Une seule photo : pas de compteur
+    expect(wrapper.find('[data-testid="ugc-card-photo-count"]').exists()).toBe(false)
+  })
+
+  it('renders no cover when the mission has no photo or no usable URL', () => {
+    const withoutPhotos = mount(UgcMissionCard, {
+      props: { item: createEligibleMission({ product_photos: [] }), locked: false },
+    })
+    expect(withoutPhotos.find('[data-testid="ugc-card-cover"]').exists()).toBe(false)
+    // L'en-tête historique reste complet (badge UGC visible)
+    expect(withoutPhotos.text()).toContain('UGC')
+
+    // Clé absente (liste servie sans la relation chargée)
+    const keyOmitted = mount(UgcMissionCard, {
+      props: { item: createEligibleMission(), locked: false },
+    })
+    expect(keyOmitted.find('[data-testid="ugc-card-cover"]').exists()).toBe(false)
+
+    // Row sans aucune URL exploitable → aucun <img> cassé
+    const urlsNull = mount(UgcMissionCard, {
+      props: {
+        item: createEligibleMission({
+          product_photos: [createPhoto({ grid_url: null, photo_url: null, large_url: null })],
+        }),
+        locked: false,
+      },
+    })
+    expect(urlsNull.find('[data-testid="ugc-card-cover"]').exists()).toBe(false)
+  })
+
+  it('shows the cover unblurred on a locked teaser card, with the lock over it', () => {
+    const wrapper = mount(UgcMissionCard, {
+      props: {
+        item: createTeaser({ product_photos: [createPhoto()] }),
+        locked: true,
+      },
+    })
+
+    const cover = wrapper.get('[data-testid="ugc-card-cover"]')
+    expect(cover.get('img').attributes('src')).toBe('https://cdn.test/grid.webp')
+    // La photo est l'argument d'upsell : nette, jamais floutée (décision PO)
+    expect(cover.get('img').classes().join(' ')).not.toContain('blur')
+    // Un seul cadenas, porté par le bandeau photo
+    const overlays = wrapper.findAll('[data-testid="ugc-card-lock-overlay"]')
+    expect(overlays).toHaveLength(1)
+    expect(cover.find('[data-testid="ugc-card-lock-overlay"]').exists()).toBe(true)
   })
 
   it('treats an unparseable deadline as open (display-only heuristic)', () => {
