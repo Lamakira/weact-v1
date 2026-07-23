@@ -31,7 +31,7 @@ function handleSuccess() {
   // Show email verification reminder
   toast.info(
     'Un email de vérification a été envoyé. Veuillez vérifier votre boîte de réception.',
-    { timeout: 8000 }
+    { duration: 8000 }
   )
   // Redirect to Producer dashboard after successful registration
   router.push('/producer/dashboard')

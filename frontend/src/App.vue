@@ -6,6 +6,7 @@ import AppFooter from '@/components/layout/AppFooter.vue'
 import NavigationProgress from '@/components/layout/NavigationProgress.vue'
 import CookieConsentBanner from '@/components/cookie/CookieConsentBanner.vue'
 import SitewideSubscriptionPaymentBanner from '@/components/SitewideSubscriptionPaymentBanner.vue'
+import { Toaster } from '@/components/ui/sonner'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notification'
 import {
@@ -178,4 +179,16 @@ const isLandingPage = computed(() => {
 
   <!-- Cookie Consent Banner (global, all layouts) -->
   <CookieConsentBanner />
+
+  <!-- Toasts (global, all layouts) — réglages repris à l'identique de l'ancien
+       plugin vue-toastification : haut-droite, 5 s, couleurs par type, fermeture
+       possible. Monté ici et nulle part ailleurs : un second <Toaster> dupliquerait
+       chaque notification. -->
+  <Toaster
+    position="top-right"
+    :duration="5000"
+    rich-colors
+    close-button
+    container-aria-label="Notifications"
+  />
 </template>
