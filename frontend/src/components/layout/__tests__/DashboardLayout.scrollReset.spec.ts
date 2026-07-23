@@ -133,11 +133,21 @@ function makeRouter(): Router {
             path: 'list',
             name: 'list',
             component: ListPage,
-            meta: { keepAlive: true },
+            meta: { keepAlive: true, preserveScrollOnQueryChange: true },
           },
           {
             path: 'detail',
             name: 'detail',
+            component: DetailPage,
+            // Calque la route face-profile : les onglets portent leur état
+            // dans la query.
+            meta: { preserveScrollOnQueryChange: true },
+          },
+          {
+            // Liste paginée : la query porte ?page=, pas de l'état de vue —
+            // pas d'opt-in, un changement de page doit repartir du haut.
+            path: 'paginated',
+            name: 'paginated',
             component: DetailPage,
           },
         ],
@@ -225,6 +235,62 @@ describe('DashboardLayout — scroll reset/restore du <main> (bug F4)', () => {
     await wrapper.find('[data-testid="after-enter-trigger"]').trigger('click')
 
     expect(main.scrollTop).toBe(500)
+  })
+
+  it('navigation query-only sur la même page (onglets Profil) : la position de lecture est conservée', async () => {
+    const router = makeRouter()
+    const { main } = await mountOnList(router)
+
+    await router.push('/parent/detail')
+    await flushPromises()
+    await nextTick()
+
+    // L'utilisateur a scrollé jusqu'aux onglets, très bas sur la mise en page
+    // empilée du mobile.
+    main.scrollTop = 640
+
+    // Clic sur un onglet : la page synchronise son état dans l'URL
+    // (?tab=…) — même route, même composant (l'outlet keye par route.path),
+    // donc ce n'est PAS un changement de page.
+    await router.push('/parent/detail?tab=physique')
+    await flushPromises()
+    await nextTick()
+
+    // CONTRAT : la position de lecture ne bouge pas.
+    // BUG : le watch sur route.fullPath remet le <main> à 0 et renvoie
+    // l'utilisateur tout en haut, l'obligeant à re-scroller jusqu'aux onglets.
+    expect(main.scrollTop).toBe(640)
+  })
+
+  it('navigation query-only sur une page keep-alive : la position est également conservée', async () => {
+    const router = makeRouter()
+    const { main } = await mountOnList(router)
+
+    main.scrollTop = 300
+    await router.push('/parent/list?filtre=actives')
+    await flushPromises()
+    await nextTick()
+
+    expect(main.scrollTop).toBe(300)
+  })
+
+  it('sans opt-in (liste paginée) : un changement de query repart bien du haut', async () => {
+    const router = makeRouter()
+    const { main } = await mountOnList(router)
+
+    await router.push('/parent/paginated')
+    await flushPromises()
+    await nextTick()
+
+    // L'utilisateur est en bas de la liste, sur les boutons de pagination
+    main.scrollTop = 800
+
+    await router.push('/parent/paginated?page=2')
+    await flushPromises()
+    await nextTick()
+
+    // Page suivante = nouveau contenu : on repart du haut de la liste.
+    expect(main.scrollTop).toBe(0)
   })
 
   it('ignores a stale transition callback after a newer navigation wins', async () => {
