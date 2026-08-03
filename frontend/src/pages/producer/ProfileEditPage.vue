@@ -4,7 +4,8 @@
  * Producer profile editing page.
  * This component is rendered inside ProducerLayout via nested routing.
  */
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { X } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
 import { useProducerBio } from '@/features/producer/composables/useProducerBio'
@@ -45,6 +46,29 @@ const toast = useToast()
 
 // Computed: Check if producer is an agency
 const isAgency = computed(() => profile.value?.type === 'agency')
+
+// Producers deliberately have NO completion percentage: only two items are real
+// (visual identity, bio), and a ring built on two booleans is noise. A single
+// dismissible line does the same job for none of the machinery.
+const NUDGE_DISMISSED_KEY = 'producer_profile_nudge_dismissed'
+const nudgeDismissed = ref(localStorage.getItem(NUDGE_DISMISSED_KEY) === '1')
+
+const hasVisualIdentity = computed(() =>
+  isAgency.value ? !!profile.value?.agency_logo_url : !!profile.value?.profile_photo_url
+)
+
+const showProfileNudge = computed(
+  () =>
+    !nudgeDismissed.value &&
+    !isLoading.value &&
+    !isBioLoading.value &&
+    (!hasVisualIdentity.value || !bio.value)
+)
+
+function dismissNudge(): void {
+  nudgeDismissed.value = true
+  localStorage.setItem(NUDGE_DISMISSED_KEY, '1')
+}
 
 // Fetch profile and bio on mount
 onMounted(async () => {
@@ -112,7 +136,34 @@ async function handleBioSave(newBio: string | null): Promise<void> {
     </div>
 
     <!-- Profile content -->
-    <div v-else class="bg-white rounded-2xl border border-gray-100">
+    <div v-else>
+      <!-- Non-blocking completion nudge (no percentage, see script comment) -->
+      <div
+        v-if="showProfileNudge"
+        class="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
+        data-testid="producer-profile-nudge"
+      >
+        <p class="flex-grow text-sm text-amber-900">
+          Complétez votre profil —
+          <template v-if="!hasVisualIdentity">
+            {{ isAgency ? 'ajoutez le logo de votre agence' : 'ajoutez une photo de profil' }}
+          </template>
+          <template v-if="!hasVisualIdentity && !bio"> et </template>
+          <template v-if="!bio">présentez votre activité en quelques lignes</template>
+          — les Faces répondent bien plus souvent aux Producteurs identifiables.
+        </p>
+        <button
+          type="button"
+          class="shrink-0 rounded p-1 text-amber-700 hover:bg-amber-100"
+          aria-label="Masquer ce rappel"
+          data-testid="producer-profile-nudge-dismiss"
+          @click="dismissNudge"
+        >
+          <X class="h-4 w-4" />
+        </button>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-gray-100">
       <!-- Visual identity section: Photo (particulier) OR Logo (agency) -->
       <div id="section-visual-identity" class="px-6 py-4 border-b border-gray-100">
         <h2 class="text-base font-semibold text-slate-800 mb-3">
@@ -203,6 +254,7 @@ async function handleBioSave(newBio: string | null): Promise<void> {
             <DataPrivacySection />
           </div>
         </div>
+      </div>
       </div>
     </div>
   </div>

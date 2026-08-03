@@ -425,6 +425,8 @@ const COMPLETION_TO_TAB: Record<string, { family: FamilyId; section: string }> =
   categories: { family: 'carriere', section: 'categorie' },
   tarifs: { family: 'carriere', section: 'tarif' },
   whatsapp_number: { family: 'profil', section: 'identite' },
+  // No longer asked at signup — the completion meter is what brings it in.
+  sexe: { family: 'profil', section: 'identite' },
 }
 const incompleteSectionKeys = computed(() => {
   const set = new Set<string>()

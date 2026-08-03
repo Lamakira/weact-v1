@@ -269,9 +269,10 @@ class PersonalInfoTest extends TestCase
 
     public function test_profile_completion_counts_whatsapp_number(): void
     {
-        // Face with all 9 fields filled
+        // Face with all 10 fields filled
         $this->face->update([
             'profile_photo' => 'photo.jpg',
+            'sexe' => 'femme',
             'presentation_video' => 'video.mp4',
             'bio' => 'My bio',
             'ville' => 'Cotonou',

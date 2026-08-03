@@ -7,14 +7,18 @@ import FaceUpsellPage from '../FaceUpsellPage.vue'
 const h = vi.hoisted(() => ({
   replace: vi.fn(),
   fetchStatus: vi.fn().mockResolvedValue(undefined),
-  state: { emailVerified: true, tier: 'free' as string },
+  state: {
+    emailVerified: true,
+    tier: 'free' as string,
+    user: { userable: { username: 'jeandupont' } } as Record<string, unknown> | null,
+  },
 }))
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ replace: h.replace, push: vi.fn() }),
   RouterLink: {
     template:
-      '<a :data-to="typeof to === \'string\' ? to : to.name" :data-plan="typeof to === \'object\' && to.query ? to.query.plan : undefined"><slot /></a>',
+      '<a :data-to="typeof to === \'string\' ? to : to.name" :data-plan="typeof to === \'object\' && to.query ? to.query.plan : undefined" :data-section="typeof to === \'object\' && to.query ? to.query.section : undefined"><slot /></a>',
     props: ['to'],
   },
 }))
@@ -28,6 +32,9 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
     get isEmailVerified() {
       return h.state.emailVerified
+    },
+    get user() {
+      return h.state.user
     },
   }),
 }))
@@ -47,8 +54,44 @@ describe('FaceUpsellPage', () => {
   beforeEach(() => {
     h.state.emailVerified = true
     h.state.tier = 'free'
+    h.state.user = { userable: { username: 'jeandupont' } }
     h.replace.mockClear()
     h.fetchStatus.mockClear()
+  })
+
+  it('surfaces the profile-completion block above the tiers', async () => {
+    const wrapper = mount(FaceUpsellPage)
+    await flushPromises()
+
+    const block = wrapper.find('[data-testid="upsell-complete-profile"]')
+    expect(block.exists()).toBe(true)
+    expect(block.text()).toContain('Complétez votre profil')
+
+    const cta = wrapper.find('[data-testid="upsell-complete-profile-cta"]')
+    expect(cta.attributes('data-to')).toBe('face-profile')
+    expect(cta.attributes('data-section')).toBe('identite')
+  })
+
+  it('shows the generated public handle with a rename shortcut', async () => {
+    const wrapper = mount(FaceUpsellPage)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="upsell-complete-profile"]').text()).toContain(
+      '/faces/jeandupont',
+    )
+
+    const rename = wrapper.find('[data-testid="upsell-customize-handle"]')
+    expect(rename.attributes('data-to')).toBe('face-profile')
+    expect(rename.attributes('data-section')).toBe('infos')
+  })
+
+  it('omits the handle line when the user payload carries no username', async () => {
+    h.state.user = { userable: {} }
+    const wrapper = mount(FaceUpsellPage)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="upsell-complete-profile"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="upsell-customize-handle"]').exists()).toBe(false)
   })
 
   it('renders the three paid tiers with their names', async () => {
