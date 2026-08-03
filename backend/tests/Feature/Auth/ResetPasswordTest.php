@@ -45,6 +45,32 @@ class ResetPasswordTest extends TestCase
         $this->assertTrue(Hash::check('NewPassword1', $user->password));
     }
 
+    /**
+     * Deliberate escape hatch: an OAuth-only user who forgot they signed in with
+     * Google gets a link at an address the provider already attested. Same factor,
+     * legitimate recovery — suppressing the mail would create a silent dead end.
+     */
+    public function test_reset_password_gives_a_passwordless_account_a_password(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'oauth@example.com',
+            'password' => null,
+        ]);
+
+        $token = Password::createToken($user);
+
+        $this->postJson('/api/v1/auth/reset-password', [
+            'token' => $token,
+            'email' => 'oauth@example.com',
+            'password' => 'NewPassword1',
+            'password_confirmation' => 'NewPassword1',
+        ])->assertStatus(200);
+
+        $user->refresh();
+        $this->assertNotNull($user->password);
+        $this->assertTrue(Hash::check('NewPassword1', $user->password));
+    }
+
     public function test_reset_password_rate_limiting(): void
     {
         $payload = [

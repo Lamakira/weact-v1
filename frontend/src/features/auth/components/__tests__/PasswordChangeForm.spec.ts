@@ -3,6 +3,20 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import PasswordChangeForm from '../PasswordChangeForm.vue'
 
+// The form reads has_password from the auth store: with a password it changes one,
+// without it sets one (the OAuth-only case).
+const mockRefreshUser = vi.fn().mockResolvedValue(true)
+const mockHasPassword = ref(true)
+
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({
+    get hasPassword() {
+      return mockHasPassword.value
+    },
+    refreshUser: mockRefreshUser,
+  }),
+}))
+
 // Mock usePasswordChange composable
 const mockIsLoading = ref(false)
 const mockError = ref<string | null>(null)
@@ -66,6 +80,8 @@ describe('PasswordChangeForm', () => {
     mockError.value = null
     mockFieldErrors.value = {}
     mockChangePassword.mockResolvedValue(true)
+    mockHasPassword.value = true
+    mockRefreshUser.mockResolvedValue(true)
   })
 
   it('shows toggle button by default', () => {
@@ -235,6 +251,53 @@ describe('PasswordChangeForm', () => {
 
       await waitForValidation()
       expect(wrapper.text()).toContain('Le mot de passe est trop faible.')
+    })
+  })
+
+  describe('OAuth-only account (no password set)', () => {
+    beforeEach(() => {
+      mockHasPassword.value = false
+    })
+
+    it('reframes the section as setting a password', () => {
+      const wrapper = mountForm()
+
+      expect(wrapper.text()).toContain('Définir un mot de passe')
+      expect(wrapper.text()).not.toContain('Changer de mot de passe')
+      expect(wrapper.find('[data-testid="set-password-hint"]').exists()).toBe(true)
+    })
+
+    it('does not ask for a current password', async () => {
+      const wrapper = mountForm()
+      await openForm(wrapper)
+
+      expect(wrapper.find('[data-testid="current-password-input"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="new-password-input"]').exists()).toBe(true)
+    })
+
+    it('submits with an empty current password', async () => {
+      const wrapper = mountForm()
+      await openForm(wrapper)
+
+      await wrapper.find('[data-testid="new-password-input"]').setValue('NewPassword2')
+      await wrapper.find('[data-testid="confirm-password-input"]').setValue('NewPassword2')
+      await wrapper.find('[data-testid="password-change-form"]').trigger('submit')
+      await waitForValidation()
+
+      expect(mockChangePassword).toHaveBeenCalledWith('', 'NewPassword2', 'NewPassword2')
+    })
+
+    it('refreshes the user so email change and deletion unlock without a reload', async () => {
+      const wrapper = mountForm()
+      await openForm(wrapper)
+
+      await wrapper.find('[data-testid="new-password-input"]').setValue('NewPassword2')
+      await wrapper.find('[data-testid="confirm-password-input"]').setValue('NewPassword2')
+      await wrapper.find('[data-testid="password-change-form"]').trigger('submit')
+      await waitForValidation()
+
+      expect(mockRefreshUser).toHaveBeenCalled()
+      expect(mockToastSuccess).toHaveBeenCalledWith('Votre mot de passe a été défini avec succès.')
     })
   })
 })

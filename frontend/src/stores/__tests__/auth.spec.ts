@@ -102,3 +102,46 @@ describe('auth store — per-account shared-cache hygiene', () => {
     expect(cache.data.value).toBe('public-or-fresh-login-data')
   })
 })
+
+/**
+ * `auth_user` is restored from localStorage and only re-fetched by refreshUser(),
+ * so every session already open on deploy day hydrates a User object that predates
+ * `has_password`. Defaulting that to false would hide the password form from users
+ * who do have a password.
+ */
+describe('auth store — hasPassword staleness default', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+  })
+
+  it('defaults to true when the stored user predates the field', () => {
+    const store = useAuthStore()
+    const legacyUser = makeUser(1)
+    delete (legacyUser as Partial<User>).has_password
+
+    store.setUser(legacyUser)
+
+    expect(store.hasPassword).toBe(true)
+  })
+
+  it('reports false only when the server says so explicitly', () => {
+    const store = useAuthStore()
+
+    store.setUser({ ...makeUser(1), has_password: false })
+    expect(store.hasPassword).toBe(false)
+
+    store.setUser({ ...makeUser(1), has_password: true })
+    expect(store.hasPassword).toBe(true)
+  })
+
+  it('defaults to true when logged out', () => {
+    const store = useAuthStore()
+
+    expect(store.hasPassword).toBe(true)
+  })
+})

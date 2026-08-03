@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { Mail, X, Loader2 } from 'lucide-vue-next'
 import { useEmailChange } from '../composables/useEmailChange'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 
 // isSuccess n'est plus consommé ici : la confirmation d'envoi passe par le
 // toast de handleSubmit, le bandeau inline qui le doublonnait a été retiré.
@@ -18,6 +19,13 @@ const {
 } = useEmailChange()
 
 const toast = useToast()
+
+// Changing the email requires re-authenticating with a password: an OAuth-only
+// account has none, and the backend closes the endpoint (403
+// EMAIL_CHANGE_REQUIRES_PASSWORD). Say so here instead of showing a form whose
+// password field cannot be filled.
+const authStore = useAuthStore()
+const hasPassword = computed(() => authStore.hasPassword)
 
 const newEmail = ref('')
 const password = ref('')
@@ -82,9 +90,18 @@ async function handleCancel(): Promise<void> {
     <!-- Confirmation d'envoi : toast uniquement (déjà émis par handleSubmit),
          plus de bandeau inline qui doublonnait le message. -->
 
+    <!-- Locked for OAuth-only accounts: no password to re-authenticate with -->
+    <p
+      v-if="!hasPassword && !pendingEmail"
+      class="text-xs text-gray-500"
+      data-testid="email-change-requires-password"
+    >
+      Définissez d'abord un mot de passe (ci-dessous) pour pouvoir changer votre adresse email.
+    </p>
+
     <!-- Toggle form button -->
     <button
-      v-if="!showForm && !pendingEmail"
+      v-if="hasPassword && !showForm && !pendingEmail"
       @click="showForm = true"
       class="text-sm text-primary hover:text-primary/80 font-medium transition-colors"
       data-testid="show-form-button"
@@ -94,7 +111,7 @@ async function handleCancel(): Promise<void> {
 
     <!-- Email change form -->
     <form
-      v-if="showForm && !pendingEmail"
+      v-if="hasPassword && showForm && !pendingEmail"
       @submit.prevent="handleSubmit"
       class="space-y-3"
       data-testid="email-change-form"

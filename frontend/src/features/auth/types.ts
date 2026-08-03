@@ -78,6 +78,9 @@ export interface User {
   userable?: Face | Producer | null
   email_verified: boolean
   email_verified_at: string | null
+  // Optional: sessions restored from localStorage predate this field. Read it
+  // through the auth store's `hasPassword`, which defaults it to true.
+  has_password?: boolean
   created_at: string
   updated_at: string
 }

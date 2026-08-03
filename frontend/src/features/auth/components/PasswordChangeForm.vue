@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useForm, useField } from 'vee-validate'
 import { Lock, Loader2 } from 'lucide-vue-next'
 import { FloatingField } from '@/components/ui/form'
 import { passwordChangeValidationSchema } from '../schemas/passwordChange'
 import { usePasswordChange } from '../composables/usePasswordChange'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 
 const {
   isLoading,
@@ -18,8 +19,15 @@ const {
 const toast = useToast()
 const showForm = ref(false)
 
+// An account created through Google has no password: the same form becomes
+// "set a password", which is also what unblocks email change and account deletion.
+const authStore = useAuthStore()
+const hasPassword = computed(() => authStore.hasPassword)
+
+const validationSchema = computed(() => passwordChangeValidationSchema(hasPassword.value))
+
 const { handleSubmit, resetForm, setFieldError } = useForm({
-  validationSchema: passwordChangeValidationSchema,
+  validationSchema,
   initialValues: {
     current_password: '',
     new_password: '',
@@ -37,15 +45,23 @@ const { value: newPasswordConfirmation, errorMessage: newPasswordConfirmationErr
 const onSubmit = handleSubmit(async (values) => {
   clearError()
   const success = await changePassword(
-    values.current_password,
+    // Absent on an OAuth-only account: the endpoint accepts an empty value there.
+    values.current_password ?? '',
     values.new_password,
     values.new_password_confirmation,
   )
 
   if (success) {
-    toast.success('Votre mot de passe a été modifié avec succès.')
+    toast.success(
+      hasPassword.value
+        ? 'Votre mot de passe a été modifié avec succès.'
+        : 'Votre mot de passe a été défini avec succès.'
+    )
     resetForm()
     showForm.value = false
+    // Flip has_password so the email-change and delete-account surfaces unlock
+    // without a reload.
+    await authStore.refreshUser()
   } else if (fieldErrors.value) {
     Object.entries(fieldErrors.value).forEach(([field, messages]) => {
       if (messages && messages.length > 0) {
@@ -64,7 +80,14 @@ function handleCancel(): void {
 
 <template>
   <div data-testid="password-change-section">
-    <h3 class="text-sm font-semibold text-slate-800 mb-2">Changer de mot de passe</h3>
+    <h3 class="text-sm font-semibold text-slate-800 mb-2">
+      {{ hasPassword ? 'Changer de mot de passe' : 'Définir un mot de passe' }}
+    </h3>
+
+    <p v-if="!hasPassword" class="text-xs text-gray-500 mb-2" data-testid="set-password-hint">
+      Vous vous connectez avec Google. Définir un mot de passe vous permet aussi de vous connecter
+      sans Google, de changer votre adresse email et de supprimer votre compte.
+    </p>
 
     <!-- Toggle form button -->
     <button
@@ -73,7 +96,7 @@ function handleCancel(): void {
       class="text-sm text-primary hover:text-primary/80 font-medium transition-colors"
       data-testid="show-form-button"
     >
-      Modifier mon mot de passe
+      {{ hasPassword ? 'Modifier mon mot de passe' : 'Définir un mot de passe' }}
     </button>
 
     <!-- Password change form -->
@@ -92,8 +115,9 @@ function handleCancel(): void {
         <p class="text-sm text-red-700">{{ error }}</p>
       </div>
 
-      <!-- Current password field -->
+      <!-- Current password field (nothing to confirm on an OAuth-only account) -->
       <FloatingField
+        v-if="hasPassword"
         id="current-password-change"
         v-model="currentPassword"
         type="password"

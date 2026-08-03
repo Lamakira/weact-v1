@@ -7,6 +7,7 @@ namespace App\Http\Requests\Auth;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class ChangePasswordRequest extends FormRequest
 {
@@ -21,7 +22,10 @@ class ChangePasswordRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'current_password' => ['required', 'string'],
+            // An OAuth-only account has nothing to confirm, so this endpoint doubles
+            // as "set a password". A separate POST /password/set would duplicate the
+            // rules, the throttle and the frontend composable for no behavioural gain.
+            'current_password' => [Rule::requiredIf(fn (): bool => $this->user()?->password !== null), 'string'],
             'new_password' => [
                 'required',
                 'string',
@@ -37,7 +41,13 @@ class ChangePasswordRequest extends FormRequest
         $validator->after(function (Validator $validator) {
             $user = $this->user();
 
-            if ($user && $this->filled('current_password') && ! Hash::check($this->input('current_password'), $user->password)) {
+            // Both checks compare against an existing password: skip them entirely
+            // when there is none, otherwise Hash::check would run against null.
+            if ($user?->password === null) {
+                return;
+            }
+
+            if ($this->filled('current_password') && ! Hash::check($this->input('current_password'), $user->password)) {
                 $validator->errors()->add('current_password', 'Le mot de passe actuel est incorrect.');
             }
 

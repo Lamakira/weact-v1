@@ -3,7 +3,7 @@
  * DataPrivacySection - User data rights (Art. 437-443 Code du Numerique)
  * Provides: data export (portability) and account deletion (right to be forgotten)
  */
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Download, Trash2, AlertTriangle, Loader2, Eye, X } from 'lucide-vue-next'
 import apiClient, { getCsrfCookie } from '@/services/apiClient'
@@ -22,6 +22,11 @@ const toast = useToast()
 
 // Export state
 const isExporting = ref(false)
+
+// Deletion is confirmed with the password. An OAuth-only account has none, so the
+// backend answers 403 ACCOUNT_DELETION_REQUIRES_PASSWORD — say so up front rather
+// than presenting a field the user cannot fill.
+const hasPassword = computed(() => authStore.hasPassword)
 
 // Delete state
 const showDeleteDialog = ref(false)
@@ -161,7 +166,15 @@ async function handleDelete() {
             </ul>
           </div>
 
-          <div>
+          <div v-if="!hasPassword" data-testid="delete-requires-password">
+            <p class="text-xs text-gray-700 leading-relaxed">
+              Vous vous connectez avec Google. Définissez d'abord un mot de passe dans la section
+              « Définir un mot de passe » : c'est ce qui nous permet de confirmer que la demande
+              vient bien de vous.
+            </p>
+          </div>
+
+          <div v-else>
             <label for="delete-password" class="block text-xs font-medium text-gray-700 mb-1">
               Confirmez avec votre mot de passe
             </label>
@@ -186,6 +199,7 @@ async function handleDelete() {
             Annuler
           </button>
           <button
+            v-if="hasPassword"
             @click="handleDelete"
             :disabled="isDeleting || !deletePassword"
             class="px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 transition-colors disabled:opacity-50 cursor-pointer"

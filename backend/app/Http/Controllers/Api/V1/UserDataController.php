@@ -161,6 +161,18 @@ class UserDataController extends Controller
 
         $user = $request->user();
 
+        // An OAuth-only account has no password to confirm with. Erasure must not be
+        // silently unreachable, so point at the one-click way to unblock it rather
+        // than returning "wrong password" for a password that does not exist.
+        if ($user->password === null) {
+            return response()->json([
+                'error' => [
+                    'code' => 'ACCOUNT_DELETION_REQUIRES_PASSWORD',
+                    'message' => 'Définissez d\'abord un mot de passe pour pouvoir supprimer votre compte.',
+                ],
+            ], 403);
+        }
+
         if (! Hash::check($request->input('password'), $user->password)) {
             return response()->json([
                 'error' => [

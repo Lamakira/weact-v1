@@ -51,6 +51,11 @@ export const useAuthStore = defineStore('auth', () => {
   const isProducer = computed(() => userType.value === 'Producer')
   const isEmailVerified = computed(() => user.value?.email_verified ?? false)
   const emailVerifiedAt = computed(() => user.value?.email_verified_at ?? null)
+  // Defaults to TRUE on purpose. `auth_user` is restored from localStorage and only
+  // re-fetched by refreshUser(), so every session already open on deploy day
+  // hydrates a User with no `has_password` key. Defaulting to false there would
+  // hide the password form from users who do have a password.
+  const hasPassword = computed(() => user.value?.has_password ?? true)
 
   // Actions
   function setUser(newUser: User) {
@@ -124,6 +129,7 @@ export const useAuthStore = defineStore('auth', () => {
     isProducer,
     isEmailVerified,
     emailVerifiedAt,
+    hasPassword,
     // Actions
     setUser,
     setToken,

@@ -40,6 +40,10 @@ class UserResource extends JsonResource
             }),
             'email_verified' => $this->hasVerifiedEmail(),
             'email_verified_at' => $emailVerifiedAt?->toIso8601String(),
+            // The SPA needs all three decisions (password form title/CTA, email form
+            // disabled state, delete-account copy) and would otherwise probe for them.
+            // No leak: this is the authenticated user's own account.
+            'has_password' => $this->password !== null,
             'created_at' => $createdAt?->toIso8601String(),
             'updated_at' => $updatedAt?->toIso8601String(),
         ];
