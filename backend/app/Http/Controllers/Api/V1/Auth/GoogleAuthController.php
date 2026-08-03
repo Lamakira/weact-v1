@@ -114,6 +114,10 @@ class GoogleAuthController extends Controller
             return $this->bounce(['error' => 'GOOGLE_HANDSHAKE_FAILED']);
         }
 
+        if ($state['intent'] === GoogleOAuthService::INTENT_REAUTH) {
+            return $this->bounce($this->reauthQuery($identity, $state['redirect']));
+        }
+
         $result = $this->linker->resolve($identity, $state['intent']);
 
         if ($result['outcome'] === GoogleAccountLinker::OUTCOME_ERROR) {
@@ -158,6 +162,15 @@ class GoogleAuthController extends Controller
 
         if ($payload === null) {
             return $this->error('OAUTH_CODE_INVALID', 'Lien de connexion expiré. Reprenez la connexion avec Google.', 422);
+        }
+
+        if ($payload['kind'] === 'reauth') {
+            return response()->json([
+                'data' => [
+                    'reauth_token' => $payload['reauth_token'],
+                    'redirect' => $payload['redirect'],
+                ],
+            ]);
         }
 
         if ($payload['kind'] === 'needs_completion') {
@@ -229,6 +242,38 @@ class GoogleAuthController extends Controller
             ],
             'message' => 'Inscription réussie',
         ], 201);
+    }
+
+    /**
+     * Re-authentication before an irreversible action.
+     *
+     * Resolves by `google_id` ONLY: no email leap, no account creation, and no
+     * login token — this path proves ownership, it does not open a session. The
+     * ticket is bound to the user id, so a stolen bearer cannot mint one for a
+     * victim without also controlling their Google account.
+     *
+     * @param  array{sub: string, email: string, email_verified: bool, given_name: string|null, family_name: string|null, name: string|null}  $identity
+     * @return array<string, string|null>
+     */
+    private function reauthQuery(array $identity, ?string $redirect): array
+    {
+        $user = User::query()->where('google_id', $identity['sub'])->first();
+
+        if ($user === null) {
+            return ['error' => 'GOOGLE_ACCOUNT_NOT_LINKED'];
+        }
+
+        if (! $user->is_active) {
+            return ['error' => 'ACCOUNT_DEACTIVATED'];
+        }
+
+        return [
+            'code' => $this->oauth->issueExchangeCode([
+                'kind' => 'reauth',
+                'reauth_token' => $this->oauth->issueReauthToken($user->id),
+                'redirect' => $redirect,
+            ]),
+        ];
     }
 
     /**

@@ -21,14 +21,27 @@ class GoogleOAuthService
 
     public const INTENT_LOGIN = 'login';
 
+    /**
+     * Re-authentication before an irreversible action, for an account that has no
+     * password to confirm with.
+     */
+    public const INTENT_REAUTH = 'reauth';
+
     /** @var list<string> */
-    public const INTENTS = [self::INTENT_FACE, self::INTENT_PRODUCER, self::INTENT_LOGIN];
+    public const INTENTS = [
+        self::INTENT_FACE,
+        self::INTENT_PRODUCER,
+        self::INTENT_LOGIN,
+        self::INTENT_REAUTH,
+    ];
 
     private const STATE_TTL_SECONDS = 600;
 
     private const EXCHANGE_TTL_SECONDS = 120;
 
     private const PENDING_TTL_SECONDS = 900;
+
+    private const REAUTH_TTL_SECONDS = 300;
 
     /**
      * Build a tamper-proof, single-use `state`.
@@ -170,6 +183,32 @@ class GoogleOAuthService
         return $payload;
     }
 
+    /**
+     * Mint proof that the account owner just re-authenticated with Google.
+     *
+     * Bound to the user id: a ticket minted for one account can never confirm a
+     * destructive action on another.
+     */
+    public function issueReauthToken(int $userId): string
+    {
+        $token = Str::random(64);
+
+        Cache::put($this->reauthKey($token), $userId, self::REAUTH_TTL_SECONDS);
+
+        return $token;
+    }
+
+    /**
+     * Consume a re-authentication ticket. Returns false unless it exists AND was
+     * minted for this very user.
+     */
+    public function consumeReauthToken(string $token, int $userId): bool
+    {
+        $storedUserId = Cache::pull($this->reauthKey($token));
+
+        return $storedUserId !== null && (int) $storedUserId === $userId;
+    }
+
     private function signingKey(): string
     {
         return (string) config('app.key');
@@ -188,6 +227,11 @@ class GoogleOAuthService
     private function pendingKey(string $token): string
     {
         return 'oauth:pending:'.hash('sha256', $token);
+    }
+
+    private function reauthKey(string $token): string
+    {
+        return 'oauth:reauth:'.hash('sha256', $token);
     }
 
     private function base64UrlEncode(string $value): string

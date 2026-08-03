@@ -11,6 +11,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Loader2 } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { setPendingGoogleRegistration } from '@/features/auth/googlePendingRegistration'
+import { setGoogleReauthToken } from '@/features/auth/googleReauth'
 
 const route = useRoute()
 const router = useRouter()
@@ -29,6 +30,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   OAUTH_STATE_INVALID: 'Lien de connexion expiré ou invalide. Reprenez la connexion avec Google.',
   GOOGLE_HANDSHAKE_FAILED: 'La connexion avec Google a échoué. Veuillez réessayer.',
   GOOGLE_OAUTH_DISABLED: 'La connexion avec Google est indisponible.',
+  GOOGLE_ACCOUNT_NOT_LINKED:
+    "Ce compte Google n'est associé à aucun compte WEACT. Connectez-vous d'abord.",
 }
 
 function safeRedirect(value: unknown): string | null {
@@ -66,6 +69,16 @@ onMounted(async () => {
   }
 
   const result = outcome.result
+
+  // Re-authentication before an irreversible action: no session is opened, the
+  // ticket goes back to the screen that asked for it.
+  if (result.reauth_token) {
+    setGoogleReauthToken(result.reauth_token)
+
+    await router.replace(safeRedirect(result.redirect) ?? { name: 'face-dashboard' })
+
+    return
+  }
 
   if (result.needs_completion) {
     // Nothing exists server-side yet: hand the finalisation screen what it needs.

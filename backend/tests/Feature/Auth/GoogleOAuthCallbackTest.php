@@ -306,6 +306,57 @@ class GoogleOAuthCallbackTest extends TestCase
         Notification::assertNotSentTo(User::query()->firstOrFail(), VerifyEmailNotification::class);
     }
 
+    public function test_reauth_returns_a_ticket_and_never_a_login_token(): void
+    {
+        $user = $this->makeFaceUser('jean@gmail.com', googleId: 'google-sub-1');
+        $this->fakeGoogleUser();
+
+        $data = $this->exchange(
+            $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_REAUTH))['code']
+        );
+
+        $this->assertNotEmpty($data['reauth_token']);
+        $this->assertArrayNotHasKey('token', $data);
+        $this->assertArrayNotHasKey('user', $data);
+
+        // Bound to that user, and to no other.
+        $this->assertTrue($this->oauth->consumeReauthToken($data['reauth_token'], $user->id));
+    }
+
+    /**
+     * Re-authentication resolves by google_id ONLY: no email leap, no creation.
+     */
+    public function test_reauth_refuses_an_identity_that_is_not_linked(): void
+    {
+        $this->makeFaceUser('jean@gmail.com');
+        $this->fakeGoogleUser();
+
+        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_REAUTH));
+
+        $this->assertSame('GOOGLE_ACCOUNT_NOT_LINKED', $query['error']);
+        $this->assertArrayNotHasKey('code', $query);
+    }
+
+    public function test_reauth_creates_nothing_for_an_unknown_identity(): void
+    {
+        $this->fakeGoogleUser();
+
+        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_REAUTH));
+
+        $this->assertSame('GOOGLE_ACCOUNT_NOT_LINKED', $query['error']);
+        $this->assertDatabaseCount('users', 0);
+    }
+
+    public function test_reauth_refuses_a_deactivated_account(): void
+    {
+        $this->makeFaceUser('jean@gmail.com', googleId: 'google-sub-1', isActive: false);
+        $this->fakeGoogleUser();
+
+        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_REAUTH));
+
+        $this->assertSame('ACCOUNT_DEACTIVATED', $query['error']);
+    }
+
     /**
      * Goes through the real /redirect endpoint: that is where a caller-supplied
      * `redirect` is sanitized before being sealed into the signed state.

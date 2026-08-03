@@ -6,6 +6,7 @@ namespace Tests\Feature\Auth;
 
 use App\Models\Face;
 use App\Models\User;
+use App\Services\Auth\GoogleOAuthService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -116,15 +117,78 @@ class NullPasswordAccountTest extends TestCase
             ->assertOk();
     }
 
-    public function test_account_deletion_points_at_setting_a_password_instead_of_failing_silently(): void
+    public function test_account_deletion_points_at_reauthenticating_instead_of_failing_silently(): void
     {
         $this->actingAs($this->passwordless)
             ->deleteJson('/api/v1/user/account', ['password' => 'anything'])
             ->assertStatus(403)
-            ->assertJsonPath('error.code', 'ACCOUNT_DELETION_REQUIRES_PASSWORD');
+            ->assertJsonPath('error.code', 'ACCOUNT_DELETION_REQUIRES_REAUTH');
 
         $this->assertTrue($this->passwordless->fresh()->is_active);
         $this->assertSame('oauth@example.com', $this->passwordless->fresh()->email);
+    }
+
+    public function test_a_fresh_google_reauth_ticket_confirms_the_deletion(): void
+    {
+        $token = app(GoogleOAuthService::class)->issueReauthToken($this->passwordless->id);
+
+        $this->actingAs($this->passwordless)
+            ->deleteJson('/api/v1/user/account', ['reauth_token' => $token])
+            ->assertOk();
+
+        $this->assertFalse($this->passwordless->fresh()->is_active);
+    }
+
+    public function test_a_reauth_ticket_can_only_be_spent_once(): void
+    {
+        $token = app(GoogleOAuthService::class)->issueReauthToken($this->passwordless->id);
+
+        $this->actingAs($this->passwordless)
+            ->deleteJson('/api/v1/user/account', ['reauth_token' => $token])
+            ->assertOk();
+
+        $this->actingAs($this->passwordless->fresh())
+            ->deleteJson('/api/v1/user/account', ['reauth_token' => $token])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'REAUTH_TOKEN_INVALID');
+    }
+
+    /**
+     * The ticket is bound to the user it was minted for: a stolen bearer must not
+     * be able to spend someone else's confirmation.
+     */
+    public function test_a_reauth_ticket_minted_for_another_account_is_refused(): void
+    {
+        $token = app(GoogleOAuthService::class)->issueReauthToken($this->withPassword->id);
+
+        $this->actingAs($this->passwordless)
+            ->deleteJson('/api/v1/user/account', ['reauth_token' => $token])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'REAUTH_TOKEN_INVALID');
+
+        $this->assertTrue($this->passwordless->fresh()->is_active);
+    }
+
+    public function test_an_unknown_reauth_ticket_is_refused(): void
+    {
+        $this->actingAs($this->passwordless)
+            ->deleteJson('/api/v1/user/account', ['reauth_token' => 'not-a-real-token'])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'REAUTH_TOKEN_INVALID');
+
+        $this->assertTrue($this->passwordless->fresh()->is_active);
+    }
+
+    public function test_an_expired_reauth_ticket_is_refused(): void
+    {
+        $token = app(GoogleOAuthService::class)->issueReauthToken($this->passwordless->id);
+
+        $this->travel(6)->minutes();
+
+        $this->actingAs($this->passwordless)
+            ->deleteJson('/api/v1/user/account', ['reauth_token' => $token])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'REAUTH_TOKEN_INVALID');
     }
 
     public function test_account_deletion_works_once_a_password_is_set(): void

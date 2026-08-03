@@ -15,6 +15,7 @@ use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\Rating;
 use App\Services\AgencyLogoService;
+use App\Services\Auth\GoogleOAuthService;
 use App\Services\FaceVideoService;
 use App\Services\PhotoAlbumService;
 use App\Services\PresentationVideoService;
@@ -153,33 +154,47 @@ class UserDataController extends Controller
      */
     public function destroy(Request $request): JsonResponse
     {
-        $request->validate([
-            'password' => ['required', 'string'],
-        ], [
-            'password.required' => 'Le mot de passe est requis pour confirmer la suppression.',
-        ]);
-
         $user = $request->user();
 
-        // An OAuth-only account has no password to confirm with. Erasure must not be
-        // silently unreachable, so point at the one-click way to unblock it rather
-        // than returning "wrong password" for a password that does not exist.
-        if ($user->password === null) {
-            return response()->json([
-                'error' => [
-                    'code' => 'ACCOUNT_DELETION_REQUIRES_PASSWORD',
-                    'message' => 'Définissez d\'abord un mot de passe pour pouvoir supprimer votre compte.',
-                ],
-            ], 403);
-        }
+        // Erasure (Art. 443) is confirmed either with the password, or — for an
+        // account created through Google, which has none — with a fresh
+        // re-authentication ticket. Making erasure conditional on first setting a
+        // credential the user declined would be the wrong trade.
+        $reauthToken = $request->input('reauth_token');
 
-        if (! Hash::check($request->input('password'), $user->password)) {
-            return response()->json([
-                'error' => [
-                    'code' => 'invalid_password',
-                    'message' => 'Le mot de passe est incorrect.',
-                ],
-            ], 422);
+        if (is_string($reauthToken) && $reauthToken !== '') {
+            if (! app(GoogleOAuthService::class)->consumeReauthToken($reauthToken, $user->id)) {
+                return response()->json([
+                    'error' => [
+                        'code' => 'REAUTH_TOKEN_INVALID',
+                        'message' => 'Confirmation expirée. Reprenez la confirmation avec Google.',
+                    ],
+                ], 422);
+            }
+        } else {
+            $request->validate([
+                'password' => ['required', 'string'],
+            ], [
+                'password.required' => 'Le mot de passe est requis pour confirmer la suppression.',
+            ]);
+
+            if ($user->password === null) {
+                return response()->json([
+                    'error' => [
+                        'code' => 'ACCOUNT_DELETION_REQUIRES_REAUTH',
+                        'message' => 'Confirmez avec Google, ou définissez un mot de passe, pour supprimer votre compte.',
+                    ],
+                ], 403);
+            }
+
+            if (! Hash::check($request->input('password'), $user->password)) {
+                return response()->json([
+                    'error' => [
+                        'code' => 'invalid_password',
+                        'message' => 'Le mot de passe est incorrect.',
+                    ],
+                ], 422);
+            }
         }
 
         // Anonymize DB first (atomic), then delete media files after success.

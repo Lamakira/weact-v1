@@ -87,13 +87,17 @@ export interface User {
 
 // Which button started the Google flow. Drives what the finalisation screen asks
 // for, and is ignored entirely when the account already exists (userable_type is
-// never mutated).
-export type GoogleIntent = 'face' | 'producer' | 'login'
+// never mutated). `reauth` is the odd one out: it proves ownership before an
+// irreversible action and opens no session.
+export type GoogleIntent = 'face' | 'producer' | 'login' | 'reauth'
 
 // Result of trading the one-shot callback code.
 export interface GoogleExchangeResult {
-  needs_completion: boolean
+  needs_completion?: boolean
   redirect: string | null
+  // Present on the re-authentication path only: proves ownership before an
+  // irreversible action, and opens no session.
+  reauth_token?: string
   // Present when needs_completion is false
   user?: User
   token?: string

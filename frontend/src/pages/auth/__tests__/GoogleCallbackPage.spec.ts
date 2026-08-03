@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import GoogleCallbackPage from '../GoogleCallbackPage.vue'
 import { getPendingGoogleRegistration } from '@/features/auth/googlePendingRegistration'
+import { takeGoogleReauthToken } from '@/features/auth/googleReauth'
 
 const h = vi.hoisted(() => ({
   replace: vi.fn().mockResolvedValue(undefined),
@@ -133,6 +134,35 @@ describe('GoogleCallbackPage', () => {
       intent: 'face',
     })
     expect(h.replace).toHaveBeenLastCalledWith({ name: 'google-complete-registration' })
+  })
+
+  it('stores a reauth ticket and returns to the screen that asked for it', async () => {
+    h.query = { code: 'one-shot-code' }
+    h.exchangeGoogleCode.mockResolvedValue({
+      success: true,
+      result: { reauth_token: 'reauth-abc', redirect: '/face/profile' },
+    })
+
+    mountPage()
+    await flushPromises()
+
+    expect(takeGoogleReauthToken()).toBe('reauth-abc')
+    expect(h.replace).toHaveBeenLastCalledWith('/face/profile')
+  })
+
+  it('never opens a session on the reauth path', async () => {
+    h.query = { code: 'one-shot-code' }
+    h.exchangeGoogleCode.mockResolvedValue({
+      success: true,
+      result: { reauth_token: 'reauth-abc', redirect: null },
+    })
+
+    mountPage()
+    await flushPromises()
+
+    // No pending registration created, and the fallback landing is used.
+    expect(getPendingGoogleRegistration()).toBeNull()
+    expect(h.replace).toHaveBeenLastCalledWith({ name: 'face-dashboard' })
   })
 
   it('renders the backend error bounced back on the callback', async () => {
