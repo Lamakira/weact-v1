@@ -60,7 +60,7 @@ class UpdateAdminFaceRequest extends FormRequest
             'username' => [
                 'sometimes',
                 'string',
-                'max:255',
+                'max:50',
                 Rule::unique('faces', 'username')->ignore($faceId),
             ],
             'bio' => ['sometimes', 'nullable', 'string', 'max:1000'],

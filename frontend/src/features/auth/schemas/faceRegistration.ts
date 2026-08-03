@@ -1,10 +1,13 @@
 import { z } from 'zod'
 import { toTypedSchema } from '@vee-validate/zod'
-import { COUNTRY_OPTION_VALUES, NATIONALITY_OPTION_VALUES } from '@/shared/constants/territoryOptions'
 
 /**
  * Zod schema for Face registration validation
  * Matches backend validation rules
+ *
+ * Deliberately minimal: sexe, nationalite, pays and whatsapp_number are collected
+ * later in the profile completion flow. `username` is generated server-side and
+ * editable from the profile.
  */
 const faceRegistrationSchema = z
   .object({
@@ -18,19 +21,14 @@ const faceRegistrationSchema = z
       .min(1, 'Le prénom est obligatoire')
       .max(255, 'Le prénom ne peut pas dépasser 255 caractères'),
 
-    username: z
-      .string({ message: "Le nom d'utilisateur est obligatoire" })
-      .min(1, "Le nom d'utilisateur est obligatoire")
-      .max(50, "Le nom d'utilisateur ne peut pas dépasser 50 caractères")
-      .regex(
-        /^[a-zA-Z0-9_]+$/,
-        "Le nom d'utilisateur ne peut contenir que des lettres, chiffres et underscores"
-      ),
-
     email: z
       .string({ message: "L'email est obligatoire" })
       .min(1, "L'email est obligatoire")
       .email("L'email doit être une adresse email valide"),
+
+    date_naissance: z
+      .string({ message: 'La date de naissance est obligatoire.' })
+      .min(1, 'La date de naissance est obligatoire.'),
 
     password: z
       .string({ message: 'Le mot de passe est obligatoire' })
@@ -38,52 +36,15 @@ const faceRegistrationSchema = z
       .regex(/[A-Z]/, 'Le mot de passe doit contenir au moins une majuscule')
       .regex(/\d/, 'Le mot de passe doit contenir au moins un chiffre'),
 
-    password_confirmation: z
-      .string({ message: 'La confirmation du mot de passe est obligatoire' })
-      .min(1, 'La confirmation du mot de passe est obligatoire'),
-
-    sexe: z
-      .string({ message: 'Le sexe est obligatoire.' })
-      .min(1, 'Le sexe est obligatoire.')
-      .refine((val) => ['homme', 'femme', 'autre'].includes(val), {
-        message: 'Le sexe sélectionné est invalide.',
-      }),
-
-    date_naissance: z
-      .string({ message: 'La date de naissance est obligatoire.' })
-      .min(1, 'La date de naissance est obligatoire.'),
-
-    nationalite: z
-      .string({ message: 'La nationalité est obligatoire.' })
-      .min(1, 'La nationalité est obligatoire.')
-      .max(100, 'La nationalité ne peut pas dépasser 100 caractères.')
-      .refine((value) => NATIONALITY_OPTION_VALUES.has(value), {
-        message: 'La nationalité sélectionnée est invalide.',
-      }),
-
-    pays: z
-      .string({ message: 'Le pays est obligatoire.' })
-      .min(1, 'Le pays est obligatoire.')
-      .max(100, 'Le pays ne peut pas dépasser 100 caractères.')
-      .refine((value) => COUNTRY_OPTION_VALUES.has(value), {
-        message: 'Le pays sélectionné est invalide.',
-      }),
-
-    whatsapp_number: z
-      .string()
-      .max(30, 'Le numéro ne peut pas dépasser 30 caractères')
-      .optional()
-      .or(z.literal('')),
-
     accept_cgu: z
-      .boolean({ message: 'Vous devez accepter les CGU et la Politique de Confidentialité.' })
+      .boolean({
+        message:
+          'Vous devez avoir 16 ans ou plus et accepter les CGU et la Politique de Confidentialité.',
+      })
       .refine((val) => val === true, {
-        message: 'Vous devez accepter les CGU et la Politique de Confidentialité.',
+        message:
+          'Vous devez avoir 16 ans ou plus et accepter les CGU et la Politique de Confidentialité.',
       }),
-  })
-  .refine((data) => data.password === data.password_confirmation, {
-    message: 'La confirmation du mot de passe ne correspond pas',
-    path: ['password_confirmation'],
   })
   .refine(
     (data) => {

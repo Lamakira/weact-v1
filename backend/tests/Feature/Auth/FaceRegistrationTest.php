@@ -25,14 +25,9 @@ class FaceRegistrationTest extends TestCase
         $this->validData = [
             'nom' => 'Doe',
             'prenom' => 'John',
-            'username' => 'johndoe',
             'email' => 'john@example.com',
-            'password' => 'Password123',
-            'password_confirmation' => 'Password123',
-            'sexe' => 'homme',
             'date_naissance' => '1995-06-15',
-            'nationalite' => 'Béninoise',
-            'pays' => 'Bénin',
+            'password' => 'Password123',
             'accept_cgu' => true,
         ];
     }
@@ -70,10 +65,55 @@ class FaceRegistrationTest extends TestCase
         $this->assertNotEmpty($response->json('data.token'));
     }
 
-    public function test_registration_persists_optional_whatsapp_number(): void
+    public function test_registration_succeeds_with_only_the_six_required_fields(): void
+    {
+        $response = $this->postJson('/api/v1/auth/register/face', $this->validData);
+
+        $response->assertStatus(201);
+
+        $this->assertSame(
+            ['nom', 'prenom', 'email', 'date_naissance', 'password', 'accept_cgu'],
+            array_keys($this->validData),
+        );
+    }
+
+    public function test_username_is_generated_from_prenom_and_nom(): void
     {
         $data = [
             ...$this->validData,
+            'prenom' => 'Léa',
+            'nom' => "Gbèdo N'Djamena",
+        ];
+
+        $response = $this->postJson('/api/v1/auth/register/face', $data);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.user.userable.username', 'leagbedondjamena');
+    }
+
+    public function test_username_generation_disambiguates_homonyms(): void
+    {
+        Face::create([
+            'nom' => 'Doe',
+            'prenom' => 'John',
+            'username' => 'johndoe',
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/register/face', $this->validData);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.user.userable.username', 'johndoe2');
+    }
+
+    public function test_deferred_profile_fields_are_not_collected_at_registration(): void
+    {
+        // Sending them anyway must not persist them: they are no longer validated,
+        // so they must never reach Face::create through mass assignment.
+        $data = [
+            ...$this->validData,
+            'username' => 'chosen_by_hand',
+            'sexe' => 'homme',
+            'nationalite' => 'Béninoise',
             'whatsapp_number' => '+22997000000',
         ];
 
@@ -81,10 +121,21 @@ class FaceRegistrationTest extends TestCase
 
         $response->assertStatus(201);
 
-        $this->assertDatabaseHas('faces', [
-            'username' => 'johndoe',
-            'whatsapp_number' => '+22997000000',
-        ]);
+        $face = Face::where('nom', 'Doe')->firstOrFail();
+
+        $this->assertSame('johndoe', $face->username);
+        $this->assertNull($face->sexe);
+        $this->assertNull($face->nationalite);
+        $this->assertNull($face->whatsapp_number);
+
+        $this->assertDatabaseMissing('faces', ['username' => 'chosen_by_hand']);
+    }
+
+    public function test_pays_falls_back_to_its_database_default(): void
+    {
+        $this->postJson('/api/v1/auth/register/face', $this->validData)->assertStatus(201);
+
+        $this->assertSame('Bénin', Face::where('nom', 'Doe')->firstOrFail()->pays);
     }
 
     public function test_registration_status_endpoint_returns_enabled(): void
@@ -167,37 +218,11 @@ class FaceRegistrationTest extends TestCase
             ->assertJsonPath('error.details.email.0', 'Cet email est déjà utilisé');
     }
 
-    public function test_duplicate_username_returns_422_with_error(): void
-    {
-        // Create existing face with the same username
-        Face::create([
-            'nom' => 'Existing',
-            'prenom' => 'User',
-            'username' => 'johndoe',
-        ]);
-
-        $response = $this->postJson('/api/v1/auth/register/face', $this->validData);
-
-        $response->assertStatus(422)
-            ->assertJsonStructure([
-                'error' => [
-                    'code',
-                    'message',
-                    'details' => [
-                        'username',
-                    ],
-                ],
-            ])
-            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
-            ->assertJsonPath('error.details.username.0', 'Ce nom d\'utilisateur est déjà pris');
-    }
-
     public function test_weak_password_returns_422_with_requirements(): void
     {
         // Test password too short
         $data = $this->validData;
         $data['password'] = 'Short1';
-        $data['password_confirmation'] = 'Short1';
 
         $response = $this->postJson('/api/v1/auth/register/face', $data);
 
@@ -207,7 +232,6 @@ class FaceRegistrationTest extends TestCase
 
         // Test password without uppercase
         $data['password'] = 'password123';
-        $data['password_confirmation'] = 'password123';
 
         $response = $this->postJson('/api/v1/auth/register/face', $data);
 
@@ -216,12 +240,24 @@ class FaceRegistrationTest extends TestCase
 
         // Test password without number
         $data['password'] = 'PasswordABC';
-        $data['password_confirmation'] = 'PasswordABC';
 
         $response = $this->postJson('/api/v1/auth/register/face', $data);
 
         $response->assertStatus(422)
             ->assertJsonPath('error.details.password.0', 'Le mot de passe doit contenir au moins une majuscule et un chiffre');
+    }
+
+    public function test_password_confirmation_is_no_longer_required(): void
+    {
+        $data = $this->validData;
+        $data['password_confirmation'] = 'SomethingElse456';
+
+        $response = $this->postJson('/api/v1/auth/register/face', $data);
+
+        $response->assertStatus(201);
+
+        $user = User::where('email', 'john@example.com')->firstOrFail();
+        $this->assertTrue(password_verify('Password123', $user->password));
     }
 
     public function test_missing_fields_return_422_with_field_errors(): void
@@ -236,26 +272,39 @@ class FaceRegistrationTest extends TestCase
                     'details' => [
                         'nom',
                         'prenom',
-                        'username',
                         'email',
-                        'password',
-                        'sexe',
                         'date_naissance',
-                        'nationalite',
-                        'pays',
+                        'password',
+                        'accept_cgu',
                     ],
                 ],
             ])
             ->assertJsonPath('error.code', 'VALIDATION_ERROR')
             ->assertJsonPath('error.details.nom.0', 'Le nom est obligatoire')
             ->assertJsonPath('error.details.prenom.0', 'Le prénom est obligatoire')
-            ->assertJsonPath('error.details.username.0', 'Le nom d\'utilisateur est obligatoire')
             ->assertJsonPath('error.details.email.0', 'L\'email est obligatoire')
-            ->assertJsonPath('error.details.password.0', 'Le mot de passe est obligatoire')
-            ->assertJsonPath('error.details.sexe.0', 'Le sexe est obligatoire.')
             ->assertJsonPath('error.details.date_naissance.0', 'La date de naissance est obligatoire.')
-            ->assertJsonPath('error.details.nationalite.0', 'La nationalité est obligatoire.')
-            ->assertJsonPath('error.details.pays.0', 'Le pays est obligatoire.');
+            ->assertJsonPath('error.details.password.0', 'Le mot de passe est obligatoire');
+
+        // Removed fields must no longer be reported as missing
+        $response->assertJsonMissingPath('error.details.username')
+            ->assertJsonMissingPath('error.details.sexe')
+            ->assertJsonMissingPath('error.details.nationalite')
+            ->assertJsonMissingPath('error.details.pays');
+    }
+
+    public function test_accept_cgu_must_be_accepted(): void
+    {
+        $data = $this->validData;
+        $data['accept_cgu'] = false;
+
+        $response = $this->postJson('/api/v1/auth/register/face', $data);
+
+        $response->assertStatus(422)
+            ->assertJsonPath(
+                'error.details.accept_cgu.0',
+                'Vous devez avoir 16 ans ou plus et accepter les CGU et la Politique de Confidentialité.'
+            );
     }
 
     public function test_face_record_is_linked_to_user_via_polymorphic(): void
@@ -269,10 +318,7 @@ class FaceRegistrationTest extends TestCase
             'nom' => 'Doe',
             'prenom' => 'John',
             'username' => 'johndoe',
-            'sexe' => 'homme',
             'date_naissance' => '1995-06-15',
-            'nationalite' => 'Béninoise',
-            'pays' => 'Bénin',
         ]);
 
         $face = Face::where('username', 'johndoe')->first();
@@ -304,17 +350,6 @@ class FaceRegistrationTest extends TestCase
         $this->assertTrue(password_verify('Password123', $user->password));
     }
 
-    public function test_password_confirmation_must_match(): void
-    {
-        $data = $this->validData;
-        $data['password_confirmation'] = 'DifferentPassword123';
-
-        $response = $this->postJson('/api/v1/auth/register/face', $data);
-
-        $response->assertStatus(422)
-            ->assertJsonPath('error.details.password.0', 'La confirmation du mot de passe ne correspond pas');
-    }
-
     public function test_sends_verification_email_on_successful_registration(): void
     {
         $response = $this->postJson('/api/v1/auth/register/face', $this->validData);
@@ -338,17 +373,6 @@ class FaceRegistrationTest extends TestCase
         $this->assertFalse($user->hasVerifiedEmail());
     }
 
-    public function test_invalid_sexe_returns_422(): void
-    {
-        $data = $this->validData;
-        $data['sexe'] = 'invalide';
-
-        $response = $this->postJson('/api/v1/auth/register/face', $data);
-
-        $response->assertStatus(422)
-            ->assertJsonPath('error.details.sexe.0', 'Le sexe sélectionné est invalide.');
-    }
-
     public function test_future_date_naissance_returns_422(): void
     {
         $data = $this->validData;
@@ -369,6 +393,14 @@ class FaceRegistrationTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonPath('error.details.date_naissance.0', 'Vous devez avoir au moins 16 ans pour vous inscrire.');
+    }
+
+    public function test_exactly_sixteen_years_old_is_accepted(): void
+    {
+        $data = $this->validData;
+        $data['date_naissance'] = now()->subYears(16)->format('Y-m-d');
+
+        $this->postJson('/api/v1/auth/register/face', $data)->assertStatus(201);
     }
 
     public function test_age_accessor_calculates_correctly(): void

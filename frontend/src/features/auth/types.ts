@@ -12,15 +12,9 @@ export interface LoginForm {
 export interface FaceRegistrationForm {
   nom: string
   prenom: string
-  username: string
   email: string
-  password: string
-  password_confirmation: string
-  sexe: string
   date_naissance: string
-  nationalite: string
-  pays: string
-  whatsapp_number?: string
+  password: string
   accept_cgu: boolean
 }
 
@@ -32,7 +26,6 @@ export interface ProducerRegistrationFormBase {
   type: ProducerType
   email: string
   password: string
-  password_confirmation: string
   accept_cgu: boolean
 }
 
@@ -43,10 +36,10 @@ export interface AgencyRegistrationForm extends ProducerRegistrationFormBase {
 }
 
 // Registration form data - Producer Particulier
+// Collected as one field; the backend splits it into first_name/last_name.
 export interface ParticulierRegistrationForm extends ProducerRegistrationFormBase {
   type: 'particulier'
-  first_name: string
-  last_name: string
+  nom_complet: string
 }
 
 // Union type for Producer registration
