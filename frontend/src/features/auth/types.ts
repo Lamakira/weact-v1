@@ -85,6 +85,40 @@ export interface User {
   updated_at: string
 }
 
+// Which button started the Google flow. Drives what the finalisation screen asks
+// for, and is ignored entirely when the account already exists (userable_type is
+// never mutated).
+export type GoogleIntent = 'face' | 'producer' | 'login'
+
+// Result of trading the one-shot callback code.
+export interface GoogleExchangeResult {
+  needs_completion: boolean
+  redirect: string | null
+  // Present when needs_completion is false
+  user?: User
+  token?: string
+  // Present when needs_completion is true
+  pending_token?: string
+  email?: string
+  prenom?: string
+  nom?: string
+  intent?: GoogleIntent
+}
+
+export interface CompleteGoogleRegistrationData {
+  pending_token: string
+  role: 'face' | 'producer'
+  accept_cgu: boolean
+  // Face branch
+  nom?: string
+  prenom?: string
+  date_naissance?: string
+  // Producer branch
+  type?: ProducerType
+  agency_name?: string
+  nom_complet?: string
+}
+
 // Auth response from API
 export interface AuthResponse {
   data: {

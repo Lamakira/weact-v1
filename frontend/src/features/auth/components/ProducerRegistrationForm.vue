@@ -5,7 +5,12 @@ import { producerRegistrationValidationSchema } from '../schemas/producerRegistr
 import { useAuth } from '../composables/useAuth'
 import type { ProducerRegistrationForm as FormData, ProducerType } from '../types'
 import { FloatingField } from '@/components/ui/form'
+import GoogleSignInButton from './GoogleSignInButton.vue'
 import { Mail, Lock, Building } from 'lucide-vue-next'
+
+// The Google button lives inside the form because it must stay disabled until the
+// CGU checkbox is ticked — consent is never collected implicitly.
+withDefaults(defineProps<{ googleEnabled?: boolean }>(), { googleEnabled: false })
 
 const emit = defineEmits<{
   success: []
@@ -253,5 +258,25 @@ const onSubmit = handleSubmit(async () => {
       </span>
       <span v-else>Créer mon compte producteur</span>
     </button>
+
+    <!-- Google Sign-In: same consent gate as the form itself -->
+    <template v-if="googleEnabled">
+      <div class="relative">
+        <div class="absolute inset-0 flex items-center">
+          <div class="w-full border-t border-gray-200" />
+        </div>
+        <div class="relative flex justify-center text-sm">
+          <span class="px-2 bg-white text-gray-500">ou</span>
+        </div>
+      </div>
+      <GoogleSignInButton
+        intent="producer"
+        :disabled="!accept_cgu"
+        label="S'inscrire avec Google"
+      />
+      <p v-if="!accept_cgu" class="text-xs text-gray-500 text-center" data-testid="google-cgu-hint">
+        Acceptez les CGU ci-dessus pour continuer avec Google.
+      </p>
+    </template>
   </form>
 </template>

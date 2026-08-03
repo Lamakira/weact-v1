@@ -164,6 +164,22 @@ const router = createRouter({
       meta: { guest: true },
     },
     {
+      // Landing point of the Google round-trip. Deliberately NOT meta.guest: the
+      // backend bounces here with a one-shot code, and a guest guard would send an
+      // already-authenticated user to their dashboard before the code is spent.
+      path: '/auth/google/callback',
+      name: 'google-callback',
+      component: () => import('../pages/auth/GoogleCallbackPage.vue'),
+    },
+    {
+      // Finalisation of a Google account that does not exist yet. meta.guest is
+      // safe: no token has been stored at that point, so the guest guard is inert.
+      path: '/auth/finaliser',
+      name: 'google-complete-registration',
+      component: () => import('../pages/auth/GoogleCompleteRegistrationPage.vue'),
+      meta: { guest: true },
+    },
+    {
       path: '/verify-email/:id/:hash',
       name: 'verify-email',
       component: () => import('../pages/auth/VerifyEmailPage.vue'),

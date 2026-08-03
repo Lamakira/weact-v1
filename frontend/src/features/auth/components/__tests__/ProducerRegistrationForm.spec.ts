@@ -28,10 +28,18 @@ describe('ProducerRegistrationForm', () => {
     mockIsLoading.value = false
   })
 
-  const mountComponent = () => {
+  const mountComponent = (props: Record<string, unknown> = {}) => {
     return mount(ProducerRegistrationForm, {
+      props,
       global: {
         plugins: [router],
+        stubs: {
+          GoogleSignInButton: {
+            props: ['intent', 'disabled', 'label'],
+            template:
+              '<button data-testid="google-sign-in-button" :data-intent="intent" :disabled="disabled" />',
+          },
+        },
       },
     })
   }
@@ -197,6 +205,29 @@ describe('ProducerRegistrationForm', () => {
       email: 'jean@example.com',
       password: 'Password123',
       accept_cgu: true,
+    })
+  })
+
+  describe('Google Sign-In', () => {
+    it('is absent unless the backend advertises it', () => {
+      const wrapper = mountComponent()
+
+      expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(false)
+    })
+
+    it('carries the producer intent and stays disabled until the CGU are ticked', async () => {
+      const wrapper = mountComponent({ googleEnabled: true })
+
+      const button = wrapper.find('[data-testid="google-sign-in-button"]')
+      expect(button.exists()).toBe(true)
+      expect(button.attributes('data-intent')).toBe('producer')
+      expect(button.attributes('disabled')).toBeDefined()
+
+      await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
+
+      expect(
+        wrapper.find('[data-testid="google-sign-in-button"]').attributes('disabled')
+      ).toBeUndefined()
     })
   })
 

@@ -37,8 +37,9 @@ describe('FaceRegistrationForm', () => {
     vi.clearAllMocks()
   })
 
-  const mountComponent = () => {
+  const mountComponent = (props: Record<string, unknown> = {}) => {
     return mount(FaceRegistrationForm, {
+      props,
       global: {
         plugins: [
           createTestingPinia({
@@ -48,6 +49,11 @@ describe('FaceRegistrationForm', () => {
         ],
         stubs: {
           RouterLink: true,
+          GoogleSignInButton: {
+            props: ['intent', 'disabled', 'label'],
+            template:
+              '<button data-testid="google-sign-in-button" :data-intent="intent" :disabled="disabled" />',
+          },
         },
       },
     })
@@ -157,5 +163,30 @@ describe('FaceRegistrationForm', () => {
 
     const submitButton = wrapper.find('[data-testid="submit-button"]')
     expect(submitButton.text()).toContain("S'inscrire en tant que Face")
+  })
+
+  describe('Google Sign-In', () => {
+    it('is absent unless the backend advertises it', () => {
+      const wrapper = mountComponent()
+
+      expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(false)
+    })
+
+    it('carries the face intent and stays disabled until the CGU are ticked', async () => {
+      const wrapper = mountComponent({ googleEnabled: true })
+
+      const button = wrapper.find('[data-testid="google-sign-in-button"]')
+      expect(button.exists()).toBe(true)
+      expect(button.attributes('data-intent')).toBe('face')
+      expect(button.attributes('disabled')).toBeDefined()
+      expect(wrapper.find('[data-testid="google-cgu-hint"]').exists()).toBe(true)
+
+      await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
+
+      expect(
+        wrapper.find('[data-testid="google-sign-in-button"]').attributes('disabled')
+      ).toBeUndefined()
+      expect(wrapper.find('[data-testid="google-cgu-hint"]').exists()).toBe(false)
+    })
   })
 })

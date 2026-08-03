@@ -11,11 +11,14 @@ const router = useRouter()
 const route = useRoute()
 const toast = useToast()
 const registrationEnabled = ref<boolean | null>(null)
+// Hidden by default: a network failure must not surface a button that would 403.
+const googleEnabled = ref(false)
 
 onMounted(async () => {
   try {
     const response = await authApi.getRegistrationStatus()
     registrationEnabled.value = response.data.enabled
+    googleEnabled.value = response.data.google_enabled === true
   } catch {
     // FIX-23.1 — Fallback build-time permissif : si l'API /auth/registration-status
     // échoue (réseau, 5xx, CDN), on lit VITE_REGISTRATION_ENABLED. Valeur par défaut
@@ -92,7 +95,7 @@ function handleSuccess() {
         </div>
 
         <!-- Registration Form -->
-        <FaceRegistrationForm v-else @success="handleSuccess" />
+        <FaceRegistrationForm v-else :google-enabled="googleEnabled" @success="handleSuccess" />
 
         <!-- Terms Notice -->
         <p class="mt-6 text-xs text-center text-gray-500">

@@ -5,6 +5,9 @@ import type {
   LoginForm,
   AuthResponse,
   ResetPasswordData,
+  GoogleExchangeResult,
+  GoogleIntent,
+  CompleteGoogleRegistrationData,
 } from '../types'
 
 /**
@@ -16,8 +19,49 @@ export const authApi = {
   /**
    * Check if registration is currently enabled
    */
-  async getRegistrationStatus(): Promise<{ data: { enabled: boolean } }> {
-    const response = await apiClient.get<{ data: { enabled: boolean } }>('/auth/registration-status')
+  async getRegistrationStatus(): Promise<{
+    data: { enabled: boolean; google_enabled?: boolean }
+  }> {
+    const response = await apiClient.get<{
+      data: { enabled: boolean; google_enabled?: boolean }
+    }>('/auth/registration-status')
+    return response.data
+  },
+
+  /**
+   * Ask the backend for the Google authorization URL.
+   *
+   * It comes back as JSON rather than a 302 on purpose: a redirect would be
+   * followed by this XHR, and Google's response carries no CORS header, so the
+   * fetch would die and the top-level document would never navigate.
+   */
+  async getGoogleRedirectUrl(intent: GoogleIntent, redirect?: string | null): Promise<string> {
+    const response = await apiClient.get<{ data: { url: string } }>('/auth/google/redirect', {
+      params: { intent, ...(redirect ? { redirect } : {}) },
+    })
+    return response.data.data.url
+  },
+
+  /**
+   * Trade the one-shot code from the callback URL for the Sanctum token.
+   */
+  async exchangeGoogleCode(code: string): Promise<GoogleExchangeResult> {
+    await getCsrfCookie()
+    const response = await apiClient.post<{ data: GoogleExchangeResult }>('/auth/google/exchange', {
+      code,
+    })
+    return response.data.data
+  },
+
+  /**
+   * Finish a brand-new Google account (role, date of birth, consent).
+   */
+  async completeGoogleRegistration(data: CompleteGoogleRegistrationData): Promise<AuthResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<AuthResponse>(
+      '/auth/google/complete-registration',
+      data
+    )
     return response.data
   },
 
