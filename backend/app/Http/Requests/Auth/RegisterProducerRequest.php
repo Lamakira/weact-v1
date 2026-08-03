@@ -32,11 +32,12 @@ class RegisterProducerRequest extends FormRequest
                 'string',
                 'min:8',
                 'regex:/^(?=.*[A-Z])(?=.*\d).+$/',
-                'confirmed',
             ],
             'agency_name' => ['required_if:type,agency', 'nullable', 'string', 'max:255'],
-            'first_name' => ['required_if:type,particulier', 'nullable', 'string', 'max:255'],
-            'last_name' => ['required_if:type,particulier', 'nullable', 'string', 'max:255'],
+            // Collected as a single field and split server-side (see ProducerRegistrationService):
+            // `first_name`/`last_name` only ever feed slugSourceName() and display_name, which
+            // re-concatenate them, and the producer can fix the split from their profile.
+            'nom_complet' => ['required_if:type,particulier', 'nullable', 'string', 'max:255'],
             'accept_cgu' => ['required', 'accepted'],
         ];
     }
@@ -57,13 +58,10 @@ class RegisterProducerRequest extends FormRequest
             'password.required' => 'Le mot de passe est obligatoire',
             'password.min' => 'Le mot de passe doit contenir au moins 8 caractères',
             'password.regex' => 'Le mot de passe doit contenir au moins une majuscule et un chiffre',
-            'password.confirmed' => 'La confirmation du mot de passe ne correspond pas',
             'agency_name.required_if' => 'Le nom de l\'agence est obligatoire',
             'agency_name.max' => 'Le nom de l\'agence ne peut pas dépasser 255 caractères',
-            'first_name.required_if' => 'Le prénom est obligatoire',
-            'first_name.max' => 'Le prénom ne peut pas dépasser 255 caractères',
-            'last_name.required_if' => 'Le nom est obligatoire',
-            'last_name.max' => 'Le nom ne peut pas dépasser 255 caractères',
+            'nom_complet.required_if' => 'Votre nom complet est obligatoire',
+            'nom_complet.max' => 'Le nom complet ne peut pas dépasser 255 caractères',
             'accept_cgu.required' => 'Vous devez accepter les CGU et la Politique de Confidentialité.',
             'accept_cgu.accepted' => 'Vous devez accepter les CGU et la Politique de Confidentialité.',
         ];

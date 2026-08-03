@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import ProducerRegistrationForm from '@/features/auth/components/ProducerRegistrationForm.vue'
 import { useToast } from '@/composables/useToast'
 import { authApi } from '@/features/auth/services/authApi'
@@ -8,6 +8,7 @@ import logoNoir from '@/assets/images/logonoir.png'
 import registerProducerIllustration from '@/assets/images/register-producer-illustration.webp'
 
 const router = useRouter()
+const route = useRoute()
 const toast = useToast()
 const registrationEnabled = ref<boolean | null>(null)
 
@@ -33,8 +34,17 @@ function handleSuccess() {
     'Un email de vérification a été envoyé. Veuillez vérifier votre boîte de réception.',
     { duration: 8000 }
   )
-  // Redirect to Producer dashboard after successful registration
-  router.push('/producer/dashboard')
+  // Honor ?redirect= bounce-back from /login, else the Producer dashboard. This
+  // page used to hard-push the dashboard, silently dropping the deep-link a
+  // Producer had been sent here from — RegisterFacePage already did it right.
+  // Defensive guard: startsWith('/') && !startsWith('//') rejects protocol-relative
+  // (//evil.com) and absolute URLs that would crash pushState with a SecurityError.
+  const redirectQuery = typeof route.query.redirect === 'string' ? route.query.redirect : null
+  const redirectPath =
+    redirectQuery && redirectQuery.startsWith('/') && !redirectQuery.startsWith('//')
+      ? redirectQuery
+      : null
+  router.push(redirectPath ?? '/producer/dashboard')
 }
 </script>
 

@@ -15,7 +15,7 @@ class ProducerRegistrationService
     /**
      * Register a new Producer user.
      *
-     * @param  array{type: string, email: string, password: string, agency_name?: string, first_name?: string, last_name?: string, accept_cgu?: bool}  $validated
+     * @param  array{type: string, email: string, password: string, agency_name?: string, nom_complet?: string, accept_cgu?: bool}  $validated
      * @return array{user: User, producer: Producer, token: string}
      */
     public function register(array $validated, ?string $ip = null): array
@@ -30,8 +30,7 @@ class ProducerRegistrationService
             if ($validated['type'] === ProducerType::Agency->value) {
                 $producerData['agency_name'] = $validated['agency_name'];
             } else {
-                $producerData['first_name'] = $validated['first_name'];
-                $producerData['last_name'] = $validated['last_name'];
+                $producerData += $this->splitFullName($validated['nom_complet'] ?? '');
             }
 
             $producer = Producer::create($producerData);
@@ -70,5 +69,34 @@ class ProducerRegistrationService
         }
 
         return $result;
+    }
+
+    /**
+     * Split a single "nom complet" input into the two stored columns.
+     *
+     * The last whitespace-separated token becomes `last_name`, everything before it
+     * `first_name` — so "Marie Ange Sossou" keeps its compound first name intact.
+     * A single token leaves `last_name` empty; slugSourceName() trims the join, so
+     * the public slug stays correct either way.
+     *
+     * @return array{first_name: string, last_name: string}
+     */
+    private function splitFullName(string $fullName): array
+    {
+        $tokens = preg_split('/\s+/', trim($fullName), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        if (count($tokens) < 2) {
+            return [
+                'first_name' => $tokens[0] ?? '',
+                'last_name' => '',
+            ];
+        }
+
+        $lastName = array_pop($tokens);
+
+        return [
+            'first_name' => implode(' ', $tokens),
+            'last_name' => $lastName,
+        ];
     }
 }

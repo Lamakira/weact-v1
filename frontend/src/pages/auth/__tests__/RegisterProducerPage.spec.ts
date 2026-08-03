@@ -48,6 +48,7 @@ describe('RegisterProducerPage', () => {
         { path: '/login', name: 'login', component: { template: '<div>Login</div>' } },
         { path: '/face/dashboard', name: 'face-dashboard', component: { template: '<div>Face Dashboard</div>' } },
         { path: '/producer/dashboard', name: 'producer-dashboard', component: { template: '<div>Producer Dashboard</div>' } },
+        { path: '/producer/missions/create', name: 'producer-mission-create', component: { template: '<div>New mission</div>' } },
       ],
     })
   })
@@ -56,8 +57,8 @@ describe('RegisterProducerPage', () => {
     vi.unstubAllEnvs()
   })
 
-  async function mountComponent() {
-    await router.push('/register/producer')
+  async function mountComponent(path = '/register/producer') {
+    await router.push(path)
     await router.isReady()
 
     return mount(RegisterProducerPage, {
@@ -88,6 +89,32 @@ describe('RegisterProducerPage', () => {
 
     expect(wrapper.find('[data-testid="producer-registration-form"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('Les inscriptions sont temporairement suspendues.')
+  })
+
+  it('honors a valid ?redirect= after registration instead of hard-pushing the dashboard', async () => {
+    vi.mocked(authApi.getRegistrationStatus).mockResolvedValueOnce({ data: { enabled: true } })
+
+    const wrapper = await mountComponent('/register/producer?redirect=/producer/missions/create')
+    await flushPromises()
+
+    const push = vi.spyOn(router, 'push')
+    await wrapper.findComponent({ name: 'ProducerRegistrationForm' }).vm.$emit('success')
+    await flushPromises()
+
+    expect(push).toHaveBeenCalledWith('/producer/missions/create')
+  })
+
+  it('rejects a protocol-relative ?redirect= and falls back to the dashboard', async () => {
+    vi.mocked(authApi.getRegistrationStatus).mockResolvedValueOnce({ data: { enabled: true } })
+
+    const wrapper = await mountComponent('/register/producer?redirect=//evil.com')
+    await flushPromises()
+
+    const push = vi.spyOn(router, 'push')
+    await wrapper.findComponent({ name: 'ProducerRegistrationForm' }).vm.$emit('success')
+    await flushPromises()
+
+    expect(push).toHaveBeenCalledWith('/producer/dashboard')
   })
 
   it('regression (vert avant ET après, verrouille le cas opt-out explicite côté build): test_registration_form_hidden_when_api_fails_and_vite_flag_false', async () => {
