@@ -28,7 +28,7 @@ class FaceRegistrationService
      */
     public function register(array $validated, ?string $ip = null): array
     {
-        $result = $this->createAccount($validated, $ip);
+        $result = $this->createAccount($validated, $ip, googleId: null);
 
         // Send email verification notification outside transaction
         // This ensures registration succeeds even if email fails
@@ -43,15 +43,31 @@ class FaceRegistrationService
     }
 
     /**
+     * Register a Face whose identity comes from Google.
+     *
+     * No password (the column is nullable) and no verification mail: Google has
+     * already attested the address, so `email_verified_at` is set here and mailing
+     * a link would only add friction — and would leave the account blocked on the
+     * routes gated by the `verified` middleware for nothing.
+     *
+     * @param  array{nom: string, prenom: string, email: string, date_naissance: string}  $validated
+     * @return array{user: User, face: Face, token: string}
+     */
+    public function registerFromGoogle(array $validated, string $googleId, ?string $ip = null): array
+    {
+        return $this->createAccount($validated, $ip, googleId: $googleId);
+    }
+
+    /**
      * Run the creation transaction, replaying it on a unique-index collision.
      *
      * The whole transaction is replayed (not just the insert) so a rolled-back
      * attempt never leaves a partial Face/User behind, whatever the driver.
      *
-     * @param  array{nom: string, prenom: string, email: string, password: string, date_naissance: string, accept_cgu?: bool}  $validated
+     * @param  array{nom: string, prenom: string, email: string, password?: string, date_naissance: string, accept_cgu?: bool}  $validated
      * @return array{user: User, face: Face, token: string}
      */
-    private function createAccount(array $validated, ?string $ip): array
+    private function createAccount(array $validated, ?string $ip, ?string $googleId): array
     {
         for ($attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++) {
             $username = $attempt === 1
@@ -59,7 +75,7 @@ class FaceRegistrationService
                 : $this->usernameGenerator->generateWithRandomSuffix($validated['prenom'], $validated['nom']);
 
             try {
-                return $this->persist($validated, $username, $ip);
+                return $this->persist($validated, $username, $ip, $googleId);
             } catch (UniqueConstraintViolationException $e) {
                 if ($attempt === self::MAX_ATTEMPTS) {
                     throw $e;
@@ -72,12 +88,12 @@ class FaceRegistrationService
     }
 
     /**
-     * @param  array{nom: string, prenom: string, email: string, password: string, date_naissance: string, accept_cgu?: bool}  $validated
+     * @param  array{nom: string, prenom: string, email: string, password?: string, date_naissance: string, accept_cgu?: bool}  $validated
      * @return array{user: User, face: Face, token: string}
      */
-    private function persist(array $validated, string $username, ?string $ip): array
+    private function persist(array $validated, string $username, ?string $ip, ?string $googleId): array
     {
-        return DB::transaction(function () use ($validated, $username, $ip): array {
+        return DB::transaction(function () use ($validated, $username, $ip, $googleId): array {
             // Create Face record first
             $face = Face::create([
                 'nom' => $validated['nom'],
@@ -89,13 +105,21 @@ class FaceRegistrationService
             // Create User with polymorphic relationship to Face
             $user = User::create([
                 'email' => $validated['email'],
-                'password' => Hash::make($validated['password']),
+                'password' => isset($validated['password']) ? Hash::make($validated['password']) : null,
                 'userable_type' => Face::class,
                 'userable_id' => $face->id,
                 'consent_given_at' => now(),
                 'consent_ip' => $ip,
                 'consent_version' => '2026-04-04',
             ]);
+
+            if ($googleId !== null) {
+                // Explicit assignment: google_id is deliberately not mass assignable.
+                $user->google_id = $googleId;
+                $user->google_linked_at = now();
+                $user->email_verified_at = now();
+                $user->save();
+            }
 
             // Generate Sanctum token
             $token = $user->createToken('auth-token')->plainTextToken;

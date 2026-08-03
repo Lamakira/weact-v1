@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Auth;
 
+use App\Http\Requests\Concerns\RejectsWhenRegistrationDisabled;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Http\Exceptions\HttpResponseException;
 
 class RegisterFaceRequest extends FormRequest
 {
+    use RejectsWhenRegistrationDisabled;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -63,22 +65,5 @@ class RegisterFaceRequest extends FormRequest
             'accept_cgu.required' => 'Vous devez avoir 16 ans ou plus et accepter les CGU et la Politique de Confidentialité.',
             'accept_cgu.accepted' => 'Vous devez avoir 16 ans ou plus et accepter les CGU et la Politique de Confidentialité.',
         ];
-    }
-
-    /**
-     * Handle a failed authorization attempt (registration disabled).
-     *
-     * @throws \Illuminate\Http\Exceptions\HttpResponseException
-     */
-    protected function failedAuthorization(): void
-    {
-        throw new HttpResponseException(
-            response()->json([
-                'error' => [
-                    'code' => 'registration_disabled',
-                    'message' => 'Les inscriptions sont temporairement suspendues. Veuillez réessayer ultérieurement.',
-                ],
-            ], 403)
-        );
     }
 }

@@ -220,6 +220,13 @@ class UserDataController extends Controller
                 'is_active' => false,
             ]);
 
+            // Unlink the Google identity. The rewritten email already makes the
+            // email-matching branch miss this row, but google_id is matched FIRST:
+            // without this, re-signing in with the same Google account would land
+            // straight back on the deleted row. forceFill because google_id is
+            // deliberately not mass assignable.
+            $user->forceFill(['google_id' => null, 'google_linked_at' => null])->save();
+
             // Revoke all tokens
             $user->tokens()->delete();
         });

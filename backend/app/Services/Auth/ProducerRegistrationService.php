@@ -20,7 +20,40 @@ class ProducerRegistrationService
      */
     public function register(array $validated, ?string $ip = null): array
     {
-        $result = DB::transaction(function () use ($validated, $ip): array {
+        $result = $this->persist($validated, $ip, googleId: null);
+
+        // Send email verification notification outside transaction
+        // This ensures registration succeeds even if email fails
+        try {
+            $result['user']->sendEmailVerificationNotification();
+        } catch (\Throwable $e) {
+            // Log the error but don't fail registration
+            \Log::warning('Failed to send verification email: '.$e->getMessage());
+        }
+
+        return $result;
+    }
+
+    /**
+     * Register a Producer whose identity comes from Google.
+     *
+     * No password and no verification mail — see FaceRegistrationService::registerFromGoogle.
+     *
+     * @param  array{type: string, email: string, agency_name?: string, nom_complet?: string}  $validated
+     * @return array{user: User, producer: Producer, token: string}
+     */
+    public function registerFromGoogle(array $validated, string $googleId, ?string $ip = null): array
+    {
+        return $this->persist($validated, $ip, googleId: $googleId);
+    }
+
+    /**
+     * @param  array{type: string, email: string, password?: string, agency_name?: string, nom_complet?: string, accept_cgu?: bool}  $validated
+     * @return array{user: User, producer: Producer, token: string}
+     */
+    private function persist(array $validated, ?string $ip, ?string $googleId): array
+    {
+        return DB::transaction(function () use ($validated, $ip, $googleId): array {
             // Create Producer record first
             $producerData = [
                 'type' => $validated['type'],
@@ -38,13 +71,21 @@ class ProducerRegistrationService
             // Create User with polymorphic relationship to Producer
             $user = User::create([
                 'email' => $validated['email'],
-                'password' => Hash::make($validated['password']),
+                'password' => isset($validated['password']) ? Hash::make($validated['password']) : null,
                 'userable_type' => Producer::class,
                 'userable_id' => $producer->id,
                 'consent_given_at' => now(),
                 'consent_ip' => $ip,
                 'consent_version' => '2026-04-04',
             ]);
+
+            if ($googleId !== null) {
+                // Explicit assignment: google_id is deliberately not mass assignable.
+                $user->google_id = $googleId;
+                $user->google_linked_at = now();
+                $user->email_verified_at = now();
+                $user->save();
+            }
 
             // Generate Sanctum token
             $token = $user->createToken('auth-token')->plainTextToken;
@@ -58,17 +99,6 @@ class ProducerRegistrationService
                 'token' => $token,
             ];
         });
-
-        // Send email verification notification outside transaction
-        // This ensures registration succeeds even if email fails
-        try {
-            $result['user']->sendEmailVerificationNotification();
-        } catch (\Throwable $e) {
-            // Log the error but don't fail registration
-            \Log::warning('Failed to send verification email: '.$e->getMessage());
-        }
-
-        return $result;
     }
 
     /**
