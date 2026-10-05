@@ -25,6 +25,19 @@ describe('ProfileEditPage structure', () => {
     expect(block).not.toContain('DataPrivacySection')
   })
 
+  it.each(['sexe', 'nationalite'])(
+    'completion item %s maps to the identity section of the profil tab',
+    (key) => {
+      const start = template.indexOf('const COMPLETION_TO_TAB')
+      expect(start).toBeGreaterThan(-1)
+      const block = template.slice(start, template.indexOf('const incompleteSectionKeys', start))
+
+      expect(block).toMatch(
+        new RegExp(`\\b${key}: \\{ family: 'profil', section: 'identite' \\}`),
+      )
+    },
+  )
+
   it('DataPrivacySection appears AFTER the main form sections', () => {
     const experiencesIndex = template.indexOf('ExperiencesList')
     const dataPrivacyIndex = template.indexOf('<DataPrivacySection', experiencesIndex)

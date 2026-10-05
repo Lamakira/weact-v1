@@ -1,20 +1,25 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import ProducerRegistrationForm from '@/features/auth/components/ProducerRegistrationForm.vue'
 import { useToast } from '@/composables/useToast'
 import { authApi } from '@/features/auth/services/authApi'
+import { safeRedirect } from '@/lib/safeRedirect'
 import logoNoir from '@/assets/images/logonoir.png'
 import registerProducerIllustration from '@/assets/images/register-producer-illustration.webp'
 
 const router = useRouter()
+const route = useRoute()
 const toast = useToast()
 const registrationEnabled = ref<boolean | null>(null)
+// Hidden by default: a network failure must not surface a button that would 403.
+const googleEnabled = ref(false)
 
 onMounted(async () => {
   try {
     const response = await authApi.getRegistrationStatus()
     registrationEnabled.value = response.data.enabled
+    googleEnabled.value = response.data.google_enabled === true
   } catch {
     // FIX-23.1 — Fallback build-time permissif : si l'API /auth/registration-status
     // échoue (réseau, 5xx, CDN), on lit VITE_REGISTRATION_ENABLED. Valeur par défaut
@@ -33,8 +38,13 @@ function handleSuccess() {
     'Un email de vérification a été envoyé. Veuillez vérifier votre boîte de réception.',
     { duration: 8000 }
   )
-  // Redirect to Producer dashboard after successful registration
-  router.push('/producer/dashboard')
+  // Honor ?redirect= bounce-back from /login, else the Producer dashboard. This
+  // page used to hard-push the dashboard, silently dropping the deep-link a
+  // Producer had been sent here from — RegisterFacePage already did it right.
+  // Defensive guard: safeRedirect() rejects protocol-relative (//evil.com), backslash
+  // and absolute URLs that would crash pushState with a SecurityError.
+  const redirectPath = safeRedirect(route.query.redirect)
+  router.push(redirectPath ?? '/producer/dashboard')
 }
 </script>
 
@@ -81,7 +91,7 @@ function handleSuccess() {
         </div>
 
         <!-- Registration Form -->
-        <ProducerRegistrationForm v-else @success="handleSuccess" />
+        <ProducerRegistrationForm v-else :google-enabled="googleEnabled" @success="handleSuccess" />
 
         <!-- Terms Notice -->
         <p class="mt-6 text-xs text-center text-gray-500">

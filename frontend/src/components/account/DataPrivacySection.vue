@@ -3,13 +3,15 @@
  * DataPrivacySection - User data rights (Art. 437-443 Code du Numerique)
  * Provides: data export (portability) and account deletion (right to be forgotten)
  */
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Download, Trash2, AlertTriangle, Loader2, Eye, X } from 'lucide-vue-next'
 import apiClient, { getCsrfCookie } from '@/services/apiClient'
 import { formatApiError } from '@/services/errorFormatter'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
+import { takeGoogleReauthTicket } from '@/features/auth/googleReauth'
+import GoogleSignInButton from '@/features/auth/components/GoogleSignInButton.vue'
 
 interface DeleteAccountResponse {
   message?: string
@@ -22,6 +24,13 @@ const toast = useToast()
 
 // Export state
 const isExporting = ref(false)
+
+// Deletion is confirmed with the password, or — for an account created through
+// Google, which has none — with a fresh Google re-authentication ticket.
+const hasPassword = computed(() => authStore.hasPassword)
+
+// Set when we come back from the Google re-authentication round-trip.
+const reauthToken = ref<string | null>(null)
 
 // Delete state
 const showDeleteDialog = ref(false)
@@ -51,6 +60,17 @@ async function handleExport() {
   }
 }
 
+// Coming back from Google: pick the ticket up and reopen the dialog where the
+// user left it. Taking it clears the storage — one confirmation, one use.
+onMounted(() => {
+  const token = takeGoogleReauthTicket('delete_account', authStore.user?.id)
+
+  if (token !== null) {
+    reauthToken.value = token
+    showDeleteDialog.value = true
+  }
+})
+
 function openDeleteDialog() {
   showDeleteDialog.value = true
   deletePassword.value = ''
@@ -61,10 +81,11 @@ function closeDeleteDialog() {
   showDeleteDialog.value = false
   deletePassword.value = ''
   deleteError.value = null
+  reauthToken.value = null
 }
 
 async function handleDelete() {
-  if (!deletePassword.value) {
+  if (reauthToken.value === null && !deletePassword.value) {
     deleteError.value = 'Veuillez entrer votre mot de passe.'
     return
   }
@@ -75,7 +96,10 @@ async function handleDelete() {
   try {
     await getCsrfCookie()
     const response = await apiClient.delete<DeleteAccountResponse>('/user/account', {
-      data: { password: deletePassword.value },
+      data:
+        reauthToken.value !== null
+          ? { reauth_token: reauthToken.value }
+          : { password: deletePassword.value },
     })
 
     authStore.clearAuth()
@@ -86,6 +110,9 @@ async function handleDelete() {
     }
   } catch (err) {
     deleteError.value = formatApiError(err, 'Erreur lors de la suppression. Vérifiez votre mot de passe.')
+    // A spent or expired ticket must not be retried: send the user back through
+    // the Google confirmation.
+    reauthToken.value = null
   } finally {
     isDeleting.value = false
   }
@@ -119,6 +146,7 @@ async function handleDelete() {
       <button
         @click="openDeleteDialog"
         class="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg hover:bg-red-100 transition-colors cursor-pointer"
+        data-testid="delete-account-button"
       >
         <Trash2 :size="16" />
         Supprimer mon compte
@@ -161,7 +189,27 @@ async function handleDelete() {
             </ul>
           </div>
 
-          <div>
+          <div v-if="reauthToken !== null" data-testid="delete-reauth-confirmed">
+            <p class="text-xs text-green-700 leading-relaxed">
+              Identité confirmée avec Google. Vous pouvez supprimer votre compte.
+            </p>
+            <p v-if="deleteError" class="mt-1 text-xs text-red-500">{{ deleteError }}</p>
+          </div>
+
+          <div v-else-if="!hasPassword" data-testid="delete-requires-reauth">
+            <p class="text-xs text-gray-700 leading-relaxed mb-3">
+              Vous vous connectez avec Google. Confirmez votre identité pour continuer — ou
+              définissez un mot de passe dans la section « Définir un mot de passe ».
+            </p>
+            <GoogleSignInButton
+              intent="reauth"
+              reauth-purpose="delete_account"
+              label="Confirmer avec Google"
+            />
+            <p v-if="deleteError" class="mt-1 text-xs text-red-500">{{ deleteError }}</p>
+          </div>
+
+          <div v-else>
             <label for="delete-password" class="block text-xs font-medium text-gray-700 mb-1">
               Confirmez avec votre mot de passe
             </label>
@@ -186,9 +234,11 @@ async function handleDelete() {
             Annuler
           </button>
           <button
+            v-if="hasPassword || reauthToken !== null"
             @click="handleDelete"
-            :disabled="isDeleting || !deletePassword"
+            :disabled="isDeleting || (reauthToken === null && !deletePassword)"
             class="px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700 transition-colors disabled:opacity-50 cursor-pointer"
+            data-testid="confirm-delete-button"
           >
             <span v-if="isDeleting" class="flex items-center gap-1">
               <Loader2 :size="14" class="animate-spin" />

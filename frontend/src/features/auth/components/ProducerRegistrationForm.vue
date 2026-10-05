@@ -1,12 +1,19 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useForm, useField } from 'vee-validate'
-import { z } from 'zod'
-import { toTypedSchema } from '@vee-validate/zod'
+import {
+  PRODUCER_NAME_MAX_LENGTH,
+  producerRegistrationValidationSchema,
+} from '../schemas/producerRegistration'
 import { useAuth } from '../composables/useAuth'
 import type { ProducerRegistrationForm as FormData, ProducerType } from '../types'
 import { FloatingField } from '@/components/ui/form'
-import { User, Mail, Lock, Building } from 'lucide-vue-next'
+import GoogleSignInButton from './GoogleSignInButton.vue'
+import { Mail, Lock, Building } from 'lucide-vue-next'
+
+// The Google button lives inside the form because it must stay disabled until the
+// CGU checkbox is ticked — consent is never collected implicitly.
+withDefaults(defineProps<{ googleEnabled?: boolean }>(), { googleEnabled: false })
 
 const emit = defineEmits<{
   success: []
@@ -20,134 +27,56 @@ const selectedType = ref<ProducerType>('agency')
 // API error message (general)
 const apiError = ref<string | null>(null)
 
-// Dynamic schema based on selected type
-const getSchema = (type: ProducerType) => {
-  const baseSchema = {
-    type: z.literal(type),
-    email: z
-      .string({ message: "L'email est obligatoire" })
-      .min(1, "L'email est obligatoire")
-      .email("L'email doit être une adresse email valide"),
-    password: z
-      .string({ message: 'Le mot de passe est obligatoire' })
-      .min(8, 'Le mot de passe doit contenir au moins 8 caractères')
-      .regex(/[A-Z]/, 'Le mot de passe doit contenir au moins une majuscule')
-      .regex(/\d/, 'Le mot de passe doit contenir au moins un chiffre'),
-    password_confirmation: z
-      .string({ message: 'La confirmation du mot de passe est obligatoire' })
-      .min(1, 'La confirmation du mot de passe est obligatoire'),
-    accept_cgu: z
-      .boolean({ message: 'Vous devez accepter les CGU et la Politique de Confidentialité.' })
-      .refine((val) => val === true, {
-        message: 'Vous devez accepter les CGU et la Politique de Confidentialité.',
-      }),
-  }
-
-  if (type === 'agency') {
-    return z
-      .object({
-        ...baseSchema,
-        agency_name: z
-          .string({ message: "Le nom de l'agence est obligatoire" })
-          .min(1, "Le nom de l'agence est obligatoire")
-          .max(255, "Le nom de l'agence ne peut pas dépasser 255 caractères"),
-      })
-      .refine((data) => data.password === data.password_confirmation, {
-        message: 'La confirmation du mot de passe ne correspond pas',
-        path: ['password_confirmation'],
-      })
-  } else {
-    return z
-      .object({
-        ...baseSchema,
-        first_name: z
-          .string({ message: 'Le prénom est obligatoire' })
-          .min(1, 'Le prénom est obligatoire')
-          .max(255, 'Le prénom ne peut pas dépasser 255 caractères'),
-        last_name: z
-          .string({ message: 'Le nom est obligatoire' })
-          .min(1, 'Le nom est obligatoire')
-          .max(255, 'Le nom ne peut pas dépasser 255 caractères'),
-      })
-      .refine((data) => data.password === data.password_confirmation, {
-        message: 'La confirmation du mot de passe ne correspond pas',
-        path: ['password_confirmation'],
-      })
-  }
-}
-
-const validationSchema = computed(() => toTypedSchema(getSchema(selectedType.value)))
+const validationSchema = computed(() => producerRegistrationValidationSchema(selectedType.value))
 
 // Form setup with VeeValidate
 const { handleSubmit, setFieldError, setFieldValue } = useForm({
   validationSchema,
   initialValues: {
     type: selectedType.value,
+    nom: '',
     email: '',
     password: '',
-    password_confirmation: '',
-    agency_name: '',
-    first_name: '',
-    last_name: '',
     accept_cgu: false,
   },
 })
 
-// Form fields - common
+// Form fields
+const { value: nom, errorMessage: nomError } = useField<string>('nom')
 const { value: email, errorMessage: emailError } = useField<string>('email')
 const { value: password, errorMessage: passwordError } = useField<string>('password')
-const { value: password_confirmation, errorMessage: passwordConfirmationError } =
-  useField<string>('password_confirmation')
-
-// Form fields - agency
-const { value: agency_name, errorMessage: agencyNameError } = useField<string>('agency_name')
-
-// Form fields - particulier
-const { value: first_name, errorMessage: firstNameError } = useField<string>('first_name')
-const { value: last_name, errorMessage: lastNameError } = useField<string>('last_name')
-
-// Form fields - consent
 const { value: accept_cgu, errorMessage: acceptCguError } = useField<boolean>('accept_cgu')
 
-// Watch for type changes and reset form
+// Keep the submitted `type` in sync with the toggle. The name field is shared by
+// both branches, so nothing to clear when switching.
 watch(selectedType, (newType) => {
   setFieldValue('type', newType)
-  // Clear type-specific field errors when switching
-  if (newType === 'agency') {
-    setFieldValue('first_name', '')
-    setFieldValue('last_name', '')
-    setFieldError('first_name', undefined)
-    setFieldError('last_name', undefined)
-  } else {
-    setFieldValue('agency_name', '')
-    setFieldError('agency_name', undefined)
-  }
   setFieldError('type', undefined)
+  setFieldError('nom', undefined)
   apiError.value = null
 })
+
+// The shared name input maps to a different backend key per type.
+const nameFieldKey = computed(() => (selectedType.value === 'agency' ? 'agency_name' : 'nom_complet'))
 
 // Submit handler
 const onSubmit = handleSubmit(async () => {
   apiError.value = null
 
-  // Prepare data based on type using field refs directly
   const submitData: FormData =
     selectedType.value === 'agency'
       ? {
           type: 'agency' as const,
           email: email.value,
           password: password.value,
-          password_confirmation: password_confirmation.value,
-          agency_name: agency_name.value,
+          agency_name: nom.value,
           accept_cgu: accept_cgu.value,
         }
       : {
           type: 'particulier' as const,
           email: email.value,
           password: password.value,
-          password_confirmation: password_confirmation.value,
-          first_name: first_name.value,
-          last_name: last_name.value,
+          nom_complet: nom.value,
           accept_cgu: accept_cgu.value,
         }
 
@@ -156,22 +85,21 @@ const onSubmit = handleSubmit(async () => {
   if (result.success) {
     emit('success')
   } else {
-    // Set field-specific errors from API
+    // Set field-specific errors from API. `agency_name`/`nom_complet` both land on
+    // the single `nom` input.
     if (result.errors) {
-      const validFields = [
-        'type',
-        'email',
-        'password',
-        'password_confirmation',
-        'agency_name',
-        'first_name',
-        'last_name',
-        'accept_cgu',
-      ] as const
+      const validFields = ['type', 'email', 'password', 'accept_cgu'] as const
       type ValidField = (typeof validFields)[number]
 
       Object.entries(result.errors).forEach(([field, messages]) => {
-        if (messages && messages.length > 0 && validFields.includes(field as ValidField)) {
+        if (!messages || messages.length === 0) return
+
+        if (field === nameFieldKey.value) {
+          setFieldError('nom', messages[0])
+          return
+        }
+
+        if (validFields.includes(field as ValidField)) {
           setFieldError(field as ValidField, messages[0])
         }
       })
@@ -237,42 +165,18 @@ const onSubmit = handleSubmit(async () => {
       </div>
     </div>
 
-    <!-- Conditional: Agency Name -->
-    <div v-if="selectedType === 'agency'" data-testid="agency-fields">
-      <FloatingField
-        id="agency_name"
-        v-model="agency_name"
-        label="Nom de l'agence"
-        :icon="Building"
-        :error="agencyNameError"
-        required
-        data-testid="agency-name-input"
-      />
-    </div>
-
-    <!-- Conditional: First/Last Name (2 columns) -->
-    <div v-else class="grid grid-cols-2 gap-4" data-testid="particulier-fields">
-      <FloatingField
-        id="first_name"
-        v-model="first_name"
-        label="Prénom"
-        :icon="User"
-        :error="firstNameError"
-        required
-        autocomplete="given-name"
-        data-testid="first-name-input"
-      />
-      <FloatingField
-        id="last_name"
-        v-model="last_name"
-        label="Nom"
-        :icon="User"
-        :error="lastNameError"
-        required
-        autocomplete="family-name"
-        data-testid="last-name-input"
-      />
-    </div>
+    <!-- Name: one field for both account types -->
+    <FloatingField
+      id="nom"
+      v-model="nom"
+      label="Nom ou raison sociale"
+      :icon="Building"
+      :error="nomError"
+      required
+      :maxlength="PRODUCER_NAME_MAX_LENGTH"
+      autocomplete="organization"
+      data-testid="nom-input"
+    />
 
     <!-- Email -->
     <FloatingField
@@ -305,20 +209,6 @@ const onSubmit = handleSubmit(async () => {
         Min. 8 car., 1 majuscule, 1 chiffre
       </p>
     </div>
-
-    <!-- Password Confirmation -->
-    <FloatingField
-      id="password_confirmation"
-      v-model="password_confirmation"
-      type="password"
-      label="Confirmation"
-      :icon="Lock"
-      :error="passwordConfirmationError"
-      required
-      autocomplete="new-password"
-      password-toggle
-      data-testid="password-confirmation-input"
-    />
 
     <!-- CGU Consent Checkbox -->
     <div class="space-y-1" data-testid="accept-cgu-field">
@@ -372,5 +262,25 @@ const onSubmit = handleSubmit(async () => {
       </span>
       <span v-else>Créer mon compte producteur</span>
     </button>
+
+    <!-- Google Sign-In: same consent gate as the form itself -->
+    <template v-if="googleEnabled">
+      <div class="relative">
+        <div class="absolute inset-0 flex items-center">
+          <div class="w-full border-t border-gray-200" />
+        </div>
+        <div class="relative flex justify-center text-sm">
+          <span class="px-2 bg-white text-gray-500">ou</span>
+        </div>
+      </div>
+      <GoogleSignInButton
+        intent="producer"
+        :disabled="!accept_cgu"
+        label="S'inscrire avec Google"
+      />
+      <p v-if="!accept_cgu" class="text-xs text-gray-500 text-center" data-testid="google-cgu-hint">
+        Acceptez les CGU ci-dessus pour continuer avec Google.
+      </p>
+    </template>
   </form>
 </template>

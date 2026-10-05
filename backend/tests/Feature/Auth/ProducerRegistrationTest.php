@@ -30,19 +30,57 @@ class ProducerRegistrationTest extends TestCase
             'agency_name' => 'Studio Pro',
             'email' => 'agency@example.com',
             'password' => 'Password123',
-            'password_confirmation' => 'Password123',
             'accept_cgu' => true,
         ];
 
         $this->validParticulierData = [
             'type' => 'particulier',
+            'nom_complet' => 'Jean Dupont',
+            'email' => 'jean@example.com',
+            'password' => 'Password123',
+            'accept_cgu' => true,
+        ];
+    }
+
+    // LEGACY-BUNDLE (deploy window): remove after the release following 2026-10
+    public function test_an_old_bundle_particulier_payload_with_first_and_last_name_is_accepted(): void
+    {
+        $response = $this->postJson('/api/v1/auth/register/producer', [
+            'type' => 'particulier',
             'first_name' => 'Jean',
             'last_name' => 'Dupont',
             'email' => 'jean@example.com',
             'password' => 'Password123',
-            'password_confirmation' => 'Password123',
             'accept_cgu' => true,
-        ];
+        ]);
+
+        $response->assertStatus(201);
+
+        $this->assertDatabaseHas('producers', [
+            'type' => 'particulier',
+            'first_name' => 'Jean',
+            'last_name' => 'Dupont',
+        ]);
+    }
+
+    public function test_the_old_bundle_fallback_never_overrides_nom_complet(): void
+    {
+        $this->postJson('/api/v1/auth/register/producer', $this->validParticulierData + [
+            'first_name' => 'Ignored',
+            'last_name' => 'Ignored',
+        ])->assertStatus(201);
+
+        $this->assertDatabaseHas('producers', ['first_name' => 'Jean', 'last_name' => 'Dupont']);
+    }
+
+    public function test_a_particulier_without_any_name_still_gets_the_nom_complet_error(): void
+    {
+        $data = $this->validParticulierData;
+        unset($data['nom_complet']);
+
+        $this->postJson('/api/v1/auth/register/producer', $data)
+            ->assertStatus(422)
+            ->assertJsonStructure(['error' => ['details' => ['nom_complet']]]);
     }
 
     public function test_registration_returns_403_when_disabled(): void
@@ -218,10 +256,10 @@ class ProducerRegistrationTest extends TestCase
             ->assertJsonPath('error.details.agency_name.0', 'Le nom de l\'agence est obligatoire');
     }
 
-    public function test_particulier_without_first_name_returns_422(): void
+    public function test_particulier_without_nom_complet_returns_422(): void
     {
         $data = $this->validParticulierData;
-        unset($data['first_name']);
+        unset($data['nom_complet']);
 
         $response = $this->postJson('/api/v1/auth/register/producer', $data);
 
@@ -231,33 +269,100 @@ class ProducerRegistrationTest extends TestCase
                     'code',
                     'message',
                     'details' => [
-                        'first_name',
+                        'nom_complet',
                     ],
                 ],
             ])
             ->assertJsonPath('error.code', 'VALIDATION_ERROR')
-            ->assertJsonPath('error.details.first_name.0', 'Le prénom est obligatoire');
+            ->assertJsonPath('error.details.nom_complet.0', 'Votre nom complet est obligatoire');
     }
 
-    public function test_particulier_without_last_name_returns_422(): void
+    public function test_nom_complet_is_split_on_the_last_space(): void
     {
         $data = $this->validParticulierData;
-        unset($data['last_name']);
+        $data['nom_complet'] = 'Marie Ange Sossou';
 
         $response = $this->postJson('/api/v1/auth/register/producer', $data);
 
-        $response->assertStatus(422)
-            ->assertJsonStructure([
-                'error' => [
-                    'code',
-                    'message',
-                    'details' => [
-                        'last_name',
-                    ],
-                ],
-            ])
-            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
-            ->assertJsonPath('error.details.last_name.0', 'Le nom est obligatoire');
+        $response->assertStatus(201)
+            ->assertJsonPath('data.user.userable.first_name', 'Marie Ange')
+            ->assertJsonPath('data.user.userable.last_name', 'Sossou')
+            ->assertJsonPath('data.user.userable.display_name', 'Marie Ange Sossou');
+    }
+
+    public function test_the_producer_consent_version_is_recorded(): void
+    {
+        $this->postJson('/api/v1/auth/register/producer', $this->validAgencyData)->assertCreated();
+
+        $this->assertSame('2026-04-04', User::query()->firstOrFail()->consent_version);
+    }
+
+    /**
+     * Registration must not accept what the profile would later refuse to save.
+     */
+    public function test_registration_lengths_match_the_profile_limits(): void
+    {
+        $agency = $this->validAgencyData;
+        $agency['agency_name'] = str_repeat('a', 101);
+
+        $this->postJson('/api/v1/auth/register/producer', $agency)
+            ->assertStatus(422)
+            ->assertJsonStructure(['error' => ['details' => ['agency_name']]]);
+
+        $particulier = $this->validParticulierData;
+        $particulier['nom_complet'] = str_repeat('a', 101);
+
+        $this->postJson('/api/v1/auth/register/producer', $particulier)
+            ->assertStatus(422)
+            ->assertJsonStructure(['error' => ['details' => ['nom_complet']]]);
+
+        $agency['agency_name'] = str_repeat('a', 100);
+        $this->postJson('/api/v1/auth/register/producer', $agency)->assertCreated();
+    }
+
+    public function test_single_token_nom_complet_leaves_last_name_empty(): void
+    {
+        $data = $this->validParticulierData;
+        $data['nom_complet'] = 'Sossou';
+
+        $response = $this->postJson('/api/v1/auth/register/producer', $data);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.user.userable.first_name', 'Sossou')
+            ->assertJsonPath('data.user.userable.last_name', '')
+            ->assertJsonPath('data.user.userable.display_name', 'Sossou');
+
+        $this->assertSame('sossou', Producer::firstOrFail()->slug);
+    }
+
+    /**
+     * The public producer URL must never be the shared `producer` / `producer-N`
+     * counter namespace, which would leak registration order and later mutate
+     * under the user when the name is filled in (Producer.php static::updating).
+     */
+    public function test_public_slug_is_derived_from_the_name_at_creation(): void
+    {
+        $data = $this->validParticulierData;
+        $data['nom_complet'] = 'Marie Sossou';
+
+        $this->postJson('/api/v1/auth/register/producer', $data)->assertStatus(201);
+
+        $producer = Producer::firstOrFail();
+
+        $this->assertSame('marie-sossou', $producer->slug);
+        $this->assertStringStartsNotWith('producer', $producer->slug);
+    }
+
+    public function test_extra_whitespace_in_nom_complet_is_collapsed(): void
+    {
+        $data = $this->validParticulierData;
+        $data['nom_complet'] = '   Jean   Dupont   ';
+
+        $response = $this->postJson('/api/v1/auth/register/producer', $data);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.user.userable.first_name', 'Jean')
+            ->assertJsonPath('data.user.userable.last_name', 'Dupont');
     }
 
     public function test_producer_record_is_linked_to_user_via_polymorphic(): void
@@ -302,15 +407,17 @@ class ProducerRegistrationTest extends TestCase
         $this->assertTrue(password_verify('Password123', $user->password));
     }
 
-    public function test_password_confirmation_must_match(): void
+    public function test_password_confirmation_is_no_longer_required(): void
     {
         $data = $this->validAgencyData;
         $data['password_confirmation'] = 'DifferentPassword123';
 
         $response = $this->postJson('/api/v1/auth/register/producer', $data);
 
-        $response->assertStatus(422)
-            ->assertJsonPath('error.details.password.0', 'La confirmation du mot de passe ne correspond pas');
+        $response->assertStatus(201);
+
+        $user = User::where('email', 'agency@example.com')->firstOrFail();
+        $this->assertTrue(password_verify('Password123', $user->password));
     }
 
     public function test_invalid_type_returns_422(): void

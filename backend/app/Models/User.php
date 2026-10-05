@@ -18,6 +18,9 @@ use Laravel\Sanctum\HasApiTokens;
 /**
  * @property int $id
  * @property string $email
+ * @property string|null $password
+ * @property string|null $google_id
+ * @property \Illuminate\Support\Carbon|null $google_linked_at
  * @property bool $is_active
  * @property string|null $userable_type
  * @property int|null $userable_id
@@ -35,6 +38,11 @@ class User extends Authenticatable implements MustVerifyEmail
 
     /**
      * The attributes that are mass assignable.
+     *
+     * Deliberately WITHOUT `google_id`: User::create/update is called with
+     * request-derived arrays in UserDataController and EmailChangeController, and
+     * keeping the identity column out of mass assignment removes a whole class of
+     * "attach an arbitrary Google identity" bug. Assign it explicitly.
      *
      * @var list<string>
      */
@@ -70,6 +78,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'consent_given_at' => 'datetime',
+            'google_linked_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
         ];

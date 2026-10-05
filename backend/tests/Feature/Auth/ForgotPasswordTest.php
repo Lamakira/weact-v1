@@ -68,6 +68,23 @@ class ForgotPasswordTest extends TestCase
     }
 
     /**
+     * A Google-only account (no password) must still be able to set one through the
+     * reset flow: the broker must not skip it.
+     */
+    public function test_forgot_password_still_sends_the_reset_mail_to_a_password_less_account(): void
+    {
+        Notification::fake();
+
+        $user = User::factory()->create(['email' => 'oauth@example.com']);
+        $user->forceFill(['password' => null, 'google_id' => 'google-sub-1'])->save();
+
+        $this->postJson('/api/v1/auth/forgot-password', ['email' => 'oauth@example.com'])
+            ->assertStatus(200);
+
+        Notification::assertSentTo($user, ResetPasswordNotification::class);
+    }
+
+    /**
      * Test forgot password with non-existent email returns 200 (prevents email enumeration).
      * OWASP Best Practice: Always return success to prevent attackers from discovering valid emails.
      */

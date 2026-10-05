@@ -8,6 +8,7 @@ use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class BasicInfoTest extends TestCase
@@ -311,6 +312,130 @@ class BasicInfoTest extends TestCase
         $this->assertDatabaseHas('faces', [
             'id' => $this->face->id,
             'username' => $exactUsername,
+        ]);
+    }
+
+    /**
+     * `username` is the public profile URL segment (`/faces/{username}`), so any
+     * character that would break or make that URL ambiguous must be rejected.
+     */
+    public function test_rejects_username_with_url_unsafe_characters(): void
+    {
+        foreach (['jean dupont', 'jean/dupont', 'jean.dupont', 'jean%20dupont', 'jean@dupont'] as $candidate) {
+            $response = $this->actingAs($this->faceUser)
+                ->putJson('/api/v1/face/basic-info', [
+                    'username' => $candidate,
+                ]);
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['username'])
+                ->assertJsonPath(
+                    'errors.username.0',
+                    "Le nom d'utilisateur ne peut contenir que des lettres, chiffres, tirets et underscores"
+                );
+        }
+
+        $this->assertDatabaseHas('faces', [
+            'id' => $this->face->id,
+            'username' => 'jeandupont',
+        ]);
+    }
+
+    public function test_rejects_reserved_usernames(): void
+    {
+        foreach (['admin', 'options', 'api', 'login'] as $reserved) {
+            $response = $this->actingAs($this->faceUser)
+                ->putJson('/api/v1/face/basic-info', [
+                    'username' => $reserved,
+                ]);
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['username'])
+                ->assertJsonPath('errors.username.0', "Ce nom d'utilisateur est réservé");
+        }
+    }
+
+    public function test_rejects_username_shorter_than_three_characters(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/basic-info', [
+                'username' => 'ab',
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['username'])
+            ->assertJsonPath('errors.username.0', "Le nom d'utilisateur doit contenir au moins 3 caractères");
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function legacyUsernames(): array
+    {
+        return ['too short' => ['ab'], 'dot and capital' => ['Jean.Dupont']];
+    }
+
+    /**
+     * Handles created before the username rules existed must not lock the Face out
+     * of editing anything else: an unchanged username is neither re-validated nor
+     * rewritten.
+     */
+    #[DataProvider('legacyUsernames')]
+    public function test_a_legacy_username_resent_unchanged_does_not_block_other_updates(string $legacy): void
+    {
+        $this->face->forceFill(['username' => $legacy])->save();
+
+        $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/basic-info', [
+                'nom' => 'Martin',
+                'prenom' => 'Alice',
+                'username' => $legacy,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.nom', 'Martin')
+            ->assertJsonPath('data.username', $legacy);
+
+        $this->assertDatabaseHas('faces', ['id' => $this->face->id, 'nom' => 'Martin', 'username' => $legacy]);
+    }
+
+    public function test_a_legacy_username_resent_in_another_case_is_still_untouched(): void
+    {
+        $this->face->forceFill(['username' => 'Jean.Dupont'])->save();
+
+        $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/basic-info', ['nom' => 'Martin', 'username' => 'jean.dupont'])
+            ->assertOk();
+
+        $this->assertDatabaseHas('faces', ['id' => $this->face->id, 'nom' => 'Martin', 'username' => 'Jean.Dupont']);
+    }
+
+    public function test_changing_a_legacy_username_to_an_invalid_one_is_rejected(): void
+    {
+        $this->face->forceFill(['username' => 'Jean.Dupont'])->save();
+
+        foreach (['ab', 'options'] as $candidate) {
+            $this->actingAs($this->faceUser)
+                ->putJson('/api/v1/face/basic-info', ['username' => $candidate])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors(['username']);
+        }
+
+        $this->assertDatabaseHas('faces', ['id' => $this->face->id, 'username' => 'Jean.Dupont']);
+    }
+
+    public function test_username_is_trimmed_and_lowercased_before_validation(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/basic-info', [
+                'username' => '  Jean_Updated  ',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.username', 'jean_updated');
+
+        $this->assertDatabaseHas('faces', [
+            'id' => $this->face->id,
+            'username' => 'jean_updated',
         ]);
     }
 }

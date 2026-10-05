@@ -4,7 +4,8 @@
  * Producer profile editing page.
  * This component is rendered inside ProducerLayout via nested routing.
  */
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { X } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
 import { useProducerBio } from '@/features/producer/composables/useProducerBio'
@@ -45,6 +46,64 @@ const toast = useToast()
 
 // Computed: Check if producer is an agency
 const isAgency = computed(() => profile.value?.type === 'agency')
+
+// Producers deliberately have NO completion percentage: only two items are real
+// (visual identity, bio), and a ring built on two booleans is noise. A single
+// dismissible line does the same job for none of the machinery.
+//
+// The dismissal is keyed per user: the browser may be shared between accounts.
+// Storage can be unavailable (private mode, quota): it then degrades to
+// "dismissed for this page view only".
+const nudgeStorageKey = computed<string | null>(() =>
+  authStore.user?.id != null ? `producer_profile_nudge_dismissed:${authStore.user.id}` : null
+)
+
+function readNudgeDismissed(): boolean {
+  if (nudgeStorageKey.value === null) return false
+
+  try {
+    return localStorage.getItem(nudgeStorageKey.value) === '1'
+  } catch {
+    return false
+  }
+}
+
+const nudgeDismissed = ref(readNudgeDismissed())
+
+const hasVisualIdentity = computed(() =>
+  isAgency.value ? !!profile.value?.agency_logo_url : !!profile.value?.profile_photo_url
+)
+
+const showProfileNudge = computed(
+  () =>
+    !nudgeDismissed.value &&
+    !isLoading.value &&
+    !isBioLoading.value &&
+    (!hasVisualIdentity.value || !bio.value)
+)
+
+const nudgeMessage = computed<string>(() => {
+  const missing: string[] = []
+
+  if (!hasVisualIdentity.value) {
+    missing.push(isAgency.value ? 'ajoutez le logo de votre agence' : 'ajoutez une photo de profil')
+  }
+  if (!bio.value) missing.push('présentez votre activité en quelques lignes')
+
+  return `Complétez votre profil — ${missing.join(' et ')} — les Faces répondent bien plus souvent aux Producteurs identifiables.`
+})
+
+function dismissNudge(): void {
+  nudgeDismissed.value = true
+
+  if (nudgeStorageKey.value === null) return
+
+  try {
+    localStorage.setItem(nudgeStorageKey.value, '1')
+  } catch {
+    // Not persisted: the nudge reappears on the next visit, which is harmless.
+  }
+}
 
 // Fetch profile and bio on mount
 onMounted(async () => {
@@ -112,7 +171,28 @@ async function handleBioSave(newBio: string | null): Promise<void> {
     </div>
 
     <!-- Profile content -->
-    <div v-else class="bg-white rounded-2xl border border-gray-100">
+    <div v-else>
+      <!-- Non-blocking completion nudge (no percentage, see script comment) -->
+      <div
+        v-if="showProfileNudge"
+        class="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"
+        data-testid="producer-profile-nudge"
+      >
+        <p class="flex-grow text-sm text-amber-900">
+          {{ nudgeMessage }}
+        </p>
+        <button
+          type="button"
+          class="shrink-0 rounded p-1 text-amber-700 hover:bg-amber-100"
+          aria-label="Masquer ce rappel"
+          data-testid="producer-profile-nudge-dismiss"
+          @click="dismissNudge"
+        >
+          <X class="h-4 w-4" />
+        </button>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-gray-100">
       <!-- Visual identity section: Photo (particulier) OR Logo (agency) -->
       <div id="section-visual-identity" class="px-6 py-4 border-b border-gray-100">
         <h2 class="text-base font-semibold text-slate-800 mb-3">
@@ -203,6 +283,7 @@ async function handleBioSave(newBio: string | null): Promise<void> {
             <DataPrivacySection />
           </div>
         </div>
+      </div>
       </div>
     </div>
   </div>

@@ -28,10 +28,18 @@ describe('ProducerRegistrationForm', () => {
     mockIsLoading.value = false
   })
 
-  const mountComponent = () => {
+  const mountComponent = (props: Record<string, unknown> = {}) => {
     return mount(ProducerRegistrationForm, {
+      props,
       global: {
         plugins: [router],
+        stubs: {
+          GoogleSignInButton: {
+            props: ['intent', 'disabled', 'label'],
+            template:
+              '<button data-testid="google-sign-in-button" :data-intent="intent" :disabled="disabled" />',
+          },
+        },
       },
     })
   }
@@ -45,33 +53,35 @@ describe('ProducerRegistrationForm', () => {
     expect(wrapper.find('[data-testid="type-particulier-button"]').exists()).toBe(true)
   })
 
-  it('shows agency fields when type is agency (default)', () => {
+  it('renders exactly the four signup fields', () => {
     const wrapper = mountComponent()
 
-    expect(wrapper.find('[data-testid="agency-fields"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="agency-name-input"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="particulier-fields"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="nom-input"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="email-input"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="password-input"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="accept-cgu-checkbox"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="submit-button"]').exists()).toBe(true)
   })
 
-  it('shows particulier fields when type is particulier', async () => {
+  it('no longer renders the split name inputs or the password confirmation', () => {
     const wrapper = mountComponent()
 
+    expect(wrapper.find('[data-testid="agency-name-input"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="first-name-input"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="last-name-input"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="password-confirmation-input"]').exists()).toBe(false)
+  })
+
+  it('keeps the same single name input across both account types', async () => {
+    const wrapper = mountComponent()
+
+    await wrapper.find('[data-testid="nom-input"]').setValue('Studio Pro')
     await wrapper.find('[data-testid="type-particulier-button"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="particulier-fields"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="first-name-input"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="last-name-input"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="agency-fields"]').exists()).toBe(false)
-  })
-
-  it('renders common form fields', () => {
-    const wrapper = mountComponent()
-
-    expect(wrapper.find('[data-testid="email-input"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="password-input"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="password-confirmation-input"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="submit-button"]').exists()).toBe(true)
+    const nom = wrapper.find('[data-testid="nom-input"]')
+    expect(nom.exists()).toBe(true)
+    expect((nom.element as HTMLInputElement).value).toBe('Studio Pro')
   })
 
   it('toggles password visibility when eye icon is clicked', async () => {
@@ -135,34 +145,15 @@ describe('ProducerRegistrationForm', () => {
 
     expect(wrapper.find('[data-testid="email-input"]').attributes('type')).toBe('email')
     expect(wrapper.find('[data-testid="password-input"]').attributes('type')).toBe('password')
-    expect(wrapper.find('[data-testid="password-confirmation-input"]').attributes('type')).toBe(
-      'password'
-    )
   })
 
   it('has correct autocomplete attributes for accessibility', () => {
     const wrapper = mountComponent()
 
+    expect(wrapper.find('[data-testid="nom-input"]').attributes('autocomplete')).toBe('organization')
     expect(wrapper.find('[data-testid="email-input"]').attributes('autocomplete')).toBe('email')
     expect(wrapper.find('[data-testid="password-input"]').attributes('autocomplete')).toBe(
       'new-password'
-    )
-    expect(
-      wrapper.find('[data-testid="password-confirmation-input"]').attributes('autocomplete')
-    ).toBe('new-password')
-  })
-
-  it('has correct autocomplete attributes for particulier name fields', async () => {
-    const wrapper = mountComponent()
-
-    await wrapper.find('[data-testid="type-particulier-button"]').trigger('click')
-    await flushPromises()
-
-    expect(wrapper.find('[data-testid="first-name-input"]').attributes('autocomplete')).toBe(
-      'given-name'
-    )
-    expect(wrapper.find('[data-testid="last-name-input"]').attributes('autocomplete')).toBe(
-      'family-name'
     )
   })
 
@@ -176,10 +167,9 @@ describe('ProducerRegistrationForm', () => {
     mockRegisterProducer.mockResolvedValue({ success: true })
     const wrapper = mountComponent()
 
-    await wrapper.find('[data-testid="agency-name-input"]').setValue('Studio Pro')
+    await wrapper.find('[data-testid="nom-input"]').setValue('Studio Pro')
     await wrapper.find('[data-testid="email-input"]').setValue('agency@example.com')
     await wrapper.find('[data-testid="password-input"]').setValue('Password123')
-    await wrapper.find('[data-testid="password-confirmation-input"]').setValue('Password123')
     await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
     await wrapper.find('[data-testid="producer-registration-form"]').trigger('submit')
     await flushPromises()
@@ -190,23 +180,41 @@ describe('ProducerRegistrationForm', () => {
       agency_name: 'Studio Pro',
       email: 'agency@example.com',
       password: 'Password123',
-      password_confirmation: 'Password123',
       accept_cgu: true,
     })
   })
 
-  it('submits particulier registration payload after switching type', async () => {
+  it('caps the name input at 100 characters', () => {
+    const wrapper = mountComponent()
+
+    expect(wrapper.find('[data-testid="nom-input"]').attributes('maxlength')).toBe('100')
+  })
+
+  it('refuses a name longer than 100 characters', async () => {
+    mockRegisterProducer.mockResolvedValue({ success: true })
+    const wrapper = mountComponent()
+
+    await wrapper.find('[data-testid="nom-input"]').setValue('a'.repeat(101))
+    await wrapper.find('[data-testid="email-input"]').setValue('agency@example.com')
+    await wrapper.find('[data-testid="password-input"]').setValue('Password123')
+    await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
+    await wrapper.find('[data-testid="producer-registration-form"]').trigger('submit')
+    await flushPromises()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(mockRegisterProducer).not.toHaveBeenCalled()
+  })
+
+  it('submits the name as nom_complet after switching to particulier', async () => {
     mockRegisterProducer.mockResolvedValue({ success: true })
     const wrapper = mountComponent()
 
     await wrapper.find('[data-testid="type-particulier-button"]').trigger('click')
     await flushPromises()
 
-    await wrapper.find('[data-testid="first-name-input"]').setValue('Jean')
-    await wrapper.find('[data-testid="last-name-input"]').setValue('Dupont')
+    await wrapper.find('[data-testid="nom-input"]').setValue('Jean Dupont')
     await wrapper.find('[data-testid="email-input"]').setValue('jean@example.com')
     await wrapper.find('[data-testid="password-input"]').setValue('Password123')
-    await wrapper.find('[data-testid="password-confirmation-input"]').setValue('Password123')
     await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
     await wrapper.find('[data-testid="producer-registration-form"]').trigger('submit')
     await flushPromises()
@@ -214,12 +222,54 @@ describe('ProducerRegistrationForm', () => {
     await vi.waitFor(() => expect(mockRegisterProducer).toHaveBeenCalledTimes(1))
     expect(mockRegisterProducer).toHaveBeenCalledWith({
       type: 'particulier',
-      first_name: 'Jean',
-      last_name: 'Dupont',
+      nom_complet: 'Jean Dupont',
       email: 'jean@example.com',
       password: 'Password123',
-      password_confirmation: 'Password123',
       accept_cgu: true,
     })
+  })
+
+  describe('Google Sign-In', () => {
+    it('is absent unless the backend advertises it', () => {
+      const wrapper = mountComponent()
+
+      expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(false)
+    })
+
+    it('carries the producer intent and stays disabled until the CGU are ticked', async () => {
+      const wrapper = mountComponent({ googleEnabled: true })
+
+      const button = wrapper.find('[data-testid="google-sign-in-button"]')
+      expect(button.exists()).toBe(true)
+      expect(button.attributes('data-intent')).toBe('producer')
+      expect(button.attributes('disabled')).toBeDefined()
+
+      await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
+
+      expect(
+        wrapper.find('[data-testid="google-sign-in-button"]').attributes('disabled')
+      ).toBeUndefined()
+    })
+  })
+
+  it('maps the per-type server error key onto the shared name input', async () => {
+    mockRegisterProducer.mockResolvedValue({
+      success: false,
+      errors: { agency_name: ["Le nom de l'agence est obligatoire"] },
+    })
+    const wrapper = mountComponent()
+
+    await wrapper.find('[data-testid="nom-input"]').setValue('Studio Pro')
+    await wrapper.find('[data-testid="email-input"]').setValue('agency@example.com')
+    await wrapper.find('[data-testid="password-input"]').setValue('Password123')
+    await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
+    await wrapper.find('[data-testid="producer-registration-form"]').trigger('submit')
+    await flushPromises()
+
+    await vi.waitFor(() =>
+      expect(wrapper.find('[data-testid="nom-error"]').text()).toContain(
+        "Le nom de l'agence est obligatoire"
+      )
+    )
   })
 })

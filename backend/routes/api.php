@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\Auth\EmailChangeController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\ForgotPasswordController;
+use App\Http\Controllers\Api\V1\Auth\GoogleAuthController;
 use App\Http\Controllers\Api\V1\Auth\LoginController;
 use App\Http\Controllers\Api\V1\Auth\LogoutController;
 use App\Http\Controllers\Api\V1\Auth\PasswordChangeController;
@@ -41,7 +42,12 @@ Route::prefix('v1')->group(function (): void {
     // Authentication routes (public)
     Route::prefix('auth')->group(function (): void {
         Route::get('/registration-status', fn () => response()->json([
-            'data' => ['enabled' => (bool) config('app.registration_enabled', true)],
+            'data' => [
+                'enabled' => (bool) config('app.registration_enabled', true),
+                // Same probe rather than a second endpoint: both register pages and
+                // the login page already fetch this one, and it is already cached.
+                'google_enabled' => (bool) config('services.google.enabled', false),
+            ],
         ])->header('Cache-Control', 'private, max-age=300'))->name('auth.registration-status');
 
         Route::post('/register/face', RegisterFaceController::class)
@@ -73,6 +79,33 @@ Route::prefix('v1')->group(function (): void {
         // Email change confirmation (public - signature validation handled in controller)
         Route::get('/email/change/confirm/{id}/{hash}', [EmailChangeController::class, 'confirmChange'])
             ->name('email-change.confirm');
+
+        // Google Sign-In. The callback lives here, not in routes/web.php: it is a
+        // top-level browser navigation (no Origin header, so CORS does not apply)
+        // that mints no token (it hands the SPA a one-shot code, traded at /exchange)
+        // — dragging in the session + VerifyCsrfToken stack would reintroduce exactly
+        // what EnsureApiBearerToken exists to bypass. cors.php and statefulApi() are
+        // unchanged.
+        //
+        // `google.enabled` (feature flag, 403 before validation) guards the three JSON
+        // endpoints but NOT the callback, which must keep bouncing to the SPA.
+        Route::get('/google/redirect', [GoogleAuthController::class, 'redirect'])
+            ->middleware(['google.enabled', 'throttle:10,1'])
+            ->name('auth.google.redirect');
+
+        Route::get('/google/callback', [GoogleAuthController::class, 'callback'])
+            ->middleware('throttle:20,1')
+            ->name('auth.google.callback');
+
+        // Defence in depth: a 64-char random code is not guessable, this only caps
+        // a cache sweep.
+        Route::post('/google/exchange', [GoogleAuthController::class, 'exchange'])
+            ->middleware(['google.enabled', 'throttle:20,1'])
+            ->name('auth.google.exchange');
+
+        Route::post('/google/complete-registration', [GoogleAuthController::class, 'completeRegistration'])
+            ->middleware(['google.enabled', 'throttle:5,1'])
+            ->name('auth.google.complete-registration');
     });
 
     // Protected routes

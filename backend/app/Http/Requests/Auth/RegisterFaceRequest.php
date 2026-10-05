@@ -5,18 +5,33 @@ declare(strict_types=1);
 namespace App\Http\Requests\Auth;
 
 use App\Enums\FaceGender;
+use App\Http\Requests\Concerns\FaceUsernameRules;
+use App\Http\Requests\Concerns\RejectsWhenRegistrationDisabled;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
 
 class RegisterFaceRequest extends FormRequest
 {
+    use FaceUsernameRules;
+    use RejectsWhenRegistrationDisabled;
+
     /**
      * Determine if the user is authorized to make this request.
      */
     public function authorize(): bool
     {
         return (bool) config('app.registration_enabled', true);
+    }
+
+    /**
+     * // LEGACY-BUNDLE (deploy window): remove after the release following 2026-10
+     *
+     * Trim and lowercase the optional username the old form still posts, exactly as
+     * the profile endpoint does.
+     */
+    protected function prepareForValidation(): void
+    {
+        $this->normalizeUsernameInput(null);
     }
 
     /**
@@ -27,23 +42,28 @@ class RegisterFaceRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'nom' => ['required', 'string', 'max:255'],
-            'prenom' => ['required', 'string', 'max:255'],
-            'username' => ['required', 'string', 'max:50', 'unique:faces,username'],
+            // Same cap as the profile (Face\UpdateBasicInfoRequest): a longer name could
+            // never be re-submitted from the profile form, which always re-sends both.
+            'nom' => ['required', 'string', 'max:100'],
+            'prenom' => ['required', 'string', 'max:100'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => [
                 'required',
                 'string',
                 'min:8',
                 'regex:/^(?=.*[A-Z])(?=.*\d).+$/',
-                'confirmed',
             ],
-            'sexe' => ['required', Rule::enum(FaceGender::class)],
             'date_naissance' => ['required', 'date', 'before_or_equal:'.now()->subYears(16)->format('Y-m-d')],
-            'nationalite' => ['required', 'string', 'max:100'],
-            'pays' => ['required', 'string', 'max:100'],
-            'whatsapp_number' => ['nullable', 'string', 'max:30'],
             'accept_cgu' => ['required', 'accepted'],
+
+            // LEGACY-BUNDLE (deploy window): remove after the release following 2026-10
+            // Fields the old signup form still posts: optional, same rules as the profile
+            // endpoints (UpdatePersonalInfoRequest, FaceUsernameRules).
+            'username' => $this->usernameRules(null),
+            'sexe' => ['nullable', Rule::enum(FaceGender::class)],
+            'nationalite' => ['nullable', 'string', 'max:100'],
+            'pays' => ['nullable', 'string', 'max:100'],
+            'whatsapp_number' => ['nullable', 'string', 'max:30'],
         ];
     }
 
@@ -56,48 +76,24 @@ class RegisterFaceRequest extends FormRequest
     {
         return [
             'nom.required' => 'Le nom est obligatoire',
-            'nom.max' => 'Le nom ne peut pas dépasser 255 caractères',
+            'nom.max' => 'Le nom ne peut pas dépasser 100 caractères',
             'prenom.required' => 'Le prénom est obligatoire',
-            'prenom.max' => 'Le prénom ne peut pas dépasser 255 caractères',
-            'username.required' => 'Le nom d\'utilisateur est obligatoire',
-            'username.max' => 'Le nom d\'utilisateur ne peut pas dépasser 50 caractères',
-            'username.unique' => 'Ce nom d\'utilisateur est déjà pris',
+            'prenom.max' => 'Le prénom ne peut pas dépasser 100 caractères',
             'email.required' => 'L\'email est obligatoire',
             'email.email' => 'L\'email doit être une adresse email valide',
             'email.unique' => 'Cet email est déjà utilisé',
             'password.required' => 'Le mot de passe est obligatoire',
             'password.min' => 'Le mot de passe doit contenir au moins 8 caractères',
             'password.regex' => 'Le mot de passe doit contenir au moins une majuscule et un chiffre',
-            'password.confirmed' => 'La confirmation du mot de passe ne correspond pas',
-            'sexe.required' => 'Le sexe est obligatoire.',
-            'sexe.enum' => 'Le sexe sélectionné est invalide.',
             'date_naissance.required' => 'La date de naissance est obligatoire.',
             'date_naissance.date' => 'La date de naissance doit être une date valide.',
             'date_naissance.before_or_equal' => 'Vous devez avoir au moins 16 ans pour vous inscrire.',
-            'nationalite.required' => 'La nationalité est obligatoire.',
+            'accept_cgu.required' => 'Vous devez avoir 16 ans ou plus et accepter les CGU et la Politique de Confidentialité.',
+            'accept_cgu.accepted' => 'Vous devez avoir 16 ans ou plus et accepter les CGU et la Politique de Confidentialité.',
+            'sexe.enum' => 'Le sexe sélectionné est invalide.',
             'nationalite.max' => 'La nationalité ne peut pas dépasser :max caractères.',
-            'pays.required' => 'Le pays est obligatoire.',
             'pays.max' => 'Le pays ne peut pas dépasser :max caractères.',
             'whatsapp_number.max' => 'Le numéro WhatsApp ne peut pas dépasser :max caractères.',
-            'accept_cgu.required' => 'Vous devez accepter les CGU et la Politique de Confidentialité.',
-            'accept_cgu.accepted' => 'Vous devez accepter les CGU et la Politique de Confidentialité.',
-        ];
-    }
-
-    /**
-     * Handle a failed authorization attempt (registration disabled).
-     *
-     * @throws \Illuminate\Http\Exceptions\HttpResponseException
-     */
-    protected function failedAuthorization(): void
-    {
-        throw new HttpResponseException(
-            response()->json([
-                'error' => [
-                    'code' => 'registration_disabled',
-                    'message' => 'Les inscriptions sont temporairement suspendues. Veuillez réessayer ultérieurement.',
-                ],
-            ], 403)
-        );
+        ] + $this->usernameMessages();
     }
 }

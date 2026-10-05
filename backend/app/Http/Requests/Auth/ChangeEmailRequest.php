@@ -6,14 +6,36 @@ namespace App\Http\Requests\Auth;
 
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
 class ChangeEmailRequest extends FormRequest
 {
+    /**
+     * The email is the takeover surface: change the email, then reset the password,
+     * and you own the account. An OAuth-only user has no password to re-authenticate
+     * with, so this stays closed until they set one — one click away, and unlike
+     * erasure there is no legal duty to make it frictionless.
+     */
     public function authorize(): bool
     {
-        return true;
+        return $this->user()?->password !== null;
+    }
+
+    /**
+     * @throws \Illuminate\Http\Exceptions\HttpResponseException
+     */
+    protected function failedAuthorization(): void
+    {
+        throw new HttpResponseException(
+            response()->json([
+                'error' => [
+                    'code' => 'EMAIL_CHANGE_REQUIRES_PASSWORD',
+                    'message' => 'Définissez d\'abord un mot de passe pour pouvoir changer votre adresse email.',
+                ],
+            ], 403)
+        );
     }
 
     /**

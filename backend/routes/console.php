@@ -22,6 +22,7 @@ use App\Console\Commands\SettleDisputedMissionAttendanceCommand;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -85,6 +86,25 @@ app(Schedule::class)->command(CheckFaceListingRanksFreshnessCommand::class)->hou
 // more than 24h, so abandoned/non-expiring sessions don't accumulate forever.
 app(Schedule::class)->command('sanctum:prune-expired', ['--hours' => 24])
     ->dailyAt('03:30')
+    ->timezone('UTC')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// Database cache hygiene: with the `database` store an expired row is only deleted
+// when that very key is read, so single-use entries that are never read again
+// (abandoned `oauth:state:*`, `:spent` markers) accumulate. No-op on any other store.
+app(Schedule::class)->call(function (): void {
+    if (config('cache.default') !== 'database') {
+        return;
+    }
+
+    DB::connection(config('cache.stores.database.connection'))
+        ->table((string) config('cache.stores.database.table'))
+        ->where('expiration', '<=', now()->getTimestamp())
+        ->delete();
+})
+    ->name('cache:prune-expired-database-rows')
+    ->dailyAt('03:45')
     ->timezone('UTC')
     ->withoutOverlapping()
     ->onOneServer();

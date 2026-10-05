@@ -174,6 +174,37 @@ describe('BasicInfoSection (Producer)', () => {
       })
     })
 
+    it('does not require the last name (one-word names are valid)', async () => {
+      const wrapper = mount(BasicInfoSection)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="last-name-input"]').attributes('required')).toBeUndefined()
+      expect(wrapper.find('[data-testid="first-name-input"]').attributes('required')).toBeDefined()
+    })
+
+    it('submits an empty last name without blocking', async () => {
+      mockUpdateBasicInfo.mockResolvedValue({ success: true, message: 'ok' })
+
+      const wrapper = mount(BasicInfoSection)
+      await flushPromises()
+
+      await wrapper.find('[data-testid="first-name-input"]').setValue('Madonna')
+      await wrapper.find('[data-testid="last-name-input"]').setValue('')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(mockUpdateBasicInfo).toHaveBeenCalledWith({ first_name: 'Madonna', last_name: '' })
+    })
+
+    it('shows an empty last name when the server returns null', async () => {
+      mockBasicInfo.value = { type: 'particulier', first_name: 'Madonna', last_name: null }
+
+      const wrapper = mount(BasicInfoSection)
+      await flushPromises()
+
+      expect((wrapper.find('[data-testid="last-name-input"]').element as HTMLInputElement).value).toBe('')
+    })
+
     it('shows correct header text for particulier', async () => {
       const wrapper = mount(BasicInfoSection)
       await flushPromises()

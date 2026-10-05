@@ -413,8 +413,10 @@ class Face extends Model
     /**
      * Get the profile completion percentage (0-100).
      *
-     * Required fields (8 total):
+     * Required fields (11 total):
      * - profile_photo
+     * - sexe
+     * - nationalite
      * - presentation_video
      * - acting_video
      * - bio
@@ -423,15 +425,26 @@ class Face extends Model
      * - tarif_horaire OR tarif_journalier (at least one)
      * - langues
      * - whatsapp_number
+     *
+     * `sexe`, `nationalite` and `whatsapp_number` are no longer asked at signup, so
+     * the completion meter is what brings them in. `pays` is deliberately excluded:
+     * it has a database default, so it would always count as complete — whereas
+     * `nationalite` is a nullable column with no default.
      */
     protected function profileCompletionPercentage(): Attribute
     {
         return Attribute::make(
             get: function (): int {
                 $completed = 0;
-                $total = 9;
+                $total = 11;
 
                 if ($this->profile_photo) {
+                    $completed++;
+                }
+                if ($this->sexe) {
+                    $completed++;
+                }
+                if ($this->nationalite) {
                     $completed++;
                 }
                 if ($this->presentation_video) {
@@ -472,6 +485,12 @@ class Face extends Model
 
                 if (! $this->profile_photo) {
                     $missing[] = ['key' => 'profile_photo', 'label' => 'Ajoutez une photo de profil'];
+                }
+                if (! $this->sexe) {
+                    $missing[] = ['key' => 'sexe', 'label' => 'Indiquez votre sexe'];
+                }
+                if (! $this->nationalite) {
+                    $missing[] = ['key' => 'nationalite', 'label' => 'Indiquez votre nationalité'];
                 }
                 if (! $this->presentation_video) {
                     $missing[] = ['key' => 'presentation_video', 'label' => 'Ajoutez une vidéo de présentation'];

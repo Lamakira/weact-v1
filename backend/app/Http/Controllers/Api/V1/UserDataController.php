@@ -15,6 +15,7 @@ use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\Rating;
 use App\Services\AgencyLogoService;
+use App\Services\Auth\GoogleOAuthService;
 use App\Services\FaceVideoService;
 use App\Services\PhotoAlbumService;
 use App\Services\PresentationVideoService;
@@ -48,6 +49,9 @@ class UserDataController extends Controller
                 'email_verified_at' => $user->email_verified_at?->toIso8601String(),
                 'consent_given_at' => $user->consent_given_at?->toIso8601String(),
                 'consent_version' => $user->consent_version,
+                'has_password' => $user->password !== null,
+                'google_linked' => $user->google_id !== null,
+                'google_linked_at' => $user->google_linked_at?->toIso8601String(),
             ],
         ];
 
@@ -153,21 +157,49 @@ class UserDataController extends Controller
      */
     public function destroy(Request $request): JsonResponse
     {
-        $request->validate([
-            'password' => ['required', 'string'],
-        ], [
-            'password.required' => 'Le mot de passe est requis pour confirmer la suppression.',
-        ]);
-
         $user = $request->user();
 
-        if (! Hash::check($request->input('password'), $user->password)) {
+        // Erasure (Art. 443) is confirmed either with the password, or — for an
+        // account created through Google, which has none — with a fresh
+        // re-authentication ticket. Making erasure conditional on first setting a
+        // credential the user declined would be the wrong trade.
+        $reauthToken = $request->validate([
+            'reauth_token' => ['nullable', 'string'],
+        ])['reauth_token'] ?? null;
+
+        if (is_string($reauthToken) && $reauthToken !== '') {
+            if (! app(GoogleOAuthService::class)->consumeReauthToken($reauthToken, $user->id)) {
+                return response()->json([
+                    'error' => [
+                        'code' => 'REAUTH_TOKEN_INVALID',
+                        'message' => 'Confirmation expirée. Reprenez la confirmation avec Google.',
+                    ],
+                ], 422);
+            }
+        } elseif ($user->password === null) {
+            // Nothing to check a password against: point at the re-authentication
+            // instead of a misleading "password required".
             return response()->json([
                 'error' => [
-                    'code' => 'invalid_password',
-                    'message' => 'Le mot de passe est incorrect.',
+                    'code' => 'ACCOUNT_DELETION_REQUIRES_REAUTH',
+                    'message' => 'Confirmez avec Google, ou définissez un mot de passe, pour supprimer votre compte.',
                 ],
-            ], 422);
+            ], 403);
+        } else {
+            $validated = $request->validate([
+                'password' => ['required', 'string'],
+            ], [
+                'password.required' => 'Le mot de passe est requis pour confirmer la suppression.',
+            ]);
+
+            if (! Hash::check($validated['password'], $user->password)) {
+                return response()->json([
+                    'error' => [
+                        'code' => 'invalid_password',
+                        'message' => 'Le mot de passe est incorrect.',
+                    ],
+                ], 422);
+            }
         }
 
         // Anonymize DB first (atomic), then delete media files after success.
@@ -207,6 +239,13 @@ class UserDataController extends Controller
                 'pending_email' => null,
                 'is_active' => false,
             ]);
+
+            // Unlink the Google identity. The rewritten email already makes the
+            // email-matching branch miss this row, but google_id is matched FIRST:
+            // without this, re-signing in with the same Google account would land
+            // straight back on the deleted row. forceFill because google_id is
+            // deliberately not mass assignable.
+            $user->forceFill(['google_id' => null, 'google_linked_at' => null])->save();
 
             // Revoke all tokens
             $user->tokens()->delete();

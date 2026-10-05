@@ -4,17 +4,45 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Auth;
 
+use App\Http\Requests\Concerns\RejectsWhenRegistrationDisabled;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Http\Exceptions\HttpResponseException;
 
 class RegisterProducerRequest extends FormRequest
 {
+    use RejectsWhenRegistrationDisabled;
+
     /**
      * Determine if the user is authorized to make this request.
      */
     public function authorize(): bool
     {
         return (bool) config('app.registration_enabled', true);
+    }
+
+    /**
+     * // LEGACY-BUNDLE (deploy window): remove after the release following 2026-10
+     *
+     * SPA tabs opened before the deploy still post the old particulier form
+     * (`first_name` + `last_name`, no `nom_complet`). Without this they would get a
+     * 422 keyed on a field the old form cannot display: a silent failure.
+     */
+    protected function prepareForValidation(): void
+    {
+        $nomComplet = $this->input('nom_complet');
+        $firstName = $this->input('first_name');
+
+        if (
+            $this->input('type') === 'particulier'
+            && (! is_string($nomComplet) || trim($nomComplet) === '')
+            && is_string($firstName)
+            && trim($firstName) !== ''
+        ) {
+            $lastName = $this->input('last_name');
+
+            $this->merge([
+                'nom_complet' => trim($firstName.' '.(is_string($lastName) ? $lastName : '')),
+            ]);
+        }
     }
 
     /**
@@ -32,11 +60,12 @@ class RegisterProducerRequest extends FormRequest
                 'string',
                 'min:8',
                 'regex:/^(?=.*[A-Z])(?=.*\d).+$/',
-                'confirmed',
             ],
-            'agency_name' => ['required_if:type,agency', 'nullable', 'string', 'max:255'],
-            'first_name' => ['required_if:type,particulier', 'nullable', 'string', 'max:255'],
-            'last_name' => ['required_if:type,particulier', 'nullable', 'string', 'max:255'],
+            'agency_name' => ['required_if:type,agency', 'nullable', 'string', 'max:100'],
+            // Collected as a single field and split server-side (see ProducerRegistrationService):
+            // `first_name`/`last_name` only ever feed slugSourceName() and display_name, which
+            // re-concatenate them, and the producer can fix the split from their profile.
+            'nom_complet' => ['required_if:type,particulier', 'nullable', 'string', 'max:100'],
             'accept_cgu' => ['required', 'accepted'],
         ];
     }
@@ -57,32 +86,12 @@ class RegisterProducerRequest extends FormRequest
             'password.required' => 'Le mot de passe est obligatoire',
             'password.min' => 'Le mot de passe doit contenir au moins 8 caractères',
             'password.regex' => 'Le mot de passe doit contenir au moins une majuscule et un chiffre',
-            'password.confirmed' => 'La confirmation du mot de passe ne correspond pas',
             'agency_name.required_if' => 'Le nom de l\'agence est obligatoire',
-            'agency_name.max' => 'Le nom de l\'agence ne peut pas dépasser 255 caractères',
-            'first_name.required_if' => 'Le prénom est obligatoire',
-            'first_name.max' => 'Le prénom ne peut pas dépasser 255 caractères',
-            'last_name.required_if' => 'Le nom est obligatoire',
-            'last_name.max' => 'Le nom ne peut pas dépasser 255 caractères',
+            'agency_name.max' => 'Le nom de l\'agence ne peut pas dépasser 100 caractères',
+            'nom_complet.required_if' => 'Votre nom complet est obligatoire',
+            'nom_complet.max' => 'Le nom complet ne peut pas dépasser 100 caractères',
             'accept_cgu.required' => 'Vous devez accepter les CGU et la Politique de Confidentialité.',
             'accept_cgu.accepted' => 'Vous devez accepter les CGU et la Politique de Confidentialité.',
         ];
-    }
-
-    /**
-     * Handle a failed authorization attempt (registration disabled).
-     *
-     * @throws \Illuminate\Http\Exceptions\HttpResponseException
-     */
-    protected function failedAuthorization(): void
-    {
-        throw new HttpResponseException(
-            response()->json([
-                'error' => [
-                    'code' => 'registration_disabled',
-                    'message' => 'Les inscriptions sont temporairement suspendues. Veuillez réessayer ultérieurement.',
-                ],
-            ], 403)
-        );
     }
 }

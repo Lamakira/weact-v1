@@ -381,6 +381,48 @@ class AdminFaceCrudTest extends TestCase
             ->assertJsonPath('data.username', 'my_username');
     }
 
+    public function test_admin_cannot_set_a_reserved_username(): void
+    {
+        $face = Face::factory()->create(['username' => 'my_username']);
+
+        foreach (['options', 'admin'] as $reserved) {
+            $this->withToken($this->adminToken)
+                ->putJson("/api/v1/admin/faces/{$face->uuid}", ['username' => $reserved])
+                ->assertStatus(422)
+                ->assertJsonStructure(['error' => ['details' => ['username']]]);
+        }
+
+        $this->assertDatabaseHas('faces', ['id' => $face->id, 'username' => 'my_username']);
+    }
+
+    public function test_admin_username_follows_the_public_format_rules(): void
+    {
+        $face = Face::factory()->create(['username' => 'my_username']);
+
+        foreach (['ab', 'Has Space', str_repeat('a', 51)] as $candidate) {
+            $this->withToken($this->adminToken)
+                ->putJson("/api/v1/admin/faces/{$face->uuid}", ['username' => $candidate])
+                ->assertStatus(422)
+                ->assertJsonStructure(['error' => ['details' => ['username']]]);
+        }
+    }
+
+    public function test_admin_can_edit_another_field_while_the_username_is_legacy(): void
+    {
+        $face = Face::factory()->create(['username' => 'Jean.Dupont']);
+
+        $this->withToken($this->adminToken)
+            ->putJson("/api/v1/admin/faces/{$face->uuid}", [
+                'username' => 'Jean.Dupont',
+                'bio' => 'Nouvelle bio',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.username', 'Jean.Dupont')
+            ->assertJsonPath('data.bio', 'Nouvelle bio');
+
+        $this->assertDatabaseHas('faces', ['id' => $face->id, 'username' => 'Jean.Dupont', 'bio' => 'Nouvelle bio']);
+    }
+
     // ─── DESTROY ──────────────────────────────────────────────────
 
     public function test_delete_face_and_associated_user(): void

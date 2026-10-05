@@ -77,6 +77,22 @@ describe('useProfileCompletion', () => {
   })
 
   describe('fetchCompletion', () => {
+    it('bypasses the cache TTL only when forced', async () => {
+      vi.mocked(faceApi.getProfileCompletion).mockResolvedValue(mockPartialResponse)
+      const { fetchCompletion } = useProfileCompletion()
+
+      await fetchCompletion({ force: true })
+      vi.mocked(faceApi.getProfileCompletion).mockClear()
+
+      // Fresh data inside the TTL: the plain call returns the cache...
+      await fetchCompletion()
+      expect(faceApi.getProfileCompletion).not.toHaveBeenCalled()
+
+      // ...the forced one goes to the network.
+      await fetchCompletion({ force: true })
+      expect(faceApi.getProfileCompletion).toHaveBeenCalledOnce()
+    })
+
     it('fetches completion successfully for empty profile', async () => {
       vi.mocked(faceApi.getProfileCompletion).mockResolvedValue(mockEmptyResponse)
 

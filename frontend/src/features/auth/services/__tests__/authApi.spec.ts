@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi, beforeEach } from 'vitest'
 import type { AxiosError } from 'axios'
-import { getApiErrorMessage } from '../authApi'
+import { authApi, getApiErrorMessage } from '../authApi'
+
+const h = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
+
+vi.mock('@/services/apiClient', () => ({
+  default: { get: h.get, post: h.post },
+  getCsrfCookie: vi.fn().mockResolvedValue(undefined),
+}))
 
 describe('getApiErrorMessage', () => {
   it('returns the backend throttle message from the error envelope', () => {
@@ -67,5 +74,33 @@ describe('getApiErrorMessage', () => {
     expect(getApiErrorMessage(error)).toBe(
       'Une erreur est survenue. Veuillez réessayer.'
     )
+  })
+})
+
+describe('authApi — Google browser binding', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('sends the nonce with the redirect request', async () => {
+    h.get.mockResolvedValue({ data: { data: { url: 'https://accounts.google.com/x' } } })
+
+    const url = await authApi.getGoogleRedirectUrl('login', '/pricing', 'n'.repeat(43))
+
+    expect(url).toBe('https://accounts.google.com/x')
+    expect(h.get).toHaveBeenCalledWith('/auth/google/redirect', {
+      params: { intent: 'login', nonce: 'n'.repeat(43), redirect: '/pricing' },
+    })
+  })
+
+  it('sends the nonce with the code on exchange', async () => {
+    h.post.mockResolvedValue({ data: { data: { needs_completion: false } } })
+
+    await authApi.exchangeGoogleCode('the-code', 'the-nonce')
+
+    expect(h.post).toHaveBeenCalledWith('/auth/google/exchange', {
+      code: 'the-code',
+      nonce: 'the-nonce',
+    })
   })
 })
