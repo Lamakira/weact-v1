@@ -43,6 +43,13 @@ import type {
 } from '@/components/ugc'
 
 /**
+ * Délai accordé aux envois vidéo, au lieu des 30 s du client API : une vidéo
+ * de plusieurs dizaines de Mo dépasse largement ce délai sur une connexion
+ * mobile ordinaire.
+ */
+const VIDEO_UPLOAD_TIMEOUT_MS = 600_000
+
+/**
  * Face API service
  */
 export const faceApi = {
@@ -155,6 +162,7 @@ export const faceApi = {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        timeout: VIDEO_UPLOAD_TIMEOUT_MS,
         onUploadProgress: (progressEvent) => {
           if (onProgress && progressEvent.total) {
             onProgress({
@@ -204,6 +212,7 @@ export const faceApi = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: VIDEO_UPLOAD_TIMEOUT_MS,
       onUploadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {
           onProgress({
@@ -593,6 +602,7 @@ export const faceApi = {
       formData,
       {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: VIDEO_UPLOAD_TIMEOUT_MS,
         onUploadProgress: (progressEvent) => {
           if (onProgress && progressEvent.total) {
             onProgress({

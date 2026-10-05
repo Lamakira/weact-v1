@@ -119,6 +119,26 @@ describe('formatApiError', () => {
     expect(formatApiError(error, 'Erreur réseau personnalisée.')).toBe('Erreur réseau personnalisée.')
   })
 
+  it('reports a request timeout separately from a connectivity failure', () => {
+    const error = {
+      isAxiosError: true,
+      response: undefined,
+      code: 'ECONNABORTED',
+    } as unknown as AxiosError
+
+    expect(formatApiError(error)).toBe('La requête a pris trop de temps. Veuillez réessayer.')
+    // Le timeout prime sur le repli de l'appelant : c'est le diagnostic utile.
+    expect(formatApiError(error, 'Erreur lors du chargement')).toBe(
+      'La requête a pris trop de temps. Veuillez réessayer.',
+    )
+  })
+
+  it('reports an oversized request when the server returns a non-JSON 413 response', () => {
+    const error = makeAxiosError(413, '<html>Request Entity Too Large</html>')
+
+    expect(formatApiError(error)).toBe('Fichier trop volumineux (max 200 Mo).')
+  })
+
   it('returns the status-based fallback when a CDN returns a non-JSON 429 response', () => {
     const error = makeAxiosError(429, '<html>...</html>')
 
