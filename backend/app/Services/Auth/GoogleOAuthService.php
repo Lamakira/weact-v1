@@ -52,13 +52,17 @@ class GoogleOAuthService
      * carry the intent. Google enforces an exact-match redirect_uri, so the intent
      * cannot ride there either.
      */
-    public function issueState(string $intent, ?string $redirect = null): string
+    public function issueState(string $intent, ?string $redirect, string $browserNonce): string
     {
         $nonce = Str::random(32);
 
         $payload = json_encode([
             'intent' => $intent,
             'redirect' => $redirect,
+            // Binds the whole flow to the browser that started it: only a SHA-256
+            // of the SPA-held nonce travels, and the exchange re-checks it. Without
+            // it, a victim could be handed an attacker-minted callback URL.
+            'binding' => $this->bindingFor($browserNonce),
             'nonce' => $nonce,
             'exp' => now()->addSeconds(self::STATE_TTL_SECONDS)->getTimestamp(),
         ], JSON_THROW_ON_ERROR);
@@ -71,8 +75,8 @@ class GoogleOAuthService
     /**
      * Verify and consume a `state`.
      *
-     * @return array{intent: string, redirect: string|null}|null null on a tampered,
-     *                                                           expired or replayed state
+     * @return array{intent: string, redirect: string|null, binding: string|null}|null null on a tampered,
+     *                                                                                 expired or replayed state
      */
     public function consumeState(?string $state): ?array
     {
@@ -115,16 +119,26 @@ class GoogleOAuthService
         }
 
         // Absent from the cache ⇒ already consumed (replay) or expired.
-        if (Cache::pull($this->stateKey($nonce)) === null) {
+        if ($this->consumeOnce($this->stateKey($nonce), self::STATE_TTL_SECONDS) === null) {
             return null;
         }
 
         $redirect = $decoded['redirect'] ?? null;
+        $binding = $decoded['binding'] ?? null;
 
         return [
             'intent' => $intent,
             'redirect' => is_string($redirect) ? $redirect : null,
+            'binding' => is_string($binding) ? $binding : null,
         ];
+    }
+
+    /**
+     * Does the nonce posted to /exchange match the one the flow was started with?
+     */
+    public function bindingMatches(mixed $binding, string $browserNonce): bool
+    {
+        return is_string($binding) && $binding !== '' && hash_equals($binding, $this->bindingFor($browserNonce));
     }
 
     /**
@@ -152,7 +166,7 @@ class GoogleOAuthService
     public function consumeExchangeCode(string $code): ?array
     {
         /** @var array<string, mixed>|null $payload */
-        $payload = Cache::pull($this->exchangeKey($code));
+        $payload = $this->consumeOnce($this->exchangeKey($code), self::EXCHANGE_TTL_SECONDS);
 
         return $payload;
     }
@@ -178,7 +192,7 @@ class GoogleOAuthService
     public function consumePendingToken(string $token): ?array
     {
         /** @var array<string, mixed>|null $payload */
-        $payload = Cache::pull($this->pendingKey($token));
+        $payload = $this->consumeOnce($this->pendingKey($token), self::PENDING_TTL_SECONDS);
 
         return $payload;
     }
@@ -204,9 +218,39 @@ class GoogleOAuthService
      */
     public function consumeReauthToken(string $token, int $userId): bool
     {
-        $storedUserId = Cache::pull($this->reauthKey($token));
+        $storedUserId = $this->consumeOnce($this->reauthKey($token), self::REAUTH_TTL_SECONDS);
 
         return $storedUserId !== null && (int) $storedUserId === $userId;
+    }
+
+    /**
+     * Read-and-burn a single-use entry.
+     *
+     * Cache::pull is get-then-forget: two concurrent requests can both read the
+     * value before either forgets it. Cache::add is atomic (insertOrIgnore on the
+     * database store, SET NX on Redis), so only one caller wins the `:spent` marker
+     * and gets the value; the loser gets null.
+     */
+    private function consumeOnce(string $key, int $ttl): mixed
+    {
+        $value = Cache::get($key);
+
+        if ($value === null) {
+            return null;
+        }
+
+        if (! Cache::add($key.':spent', true, $ttl)) {
+            return null;
+        }
+
+        Cache::forget($key);
+
+        return $value;
+    }
+
+    private function bindingFor(string $browserNonce): string
+    {
+        return hash('sha256', $browserNonce);
     }
 
     private function signingKey(): string

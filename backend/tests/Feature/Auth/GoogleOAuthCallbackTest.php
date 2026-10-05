@@ -15,6 +15,7 @@ use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\GoogleProvider;
 use Laravel\Socialite\Two\User as SocialiteUser;
 use Mockery;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -24,6 +25,10 @@ use Tests\TestCase;
 class GoogleOAuthCallbackTest extends TestCase
 {
     use RefreshDatabase;
+
+    private const NONCE = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+    private const OTHER_NONCE = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 
     private GoogleOAuthService $oauth;
 
@@ -88,9 +93,9 @@ class GoogleOAuthCallbackTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function exchange(string $code): array
+    private function exchange(string $code, string $nonce = self::NONCE): array
     {
-        $response = $this->postJson('/api/v1/auth/google/exchange', ['code' => $code]);
+        $response = $this->postJson('/api/v1/auth/google/exchange', ['code' => $code, 'nonce' => $nonce]);
         $response->assertOk();
 
         return $response->json('data');
@@ -119,7 +124,7 @@ class GoogleOAuthCallbackTest extends TestCase
     {
         $this->fakeGoogleUser();
 
-        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_FACE));
+        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_FACE, null, self::NONCE));
         $data = $this->exchange($query['code']);
 
         $this->assertTrue($data['needs_completion']);
@@ -139,7 +144,7 @@ class GoogleOAuthCallbackTest extends TestCase
         $user = $this->makeFaceUser('jean@gmail.com', googleId: 'google-sub-1');
         $this->fakeGoogleUser();
 
-        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN));
+        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE));
         $data = $this->exchange($query['code']);
 
         $this->assertFalse($data['needs_completion']);
@@ -147,26 +152,208 @@ class GoogleOAuthCallbackTest extends TestCase
         $this->assertNotEmpty($data['token']);
     }
 
-    public function test_a_matching_local_account_is_linked_when_google_attests_the_address(): void
+    public function test_a_matching_unverified_local_account_is_linked_then_secured(): void
     {
         $user = $this->makeFaceUser('jean@gmail.com');
         $this->assertNull($user->google_id);
         $this->assertNull($user->email_verified_at);
 
+        // A pre-registered squatter's credentials and sessions.
+        $user->createToken('squatter');
+        $this->assertSame(1, $user->tokens()->count());
+
         $this->fakeGoogleUser();
 
-        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN));
+        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE));
         $data = $this->exchange($query['code']);
 
         $this->assertFalse($data['needs_completion']);
         $this->assertSame($user->id, $data['user']['id']);
+        $this->assertNotEmpty($data['token']);
 
         $user->refresh();
         $this->assertSame('google-sub-1', $user->google_id);
         $this->assertNotNull($user->google_linked_at);
-        // Google already attested the address — our own mail would prove the same
-        // fact with weaker assurance.
         $this->assertNotNull($user->email_verified_at);
+        // Whoever pre-registered the address no longer holds a way in.
+        $this->assertNull($user->password);
+        // Only the session minted by this very login survives.
+        $this->assertSame(1, $user->tokens()->count());
+        $this->assertSame(0, $user->tokens()->where('name', 'squatter')->count());
+    }
+
+    public function test_a_matching_verified_local_account_keeps_its_password_and_tokens(): void
+    {
+        $user = $this->makeFaceUser('jean@gmail.com');
+        $user->forceFill(['email_verified_at' => now()])->save();
+        $user->createToken('existing');
+
+        $this->fakeGoogleUser();
+
+        $data = $this->exchange(
+            $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE))['code']
+        );
+
+        $this->assertSame($user->id, $data['user']['id']);
+
+        $user->refresh();
+        $this->assertSame('google-sub-1', $user->google_id);
+        $this->assertNotNull($user->password);
+        $this->assertTrue(Hash::check('Password123', $user->password));
+        $this->assertSame(1, $user->tokens()->where('name', 'existing')->count());
+    }
+
+    public function test_an_account_already_linked_to_another_google_identity_is_never_overwritten(): void
+    {
+        $user = $this->makeFaceUser('jean@gmail.com', googleId: 'google-sub-OTHER');
+        $this->fakeGoogleUser(sub: 'google-sub-1');
+
+        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE));
+
+        $this->assertSame('GOOGLE_ACCOUNT_CONFLICT', $query['error']);
+        $this->assertArrayNotHasKey('code', $query);
+        $this->assertSame('google-sub-OTHER', $user->refresh()->google_id);
+    }
+
+    /**
+     * Step 1 (google_id) runs before step 2 (email_verified): a linked user still
+     * logs in when the claim is missing.
+     */
+    public function test_a_user_linked_by_google_id_logs_in_even_when_the_email_claim_is_unverified(): void
+    {
+        $user = $this->makeFaceUser('jean@gmail.com', googleId: 'google-sub-1');
+        $this->fakeGoogleUser(emailVerified: false);
+
+        $data = $this->exchange(
+            $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE))['code']
+        );
+
+        $this->assertFalse($data['needs_completion']);
+        $this->assertSame($user->id, $data['user']['id']);
+    }
+
+    public function test_a_code_minted_for_one_nonce_cannot_be_exchanged_with_another(): void
+    {
+        $this->makeFaceUser('jean@gmail.com', googleId: 'google-sub-1');
+        $this->fakeGoogleUser();
+
+        $code = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE))['code'];
+
+        $this->postJson('/api/v1/auth/google/exchange', ['code' => $code, 'nonce' => self::OTHER_NONCE])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'OAUTH_CODE_INVALID')
+            ->assertJsonPath('error.message', 'Lien de connexion expiré. Reprenez la connexion avec Google.');
+    }
+
+    /**
+     * @return array<string, array{0: string, 1: bool}>
+     */
+    public static function codeKinds(): array
+    {
+        return [
+            'authenticated' => [GoogleOAuthService::INTENT_LOGIN, true],
+            'reauth' => [GoogleOAuthService::INTENT_REAUTH, true],
+            'needs_completion' => [GoogleOAuthService::INTENT_FACE, false],
+        ];
+    }
+
+    #[DataProvider('codeKinds')]
+    public function test_a_nonce_binding_is_enforced_for_every_kind_of_code(string $intent, bool $knownUser): void
+    {
+        if ($knownUser) {
+            $this->makeFaceUser('jean@gmail.com', googleId: 'google-sub-1');
+        }
+        $this->fakeGoogleUser();
+
+        $code = $this->callbackQuery($this->oauth->issueState($intent, null, self::NONCE))['code'];
+
+        $this->postJson('/api/v1/auth/google/exchange', ['code' => $code, 'nonce' => self::OTHER_NONCE])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'OAUTH_CODE_INVALID');
+    }
+
+    #[DataProvider('codeKinds')]
+    public function test_the_right_nonce_exchanges_every_kind_of_code(string $intent, bool $knownUser): void
+    {
+        if ($knownUser) {
+            $this->makeFaceUser('jean@gmail.com', googleId: 'google-sub-1');
+        }
+        $this->fakeGoogleUser();
+
+        $data = $this->exchange($this->callbackQuery($this->oauth->issueState($intent, null, self::NONCE))['code']);
+
+        match ($intent) {
+            GoogleOAuthService::INTENT_LOGIN => $this->assertNotEmpty($data['token']),
+            GoogleOAuthService::INTENT_REAUTH => $this->assertNotEmpty($data['reauth_token']),
+            default => $this->assertTrue($data['needs_completion']),
+        };
+    }
+
+    public function test_the_callback_mints_no_sanctum_token_and_never_puts_one_in_the_url(): void
+    {
+        $user = $this->makeFaceUser('jean@gmail.com', googleId: 'google-sub-1');
+        $this->fakeGoogleUser();
+
+        $before = $user->tokens()->count();
+
+        $response = $this->get('/api/v1/auth/google/callback?state='.urlencode(
+            $this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE)
+        ).'&code=google-auth-code');
+
+        $location = (string) $response->headers->get('Location');
+        parse_str((string) parse_url($location, PHP_URL_QUERY), $query);
+
+        $this->assertSame(['code'], array_keys($query));
+        $this->assertSame($before, $user->tokens()->count());
+
+        $this->exchange($query['code']);
+
+        $this->assertSame($before + 1, $user->tokens()->count());
+    }
+
+    public function test_a_user_deactivated_between_callback_and_exchange_gets_no_token(): void
+    {
+        $user = $this->makeFaceUser('jean@gmail.com', googleId: 'google-sub-1');
+        $this->fakeGoogleUser();
+
+        $code = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE))['code'];
+
+        $user->forceFill(['is_active' => false])->save();
+
+        $this->postJson('/api/v1/auth/google/exchange', ['code' => $code, 'nonce' => self::NONCE])
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCOUNT_DEACTIVATED');
+
+        $this->assertSame(0, $user->tokens()->count());
+    }
+
+    public function test_a_backslash_redirect_is_dropped_before_it_is_signed(): void
+    {
+        $this->makeFaceUser('jean@gmail.com', googleId: 'google-sub-1');
+
+        $state = $this->stateFromRedirectEndpoint('login', '/\\evil.com');
+        $this->fakeGoogleUser();
+        $data = $this->exchange($this->callbackQuery($state)['code']);
+
+        $this->assertNull($data['redirect']);
+    }
+
+    public function test_a_state_and_an_exchange_code_are_consumed_atomically_once(): void
+    {
+        $code = $this->oauth->issueExchangeCode(['kind' => 'reauth']);
+
+        $this->assertNotNull($this->oauth->consumeExchangeCode($code));
+        $this->assertNull($this->oauth->consumeExchangeCode($code));
+
+        $token = $this->oauth->issuePendingToken(['email' => 'x@y.z']);
+
+        $this->assertNotNull($this->oauth->consumePendingToken($token));
+        $this->assertNull($this->oauth->consumePendingToken($token));
+
+        $ticket = $this->oauth->issueReauthToken(7);
+
+        $this->assertTrue($this->oauth->consumeReauthToken($ticket, 7));
+        $this->assertFalse($this->oauth->consumeReauthToken($ticket, 7));
     }
 
     /**
@@ -178,7 +365,7 @@ class GoogleOAuthCallbackTest extends TestCase
         $user = $this->makeFaceUser('jean@gmail.com');
         $this->fakeGoogleUser(emailVerified: false);
 
-        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN));
+        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE));
 
         $this->assertSame('GOOGLE_EMAIL_UNVERIFIED', $query['error']);
         $this->assertArrayNotHasKey('code', $query);
@@ -200,7 +387,7 @@ class GoogleOAuthCallbackTest extends TestCase
         $provider->shouldReceive('user')->andReturn($socialiteUser);
         Socialite::shouldReceive('driver')->with('google')->andReturn($provider);
 
-        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN));
+        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE));
 
         $this->assertSame('GOOGLE_EMAIL_UNVERIFIED', $query['error']);
     }
@@ -210,7 +397,7 @@ class GoogleOAuthCallbackTest extends TestCase
         $this->makeFaceUser('jean@gmail.com', googleId: 'google-sub-1', isActive: false);
         $this->fakeGoogleUser();
 
-        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN));
+        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE));
 
         $this->assertSame('ACCOUNT_DEACTIVATED', $query['error']);
         $this->assertArrayNotHasKey('code', $query);
@@ -221,7 +408,7 @@ class GoogleOAuthCallbackTest extends TestCase
         $user = $this->makeFaceUser('jean@gmail.com', googleId: 'google-sub-1');
         $this->fakeGoogleUser();
 
-        $state = $this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN);
+        $state = $this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE);
         config(['app.registration_enabled' => false]);
 
         $data = $this->exchange($this->callbackQuery($state)['code']);
@@ -234,7 +421,7 @@ class GoogleOAuthCallbackTest extends TestCase
     {
         $this->fakeGoogleUser();
 
-        $state = $this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN);
+        $state = $this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE);
         config(['app.registration_enabled' => false]);
 
         $query = $this->callbackQuery($state);
@@ -246,7 +433,7 @@ class GoogleOAuthCallbackTest extends TestCase
     {
         $this->fakeGoogleUser();
 
-        $state = $this->oauth->issueState(GoogleOAuthService::INTENT_FACE);
+        $state = $this->oauth->issueState(GoogleOAuthService::INTENT_FACE, null, self::NONCE);
         [$payload] = explode('.', $state, 2);
 
         $query = $this->callbackQuery($payload.'.deadbeef');
@@ -258,7 +445,7 @@ class GoogleOAuthCallbackTest extends TestCase
     {
         $this->fakeGoogleUser();
 
-        $state = $this->oauth->issueState(GoogleOAuthService::INTENT_FACE);
+        $state = $this->oauth->issueState(GoogleOAuthService::INTENT_FACE, null, self::NONCE);
 
         $this->assertArrayHasKey('code', $this->callbackQuery($state));
         $this->assertSame('OAUTH_STATE_INVALID', $this->callbackQuery($state)['error']);
@@ -268,7 +455,7 @@ class GoogleOAuthCallbackTest extends TestCase
     {
         $this->fakeGoogleUser();
 
-        $state = $this->oauth->issueState(GoogleOAuthService::INTENT_FACE);
+        $state = $this->oauth->issueState(GoogleOAuthService::INTENT_FACE, null, self::NONCE);
 
         $this->travel(11)->minutes();
 
@@ -288,7 +475,7 @@ class GoogleOAuthCallbackTest extends TestCase
     public function test_the_callback_is_closed_when_the_feature_flag_is_off(): void
     {
         $this->fakeGoogleUser();
-        $state = $this->oauth->issueState(GoogleOAuthService::INTENT_FACE);
+        $state = $this->oauth->issueState(GoogleOAuthService::INTENT_FACE, null, self::NONCE);
 
         config(['services.google.enabled' => false]);
 
@@ -300,7 +487,7 @@ class GoogleOAuthCallbackTest extends TestCase
         $this->makeFaceUser('jean@gmail.com');
         $this->fakeGoogleUser();
 
-        $this->exchange($this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN))['code']);
+        $this->exchange($this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE))['code']);
 
         Notification::assertNothingSentTo(User::query()->firstOrFail());
         Notification::assertNotSentTo(User::query()->firstOrFail(), VerifyEmailNotification::class);
@@ -312,7 +499,7 @@ class GoogleOAuthCallbackTest extends TestCase
         $this->fakeGoogleUser();
 
         $data = $this->exchange(
-            $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_REAUTH))['code']
+            $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_REAUTH, null, self::NONCE))['code']
         );
 
         $this->assertNotEmpty($data['reauth_token']);
@@ -331,7 +518,7 @@ class GoogleOAuthCallbackTest extends TestCase
         $this->makeFaceUser('jean@gmail.com');
         $this->fakeGoogleUser();
 
-        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_REAUTH));
+        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_REAUTH, null, self::NONCE));
 
         $this->assertSame('GOOGLE_ACCOUNT_NOT_LINKED', $query['error']);
         $this->assertArrayNotHasKey('code', $query);
@@ -341,7 +528,7 @@ class GoogleOAuthCallbackTest extends TestCase
     {
         $this->fakeGoogleUser();
 
-        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_REAUTH));
+        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_REAUTH, null, self::NONCE));
 
         $this->assertSame('GOOGLE_ACCOUNT_NOT_LINKED', $query['error']);
         $this->assertDatabaseCount('users', 0);
@@ -352,7 +539,7 @@ class GoogleOAuthCallbackTest extends TestCase
         $this->makeFaceUser('jean@gmail.com', googleId: 'google-sub-1', isActive: false);
         $this->fakeGoogleUser();
 
-        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_REAUTH));
+        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_REAUTH, null, self::NONCE));
 
         $this->assertSame('ACCOUNT_DEACTIVATED', $query['error']);
     }
@@ -363,7 +550,7 @@ class GoogleOAuthCallbackTest extends TestCase
      */
     private function stateFromRedirectEndpoint(string $intent, ?string $redirect = null): string
     {
-        $url = '/api/v1/auth/google/redirect?intent='.$intent;
+        $url = '/api/v1/auth/google/redirect?intent='.$intent.'&nonce='.self::NONCE;
 
         if ($redirect !== null) {
             $url .= '&redirect='.urlencode($redirect);

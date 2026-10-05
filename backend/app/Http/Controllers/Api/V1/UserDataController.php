@@ -49,6 +49,9 @@ class UserDataController extends Controller
                 'email_verified_at' => $user->email_verified_at?->toIso8601String(),
                 'consent_given_at' => $user->consent_given_at?->toIso8601String(),
                 'consent_version' => $user->consent_version,
+                'has_password' => $user->password !== null,
+                'google_linked' => $user->google_id !== null,
+                'google_linked_at' => $user->google_linked_at?->toIso8601String(),
             ],
         ];
 
@@ -160,7 +163,9 @@ class UserDataController extends Controller
         // account created through Google, which has none — with a fresh
         // re-authentication ticket. Making erasure conditional on first setting a
         // credential the user declined would be the wrong trade.
-        $reauthToken = $request->input('reauth_token');
+        $reauthToken = $request->validate([
+            'reauth_token' => ['nullable', 'string'],
+        ])['reauth_token'] ?? null;
 
         if (is_string($reauthToken) && $reauthToken !== '') {
             if (! app(GoogleOAuthService::class)->consumeReauthToken($reauthToken, $user->id)) {
@@ -171,23 +176,23 @@ class UserDataController extends Controller
                     ],
                 ], 422);
             }
+        } elseif ($user->password === null) {
+            // Nothing to check a password against: point at the re-authentication
+            // instead of a misleading "password required".
+            return response()->json([
+                'error' => [
+                    'code' => 'ACCOUNT_DELETION_REQUIRES_REAUTH',
+                    'message' => 'Confirmez avec Google, ou définissez un mot de passe, pour supprimer votre compte.',
+                ],
+            ], 403);
         } else {
-            $request->validate([
+            $validated = $request->validate([
                 'password' => ['required', 'string'],
             ], [
                 'password.required' => 'Le mot de passe est requis pour confirmer la suppression.',
             ]);
 
-            if ($user->password === null) {
-                return response()->json([
-                    'error' => [
-                        'code' => 'ACCOUNT_DELETION_REQUIRES_REAUTH',
-                        'message' => 'Confirmez avec Google, ou définissez un mot de passe, pour supprimer votre compte.',
-                    ],
-                ], 403);
-            }
-
-            if (! Hash::check($request->input('password'), $user->password)) {
+            if (! Hash::check($validated['password'], $user->password)) {
                 return response()->json([
                     'error' => [
                         'code' => 'invalid_password',

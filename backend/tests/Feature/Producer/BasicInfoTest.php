@@ -215,16 +215,43 @@ class BasicInfoTest extends TestCase
             ->assertJsonPath('errors.first_name.0', 'Le prénom est obligatoire');
     }
 
-    public function test_particulier_rejects_empty_last_name(): void
+    /**
+     * A one-word name registers with an empty `last_name` (see
+     * ProducerRegistrationService::splitFullName): the profile must not then force
+     * the user to invent one.
+     */
+    public function test_particulier_can_save_without_a_last_name(): void
     {
-        $response = $this->actingAs($this->particulierUser)
+        $this->actingAs($this->particulierUser)
             ->putJson('/api/v1/producer/basic-info', [
+                'first_name' => 'Sossou',
                 'last_name' => '',
-            ]);
+            ])
+            ->assertOk();
 
-        $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['last_name'])
-            ->assertJsonPath('errors.last_name.0', 'Le nom est obligatoire');
+        $this->assertNull($this->particulier->fresh()->last_name);
+    }
+
+    public function test_a_producer_registered_with_a_one_word_name_can_update_basic_info(): void
+    {
+        $registration = $this->postJson('/api/v1/auth/register/producer', [
+            'type' => 'particulier',
+            'nom_complet' => 'Sossou',
+            'email' => 'sossou@example.com',
+            'password' => 'Password123',
+            'accept_cgu' => true,
+        ])->assertCreated();
+
+        $token = $registration->json('data.token');
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->putJson('/api/v1/producer/basic-info', ['first_name' => 'Sossou'])
+            ->assertOk()
+            ->assertJsonPath('data.first_name', 'Sossou');
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->putJson('/api/v1/producer/basic-info', ['first_name' => 'Sossou', 'last_name' => ''])
+            ->assertOk();
     }
 
     public function test_particulier_rejects_first_name_exceeding_100_characters(): void

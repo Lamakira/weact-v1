@@ -103,6 +103,53 @@ describe('auth store — per-account shared-cache hygiene', () => {
   })
 })
 
+describe('auth store — per-account sessionStorage hygiene', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+
+  it('clearAuth() removes weact.auth.* keys but keeps the OAuth nonce', () => {
+    sessionStorage.setItem('weact.auth.google_reauth', '{"token":"t","purpose":"set_password"}')
+    sessionStorage.setItem('weact.auth.google_pending_registration', '{}')
+    sessionStorage.setItem('weact.oauth_nonce', 'nonce-in-flight')
+
+    useAuthStore().clearAuth()
+
+    expect(sessionStorage.getItem('weact.auth.google_reauth')).toBeNull()
+    expect(sessionStorage.getItem('weact.auth.google_pending_registration')).toBeNull()
+    expect(sessionStorage.getItem('weact.oauth_nonce')).toBe('nonce-in-flight')
+  })
+
+  it('setUser() with a different identity clears weact.auth.* keys', () => {
+    const store = useAuthStore()
+    store.setUser(makeUser(1))
+    sessionStorage.setItem('weact.auth.google_reauth', '{"token":"t","purpose":"set_password"}')
+    sessionStorage.setItem('weact.oauth_nonce', 'nonce-in-flight')
+
+    store.setUser(makeUser(2))
+
+    expect(sessionStorage.getItem('weact.auth.google_reauth')).toBeNull()
+    expect(sessionStorage.getItem('weact.oauth_nonce')).toBe('nonce-in-flight')
+  })
+
+  it('setUser() with the same identity keeps weact.auth.* keys', () => {
+    const store = useAuthStore()
+    store.setUser(makeUser(1))
+    sessionStorage.setItem('weact.auth.google_reauth', 'ticket')
+
+    store.setUser({ ...makeUser(1), email: 'updated@example.test' })
+
+    expect(sessionStorage.getItem('weact.auth.google_reauth')).toBe('ticket')
+  })
+})
+
 /**
  * `auth_user` is restored from localStorage and only re-fetched by refreshUser(),
  * so every session already open on deploy day hydrates a User object that predates

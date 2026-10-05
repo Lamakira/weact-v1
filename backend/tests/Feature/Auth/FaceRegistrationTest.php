@@ -77,6 +77,13 @@ class FaceRegistrationTest extends TestCase
         );
     }
 
+    public function test_the_face_consent_version_matches_the_current_consent_text(): void
+    {
+        $this->postJson('/api/v1/auth/register/face', $this->validData)->assertStatus(201);
+
+        $this->assertSame('2026-08-03', User::query()->firstOrFail()->consent_version);
+    }
+
     public function test_username_is_generated_from_prenom_and_nom(): void
     {
         $data = [

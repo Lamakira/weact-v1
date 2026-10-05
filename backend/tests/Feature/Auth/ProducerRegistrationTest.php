@@ -249,6 +249,36 @@ class ProducerRegistrationTest extends TestCase
             ->assertJsonPath('data.user.userable.display_name', 'Marie Ange Sossou');
     }
 
+    public function test_the_producer_consent_version_is_recorded(): void
+    {
+        $this->postJson('/api/v1/auth/register/producer', $this->validAgencyData)->assertCreated();
+
+        $this->assertSame('2026-04-04', User::query()->firstOrFail()->consent_version);
+    }
+
+    /**
+     * Registration must not accept what the profile would later refuse to save.
+     */
+    public function test_registration_lengths_match_the_profile_limits(): void
+    {
+        $agency = $this->validAgencyData;
+        $agency['agency_name'] = str_repeat('a', 101);
+
+        $this->postJson('/api/v1/auth/register/producer', $agency)
+            ->assertStatus(422)
+            ->assertJsonStructure(['error' => ['details' => ['agency_name']]]);
+
+        $particulier = $this->validParticulierData;
+        $particulier['nom_complet'] = str_repeat('a', 101);
+
+        $this->postJson('/api/v1/auth/register/producer', $particulier)
+            ->assertStatus(422)
+            ->assertJsonStructure(['error' => ['details' => ['nom_complet']]]);
+
+        $agency['agency_name'] = str_repeat('a', 100);
+        $this->postJson('/api/v1/auth/register/producer', $agency)->assertCreated();
+    }
+
     public function test_single_token_nom_complet_leaves_last_name_empty(): void
     {
         $data = $this->validParticulierData;

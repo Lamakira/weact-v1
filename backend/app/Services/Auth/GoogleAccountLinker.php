@@ -56,6 +56,17 @@ class GoogleAccountLinker
         $byEmail = User::query()->where('email', $identity['email'])->with('userable')->first();
 
         if ($byEmail !== null) {
+            // Step 1 matched by google_id first, so a non-null google_id here is
+            // necessarily a DIFFERENT `sub`: never overwrite someone's identity.
+            if ($byEmail->google_id !== null) {
+                return [
+                    'outcome' => self::OUTCOME_ERROR,
+                    'code' => 'GOOGLE_ACCOUNT_CONFLICT',
+                    'message' => 'Cette adresse est déjà associée à un autre compte Google.',
+                    'status' => 409,
+                ];
+            }
+
             $result = $this->authenticateOrReject($byEmail, isNewUser: false);
 
             if ($result['outcome'] !== self::OUTCOME_AUTHENTICATED) {
@@ -112,17 +123,31 @@ class GoogleAccountLinker
 
     private function link(User $user, string $sub): void
     {
+        // An account whose address was never verified may have been pre-registered
+        // by someone who does NOT own it (pre-account hijack): they hold its
+        // password and possibly live sessions. Google attests the address, so the
+        // real owner takes the account over — and every credential the squatter
+        // could hold is purged. A verified account keeps its password and tokens.
+        $wasUnverified = $user->email_verified_at === null;
+
         // Explicit assignment: google_id is deliberately not mass assignable.
         $user->google_id = $sub;
         $user->google_linked_at = now();
 
-        // Google just attested the address; our own verification mail would prove
-        // the same fact with weaker assurance.
-        if ($user->email_verified_at === null) {
+        if ($wasUnverified) {
+            // Google just attested the address; our own verification mail would
+            // prove the same fact with weaker assurance.
             $user->email_verified_at = now();
+            $user->password = null;
         }
 
         $user->save();
+
+        if ($wasUnverified) {
+            $user->tokens()->delete();
+
+            Log::info('auth.google.linked_unverified_account_secured', ['user_id' => $user->id]);
+        }
 
         Log::info('auth.google.linked', ['user_id' => $user->id]);
     }

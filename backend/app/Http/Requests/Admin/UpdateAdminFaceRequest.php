@@ -7,6 +7,8 @@ namespace App\Http\Requests\Admin;
 use App\Constants\BeninCities;
 use App\Enums\FaceCategory;
 use App\Enums\FaceNiche;
+use App\Http\Requests\Concerns\FaceUsernameRules;
+use App\Models\Face;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -14,8 +16,13 @@ use Illuminate\Validation\Rules\Enum;
 
 class UpdateAdminFaceRequest extends FormRequest
 {
+    use FaceUsernameRules;
+
     protected function prepareForValidation(): void
     {
+        $face = $this->route('face');
+        $this->normalizeUsernameInput($face instanceof Face ? $face : null);
+
         if (! $this->has('pays')) {
             return;
         }
@@ -57,12 +64,7 @@ class UpdateAdminFaceRequest extends FormRequest
         return [
             'nom' => ['sometimes', 'string', 'max:255'],
             'prenom' => ['sometimes', 'string', 'max:255'],
-            'username' => [
-                'sometimes',
-                'string',
-                'max:50',
-                Rule::unique('faces', 'username')->ignore($faceId),
-            ],
+            'username' => $this->usernameRules($faceId),
             'bio' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'ville' => ['sometimes', 'nullable', 'string', 'max:100', Rule::in(BeninCities::values())],
             'pays' => ['sometimes', 'nullable', 'string', 'max:255'],
@@ -83,10 +85,10 @@ class UpdateAdminFaceRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'username.unique' => "Ce nom d'utilisateur est déjà utilisé.",
+        ] + $this->usernameMessages() + [
             'nom.max' => 'Le nom ne peut pas dépasser 255 caractères.',
             'prenom.max' => 'Le prénom ne peut pas dépasser 255 caractères.',
-            'username.max' => "Le nom d'utilisateur ne peut pas dépasser 255 caractères.",
-            'username.unique' => "Ce nom d'utilisateur est déjà utilisé.",
             'bio.max' => 'La bio ne peut pas dépasser 1000 caractères.',
             'ville.max' => 'La ville ne peut pas dépasser 100 caractères.',
             'ville.in' => 'La ville sélectionnée doit faire partie de la liste officielle des communes du Bénin.',

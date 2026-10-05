@@ -29,7 +29,7 @@ interface UseAuthReturn {
   login: (data: LoginForm) => Promise<AuthResult>
   registerFace: (data: FaceRegistrationForm) => Promise<AuthResult>
   registerProducer: (data: ProducerRegistrationForm) => Promise<AuthResult>
-  exchangeGoogleCode: (code: string) => Promise<GoogleExchangeAuthResult>
+  exchangeGoogleCode: (code: string, nonce: string) => Promise<GoogleExchangeAuthResult>
   completeGoogleRegistration: (data: CompleteGoogleRegistrationData) => Promise<AuthResult>
   logout: () => Promise<void>
   isAuthenticated: ComputedRef<boolean>
@@ -152,11 +152,11 @@ export function useAuth(): UseAuthReturn {
    * here), a brand-new one comes back needing the finalisation screen — nothing
    * has been created server-side at that point.
    */
-  async function exchangeGoogleCode(code: string): Promise<GoogleExchangeAuthResult> {
+  async function exchangeGoogleCode(code: string, nonce: string): Promise<GoogleExchangeAuthResult> {
     authStore.setLoading(true)
 
     try {
-      const result = await authApi.exchangeGoogleCode(code)
+      const result = await authApi.exchangeGoogleCode(code, nonce)
 
       if (!result.needs_completion && result.token && result.user) {
         adoptSession(result.token, result.user)

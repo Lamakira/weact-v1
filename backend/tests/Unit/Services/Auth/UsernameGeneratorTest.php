@@ -27,6 +27,14 @@ class UsernameGeneratorTest extends TestCase
         $this->assertSame('johndoe', $this->generator->generate('John', 'Doe'));
     }
 
+    public function test_a_base_shorter_than_the_minimum_falls_back_to_membre(): void
+    {
+        $this->assertSame('membre', $this->generator->generate('A', 'B'));
+        $this->assertSame('membre', $this->generator->generate('', 'Li'));
+        $this->assertSame('abc', $this->generator->generate('A', 'Bc'));
+        $this->assertGreaterThanOrEqual(UsernameGenerator::MIN_LENGTH, strlen($this->generator->generateWithRandomSuffix('A', 'B')));
+    }
+
     public function test_it_folds_accents_and_strips_punctuation(): void
     {
         $this->assertSame('leagbedo', $this->generator->generate('Léa', 'Gbèdo'));

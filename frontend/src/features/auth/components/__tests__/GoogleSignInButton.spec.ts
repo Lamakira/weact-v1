@@ -12,9 +12,10 @@ vi.mock('../../services/authApi', () => ({
 }))
 
 const mockQuery: { redirect?: string } = {}
+const mockRoute = { query: mockQuery, fullPath: '/face/profile?tab=compte' }
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: mockQuery }),
+  useRoute: () => mockRoute,
 }))
 
 describe('GoogleSignInButton', () => {
@@ -22,6 +23,7 @@ describe('GoogleSignInButton', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    sessionStorage.clear()
     delete mockQuery.redirect
     mockGetGoogleRedirectUrl.mockResolvedValue('https://accounts.google.com/o/oauth2/auth?state=abc')
 
@@ -42,7 +44,7 @@ describe('GoogleSignInButton', () => {
     await wrapper.find('[data-testid="google-sign-in-button"]').trigger('click')
     await flushPromises()
 
-    expect(mockGetGoogleRedirectUrl).toHaveBeenCalledWith('login', null)
+    expect(mockGetGoogleRedirectUrl).toHaveBeenCalledWith('login', null, expect.any(String))
     expect(window.location.href).toBe('https://accounts.google.com/o/oauth2/auth?state=abc')
   })
 
@@ -53,7 +55,88 @@ describe('GoogleSignInButton', () => {
     await wrapper.find('[data-testid="google-sign-in-button"]').trigger('click')
     await flushPromises()
 
-    expect(mockGetGoogleRedirectUrl).toHaveBeenCalledWith('face', '/pricing?plan=pro')
+    expect(mockGetGoogleRedirectUrl).toHaveBeenCalledWith(
+      'face',
+      '/pricing?plan=pro',
+      expect.any(String)
+    )
+  })
+
+  it('sends a 43-char base64url nonce and stores it for the callback', async () => {
+    const wrapper = mountButton()
+
+    await wrapper.find('[data-testid="google-sign-in-button"]').trigger('click')
+    await flushPromises()
+
+    const nonce = mockGetGoogleRedirectUrl.mock.calls[0][2] as string
+    expect(nonce).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(sessionStorage.getItem('weact.oauth_nonce')).toBe(nonce)
+  })
+
+  describe('reauth intent', () => {
+    it('sends route.fullPath (not ?redirect=) so the user comes back to the asking screen', async () => {
+      mockQuery.redirect = '/somewhere/else'
+      const wrapper = mountButton({ intent: 'reauth', reauthPurpose: 'delete_account' })
+
+      await wrapper.find('[data-testid="google-sign-in-button"]').trigger('click')
+      await flushPromises()
+
+      expect(mockGetGoogleRedirectUrl).toHaveBeenCalledWith(
+        'reauth',
+        '/face/profile?tab=compte',
+        expect.any(String)
+      )
+    })
+
+    it('stores the purpose before navigating', async () => {
+      const wrapper = mountButton({ intent: 'reauth', reauthPurpose: 'set_password' })
+
+      await wrapper.find('[data-testid="google-sign-in-button"]').trigger('click')
+      await flushPromises()
+
+      expect(sessionStorage.getItem('weact.auth.google_reauth_purpose')).toBe('set_password')
+    })
+
+    it('does not store a purpose for a non-reauth intent', async () => {
+      const wrapper = mountButton({ intent: 'login', reauthPurpose: 'set_password' })
+
+      await wrapper.find('[data-testid="google-sign-in-button"]').trigger('click')
+      await flushPromises()
+
+      expect(sessionStorage.getItem('weact.auth.google_reauth_purpose')).toBeNull()
+    })
+  })
+
+  it('resets the loading state when restored from the back/forward cache', async () => {
+    const wrapper = mountButton()
+
+    await wrapper.find('[data-testid="google-sign-in-button"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Redirection…')
+
+    const event = new Event('pageshow') as PageTransitionEvent
+    Object.defineProperty(event, 'persisted', { value: true })
+    window.dispatchEvent(event)
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Redirection…')
+    expect(wrapper.find('[data-testid="google-sign-in-button"]').attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('keeps the loading state on a non-persisted pageshow', async () => {
+    const wrapper = mountButton()
+
+    await wrapper.find('[data-testid="google-sign-in-button"]').trigger('click')
+    await flushPromises()
+
+    const event = new Event('pageshow') as PageTransitionEvent
+    Object.defineProperty(event, 'persisted', { value: false })
+    window.dispatchEvent(event)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Redirection…')
+    wrapper.unmount()
   })
 
   it('does nothing while disabled — the CGU gate', async () => {

@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { authApi, getApiErrorMessage } from '../services/authApi'
+import { createGoogleOAuthNonce } from '../googleOAuthNonce'
+import { setPendingReauthPurpose, type GoogleReauthPurpose } from '../googleReauth'
 import type { GoogleIntent } from '../types'
 
 const props = withDefaults(
@@ -10,6 +12,8 @@ const props = withDefaults(
     /** Signup surfaces disable the button until the CGU checkbox is ticked. */
     disabled?: boolean
     label?: string
+    /** What a `reauth` ticket is for: only the screen of that purpose will consume it. */
+    reauthPurpose?: GoogleReauthPurpose
   }>(),
   { disabled: false, label: 'Continuer avec Google' }
 )
@@ -19,6 +23,14 @@ const route = useRoute()
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
+// Back/forward cache restores the page as it was left — stuck on "Redirection…".
+function handlePageShow(event: PageTransitionEvent): void {
+  if (event.persisted) isLoading.value = false
+}
+
+onMounted(() => window.addEventListener('pageshow', handlePageShow))
+onUnmounted(() => window.removeEventListener('pageshow', handlePageShow))
+
 async function handleClick(): Promise<void> {
   if (props.disabled || isLoading.value) return
 
@@ -26,10 +38,21 @@ async function handleClick(): Promise<void> {
   error.value = null
 
   try {
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : null
+    // A reauth comes back to the screen that asked for it, not to a ?redirect=.
+    const redirect =
+      props.intent === 'reauth'
+        ? route.fullPath
+        : typeof route.query.redirect === 'string'
+          ? route.query.redirect
+          : null
+    const nonce = createGoogleOAuthNonce()
     // The backend hands back a URL rather than redirecting: a 302 here would be
     // followed by this XHR and die on Google's origin (no CORS header).
-    const url = await authApi.getGoogleRedirectUrl(props.intent, redirect)
+    const url = await authApi.getGoogleRedirectUrl(props.intent, redirect, nonce)
+
+    if (props.intent === 'reauth' && props.reauthPurpose) {
+      setPendingReauthPurpose(props.reauthPurpose)
+    }
 
     window.location.href = url
   } catch (err) {

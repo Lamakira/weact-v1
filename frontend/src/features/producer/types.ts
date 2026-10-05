@@ -84,7 +84,8 @@ export interface ProducerBasicInfoAgency {
 export interface ProducerBasicInfoParticulier {
   type: 'particulier'
   first_name: string
-  last_name: string
+  // Optional: a one-word name (single mononym) is valid.
+  last_name: string | null
 }
 
 export type ProducerBasicInfo = ProducerBasicInfoAgency | ProducerBasicInfoParticulier

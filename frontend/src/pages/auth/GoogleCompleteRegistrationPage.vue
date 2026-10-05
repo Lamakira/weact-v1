@@ -33,6 +33,11 @@ const nomOuRaisonSociale = ref('')
 const acceptCgu = ref(false)
 
 const apiError = ref<string | null>(null)
+// The pending ticket is dead server-side (consumed, expired, or its email is now
+// taken): retrying with it can only fail, so the form gives way to a way out.
+const ticketDeadMessage = ref<string | null>(null)
+
+const DEAD_TICKET_CODES: readonly string[] = ['OAUTH_PENDING_INVALID', 'EMAIL_ALREADY_USED']
 const fieldErrors = ref<Record<string, string[]>>({})
 
 // The role is preselected from the button the user pressed. Only the /login entry
@@ -64,6 +69,15 @@ async function handleSubmit(): Promise<void> {
   apiError.value = null
   fieldErrors.value = {}
 
+  // Consent is never implicit: nothing leaves the screen until it is ticked.
+  if (!acceptCgu.value) {
+    fieldErrors.value = {
+      accept_cgu: ["Vous devez accepter les Conditions Générales d'Utilisation."],
+    }
+
+    return
+  }
+
   const payload: CompleteGoogleRegistrationData = {
     pending_token: pending.value.pending_token,
     role: role.value,
@@ -76,6 +90,14 @@ async function handleSubmit(): Promise<void> {
   }
 
   const result = await completeGoogleRegistration(payload)
+
+  if (!result.success && result.errorCode && DEAD_TICKET_CODES.includes(result.errorCode)) {
+    clearPendingGoogleRegistration()
+    ticketDeadMessage.value =
+      result.message ?? 'Votre inscription Google a expiré. Reprenez-la depuis la connexion.'
+
+    return
+  }
 
   if (!result.success) {
     fieldErrors.value = result.errors ?? {}
@@ -110,7 +132,26 @@ async function handleSubmit(): Promise<void> {
     class="min-h-screen flex flex-col items-center justify-center px-6 py-12 bg-gray-50"
     data-testid="google-complete-registration-page"
   >
-    <div v-if="pending" class="max-w-md w-full bg-white rounded-2xl border border-gray-200 p-6">
+    <div
+      v-if="ticketDeadMessage !== null"
+      class="max-w-md w-full bg-white rounded-2xl border border-gray-200 p-6 text-center"
+      data-testid="pending-dead"
+    >
+      <div class="rounded-lg bg-red-50 p-4 border border-red-200 mb-4" role="alert">
+        <p class="text-sm text-red-700" data-testid="pending-dead-message">
+          {{ ticketDeadMessage }}
+        </p>
+      </div>
+      <router-link
+        to="/login"
+        class="text-sm font-semibold text-primary-500 hover:underline"
+        data-testid="back-to-login"
+      >
+        Retour à la connexion
+      </router-link>
+    </div>
+
+    <div v-else-if="pending" class="max-w-md w-full bg-white rounded-2xl border border-gray-200 p-6">
       <h1 class="text-xl font-bold text-gray-900 mb-1">Presque terminé</h1>
       <p class="text-sm text-gray-500 mb-6">
         Connecté avec <span class="font-medium text-gray-700">{{ pending.email }}</span

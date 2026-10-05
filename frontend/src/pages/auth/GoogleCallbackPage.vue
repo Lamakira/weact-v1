@@ -6,18 +6,50 @@
  * `error`. The code is stripped from the URL before anything else so it never
  * lingers in the history entry, then traded for the Sanctum token.
  */
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Loader2 } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { setPendingGoogleRegistration } from '@/features/auth/googlePendingRegistration'
-import { setGoogleReauthToken } from '@/features/auth/googleReauth'
+import { takeGoogleOAuthNonce } from '@/features/auth/googleOAuthNonce'
+import { setGoogleReauthTicket, takePendingReauthPurpose } from '@/features/auth/googleReauth'
+import { safeRedirect } from '@/lib/safeRedirect'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 const { exchangeGoogleCode } = useAuth()
+const authStore = useAuthStore()
 
 const error = ref<string | null>(null)
+const errorCode = ref<string | null>(null)
+
+const NOT_LINKED_CODE = 'GOOGLE_ACCOUNT_NOT_LINKED'
+const NOT_LINKED_REAUTH_MESSAGE =
+  "Ce compte Google n'est pas celui associé à votre compte WEACT."
+
+// A bounce for an already-authenticated user can only be a reauth attempt.
+const isReauthMismatch = computed(
+  () => errorCode.value === NOT_LINKED_CODE && authStore.isAuthenticated
+)
+
+const profileRoute = computed(() =>
+  authStore.isProducer ? { name: 'producer-profile' } : { name: 'face-profile' }
+)
+
+const GENERIC_ERROR = 'La connexion avec Google a échoué.'
+
+// Own keys only: `?error=constructor` must not resolve to Object.prototype members.
+// (Object.prototype.hasOwnProperty.call: the project lib predates Object.hasOwn.)
+function messageFor(code: string): string {
+  return Object.prototype.hasOwnProperty.call(ERROR_MESSAGES, code)
+    ? (ERROR_MESSAGES[code] ?? GENERIC_ERROR)
+    : GENERIC_ERROR
+}
+
+function roleDashboard(): { name: string } {
+  return authStore.isProducer ? { name: 'producer-dashboard' } : { name: 'face-dashboard' }
+}
 
 // Errors the backend can bounce back on the callback, mapped to something a
 // human can act on.
@@ -32,24 +64,23 @@ const ERROR_MESSAGES: Record<string, string> = {
   GOOGLE_OAUTH_DISABLED: 'La connexion avec Google est indisponible.',
   GOOGLE_ACCOUNT_NOT_LINKED:
     "Ce compte Google n'est associé à aucun compte WEACT. Connectez-vous d'abord.",
-}
-
-function safeRedirect(value: unknown): string | null {
-  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')
-    ? value
-    : null
+  GOOGLE_ACCOUNT_CONFLICT: 'Cette adresse est déjà associée à un autre compte Google.',
 }
 
 onMounted(async () => {
   const code = typeof route.query.code === 'string' ? route.query.code : null
   const bouncedError = typeof route.query.error === 'string' ? route.query.error : null
+  // One-shot like the code: consumed whatever the outcome.
+  const nonce = takeGoogleOAuthNonce()
 
   // Strip the one-shot code from the URL before doing anything with it: the
   // history entry must not keep it.
   await router.replace({ name: 'google-callback' })
 
   if (bouncedError !== null) {
-    error.value = ERROR_MESSAGES[bouncedError] ?? 'La connexion avec Google a échoué.'
+    errorCode.value = bouncedError
+    error.value = messageFor(bouncedError)
+    if (isReauthMismatch.value) error.value = NOT_LINKED_REAUTH_MESSAGE
 
     return
   }
@@ -60,7 +91,14 @@ onMounted(async () => {
     return
   }
 
-  const outcome = await exchangeGoogleCode(code)
+  // Browser binding: a code that did not start in this tab cannot be exchanged.
+  if (nonce === null) {
+    error.value = messageFor('OAUTH_STATE_INVALID')
+
+    return
+  }
+
+  const outcome = await exchangeGoogleCode(code, nonce)
 
   if (!outcome.success || !outcome.result) {
     error.value = outcome.message ?? 'La connexion avec Google a échoué.'
@@ -73,9 +111,13 @@ onMounted(async () => {
   // Re-authentication before an irreversible action: no session is opened, the
   // ticket goes back to the screen that asked for it.
   if (result.reauth_token) {
-    setGoogleReauthToken(result.reauth_token)
+    // The ticket is stamped with the purpose the button recorded; without one,
+    // nobody asked for it and it is dropped.
+    const purpose = takePendingReauthPurpose()
 
-    await router.replace(safeRedirect(result.redirect) ?? { name: 'face-dashboard' })
+    if (purpose !== null) setGoogleReauthTicket(result.reauth_token, purpose)
+
+    await router.replace(safeRedirect(result.redirect) ?? roleDashboard())
 
     return
   }
@@ -127,6 +169,15 @@ onMounted(async () => {
         <p class="text-sm text-red-700">{{ error }}</p>
       </div>
       <router-link
+        v-if="isReauthMismatch"
+        :to="profileRoute"
+        class="text-sm font-semibold text-[#198496] hover:underline"
+        data-testid="google-callback-back-to-profile"
+      >
+        Retour à mon profil
+      </router-link>
+      <router-link
+        v-else
         :to="{ name: 'login' }"
         class="text-sm font-semibold text-[#198496] hover:underline"
         data-testid="google-callback-back-to-login"

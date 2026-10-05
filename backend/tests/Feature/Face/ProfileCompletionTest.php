@@ -28,6 +28,7 @@ class ProfileCompletionTest extends TestCase
         $this->face = Face::factory()->create([
             'profile_photo' => null,
             'sexe' => null,
+            'nationalite' => null,
             'presentation_video' => null,
             'bio' => null,
             'ville' => null,
@@ -66,14 +67,14 @@ class ProfileCompletionTest extends TestCase
             ->assertJsonPath('data.profile_completion_percentage', 0)
             ->assertJsonPath('data.profile_completion_is_complete', false);
 
-        // Should have all 10 missing items
+        // Should have all 11 missing items
         $missing = $response->json('data.profile_completion_missing');
-        $this->assertCount(10, $missing);
+        $this->assertCount(11, $missing);
     }
 
     public function test_partial_profile_shows_correct_percentage(): void
     {
-        // Fill 3 out of 10 fields (profile_photo, bio, ville) = 30%
+        // Fill 3 out of 11 fields (profile_photo, bio, ville) = 27%
         $this->face->update([
             'profile_photo' => 'photo.jpg',
             'bio' => 'Test bio',
@@ -84,12 +85,12 @@ class ProfileCompletionTest extends TestCase
             ->getJson('/api/v1/face/profile-completion');
 
         $response->assertOk()
-            ->assertJsonPath('data.profile_completion_percentage', 30) // 3/10 = 30%
+            ->assertJsonPath('data.profile_completion_percentage', 27) // 3/11 = 27%
             ->assertJsonPath('data.profile_completion_is_complete', false);
 
-        // Should have 7 missing items
+        // Should have 8 missing items
         $missing = $response->json('data.profile_completion_missing');
-        $this->assertCount(7, $missing);
+        $this->assertCount(8, $missing);
     }
 
     public function test_filling_sexe_moves_the_completion_meter(): void
@@ -105,7 +106,19 @@ class ProfileCompletionTest extends TestCase
             ->json('data.profile_completion_percentage');
 
         $this->assertSame(0, $before);
-        $this->assertSame(10, $after);
+        $this->assertSame(9, $after); // 1/11 = 9%
+    }
+
+    public function test_filling_nationalite_moves_the_completion_meter(): void
+    {
+        $this->face->update(['nationalite' => 'Béninoise']);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/profile-completion')
+            ->assertOk()
+            ->assertJsonPath('data.profile_completion_percentage', 9); // 1/11 = 9%
+
+        $this->assertNotContains('nationalite', array_column($response->json('data.profile_completion_missing'), 'key'));
     }
 
     public function test_complete_profile_shows_hundred_percent(): void
@@ -113,6 +126,7 @@ class ProfileCompletionTest extends TestCase
         $this->face->update([
             'profile_photo' => 'photo.jpg',
             'sexe' => 'femme',
+            'nationalite' => 'Béninoise',
             'presentation_video' => 'presentation.mp4',
             'bio' => 'Test bio',
             'ville' => 'Paris',
@@ -148,6 +162,7 @@ class ProfileCompletionTest extends TestCase
         $keys = array_column($missing, 'key');
         $this->assertContains('profile_photo', $keys);
         $this->assertContains('sexe', $keys);
+        $this->assertContains('nationalite', $keys);
         $this->assertContains('presentation_video', $keys);
         $this->assertContains('acting_video', $keys);
         $this->assertContains('bio', $keys);
@@ -161,6 +176,7 @@ class ProfileCompletionTest extends TestCase
         $labels = array_column($missing, 'label');
         $this->assertContains('Ajoutez une photo de profil', $labels);
         $this->assertContains('Indiquez votre sexe', $labels);
+        $this->assertContains('Indiquez votre nationalité', $labels);
         $this->assertContains('Ajoutez une vidéo de présentation', $labels);
         $this->assertContains("Ajoutez une vidéo d'acting", $labels);
         $this->assertContains('Ajoutez une bio', $labels);
@@ -267,7 +283,7 @@ class ProfileCompletionTest extends TestCase
             ->getJson('/api/v1/face/profile-completion');
 
         $newPercentage = $response2->json('data.profile_completion_percentage');
-        $this->assertEquals(10, $newPercentage); // 1/10 = 10%
+        $this->assertEquals(9, $newPercentage); // 1/11 = 9%
     }
 
     public function test_empty_string_is_treated_as_missing(): void

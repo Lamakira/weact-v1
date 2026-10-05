@@ -50,8 +50,25 @@ const isAgency = computed(() => profile.value?.type === 'agency')
 // Producers deliberately have NO completion percentage: only two items are real
 // (visual identity, bio), and a ring built on two booleans is noise. A single
 // dismissible line does the same job for none of the machinery.
-const NUDGE_DISMISSED_KEY = 'producer_profile_nudge_dismissed'
-const nudgeDismissed = ref(localStorage.getItem(NUDGE_DISMISSED_KEY) === '1')
+//
+// The dismissal is keyed per user: the browser may be shared between accounts.
+// Storage can be unavailable (private mode, quota): it then degrades to
+// "dismissed for this page view only".
+const nudgeStorageKey = computed<string | null>(() =>
+  authStore.user?.id != null ? `producer_profile_nudge_dismissed:${authStore.user.id}` : null
+)
+
+function readNudgeDismissed(): boolean {
+  if (nudgeStorageKey.value === null) return false
+
+  try {
+    return localStorage.getItem(nudgeStorageKey.value) === '1'
+  } catch {
+    return false
+  }
+}
+
+const nudgeDismissed = ref(readNudgeDismissed())
 
 const hasVisualIdentity = computed(() =>
   isAgency.value ? !!profile.value?.agency_logo_url : !!profile.value?.profile_photo_url
@@ -65,9 +82,27 @@ const showProfileNudge = computed(
     (!hasVisualIdentity.value || !bio.value)
 )
 
+const nudgeMessage = computed<string>(() => {
+  const missing: string[] = []
+
+  if (!hasVisualIdentity.value) {
+    missing.push(isAgency.value ? 'ajoutez le logo de votre agence' : 'ajoutez une photo de profil')
+  }
+  if (!bio.value) missing.push('présentez votre activité en quelques lignes')
+
+  return `Complétez votre profil — ${missing.join(' et ')} — les Faces répondent bien plus souvent aux Producteurs identifiables.`
+})
+
 function dismissNudge(): void {
   nudgeDismissed.value = true
-  localStorage.setItem(NUDGE_DISMISSED_KEY, '1')
+
+  if (nudgeStorageKey.value === null) return
+
+  try {
+    localStorage.setItem(nudgeStorageKey.value, '1')
+  } catch {
+    // Not persisted: the nudge reappears on the next visit, which is harmless.
+  }
 }
 
 // Fetch profile and bio on mount
@@ -144,13 +179,7 @@ async function handleBioSave(newBio: string | null): Promise<void> {
         data-testid="producer-profile-nudge"
       >
         <p class="flex-grow text-sm text-amber-900">
-          Complétez votre profil —
-          <template v-if="!hasVisualIdentity">
-            {{ isAgency ? 'ajoutez le logo de votre agence' : 'ajoutez une photo de profil' }}
-          </template>
-          <template v-if="!hasVisualIdentity && !bio"> et </template>
-          <template v-if="!bio">présentez votre activité en quelques lignes</template>
-          — les Faces répondent bien plus souvent aux Producteurs identifiables.
+          {{ nudgeMessage }}
         </p>
         <button
           type="button"

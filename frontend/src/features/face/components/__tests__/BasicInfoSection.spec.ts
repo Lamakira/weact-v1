@@ -53,6 +53,14 @@ describe('BasicInfoSection', () => {
     expect(mockFetchBasicInfo).toHaveBeenCalledOnce()
   })
 
+  it('states the real username rules in the hint', () => {
+    const wrapper = mount(BasicInfoSection)
+
+    const hint = wrapper.find('[data-testid="username-hint"]').text()
+    expect(hint).toContain('3 à 50 caractères : lettres minuscules, chiffres, - et _')
+    expect(hint).not.toContain('Maximum 50 caractères')
+  })
+
   it('shows loading state when isLoading is true', () => {
     mockIsLoading.value = true
 

@@ -90,6 +90,8 @@ class AccountDeletionReRegistrationTest extends TestCase
      */
     public function test_deletion_unlinks_the_google_identity_so_re_registration_starts_fresh(): void
     {
+        config(['services.google.enabled' => true]);
+
         $oauth = app(GoogleOAuthService::class);
 
         $first = $this->postJson('/api/v1/auth/google/complete-registration', [
@@ -111,15 +113,12 @@ class AccountDeletionReRegistrationTest extends TestCase
         $firstUserId = (int) $first->json('data.user.id');
         $firstToken = $first->json('data.token');
 
-        // An OAuth-only account must set a password before it can be deleted.
+        // An OAuth-only account has no password: erasure is confirmed with a fresh
+        // Google re-authentication ticket instead.
         $this->withHeader('Authorization', 'Bearer '.$firstToken)
-            ->putJson('/api/v1/password', [
-                'new_password' => 'Password123',
-                'new_password_confirmation' => 'Password123',
-            ])->assertOk();
-
-        $this->withHeader('Authorization', 'Bearer '.$firstToken)
-            ->deleteJson('/api/v1/user/account', ['password' => 'Password123'])
+            ->deleteJson('/api/v1/user/account', [
+                'reauth_token' => $oauth->issueReauthToken($firstUserId),
+            ])
             ->assertOk();
 
         $deleted = User::findOrFail($firstUserId);

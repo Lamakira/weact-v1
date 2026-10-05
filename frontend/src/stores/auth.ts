@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { User } from '@/features/auth/types'
+import { clearAuthScopedSessionStorage } from '@/lib/authScopedSessionStorage'
 import { resetAllSharedCachedResources } from '@/lib/createSharedCachedResource'
 import apiClient, { getAuthToken, setAuthToken, removeAuthToken } from '@/services/apiClient'
 
@@ -68,6 +69,9 @@ export const useAuthStore = defineStore('auth', () => {
     const previousId = user.value?.id
     if (previousId != null && previousId !== newUser.id) {
       resetAllSharedCachedResources()
+      // Same for per-account session state (Google re-auth ticket, pending
+      // registration…): a ticket minted for account A must never reach B.
+      clearAuthScopedSessionStorage()
     }
     user.value = newUser
     setStoredUser(newUser)
@@ -93,6 +97,8 @@ export const useAuthStore = defineStore('auth', () => {
     // account's data — e.g. the site-wide payment banner would show (and try
     // to reconcile) someone else's pending payment.
     resetAllSharedCachedResources()
+    // Per-account sessionStorage state (`weact.auth.*`) dies with the session.
+    clearAuthScopedSessionStorage()
   }
 
   /**

@@ -184,6 +184,27 @@ describe('ProducerRegistrationForm', () => {
     })
   })
 
+  it('caps the name input at 100 characters', () => {
+    const wrapper = mountComponent()
+
+    expect(wrapper.find('[data-testid="nom-input"]').attributes('maxlength')).toBe('100')
+  })
+
+  it('refuses a name longer than 100 characters', async () => {
+    mockRegisterProducer.mockResolvedValue({ success: true })
+    const wrapper = mountComponent()
+
+    await wrapper.find('[data-testid="nom-input"]').setValue('a'.repeat(101))
+    await wrapper.find('[data-testid="email-input"]').setValue('agency@example.com')
+    await wrapper.find('[data-testid="password-input"]').setValue('Password123')
+    await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
+    await wrapper.find('[data-testid="producer-registration-form"]').trigger('submit')
+    await flushPromises()
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    expect(mockRegisterProducer).not.toHaveBeenCalled()
+  })
+
   it('submits the name as nom_complet after switching to particulier', async () => {
     mockRegisterProducer.mockResolvedValue({ success: true })
     const wrapper = mountComponent()

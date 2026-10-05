@@ -7,12 +7,16 @@ import { passwordChangeValidationSchema } from '../schemas/passwordChange'
 import { usePasswordChange } from '../composables/usePasswordChange'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
+import { takeGoogleReauthTicket } from '../googleReauth'
+import GoogleSignInButton from './GoogleSignInButton.vue'
 
 const {
   isLoading,
   error,
+  errorCode,
   fieldErrors,
   changePassword,
+  setPassword,
   clearError,
 } = usePasswordChange()
 
@@ -23,6 +27,22 @@ const showForm = ref(false)
 // "set a password", which is also what unblocks email change and account deletion.
 const authStore = useAuthStore()
 const hasPassword = computed(() => authStore.hasPassword)
+
+// A first password requires a fresh Google re-authentication. The ticket comes
+// back from the callback page (purpose-stamped, so a deletion ticket is never
+// taken here), lives in memory only, and is dropped as soon as it is spent.
+const reauthTicket = ref<string | null>(null)
+
+// Picked up while the component is created (i.e. on return from Google), so the
+// form is there on first paint.
+if (!hasPassword.value) {
+  const ticket = takeGoogleReauthTicket('set_password')
+
+  if (ticket !== null) {
+    reauthTicket.value = ticket
+    showForm.value = true
+  }
+}
 
 const validationSchema = computed(() => passwordChangeValidationSchema(hasPassword.value))
 
@@ -44,12 +64,20 @@ const { value: newPasswordConfirmation, errorMessage: newPasswordConfirmationErr
 
 const onSubmit = handleSubmit(async (values) => {
   clearError()
-  const success = await changePassword(
-    // Absent on an OAuth-only account: the endpoint accepts an empty value there.
-    values.current_password ?? '',
-    values.new_password,
-    values.new_password_confirmation,
-  )
+
+  // Password-less account: the ticket replaces the current password, which is
+  // not sent at all.
+  const success = hasPassword.value
+    ? await changePassword(
+        values.current_password ?? '',
+        values.new_password,
+        values.new_password_confirmation,
+      )
+    : await setPassword(
+        values.new_password,
+        values.new_password_confirmation,
+        reauthTicket.value ?? '',
+      )
 
   if (success) {
     toast.success(
@@ -58,10 +86,18 @@ const onSubmit = handleSubmit(async (values) => {
         : 'Votre mot de passe a été défini avec succès.'
     )
     resetForm()
-    showForm.value = false
     // Flip has_password so the email-change and delete-account surfaces unlock
-    // without a reload.
+    // without a reload. The form stays up until then: closing it first would flash
+    // the Google button on a password-less account.
     await authStore.refreshUser()
+    showForm.value = false
+    reauthTicket.value = null
+  } else if (
+    !hasPassword.value &&
+    (errorCode.value === 'REAUTH_TOKEN_INVALID' || fieldErrors.value.reauth_token)
+  ) {
+    // Spent, expired or missing ticket: back to the Google confirmation.
+    dropTicket()
   } else if (fieldErrors.value) {
     Object.entries(fieldErrors.value).forEach(([field, messages]) => {
       if (messages && messages.length > 0) {
@@ -71,10 +107,18 @@ const onSubmit = handleSubmit(async (values) => {
   }
 })
 
+function dropTicket(): void {
+  reauthTicket.value = null
+  showForm.value = false
+  resetForm()
+}
+
 function handleCancel(): void {
   showForm.value = false
   clearError()
   resetForm()
+  // The ticket is single-use: cancelling spends it.
+  reauthTicket.value = null
 }
 </script>
 
@@ -86,12 +130,29 @@ function handleCancel(): void {
 
     <p v-if="!hasPassword" class="text-xs text-gray-500 mb-2" data-testid="set-password-hint">
       Vous vous connectez avec Google. Définir un mot de passe vous permet aussi de vous connecter
-      sans Google, de changer votre adresse email et de supprimer votre compte.
+      sans Google, de changer votre adresse email et de supprimer votre compte. Pour votre
+      sécurité, confirmez d'abord votre identité avec Google.
     </p>
+
+    <!-- Password-less account: a first password needs a fresh Google confirmation -->
+    <div v-if="!hasPassword && reauthTicket === null" data-testid="set-password-reauth">
+      <div
+        v-if="error"
+        class="rounded-xl bg-red-50 border border-red-200 p-3 mb-3"
+        data-testid="form-error"
+      >
+        <p class="text-sm text-red-700">{{ error }}</p>
+      </div>
+      <GoogleSignInButton
+        intent="reauth"
+        reauth-purpose="set_password"
+        label="Confirmer avec Google"
+      />
+    </div>
 
     <!-- Toggle form button -->
     <button
-      v-if="!showForm"
+      v-else-if="!showForm"
       @click="showForm = true"
       class="text-sm text-primary hover:text-primary/80 font-medium transition-colors"
       data-testid="show-form-button"
@@ -101,7 +162,8 @@ function handleCancel(): void {
 
     <!-- Password change form -->
     <form
-      v-if="showForm"
+      v-else
+
       @submit="onSubmit"
       class="space-y-3"
       data-testid="password-change-form"

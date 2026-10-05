@@ -9,6 +9,7 @@ import ProfileEditPage from '../ProfileEditPage.vue'
 // The composables must hand back genuine refs: the page destructures them and
 // uses them bare in the template, which only unwraps actual refs.
 const h = vi.hoisted(() => ({
+  userId: 7 as number | null,
   fetchProfile: vi.fn().mockResolvedValue(undefined),
   fetchBio: vi.fn().mockResolvedValue(undefined),
   refs: {} as {
@@ -60,7 +61,9 @@ vi.mock('@/composables/useToast', () => ({
 }))
 
 vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({ user: { email: 'prod@example.com' } }),
+  useAuthStore: () => ({
+    user: h.userId === null ? null : { id: h.userId, email: 'prod@example.com' },
+  }),
 }))
 
 const stubs = {
@@ -78,6 +81,8 @@ const mountPage = () => mount(ProfileEditPage, { global: { stubs } })
 describe('ProducerProfileEditPage — completion nudge', () => {
   beforeEach(() => {
     localStorage.clear()
+    vi.restoreAllMocks()
+    h.userId = 7
     h.refs.profile.value = {
       type: 'particulier',
       profile_photo_url: null,
@@ -154,5 +159,50 @@ describe('ProducerProfileEditPage — completion nudge', () => {
     const remounted = mountPage()
     await flushPromises()
     expect(remounted.find('[data-testid="producer-profile-nudge"]').exists()).toBe(false)
+  })
+
+  it('keys the dismissal per user: another account on the same browser still sees it', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    await wrapper.find('[data-testid="producer-profile-nudge-dismiss"]').trigger('click')
+
+    expect(localStorage.getItem('producer_profile_nudge_dismissed:7')).toBe('1')
+    expect(localStorage.getItem('producer_profile_nudge_dismissed')).toBeNull()
+
+    h.userId = 8
+    const other = mountPage()
+    await flushPromises()
+    expect(other.find('[data-testid="producer-profile-nudge"]').exists()).toBe(true)
+
+    h.userId = 7
+    const same = mountPage()
+    await flushPromises()
+    expect(same.find('[data-testid="producer-profile-nudge"]').exists()).toBe(false)
+  })
+
+  it('survives a storage that throws on read and write', async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('denied')
+    })
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('denied')
+    })
+
+    const wrapper = mountPage()
+    await flushPromises()
+    expect(wrapper.find('[data-testid="producer-profile-nudge"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="producer-profile-nudge-dismiss"]').trigger('click')
+    // Dismissed for this page view even though nothing could be persisted.
+    expect(wrapper.find('[data-testid="producer-profile-nudge"]').exists()).toBe(false)
+  })
+
+  it('assembles the sentence from what is missing', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="producer-profile-nudge"]').text()).toContain(
+      'Complétez votre profil — ajoutez une photo de profil et présentez votre activité en quelques lignes — les Faces répondent bien plus souvent aux Producteurs identifiables.'
+    )
   })
 })

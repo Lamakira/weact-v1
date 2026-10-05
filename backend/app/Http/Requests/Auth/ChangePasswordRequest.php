@@ -25,7 +25,13 @@ class ChangePasswordRequest extends FormRequest
             // An OAuth-only account has nothing to confirm, so this endpoint doubles
             // as "set a password". A separate POST /password/set would duplicate the
             // rules, the throttle and the frontend composable for no behavioural gain.
-            'current_password' => [Rule::requiredIf(fn (): bool => $this->user()?->password !== null), 'string'],
+            //
+            // The flip side: setting a FIRST password is a credential-creating act, so
+            // it needs fresh proof of ownership (a Google re-authentication ticket) —
+            // a stolen bearer alone must not be able to plant a password on the account.
+            // `nullable`: the SPA sends `current_password: null` for such accounts.
+            'current_password' => [Rule::requiredIf(fn (): bool => $this->user()?->password !== null), 'nullable', 'string'],
+            'reauth_token' => [Rule::requiredIf(fn (): bool => $this->user()?->password === null), 'nullable', 'string'],
             'new_password' => [
                 'required',
                 'string',
@@ -64,6 +70,7 @@ class ChangePasswordRequest extends FormRequest
     {
         return [
             'current_password.required' => 'Le mot de passe actuel est obligatoire.',
+            'reauth_token.required' => 'Confirmez votre identité avec Google pour définir un mot de passe.',
             'new_password.required' => 'Le nouveau mot de passe est obligatoire.',
             'new_password.min' => 'Le nouveau mot de passe doit contenir au moins 8 caractères.',
             'new_password.regex' => 'Le nouveau mot de passe doit contenir au moins une majuscule et un chiffre.',

@@ -1,6 +1,17 @@
 import { z } from 'zod'
 import { toTypedSchema } from '@vee-validate/zod'
+import type { TypedSchema } from 'vee-validate'
 import type { ProducerType } from '../types'
+
+export const PRODUCER_NAME_MAX_LENGTH = 100
+
+export interface ProducerRegistrationValues {
+  type: ProducerType
+  nom: string
+  email: string
+  password: string
+  accept_cgu: boolean
+}
 
 /**
  * Zod schema for Producer registration validation
@@ -10,7 +21,7 @@ import type { ProducerType } from '../types'
  * for an agency and as `nom_complet` for a particulier, which the backend splits
  * into first_name/last_name.
  */
-const producerRegistrationSchema = (type: ProducerType) =>
+const producerRegistrationSchema = (type: ProducerType): z.ZodType<ProducerRegistrationValues> =>
   z.object({
     type: z.literal(type),
 
@@ -23,7 +34,10 @@ const producerRegistrationSchema = (type: ProducerType) =>
         1,
         type === 'agency' ? "Le nom de l'agence est obligatoire" : 'Votre nom complet est obligatoire'
       )
-      .max(255, 'Ce champ ne peut pas dépasser 255 caractères'),
+      .max(
+        PRODUCER_NAME_MAX_LENGTH,
+        `Ce champ ne peut pas dépasser ${PRODUCER_NAME_MAX_LENGTH} caractères`
+      ),
 
     email: z
       .string({ message: "L'email est obligatoire" })
@@ -46,5 +60,7 @@ const producerRegistrationSchema = (type: ProducerType) =>
 /**
  * Typed schema for VeeValidate, rebuilt when the account type changes.
  */
-export const producerRegistrationValidationSchema = (type: ProducerType) =>
+export const producerRegistrationValidationSchema = (
+  type: ProducerType
+): TypedSchema<ProducerRegistrationValues> =>
   toTypedSchema(producerRegistrationSchema(type))

@@ -45,8 +45,8 @@ class CompleteGoogleRegistrationRequest extends FormRequest
 
             // Producer branch — same rules as RegisterProducerRequest.
             'type' => ['required_if:role,producer', 'nullable', 'string', 'in:agency,particulier'],
-            'agency_name' => ['required_if:type,agency', 'nullable', 'string', 'max:255'],
-            'nom_complet' => ['required_if:type,particulier', 'nullable', 'string', 'max:255'],
+            'agency_name' => ['required_if:type,agency', 'nullable', 'string', 'max:100'],
+            'nom_complet' => ['required_if:type,particulier', 'nullable', 'string', 'max:100'],
         ];
     }
 
@@ -68,6 +68,8 @@ class CompleteGoogleRegistrationRequest extends FormRequest
             'type.in' => 'Type de compte invalide',
             'agency_name.required_if' => 'Le nom de l\'agence est obligatoire',
             'nom_complet.required_if' => 'Votre nom complet est obligatoire',
+            'agency_name.max' => 'Le nom de l\'agence ne peut pas dépasser 100 caractères',
+            'nom_complet.max' => 'Le nom complet ne peut pas dépasser 100 caractères',
             'accept_cgu.required' => 'Vous devez avoir 16 ans ou plus et accepter les CGU et la Politique de Confidentialité.',
             'accept_cgu.accepted' => 'Vous devez avoir 16 ans ou plus et accepter les CGU et la Politique de Confidentialité.',
         ];

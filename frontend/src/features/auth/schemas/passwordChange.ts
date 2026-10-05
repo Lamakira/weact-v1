@@ -1,5 +1,12 @@
 import { z } from 'zod'
 import { toTypedSchema } from '@vee-validate/zod'
+import type { TypedSchema } from 'vee-validate'
+
+export interface PasswordChangeValues {
+  current_password?: string
+  new_password: string
+  new_password_confirmation: string
+}
 
 /**
  * Zod schema for password change validation
@@ -8,7 +15,7 @@ import { toTypedSchema } from '@vee-validate/zod'
  * `hasPassword = false` is the OAuth-only case: there is nothing to confirm, so
  * the same form doubles as "set a password" (the backend endpoint does too).
  */
-const passwordChangeSchema = (hasPassword: boolean) => {
+const passwordChangeSchema = (hasPassword: boolean): z.ZodType<PasswordChangeValues> => {
   const base = z.object({
     current_password: hasPassword
       ? z
@@ -39,5 +46,7 @@ const passwordChangeSchema = (hasPassword: boolean) => {
 /**
  * Typed schema for VeeValidate.
  */
-export const passwordChangeValidationSchema = (hasPassword = true) =>
+export const passwordChangeValidationSchema = (
+  hasPassword = true
+): TypedSchema<PasswordChangeValues> =>
   toTypedSchema(passwordChangeSchema(hasPassword))

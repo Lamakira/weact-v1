@@ -6,6 +6,7 @@ import { AxiosError, type AxiosResponse } from 'axios'
 vi.mock('../../services/passwordChangeApi', () => ({
   passwordChangeApi: {
     changePassword: vi.fn(),
+    setPassword: vi.fn(),
   },
 }))
 
@@ -125,5 +126,49 @@ describe('usePasswordChange', () => {
     clearError()
     expect(error.value).toBeNull()
     expect(fieldErrors.value).toEqual({})
+  })
+
+  describe('setPassword (first password, Google re-auth ticket)', () => {
+    it('returns true on success and forwards the ticket', async () => {
+      mockedApi.setPassword.mockResolvedValue({ password_changed: true })
+
+      const { setPassword } = usePasswordChange()
+      const result = await setPassword('New1234567', 'New1234567', 'ticket')
+
+      expect(result).toBe(true)
+      expect(mockedApi.setPassword).toHaveBeenCalledWith('New1234567', 'New1234567', 'ticket')
+      expect(mockedApi.changePassword).not.toHaveBeenCalled()
+    })
+
+    it('exposes the error code and message of an invalid ticket', async () => {
+      mockedApi.setPassword.mockRejectedValue(
+        makeAxiosError(422, {
+          error: {
+            code: 'REAUTH_TOKEN_INVALID',
+            message: 'Confirmation expirée. Reprenez la confirmation avec Google.',
+          },
+        }),
+      )
+
+      const { setPassword, error, errorCode } = usePasswordChange()
+      const result = await setPassword('New1234567', 'New1234567', 'ticket')
+
+      expect(result).toBe(false)
+      expect(errorCode.value).toBe('REAUTH_TOKEN_INVALID')
+      expect(error.value).toBe('Confirmation expirée. Reprenez la confirmation avec Google.')
+    })
+
+    it('clearError resets the error code', async () => {
+      mockedApi.setPassword.mockRejectedValue(
+        makeAxiosError(422, { error: { code: 'REAUTH_TOKEN_INVALID', message: 'x' } }),
+      )
+
+      const { setPassword, clearError, errorCode } = usePasswordChange()
+      await setPassword('New1234567', 'New1234567', 'ticket')
+      expect(errorCode.value).toBe('REAUTH_TOKEN_INVALID')
+
+      clearError()
+      expect(errorCode.value).toBeNull()
+    })
   })
 })

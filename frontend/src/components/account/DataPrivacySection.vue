@@ -10,7 +10,7 @@ import apiClient, { getCsrfCookie } from '@/services/apiClient'
 import { formatApiError } from '@/services/errorFormatter'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
-import { takeGoogleReauthToken } from '@/features/auth/googleReauth'
+import { takeGoogleReauthTicket } from '@/features/auth/googleReauth'
 import GoogleSignInButton from '@/features/auth/components/GoogleSignInButton.vue'
 
 interface DeleteAccountResponse {
@@ -63,7 +63,7 @@ async function handleExport() {
 // Coming back from Google: pick the ticket up and reopen the dialog where the
 // user left it. Taking it clears the storage — one confirmation, one use.
 onMounted(() => {
-  const token = takeGoogleReauthToken()
+  const token = takeGoogleReauthTicket('delete_account')
 
   if (token !== null) {
     reauthToken.value = token
@@ -201,7 +201,11 @@ async function handleDelete() {
               Vous vous connectez avec Google. Confirmez votre identité pour continuer — ou
               définissez un mot de passe dans la section « Définir un mot de passe ».
             </p>
-            <GoogleSignInButton intent="reauth" label="Confirmer avec Google" />
+            <GoogleSignInButton
+              intent="reauth"
+              reauth-purpose="delete_account"
+              label="Confirmer avec Google"
+            />
             <p v-if="deleteError" class="mt-1 text-xs text-red-500">{{ deleteError }}</p>
           </div>
 

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import PasswordChangeForm from '../PasswordChangeForm.vue'
+import { setGoogleReauthTicket, takeGoogleReauthTicket } from '../../googleReauth'
 
 // The form reads has_password from the auth store: with a password it changes one,
 // without it sets one (the OAuth-only case).
@@ -21,7 +22,9 @@ vi.mock('@/stores/auth', () => ({
 const mockIsLoading = ref(false)
 const mockError = ref<string | null>(null)
 const mockFieldErrors = ref<Record<string, string[]>>({})
+const mockErrorCode = ref<string | null>(null)
 const mockChangePassword = vi.fn()
+const mockSetPassword = vi.fn()
 const mockClearError = vi.fn()
 
 vi.mock('../../composables/usePasswordChange', () => ({
@@ -29,7 +32,9 @@ vi.mock('../../composables/usePasswordChange', () => ({
     isLoading: mockIsLoading,
     error: mockError,
     fieldErrors: mockFieldErrors,
+    errorCode: mockErrorCode,
     changePassword: mockChangePassword,
+    setPassword: mockSetPassword,
     clearError: mockClearError,
   }),
 }))
@@ -52,8 +57,16 @@ const waitForValidation = async () => {
   await flushPromises()
 }
 
+const GoogleSignInButtonStub = {
+  props: ['intent', 'label', 'reauthPurpose'],
+  template:
+    '<button type="button" data-testid="google-sign-in-button" :data-intent="intent" :data-purpose="reauthPurpose" />',
+}
+
 function mountForm() {
-  return mount(PasswordChangeForm)
+  return mount(PasswordChangeForm, {
+    global: { stubs: { GoogleSignInButton: GoogleSignInButtonStub } },
+  })
 }
 
 async function openForm(wrapper: ReturnType<typeof mount>) {
@@ -79,7 +92,10 @@ describe('PasswordChangeForm', () => {
     mockIsLoading.value = false
     mockError.value = null
     mockFieldErrors.value = {}
+    mockErrorCode.value = null
+    sessionStorage.clear()
     mockChangePassword.mockResolvedValue(true)
+    mockSetPassword.mockResolvedValue(true)
     mockHasPassword.value = true
     mockRefreshUser.mockResolvedValue(true)
   })
@@ -259,6 +275,13 @@ describe('PasswordChangeForm', () => {
       mockHasPassword.value = false
     })
 
+    async function fillNewPassword(wrapper: ReturnType<typeof mount>) {
+      await wrapper.find('[data-testid="new-password-input"]').setValue('NewPassword2')
+      await wrapper.find('[data-testid="confirm-password-input"]').setValue('NewPassword2')
+      await wrapper.find('[data-testid="password-change-form"]').trigger('submit')
+      await waitForValidation()
+    }
+
     it('reframes the section as setting a password', () => {
       const wrapper = mountForm()
 
@@ -267,37 +290,114 @@ describe('PasswordChangeForm', () => {
       expect(wrapper.find('[data-testid="set-password-hint"]').exists()).toBe(true)
     })
 
-    it('does not ask for a current password', async () => {
-      const wrapper = mountForm()
-      await openForm(wrapper)
+    describe('without a Google ticket', () => {
+      it('offers the Google confirmation and no fields', () => {
+        const wrapper = mountForm()
 
-      expect(wrapper.find('[data-testid="current-password-input"]').exists()).toBe(false)
-      expect(wrapper.find('[data-testid="new-password-input"]').exists()).toBe(true)
+        const button = wrapper.find('[data-testid="google-sign-in-button"]')
+        expect(button.exists()).toBe(true)
+        expect(button.attributes('data-intent')).toBe('reauth')
+        expect(button.attributes('data-purpose')).toBe('set_password')
+        expect(wrapper.find('[data-testid="show-form-button"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="new-password-input"]').exists()).toBe(false)
+      })
     })
 
-    it('submits with an empty current password', async () => {
-      const wrapper = mountForm()
-      await openForm(wrapper)
+    describe('with a set_password ticket', () => {
+      beforeEach(() => {
+        setGoogleReauthTicket('reauth-pwd', 'set_password')
+      })
 
-      await wrapper.find('[data-testid="new-password-input"]').setValue('NewPassword2')
-      await wrapper.find('[data-testid="confirm-password-input"]').setValue('NewPassword2')
-      await wrapper.find('[data-testid="password-change-form"]').trigger('submit')
-      await waitForValidation()
+      it('shows the new password fields without a current password and consumes the ticket from storage', () => {
+        const wrapper = mountForm()
 
-      expect(mockChangePassword).toHaveBeenCalledWith('', 'NewPassword2', 'NewPassword2')
+        expect(wrapper.find('[data-testid="current-password-input"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="new-password-input"]').exists()).toBe(true)
+        expect(wrapper.find('[data-testid="confirm-password-input"]').exists()).toBe(true)
+        expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(false)
+        expect(takeGoogleReauthTicket('set_password')).toBeNull()
+      })
+
+      it('submits the ticket and never a current password', async () => {
+        const wrapper = mountForm()
+        await fillNewPassword(wrapper)
+
+        expect(mockSetPassword).toHaveBeenCalledWith('NewPassword2', 'NewPassword2', 'reauth-pwd')
+        expect(mockChangePassword).not.toHaveBeenCalled()
+      })
+
+      it('refreshes the user so email change and deletion unlock without a reload', async () => {
+        const wrapper = mountForm()
+        await fillNewPassword(wrapper)
+
+        expect(mockRefreshUser).toHaveBeenCalled()
+        expect(mockToastSuccess).toHaveBeenCalledWith('Votre mot de passe a été défini avec succès.')
+        expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
+      })
+
+      it('drops the ticket and returns to the Google button on REAUTH_TOKEN_INVALID', async () => {
+        mockSetPassword.mockImplementation(async () => {
+          mockErrorCode.value = 'REAUTH_TOKEN_INVALID'
+          mockError.value = 'Confirmation expirée. Reprenez la confirmation avec Google.'
+          return false
+        })
+
+        const wrapper = mountForm()
+        await fillNewPassword(wrapper)
+
+        expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(true)
+        expect(wrapper.find('[data-testid="form-error"]').text()).toContain(
+          'Confirmation expirée. Reprenez la confirmation avec Google.'
+        )
+        expect(mockRefreshUser).not.toHaveBeenCalled()
+      })
+
+      it('also drops the ticket on a reauth_token field error', async () => {
+        mockSetPassword.mockImplementation(async () => {
+          mockFieldErrors.value = { reauth_token: ['La confirmation Google est requise.'] }
+          mockError.value = 'La confirmation Google est requise.'
+          return false
+        })
+
+        const wrapper = mountForm()
+        await fillNewPassword(wrapper)
+
+        expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(true)
+      })
+
+      it('keeps the form on an ordinary field error', async () => {
+        mockSetPassword.mockImplementation(async () => {
+          mockFieldErrors.value = { new_password: ['Le mot de passe est trop faible.'] }
+          mockError.value = 'Le mot de passe est trop faible.'
+          return false
+        })
+
+        const wrapper = mountForm()
+        await fillNewPassword(wrapper)
+
+        expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(true)
+      })
+
+      it('goes back to the Google button on cancel (the ticket is spent)', async () => {
+        const wrapper = mountForm()
+        await wrapper.find('[data-testid="cancel-form-button"]').trigger('click')
+
+        expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(true)
+      })
     })
 
-    it('refreshes the user so email change and deletion unlock without a reload', async () => {
+    it('does not consume a delete_account ticket', () => {
+      setGoogleReauthTicket('reauth-del', 'delete_account')
+
       const wrapper = mountForm()
-      await openForm(wrapper)
 
-      await wrapper.find('[data-testid="new-password-input"]').setValue('NewPassword2')
-      await wrapper.find('[data-testid="confirm-password-input"]').setValue('NewPassword2')
-      await wrapper.find('[data-testid="password-change-form"]').trigger('submit')
-      await waitForValidation()
-
-      expect(mockRefreshUser).toHaveBeenCalled()
-      expect(mockToastSuccess).toHaveBeenCalledWith('Votre mot de passe a été défini avec succès.')
+      expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
+      expect(takeGoogleReauthTicket('delete_account')).toBe('reauth-del')
     })
   })
 })

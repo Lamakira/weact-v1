@@ -48,17 +48,87 @@ class NullPasswordAccountTest extends TestCase
         $this->assertNull($this->passwordless->fresh()->password);
     }
 
-    public function test_setting_a_password_needs_no_current_password_when_there_is_none(): void
+    private function ticketFor(User $user): string
     {
+        return app(GoogleOAuthService::class)->issueReauthToken($user->id);
+    }
+
+    public function test_setting_a_first_password_needs_a_reauth_ticket_but_no_current_password(): void
+    {
+        // `current_password: null` is what the SPA sends (ConvertEmptyStringsToNull).
         $response = $this->actingAs($this->passwordless)
             ->putJson('/api/v1/password', [
+                'current_password' => null,
                 'new_password' => 'BrandNew123',
                 'new_password_confirmation' => 'BrandNew123',
+                'reauth_token' => $this->ticketFor($this->passwordless),
             ]);
 
         $response->assertOk();
 
         $this->assertTrue(Hash::check('BrandNew123', $this->passwordless->fresh()->password));
+    }
+
+    public function test_setting_a_first_password_without_a_ticket_is_refused(): void
+    {
+        $this->actingAs($this->passwordless)
+            ->putJson('/api/v1/password', [
+                'new_password' => 'BrandNew123',
+                'new_password_confirmation' => 'BrandNew123',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['reauth_token']);
+
+        $this->assertNull($this->passwordless->fresh()->password);
+    }
+
+    public function test_a_ticket_minted_for_another_account_cannot_set_a_first_password(): void
+    {
+        $this->actingAs($this->passwordless)
+            ->putJson('/api/v1/password', [
+                'new_password' => 'BrandNew123',
+                'new_password_confirmation' => 'BrandNew123',
+                'reauth_token' => $this->ticketFor($this->withPassword),
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'REAUTH_TOKEN_INVALID')
+            ->assertJsonPath('error.message', 'Confirmation expirée. Reprenez la confirmation avec Google.');
+
+        $this->assertNull($this->passwordless->fresh()->password);
+    }
+
+    public function test_the_ticket_for_a_first_password_is_single_use(): void
+    {
+        $ticket = $this->ticketFor($this->passwordless);
+        $payload = [
+            'new_password' => 'BrandNew123',
+            'new_password_confirmation' => 'BrandNew123',
+            'reauth_token' => $ticket,
+        ];
+
+        $this->actingAs($this->passwordless)->putJson('/api/v1/password', $payload)->assertOk();
+
+        // Back to a password-less state, same ticket replayed.
+        User::query()->whereKey($this->passwordless->id)->update(['password' => null]);
+
+        $this->actingAs($this->passwordless->fresh())
+            ->putJson('/api/v1/password', $payload)
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'REAUTH_TOKEN_INVALID');
+
+        $this->assertNull($this->passwordless->fresh()->password);
+    }
+
+    public function test_the_reauth_ticket_is_ignored_when_the_account_has_a_password(): void
+    {
+        $this->actingAs($this->withPassword)
+            ->putJson('/api/v1/password', [
+                'new_password' => 'BrandNew123',
+                'new_password_confirmation' => 'BrandNew123',
+                'reauth_token' => $this->ticketFor($this->withPassword),
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['current_password']);
     }
 
     public function test_changing_a_password_still_requires_the_current_one(): void
@@ -106,6 +176,7 @@ class NullPasswordAccountTest extends TestCase
             ->putJson('/api/v1/password', [
                 'new_password' => 'BrandNew123',
                 'new_password_confirmation' => 'BrandNew123',
+                'reauth_token' => $this->ticketFor($this->passwordless),
             ])
             ->assertOk();
 
@@ -126,6 +197,26 @@ class NullPasswordAccountTest extends TestCase
 
         $this->assertTrue($this->passwordless->fresh()->is_active);
         $this->assertSame('oauth@example.com', $this->passwordless->fresh()->email);
+    }
+
+    public function test_account_deletion_with_an_empty_body_also_points_at_reauthenticating(): void
+    {
+        $this->actingAs($this->passwordless)
+            ->deleteJson('/api/v1/user/account')
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'ACCOUNT_DELETION_REQUIRES_REAUTH');
+
+        $this->assertTrue($this->passwordless->fresh()->is_active);
+    }
+
+    public function test_account_deletion_with_an_empty_body_still_asks_for_the_password_when_there_is_one(): void
+    {
+        $this->actingAs($this->withPassword)
+            ->deleteJson('/api/v1/user/account')
+            ->assertStatus(422)
+            ->assertJsonStructure(['error' => ['details' => ['password']]]);
+
+        $this->assertTrue($this->withPassword->fresh()->is_active);
     }
 
     public function test_a_fresh_google_reauth_ticket_confirms_the_deletion(): void
@@ -197,6 +288,7 @@ class NullPasswordAccountTest extends TestCase
             ->putJson('/api/v1/password', [
                 'new_password' => 'BrandNew123',
                 'new_password_confirmation' => 'BrandNew123',
+                'reauth_token' => $this->ticketFor($this->passwordless),
             ])
             ->assertOk();
 
@@ -218,5 +310,25 @@ class NullPasswordAccountTest extends TestCase
             ->getJson('/api/v1/user')
             ->assertOk()
             ->assertJsonPath('data.has_password', true);
+    }
+
+    public function test_the_data_export_reports_the_authentication_methods(): void
+    {
+        $this->passwordless->forceFill(['google_id' => 'google-sub-1', 'google_linked_at' => now()])->save();
+
+        $linked = $this->actingAs($this->passwordless->fresh())
+            ->getJson('/api/v1/user/data-export')
+            ->assertOk()
+            ->assertJsonPath('data.account.has_password', false)
+            ->assertJsonPath('data.account.google_linked', true);
+
+        $this->assertNotNull($linked->json('data.account.google_linked_at'));
+
+        $this->actingAs($this->withPassword)
+            ->getJson('/api/v1/user/data-export')
+            ->assertOk()
+            ->assertJsonPath('data.account.has_password', true)
+            ->assertJsonPath('data.account.google_linked', false)
+            ->assertJsonPath('data.account.google_linked_at', null);
     }
 }

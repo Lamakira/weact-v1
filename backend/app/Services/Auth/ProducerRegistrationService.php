@@ -13,6 +13,13 @@ use Illuminate\Support\Facades\Hash;
 class ProducerRegistrationService
 {
     /**
+     * Version of the consent text shown to Producers (email and Google paths).
+     * Unchanged since 2026-04-04: « J'accepte les CGU et la Politique de
+     * Confidentialité » was not reworded when the Face label was.
+     */
+    public const CONSENT_VERSION = '2026-04-04';
+
+    /**
      * Register a new Producer user.
      *
      * @param  array{type: string, email: string, password: string, agency_name?: string, nom_complet?: string, accept_cgu?: bool}  $validated
@@ -76,7 +83,7 @@ class ProducerRegistrationService
                 'userable_id' => $producer->id,
                 'consent_given_at' => now(),
                 'consent_ip' => $ip,
-                'consent_version' => '2026-04-04',
+                'consent_version' => self::CONSENT_VERSION,
             ]);
 
             if ($googleId !== null) {

@@ -40,7 +40,9 @@ class UpdateBasicInfoRequest extends FormRequest
         // Particulier type
         return [
             'first_name' => ['sometimes', 'required', 'string', 'max:100'],
-            'last_name' => ['sometimes', 'required', 'string', 'max:100'],
+            // Optional: a one-word name registers with an empty last_name
+            // (ProducerRegistrationService::splitFullName).
+            'last_name' => ['sometimes', 'nullable', 'string', 'max:100'],
         ];
     }
 
@@ -56,7 +58,6 @@ class UpdateBasicInfoRequest extends FormRequest
             'agency_name.max' => "Le nom de l'agence ne peut pas dépasser 100 caractères",
             'first_name.required' => 'Le prénom est obligatoire',
             'first_name.max' => 'Le prénom ne peut pas dépasser 100 caractères',
-            'last_name.required' => 'Le nom est obligatoire',
             'last_name.max' => 'Le nom ne peut pas dépasser 100 caractères',
         ];
     }

@@ -9,7 +9,9 @@ use App\Models\Producer;
 use App\Models\User;
 use App\Notifications\VerifyEmailNotification;
 use App\Services\Auth\GoogleOAuthService;
+use App\Services\Auth\UsernameGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
@@ -29,6 +31,8 @@ class GoogleCompleteRegistrationTest extends TestCase
     {
         parent::setUp();
         Notification::fake();
+
+        config(['services.google.enabled' => true]);
 
         $this->oauth = app(GoogleOAuthService::class);
     }
@@ -78,7 +82,76 @@ class GoogleCompleteRegistrationTest extends TestCase
         $this->assertNotNull($user->google_linked_at);
         $this->assertNotNull($user->email_verified_at);
         $this->assertNotNull($user->consent_given_at);
-        $this->assertSame('2026-04-04', $user->consent_version);
+        // New consent text on the Face paths ("J'ai 16 ans ou plus et j'accepte…").
+        $this->assertSame('2026-08-03', $user->consent_version);
+    }
+
+    public function test_a_producer_keeps_the_unchanged_consent_version(): void
+    {
+        $this->postJson('/api/v1/auth/google/complete-registration', [
+            'pending_token' => $this->pendingToken('producer'),
+            'role' => 'producer',
+            'type' => 'agency',
+            'agency_name' => 'Studio Pro',
+            'accept_cgu' => true,
+        ])->assertStatus(201);
+
+        $this->assertSame('2026-04-04', User::query()->firstOrFail()->consent_version);
+    }
+
+    /**
+     * A race on the email (or google_id) between the callback and the completion
+     * must surface as a clean 422, never a 500 — and must not be mistaken for a
+     * username collision by the registration retry loop.
+     */
+    public function test_an_email_taken_between_the_exists_check_and_the_insert_is_a_422_not_a_500(): void
+    {
+        $token = $this->pendingToken();
+
+        // Not a username collision: the retry ladder must not be walked at all.
+        $this->partialMock(UsernameGenerator::class)
+            ->shouldReceive('generateWithRandomSuffix')
+            ->never();
+
+        // Simulate the race: the exists() pre-check passes, then the insert collides.
+        User::creating(function (User $user): void {
+            $face = Face::factory()->create();
+            DB::table('users')->insert([
+                'email' => $user->email,
+                'userable_type' => Face::class,
+                'userable_id' => $face->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        $this->postJson('/api/v1/auth/google/complete-registration', $this->facePayload([
+            'pending_token' => $token,
+        ]))->assertStatus(422)->assertJsonPath('error.code', 'EMAIL_ALREADY_USED');
+    }
+
+    public function test_a_producer_race_on_the_email_is_a_422_not_a_500(): void
+    {
+        $token = $this->pendingToken('producer');
+
+        User::creating(function (User $user): void {
+            $face = Face::factory()->create();
+            DB::table('users')->insert([
+                'email' => $user->email,
+                'userable_type' => Face::class,
+                'userable_id' => $face->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        $this->postJson('/api/v1/auth/google/complete-registration', [
+            'pending_token' => $token,
+            'role' => 'producer',
+            'type' => 'agency',
+            'agency_name' => 'Studio Pro',
+            'accept_cgu' => true,
+        ])->assertStatus(422)->assertJsonPath('error.code', 'EMAIL_ALREADY_USED');
     }
 
     /**
@@ -122,6 +195,25 @@ class GoogleCompleteRegistrationTest extends TestCase
         $response->assertStatus(201)
             ->assertJsonPath('data.user.userable.first_name', 'Marie Ange')
             ->assertJsonPath('data.user.userable.last_name', 'Sossou');
+    }
+
+    public function test_google_completion_lengths_match_the_profile_limits(): void
+    {
+        $this->postJson('/api/v1/auth/google/complete-registration', [
+            'pending_token' => $this->pendingToken('producer'),
+            'role' => 'producer',
+            'type' => 'agency',
+            'agency_name' => str_repeat('a', 101),
+            'accept_cgu' => true,
+        ])->assertStatus(422)->assertJsonStructure(['error' => ['details' => ['agency_name']]]);
+
+        $this->postJson('/api/v1/auth/google/complete-registration', [
+            'pending_token' => $this->pendingToken('producer'),
+            'role' => 'producer',
+            'type' => 'particulier',
+            'nom_complet' => str_repeat('a', 101),
+            'accept_cgu' => true,
+        ])->assertStatus(422)->assertJsonStructure(['error' => ['details' => ['nom_complet']]]);
     }
 
     public function test_consent_is_never_skipped(): void

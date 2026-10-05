@@ -18,6 +18,12 @@ class FaceRegistrationService
      */
     private const MAX_ATTEMPTS = 3;
 
+    /**
+     * Version of the consent text shown on the Face signup paths (email and Google).
+     * Bumped to 2026-08-03 when the label became « J'ai 16 ans ou plus et j'accepte… ».
+     */
+    public const CONSENT_VERSION = '2026-08-03';
+
     public function __construct(private readonly UsernameGenerator $usernameGenerator) {}
 
     /**
@@ -77,7 +83,10 @@ class FaceRegistrationService
             try {
                 return $this->persist($validated, $username, $ip, $googleId);
             } catch (UniqueConstraintViolationException $e) {
-                if ($attempt === self::MAX_ATTEMPTS) {
+                // Only a username collision is worth replaying. If no Face holds that
+                // username, the violation was on another column (users.email,
+                // users.google_id): a retry can only fail again, so surface it now.
+                if ($attempt === self::MAX_ATTEMPTS || Face::query()->where('username', $username)->doesntExist()) {
                     throw $e;
                 }
             }
@@ -110,7 +119,7 @@ class FaceRegistrationService
                 'userable_id' => $face->id,
                 'consent_given_at' => now(),
                 'consent_ip' => $ip,
-                'consent_version' => '2026-04-04',
+                'consent_version' => self::CONSENT_VERSION,
             ]);
 
             if ($googleId !== null) {

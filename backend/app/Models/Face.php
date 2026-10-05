@@ -413,9 +413,10 @@ class Face extends Model
     /**
      * Get the profile completion percentage (0-100).
      *
-     * Required fields (10 total):
+     * Required fields (11 total):
      * - profile_photo
      * - sexe
+     * - nationalite
      * - presentation_video
      * - acting_video
      * - bio
@@ -425,21 +426,25 @@ class Face extends Model
      * - langues
      * - whatsapp_number
      *
-     * `sexe` and `whatsapp_number` are no longer asked at signup, so the completion
-     * meter is what brings them in. `nationalite`/`pays` are deliberately excluded:
-     * `pays` has a database default, so it would always count as complete.
+     * `sexe`, `nationalite` and `whatsapp_number` are no longer asked at signup, so
+     * the completion meter is what brings them in. `pays` is deliberately excluded:
+     * it has a database default, so it would always count as complete — whereas
+     * `nationalite` is a nullable column with no default.
      */
     protected function profileCompletionPercentage(): Attribute
     {
         return Attribute::make(
             get: function (): int {
                 $completed = 0;
-                $total = 10;
+                $total = 11;
 
                 if ($this->profile_photo) {
                     $completed++;
                 }
                 if ($this->sexe) {
+                    $completed++;
+                }
+                if ($this->nationalite) {
                     $completed++;
                 }
                 if ($this->presentation_video) {
@@ -483,6 +488,9 @@ class Face extends Model
                 }
                 if (! $this->sexe) {
                     $missing[] = ['key' => 'sexe', 'label' => 'Indiquez votre sexe'];
+                }
+                if (! $this->nationalite) {
+                    $missing[] = ['key' => 'nationalite', 'label' => 'Indiquez votre nationalité'];
                 }
                 if (! $this->presentation_video) {
                     $missing[] = ['key' => 'presentation_video', 'label' => 'Ajoutez une vidéo de présentation'];

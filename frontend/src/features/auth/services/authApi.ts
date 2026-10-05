@@ -35,9 +35,13 @@ export const authApi = {
    * followed by this XHR, and Google's response carries no CORS header, so the
    * fetch would die and the top-level document would never navigate.
    */
-  async getGoogleRedirectUrl(intent: GoogleIntent, redirect?: string | null): Promise<string> {
+  async getGoogleRedirectUrl(
+    intent: GoogleIntent,
+    redirect: string | null | undefined,
+    nonce: string
+  ): Promise<string> {
     const response = await apiClient.get<{ data: { url: string } }>('/auth/google/redirect', {
-      params: { intent, ...(redirect ? { redirect } : {}) },
+      params: { intent, nonce, ...(redirect ? { redirect } : {}) },
     })
     return response.data.data.url
   },
@@ -45,10 +49,11 @@ export const authApi = {
   /**
    * Trade the one-shot code from the callback URL for the Sanctum token.
    */
-  async exchangeGoogleCode(code: string): Promise<GoogleExchangeResult> {
+  async exchangeGoogleCode(code: string, nonce: string): Promise<GoogleExchangeResult> {
     await getCsrfCookie()
     const response = await apiClient.post<{ data: GoogleExchangeResult }>('/auth/google/exchange', {
       code,
+      nonce,
     })
     return response.data.data
   },

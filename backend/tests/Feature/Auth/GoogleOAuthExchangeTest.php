@@ -19,6 +19,8 @@ class GoogleOAuthExchangeTest extends TestCase
 {
     use RefreshDatabase;
 
+    private const NONCE = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
     private GoogleOAuthService $oauth;
 
     private User $user;
@@ -26,6 +28,8 @@ class GoogleOAuthExchangeTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        config(['services.google.enabled' => true]);
 
         $this->oauth = app(GoogleOAuthService::class);
 
@@ -43,8 +47,8 @@ class GoogleOAuthExchangeTest extends TestCase
         return $this->oauth->issueExchangeCode([
             'kind' => 'authenticated',
             'user_id' => $this->user->id,
-            'token' => $this->user->createToken('auth-token')->plainTextToken,
             'redirect' => null,
+            'binding' => hash('sha256', self::NONCE),
         ]);
     }
 
@@ -52,7 +56,7 @@ class GoogleOAuthExchangeTest extends TestCase
     {
         $code = $this->issueAuthenticatedCode();
 
-        $token = $this->postJson('/api/v1/auth/google/exchange', ['code' => $code])
+        $token = $this->postJson('/api/v1/auth/google/exchange', ['code' => $code, 'nonce' => self::NONCE])
             ->assertOk()
             ->json('data.token');
 
@@ -66,9 +70,9 @@ class GoogleOAuthExchangeTest extends TestCase
     {
         $code = $this->issueAuthenticatedCode();
 
-        $this->postJson('/api/v1/auth/google/exchange', ['code' => $code])->assertOk();
+        $this->postJson('/api/v1/auth/google/exchange', ['code' => $code, 'nonce' => self::NONCE])->assertOk();
 
-        $this->postJson('/api/v1/auth/google/exchange', ['code' => $code])
+        $this->postJson('/api/v1/auth/google/exchange', ['code' => $code, 'nonce' => self::NONCE])
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'OAUTH_CODE_INVALID');
     }
@@ -79,23 +83,43 @@ class GoogleOAuthExchangeTest extends TestCase
 
         $this->travel(3)->minutes();
 
-        $this->postJson('/api/v1/auth/google/exchange', ['code' => $code])
+        $this->postJson('/api/v1/auth/google/exchange', ['code' => $code, 'nonce' => self::NONCE])
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'OAUTH_CODE_INVALID');
     }
 
     public function test_an_unknown_code_is_refused(): void
     {
-        $this->postJson('/api/v1/auth/google/exchange', ['code' => 'not-a-real-code'])
+        $this->postJson('/api/v1/auth/google/exchange', ['code' => 'not-a-real-code', 'nonce' => self::NONCE])
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'OAUTH_CODE_INVALID');
     }
 
     public function test_the_code_is_required(): void
     {
-        $this->postJson('/api/v1/auth/google/exchange', [])
+        $this->postJson('/api/v1/auth/google/exchange', ['nonce' => self::NONCE])
             ->assertStatus(422)
             ->assertJsonStructure(['error' => ['details' => ['code']]]);
+    }
+
+    public function test_the_nonce_is_required(): void
+    {
+        $this->postJson('/api/v1/auth/google/exchange', ['code' => $this->issueAuthenticatedCode()])
+            ->assertStatus(422)
+            ->assertJsonStructure(['error' => ['details' => ['nonce']]]);
+    }
+
+    public function test_a_code_without_a_binding_is_refused(): void
+    {
+        $code = $this->oauth->issueExchangeCode([
+            'kind' => 'authenticated',
+            'user_id' => $this->user->id,
+            'redirect' => null,
+        ]);
+
+        $this->postJson('/api/v1/auth/google/exchange', ['code' => $code, 'nonce' => self::NONCE])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'OAUTH_CODE_INVALID');
     }
 
     public function test_a_code_pointing_at_a_vanished_user_is_refused(): void
@@ -105,7 +129,7 @@ class GoogleOAuthExchangeTest extends TestCase
         $this->user->tokens()->delete();
         $this->user->delete();
 
-        $this->postJson('/api/v1/auth/google/exchange', ['code' => $code])
+        $this->postJson('/api/v1/auth/google/exchange', ['code' => $code, 'nonce' => self::NONCE])
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'OAUTH_CODE_INVALID');
     }
@@ -113,9 +137,9 @@ class GoogleOAuthExchangeTest extends TestCase
     public function test_the_exchange_endpoint_is_throttled(): void
     {
         for ($i = 0; $i < 20; $i++) {
-            $this->postJson('/api/v1/auth/google/exchange', ['code' => 'nope'])->assertStatus(422);
+            $this->postJson('/api/v1/auth/google/exchange', ['code' => 'nope', 'nonce' => self::NONCE])->assertStatus(422);
         }
 
-        $this->postJson('/api/v1/auth/google/exchange', ['code' => 'nope'])->assertStatus(429);
+        $this->postJson('/api/v1/auth/google/exchange', ['code' => 'nope', 'nonce' => self::NONCE])->assertStatus(429);
     }
 }

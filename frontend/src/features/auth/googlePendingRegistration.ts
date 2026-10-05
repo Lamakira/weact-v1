@@ -17,7 +17,8 @@ export interface PendingGoogleRegistration {
   redirect: string | null
 }
 
-const STORAGE_KEY = 'google_pending_registration'
+// Under the `weact.auth.` prefix: purged on logout / account switch.
+const STORAGE_KEY = 'weact.auth.google_pending_registration'
 
 export function setPendingGoogleRegistration(value: PendingGoogleRegistration): void {
   sessionStorage.setItem(STORAGE_KEY, JSON.stringify(value))

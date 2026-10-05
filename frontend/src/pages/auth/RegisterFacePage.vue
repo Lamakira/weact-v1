@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import FaceRegistrationForm from '@/features/auth/components/FaceRegistrationForm.vue'
 import { useToast } from '@/composables/useToast'
 import { authApi } from '@/features/auth/services/authApi'
+import { safeRedirect } from '@/lib/safeRedirect'
 import logoNoir from '@/assets/images/logonoir.png'
 import registerFaceIllustration from '@/assets/images/register-face-illustration.webp'
 
@@ -40,14 +41,10 @@ function handleSuccess() {
   // Redirect post-registration: honor ?redirect= bounce-back from /login (FP-2.15),
   // else default to the post-registration upsell page (FP-3.5). A valid ?redirect=
   // still wins so a Face sent here from a protected deep-link returns there.
-  // Defensive guard (FP-2.15 review P3): startsWith('/') && !startsWith('//')
-  // rejects protocol-relative (//evil.com) and absolute URLs that would otherwise
-  // crash pushState with a SecurityError.
-  const redirectQuery = typeof route.query.redirect === 'string' ? route.query.redirect : null
-  const redirectPath =
-    redirectQuery && redirectQuery.startsWith('/') && !redirectQuery.startsWith('//')
-      ? redirectQuery
-      : null
+  // Defensive guard (FP-2.15 review P3): safeRedirect() rejects protocol-relative
+  // (//evil.com), backslash and absolute URLs that would otherwise crash
+  // pushState with a SecurityError.
+  const redirectPath = safeRedirect(route.query.redirect)
   router.push(redirectPath ?? { name: 'face-upsell' })
 }
 </script>

@@ -5,6 +5,7 @@ import LoginForm from '@/features/auth/components/LoginForm.vue'
 import GoogleSignInButton from '@/features/auth/components/GoogleSignInButton.vue'
 import { authApi } from '@/features/auth/services/authApi'
 import { useAuthStore } from '@/stores/auth'
+import { safeRedirect } from '@/lib/safeRedirect'
 import { useToast } from '@/composables/useToast'
 import logoNoir from '@/assets/images/logonoir.png'
 import loginIllustration from '@/assets/images/login-weact-illustration.webp'
@@ -56,8 +57,8 @@ function handleLoginSuccess(): void {
   // string[] case from duplicate ?redirect= params ; the same-origin path
   // check rejects protocol-relative (//evil.com) and absolute URLs that would
   // otherwise crash pushState with a SecurityError.
-  const redirectPath = typeof route.query.redirect === 'string' ? route.query.redirect : null
-  if (redirectPath && redirectPath.startsWith('/') && !redirectPath.startsWith('//')) {
+  const redirectPath = safeRedirect(route.query.redirect)
+  if (redirectPath) {
     router.push(redirectPath)
     return
   }

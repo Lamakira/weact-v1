@@ -213,6 +213,51 @@ describe('GoogleCompleteRegistrationPage', () => {
     expect(getPendingGoogleRegistration()).not.toBeNull()
   })
 
+  it.each([
+    ['OAUTH_PENDING_INVALID', 'Votre inscription Google a expiré. Reprenez-la depuis la connexion.'],
+    ['EMAIL_ALREADY_USED', 'Cette adresse email est déjà utilisée.'],
+  ])('drops the dead pending ticket on %s and links back to the login', async (errorCode, message) => {
+    setPendingGoogleRegistration(pending())
+    h.completeGoogleRegistration.mockResolvedValue({ success: false, errorCode, message })
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
+    await wrapper.find('[data-testid="google-complete-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(getPendingGoogleRegistration()).toBeNull()
+    expect(wrapper.find('[data-testid="pending-dead-message"]').text()).toContain(message)
+    expect(wrapper.find('[data-testid="back-to-login"]').exists()).toBe(true)
+    // No dead form left to retry with.
+    expect(wrapper.find('[data-testid="google-complete-form"]').exists()).toBe(false)
+  })
+
+  it('never makes consent implicit: the CGU box starts unchecked and submit is blocked until ticked', async () => {
+    setPendingGoogleRegistration(pending())
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    const checkbox = wrapper.find('[data-testid="accept-cgu-checkbox"]')
+    expect((checkbox.element as HTMLInputElement).checked).toBe(false)
+
+    await wrapper.find('[data-testid="date-naissance-input"]').setValue('1995-06-15')
+    await wrapper.find('[data-testid="google-complete-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(h.completeGoogleRegistration).not.toHaveBeenCalled()
+
+    await checkbox.setValue(true)
+    await wrapper.find('[data-testid="google-complete-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(h.completeGoogleRegistration).toHaveBeenCalledWith(
+      expect.objectContaining({ accept_cgu: true })
+    )
+  })
+
   it('maps the per-type server error onto the single name input', async () => {
     setPendingGoogleRegistration(pending({ intent: 'producer' }))
     h.completeGoogleRegistration.mockResolvedValue({

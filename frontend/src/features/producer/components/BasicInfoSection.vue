@@ -155,12 +155,11 @@ const handleSubmit = async () => {
           </div>
 
           <div class="space-y-1.5">
-            <label for="last_name" class="text-sm font-medium text-gray-900">Nom</label>
+            <label for="last_name" class="text-sm font-medium text-gray-900">Nom (facultatif)</label>
             <input
               id="last_name"
               type="text"
               v-model="form.last_name"
-              required
               placeholder="Martin"
               class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-weact-500 focus:border-weact-500 transition-colors"
               data-testid="last-name-input"

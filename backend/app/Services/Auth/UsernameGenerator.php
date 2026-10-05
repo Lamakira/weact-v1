@@ -15,6 +15,11 @@ class UsernameGenerator
     public const MAX_LENGTH = 50;
 
     /**
+     * Minimum length of a username, for a generated one and for a user-chosen one.
+     */
+    public const MIN_LENGTH = 3;
+
+    /**
      * Room left for the disambiguation suffix (counter or random token).
      */
     private const BASE_LENGTH = 46;
@@ -88,7 +93,9 @@ class UsernameGenerator
             ->substr(0, self::BASE_LENGTH)
             ->value();
 
-        return $base !== '' ? $base : self::FALLBACK_BASE;
+        // Below the minimum (« A B » → `ab`) the handle would be one the user could
+        // not even re-submit through the profile form: use the fallback instead.
+        return strlen($base) >= self::MIN_LENGTH ? $base : self::FALLBACK_BASE;
     }
 
     private function isTaken(string $candidate): bool

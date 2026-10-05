@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useForm, useField } from 'vee-validate'
-import { producerRegistrationValidationSchema } from '../schemas/producerRegistration'
+import {
+  PRODUCER_NAME_MAX_LENGTH,
+  producerRegistrationValidationSchema,
+} from '../schemas/producerRegistration'
 import { useAuth } from '../composables/useAuth'
 import type { ProducerRegistrationForm as FormData, ProducerType } from '../types'
 import { FloatingField } from '@/components/ui/form'
@@ -170,6 +173,7 @@ const onSubmit = handleSubmit(async () => {
       :icon="Building"
       :error="nomError"
       required
+      :maxlength="PRODUCER_NAME_MAX_LENGTH"
       autocomplete="organization"
       data-testid="nom-input"
     />
