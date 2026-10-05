@@ -74,6 +74,8 @@ function getStatusFallback(status: number, fallback?: string): string {
       return 'Accès refusé.'
     case 404:
       return "La ressource demandée n'existe pas."
+    case 413:
+      return 'Fichier trop volumineux (max 200 Mo).'
     case 419:
       return 'Votre session a expiré, veuillez rafraîchir la page.'
     case 422:
@@ -155,6 +157,10 @@ export function formatApiError(error: unknown, fallback?: string): string {
 
     if (isNonEmptyString(data?.message)) {
       return data.message
+    }
+
+    if (axiosError.code === 'ECONNABORTED') {
+      return "L'envoi a pris trop de temps. Veuillez réessayer."
     }
 
     if (isNetworkError(axiosError)) {

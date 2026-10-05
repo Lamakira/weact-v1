@@ -593,6 +593,7 @@ export const faceApi = {
       formData,
       {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 600_000,
         onUploadProgress: (progressEvent) => {
           if (onProgress && progressEvent.total) {
             onProgress({
