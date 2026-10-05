@@ -63,7 +63,7 @@ async function handleExport() {
 // Coming back from Google: pick the ticket up and reopen the dialog where the
 // user left it. Taking it clears the storage — one confirmation, one use.
 onMounted(() => {
-  const token = takeGoogleReauthTicket('delete_account')
+  const token = takeGoogleReauthTicket('delete_account', authStore.user?.id)
 
   if (token !== null) {
     reauthToken.value = token

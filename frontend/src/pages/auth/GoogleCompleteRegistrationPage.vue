@@ -6,10 +6,11 @@
  * Google-created account passes through here. That is what keeps the 16+ legal
  * gate and the CGU acceptance in place on the Google path.
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { User, Calendar, Building } from 'lucide-vue-next'
 import { FloatingField } from '@/components/ui/form'
+import { FACE_NAME_MAX_LENGTH } from '@/features/auth/schemas/faceRegistration'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import {
   clearPendingGoogleRegistration,
@@ -31,6 +32,12 @@ const prenom = ref('')
 const dateNaissance = ref('')
 const nomOuRaisonSociale = ref('')
 const acceptCgu = ref(false)
+
+// The Face and Producer consent labels are recorded under different versions:
+// a box ticked under one label never carries over to the other.
+watch(role, () => {
+  acceptCgu.value = false
+})
 
 const apiError = ref<string | null>(null)
 // The pending ticket is dead server-side (consumed, expired, or its email is now
@@ -212,6 +219,7 @@ async function handleSubmit(): Promise<void> {
               :error="fieldError('nom')"
               required
               autocomplete="family-name"
+              :maxlength="FACE_NAME_MAX_LENGTH"
               data-testid="nom-input"
             />
             <FloatingField
@@ -222,6 +230,7 @@ async function handleSubmit(): Promise<void> {
               :error="fieldError('prenom')"
               required
               autocomplete="given-name"
+              :maxlength="FACE_NAME_MAX_LENGTH"
               data-testid="prenom-input"
             />
           </div>

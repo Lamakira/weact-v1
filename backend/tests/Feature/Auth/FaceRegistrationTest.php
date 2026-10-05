@@ -7,8 +7,12 @@ namespace Tests\Feature\Auth;
 use App\Models\Face;
 use App\Models\User;
 use App\Notifications\VerifyEmailNotification;
+use App\Services\Auth\FaceRegistrationService;
+use App\Services\Auth\UsernameGenerator;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
+use Mockery;
 use Tests\TestCase;
 
 class FaceRegistrationTest extends TestCase
@@ -110,32 +114,6 @@ class FaceRegistrationTest extends TestCase
 
         $response->assertStatus(201)
             ->assertJsonPath('data.user.userable.username', 'johndoe2');
-    }
-
-    public function test_deferred_profile_fields_are_not_collected_at_registration(): void
-    {
-        // Sending them anyway must not persist them: they are no longer validated,
-        // so they must never reach Face::create through mass assignment.
-        $data = [
-            ...$this->validData,
-            'username' => 'chosen_by_hand',
-            'sexe' => 'homme',
-            'nationalite' => 'Béninoise',
-            'whatsapp_number' => '+22997000000',
-        ];
-
-        $response = $this->postJson('/api/v1/auth/register/face', $data);
-
-        $response->assertStatus(201);
-
-        $face = Face::where('nom', 'Doe')->firstOrFail();
-
-        $this->assertSame('johndoe', $face->username);
-        $this->assertNull($face->sexe);
-        $this->assertNull($face->nationalite);
-        $this->assertNull($face->whatsapp_number);
-
-        $this->assertDatabaseMissing('faces', ['username' => 'chosen_by_hand']);
     }
 
     public function test_pays_falls_back_to_its_database_default(): void
@@ -408,6 +386,104 @@ class FaceRegistrationTest extends TestCase
         $data['date_naissance'] = now()->subYears(16)->format('Y-m-d');
 
         $this->postJson('/api/v1/auth/register/face', $data)->assertStatus(201);
+    }
+
+    // LEGACY-BUNDLE (deploy window): remove after the release following 2026-10
+    public function test_an_old_bundle_face_payload_keeps_the_chosen_username_sexe_and_whatsapp(): void
+    {
+        $response = $this->postJson('/api/v1/auth/register/face', $this->validData + [
+            'password_confirmation' => 'Password123',
+            'username' => '  Jean_Doe-7 ',
+            'sexe' => 'homme',
+            'nationalite' => 'Béninoise',
+            'pays' => 'Bénin',
+            'whatsapp_number' => '+22997000000',
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.user.userable.username', 'jean_doe-7');
+
+        $this->assertDatabaseHas('faces', [
+            'username' => 'jean_doe-7',
+            'sexe' => 'homme',
+            'nationalite' => 'Béninoise',
+            'pays' => 'Bénin',
+            'whatsapp_number' => '+22997000000',
+        ]);
+    }
+
+    public function test_an_old_bundle_username_is_validated_like_the_profile_one(): void
+    {
+        Face::factory()->create(['username' => 'taken']);
+
+        foreach (['taken', 'admin', 'ab', 'bad name!'] as $username) {
+            $this->postJson('/api/v1/auth/register/face', $this->validData + ['username' => $username])
+                ->assertStatus(422)
+                ->assertJsonStructure(['error' => ['details' => ['username']]]);
+        }
+
+        $this->postJson('/api/v1/auth/register/face', $this->validData + ['sexe' => 'robot'])
+            ->assertStatus(422)
+            ->assertJsonStructure(['error' => ['details' => ['sexe']]]);
+    }
+
+    public function test_the_new_bundle_face_payload_still_gets_a_generated_username(): void
+    {
+        $this->postJson('/api/v1/auth/register/face', $this->validData)
+            ->assertStatus(201)
+            ->assertJsonPath('data.user.userable.username', 'johndoe');
+
+        $this->assertDatabaseHas('faces', ['username' => 'johndoe', 'sexe' => null, 'whatsapp_number' => null]);
+    }
+
+    public function test_face_names_are_capped_at_the_profile_limit_of_100(): void
+    {
+        foreach (['nom', 'prenom'] as $field) {
+            $this->postJson('/api/v1/auth/register/face', array_merge($this->validData, [$field => str_repeat('a', 101)]))
+                ->assertStatus(422)
+                ->assertJsonStructure(['error' => ['details' => [$field]]]);
+        }
+
+        $this->postJson('/api/v1/auth/register/face', array_merge($this->validData, [
+            'nom' => str_repeat('a', 100),
+            'prenom' => str_repeat('b', 100),
+        ]))->assertStatus(201);
+    }
+
+    public function test_a_real_username_collision_is_retried_with_a_suffixed_handle(): void
+    {
+        Face::factory()->create(['username' => 'johndoe']);
+
+        // The generator's uniqueness check is advisory: simulate the concurrent signup
+        // that took the handle between the check and the insert.
+        $generator = Mockery::mock(UsernameGenerator::class)->makePartial();
+        $generator->shouldReceive('generate')->once()->andReturn('johndoe');
+
+        $result = (new FaceRegistrationService($generator))->register($this->validData);
+
+        $this->assertNotSame('johndoe', $result['face']->username);
+        $this->assertStringStartsWith('johndoe', $result['face']->username);
+        $this->assertSame(2, Face::query()->count());
+        $this->assertSame(1, User::query()->count());
+    }
+
+    public function test_exhausted_username_retries_propagate_the_violation_and_leave_nothing_behind(): void
+    {
+        Face::factory()->create(['username' => 'johndoe']);
+
+        $generator = Mockery::mock(UsernameGenerator::class);
+        $generator->shouldReceive('generate')->once()->andReturn('johndoe');
+        $generator->shouldReceive('generateWithRandomSuffix')->twice()->andReturn('johndoe');
+
+        try {
+            (new FaceRegistrationService($generator))->register($this->validData);
+            $this->fail('The unique violation should propagate once MAX_ATTEMPTS is exhausted.');
+        } catch (UniqueConstraintViolationException) {
+            // expected
+        }
+
+        $this->assertSame(1, Face::query()->count());
+        $this->assertSame(0, User::query()->count());
     }
 
     public function test_age_accessor_calculates_correctly(): void

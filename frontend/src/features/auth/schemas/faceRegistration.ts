@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import { toTypedSchema } from '@vee-validate/zod'
 
+// Matches the backend cap on Face nom/prenom.
+export const FACE_NAME_MAX_LENGTH = 100
+
 /**
  * Zod schema for Face registration validation
  * Matches backend validation rules
@@ -14,12 +17,15 @@ const faceRegistrationSchema = z
     nom: z
       .string({ message: 'Le nom est obligatoire' })
       .min(1, 'Le nom est obligatoire')
-      .max(255, 'Le nom ne peut pas dépasser 255 caractères'),
+      .max(FACE_NAME_MAX_LENGTH, `Le nom ne peut pas dépasser ${FACE_NAME_MAX_LENGTH} caractères`),
 
     prenom: z
       .string({ message: 'Le prénom est obligatoire' })
       .min(1, 'Le prénom est obligatoire')
-      .max(255, 'Le prénom ne peut pas dépasser 255 caractères'),
+      .max(
+        FACE_NAME_MAX_LENGTH,
+        `Le prénom ne peut pas dépasser ${FACE_NAME_MAX_LENGTH} caractères`
+      ),
 
     email: z
       .string({ message: "L'email est obligatoire" })

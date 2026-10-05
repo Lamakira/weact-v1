@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Auth;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 use Tests\TestCase;
 
 class GoogleOAuthRedirectTest extends TestCase
@@ -46,6 +47,30 @@ class GoogleOAuthRedirectTest extends TestCase
     {
         foreach (['face', 'producer', 'login'] as $intent) {
             $this->getJson('/api/v1/auth/google/redirect?intent='.$intent.'&nonce='.self::NONCE)->assertOk();
+        }
+    }
+
+    /**
+     * Google has no `max_age` / `prompt=login`: `select_account` is the only way to
+     * make a re-authentication need a click instead of silently reusing the session.
+     */
+    public function test_only_the_reauth_intent_forces_the_account_chooser(): void
+    {
+        $reauth = $this->getJson('/api/v1/auth/google/redirect?intent=reauth&nonce='.self::NONCE)
+            ->assertOk()
+            ->json('data.url');
+
+        parse_str((string) parse_url($reauth, PHP_URL_QUERY), $query);
+        $this->assertSame('select_account', $query['prompt'] ?? null);
+        $this->assertArrayHasKey('state', $query);
+
+        foreach (['login', 'face', 'producer'] as $intent) {
+            $url = $this->getJson('/api/v1/auth/google/redirect?intent='.$intent.'&nonce='.self::NONCE)
+                ->assertOk()
+                ->json('data.url');
+
+            parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+            $this->assertArrayNotHasKey('prompt', $query, $intent);
         }
     }
 
@@ -113,6 +138,10 @@ class GoogleOAuthRedirectTest extends TestCase
     {
         config(['services.google.enabled' => false]);
 
+        // Unnamed throttles share one counter per IP: this test makes more calls than
+        // the strictest limit allows and is about the flag, not the limiter.
+        $this->withoutMiddleware(ThrottleRequests::class);
+
         $this->getJson('/api/v1/auth/google/redirect?intent=face&nonce='.self::NONCE)
             ->assertStatus(403)
             ->assertJsonPath('error.code', 'GOOGLE_OAUTH_DISABLED');
@@ -129,6 +158,20 @@ class GoogleOAuthRedirectTest extends TestCase
             'date_naissance' => '1995-06-15',
             'accept_cgu' => true,
         ])
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'GOOGLE_OAUTH_DISABLED');
+
+        // The flag check precedes validation: a malformed body must not get a 422
+        // (and with it the shape of the endpoint) while the feature is off.
+        $this->getJson('/api/v1/auth/google/redirect?intent=nope')
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'GOOGLE_OAUTH_DISABLED');
+
+        $this->postJson('/api/v1/auth/google/exchange', [])
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'GOOGLE_OAUTH_DISABLED');
+
+        $this->postJson('/api/v1/auth/google/complete-registration', [])
             ->assertStatus(403)
             ->assertJsonPath('error.code', 'GOOGLE_OAUTH_DISABLED');
 

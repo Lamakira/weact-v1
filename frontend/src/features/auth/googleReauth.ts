@@ -4,7 +4,8 @@
  *
  * `sessionStorage`, never `localStorage`: it confirms one irreversible action and
  * has no business outliving the tab. The backend also expires it after 5 minutes
- * and binds it to the account it was minted for. Both keys live under the
+ * and binds it to the account it was minted for; the stored user id enforces the same
+ * binding client-side. Both keys live under the
  * `weact.auth.` prefix, so logout / account switch purges them.
  *
  * The ticket is stamped with the purpose it was requested for: a screen only
@@ -34,18 +35,34 @@ export function takePendingReauthPurpose(): GoogleReauthPurpose | null {
   return isPurpose(purpose) ? purpose : null
 }
 
-export function setGoogleReauthTicket(token: string, purpose: GoogleReauthPurpose): void {
-  sessionStorage.setItem(TICKET_KEY, JSON.stringify({ token, purpose }))
+export function setGoogleReauthTicket(
+  token: string,
+  purpose: GoogleReauthPurpose,
+  userId: number
+): void {
+  sessionStorage.setItem(TICKET_KEY, JSON.stringify({ token, purpose, userId }))
 }
 
-/** Returns and removes the token only when the stored purpose matches. */
-export function takeGoogleReauthTicket(purpose: GoogleReauthPurpose): string | null {
+/**
+ * Returns and removes the token only when both the stored purpose and the stored
+ * user id match. A ticket minted for another account is removed and never shown.
+ */
+export function takeGoogleReauthTicket(
+  purpose: GoogleReauthPurpose,
+  userId: number | null | undefined
+): string | null {
   const stored = sessionStorage.getItem(TICKET_KEY)
 
   if (stored === null) return null
 
   try {
-    const parsed = JSON.parse(stored) as { token?: unknown; purpose?: unknown }
+    const parsed = JSON.parse(stored) as { token?: unknown; purpose?: unknown; userId?: unknown }
+
+    if (typeof parsed.userId !== 'number' || parsed.userId !== userId) {
+      sessionStorage.removeItem(TICKET_KEY)
+
+      return null
+    }
 
     if (parsed.purpose !== purpose || typeof parsed.token !== 'string') return null
 

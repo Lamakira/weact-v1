@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Auth;
 
+use App\Models\Booking;
 use App\Models\Face;
+use App\Models\Producer;
 use App\Models\User;
 use App\Services\Auth\GoogleOAuthService;
+use Illuminate\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
@@ -310,6 +313,78 @@ class NullPasswordAccountTest extends TestCase
             ->getJson('/api/v1/user')
             ->assertOk()
             ->assertJsonPath('data.has_password', true);
+    }
+
+    /**
+     * `has_password` means "signs in with Google only": it must not reach the other
+     * party of a booking, who is rendered through the same UserResource.
+     */
+    public function test_has_password_is_not_leaked_to_the_other_party_of_a_booking(): void
+    {
+        $producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => Producer::factory()->create()->id,
+        ]);
+
+        $booking = Booking::factory()->pending()->create([
+            'face_id' => $this->passwordless->id,
+            'producer_id' => $producerUser->id,
+        ]);
+
+        $asFace = $this->actingAs($this->passwordless)
+            ->getJson("/api/v1/bookings/{$booking->uuid}")
+            ->assertOk();
+
+        $this->assertArrayNotHasKey('has_password', $asFace->json('data.producer'));
+        // Their own account still carries it.
+        $this->assertArrayHasKey('has_password', $asFace->json('data.face'));
+
+        $asProducer = $this->actingAs($producerUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}")
+            ->assertOk();
+
+        // The Face's sign-in method stays private from the Producer too.
+        $this->assertArrayNotHasKey('has_password', $asProducer->json('data.face'));
+        $this->assertArrayHasKey('has_password', $asProducer->json('data.producer'));
+    }
+
+    public function test_has_password_is_present_on_unauthenticated_auth_responses(): void
+    {
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'classic@example.com',
+            'password' => 'Password123',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.user.has_password', true);
+    }
+
+    public function test_a_failing_password_changed_mail_does_not_fail_the_password_change(): void
+    {
+        $this->app->instance(NotificationDispatcher::class, new class implements NotificationDispatcher
+        {
+            public function send($notifiables, $notification): void
+            {
+                throw new \RuntimeException('SMTP down');
+            }
+
+            public function sendNow($notifiables, $notification, ?array $channels = null): void
+            {
+                throw new \RuntimeException('SMTP down');
+            }
+        });
+
+        $ticket = $this->ticketFor($this->passwordless);
+
+        $this->actingAs($this->passwordless)
+            ->putJson('/api/v1/password', [
+                'new_password' => 'BrandNew123',
+                'new_password_confirmation' => 'BrandNew123',
+                'reauth_token' => $ticket,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.password_changed', true);
+
+        $this->assertTrue(Hash::check('BrandNew123', $this->passwordless->fresh()->password));
     }
 
     public function test_the_data_export_reports_the_authentication_methods(): void

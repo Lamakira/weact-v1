@@ -258,6 +258,46 @@ describe('GoogleCompleteRegistrationPage', () => {
     )
   })
 
+  /**
+   * The Face label records consent under a different version (16+ clause): a box
+   * ticked under the Producer label must not carry over to the Face one.
+   */
+  it('resets the CGU consent when the role changes and blocks the submit', async () => {
+    setPendingGoogleRegistration(pending({ intent: 'login' }))
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="role-producer-button"]').trigger('click')
+    const checkbox = wrapper.find('[data-testid="accept-cgu-checkbox"]')
+    await checkbox.setValue(true)
+    expect((checkbox.element as HTMLInputElement).checked).toBe(true)
+
+    await wrapper.find('[data-testid="role-face-button"]').trigger('click')
+    await flushPromises()
+
+    expect((wrapper.find('[data-testid="accept-cgu-checkbox"]').element as HTMLInputElement).checked).toBe(
+      false
+    )
+
+    await wrapper.find('[data-testid="date-naissance-input"]').setValue('1995-06-15')
+    await wrapper.find('[data-testid="google-complete-form"]').trigger('submit')
+    await flushPromises()
+
+    expect(h.completeGoogleRegistration).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="accept-cgu-error"]').exists()).toBe(true)
+  })
+
+  it('caps the Face nom and prenom inputs at 100 characters', async () => {
+    setPendingGoogleRegistration(pending())
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="nom-input"]').attributes('maxlength')).toBe('100')
+    expect(wrapper.find('[data-testid="prenom-input"]').attributes('maxlength')).toBe('100')
+  })
+
   it('maps the per-type server error onto the single name input', async () => {
     setPendingGoogleRegistration(pending({ intent: 'producer' }))
     h.completeGoogleRegistration.mockResolvedValue({

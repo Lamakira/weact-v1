@@ -6,11 +6,14 @@ namespace Tests\Feature\Auth;
 
 use App\Models\Face;
 use App\Models\User;
+use App\Notifications\GoogleAccountLinkedNotification;
 use App\Notifications\VerifyEmailNotification;
 use App\Services\Auth\GoogleOAuthService;
+use Illuminate\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\URL;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\GoogleProvider;
 use Laravel\Socialite\Two\User as SocialiteUser;
@@ -201,6 +204,145 @@ class GoogleOAuthCallbackTest extends TestCase
         $this->assertNotNull($user->password);
         $this->assertTrue(Hash::check('Password123', $user->password));
         $this->assertSame(1, $user->tokens()->where('name', 'existing')->count());
+    }
+
+    /**
+     * @return array{0: string, 1: string} path and query of a signed email-change confirmation link
+     */
+    private function signedEmailChangeLink(User $user, string $newEmail): array
+    {
+        $signed = URL::temporarySignedRoute(
+            'email-change.confirm',
+            now()->addMinutes(60),
+            ['id' => $user->id, 'hash' => sha1($newEmail)]
+        );
+
+        return [(string) parse_url($signed, PHP_URL_PATH), (string) parse_url($signed, PHP_URL_QUERY)];
+    }
+
+    private function loginThroughGoogle(): void
+    {
+        $this->exchange(
+            $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE))['code']
+        );
+    }
+
+    public function test_securing_an_unverified_account_also_kills_a_pending_email_change(): void
+    {
+        $user = $this->makeFaceUser('jean@gmail.com');
+        $user->update(['pending_email' => 'squatter@example.com']);
+        [$path, $query] = $this->signedEmailChangeLink($user, 'squatter@example.com');
+
+        $this->fakeGoogleUser();
+        $this->loginThroughGoogle();
+
+        $user->refresh();
+        $this->assertNull($user->pending_email);
+
+        // The link the squatter still holds is now dead.
+        $this->getJson($path.'?'.$query)
+            ->assertStatus(400)
+            ->assertJsonPath('error.code', 'NO_PENDING_EMAIL_CHANGE');
+
+        $this->assertSame('jean@gmail.com', $user->fresh()->email);
+    }
+
+    public function test_a_verified_account_keeps_its_pending_email_change(): void
+    {
+        $user = $this->makeFaceUser('jean@gmail.com');
+        $user->forceFill(['email_verified_at' => now()])->save();
+        $user->update(['pending_email' => 'new@example.com']);
+
+        $this->fakeGoogleUser();
+        $this->loginThroughGoogle();
+
+        $this->assertSame('new@example.com', $user->fresh()->pending_email);
+    }
+
+    public function test_securing_an_unverified_account_notifies_its_owner_once(): void
+    {
+        $user = $this->makeFaceUser('jean@gmail.com');
+
+        $this->fakeGoogleUser();
+        $this->loginThroughGoogle();
+
+        Notification::assertSentToTimes($user, GoogleAccountLinkedNotification::class, 1);
+    }
+
+    public function test_linking_a_verified_account_sends_no_notification(): void
+    {
+        $user = $this->makeFaceUser('jean@gmail.com');
+        $user->forceFill(['email_verified_at' => now()])->save();
+
+        $this->fakeGoogleUser();
+        $this->loginThroughGoogle();
+
+        Notification::assertNotSentTo($user, GoogleAccountLinkedNotification::class);
+    }
+
+    public function test_the_linked_account_mail_explains_what_happened(): void
+    {
+        $user = $this->makeFaceUser('jean@gmail.com');
+
+        $mail = (new GoogleAccountLinkedNotification)->toMail($user);
+
+        $this->assertSame('Votre compte WEACT est désormais lié à Google', $mail->subject);
+
+        $body = implode(' ', array_map('strval', $mail->introLines));
+        $this->assertStringContainsString('lié à votre compte Google', $body);
+        $this->assertStringContainsString('ancien mot de passe a été supprimé', $body);
+        $this->assertStringContainsString('toutes les sessions ont été fermées', $body);
+        $this->assertStringContainsString('Mon compte', $body);
+    }
+
+    public function test_a_failing_notification_never_breaks_the_google_login(): void
+    {
+        $user = $this->makeFaceUser('jean@gmail.com');
+
+        $this->app->instance(NotificationDispatcher::class, new class implements NotificationDispatcher
+        {
+            public function send($notifiables, $notification): void
+            {
+                throw new \RuntimeException('SMTP down');
+            }
+
+            public function sendNow($notifiables, $notification, ?array $channels = null): void
+            {
+                throw new \RuntimeException('SMTP down');
+            }
+        });
+
+        $this->fakeGoogleUser();
+
+        $data = $this->exchange(
+            $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE))['code']
+        );
+
+        $this->assertSame($user->id, $data['user']['id']);
+        $this->assertNotEmpty($data['token']);
+        $this->assertSame('google-sub-1', $user->fresh()->google_id);
+        $this->assertNull($user->fresh()->password);
+    }
+
+    public function test_a_deactivated_local_account_matched_by_email_is_neither_linked_nor_secured(): void
+    {
+        $user = $this->makeFaceUser('jean@gmail.com', isActive: false);
+        $user->createToken('existing');
+
+        $this->fakeGoogleUser();
+
+        $query = $this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE));
+
+        $this->assertSame('ACCOUNT_DEACTIVATED', $query['error']);
+        $this->assertArrayNotHasKey('code', $query);
+
+        $user->refresh();
+        $this->assertNull($user->google_id);
+        $this->assertNull($user->google_linked_at);
+        $this->assertNull($user->email_verified_at);
+        $this->assertTrue(Hash::check('Password123', (string) $user->password));
+        $this->assertSame(1, $user->tokens()->count());
+        Notification::assertNotSentTo($user, GoogleAccountLinkedNotification::class);
     }
 
     public function test_an_account_already_linked_to_another_google_identity_is_never_overwritten(): void
@@ -489,7 +631,8 @@ class GoogleOAuthCallbackTest extends TestCase
 
         $this->exchange($this->callbackQuery($this->oauth->issueState(GoogleOAuthService::INTENT_LOGIN, null, self::NONCE))['code']);
 
-        Notification::assertNothingSentTo(User::query()->firstOrFail());
+        // The only mail on this (unverified, secured) path is the "linked to Google"
+        // notice — never our own verification link.
         Notification::assertNotSentTo(User::query()->firstOrFail(), VerifyEmailNotification::class);
     }
 

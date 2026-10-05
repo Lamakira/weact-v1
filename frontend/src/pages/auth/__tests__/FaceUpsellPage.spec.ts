@@ -72,6 +72,30 @@ describe('FaceUpsellPage', () => {
     expect(cta.attributes('data-section')).toBe('identite')
   })
 
+  it('renders the profile-completion block BEFORE the tiers block in DOM order', async () => {
+    const wrapper = mount(FaceUpsellPage)
+    await flushPromises()
+
+    const completion = wrapper.find('[data-testid="upsell-complete-profile"]').element
+    const tiers = wrapper.find('[data-testid="upsell-tiers"]').element
+
+    expect(
+      completion.compareDocumentPosition(tiers) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it('does not promise a better ranking for a complete profile', async () => {
+    const wrapper = mount(FaceUpsellPage)
+    await flushPromises()
+
+    const text = wrapper.find('[data-testid="upsell-complete-profile"]').text()
+
+    expect(text).not.toContain('apparaissez haut dans les résultats')
+    expect(text).toContain(
+      'Un profil complet inspire confiance aux producteurs et vous permet de postuler aux missions sans blocage.'
+    )
+  })
+
   it('shows the generated public handle with a rename shortcut', async () => {
     const wrapper = mount(FaceUpsellPage)
     await flushPromises()

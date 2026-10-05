@@ -82,11 +82,15 @@ Route::prefix('v1')->group(function (): void {
 
         // Google Sign-In. The callback lives here, not in routes/web.php: it is a
         // top-level browser navigation (no Origin header, so CORS does not apply)
-        // and it mints its own Bearer token — dragging in the session +
-        // VerifyCsrfToken stack would reintroduce exactly what EnsureApiBearerToken
-        // exists to bypass. cors.php and statefulApi() are unchanged.
+        // that mints no token (it hands the SPA a one-shot code, traded at /exchange)
+        // — dragging in the session + VerifyCsrfToken stack would reintroduce exactly
+        // what EnsureApiBearerToken exists to bypass. cors.php and statefulApi() are
+        // unchanged.
+        //
+        // `google.enabled` (feature flag, 403 before validation) guards the three JSON
+        // endpoints but NOT the callback, which must keep bouncing to the SPA.
         Route::get('/google/redirect', [GoogleAuthController::class, 'redirect'])
-            ->middleware('throttle:10,1')
+            ->middleware(['google.enabled', 'throttle:10,1'])
             ->name('auth.google.redirect');
 
         Route::get('/google/callback', [GoogleAuthController::class, 'callback'])
@@ -96,11 +100,11 @@ Route::prefix('v1')->group(function (): void {
         // Defence in depth: a 64-char random code is not guessable, this only caps
         // a cache sweep.
         Route::post('/google/exchange', [GoogleAuthController::class, 'exchange'])
-            ->middleware('throttle:20,1')
+            ->middleware(['google.enabled', 'throttle:20,1'])
             ->name('auth.google.exchange');
 
         Route::post('/google/complete-registration', [GoogleAuthController::class, 'completeRegistration'])
-            ->middleware('throttle:5,1')
+            ->middleware(['google.enabled', 'throttle:5,1'])
             ->name('auth.google.complete-registration');
     });
 

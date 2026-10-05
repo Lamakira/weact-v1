@@ -29,7 +29,7 @@ class ChangePasswordRequest extends FormRequest
             // The flip side: setting a FIRST password is a credential-creating act, so
             // it needs fresh proof of ownership (a Google re-authentication ticket) —
             // a stolen bearer alone must not be able to plant a password on the account.
-            // `nullable`: the SPA sends `current_password: null` for such accounts.
+            // `nullable`: tolerated if sent, but the SPA omits the key for such accounts.
             'current_password' => [Rule::requiredIf(fn (): bool => $this->user()?->password !== null), 'nullable', 'string'],
             'reauth_token' => [Rule::requiredIf(fn (): bool => $this->user()?->password === null), 'nullable', 'string'],
             'new_password' => [

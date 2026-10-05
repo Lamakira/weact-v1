@@ -518,7 +518,7 @@ async function handleUpload(file: File): Promise<void> {
 
   if (result.success && result.message) {
     toast.success(result.message)
-    await fetchCompletion() // Refresh completion after profile photo upload
+    await fetchCompletion({ force: true }) // Refresh completion after profile photo upload
   }
 }
 
@@ -530,7 +530,7 @@ async function handleDelete(): Promise<void> {
 
   if (result.success && result.message) {
     toast.success(result.message)
-    await fetchCompletion() // Refresh completion after profile photo delete
+    await fetchCompletion({ force: true }) // Refresh completion after profile photo delete
   }
 }
 
@@ -579,7 +579,7 @@ async function handleVideoUpload(file: File): Promise<void> {
 
   if (result.success && result.message) {
     toast.success(result.message)
-    await fetchCompletion() // Refresh completion after presentation video upload
+    await fetchCompletion({ force: true }) // Refresh completion after presentation video upload
   }
 }
 
@@ -591,7 +591,7 @@ async function handleVideoDelete(): Promise<void> {
 
   if (result.success) {
     toast.success(result.message || 'Vidéo supprimée avec succès')
-    await fetchCompletion() // Refresh completion after presentation video delete
+    await fetchCompletion({ force: true }) // Refresh completion after presentation video delete
   }
 }
 
@@ -609,7 +609,7 @@ async function handleAddFaceVideo(
       toast.success(result.message)
     }
     if (type === 'acting') {
-      await fetchCompletion() // acting_video is a completion criterion
+      await fetchCompletion({ force: true }) // acting_video is a completion criterion
     }
   }
 }
@@ -628,7 +628,7 @@ async function handleDeleteFaceVideo(videoId: string): Promise<void> {
       toast.success(result.message)
     }
     if (wasActing) {
-      await fetchCompletion()
+      await fetchCompletion({ force: true })
     }
   }
 }
@@ -652,7 +652,7 @@ async function handleBioLocationSave(data: {
 
   if (result.success) {
     toast.success(result.message || 'Profil mis à jour avec succès')
-    await fetchCompletion() // Refresh completion after bio/location save
+    await fetchCompletion({ force: true }) // Refresh completion after bio/location save
   }
 }
 
@@ -664,7 +664,7 @@ async function handleLanguesSave(langues: string[] | null): Promise<void> {
 
   if (result.success) {
     toast.success(result.message || 'Langues mises à jour avec succès')
-    await fetchCompletion()
+    await fetchCompletion({ force: true })
   }
 }
 
@@ -681,6 +681,8 @@ async function handlePersonalInfoSave(data: {
 
   if (result.success) {
     toast.success(result.message || 'Informations personnelles mises à jour avec succès')
+    // sexe, nationalité and whatsapp are completion criteria
+    await fetchCompletion({ force: true })
   }
 }
 
@@ -709,7 +711,7 @@ async function handleCategoryNicheSave(data: {
 
   if (result.success) {
     toast.success(result.message || 'Profil mis à jour avec succès')
-    await fetchCompletion() // Refresh completion after category/niche save
+    await fetchCompletion({ force: true }) // Refresh completion after category/niche save
   }
 }
 
@@ -759,7 +761,7 @@ async function handleTarifsSave(data: TarifsFormData): Promise<void> {
 
   if (result.success) {
     toast.success(result.message || 'Tarifs mis à jour avec succès')
-    await fetchCompletion() // Refresh completion after tarifs save
+    await fetchCompletion({ force: true }) // Refresh completion after tarifs save
   }
 }
 

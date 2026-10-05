@@ -7,6 +7,7 @@ namespace App\Services\Auth;
 use App\Models\Face;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
@@ -29,7 +30,7 @@ class FaceRegistrationService
     /**
      * Register a new Face user.
      *
-     * @param  array{nom: string, prenom: string, email: string, password: string, date_naissance: string, accept_cgu?: bool}  $validated
+     * @param  array{nom: string, prenom: string, email: string, password: string, date_naissance: string, accept_cgu?: bool, username?: string, sexe?: string|null, nationalite?: string|null, pays?: string|null, whatsapp_number?: string|null}  $validated
      * @return array{user: User, face: Face, token: string}
      */
     public function register(array $validated, ?string $ip = null): array
@@ -70,15 +71,25 @@ class FaceRegistrationService
      * The whole transaction is replayed (not just the insert) so a rolled-back
      * attempt never leaves a partial Face/User behind, whatever the driver.
      *
-     * @param  array{nom: string, prenom: string, email: string, password?: string, date_naissance: string, accept_cgu?: bool}  $validated
+     * @param  array{nom: string, prenom: string, email: string, password?: string, date_naissance: string, accept_cgu?: bool, username?: string, sexe?: string|null, nationalite?: string|null, pays?: string|null, whatsapp_number?: string|null}  $validated
      * @return array{user: User, face: Face, token: string}
      */
     private function createAccount(array $validated, ?string $ip, ?string $googleId): array
     {
         for ($attempt = 1; $attempt <= self::MAX_ATTEMPTS; $attempt++) {
-            $username = $attempt === 1
-                ? $this->usernameGenerator->generate($validated['prenom'], $validated['nom'])
-                : $this->usernameGenerator->generateWithRandomSuffix($validated['prenom'], $validated['nom']);
+            // // LEGACY-BUNDLE (deploy window): remove after the release following 2026-10
+            // A handle chosen on the old signup form already passed validation
+            // (incl. uniqueness): use it as-is on the first attempt. Should a concurrent
+            // signup take it meanwhile, the replays fall back to generated handles.
+            $submitted = $validated['username'] ?? null;
+
+            if ($attempt === 1 && is_string($submitted) && $submitted !== '') {
+                $username = $submitted;
+            } elseif ($attempt === 1) {
+                $username = $this->usernameGenerator->generate($validated['prenom'], $validated['nom']);
+            } else {
+                $username = $this->usernameGenerator->generateWithRandomSuffix($validated['prenom'], $validated['nom']);
+            }
 
             try {
                 return $this->persist($validated, $username, $ip, $googleId);
@@ -97,7 +108,24 @@ class FaceRegistrationService
     }
 
     /**
-     * @param  array{nom: string, prenom: string, email: string, password?: string, date_naissance: string, accept_cgu?: bool}  $validated
+     * // LEGACY-BUNDLE (deploy window): remove after the release following 2026-10
+     *
+     * Profile fields the old signup form still posts; only the ones actually
+     * submitted are written, so the column defaults apply otherwise.
+     *
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>
+     */
+    private function legacyBundleProfileFields(array $validated): array
+    {
+        return array_filter(
+            Arr::only($validated, ['sexe', 'nationalite', 'pays', 'whatsapp_number']),
+            static fn (mixed $value): bool => $value !== null && $value !== '',
+        );
+    }
+
+    /**
+     * @param  array{nom: string, prenom: string, email: string, password?: string, date_naissance: string, accept_cgu?: bool, username?: string, sexe?: string|null, nationalite?: string|null, pays?: string|null, whatsapp_number?: string|null}  $validated
      * @return array{user: User, face: Face, token: string}
      */
     private function persist(array $validated, string $username, ?string $ip, ?string $googleId): array
@@ -109,7 +137,7 @@ class FaceRegistrationService
                 'prenom' => $validated['prenom'],
                 'username' => $username,
                 'date_naissance' => $validated['date_naissance'],
-            ]);
+            ] + $this->legacyBundleProfileFields($validated));
 
             // Create User with polymorphic relationship to Face
             $user = User::create([

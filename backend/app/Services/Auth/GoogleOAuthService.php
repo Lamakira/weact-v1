@@ -44,6 +44,13 @@ class GoogleOAuthService
     private const REAUTH_TTL_SECONDS = 300;
 
     /**
+     * Lifetime of a `:spent` marker: it only has to outlive the race window (the value
+     * key is forgotten right after it is taken). On the database cache store an expired
+     * row is only deleted when that same key is read, so a longer TTL just piles up rows.
+     */
+    private const SPENT_MARKER_TTL_SECONDS = 60;
+
+    /**
      * Build a tamper-proof, single-use `state`.
      *
      * Socialite's stateful mode keeps state in the session, which would have to
@@ -119,7 +126,7 @@ class GoogleOAuthService
         }
 
         // Absent from the cache ⇒ already consumed (replay) or expired.
-        if ($this->consumeOnce($this->stateKey($nonce), self::STATE_TTL_SECONDS) === null) {
+        if ($this->consumeOnce($this->stateKey($nonce)) === null) {
             return null;
         }
 
@@ -166,7 +173,7 @@ class GoogleOAuthService
     public function consumeExchangeCode(string $code): ?array
     {
         /** @var array<string, mixed>|null $payload */
-        $payload = $this->consumeOnce($this->exchangeKey($code), self::EXCHANGE_TTL_SECONDS);
+        $payload = $this->consumeOnce($this->exchangeKey($code));
 
         return $payload;
     }
@@ -192,7 +199,7 @@ class GoogleOAuthService
     public function consumePendingToken(string $token): ?array
     {
         /** @var array<string, mixed>|null $payload */
-        $payload = $this->consumeOnce($this->pendingKey($token), self::PENDING_TTL_SECONDS);
+        $payload = $this->consumeOnce($this->pendingKey($token));
 
         return $payload;
     }
@@ -218,7 +225,7 @@ class GoogleOAuthService
      */
     public function consumeReauthToken(string $token, int $userId): bool
     {
-        $storedUserId = $this->consumeOnce($this->reauthKey($token), self::REAUTH_TTL_SECONDS);
+        $storedUserId = $this->consumeOnce($this->reauthKey($token));
 
         return $storedUserId !== null && (int) $storedUserId === $userId;
     }
@@ -231,7 +238,7 @@ class GoogleOAuthService
      * database store, SET NX on Redis), so only one caller wins the `:spent` marker
      * and gets the value; the loser gets null.
      */
-    private function consumeOnce(string $key, int $ttl): mixed
+    private function consumeOnce(string $key): mixed
     {
         $value = Cache::get($key);
 
@@ -239,7 +246,7 @@ class GoogleOAuthService
             return null;
         }
 
-        if (! Cache::add($key.':spent', true, $ttl)) {
+        if (! Cache::add($key.':spent', true, self::SPENT_MARKER_TTL_SECONDS)) {
             return null;
         }
 

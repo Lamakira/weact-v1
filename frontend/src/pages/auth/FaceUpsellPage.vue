@@ -86,8 +86,8 @@ onMounted(async () => {
           <div class="flex-grow">
             <h2 class="text-lg font-bold text-gray-900">Complétez votre profil</h2>
             <p class="mt-1 text-sm text-gray-500">
-              Photo, ville, tarifs, langues et numéro WhatsApp : plus votre profil est complet, plus
-              vous apparaissez haut dans les résultats et plus vous recevez de propositions.
+              Photo, ville, tarifs, langues et numéro WhatsApp. Un profil complet inspire confiance
+              aux producteurs et vous permet de postuler aux missions sans blocage.
             </p>
             <p v-if="generatedUsername" class="mt-3 text-sm text-gray-500">
               Votre lien public&nbsp;:

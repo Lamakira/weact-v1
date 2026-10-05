@@ -56,10 +56,6 @@ class GoogleAuthController extends Controller
      */
     public function redirect(GoogleRedirectRequest $request): JsonResponse
     {
-        if (($disabled = $this->rejectWhenDisabled()) !== null) {
-            return $disabled;
-        }
-
         $validated = $request->validated();
         $intent = $validated['intent'];
 
@@ -83,11 +79,32 @@ class GoogleAuthController extends Controller
 
         $url = $this->googleProvider()
             ->stateless()
-            ->with(['state' => $this->oauth->issueState($intent, $this->safeRedirect($redirect), $validated['nonce'])])
+            ->with($this->authorizationParameters($intent, $this->safeRedirect($redirect), $validated['nonce']))
             ->redirect()
             ->getTargetUrl();
 
         return response()->json(['data' => ['url' => $url]]);
+    }
+
+    /**
+     * Extra query parameters of the Google authorization URL.
+     *
+     * Re-authentication must need a click: Google supports neither `max_age` nor
+     * `prompt=login` (only none / consent / select_account), so `select_account` is
+     * the strongest available — it stops a hijacked session from silently reusing
+     * the browser's Google session. Sign-in intents are left alone.
+     *
+     * @return array<string, string>
+     */
+    private function authorizationParameters(string $intent, ?string $redirect, string $nonce): array
+    {
+        $parameters = ['state' => $this->oauth->issueState($intent, $redirect, $nonce)];
+
+        if ($intent === GoogleOAuthService::INTENT_REAUTH) {
+            $parameters['prompt'] = 'select_account';
+        }
+
+        return $parameters;
     }
 
     /**
@@ -163,10 +180,6 @@ class GoogleAuthController extends Controller
      */
     public function exchange(GoogleExchangeRequest $request): JsonResponse
     {
-        if (($disabled = $this->rejectWhenDisabled()) !== null) {
-            return $disabled;
-        }
-
         $validated = $request->validated();
 
         $payload = $this->oauth->consumeExchangeCode($validated['code']);
@@ -226,10 +239,6 @@ class GoogleAuthController extends Controller
      */
     public function completeRegistration(CompleteGoogleRegistrationRequest $request): JsonResponse
     {
-        if (($disabled = $this->rejectWhenDisabled()) !== null) {
-            return $disabled;
-        }
-
         $validated = $request->validated();
 
         $profile = $this->oauth->consumePendingToken($validated['pending_token']);
@@ -382,15 +391,6 @@ class GoogleAuthController extends Controller
     private function codeInvalid(): JsonResponse
     {
         return $this->error('OAUTH_CODE_INVALID', 'Lien de connexion expiré. Reprenez la connexion avec Google.', 422);
-    }
-
-    private function rejectWhenDisabled(): ?JsonResponse
-    {
-        if ((bool) config('services.google.enabled', false)) {
-            return null;
-        }
-
-        return $this->error('GOOGLE_OAUTH_DISABLED', 'La connexion avec Google est indisponible.', 403);
     }
 
     private function error(string $code, string $message, int $status): JsonResponse

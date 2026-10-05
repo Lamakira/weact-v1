@@ -36,7 +36,7 @@ const reauthTicket = ref<string | null>(null)
 // Picked up while the component is created (i.e. on return from Google), so the
 // form is there on first paint.
 if (!hasPassword.value) {
-  const ticket = takeGoogleReauthTicket('set_password')
+  const ticket = takeGoogleReauthTicket('set_password', authStore.user?.id)
 
   if (ticket !== null) {
     reauthTicket.value = ticket
@@ -92,12 +92,13 @@ const onSubmit = handleSubmit(async (values) => {
     await authStore.refreshUser()
     showForm.value = false
     reauthTicket.value = null
-  } else if (
-    !hasPassword.value &&
-    (errorCode.value === 'REAUTH_TOKEN_INVALID' || fieldErrors.value.reauth_token)
-  ) {
-    // Spent, expired or missing ticket: back to the Google confirmation.
+  } else if (!hasPassword.value && !isFieldValidationFailure()) {
+    // Spent/expired ticket, or a server error after which the password may or may
+    // not have been written: drop the ticket, re-read the account (a password now
+    // present flips the form to "change password") and fall back to the Google
+    // confirmation, with the error message still visible.
     dropTicket()
+    await authStore.refreshUser()
   } else if (fieldErrors.value) {
     Object.entries(fieldErrors.value).forEach(([field, messages]) => {
       if (messages && messages.length > 0) {
@@ -106,6 +107,16 @@ const onSubmit = handleSubmit(async (values) => {
     })
   }
 })
+
+// A 422 on a field other than the ticket is rejected before anything is consumed
+// or written: the ticket is still good, so the form stays up on the offending field.
+function isFieldValidationFailure(): boolean {
+  if (errorCode.value === 'REAUTH_TOKEN_INVALID') return false
+
+  const fields = Object.keys(fieldErrors.value ?? {})
+
+  return fields.length > 0 && !fields.includes('reauth_token')
+}
 
 function dropTicket(): void {
   reauthTicket.value = null

@@ -152,6 +152,42 @@ describe('FaceRegistrationForm', () => {
     expect(wrapper.find('[data-testid="password-input"]').attributes('autocomplete')).toBe('new-password')
   })
 
+  it('caps nom and prenom at 100 characters on the inputs', () => {
+    const wrapper = mountComponent()
+
+    expect(wrapper.find('[data-testid="nom-input"]').attributes('maxlength')).toBe('100')
+    expect(wrapper.find('[data-testid="prenom-input"]').attributes('maxlength')).toBe('100')
+  })
+
+  it('rejects a nom or prenom longer than 100 characters', async () => {
+    const wrapper = mountComponent()
+    const tooLong = 'a'.repeat(101)
+
+    await wrapper.find('[data-testid="nom-input"]').setValue(tooLong)
+    await wrapper.find('[data-testid="prenom-input"]').setValue(tooLong)
+    await wrapper.find('[data-testid="email-input"]').setValue('john@example.com')
+    await wrapper.find('[data-testid="date-naissance-input"]').setValue('1995-06-15')
+    await wrapper.find('[data-testid="password-input"]').setValue('Password123')
+    await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(wrapper.find('[data-testid="nom-error"]').text()).toContain('100 caractères')
+    expect(wrapper.find('[data-testid="prenom-error"]').text()).toContain('100 caractères')
+  })
+
+  it('toggles the password input between password and text', async () => {
+    const wrapper = mountComponent()
+
+    expect(wrapper.find('[data-testid="password-input"]').attributes('type')).toBe('password')
+
+    await wrapper.find('[data-testid="toggle-password-visibility"]').trigger('click')
+    expect(wrapper.find('[data-testid="password-input"]').attributes('type')).toBe('text')
+
+    await wrapper.find('[data-testid="toggle-password-visibility"]').trigger('click')
+    expect(wrapper.find('[data-testid="password-input"]').attributes('type')).toBe('password')
+  })
+
   it('states the 16+ requirement in the consent label', () => {
     const wrapper = mountComponent()
 

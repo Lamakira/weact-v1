@@ -20,6 +20,32 @@ class RegisterProducerRequest extends FormRequest
     }
 
     /**
+     * // LEGACY-BUNDLE (deploy window): remove after the release following 2026-10
+     *
+     * SPA tabs opened before the deploy still post the old particulier form
+     * (`first_name` + `last_name`, no `nom_complet`). Without this they would get a
+     * 422 keyed on a field the old form cannot display: a silent failure.
+     */
+    protected function prepareForValidation(): void
+    {
+        $nomComplet = $this->input('nom_complet');
+        $firstName = $this->input('first_name');
+
+        if (
+            $this->input('type') === 'particulier'
+            && (! is_string($nomComplet) || trim($nomComplet) === '')
+            && is_string($firstName)
+            && trim($firstName) !== ''
+        ) {
+            $lastName = $this->input('last_name');
+
+            $this->merge([
+                'nom_complet' => trim($firstName.' '.(is_string($lastName) ? $lastName : '')),
+            ]);
+        }
+    }
+
+    /**
      * Get the validation rules that apply to the request.
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>

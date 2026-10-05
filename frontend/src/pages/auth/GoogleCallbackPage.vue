@@ -114,10 +114,16 @@ onMounted(async () => {
     // The ticket is stamped with the purpose the button recorded; without one,
     // nobody asked for it and it is dropped.
     const purpose = takePendingReauthPurpose()
+    const returnTo = safeRedirect(result.redirect)
+    const userId = authStore.user?.id
 
-    if (purpose !== null) setGoogleReauthTicket(result.reauth_token, purpose)
+    // The ticket is bound to the current account, and only stored when there is a
+    // screen to hand it back to: the role-dashboard fallback has no consumer.
+    if (purpose !== null && userId !== undefined && returnTo !== null) {
+      setGoogleReauthTicket(result.reauth_token, purpose, userId)
+    }
 
-    await router.replace(safeRedirect(result.redirect) ?? roleDashboard())
+    await router.replace(returnTo ?? roleDashboard())
 
     return
   }

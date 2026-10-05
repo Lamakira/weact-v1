@@ -29,7 +29,7 @@ class UserResource extends JsonResource
         /** @var Carbon|null $updatedAt */
         $updatedAt = $this->updated_at;
 
-        return [
+        $data = [
             'id' => $this->id,
             'email' => $this->email,
             'is_active' => $this->is_active,
@@ -40,13 +40,24 @@ class UserResource extends JsonResource
             }),
             'email_verified' => $this->hasVerifiedEmail(),
             'email_verified_at' => $emailVerifiedAt?->toIso8601String(),
-            // The SPA needs all three decisions (password form title/CTA, email form
-            // disabled state, delete-account copy) and would otherwise probe for them.
-            // No leak: this is the authenticated user's own account.
-            'has_password' => $this->password !== null,
             'created_at' => $createdAt?->toIso8601String(),
             'updated_at' => $updatedAt?->toIso8601String(),
         ];
+
+        // The SPA needs all three decisions (password form title/CTA, email form
+        // disabled state, delete-account copy) and would otherwise probe for them.
+        // Owner-only: it means "signs in with Google only", which the other party
+        // of a booking (rendered through this same resource) must not learn.
+        // `user() === null` covers the unauthenticated auth responses (login,
+        // register, Google exchange/complete), which return the account that just
+        // authenticated.
+        $viewer = $request->user();
+
+        if ($viewer === null || $viewer->id === $this->id) {
+            $data['has_password'] = $this->password !== null;
+        }
+
+        return $data;
     }
 
     /**

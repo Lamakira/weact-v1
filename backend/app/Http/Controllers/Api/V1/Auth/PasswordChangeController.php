@@ -11,6 +11,7 @@ use App\Notifications\PasswordChangedNotification;
 use App\Services\Auth\GoogleOAuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 
 class PasswordChangeController extends Controller
 {
@@ -46,7 +47,16 @@ class PasswordChangeController extends Controller
         $currentToken = $request->user()->currentAccessToken();
         $user->tokens()->where('id', '!=', $currentToken->id)->delete();
 
-        $user->notify(new PasswordChangedNotification);
+        // The password is already written (and a re-auth ticket may be spent): a mail
+        // failure must not turn this into a 500.
+        try {
+            $user->notify(new PasswordChangedNotification);
+        } catch (\Throwable $e) {
+            Log::warning('auth.password_changed_notification_failed', [
+                'user_id' => $user->id,
+                'message' => $e->getMessage(),
+            ]);
+        }
 
         return response()->json([
             'data' => ['password_changed' => true],

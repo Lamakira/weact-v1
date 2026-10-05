@@ -8,11 +8,15 @@ import { setGoogleReauthTicket, takeGoogleReauthTicket } from '../../googleReaut
 // without it sets one (the OAuth-only case).
 const mockRefreshUser = vi.fn().mockResolvedValue(true)
 const mockHasPassword = ref(true)
+const mockUserId = ref(5)
 
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
     get hasPassword() {
       return mockHasPassword.value
+    },
+    get user() {
+      return { id: mockUserId.value }
     },
     refreshUser: mockRefreshUser,
   }),
@@ -97,6 +101,7 @@ describe('PasswordChangeForm', () => {
     mockChangePassword.mockResolvedValue(true)
     mockSetPassword.mockResolvedValue(true)
     mockHasPassword.value = true
+    mockUserId.value = 5
     mockRefreshUser.mockResolvedValue(true)
   })
 
@@ -306,7 +311,7 @@ describe('PasswordChangeForm', () => {
 
     describe('with a set_password ticket', () => {
       beforeEach(() => {
-        setGoogleReauthTicket('reauth-pwd', 'set_password')
+        setGoogleReauthTicket('reauth-pwd', 'set_password', 5)
       })
 
       it('shows the new password fields without a current password and consumes the ticket from storage', () => {
@@ -316,7 +321,7 @@ describe('PasswordChangeForm', () => {
         expect(wrapper.find('[data-testid="new-password-input"]').exists()).toBe(true)
         expect(wrapper.find('[data-testid="confirm-password-input"]').exists()).toBe(true)
         expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(false)
-        expect(takeGoogleReauthTicket('set_password')).toBeNull()
+        expect(takeGoogleReauthTicket('set_password', 5)).toBeNull()
       })
 
       it('submits the ticket and never a current password', async () => {
@@ -351,7 +356,6 @@ describe('PasswordChangeForm', () => {
         expect(wrapper.find('[data-testid="form-error"]').text()).toContain(
           'Confirmation expirée. Reprenez la confirmation avec Google.'
         )
-        expect(mockRefreshUser).not.toHaveBeenCalled()
       })
 
       it('also drops the ticket on a reauth_token field error', async () => {
@@ -366,6 +370,48 @@ describe('PasswordChangeForm', () => {
 
         expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
         expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(true)
+      })
+
+      it('drops the ticket, refreshes the user and shows the Google button on a server error', async () => {
+        mockSetPassword.mockImplementation(async () => {
+          mockError.value = 'Une erreur est survenue.'
+          return false
+        })
+
+        const wrapper = mountForm()
+        await fillNewPassword(wrapper)
+
+        expect(mockRefreshUser).toHaveBeenCalled()
+        expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(true)
+        expect(wrapper.find('[data-testid="form-error"]').text()).toContain('Une erreur est survenue.')
+      })
+
+      it('switches to change-password mode when the refreshed user turns out to have a password', async () => {
+        mockSetPassword.mockImplementation(async () => {
+          mockError.value = 'Une erreur est survenue.'
+          return false
+        })
+        mockRefreshUser.mockImplementationOnce(async () => {
+          mockHasPassword.value = true
+          return true
+        })
+
+        const wrapper = mountForm()
+        await fillNewPassword(wrapper)
+
+        expect(wrapper.text()).toContain('Changer de mot de passe')
+        expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(false)
+      })
+
+      it('never picks up a ticket minted for another account', () => {
+        sessionStorage.clear()
+        setGoogleReauthTicket('reauth-pwd', 'set_password', 99)
+
+        const wrapper = mountForm()
+
+        expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(true)
+        expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
       })
 
       it('keeps the form on an ordinary field error', async () => {
@@ -391,13 +437,13 @@ describe('PasswordChangeForm', () => {
     })
 
     it('does not consume a delete_account ticket', () => {
-      setGoogleReauthTicket('reauth-del', 'delete_account')
+      setGoogleReauthTicket('reauth-del', 'delete_account', 5)
 
       const wrapper = mountForm()
 
       expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
-      expect(takeGoogleReauthTicket('delete_account')).toBe('reauth-del')
+      expect(takeGoogleReauthTicket('delete_account', 5)).toBe('reauth-del')
     })
   })
 })

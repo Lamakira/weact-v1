@@ -8,7 +8,7 @@ const h = vi.hoisted(() => ({
   replace: vi.fn().mockResolvedValue(undefined),
   exchangeGoogleCode: vi.fn(),
   query: {} as Record<string, string>,
-  auth: { isAuthenticated: false, isFace: false, isProducer: false },
+  auth: { isAuthenticated: false, isFace: false, isProducer: false, user: null as { id: number } | null },
 }))
 
 vi.mock('vue-router', () => ({
@@ -36,6 +36,7 @@ describe('GoogleCallbackPage', () => {
     h.auth.isAuthenticated = false
     h.auth.isFace = false
     h.auth.isProducer = false
+    h.auth.user = null
     h.replace.mockResolvedValue(undefined)
   })
 
@@ -181,6 +182,7 @@ describe('GoogleCallbackPage', () => {
     beforeEach(() => {
       h.query = { code: 'one-shot-code' }
       h.auth.isAuthenticated = true
+      h.auth.user = { id: 7 }
     })
 
     it('stores the ticket under the pending purpose and returns to the screen that asked', async () => {
@@ -194,10 +196,55 @@ describe('GoogleCallbackPage', () => {
       await flushPromises()
 
       // A ticket of another purpose is not handed out...
-      expect(takeGoogleReauthTicket('delete_account')).toBeNull()
+      expect(takeGoogleReauthTicket('delete_account', 7)).toBeNull()
       // ...the matching one is.
-      expect(takeGoogleReauthTicket('set_password')).toBe('reauth-abc')
+      expect(takeGoogleReauthTicket('set_password', 7)).toBe('reauth-abc')
       expect(h.replace).toHaveBeenLastCalledWith('/face/profile')
+    })
+
+    it('stamps the ticket with the current user id', async () => {
+      setPendingReauthPurpose('set_password')
+      h.exchangeGoogleCode.mockResolvedValue({
+        success: true,
+        result: { reauth_token: 'reauth-abc', redirect: '/face/profile' },
+      })
+
+      mountPage()
+      await flushPromises()
+
+      expect(JSON.parse(sessionStorage.getItem('weact.auth.google_reauth') ?? 'null')).toMatchObject({
+        token: 'reauth-abc',
+        userId: 7,
+      })
+      // A different account never gets it.
+      expect(takeGoogleReauthTicket('set_password', 8)).toBeNull()
+    })
+
+    it('does not store the ticket when nobody is logged in', async () => {
+      h.auth.user = null
+      setPendingReauthPurpose('set_password')
+      h.exchangeGoogleCode.mockResolvedValue({
+        success: true,
+        result: { reauth_token: 'reauth-abc', redirect: '/face/profile' },
+      })
+
+      mountPage()
+      await flushPromises()
+
+      expect(sessionStorage.getItem('weact.auth.google_reauth')).toBeNull()
+    })
+
+    it('does not store the ticket when there is no screen to return to', async () => {
+      setPendingReauthPurpose('delete_account')
+      h.exchangeGoogleCode.mockResolvedValue({
+        success: true,
+        result: { reauth_token: 'reauth-abc', redirect: '//evil.com' },
+      })
+
+      mountPage()
+      await flushPromises()
+
+      expect(sessionStorage.getItem('weact.auth.google_reauth')).toBeNull()
     })
 
     it('does not store the ticket at all when no purpose was pending', async () => {
@@ -209,8 +256,8 @@ describe('GoogleCallbackPage', () => {
       mountPage()
       await flushPromises()
 
-      expect(takeGoogleReauthTicket('delete_account')).toBeNull()
-      expect(takeGoogleReauthTicket('set_password')).toBeNull()
+      expect(takeGoogleReauthTicket('delete_account', 7)).toBeNull()
+      expect(takeGoogleReauthTicket('set_password', 7)).toBeNull()
       expect(sessionStorage.getItem('weact.auth.google_reauth')).toBeNull()
     })
 

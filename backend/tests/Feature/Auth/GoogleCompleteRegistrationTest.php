@@ -216,6 +216,41 @@ class GoogleCompleteRegistrationTest extends TestCase
         ])->assertStatus(422)->assertJsonStructure(['error' => ['details' => ['nom_complet']]]);
     }
 
+    public function test_google_face_names_are_capped_at_the_profile_limit_of_100(): void
+    {
+        foreach (['nom', 'prenom'] as $field) {
+            $this->postJson('/api/v1/auth/google/complete-registration', $this->facePayload([$field => str_repeat('a', 101)]))
+                ->assertStatus(422)
+                ->assertJsonStructure(['error' => ['details' => [$field]]]);
+        }
+
+        $this->postJson('/api/v1/auth/google/complete-registration', $this->facePayload([
+            'nom' => str_repeat('a', 100),
+            'prenom' => str_repeat('b', 100),
+        ]))->assertStatus(201);
+    }
+
+    /**
+     * The legacy email-form fields are accepted on the email path only (deploy
+     * window): the Google finalisation screen never collected them.
+     */
+    public function test_deferred_profile_fields_are_not_collected_on_the_google_path(): void
+    {
+        $this->postJson('/api/v1/auth/google/complete-registration', $this->facePayload([
+            'username' => 'chosen_by_hand',
+            'sexe' => 'homme',
+            'nationalite' => 'Béninoise',
+            'whatsapp_number' => '+22997000000',
+        ]))->assertStatus(201);
+
+        $face = Face::where('nom', 'Dupont')->firstOrFail();
+
+        $this->assertSame('jeandupont', $face->username);
+        $this->assertNull($face->sexe);
+        $this->assertNull($face->nationalite);
+        $this->assertNull($face->whatsapp_number);
+    }
+
     public function test_consent_is_never_skipped(): void
     {
         $this->postJson('/api/v1/auth/google/complete-registration', $this->facePayload(['accept_cgu' => false]))

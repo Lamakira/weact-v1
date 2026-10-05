@@ -42,6 +42,47 @@ class ProducerRegistrationTest extends TestCase
         ];
     }
 
+    // LEGACY-BUNDLE (deploy window): remove after the release following 2026-10
+    public function test_an_old_bundle_particulier_payload_with_first_and_last_name_is_accepted(): void
+    {
+        $response = $this->postJson('/api/v1/auth/register/producer', [
+            'type' => 'particulier',
+            'first_name' => 'Jean',
+            'last_name' => 'Dupont',
+            'email' => 'jean@example.com',
+            'password' => 'Password123',
+            'accept_cgu' => true,
+        ]);
+
+        $response->assertStatus(201);
+
+        $this->assertDatabaseHas('producers', [
+            'type' => 'particulier',
+            'first_name' => 'Jean',
+            'last_name' => 'Dupont',
+        ]);
+    }
+
+    public function test_the_old_bundle_fallback_never_overrides_nom_complet(): void
+    {
+        $this->postJson('/api/v1/auth/register/producer', $this->validParticulierData + [
+            'first_name' => 'Ignored',
+            'last_name' => 'Ignored',
+        ])->assertStatus(201);
+
+        $this->assertDatabaseHas('producers', ['first_name' => 'Jean', 'last_name' => 'Dupont']);
+    }
+
+    public function test_a_particulier_without_any_name_still_gets_the_nom_complet_error(): void
+    {
+        $data = $this->validParticulierData;
+        unset($data['nom_complet']);
+
+        $this->postJson('/api/v1/auth/register/producer', $data)
+            ->assertStatus(422)
+            ->assertJsonStructure(['error' => ['details' => ['nom_complet']]]);
+    }
+
     public function test_registration_returns_403_when_disabled(): void
     {
         config(['app.registration_enabled' => false]);

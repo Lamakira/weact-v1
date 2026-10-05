@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useForm, useField } from 'vee-validate'
-import { faceRegistrationValidationSchema } from '../schemas/faceRegistration'
+import {
+  FACE_NAME_MAX_LENGTH,
+  faceRegistrationValidationSchema,
+} from '../schemas/faceRegistration'
 import { useAuth } from '../composables/useAuth'
 import type { FaceRegistrationForm as FormData } from '../types'
 import { FloatingField } from '@/components/ui/form'
@@ -90,6 +93,7 @@ const onSubmit = handleSubmit(async (values) => {
         :error="nomError"
         required
         autocomplete="family-name"
+        :maxlength="FACE_NAME_MAX_LENGTH"
         data-testid="nom-input"
       />
       <FloatingField
@@ -100,6 +104,7 @@ const onSubmit = handleSubmit(async (values) => {
         :error="prenomError"
         required
         autocomplete="given-name"
+        :maxlength="FACE_NAME_MAX_LENGTH"
         data-testid="prenom-input"
       />
     </div>

@@ -5,6 +5,7 @@ import { setGoogleReauthTicket, takeGoogleReauthTicket } from '@/features/auth/g
 
 const h = vi.hoisted(() => ({
   hasPassword: true,
+  userId: 5,
   clearAuth: vi.fn(),
   push: vi.fn(),
   del: vi.fn(),
@@ -32,6 +33,9 @@ vi.mock('@/stores/auth', () => ({
     get hasPassword() {
       return h.hasPassword
     },
+    get user() {
+      return { id: h.userId }
+    },
     clearAuth: h.clearAuth,
   }),
 }))
@@ -54,6 +58,7 @@ describe('DataPrivacySection — Google re-authentication before deletion', () =
     vi.clearAllMocks()
     sessionStorage.clear()
     h.hasPassword = true
+    h.userId = 5
     h.del.mockResolvedValue({ data: { message: 'Compte supprimé' } })
   })
 
@@ -88,31 +93,42 @@ describe('DataPrivacySection — Google re-authentication before deletion', () =
 
   it('reopens the dialog with the ticket picked up on return from Google', async () => {
     h.hasPassword = false
-    setGoogleReauthTicket('reauth-abc', 'delete_account')
+    setGoogleReauthTicket('reauth-abc', 'delete_account', 5)
 
     const wrapper = mountSection()
     await flushPromises()
 
     expect(wrapper.find('[data-testid="delete-reauth-confirmed"]').exists()).toBe(true)
     // Taken on mount: one confirmation, one use.
-    expect(takeGoogleReauthTicket('delete_account')).toBeNull()
+    expect(takeGoogleReauthTicket('delete_account', 5)).toBeNull()
   })
 
   it('ignores a set_password ticket: the delete dialog stays closed and the ticket is left alone', async () => {
     h.hasPassword = false
-    setGoogleReauthTicket('reauth-pwd', 'set_password')
+    setGoogleReauthTicket('reauth-pwd', 'set_password', 5)
 
     const wrapper = mountSection()
     await flushPromises()
 
     expect(wrapper.find('[data-testid="delete-reauth-confirmed"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="confirm-delete-button"]').exists()).toBe(false)
-    expect(takeGoogleReauthTicket('set_password')).toBe('reauth-pwd')
+    expect(takeGoogleReauthTicket('set_password', 5)).toBe('reauth-pwd')
+  })
+
+  it('never opens the dialog from a ticket minted for another account', async () => {
+    h.hasPassword = false
+    setGoogleReauthTicket('reauth-abc', 'delete_account', 99)
+
+    const wrapper = mountSection()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="delete-reauth-confirmed"]').exists()).toBe(false)
+    expect(takeGoogleReauthTicket('delete_account', 99)).toBeNull()
   })
 
   it('sends the ticket rather than a password', async () => {
     h.hasPassword = false
-    setGoogleReauthTicket('reauth-abc', 'delete_account')
+    setGoogleReauthTicket('reauth-abc', 'delete_account', 5)
 
     const wrapper = mountSection()
     await flushPromises()
@@ -126,7 +142,7 @@ describe('DataPrivacySection — Google re-authentication before deletion', () =
 
   it('drops a spent ticket on failure so the user re-confirms', async () => {
     h.hasPassword = false
-    setGoogleReauthTicket('reauth-abc', 'delete_account')
+    setGoogleReauthTicket('reauth-abc', 'delete_account', 5)
     h.del.mockRejectedValue(new Error('422'))
 
     const wrapper = mountSection()

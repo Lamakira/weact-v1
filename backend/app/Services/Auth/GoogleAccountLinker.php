@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services\Auth;
 
 use App\Models\User;
+use App\Notifications\GoogleAccountLinkedNotification;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -125,28 +127,56 @@ class GoogleAccountLinker
     {
         // An account whose address was never verified may have been pre-registered
         // by someone who does NOT own it (pre-account hijack): they hold its
-        // password and possibly live sessions. Google attests the address, so the
-        // real owner takes the account over — and every credential the squatter
-        // could hold is purged. A verified account keeps its password and tokens.
-        $wasUnverified = $user->email_verified_at === null;
+        // password, possibly live sessions, and possibly a still-valid signed
+        // email-change link. Google attests the address, so the real owner takes
+        // the account over — and every credential the squatter could hold is purged.
+        // A verified account keeps its password, tokens and pending email change
+        // (the verified owner's own action).
+        //
+        // One transaction on a re-read, locked row: the "unverified" decision and the
+        // purge must see the same state, or a concurrent password login could slip a
+        // token in between.
+        $secured = DB::transaction(function () use ($user, $sub): bool {
+            $locked = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
 
-        // Explicit assignment: google_id is deliberately not mass assignable.
-        $user->google_id = $sub;
-        $user->google_linked_at = now();
+            $wasUnverified = $locked->email_verified_at === null;
 
-        if ($wasUnverified) {
-            // Google just attested the address; our own verification mail would
-            // prove the same fact with weaker assurance.
-            $user->email_verified_at = now();
-            $user->password = null;
-        }
+            // Explicit assignment: google_id is deliberately not mass assignable.
+            $locked->google_id = $sub;
+            $locked->google_linked_at = now();
 
-        $user->save();
+            if ($wasUnverified) {
+                // Google just attested the address; our own verification mail would
+                // prove the same fact with weaker assurance.
+                $locked->email_verified_at = now();
+                $locked->password = null;
+                $locked->pending_email = null;
+            }
 
-        if ($wasUnverified) {
-            $user->tokens()->delete();
+            $locked->save();
 
+            if ($wasUnverified) {
+                $locked->tokens()->delete();
+            }
+
+            return $wasUnverified;
+        });
+
+        // Hand the caller the state that was actually written.
+        $user->refresh();
+
+        if ($secured) {
             Log::info('auth.google.linked_unverified_account_secured', ['user_id' => $user->id]);
+
+            // After commit, and never fatal: the owner is informed, the login proceeds.
+            try {
+                $user->notify(new GoogleAccountLinkedNotification);
+            } catch (\Throwable $e) {
+                Log::warning('auth.google.linked_notification_failed', [
+                    'user_id' => $user->id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
         }
 
         Log::info('auth.google.linked', ['user_id' => $user->id]);

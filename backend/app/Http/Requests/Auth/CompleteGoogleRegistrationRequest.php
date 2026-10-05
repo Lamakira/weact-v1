@@ -34,8 +34,9 @@ class CompleteGoogleRegistrationRequest extends FormRequest
             'accept_cgu' => ['required', 'accepted'],
 
             // Face branch — same rules as RegisterFaceRequest, minus email/password.
-            'nom' => ['required_if:role,face', 'nullable', 'string', 'max:255'],
-            'prenom' => ['required_if:role,face', 'nullable', 'string', 'max:255'],
+            // Capped at 100 like the profile (Face\UpdateBasicInfoRequest).
+            'nom' => ['required_if:role,face', 'nullable', 'string', 'max:100'],
+            'prenom' => ['required_if:role,face', 'nullable', 'string', 'max:100'],
             'date_naissance' => [
                 'required_if:role,face',
                 'nullable',
@@ -60,7 +61,9 @@ class CompleteGoogleRegistrationRequest extends FormRequest
             'role.required' => 'Veuillez choisir un type de compte',
             'role.in' => 'Type de compte invalide',
             'nom.required_if' => 'Le nom est obligatoire',
+            'nom.max' => 'Le nom ne peut pas dépasser 100 caractères',
             'prenom.required_if' => 'Le prénom est obligatoire',
+            'prenom.max' => 'Le prénom ne peut pas dépasser 100 caractères',
             'date_naissance.required_if' => 'La date de naissance est obligatoire.',
             'date_naissance.date' => 'La date de naissance doit être une date valide.',
             'date_naissance.before_or_equal' => 'Vous devez avoir au moins 16 ans pour vous inscrire.',

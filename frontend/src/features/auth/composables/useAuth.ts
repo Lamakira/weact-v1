@@ -138,6 +138,15 @@ export function useAuth(): UseAuthReturn {
    * notification store — subscribing before the token is stored would 401.
    */
   function adoptSession(token: string, newUser: User): void {
+    // In-place account switch: the store's subscribe() is a no-op while already
+    // subscribed, so the tab would keep receiving the previous account's events.
+    // Leave the old channel first — unsubscribe() reads the current user id, so it
+    // must run before setUser().
+    const previousUserId = authStore.user?.id
+    if (previousUserId != null && previousUserId !== newUser.id) {
+      notificationStore.unsubscribe()
+    }
+
     authStore.setToken(token)
     authStore.setUser(newUser)
 
