@@ -126,8 +126,10 @@ describe('formatApiError', () => {
       code: 'ECONNABORTED',
     } as unknown as AxiosError
 
-    expect(formatApiError(error)).toBe(
-      "L'envoi a pris trop de temps. Veuillez réessayer.",
+    expect(formatApiError(error)).toBe('La requête a pris trop de temps. Veuillez réessayer.')
+    // Le timeout prime sur le repli de l'appelant : c'est le diagnostic utile.
+    expect(formatApiError(error, 'Erreur lors du chargement')).toBe(
+      'La requête a pris trop de temps. Veuillez réessayer.',
     )
   })
 

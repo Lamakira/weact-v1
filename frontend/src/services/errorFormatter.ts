@@ -160,7 +160,7 @@ export function formatApiError(error: unknown, fallback?: string): string {
     }
 
     if (axiosError.code === 'ECONNABORTED') {
-      return "L'envoi a pris trop de temps. Veuillez réessayer."
+      return 'La requête a pris trop de temps. Veuillez réessayer.'
     }
 
     if (isNetworkError(axiosError)) {
