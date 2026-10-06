@@ -6,6 +6,7 @@ namespace Tests\Feature\Producer;
 
 use App\Enums\MissionStatus;
 use App\Enums\ProducerType;
+use App\Http\Resources\ProducerResource;
 use App\Models\Admin;
 use App\Models\Booking;
 use App\Models\Face;
@@ -13,6 +14,7 @@ use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Tests\TestCase;
 
 /**
@@ -59,10 +61,11 @@ class ProducerWhatsappTest extends TestCase
 
     public function test_new_producer_has_no_whatsapp_number(): void
     {
-        $this->actingAs($this->producerUser)
+        $response = $this->actingAs($this->producerUser)
             ->getJson('/api/v1/producer/basic-info')
-            ->assertOk()
-            ->assertJsonPath('data.whatsapp_number', null);
+            ->assertOk();
+
+        $this->assertKeyPresentAndNull($response->json('data'));
     }
 
     public function test_particulier_can_save_whatsapp_number(): void
@@ -102,10 +105,11 @@ class ProducerWhatsappTest extends TestCase
     {
         $this->producer->update(['whatsapp_number' => self::NUMBER]);
 
-        $this->actingAs($this->producerUser)
+        $response = $this->actingAs($this->producerUser)
             ->putJson('/api/v1/producer/basic-info', ['whatsapp_number' => null])
-            ->assertOk()
-            ->assertJsonPath('data.whatsapp_number', null);
+            ->assertOk();
+
+        $this->assertKeyPresentAndNull($response->json('data'));
 
         $this->assertNull($this->producer->fresh()->whatsapp_number);
     }
@@ -240,11 +244,58 @@ class ProducerWhatsappTest extends TestCase
     {
         $token = Admin::factory()->create()->createToken('admin-token')->plainTextToken;
 
-        $this->withToken($token)
+        $response = $this->withToken($token)
             ->getJson("/api/v1/admin/producers/{$this->producer->uuid}")
-            ->assertOk()
-            ->assertJsonPath('data.whatsapp_number', null)
-            ->assertJsonPath('data.has_whatsapp', false);
+            ->assertOk();
+
+        $this->assertKeyPresentAndNull($response->json('data'));
+
+        $response->assertJsonPath('data.has_whatsapp', false);
+    }
+
+    // ========== Owner check (ProducerResource) ==========
+
+    public function test_another_producer_does_not_get_the_number_from_the_resource(): void
+    {
+        $this->producer->update(['whatsapp_number' => self::NUMBER]);
+
+        $producerB = Producer::factory()->create();
+        $userB = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producerB->id,
+        ]);
+
+        $asB = $this->requestAs($userB);
+        $payloadForB = (new ProducerResource($this->producer->fresh()))->toArray($asB);
+
+        $this->assertArrayNotHasKey('whatsapp_number', $payloadForB);
+        $this->assertArrayNotHasKey('has_whatsapp', $payloadForB);
+
+        // Control: the owner does get it from the very same resource.
+        $payloadForOwner = (new ProducerResource($this->producer->fresh()))
+            ->toArray($this->requestAs($this->producerUser));
+
+        $this->assertSame(self::NUMBER, $payloadForOwner['whatsapp_number']);
+    }
+
+    private function requestAs(User $user): Request
+    {
+        $request = Request::create('/');
+        $request->setUserResolver(fn () => $user);
+
+        return $request;
+    }
+
+    /**
+     * The key must be present (not just absent) with a null value — assertJsonPath
+     * with null cannot tell the two apart.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function assertKeyPresentAndNull(array $data): void
+    {
+        $this->assertArrayHasKey('whatsapp_number', $data);
+        $this->assertNull($data['whatsapp_number']);
     }
 
     // ========== GDPR ==========

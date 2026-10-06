@@ -297,6 +297,23 @@ describe('BasicInfoSection (Producer)', () => {
       await flushPromises()
 
       expect(document.activeElement).toBe(wrapper.get('[data-testid="whatsapp-number-input"]').element)
+      expect(wrapper.emitted('focused')).toHaveLength(1)
+      wrapper.unmount()
+    })
+
+    it('focuses the field when the prop turns on while already displayed', async () => {
+      mockBasicInfo.value = { type: 'particulier', first_name: 'Marie', last_name: 'Martin' }
+
+      const wrapper = mount(BasicInfoSection, { attachTo: document.body })
+      await flushPromises()
+      expect(document.activeElement).not.toBe(wrapper.get('[data-testid="whatsapp-number-input"]').element)
+      expect(wrapper.emitted('focused')).toBeUndefined()
+
+      await wrapper.setProps({ focusWhatsapp: true })
+      await flushPromises()
+
+      expect(document.activeElement).toBe(wrapper.get('[data-testid="whatsapp-number-input"]').element)
+      expect(wrapper.emitted('focused')).toHaveLength(1)
       wrapper.unmount()
     })
   })

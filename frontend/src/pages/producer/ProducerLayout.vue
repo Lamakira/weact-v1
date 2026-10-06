@@ -5,7 +5,7 @@
  * Uses DashboardLayout with Producer-specific sidebar items.
  * Child routes render via <router-view> in the content area.
  */
-import { onMounted, ref, computed, watch } from 'vue'
+import { onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { LayoutDashboard, FileText, MessageCircle, User, PlusCircle, Users, CalendarCheck, Wallet, BadgeCheck, FolderDown } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
@@ -25,8 +25,19 @@ const { profile, fetchProfile } = useProducerProfilePhoto()
 // updates it in place, so the banner disappears without a refetch.
 const { basicInfo, fetchBasicInfo } = useProducerBasicInfo()
 
-const basicInfoLoaded = ref(false)
-const hasWhatsapp = computed(() => !!basicInfo.value?.whatsapp_number?.trim())
+// "Loaded" is derived from the shared cache itself: a reset (logout) hides the banner.
+const basicInfoLoaded = computed(() => basicInfo.value !== null)
+// Present = dialable (at least one digit), same rule as the admin side
+// (App\Support\Whatsapp::isDialable / has_whatsapp).
+const hasWhatsapp = computed(() => /\d/.test(basicInfo.value?.whatsapp_number ?? ''))
+
+async function loadBasicInfo(): Promise<void> {
+  try {
+    await fetchBasicInfo()
+  } catch {
+    // Silently fail - the banner stays hidden; retried on the next route change
+  }
+}
 const ugcValidationCountStore = useUgcValidationCountStore()
 
 // Sidebar navigation items for Producer dashboard. Computed so the « Validation
@@ -68,12 +79,7 @@ onMounted(async () => {
     // Silently fail - avatar will show fallback
   }
 
-  try {
-    await fetchBasicInfo()
-  } catch {
-    // Silently fail - the banner simply stays hidden until the data loads
-  }
-  basicInfoLoaded.value = basicInfo.value !== null
+  await loadBasicInfo()
 })
 
 // The layout now persists across child navigations (App.vue keys it by the
@@ -84,6 +90,8 @@ watch(
   () => route.path,
   () => {
     void ugcValidationCountStore.fetchCount()
+    // Retry a failed basic-info load (mirrors FaceLayout) — only while not loaded.
+    if (!basicInfoLoaded.value) void loadBasicInfo()
   },
 )
 

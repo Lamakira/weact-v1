@@ -6,6 +6,8 @@ import { useToast } from '@/composables/useToast'
 
 // Deep-link from the WhatsApp banner CTA: focus the number field once loaded.
 const props = withDefaults(defineProps<{ focusWhatsapp?: boolean }>(), { focusWhatsapp: false })
+// Emitted once the focus was applied, so the page can drop `?focus=` from the URL.
+const emit = defineEmits<{ (e: 'focused'): void }>()
 
 const toast = useToast()
 
@@ -45,13 +47,25 @@ watch(
 onMounted(async () => {
   await fetchBasicInfo()
 
-  if (props.focusWhatsapp) {
-    await nextTick()
-    const input = document.getElementById('whatsapp_number')
-    input?.scrollIntoView?.({ block: 'center' })
-    input?.focus()
-  }
+  if (props.focusWhatsapp) await focusWhatsappField()
 })
+
+async function focusWhatsappField(): Promise<void> {
+  await nextTick()
+  const input = document.getElementById('whatsapp_number')
+  input?.scrollIntoView?.({ block: 'center' })
+  input?.focus()
+  emit('focused')
+}
+
+// The page can already be displayed when the banner CTA is clicked (same route.path
+// ⇒ same kept-alive component, no remount): react to the prop turning on.
+watch(
+  () => props.focusWhatsapp,
+  (wanted) => {
+    if (wanted && !isLoading.value) void focusWhatsappField()
+  },
+)
 
 const handleSubmit = async () => {
   clearError()

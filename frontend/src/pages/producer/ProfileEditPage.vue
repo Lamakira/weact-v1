@@ -5,7 +5,7 @@
  * This component is rendered inside ProducerLayout via nested routing.
  */
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { X } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
@@ -41,6 +41,14 @@ const {
 
 // Deep-link from the WhatsApp banner (?focus=whatsapp)
 const route = useRoute()
+const router = useRouter()
+
+// Once the field is focused, drop `focus` from the URL so a refresh or a second
+// click on the banner CTA triggers the focus again.
+function clearFocusQuery(): void {
+  const { focus: _focus, ...rest } = route.query
+  void router.replace({ path: route.path, query: rest })
+}
 
 // Auth store for email
 const authStore = useAuthStore()
@@ -256,7 +264,10 @@ async function handleBioSave(newBio: string | null): Promise<void> {
       <div class="px-6 py-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Basic info section (agency_name or first_name/last_name) -->
         <div id="section-basic-info" data-testid="basic-info-section">
-          <BasicInfoSection :focus-whatsapp="route.query.focus === 'whatsapp'" />
+          <BasicInfoSection
+            :focus-whatsapp="route.query.focus === 'whatsapp'"
+            @focused="clearFocusQuery"
+          />
         </div>
 
         <!-- Profile info section -->

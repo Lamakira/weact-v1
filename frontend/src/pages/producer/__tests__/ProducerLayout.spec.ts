@@ -155,6 +155,57 @@ describe('ProducerLayout', () => {
       expect(wrapper.findComponent({ name: 'WhatsappMissingBanner' }).exists()).toBe(false)
     })
 
+    it('hides the banner when the shared cache is reset (logout) for a Producer with a number', async () => {
+      basicInfoHolder.fetch.mockImplementation(async () => {
+        basicInfoHolder.info.value = { type: 'particulier', whatsapp_number: '+22997000000' }
+      })
+      const wrapper = await mountLayout()
+
+      basicInfoHolder.info.value = null
+      await flushPromises()
+
+      expect(wrapper.findComponent({ name: 'WhatsappMissingBanner' }).exists()).toBe(false)
+    })
+
+    it('shows the banner when the stored value holds no digit', async () => {
+      basicInfoHolder.fetch.mockImplementation(async () => {
+        basicInfoHolder.info.value = { type: 'particulier', whatsapp_number: 'non' }
+      })
+
+      const wrapper = await mountLayout()
+
+      expect(wrapper.findComponent({ name: 'WhatsappMissingBanner' }).exists()).toBe(true)
+    })
+
+    it('retries the basic-info load on route change while it is not loaded', async () => {
+      basicInfoHolder.fetch.mockRejectedValueOnce(new Error('network'))
+      const wrapper = await mountLayout()
+      expect(wrapper.findComponent({ name: 'WhatsappMissingBanner' }).exists()).toBe(false)
+      expect(basicInfoHolder.fetch).toHaveBeenCalledTimes(1)
+
+      basicInfoHolder.fetch.mockImplementation(async () => {
+        basicInfoHolder.info.value = { type: 'particulier', whatsapp_number: null }
+      })
+      routeHolder.route.path = '/producer/missions'
+      await flushPromises()
+
+      expect(basicInfoHolder.fetch).toHaveBeenCalledTimes(2)
+      expect(wrapper.findComponent({ name: 'WhatsappMissingBanner' }).exists()).toBe(true)
+    })
+
+    it('does not refetch on route change once loaded', async () => {
+      basicInfoHolder.fetch.mockImplementation(async () => {
+        basicInfoHolder.info.value = { type: 'particulier', whatsapp_number: null }
+      })
+      await mountLayout()
+      expect(basicInfoHolder.fetch).toHaveBeenCalledTimes(1)
+
+      routeHolder.route.path = '/producer/wallet'
+      await flushPromises()
+
+      expect(basicInfoHolder.fetch).toHaveBeenCalledTimes(1)
+    })
+
     it('does not flash the banner when the basic info could not be loaded', async () => {
       basicInfoHolder.fetch.mockRejectedValue(new Error('network'))
 

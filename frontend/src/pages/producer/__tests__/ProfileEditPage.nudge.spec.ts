@@ -10,6 +10,8 @@ import ProfileEditPage from '../ProfileEditPage.vue'
 // uses them bare in the template, which only unwraps actual refs.
 const h = vi.hoisted(() => ({
   userId: 7 as number | null,
+  query: {} as Record<string, string>,
+  routerReplace: vi.fn(),
   fetchProfile: vi.fn().mockResolvedValue(undefined),
   fetchBio: vi.fn().mockResolvedValue(undefined),
   refs: {} as {
@@ -62,7 +64,8 @@ vi.mock('@/composables/useToast', () => ({
 
 // The page reads ?focus= from the route (WhatsApp banner deep-link).
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: {} }),
+  useRoute: () => ({ path: '/producer/profile', query: h.query }),
+  useRouter: () => ({ replace: h.routerReplace }),
 }))
 
 vi.mock('@/stores/auth', () => ({
@@ -88,6 +91,8 @@ describe('ProducerProfileEditPage — completion nudge', () => {
     localStorage.clear()
     vi.restoreAllMocks()
     h.userId = 7
+    h.query = {}
+    h.routerReplace.mockReset()
     h.refs.profile.value = {
       type: 'particulier',
       profile_photo_url: null,
@@ -209,5 +214,32 @@ describe('ProducerProfileEditPage — completion nudge', () => {
     expect(wrapper.find('[data-testid="producer-profile-nudge"]').text()).toContain(
       'Complétez votre profil — ajoutez une photo de profil et présentez votre activité en quelques lignes — les Faces répondent bien plus souvent aux Producteurs identifiables.'
     )
+  })
+
+  describe('?focus=whatsapp wiring', () => {
+    it('does not ask for the focus without the query', async () => {
+      const wrapper = mountPage()
+      await flushPromises()
+
+      expect(wrapper.findComponent({ name: 'BasicInfoSection' }).props('focusWhatsapp')).toBe(false)
+    })
+
+    it('passes focus=whatsapp from the route query to the basic-info section', async () => {
+      h.query = { focus: 'whatsapp' }
+      const wrapper = mountPage()
+      await flushPromises()
+
+      expect(wrapper.findComponent({ name: 'BasicInfoSection' }).props('focusWhatsapp')).toBe(true)
+    })
+
+    it('removes only `focus` from the URL once the field is focused', async () => {
+      h.query = { focus: 'whatsapp', other: '1' }
+      const wrapper = mountPage()
+      await flushPromises()
+
+      wrapper.findComponent({ name: 'BasicInfoSection' }).vm.$emit('focused')
+
+      expect(h.routerReplace).toHaveBeenCalledWith({ path: '/producer/profile', query: { other: '1' } })
+    })
   })
 })
