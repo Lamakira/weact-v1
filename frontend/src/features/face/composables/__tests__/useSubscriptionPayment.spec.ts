@@ -132,6 +132,27 @@ describe('useSubscriptionPayment (FP-2.7 tier-aware contract)', () => {
     unmount()
   })
 
+  it('resets the redirecting state on a bfcache restore (persisted pageshow) but not otherwise', async () => {
+    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
+
+    const { api, unmount } = mountWithComposable()
+    await api.initiatePayment('pro')
+    expect(api.paymentState.value).toBe('waiting')
+
+    const nonPersisted = new Event('pageshow')
+    Object.defineProperty(nonPersisted, 'persisted', { value: false })
+    window.dispatchEvent(nonPersisted)
+    expect(api.paymentState.value).toBe('waiting')
+
+    const persisted = new Event('pageshow')
+    Object.defineProperty(persisted, 'persisted', { value: true })
+    window.dispatchEvent(persisted)
+    expect(api.paymentState.value).toBe('idle')
+    expect(api.isInitiating.value).toBe(false)
+
+    unmount()
+  })
+
   it('never reports « fenêtre bloquée » — window.open (null with noopener) is no longer used', async () => {
     vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
     openSpy.mockReturnValue(null)

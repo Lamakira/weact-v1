@@ -28,6 +28,12 @@ function acceptResult(checkoutUrl: string | undefined): AcceptCandidatureResult 
 }
 
 // La vérification du paiement (polling) vit dans usePaymentReturn — cf. son spec.
+function restoreFromBfcache(persisted: boolean): void {
+  const event = new Event('pageshow') as Event & { persisted: boolean }
+  Object.defineProperty(event, 'persisted', { value: persisted })
+  window.dispatchEvent(event)
+}
+
 describe('useUgcCandidaturePayment (8-5 hybrid per-Face payment)', () => {
   let openSpy: ReturnType<typeof vi.spyOn>
 
@@ -97,5 +103,17 @@ describe('useUgcCandidaturePayment (8-5 hybrid per-Face payment)', () => {
     expect(api.paymentStatus.value).toBe('idle')
     expect(api.error.value).toBeNull()
     expect(api.isInitiating.value).toBe(false)
+  })
+
+  it('resets the redirecting state on a bfcache restore (persisted pageshow) but not otherwise', async () => {
+    vi.mocked(candidatureApi.acceptCandidature).mockResolvedValue(acceptResult(CHECKOUT_URL))
+    const api = useUgcCandidaturePayment()
+    await api.initiate('cand-1')
+
+    restoreFromBfcache(false)
+    expect(api.paymentStatus.value).toBe('waiting')
+
+    restoreFromBfcache(true)
+    expect(api.paymentStatus.value).toBe('idle')
   })
 })

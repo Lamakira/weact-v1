@@ -210,6 +210,36 @@ describe('usePaymentReturn', () => {
     expect(onRetry).toHaveBeenCalledWith('booking_commission', expect.objectContaining({ bookingId: 'b-uuid' }))
   })
 
+  it.each(['canceled', 'declined'])(
+    'fedapay_status=%s fails immediately without polling, then cleans the URL (hint only)',
+    async (hint) => {
+      ctx.route.query = { payment_return: 'booking', fedapay_status: hint }
+      const onRetry = vi.fn()
+      const { api } = mountReturn({ onRetry })
+
+      await api.start()
+
+      expect(api.state.value).toBe('failed')
+      expect(bookingApi.checkPaymentStatus).not.toHaveBeenCalled()
+      expect(ctx.toast.success).not.toHaveBeenCalled()
+      expect(ctx.replace).toHaveBeenCalledWith({ query: {} })
+
+      api.retry()
+      expect(onRetry).toHaveBeenCalledWith('booking', expect.anything())
+    },
+  )
+
+  it('fedapay_status=approved keeps the normal polling', async () => {
+    ctx.route.query = { payment_return: 'booking', fedapay_status: 'approved' }
+    vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('accepted'))
+    const { api } = mountReturn()
+
+    await api.start()
+
+    expect(api.state.value).toBe('verifying')
+    expect(bookingApi.checkPaymentStatus).toHaveBeenCalledOnce()
+  })
+
   it('timeout after 120 s is NOT an error: dedicated state, no failure, URL cleaned', async () => {
     ctx.route.query = { payment_return: 'booking' }
     vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('accepted'))

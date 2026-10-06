@@ -3,6 +3,7 @@ import { candidatureApi } from '../services/candidatureApi'
 import type { PaymentStatus } from '@/features/booking/types'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
 import { redirectToCheckout } from '@/lib/redirectToCheckout'
+import { useCheckoutRedirect } from '@/lib/useCheckoutRedirect'
 
 interface UseUgcCandidaturePaymentReturn {
   isInitiating: Ref<boolean>
@@ -57,6 +58,9 @@ export function useUgcCandidaturePayment(): UseUgcCandidaturePaymentReturn {
     paymentStatus.value = 'idle'
     error.value = null
   }
+
+  // Back from FedaPay (bfcache): leave the frozen « redirecting » state.
+  useCheckoutRedirect(reset)
 
   return {
     isInitiating,

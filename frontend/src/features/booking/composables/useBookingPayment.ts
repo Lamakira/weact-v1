@@ -3,6 +3,7 @@ import { bookingApi } from '../services/bookingApi'
 import type { Booking, PaymentStatus } from '../types'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
 import { redirectToCheckout } from '@/lib/redirectToCheckout'
+import { useCheckoutRedirect } from '@/lib/useCheckoutRedirect'
 
 interface UseBookingPaymentReturn {
   isInitiating: Ref<boolean>
@@ -46,6 +47,9 @@ export function useBookingPayment(): UseBookingPaymentReturn {
     paymentStatus.value = 'idle'
     error.value = null
   }
+
+  // Back from FedaPay (bfcache): leave the frozen « redirecting » state.
+  useCheckoutRedirect(reset)
 
   return {
     isInitiating,

@@ -11,6 +11,12 @@ vi.mock('@/features/auth/services/authApi', () => ({
   getApiErrorMessage: vi.fn(() => 'Erreur de paiement'),
 }))
 
+function restoreFromBfcache(persisted: boolean): void {
+  const event = new Event('pageshow') as Event & { persisted: boolean }
+  Object.defineProperty(event, 'persisted', { value: persisted })
+  window.dispatchEvent(event)
+}
+
 describe('useBookingPayment', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -45,5 +51,18 @@ describe('useBookingPayment', () => {
     expect(redirectToCheckout).not.toHaveBeenCalled()
     expect(paymentStatus.value).toBe('failed')
     expect(error.value).toBe('Erreur de paiement')
+  })
+
+  it('resets the redirecting state on a bfcache restore (persisted pageshow) but not otherwise', async () => {
+    vi.mocked(bookingApi.payBooking).mockResolvedValue({ data: { id: 'b1' }, checkout_url: 'u' } as never)
+    const { initiatePayment, paymentStatus } = useBookingPayment()
+    await initiatePayment('b1')
+    expect(paymentStatus.value).toBe('waiting')
+
+    restoreFromBfcache(false)
+    expect(paymentStatus.value).toBe('waiting')
+
+    restoreFromBfcache(true)
+    expect(paymentStatus.value).toBe('idle')
   })
 })

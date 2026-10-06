@@ -3,6 +3,8 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Loader2, AlertCircle, CheckCircle } from 'lucide-vue-next'
 import { ProducerCandidaturesSection } from '@/features/candidature/components'
+import { redirectToCheckout } from '@/lib/redirectToCheckout'
+import { useCheckoutRedirect } from '@/lib/useCheckoutRedirect'
 import { usePaymentReturn } from '@/composables/usePaymentReturn'
 import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
 import { missionApi } from '@/features/mission/services/missionApi'
@@ -64,6 +66,13 @@ const paymentReturn = usePaymentReturn({
       void fetchMission()
     }
   },
+})
+
+// Back from FedaPay (bfcache) after a cash selection: the selection was consumed
+// and the mission is now pending_payment — re-evaluate the page so the producer
+// can re-confirm instead of staring at a frozen state.
+useCheckoutRedirect(() => {
+  void fetchMission()
 })
 
 function isPaymentReturnActive(): boolean {
@@ -192,7 +201,7 @@ function goBack(): void {
  * Redirects to FedaPay checkout — FedaPay webhook handles the rest.
  */
 function handleSelectionConfirmed(checkoutUrl: string): void {
-  window.location.href = checkoutUrl
+  redirectToCheckout(checkoutUrl)
 }
 
 /**

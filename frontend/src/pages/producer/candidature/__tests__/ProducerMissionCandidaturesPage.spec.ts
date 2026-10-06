@@ -469,6 +469,30 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       wrapper.unmount()
     })
 
+    it('refetches the mission on a bfcache restore (Back from FedaPay after a cash selection) but not on a normal pageshow', async () => {
+      vi.mocked(missionApi.getMission).mockResolvedValue({
+        data: makePendingPaymentMission({ status: 'published', status_label: 'Publiée' }),
+        message: 'ok',
+      })
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+      // (earlier tests of this file leave mounted pages listening: compare deltas)
+      const afterMount = vi.mocked(missionApi.getMission).mock.calls.length
+
+      const normal = new Event('pageshow')
+      Object.defineProperty(normal, 'persisted', { value: false })
+      window.dispatchEvent(normal)
+      await flushPromises()
+      expect(missionApi.getMission).toHaveBeenCalledTimes(afterMount)
+
+      const restored = new Event('pageshow')
+      Object.defineProperty(restored, 'persisted', { value: true })
+      window.dispatchEvent(restored)
+      await flushPromises()
+      expect(vi.mocked(missionApi.getMission).mock.calls.length).toBeGreaterThan(afterMount)
+      wrapper.unmount()
+    })
+
     it('without payment_return the return flow stays idle', async () => {
       vi.mocked(missionApi.getMission).mockResolvedValue({
         data: makePendingPaymentMission({ status: 'published', status_label: 'Publiée' }),

@@ -15,7 +15,7 @@ const POLL_TIMEOUT_MS = 120000
 const MAX_CHECKS = POLL_TIMEOUT_MS / POLL_INTERVAL_MS + 1
 
 /** Query keys owned by the return flow — removed from the URL once it is over. */
-const RETURN_QUERY_KEYS = ['payment_return', 'mission', 'candidature'] as const
+const RETURN_QUERY_KEYS = ['payment_return', 'mission', 'candidature', 'fedapay_status'] as const
 
 export const PAYMENT_RETURN_KINDS = [
   'booking',
@@ -62,7 +62,7 @@ export const PAYMENT_RETURN_MESSAGES = {
   verifying: 'Vérification de votre paiement…',
   timeout:
     'Votre paiement est en cours de confirmation. Vous serez notifié dès qu\'il est validé.',
-  failed: 'Votre paiement n\'a pas abouti. Vous pouvez le réessayer.',
+  failed: 'Paiement annulé ou refusé. Vous pouvez réessayer.',
 } as const
 
 const SUCCESS_MESSAGES: Record<PaymentReturnKind, string> = {
@@ -95,7 +95,9 @@ function firstString(value: LocationQuery[string] | undefined): string | null {
  * self-heal against FedaPay, so a late webhook does not matter), then toasts /
  * surfaces the failure / reports a non-error timeout, and finally strips the
  * return keys from the URL so a reload does not re-run the verification.
- * The FedaPay `status` query param is never read: only the server decides.
+ * The only FedaPay-originated value read is `fedapay_status` (whitelisted by the
+ * backend), used purely as a display hint to fail fast on canceled/declined; the
+ * payment state itself is only ever decided by the server endpoints.
  */
 export function usePaymentReturn(options: UsePaymentReturnOptions): UsePaymentReturnReturn {
   const route = useRoute()
@@ -240,6 +242,14 @@ export function usePaymentReturn(options: UsePaymentReturnOptions): UsePaymentRe
     cancelled = false
     kind.value = k
     lastIds = resolveIds()
+    // Display hint only (never a state change): FedaPay says the user cancelled or
+    // was declined → show the failure right away instead of polling to the timeout.
+    // `approved` / absent / unknown keep the normal polling.
+    const hint = firstString(route.query.fedapay_status)
+    if (hint === 'canceled' || hint === 'declined') {
+      await finish(k, 'failed')
+      return true
+    }
     state.value = 'verifying'
     await runCheck(k, lastIds, 1)
     return true

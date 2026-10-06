@@ -25,9 +25,12 @@ use Illuminate\Http\Request;
  */
 class FedapayReturnController extends Controller
 {
+    private const STATUS_HINTS = ['approved', 'canceled', 'declined'];
+
     public function __invoke(Request $request): RedirectResponse
     {
         $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
+        $hint = $this->statusHint($request);
         $fallback = "{$frontendUrl}/producer/bookings?payment=pending";
 
         $transactionId = $request->query('id');
@@ -38,13 +41,13 @@ class FedapayReturnController extends Controller
         // 1. Sélection de mission cash.
         $missionPayment = MissionPayment::with('mission')->where('fedapay_transaction_id', $transactionId)->first();
         if ($missionPayment?->mission) {
-            return redirect("{$frontendUrl}/producer/missions/{$missionPayment->mission->uuid}/candidatures?payment_return=mission_selection");
+            return redirect($this->withHint("{$frontendUrl}/producer/missions/{$missionPayment->mission->uuid}/candidatures?payment_return=mission_selection", $hint));
         }
 
         // 2. Commission UGC produit-seul payée à la publication (tx stocké sur la mission).
         $mission = Mission::where('fedapay_transaction_id', $transactionId)->first();
         if ($mission) {
-            return redirect("{$frontendUrl}/producer/missions?payment_return=mission_commission&mission={$mission->uuid}");
+            return redirect($this->withHint("{$frontendUrl}/producer/missions?payment_return=mission_commission&mission={$mission->uuid}", $hint));
         }
 
         // 3. Escrow hybride par-Face payé à l'acceptation (entrée de candidature sans parent).
@@ -54,7 +57,7 @@ class FedapayReturnController extends Controller
         if ($escrowEntry?->candidature?->mission) {
             $candidature = $escrowEntry->candidature;
 
-            return redirect("{$frontendUrl}/producer/missions/{$candidature->mission->uuid}/candidatures?payment_return=candidature_escrow&candidature={$candidature->uuid}");
+            return redirect($this->withHint("{$frontendUrl}/producer/missions/{$candidature->mission->uuid}/candidatures?payment_return=candidature_escrow&candidature={$candidature->uuid}", $hint));
         }
 
         // 4. Booking : le même fedapay_transaction_id sert au paiement cash et à la commission UGC.
@@ -62,14 +65,30 @@ class FedapayReturnController extends Controller
         if ($booking) {
             $kind = $booking->type_contenu === 'UGC' ? 'booking_commission' : 'booking';
 
-            return redirect("{$frontendUrl}/producer/bookings/{$booking->uuid}?payment_return={$kind}");
+            return redirect($this->withHint("{$frontendUrl}/producer/bookings/{$booking->uuid}?payment_return={$kind}", $hint));
         }
 
         // 5. Abonnement Face.
         if (FaceSubscription::where('provider_reference', $transactionId)->exists()) {
-            return redirect("{$frontendUrl}/face/billing?payment_return=subscription");
+            return redirect($this->withHint("{$frontendUrl}/face/billing?payment_return=subscription", $hint));
         }
 
         return redirect($fallback);
+    }
+
+    /**
+     * FedaPay appends status=approved|canceled|declined. Forwarded as a DISPLAY HINT
+     * only (the frontend uses it to fail fast on cancel/decline) — never a state source.
+     */
+    private function statusHint(Request $request): ?string
+    {
+        $status = $request->query('status');
+
+        return is_string($status) && in_array($status, self::STATUS_HINTS, true) ? $status : null;
+    }
+
+    private function withHint(string $url, ?string $hint): string
+    {
+        return $hint === null ? $url : $url.'&fedapay_status='.$hint;
     }
 }

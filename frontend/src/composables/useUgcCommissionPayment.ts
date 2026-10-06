@@ -3,6 +3,7 @@ import { bookingApi } from '@/features/booking/services/bookingApi'
 import { missionApi } from '@/features/mission/services/missionApi'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
 import { redirectToCheckout } from '@/lib/redirectToCheckout'
+import { useCheckoutRedirect } from '@/lib/useCheckoutRedirect'
 
 export type UgcPaymentOwnerKind = 'booking' | 'mission'
 export type UgcPaymentStatus = 'idle' | 'waiting' | 'confirmed' | 'failed'
@@ -56,6 +57,9 @@ export function useUgcCommissionPayment(): UseUgcCommissionPaymentReturn {
     paymentStatus.value = 'idle'
     error.value = null
   }
+
+  // Back from FedaPay (bfcache): leave the frozen « redirecting » state.
+  useCheckoutRedirect(reset)
 
   return {
     isInitiating,

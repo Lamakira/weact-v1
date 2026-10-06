@@ -139,6 +139,35 @@ class FedapayReturnRedirectTest extends TestCase
         );
     }
 
+    public function test_whitelisted_fedapay_status_is_forwarded_as_a_display_hint(): void
+    {
+        $booking = Booking::factory()->accepted()->create([
+            'type_contenu' => 'Publicité',
+            'fedapay_transaction_id' => 900010,
+        ]);
+
+        foreach (['approved', 'canceled', 'declined'] as $status) {
+            $this->get("/api/v1/webhooks/fedapay?id=900010&status={$status}")->assertRedirect(
+                $this->frontend()."/producer/bookings/{$booking->uuid}?payment_return=booking&fedapay_status={$status}"
+            );
+        }
+    }
+
+    public function test_unknown_fedapay_status_is_dropped(): void
+    {
+        $booking = Booking::factory()->accepted()->create([
+            'type_contenu' => 'Publicité',
+            'fedapay_transaction_id' => 900011,
+        ]);
+
+        $this->get('/api/v1/webhooks/fedapay?id=900011&status=%3Cscript%3E')->assertRedirect(
+            $this->frontend()."/producer/bookings/{$booking->uuid}?payment_return=booking"
+        );
+        $this->get('/api/v1/webhooks/fedapay?id=900011&status[]=canceled')->assertRedirect(
+            $this->frontend()."/producer/bookings/{$booking->uuid}?payment_return=booking"
+        );
+    }
+
     public function test_unknown_transaction_falls_back_to_bookings(): void
     {
         $response = $this->get('/api/v1/webhooks/fedapay?id=999999999');

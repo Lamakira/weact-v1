@@ -4,6 +4,7 @@ import type { FaceSubscriptionPlan, FaceSubscriptionTier, SubscriptionPaymentSta
 import { useSubscriptionStatus } from './useSubscriptionStatus'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
 import { redirectToCheckout } from '@/lib/redirectToCheckout'
+import { useCheckoutRedirect } from '@/lib/useCheckoutRedirect'
 
 interface PaymentSnapshot {
   tier: FaceSubscriptionTier
@@ -267,6 +268,13 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
     if (!hasArmedPayment.value) return
     void verifyPayment({ manual: false })
   }
+
+  // Back from FedaPay (bfcache): only the frozen « redirecting » state is reset;
+  // a pending row stays handled by the pending banner / visibility reconciler.
+  useCheckoutRedirect(() => {
+    if (paymentState.value === 'waiting') paymentState.value = 'idle'
+    isInitiating.value = false
+  })
 
   onMounted(() => {
     document.addEventListener('visibilitychange', onVisibilityChange)

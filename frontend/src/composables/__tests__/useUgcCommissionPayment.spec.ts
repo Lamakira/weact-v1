@@ -20,6 +20,12 @@ const bookingCheckout = (url: string): BookingResponse & { checkout_url: string 
 const missionCheckout = (url: string): MissionResponse & { checkout_url: string } =>
   ({ data: { id: 'm1' }, checkout_url: url }) as unknown as MissionResponse & { checkout_url: string }
 
+function restoreFromBfcache(persisted: boolean): void {
+  const event = new Event('pageshow') as Event & { persisted: boolean }
+  Object.defineProperty(event, 'persisted', { value: persisted })
+  window.dispatchEvent(event)
+}
+
 describe('useUgcCommissionPayment', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -86,6 +92,18 @@ describe('useUgcCommissionPayment', () => {
     expect(paymentStatus.value).toBe('waiting')
 
     reset()
+    expect(paymentStatus.value).toBe('idle')
+  })
+
+  it('resets the redirecting state on a bfcache restore (persisted pageshow) but not otherwise', async () => {
+    vi.mocked(bookingApi.payCommission).mockResolvedValue(bookingCheckout('u'))
+    const { initiate, paymentStatus } = useUgcCommissionPayment()
+    await initiate('booking', 'b1')
+
+    restoreFromBfcache(false)
+    expect(paymentStatus.value).toBe('waiting')
+
+    restoreFromBfcache(true)
     expect(paymentStatus.value).toBe('idle')
   })
 })
