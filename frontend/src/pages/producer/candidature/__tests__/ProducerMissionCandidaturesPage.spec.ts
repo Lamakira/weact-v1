@@ -3,14 +3,20 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import ProducerMissionCandidaturesPage from '../ProducerMissionCandidaturesPage.vue'
 import { missionApi } from '@/features/mission/services/missionApi'
+import { candidatureApi } from '@/features/candidature/services/candidatureApi'
 import type { Mission } from '@/features/mission/types'
 
 const toastErrorSpy = vi.fn()
 
 // Mock router composables so the page can read `route.params.id`.
+const routeState = vi.hoisted(() => ({
+  query: {} as Record<string, unknown>,
+  replace: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { id: 'mission-uuid-under-test' } }),
-  useRouter: () => ({ push: vi.fn() }),
+  useRoute: () => ({ params: { id: 'mission-uuid-under-test' }, query: routeState.query }),
+  useRouter: () => ({ push: vi.fn(), replace: routeState.replace }),
 }))
 
 vi.mock('@/composables/useToast', () => ({
@@ -61,7 +67,12 @@ vi.mock('@/features/mission/services/missionApi', () => ({
   missionApi: {
     getMission: vi.fn(),
     getPaymentStatus: vi.fn(),
+    getCommissionStatus: vi.fn(),
   },
+}))
+
+vi.mock('@/features/candidature/services/candidatureApi', () => ({
+  candidatureApi: { getCandidaturePaymentStatus: vi.fn() },
 }))
 
 function makePendingPaymentMission(overrides: Partial<Mission> = {}): Mission {
@@ -93,6 +104,7 @@ function makePendingPaymentMission(overrides: Partial<Mission> = {}): Mission {
 describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    routeState.query = {}
     vi.spyOn(console, 'error').mockImplementation(() => {})
     toastErrorSpy.mockReset()
   })
@@ -393,5 +405,82 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
 
     expect(missionApi.getPaymentStatus).not.toHaveBeenCalled()
     expect(startPollingSpy).not.toHaveBeenCalled()
+  })
+
+  describe('return from the same-tab FedaPay checkout', () => {
+    it('candidature_escrow polls the candidature payment-status and NOT the cash mission one (no false « initialisation échouée » banner)', async () => {
+      routeState.query = { payment_return: 'candidature_escrow', candidature: 'cand-uuid-1' }
+      vi.mocked(missionApi.getMission).mockResolvedValue({
+        data: makePendingPaymentMission({ status: 'published', type_mission: 'ugc' } as Partial<Mission>),
+        message: 'ok',
+      })
+      vi.mocked(candidatureApi.getCandidaturePaymentStatus).mockResolvedValue({
+        data: { candidature_status: 'pending', payment_status: 'pending', is_trackable: true },
+      })
+
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+      await flushPromises()
+
+      expect(candidatureApi.getCandidaturePaymentStatus).toHaveBeenCalledWith('cand-uuid-1')
+      expect(missionApi.getPaymentStatus).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="payment-return-verifying"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="mission-payment-init-failed-banner"]').exists()).toBe(false)
+      wrapper.unmount()
+    })
+
+    it('mission_commission on a pending_payment UGC mission polls the commission-status endpoint, not the cash one', async () => {
+      routeState.query = { payment_return: 'mission_commission' }
+      vi.mocked(missionApi.getMission).mockResolvedValue({
+        data: makePendingPaymentMission(),
+        message: 'ok',
+      })
+      vi.mocked(missionApi.getCommissionStatus).mockResolvedValue({
+        data: { status: 'pending_payment' },
+      } as never)
+
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+      await flushPromises()
+
+      expect(missionApi.getCommissionStatus).toHaveBeenCalledWith('mission-uuid-under-test')
+      expect(missionApi.getPaymentStatus).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="mission-payment-init-failed-banner"]').exists()).toBe(false)
+      wrapper.unmount()
+    })
+
+    it('mission_selection polls the cash payment-status; confirmed shows the success banner and refetches the mission', async () => {
+      routeState.query = { payment_return: 'mission_selection' }
+      vi.mocked(missionApi.getMission).mockResolvedValue({
+        data: makePendingPaymentMission(),
+        message: 'ok',
+      })
+      vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
+        data: { has_payment: true, is_trackable: true, status: 'paid', mission_status: 'closed' },
+      })
+
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+      await flushPromises()
+
+      expect(missionApi.getPaymentStatus).toHaveBeenCalledWith('mission-uuid-under-test')
+      expect(wrapper.find('[data-testid="mission-payment-success-banner"]').exists()).toBe(true)
+      expect(missionApi.getMission).toHaveBeenCalledTimes(2)
+      wrapper.unmount()
+    })
+
+    it('without payment_return the return flow stays idle', async () => {
+      vi.mocked(missionApi.getMission).mockResolvedValue({
+        data: makePendingPaymentMission({ status: 'published', status_label: 'Publiée' }),
+        message: 'ok',
+      })
+
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+
+      expect(candidatureApi.getCandidaturePaymentStatus).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="payment-return-verifying"]').exists()).toBe(false)
+      wrapper.unmount()
+    })
   })
 })

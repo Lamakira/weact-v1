@@ -1,70 +1,21 @@
-import { ref, onUnmounted, type Ref } from 'vue'
+import { ref, type Ref } from 'vue'
 import { bookingApi } from '../services/bookingApi'
 import type { Booking, PaymentStatus } from '../types'
-import { BookingStatus } from '../types'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
-
-const POLL_INTERVAL_MS = 5000
-const POLL_TIMEOUT_MS = 120000
+import { redirectToCheckout } from '@/lib/redirectToCheckout'
 
 interface UseBookingPaymentReturn {
   isInitiating: Ref<boolean>
-  isPolling: Ref<boolean>
   paymentStatus: Ref<PaymentStatus>
   error: Ref<string | null>
   initiatePayment: (bookingId: string) => Promise<Booking | null>
-  stopPolling: () => void
   reset: () => void
 }
 
 export function useBookingPayment(): UseBookingPaymentReturn {
   const isInitiating = ref(false)
-  const isPolling = ref(false)
   const paymentStatus = ref<PaymentStatus>('idle')
   const error = ref<string | null>(null)
-
-  let pollTimer: ReturnType<typeof setInterval> | null = null
-  let pollTimeoutTimer: ReturnType<typeof setTimeout> | null = null
-
-  function stopPolling(): void {
-    if (pollTimer) {
-      clearInterval(pollTimer)
-      pollTimer = null
-    }
-    if (pollTimeoutTimer) {
-      clearTimeout(pollTimeoutTimer)
-      pollTimeoutTimer = null
-    }
-    isPolling.value = false
-  }
-
-  function startPolling(bookingId: string, onPaid: (booking: Booking) => void): void {
-    isPolling.value = true
-
-    pollTimer = setInterval(async () => {
-      try {
-        // Use payment-status endpoint: checks Fedapay directly and processes if approved
-        // This is resilient to webhook delivery failures (e.g. sandbox/ngrok)
-        const response = await bookingApi.checkPaymentStatus(bookingId)
-        if (response.data.status === BookingStatus.PAID) {
-          stopPolling()
-          paymentStatus.value = 'confirmed'
-          onPaid(response.data)
-        }
-      } catch {
-        // Silently ignore polling errors — keep polling
-      }
-    }, POLL_INTERVAL_MS)
-
-    // Stop polling after timeout
-    pollTimeoutTimer = setTimeout(() => {
-      if (isPolling.value) {
-        stopPolling()
-        error.value = 'Le délai de confirmation a expiré. Veuillez vérifier votre téléphone.'
-        paymentStatus.value = 'failed'
-      }
-    }, POLL_TIMEOUT_MS)
-  }
 
   async function initiatePayment(bookingId: string): Promise<Booking | null> {
     isInitiating.value = true
@@ -74,18 +25,13 @@ export function useBookingPayment(): UseBookingPaymentReturn {
     try {
       const response = await bookingApi.payBooking(bookingId)
 
-      // Open FedaPay hosted checkout in a new tab
-      window.open(response.checkout_url, '_blank', 'noopener,noreferrer')
-
+      // Same-tab redirect to the FedaPay hosted checkout ('waiting' = redirecting).
+      // The user comes back on the booking page with ?payment_return=booking,
+      // where usePaymentReturn verifies the payment.
       paymentStatus.value = 'waiting'
+      redirectToCheckout(response.checkout_url)
 
-      // Poll for payment confirmation (webhook updates booking status)
-      let resolvedBooking: Booking | null = response.data
-      startPolling(bookingId, (paidBooking) => {
-        resolvedBooking = paidBooking
-      })
-
-      return resolvedBooking
+      return response.data
     } catch (err) {
       error.value = getApiErrorMessage(err)
       paymentStatus.value = 'failed'
@@ -96,23 +42,16 @@ export function useBookingPayment(): UseBookingPaymentReturn {
   }
 
   function reset(): void {
-    stopPolling()
     isInitiating.value = false
     paymentStatus.value = 'idle'
     error.value = null
   }
 
-  onUnmounted(() => {
-    stopPolling()
-  })
-
   return {
     isInitiating,
-    isPolling,
     paymentStatus,
     error,
     initiatePayment,
-    stopPolling,
     reset,
   }
 }

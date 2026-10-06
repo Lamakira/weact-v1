@@ -10,7 +10,6 @@ const mockIsInitiating = ref(false)
 const mockPaymentStatus = ref<PaymentStatus>('idle')
 const mockError = ref<string | null>(null)
 const mockInitiate = vi.fn()
-const mockStopPolling = vi.fn()
 const mockReset = vi.fn()
 
 vi.mock('../../composables/useUgcCandidaturePayment', () => ({
@@ -19,7 +18,6 @@ vi.mock('../../composables/useUgcCandidaturePayment', () => ({
     paymentStatus: mockPaymentStatus,
     error: mockError,
     initiate: mockInitiate,
-    stopPolling: mockStopPolling,
     reset: mockReset,
   }),
 }))

@@ -3,6 +3,8 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Loader2, AlertCircle, CheckCircle } from 'lucide-vue-next'
 import { ProducerCandidaturesSection } from '@/features/candidature/components'
+import { usePaymentReturn } from '@/composables/usePaymentReturn'
+import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
 import { missionApi } from '@/features/mission/services/missionApi'
 import { useMissionPayment } from '@/features/mission/composables'
 import { useToast } from '@/composables/useToast'
@@ -37,6 +39,36 @@ const missionId = computed(() => route.params.id as string)
 
 const { startPolling, stopPolling } = useMissionPayment(0, missionId.value || '')
 const toast = useToast()
+
+// Return from the same-tab FedaPay checkout (?payment_return=mission_selection|
+// candidature_escrow|mission_commission). The return composable owns the
+// verification: the cash-only pending evaluation below is skipped meanwhile (it
+// polls the CASH payment-status endpoint, which is wrong for a UGC payment and
+// raised a false « initialisation échouée » banner).
+const sectionRef = ref<InstanceType<typeof ProducerCandidaturesSection> | null>(null)
+const paymentReturn = usePaymentReturn({
+  kinds: ['mission_selection', 'candidature_escrow', 'mission_commission'],
+  ids: () => ({ missionId: missionId.value }),
+  onConfirmed: async (kind) => {
+    if (kind === 'mission_selection') paymentSuccessBanner.value = true
+    await fetchMission()
+  },
+  onRetry: (kind, ids) => {
+    if (kind === 'candidature_escrow' && ids.candidatureId) {
+      sectionRef.value?.openCandidaturePayment(ids.candidatureId)
+    } else if (kind === 'mission_commission') {
+      void router.push({ name: 'producer-missions', query: { pay: ids.missionId ?? missionId.value } })
+    } else {
+      // mission_selection: the selection was consumed — re-evaluate the page so
+      // the producer can re-confirm it (« reconfirmer votre sélection »).
+      void fetchMission()
+    }
+  },
+})
+
+function isPaymentReturnActive(): boolean {
+  return route.query.payment_return !== undefined || paymentReturn.isVerifying.value
+}
 
 /**
  * Decide whether to start polling the payment status and show the "pending"
@@ -126,7 +158,7 @@ async function fetchMission(): Promise<void> {
 
     mission.value = response.data
 
-    if (mission.value.status === 'pending_payment') {
+    if (mission.value.status === 'pending_payment' && !isPaymentReturnActive()) {
       await evaluatePendingPaymentState()
     } else {
       paymentInitializationFailed.value = false
@@ -179,7 +211,9 @@ async function handleSelectionFailed(message: string): Promise<void> {
  */
 onMounted(() => {
   isPageActive = true
-  void fetchMission()
+  void fetchMission().then(() => {
+    if (route.query.payment_return !== undefined) void paymentReturn.start()
+  })
 })
 
 onUnmounted(() => {
@@ -237,6 +271,12 @@ onUnmounted(() => {
           <p class="mt-1 text-muted-foreground">
             Candidatures reçues pour cette mission
           </p>
+          <PaymentReturnBanner
+            class="mt-3"
+            :state="paymentReturn.state.value"
+            @retry="paymentReturn.retry"
+            @dismiss="paymentReturn.dismiss"
+          />
           <!-- Payment success banner -->
           <div
             v-if="paymentSuccessBanner"
@@ -298,6 +338,7 @@ onUnmounted(() => {
       <!-- Show section only when we have the mission ID -->
       <ProducerCandidaturesSection
         v-if="!isLoading && !error && mission"
+        ref="sectionRef"
         :mission-id="missionId"
         :mission-budget="mission.budget"
         :mission-status="mission.status"

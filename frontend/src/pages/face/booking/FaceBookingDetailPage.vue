@@ -57,6 +57,8 @@ import {
 } from '@/components/ugc'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
+import { usePaymentReturn } from '@/composables/usePaymentReturn'
+import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
 import { useUgcShipment } from '@/composables/useUgcShipment'
 import { useUgcDeliverable } from '@/composables/useUgcDeliverable'
 
@@ -560,13 +562,30 @@ watch(
   },
 )
 
+// Return from the same-tab FedaPay checkout (?payment_return=booking|booking_commission).
+const paymentReturn = usePaymentReturn({
+  kinds: ['booking', 'booking_commission'],
+  ids: () => ({ bookingId: bookingId.value }),
+  onConfirmed: async () => {
+    if (bookingId.value) await fetchBooking(bookingId.value)
+  },
+  onRetry: (kind) => {
+    if (kind === 'booking_commission') showUgcPaymentOverlay.value = true
+    else showPaymentOverlay.value = true
+  },
+})
+
 onMounted(async () => {
   if (bookingId.value) {
     await fetchBooking(bookingId.value)
   }
 
-  // Auto-open the commission tunnel when arriving from UGC booking creation (?pay=1).
-  if (route.query.pay === '1' && canPayUgcCommission.value) {
+  // A ?payment_return takes over: verify the payment, never also auto-open the tunnel.
+  const isPaymentReturn = route.query.payment_return !== undefined
+  if (isPaymentReturn) {
+    await paymentReturn.start()
+  } else if (route.query.pay === '1' && canPayUgcCommission.value) {
+    // Auto-open the commission tunnel when arriving from UGC booking creation (?pay=1).
     showUgcPaymentOverlay.value = true
   }
 
@@ -623,6 +642,12 @@ onUnmounted(() => {
 
     <!-- Booking detail content -->
     <template v-else-if="booking">
+      <PaymentReturnBanner
+        :state="paymentReturn.state.value"
+        @retry="paymentReturn.retry"
+        @dismiss="paymentReturn.dismiss"
+      />
+
       <!-- Header: Status badge + title -->
       <div class="flex items-center gap-3 mb-6">
         <BookingStatusBadge :status="booking.status" />

@@ -27,7 +27,7 @@ const emit = defineEmits<{
 // semantics as before keep-alive: navigating away dismissed the tunnel.)
 useDismissOnDeactivate(() => props.modelValue, () => emit('update:modelValue', false))
 
-const { isInitiating, paymentStatus, error, initiate, stopPolling, reset } =
+const { isInitiating, paymentStatus, error, initiate, reset } =
   useUgcCommissionPayment()
 
 const step = computed((): 'select' | 'waiting' | 'success' | 'failed' => {
@@ -75,7 +75,6 @@ function handleRetry(): void {
 }
 
 function handleClose(): void {
-  stopPolling()
   reset()
   emit('update:modelValue', false)
 }
@@ -89,7 +88,6 @@ watch(
   () => props.modelValue,
   (isOpen) => {
     if (!isOpen) {
-      stopPolling()
       reset()
     }
   },
@@ -156,13 +154,11 @@ watch(
           <div v-else-if="step === 'waiting'" class="space-y-6 text-center">
             <Loader2 :size="32" class="mx-auto animate-spin text-amber-600" />
             <div>
-              <h2 class="text-lg font-semibold text-gray-900">En attente de votre paiement...</h2>
+              <h2 class="text-lg font-semibold text-gray-900">Redirection vers FedaPay…</h2>
               <p class="mt-1 text-sm text-gray-500">
-                Complétez le paiement dans l'onglet FedaPay ouvert. Cette page se mettra à jour
-                automatiquement.
+                Vous allez être redirigé vers la page de paiement sécurisée. Ne fermez pas cette page.
               </p>
             </div>
-            <Button variant="outline" class="w-full" @click="handleRetry">Recommencer</Button>
             <button
               class="text-sm text-gray-400 underline hover:text-gray-600"
               @click="handleClose"

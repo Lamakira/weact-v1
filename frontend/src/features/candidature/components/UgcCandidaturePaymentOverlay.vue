@@ -33,7 +33,7 @@ const emit = defineEmits<{
   'payment-success': []
 }>()
 
-const { isInitiating, paymentStatus, error, initiate, stopPolling, reset } =
+const { isInitiating, paymentStatus, error, initiate, reset } =
   useUgcCandidaturePayment()
 
 const COMMISSION_RATE = 0.1
@@ -76,7 +76,6 @@ function handleRetry(): void {
 }
 
 function handleClose(): void {
-  stopPolling()
   reset()
   emit('update:modelValue', false)
 }
@@ -91,7 +90,6 @@ watch(
   () => props.modelValue,
   (isOpen) => {
     if (!isOpen) {
-      stopPolling()
       reset()
     }
   },
@@ -154,7 +152,7 @@ watch(
             </div>
 
             <p class="text-center text-sm text-gray-500 dark:text-gray-400">
-              Vous serez redirigé vers la page de paiement sécurisée FedaPay dans un nouvel onglet.
+              Vous allez être redirigé vers la page de paiement sécurisée FedaPay.
             </p>
 
             <!-- Error -->
@@ -188,19 +186,11 @@ watch(
             </div>
             <div>
               <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-                En attente de votre paiement...
+                Redirection vers FedaPay…
               </h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Complétez le paiement dans l'onglet FedaPay ouvert. Cette page se mettra à jour automatiquement.
+                Vous allez être redirigé vers la page de paiement sécurisée. Ne fermez pas cette page.
               </p>
-            </div>
-            <div class="flex flex-col gap-3">
-              <p class="text-xs text-gray-400">
-                L'onglet FedaPay s'est fermé ?
-              </p>
-              <Button variant="outline" class="w-full" @click="handleRetry">
-                Recommencer
-              </Button>
             </div>
             <button
               class="text-sm text-gray-400 underline hover:text-gray-600 dark:hover:text-gray-300"

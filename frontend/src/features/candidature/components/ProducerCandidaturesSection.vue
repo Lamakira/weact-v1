@@ -229,6 +229,17 @@ async function handleAccept(candidatureId: string): Promise<void> {
  */
 const paymentTarget = ref<{ id: string; faceName: string } | null>(null)
 
+/**
+ * « Réessayer le paiement » après un retour FedaPay en échec : rouvre l'overlay
+ * de règlement de la candidature (appelé par la page via ref).
+ */
+function openCandidaturePayment(candidatureId: string): void {
+  const candidature = candidatures.value.find((c) => c.id === candidatureId)
+  paymentTarget.value = { id: candidatureId, faceName: candidature?.face.display_name ?? '' }
+}
+
+defineExpose({ openCandidaturePayment })
+
 /** Payment confirmed → the candidature is now accepted; refresh the list. */
 async function handlePaymentSuccess(): Promise<void> {
   await refresh()

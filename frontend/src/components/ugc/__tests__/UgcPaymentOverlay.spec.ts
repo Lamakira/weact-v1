@@ -3,12 +3,14 @@ import { flushPromises, mount } from '@vue/test-utils'
 import UgcPaymentOverlay from '../UgcPaymentOverlay.vue'
 import { bookingApi } from '@/features/booking/services/bookingApi'
 import { missionApi } from '@/features/mission/services/missionApi'
+import { redirectToCheckout } from '@/lib/redirectToCheckout'
 import type { BookingResponse } from '@/features/booking/types'
 import type { MissionResponse } from '@/features/mission/types'
 
 vi.mock('@/features/booking/services/bookingApi', () => ({
   bookingApi: { payCommission: vi.fn(), checkCommissionStatus: vi.fn() },
 }))
+vi.mock('@/lib/redirectToCheckout', () => ({ redirectToCheckout: vi.fn() }))
 vi.mock('@/features/mission/services/missionApi', () => ({
   missionApi: { payCommission: vi.fn(), getCommissionStatus: vi.fn() },
 }))
@@ -21,11 +23,6 @@ const missionCheckout = (): MissionResponse & { checkout_url: string } =>
   ({ data: { id: 'm1' }, checkout_url: 'https://fedapay.test/y' }) as unknown as MissionResponse & {
     checkout_url: string
   }
-const bookingStatus = (status: string): BookingResponse =>
-  ({ data: { status } }) as unknown as BookingResponse
-const missionStatus = (status: string): MissionResponse =>
-  ({ data: { status } }) as unknown as MissionResponse
-
 type OverlayProps = {
   modelValue?: boolean
   kind?: 'booking' | 'mission'
@@ -74,47 +71,29 @@ describe('UgcPaymentOverlay', () => {
     expect(wrapper.text()).toContain("La commission n'est encaissée")
   })
 
-  it('pays then confirms on commission_paid and emits settled (booking)', async () => {
-    vi.useFakeTimers()
+  it('pays by redirecting the same tab to FedaPay and shows « Redirection vers FedaPay… » (booking)', async () => {
     vi.mocked(bookingApi.payCommission).mockResolvedValue(bookingCheckout())
-    vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue(bookingStatus('commission_paid'))
 
     const wrapper = mountOverlay({ kind: 'booking', ownerId: 'b1', reference: 'abcd1234efgh' })
     await wrapper.find('[data-testid="ugc-pay-button"]').trigger('click')
     await flushPromises()
 
     expect(bookingApi.payCommission).toHaveBeenCalledWith('b1')
-    expect(window.open).toHaveBeenCalledWith(
-      'https://fedapay.test/x',
-      '_blank',
-      'noopener,noreferrer',
-    )
-    expect(wrapper.text()).toContain('En attente de votre paiement')
-
-    await vi.advanceTimersByTimeAsync(5000)
-    await flushPromises()
-
-    expect(wrapper.text()).toContain('Commission payée')
-    expect(wrapper.text()).toContain('Votre demande a été envoyée à la Face.')
-    expect(wrapper.text()).toContain('Réf. ABCD1234')
-
-    await wrapper.find('[data-testid="ugc-done-button"]').trigger('click')
-    expect(wrapper.emitted('settled')).toBeTruthy()
+    expect(redirectToCheckout).toHaveBeenCalledWith('https://fedapay.test/x')
+    expect(window.open).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Redirection vers FedaPay')
+    expect(wrapper.text()).not.toContain('onglet')
   })
 
-  it('shows the mission-specific success subtitle after publishing', async () => {
-    vi.useFakeTimers()
+  it('pays a mission commission through the mission API then redirects', async () => {
     vi.mocked(missionApi.payCommission).mockResolvedValue(missionCheckout())
-    vi.mocked(missionApi.getCommissionStatus).mockResolvedValue(missionStatus('published'))
 
     const wrapper = mountOverlay({ kind: 'mission', ownerId: 'm1' })
     await wrapper.find('[data-testid="ugc-pay-button"]').trigger('click')
     await flushPromises()
-    await vi.advanceTimersByTimeAsync(5000)
-    await flushPromises()
 
     expect(missionApi.payCommission).toHaveBeenCalledWith('m1')
-    expect(wrapper.text()).toContain('Votre mission est maintenant publiée.')
+    expect(redirectToCheckout).toHaveBeenCalledWith('https://fedapay.test/y')
   })
 
   it('shows the failed step with a retry button when initiation throws', async () => {
