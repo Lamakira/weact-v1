@@ -15,5 +15,8 @@ Route::prefix('v1/webhooks')->group(function (): void {
     // FedaPay redirects the user's browser here after checkout (GET).
     // Routes to the page that initiated the payment with ?payment_return=<kind>
     // (see FedapayReturnController) — state itself stays owned by the webhook.
-    Route::get('/fedapay', FedapayReturnController::class)->name('webhooks.fedapay.return');
+    // Unauthenticated and up to 5 lookups per hit: throttled.
+    Route::get('/fedapay', FedapayReturnController::class)
+        ->middleware('throttle:30,1')
+        ->name('webhooks.fedapay.return');
 });

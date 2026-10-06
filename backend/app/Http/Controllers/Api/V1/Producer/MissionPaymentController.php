@@ -129,6 +129,14 @@ class MissionPaymentController extends Controller
                         $payment,
                         (string) ($transaction->reference ?? $payment->fedapay_transaction_id)
                     );
+                } elseif (in_array($transaction->status, FedapayService::TERMINAL_FAILED_STATUSES, true)) {
+                    // Server-side FedaPay lookup (never a browser hint): the cash selection
+                    // was canceled/declined/expired → free the dead transaction so the SPA
+                    // stops polling and offers to reconfirm the selection.
+                    $payment = $this->missionPaymentService->releaseTerminalTransaction(
+                        $payment,
+                        (int) $payment->fedapay_transaction_id,
+                    );
                 }
             } catch (\Throwable $e) {
                 // Non-fatal: return current status

@@ -123,6 +123,95 @@ class MissionPaymentStatusTest extends TestCase
             ->assertJsonPath('data.mission_status', MissionStatus::PendingPayment->value);
     }
 
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function terminalFedapayStatuses(): array
+    {
+        return [
+            'canceled' => ['canceled'],
+            'declined' => ['declined'],
+            'expired' => ['expired'],
+            'refunded' => ['refunded'],
+        ];
+    }
+
+    /**
+     * Annulation côté FedaPay : le paiement cash resterait Pending avec son id de transaction,
+     * « traçable » pour toujours (poll sans fin, jamais de nouvelle sélection possible). Le
+     * self-heal serveur (lookup FedaPay, jamais l'indice navigateur) libère la transaction morte.
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('terminalFedapayStatuses')]
+    public function test_payment_status_releases_a_dead_transaction_so_the_selection_can_be_retried(string $remoteStatus): void
+    {
+        $payment = $this->createPendingMissionPayment(fedapayTransactionId: '123456');
+
+        $this->mock(FedapayService::class, function ($mock) use ($remoteStatus): void {
+            $mock->shouldReceive('retrieveTransaction')
+                ->once()
+                ->with(123456)
+                ->andReturn($this->makeTransactionStub($remoteStatus));
+        });
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/payment-status")
+            ->assertOk()
+            ->assertJsonPath('data.status', MissionPaymentStatus::Pending->value)
+            ->assertJsonPath('data.is_trackable', false)
+            ->assertJsonPath('data.mission_status', MissionStatus::PendingPayment->value);
+
+        $this->assertNull($payment->fresh()->fedapay_transaction_id);
+        $this->assertSame(MissionPaymentStatus::Pending, $payment->fresh()->status);
+    }
+
+    public function test_releasing_a_dead_transaction_is_idempotent(): void
+    {
+        $payment = $this->createPendingMissionPayment(fedapayTransactionId: '123456');
+        $service = app(\App\Services\MissionPaymentService::class);
+
+        $first = $service->releaseTerminalTransaction($payment, 123456);
+        $second = $service->releaseTerminalTransaction($first, 123456);
+
+        $this->assertNull($second->fedapay_transaction_id);
+        $this->assertSame(MissionPaymentStatus::Pending, $second->status);
+    }
+
+    public function test_releasing_never_touches_a_payment_that_already_moved_to_another_transaction(): void
+    {
+        $payment = $this->createPendingMissionPayment(fedapayTransactionId: '777777');
+
+        app(\App\Services\MissionPaymentService::class)->releaseTerminalTransaction($payment, 123456);
+
+        $this->assertSame('777777', $payment->fresh()->fedapay_transaction_id);
+    }
+
+    public function test_a_paid_payment_is_never_released(): void
+    {
+        $payment = $this->createPendingMissionPayment(fedapayTransactionId: '123456');
+        $payment->update(['status' => MissionPaymentStatus::Paid, 'paid_at' => now(), 'fedapay_ref' => 'ref']);
+
+        app(\App\Services\MissionPaymentService::class)->releaseTerminalTransaction($payment, 123456);
+
+        $this->assertSame('123456', $payment->fresh()->fedapay_transaction_id);
+        $this->assertSame(MissionPaymentStatus::Paid, $payment->fresh()->status);
+    }
+
+    public function test_a_pending_remote_transaction_is_left_untouched(): void
+    {
+        $payment = $this->createPendingMissionPayment(fedapayTransactionId: '123456');
+
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('retrieveTransaction')->once()->andReturn($this->makeTransactionStub('pending'));
+        });
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/payment-status")
+            ->assertOk()
+            ->assertJsonPath('data.is_trackable', true);
+
+        $this->assertSame('123456', $payment->fresh()->fedapay_transaction_id);
+    }
+
     public function test_payment_status_reports_is_trackable_false_once_payment_is_paid(): void
     {
         $payment = $this->createPendingMissionPayment(fedapayTransactionId: '123456');

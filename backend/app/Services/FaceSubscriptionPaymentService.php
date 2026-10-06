@@ -921,7 +921,7 @@ class FaceSubscriptionPaymentService
             );
         }
 
-        if (in_array($remoteStatus, ['declined', 'canceled'], true)) {
+        if (in_array($remoteStatus, ['declined', 'canceled', 'expired'], true)) {
             return $this->markAsFailed(
                 $subscription,
                 $fedapayRef,

@@ -168,16 +168,58 @@ class FedapayReturnRedirectTest extends TestCase
         );
     }
 
-    public function test_unknown_transaction_falls_back_to_bookings(): void
+    public function test_unknown_transaction_falls_back_to_the_neutral_payment_return_page(): void
     {
-        $response = $this->get('/api/v1/webhooks/fedapay?id=999999999');
-
-        $response->assertRedirect($this->frontend().'/producer/bookings?payment=pending');
+        $this->get('/api/v1/webhooks/fedapay?id=999999999')
+            ->assertRedirect($this->frontend().'/paiement/retour');
     }
 
-    public function test_missing_transaction_id_falls_back_to_bookings(): void
+    public function test_missing_transaction_id_falls_back_to_the_neutral_page_keeping_the_whitelisted_hint(): void
     {
         $this->get('/api/v1/webhooks/fedapay?status=approved')
-            ->assertRedirect($this->frontend().'/producer/bookings?payment=pending');
+            ->assertRedirect($this->frontend().'/paiement/retour?fedapay_status=approved');
+    }
+
+    public function test_fallback_forwards_canceled_and_drops_an_unknown_status(): void
+    {
+        $this->get('/api/v1/webhooks/fedapay?id=999999999&status=canceled')
+            ->assertRedirect($this->frontend().'/paiement/retour?fedapay_status=canceled');
+        $this->get('/api/v1/webhooks/fedapay?id=999999999&status=hacked')
+            ->assertRedirect($this->frontend().'/paiement/retour');
+    }
+
+    public function test_declined_hybrid_escrow_entry_already_deleted_by_the_webhook_falls_back_with_the_hint(): void
+    {
+        // Le webhook decline supprime l'entry (markUgcMissionCandidatureFailed) AVANT que
+        // le navigateur n'arrive : plus aucune entité à retrouver par l'id de transaction.
+        $producer = Producer::factory()->create();
+        $mission = Mission::factory()->for($producer)->published()->create([
+            'type_mission' => MissionType::Ugc,
+            'type_compensation' => CompensationType::Hybrid,
+        ]);
+        $face = Face::factory()->create();
+        $candidature = Candidature::factory()->for($mission)->for($face)->create();
+        $entry = MissionPaymentCandidature::create([
+            'mission_payment_id' => null,
+            'fedapay_transaction_id' => '900020',
+            'candidature_id' => $candidature->id,
+            'face_id' => $face->id,
+            'montant_face_recoit' => 50000,
+            'escrow_status' => EscrowStatus::Pending,
+            'attendance_status' => AttendanceStatus::Pending,
+        ]);
+        app(\App\Services\MissionPaymentService::class)->markUgcMissionCandidatureFailed($entry, 'webhook_declined');
+
+        $this->get('/api/v1/webhooks/fedapay?id=900020&status=declined')
+            ->assertRedirect($this->frontend().'/paiement/retour?fedapay_status=declined');
+    }
+
+    public function test_the_return_route_is_throttled(): void
+    {
+        for ($i = 0; $i < 30; $i++) {
+            $this->get('/api/v1/webhooks/fedapay?id=1')->assertRedirect();
+        }
+
+        $this->get('/api/v1/webhooks/fedapay?id=1')->assertStatus(429);
     }
 }

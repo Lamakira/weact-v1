@@ -20,6 +20,15 @@ use Illuminate\Support\Facades\Log;
 
 class FedapayService
 {
+    /**
+     * FedaPay transaction statuses after which a checkout can no longer be paid:
+     * every « reuse the existing transaction / checkout URL » path must create a
+     * brand-new transaction instead of handing the old one back.
+     *
+     * @var list<string>
+     */
+    public const TERMINAL_FAILED_STATUSES = ['declined', 'canceled', 'refunded', 'expired'];
+
     public function __construct()
     {
         FedaPay::setApiKey(config('services.fedapay.secret_key'));

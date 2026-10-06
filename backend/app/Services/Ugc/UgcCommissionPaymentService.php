@@ -52,7 +52,7 @@ class UgcCommissionPaymentService
      *
      * @var list<string>
      */
-    private const TERMINAL_FAILED_STATUSES = ['declined', 'canceled', 'refunded'];
+    private const TERMINAL_FAILED_STATUSES = FedapayService::TERMINAL_FAILED_STATUSES;
 
     /**
      * Statut de paiement de commission dérivé du dernier checkAndProcess* (ugc-3-5 Item 3, exposition lecture).
@@ -332,15 +332,26 @@ class UgcCommissionPaymentService
             if ($existingEntry !== null) {
                 if ($existingEntry->escrow_status === EscrowStatus::Pending
                     && $existingEntry->fedapay_transaction_id !== null) {
-                    $regenerated = $this->fedapayService->regenerateTokenForTransaction(
+                    $existingTransaction = $this->fedapayService->retrieveTransaction(
                         (int) $existingEntry->fedapay_transaction_id
                     );
 
-                    return ['outcome' => 'initiated', 'candidature' => $locked, 'checkout_url' => $regenerated['checkout_url']];
-                }
+                    if (! in_array($existingTransaction->status, self::TERMINAL_FAILED_STATUSES, true)) {
+                        $regenerated = $this->fedapayService->regenerateTokenFromTransaction($existingTransaction);
 
-                // Entry non-Pending (déjà locked/released/refunded) → candidature déjà réglée.
-                return ['outcome' => 'already'];
+                        return ['outcome' => 'initiated', 'candidature' => $locked, 'checkout_url' => $regenerated['checkout_url']];
+                    }
+
+                    // Transaction terminale (annulée/refusée/expirée) : un checkout régénéré
+                    // serait mort. Même effet que markUgcMissionCandidatureFailed (entry
+                    // Pending supprimée, slot in-flight libéré, candidature reste pending),
+                    // sans notifier le Producteur qui réessaie activement — puis on repart
+                    // sur le chemin de création d'une entry + transaction neuves.
+                    $existingEntry->delete();
+                } else {
+                    // Entry non-Pending (déjà locked/released/refunded) → candidature déjà réglée.
+                    return ['outcome' => 'already'];
+                }
             }
 
             if ($lockedMission->status !== MissionStatus::Published) {

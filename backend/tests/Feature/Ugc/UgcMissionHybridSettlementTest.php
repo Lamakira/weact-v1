@@ -130,6 +130,78 @@ class UgcMissionHybridSettlementTest extends TestCase
         $this->assertSame(0, MissionPaymentCandidature::where('escrow_status', EscrowStatus::Locked)->count());
     }
 
+    public function test_reaccept_hybrid_regenerates_the_checkout_of_a_still_pending_transaction(): void
+    {
+        [$producer, $producerUser] = $this->makeProducerWithUser();
+        [$face] = $this->makeSubscribedFace('elite');
+        $mission = $this->makePublishedHybridMission($producer);
+        $candidature = $this->makePendingCandidature($mission, $face);
+        $entry = $this->pendingHybridEscrow($candidature, txn: '8301');
+
+        $live = \Mockery::mock(\FedaPay\Transaction::class);
+        $live->status = 'pending';
+
+        $this->mock(FedapayService::class, function ($mock) use ($live): void {
+            $mock->shouldReceive('retrieveTransaction')->once()->with(8301)->andReturn($live);
+            $mock->shouldReceive('regenerateTokenFromTransaction')->once()->with($live)
+                ->andReturn(['checkout_url' => 'https://fedapay.test/reused', 'fedapay_status' => 'pending']);
+            $mock->shouldNotReceive('initiatePaymentForUgcMissionCandidature');
+        });
+
+        $this->actingAs($producerUser)
+            ->postJson("/api/v1/producer/candidatures/{$candidature->uuid}/accept")
+            ->assertOk()
+            ->assertJsonPath('checkout_url', 'https://fedapay.test/reused');
+
+        $this->assertSame('8301', $entry->fresh()->fedapay_transaction_id);
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function terminalProviderStatuses(): array
+    {
+        return [
+            'declined' => ['declined'],
+            'canceled' => ['canceled'],
+            'refunded' => ['refunded'],
+            'expired' => ['expired'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('terminalProviderStatuses')]
+    public function test_reaccept_hybrid_never_reuses_a_terminal_transaction_and_creates_a_fresh_entry(string $providerStatus): void
+    {
+        [$producer, $producerUser] = $this->makeProducerWithUser();
+        [$face] = $this->makeSubscribedFace('elite');
+        $mission = $this->makePublishedHybridMission($producer);
+        $candidature = $this->makePendingCandidature($mission, $face);
+        $this->pendingHybridEscrow($candidature, txn: '8302');
+
+        $dead = \Mockery::mock(\FedaPay\Transaction::class);
+        $dead->status = $providerStatus;
+
+        $this->mock(FedapayService::class, function ($mock) use ($dead): void {
+            $mock->shouldReceive('retrieveTransaction')->once()->with(8302)->andReturn($dead);
+            $mock->shouldNotReceive('regenerateTokenFromTransaction');
+            $mock->shouldReceive('initiatePaymentForUgcMissionCandidature')
+                ->once()
+                ->andReturn(['fedapay_transaction_id' => 8303, 'checkout_url' => 'https://fedapay.test/fresh']);
+        });
+
+        $this->actingAs($producerUser)
+            ->postJson("/api/v1/producer/candidatures/{$candidature->uuid}/accept")
+            ->assertOk()
+            ->assertJsonPath('checkout_url', 'https://fedapay.test/fresh');
+
+        $this->assertSame(1, MissionPaymentCandidature::where('candidature_id', $candidature->id)->count());
+        $this->assertDatabaseHas('mission_payment_candidatures', [
+            'candidature_id' => $candidature->id,
+            'fedapay_transaction_id' => '8303',
+            'escrow_status' => 'pending',
+        ]);
+    }
+
     public function test_accept_hybrid_returns_422_and_rolls_back_when_fedapay_fails(): void
     {
         [$producer, $producerUser] = $this->makeProducerWithUser();

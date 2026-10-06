@@ -31,7 +31,10 @@ class FedapayReturnController extends Controller
     {
         $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
         $hint = $this->statusHint($request);
-        $fallback = "{$frontendUrl}/producer/bookings?payment=pending";
+        // No entity found (unknown id, or the webhook already cleaned it up — e.g. a
+        // declined hybrid escrow entry is deleted before the browser arrives): neutral
+        // authenticated SPA page that only receives the whitelisted display hint.
+        $fallback = $this->withHint("{$frontendUrl}/paiement/retour", $hint);
 
         $transactionId = $request->query('id');
         if (! is_string($transactionId) || $transactionId === '') {
@@ -89,6 +92,10 @@ class FedapayReturnController extends Controller
 
     private function withHint(string $url, ?string $hint): string
     {
-        return $hint === null ? $url : $url.'&fedapay_status='.$hint;
+        if ($hint === null) {
+            return $url;
+        }
+
+        return $url.(str_contains($url, '?') ? '&' : '?').'fedapay_status='.$hint;
     }
 }
