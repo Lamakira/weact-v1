@@ -503,9 +503,9 @@ class MissionPaymentService
      * Idempotent and race-safe: no-op unless the row is still Pending AND still
      * carries the transaction id that was observed terminal.
      */
-    public function releaseTerminalTransaction(MissionPayment $payment, int $observedTransactionId): MissionPayment
+    public function releaseTerminalTransaction(MissionPayment $payment, int $observedTransactionId, ?string $observedStatus = null): MissionPayment
     {
-        return DB::transaction(function () use ($payment, $observedTransactionId): MissionPayment {
+        return DB::transaction(function () use ($payment, $observedTransactionId, $observedStatus): MissionPayment {
             /** @var MissionPayment $locked */
             $locked = MissionPayment::lockForUpdate()->findOrFail($payment->id);
 
@@ -514,6 +514,16 @@ class MissionPaymentService
                 && $locked->fedapay_transaction_id !== null
                 && (int) $locked->fedapay_transaction_id === $observedTransactionId
             ) {
+                // Audit BEFORE detaching: if this transaction is paid later the webhook
+                // finds no row — ops reconciles from this record.
+                $this->recordDetachedPayment(
+                    'mission_payment',
+                    $locked->id,
+                    (string) $locked->fedapay_transaction_id,
+                    $observedStatus,
+                    (int) $locked->montant_total_producteur,
+                    ['mission_id' => $locked->mission_id, 'producer_id' => $locked->producer_id],
+                );
                 $this->clearTerminalTransaction($locked);
             }
 
@@ -1090,6 +1100,24 @@ class MissionPaymentService
             $mission = $candidature?->mission;
             $producerUserId = $mission instanceof Mission ? $this->getUserIdForProducer($mission->producer_id) : null;
             $missionTitre = $mission instanceof Mission ? $mission->titre : '';
+
+            // Audit de la transaction détachée : un `approved` tardif ne trouvera plus d'entry
+            // (webhook CRITICAL → réconciliation manuelle à partir de cet enregistrement).
+            if ($lockedEntry->fedapay_transaction_id !== null) {
+                $this->recordDetachedPayment(
+                    'mission_payment_candidature',
+                    $lockedEntry->id,
+                    (string) $lockedEntry->fedapay_transaction_id,
+                    null,
+                    0,
+                    [
+                        'candidature_id' => $lockedEntry->candidature_id,
+                        'face_id' => $lockedEntry->face_id,
+                        'montant_face_recoit' => $lockedEntry->montant_face_recoit,
+                        'reason' => $reason,
+                    ],
+                );
+            }
 
             // Supprime l'entry → libère le slot in-flight (la candidature reste pending).
             $lockedEntry->delete();

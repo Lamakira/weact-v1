@@ -338,6 +338,7 @@ class FinancialAuditTrailTest extends TestCase
             'Refund',
             'Withdrawal',
             'Commission',
+            'PaymentDetached',
         ];
 
         $actual = array_map(fn ($case) => $case->name, FinancialEventType::cases());
@@ -357,5 +358,6 @@ class FinancialAuditTrailTest extends TestCase
         $this->assertEquals('Remboursement', FinancialEventType::Refund->label());
         $this->assertEquals('Retrait', FinancialEventType::Withdrawal->label());
         $this->assertEquals('Commission', FinancialEventType::Commission->label());
+        $this->assertEquals('Paiement détaché', FinancialEventType::PaymentDetached->label());
     }
 }

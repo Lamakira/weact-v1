@@ -162,6 +162,16 @@ class MissionPaymentStatusTest extends TestCase
 
         $this->assertNull($payment->fresh()->fedapay_transaction_id);
         $this->assertSame(MissionPaymentStatus::Pending, $payment->fresh()->status);
+
+        // Audit du détachement : un `approved` tardif sera réconcilié à la main depuis cet enregistrement.
+        $audit = \App\Models\FinancialEvent::where('type', \App\Enums\FinancialEventType::PaymentDetached)->sole();
+        $this->assertSame('123456', $audit->fedapay_ref);
+        $this->assertSame($remoteStatus, $audit->status);
+        $this->assertSame('mission_payment', $audit->metadata['entity_type']);
+        $this->assertSame($payment->id, $audit->metadata['entity_id']);
+        $this->assertSame($remoteStatus, $audit->metadata['fedapay_status']);
+        $this->assertArrayHasKey('detached_at', $audit->metadata);
+        $this->assertSame((int) $payment->montant_total_producteur, $audit->amount);
     }
 
     public function test_releasing_a_dead_transaction_is_idempotent(): void
@@ -169,11 +179,91 @@ class MissionPaymentStatusTest extends TestCase
         $payment = $this->createPendingMissionPayment(fedapayTransactionId: '123456');
         $service = app(\App\Services\MissionPaymentService::class);
 
-        $first = $service->releaseTerminalTransaction($payment, 123456);
-        $second = $service->releaseTerminalTransaction($first, 123456);
+        $first = $service->releaseTerminalTransaction($payment, 123456, 'canceled');
+        $second = $service->releaseTerminalTransaction($first, 123456, 'canceled');
 
         $this->assertNull($second->fedapay_transaction_id);
         $this->assertSame(MissionPaymentStatus::Pending, $second->status);
+        $this->assertSame(1, \App\Models\FinancialEvent::where('type', \App\Enums\FinancialEventType::PaymentDetached)->count());
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function successStatuses(): array
+    {
+        return ['approved' => ['approved'], 'transferred' => ['transferred']];
+    }
+
+    /**
+     * Un statut de SUCCÈS ne libère jamais la transaction (sinon l'argent encaissé serait orphelin).
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('successStatuses')]
+    public function test_success_statuses_never_release_the_transaction(string $successStatus): void
+    {
+        $payment = $this->createPendingMissionPayment(fedapayTransactionId: '123456');
+        $transaction = $this->makeTransactionStub($successStatus);
+        $transaction->reference = 'ref-ok';
+
+        $this->mock(FedapayService::class, function ($mock) use ($transaction): void {
+            $mock->shouldReceive('retrieveTransaction')->once()->with(123456)->andReturn($transaction);
+        });
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/payment-status")
+            ->assertOk();
+
+        $this->assertSame('123456', $payment->fresh()->fedapay_transaction_id);
+        $this->assertSame(0, \App\Models\FinancialEvent::where('type', \App\Enums\FinancialEventType::PaymentDetached)->count());
+    }
+
+    public function test_a_fedapay_api_failure_during_the_poll_keeps_the_payment_trackable(): void
+    {
+        $payment = $this->createPendingMissionPayment(fedapayTransactionId: '123456');
+
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('retrieveTransaction')->once()->andThrow(new \RuntimeException('FedaPay down'));
+        });
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/payment-status")
+            ->assertOk()
+            ->assertJsonPath('data.is_trackable', true);
+
+        $this->assertSame('123456', $payment->fresh()->fedapay_transaction_id);
+        $this->assertSame(0, \App\Models\FinancialEvent::where('type', \App\Enums\FinancialEventType::PaymentDetached)->count());
+    }
+
+    public function test_released_payment_resumes_with_an_empty_body_and_gets_a_fresh_transaction(): void
+    {
+        $payment = $this->createPendingMissionPayment(fedapayTransactionId: '123456');
+
+        // 1. Poll → FedaPay says canceled → the dead transaction is released.
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('retrieveTransaction')->once()->with(123456)->andReturn($this->makeTransactionStub('canceled'));
+        });
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/payment-status")
+            ->assertOk()
+            ->assertJsonPath('data.is_trackable', false);
+        $this->assertNull($payment->fresh()->fedapay_transaction_id);
+
+        // 2. Resume (no candidature ids — the selection is kept): a FRESH transaction + checkout URL.
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldNotReceive('retrieveTransaction');
+            $mock->shouldReceive('initiatePaymentForMission')->once()->andReturn([
+                'fedapay_transaction_id' => 987001,
+                'checkout_url' => 'https://checkout.fedapay.com/fresh-after-release',
+            ]);
+        });
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$this->mission->uuid}/confirm-selection", ['candidature_ids' => []])
+            ->assertOk()
+            ->assertJsonPath('data.payment_id', $payment->id)
+            ->assertJsonPath('data.checkout_url', 'https://checkout.fedapay.com/fresh-after-release');
+
+        $this->assertSame('987001', $payment->fresh()->fedapay_transaction_id);
+        $this->assertSame(1, MissionPayment::query()->count());
     }
 
     public function test_releasing_never_touches_a_payment_that_already_moved_to_another_transaction(): void

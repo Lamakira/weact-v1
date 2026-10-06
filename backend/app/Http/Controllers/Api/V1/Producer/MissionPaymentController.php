@@ -136,6 +136,7 @@ class MissionPaymentController extends Controller
                     $payment = $this->missionPaymentService->releaseTerminalTransaction(
                         $payment,
                         (int) $payment->fedapay_transaction_id,
+                        (string) $transaction->status,
                     );
                 }
             } catch (\Throwable $e) {

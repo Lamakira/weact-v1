@@ -318,6 +318,27 @@ class HandleFedapayWebhook implements ShouldQueue
             return;
         }
 
+        // Money collected on a transaction nothing is attached to any more (detached cash
+        // selection / deleted hybrid escrow entry, or unknown): never auto-settled — escalate
+        // CRITICAL with the detachment audit (if any) so an admin reconciles manually.
+        if (in_array($this->eventName, ['transaction.approved', 'transaction.transferred'], true)) {
+            $detachment = FinancialEvent::where('fedapay_ref', (string) $transactionId)
+                ->where('type', FinancialEventType::PaymentDetached)
+                ->first();
+
+            Log::critical('Fedapay webhook: paiement reçu pour une transaction détachée ou inconnue — argent encaissé, rien de réglé, réconciliation manuelle requise', [
+                'transaction_id' => $transactionId,
+                'event_name' => $this->eventName,
+                'transaction_status' => $transactionData['status'] ?? null,
+                'detachment_audit_found' => $detachment !== null,
+                'detachment_audit' => $detachment === null ? null : [
+                    'financial_event_id' => $detachment->id,
+                    'status' => $detachment->status,
+                    'metadata' => $detachment->metadata,
+                ],
+            ]);
+        }
+
         Log::warning('Fedapay webhook: no booking, mission payment or withdrawal found for transaction', [
             'transaction_id' => $transactionId,
             'event_name' => $this->eventName,

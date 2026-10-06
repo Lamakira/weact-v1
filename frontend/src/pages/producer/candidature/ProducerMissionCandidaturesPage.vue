@@ -30,6 +30,14 @@ const paymentSuccessBanner = ref(false)
 // reports no trackable FedaPay transaction, show a dedicated error banner
 // instead of the "Paiement en attente de confirmation..." spinner.
 const paymentInitializationFailed = ref(false)
+// True when the failed state comes from a still-existing Pending payment row without
+// a live transaction (e.g. the canceled transaction was released server-side): the
+// producer can relaunch it with the SAME selection through the resume path.
+const resumablePaymentRow = ref(false)
+const isResumingPayment = ref(false)
+const paymentResumable = computed(
+  () => paymentInitializationFailed.value && resumablePaymentRow.value,
+)
 const paymentStatusUnavailable = ref(false)
 let isPageActive = true
 let paymentStateRequestId = 0
@@ -123,6 +131,8 @@ async function evaluatePendingPaymentState(): Promise<void> {
       return
     }
 
+    resumablePaymentRow.value = false
+
     if (data.is_trackable) {
       paymentInitializationFailed.value = false
       paymentStatusUnavailable.value = false
@@ -139,6 +149,8 @@ async function evaluatePendingPaymentState(): Promise<void> {
       // (pending-without-transaction, failed, refunded, or missing row) — the
       // paid / mission_status-changed branches above already returned.
       paymentInitializationFailed.value = data.mission_status === 'pending_payment'
+      resumablePaymentRow.value =
+        data.has_payment === true && data.status === 'pending' && data.mission_status === 'pending_payment'
       paymentStatusUnavailable.value = false
       stopPolling()
     }
@@ -208,6 +220,27 @@ function goBack(): void {
  */
 function handleSelectionConfirmed(checkoutUrl: string): void {
   redirectToCheckout(checkoutUrl)
+}
+
+/**
+ * « Relancer le paiement »: the payment row exists but has no live transaction. The
+ * server-side resume path (confirm-selection with NO candidature ids on a
+ * pending_payment mission) keeps the same selection and creates a fresh checkout.
+ */
+async function handleResumePayment(): Promise<void> {
+  if (isResumingPayment.value || !missionId.value) return
+
+  isResumingPayment.value = true
+  try {
+    const response = await missionApi.confirmSelection(missionId.value, [])
+    redirectToCheckout(response.data.checkout_url)
+  } catch (err: unknown) {
+    console.error('Failed to resume mission payment:', err)
+    toast.error('Le paiement n\'a pas pu être relancé. Veuillez réessayer.')
+    await fetchMission()
+  } finally {
+    isResumingPayment.value = false
+  }
 }
 
 /**
@@ -318,7 +351,9 @@ onUnmounted(() => {
           >
             <AlertCircle class="mt-0.5 h-4 w-4 shrink-0" />
             <span>
-              L'initialisation du paiement a échoué. Veuillez réessayer en reconfirmant votre sélection.
+              {{ paymentResumable
+                ? 'Votre paiement n\'a pas abouti. Vous pouvez le relancer avec la même sélection.'
+                : 'L\'initialisation du paiement a échoué. Veuillez réessayer en reconfirmant votre sélection.' }}
             </span>
           </div>
           <div
@@ -344,6 +379,18 @@ onUnmounted(() => {
             <Loader2 class="h-4 w-4 shrink-0 animate-spin" />
             Paiement en attente de confirmation...
           </div>
+          <!-- Resume the payment with the same selection (shown whichever banner is up). -->
+          <button
+            v-if="mission.status === 'pending_payment' && paymentResumable"
+            type="button"
+            data-testid="mission-payment-resume-btn"
+            class="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+            :disabled="isResumingPayment"
+            @click="handleResumePayment"
+          >
+            <Loader2 v-if="isResumingPayment" class="h-4 w-4 animate-spin" />
+            Relancer le paiement
+          </button>
         </template>
       </div>
     </header>
@@ -358,7 +405,7 @@ onUnmounted(() => {
         :mission-budget="mission.budget"
         :mission-status="mission.status"
         :nombre-faces-voulu="mission.nombre_faces_voulu"
-        :allow-retry-selection="mission.status === 'pending_payment' && paymentInitializationFailed"
+        :allow-retry-selection="mission.status === 'pending_payment' && paymentInitializationFailed && !paymentResumable"
         :is-ugc-mission="isUgcMission(mission)"
         :ugc-compensation-type="mission.type_compensation"
         :ugc-product-name="mission.nom_produit"

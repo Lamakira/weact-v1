@@ -332,9 +332,23 @@ class UgcCommissionPaymentService
             if ($existingEntry !== null) {
                 if ($existingEntry->escrow_status === EscrowStatus::Pending
                     && $existingEntry->fedapay_transaction_id !== null) {
-                    $existingTransaction = $this->fedapayService->retrieveTransaction(
-                        (int) $existingEntry->fedapay_transaction_id
-                    );
+                    try {
+                        $existingTransaction = $this->fedapayService->retrieveTransaction(
+                            (int) $existingEntry->fedapay_transaction_id
+                        );
+                    } catch (\Throwable $e) {
+                        Log::warning('UGC hybride: lecture FedaPay de la transaction existante échouée — règlement non initié', [
+                            'candidature_id' => $locked->id,
+                            'mission_id' => $mission->id,
+                            'error' => $e->getMessage(),
+                        ]);
+
+                        // Même 422 que les autres pannes FedaPay ; la ValidationException
+                        // fait rollback de la transaction : l'entry existante est conservée.
+                        throw ValidationException::withMessages([
+                            'payment' => ['Le paiement du règlement est temporairement indisponible. Veuillez réessayer.'],
+                        ]);
+                    }
 
                     if (! in_array($existingTransaction->status, self::TERMINAL_FAILED_STATUSES, true)) {
                         $regenerated = $this->fedapayService->regenerateTokenFromTransaction($existingTransaction);
@@ -346,7 +360,21 @@ class UgcCommissionPaymentService
                     // serait mort. Même effet que markUgcMissionCandidatureFailed (entry
                     // Pending supprimée, slot in-flight libéré, candidature reste pending),
                     // sans notifier le Producteur qui réessaie activement — puis on repart
-                    // sur le chemin de création d'une entry + transaction neuves.
+                    // sur le chemin de création d'une entry + transaction neuves. Audit de
+                    // la transaction détachée (rollback avec le reste si l'initiation échoue).
+                    $this->recordDetachedPayment(
+                        'mission_payment_candidature',
+                        $existingEntry->id,
+                        (string) $existingEntry->fedapay_transaction_id,
+                        (string) $existingTransaction->status,
+                        0,
+                        [
+                            'candidature_id' => $existingEntry->candidature_id,
+                            'face_id' => $existingEntry->face_id,
+                            'montant_face_recoit' => $existingEntry->montant_face_recoit,
+                            'reason' => 'reaccept_terminal_'.$existingTransaction->status,
+                        ],
+                    );
                     $existingEntry->delete();
                 } else {
                     // Entry non-Pending (déjà locked/released/refunded) → candidature déjà réglée.
