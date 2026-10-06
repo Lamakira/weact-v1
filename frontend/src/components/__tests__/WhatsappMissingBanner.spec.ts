@@ -35,4 +35,25 @@ describe('WhatsappMissingBanner', () => {
     await cta.trigger('click')
     expect(mockPush).toHaveBeenCalledWith('/face/profile?focus=whatsapp')
   })
+
+  it('accepts custom copy and target (Producer layout)', async () => {
+    mockPush.mockClear()
+    const wrapper = mount(WhatsappMissingBanner, {
+      props: {
+        title: 'Titre producteur',
+        message: "Ajoutez votre numéro WhatsApp pour que l'équipe WeAct puisse vous joindre rapidement.",
+        ctaLabel: 'Ajouter mon numéro',
+        to: '/producer/profile?focus=whatsapp',
+      },
+    })
+
+    expect(wrapper.text()).toContain('Titre producteur')
+    expect(wrapper.text()).toContain("l'équipe WeAct puisse vous joindre rapidement.")
+    expect(wrapper.text()).not.toContain('retenu(e)')
+
+    const cta = wrapper.get('[data-testid="whatsapp-banner-cta"]')
+    expect(cta.text()).toBe('Ajouter mon numéro')
+    await cta.trigger('click')
+    expect(mockPush).toHaveBeenCalledWith('/producer/profile?focus=whatsapp')
+  })
 })

@@ -12,13 +12,32 @@ import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { DashboardLayout, KeepAliveRouterView, type SidebarItem } from '@/components/layout'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
+import { useProducerBasicInfo } from '@/features/producer/composables/useProducerBasicInfo'
 import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
+import WhatsappMissingBanner from '@/components/WhatsappMissingBanner.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
 const { logout, isLoading } = useAuth()
 const { profile, fetchProfile } = useProducerProfilePhoto()
+// Basic-info is a shared cached resource: saving the number on the profile page
+// updates it in place, so the banner disappears without a refetch.
+const { basicInfo, fetchBasicInfo } = useProducerBasicInfo()
+
+// "Loaded" is derived from the shared cache itself: a reset (logout) hides the banner.
+const basicInfoLoaded = computed(() => basicInfo.value !== null)
+// Present = dialable (at least one digit), same rule as the admin side
+// (App\Support\Whatsapp::isDialable / has_whatsapp).
+const hasWhatsapp = computed(() => /\d/.test(basicInfo.value?.whatsapp_number ?? ''))
+
+async function loadBasicInfo(): Promise<void> {
+  try {
+    await fetchBasicInfo()
+  } catch {
+    // Silently fail - the banner stays hidden; retried on the next route change
+  }
+}
 const ugcValidationCountStore = useUgcValidationCountStore()
 
 // Sidebar navigation items for Producer dashboard. Computed so the « Validation
@@ -59,6 +78,8 @@ onMounted(async () => {
   } catch {
     // Silently fail - avatar will show fallback
   }
+
+  await loadBasicInfo()
 })
 
 // The layout now persists across child navigations (App.vue keys it by the
@@ -69,6 +90,8 @@ watch(
   () => route.path,
   () => {
     void ugcValidationCountStore.fetchCount()
+    // Retry a failed basic-info load (mirrors FaceLayout) — only while not loaded.
+    if (!basicInfoLoaded.value) void loadBasicInfo()
   },
 )
 
@@ -92,6 +115,15 @@ async function handleLogout(): Promise<void> {
     <EmailVerificationBanner
       v-if="!authStore.isEmailVerified"
       data-testid="email-verification-banner"
+    />
+
+    <!-- WhatsApp reminder (shown until the Producer sets their number; admin-only data) -->
+    <WhatsappMissingBanner
+      v-if="basicInfoLoaded && !hasWhatsapp"
+      title="Renseignez votre numéro WhatsApp"
+      message="Ajoutez votre numéro WhatsApp pour que l'équipe WeAct puisse vous joindre rapidement."
+      cta-label="Renseigner mon WhatsApp"
+      to="/producer/profile?focus=whatsapp"
     />
 
     <!-- Child routes render here — meta.keepAlive-driven caching + page
