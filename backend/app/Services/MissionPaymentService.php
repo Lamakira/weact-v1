@@ -461,16 +461,14 @@ class MissionPaymentService
                     return ['payment' => $paidPayment, 'checkout_url' => null];
                 }
 
-                $terminalFailedStatuses = ['declined', 'canceled', 'refunded'];
-
-                if (! in_array($existing->status, $terminalFailedStatuses, true)) {
+                if (! in_array($existing->status, FedapayService::TERMINAL_FAILED_STATUSES, true)) {
                     /** @var object{url:string} $tokenObj */
                     $tokenObj = $existing->generateToken();
 
                     return ['payment' => $payment, 'checkout_url' => $tokenObj->url];
                 }
 
-                $payment->update(['fedapay_transaction_id' => null, 'status' => MissionPaymentStatus::Pending]);
+                $this->clearTerminalTransaction($payment);
             }
 
             if ($payment->status !== MissionPaymentStatus::Pending) {
@@ -489,6 +487,53 @@ class MissionPaymentService
 
             return ['payment' => $freshPayment, 'checkout_url' => $result['checkout_url']];
         });
+    }
+
+    /**
+     * Drop a dead (canceled/declined/expired/refunded) FedaPay transaction from a
+     * still-Pending cash selection payment, called from the payment-status self-heal
+     * when FedaPay's own API (never the browser hint) reports a terminal status.
+     *
+     * Same transition `initiatePayment()` applies on a resume: the payment row stays
+     * Pending but loses its transaction id, so the status endpoint reports it as
+     * non-trackable and the SPA offers « reconfirmer votre sélection » (which resumes
+     * this very row with a fresh checkout). The webhook itself only logs a declined
+     * mission payment — there is no failed-state transition to reuse.
+     *
+     * Idempotent and race-safe: no-op unless the row is still Pending AND still
+     * carries the transaction id that was observed terminal.
+     */
+    public function releaseTerminalTransaction(MissionPayment $payment, int $observedTransactionId, ?string $observedStatus = null): MissionPayment
+    {
+        return DB::transaction(function () use ($payment, $observedTransactionId, $observedStatus): MissionPayment {
+            /** @var MissionPayment $locked */
+            $locked = MissionPayment::lockForUpdate()->findOrFail($payment->id);
+
+            if (
+                $locked->status === MissionPaymentStatus::Pending
+                && $locked->fedapay_transaction_id !== null
+                && (int) $locked->fedapay_transaction_id === $observedTransactionId
+            ) {
+                // Audit BEFORE detaching: if this transaction is paid later the webhook
+                // finds no row — ops reconciles from this record.
+                $this->recordDetachedPayment(
+                    'mission_payment',
+                    $locked->id,
+                    (string) $locked->fedapay_transaction_id,
+                    $observedStatus,
+                    (int) $locked->montant_total_producteur,
+                    ['mission_id' => $locked->mission_id, 'producer_id' => $locked->producer_id],
+                );
+                $this->clearTerminalTransaction($locked);
+            }
+
+            return $locked->fresh() ?? $locked;
+        });
+    }
+
+    private function clearTerminalTransaction(MissionPayment $payment): void
+    {
+        $payment->update(['fedapay_transaction_id' => null, 'status' => MissionPaymentStatus::Pending]);
     }
 
     /**
@@ -1056,6 +1101,24 @@ class MissionPaymentService
             $producerUserId = $mission instanceof Mission ? $this->getUserIdForProducer($mission->producer_id) : null;
             $missionTitre = $mission instanceof Mission ? $mission->titre : '';
 
+            // Audit de la transaction détachée : un `approved` tardif ne trouvera plus d'entry
+            // (webhook CRITICAL → réconciliation manuelle à partir de cet enregistrement).
+            if ($lockedEntry->fedapay_transaction_id !== null) {
+                $this->recordDetachedPayment(
+                    'mission_payment_candidature',
+                    $lockedEntry->id,
+                    (string) $lockedEntry->fedapay_transaction_id,
+                    null,
+                    0,
+                    [
+                        'candidature_id' => $lockedEntry->candidature_id,
+                        'face_id' => $lockedEntry->face_id,
+                        'montant_face_recoit' => $lockedEntry->montant_face_recoit,
+                        'reason' => $reason,
+                    ],
+                );
+            }
+
             // Supprime l'entry → libère le slot in-flight (la candidature reste pending).
             $lockedEntry->delete();
 
@@ -1128,7 +1191,7 @@ class MissionPaymentService
             return ['candidature' => $candidature->fresh() ?? $candidature, 'payment_status' => 'paid', 'is_trackable' => false];
         }
 
-        if (in_array($transaction->status, ['declined', 'canceled', 'refunded'], true)) {
+        if (in_array($transaction->status, FedapayService::TERMINAL_FAILED_STATUSES, true)) {
             $this->markUgcMissionCandidatureFailed($entry, 'fedapay_poll_'.$transaction->status);
 
             return ['candidature' => $candidature->fresh() ?? $candidature, 'payment_status' => 'failed', 'is_trackable' => false];

@@ -10,6 +10,8 @@ import { UgcPaymentOverlay } from '@/components/ugc'
 import { MissionStatus, type MissionStatusType } from '@/features/mission/types'
 import type { Mission } from '@/features/mission/types'
 import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
+import { usePaymentReturn } from '@/composables/usePaymentReturn'
+import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
 
 // Explicit name (devtools). Caching is driven by the route's meta.keepAlive flag.
 defineOptions({ name: 'MissionsListPage' })
@@ -60,14 +62,31 @@ const isUgcPayOpen = ref(false)
 /**
  * ACTIONS
  */
+// Return from the same-tab FedaPay checkout (?payment_return=mission_commission&mission={id}).
+const paymentReturn = usePaymentReturn({
+  kinds: ['mission_commission'],
+  onConfirmed: async () => {
+    await refreshMissions()
+  },
+  onRetry: (_kind, ids) => {
+    if (ids.missionId) handlePayCommission(ids.missionId)
+  },
+})
+
 onMounted(async () => {
   await fetchMissions()
+  if (route.query.payment_return !== undefined) {
+    await paymentReturn.start()
+    return
+  }
   maybeOpenPayTunnel()
 })
 
 // Auto-open the commission tunnel when arriving from UGC mission creation
 // (?pay={id}). Extracted so it also runs on keep-alive re-activation below.
 function maybeOpenPayTunnel(): void {
+  // A ?payment_return is being verified: never also auto-open the tunnel.
+  if (route.query.payment_return !== undefined) return
   const payId = route.query.pay
   if (typeof payId === 'string' && payId) {
     const didOpen = handlePayCommission(payId)
@@ -127,12 +146,6 @@ function handlePayCommission(id: string): boolean {
   }
 
   return false
-}
-
-function handleCommissionSettled(): void {
-  isUgcPayOpen.value = false
-  success('Commission payée. Votre mission est publiée.')
-  void refreshMissions()
 }
 
 function handleDeleteClick(id: string): void {
@@ -267,6 +280,12 @@ async function confirmComplete(): Promise<void> {
         <span class="sm:hidden">Publier</span>
       </button>
     </section>
+
+    <PaymentReturnBanner
+      :state="paymentReturn.state.value"
+      @retry="paymentReturn.retry"
+      @dismiss="paymentReturn.dismiss"
+    />
 
     <!-- Status Filter -->
     <div class="mb-6">
@@ -465,8 +484,6 @@ async function confirmComplete(): Promise<void> {
       kind="mission"
       :owner-id="payingMission.id"
       :amount="payingMission.commission_ugc ?? 0"
-      :reference="payingMission.id"
-      @settled="handleCommissionSettled"
     />
   </div>
 </template>

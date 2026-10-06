@@ -576,9 +576,7 @@ class BookingService
 
             if ($prepared['existing_transaction_id'] !== null) {
                 $existing = $this->fedapayService->retrieveTransaction($prepared['existing_transaction_id']);
-                $terminalFailedStatuses = ['declined', 'canceled', 'refunded'];
-
-                if (! in_array($existing->status, $terminalFailedStatuses, true)) {
+                if (! in_array($existing->status, FedapayService::TERMINAL_FAILED_STATUSES, true)) {
                     /** @var object{url:string} $tokenObj */
                     $tokenObj = $existing->generateToken();
 

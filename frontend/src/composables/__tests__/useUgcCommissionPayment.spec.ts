@@ -2,12 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useUgcCommissionPayment } from '../useUgcCommissionPayment'
 import { bookingApi } from '@/features/booking/services/bookingApi'
 import { missionApi } from '@/features/mission/services/missionApi'
+import { redirectToCheckout } from '@/lib/redirectToCheckout'
 import type { BookingResponse } from '@/features/booking/types'
 import type { MissionResponse } from '@/features/mission/types'
 
 vi.mock('@/features/booking/services/bookingApi', () => ({
   bookingApi: { payCommission: vi.fn(), checkCommissionStatus: vi.fn() },
 }))
+vi.mock('@/lib/redirectToCheckout', () => ({ redirectToCheckout: vi.fn() }))
 vi.mock('@/features/mission/services/missionApi', () => ({
   missionApi: { payCommission: vi.fn(), getCommissionStatus: vi.fn() },
 }))
@@ -18,14 +20,11 @@ const bookingCheckout = (url: string): BookingResponse & { checkout_url: string 
 const missionCheckout = (url: string): MissionResponse & { checkout_url: string } =>
   ({ data: { id: 'm1' }, checkout_url: url }) as unknown as MissionResponse & { checkout_url: string }
 
-const bookingStatus = (status: string): BookingResponse =>
-  ({ data: { status } }) as unknown as BookingResponse
-
-const missionStatus = (status: string): MissionResponse =>
-  ({ data: { status } }) as unknown as MissionResponse
-
-const bookingFailed = (): BookingResponse =>
-  ({ data: { status: 'pending' }, commission_payment_status: 'failed' }) as unknown as BookingResponse
+function restoreFromBfcache(persisted: boolean): void {
+  const event = new Event('pageshow') as Event & { persisted: boolean }
+  Object.defineProperty(event, 'persisted', { value: persisted })
+  window.dispatchEvent(event)
+}
 
 describe('useUgcCommissionPayment', () => {
   beforeEach(() => {
@@ -38,7 +37,7 @@ describe('useUgcCommissionPayment', () => {
     vi.unstubAllGlobals()
   })
 
-  it('initiates a booking commission payment and opens the FedaPay checkout in a new tab', async () => {
+  it('initiates a booking commission payment and redirects the same tab to the FedaPay checkout', async () => {
     vi.mocked(bookingApi.payCommission).mockResolvedValue(bookingCheckout('https://fedapay.test/x'))
 
     const { initiate, paymentStatus } = useUgcCommissionPayment()
@@ -46,11 +45,8 @@ describe('useUgcCommissionPayment', () => {
 
     expect(ok).toBe(true)
     expect(bookingApi.payCommission).toHaveBeenCalledWith('b1')
-    expect(window.open).toHaveBeenCalledWith(
-      'https://fedapay.test/x',
-      '_blank',
-      'noopener,noreferrer',
-    )
+    expect(redirectToCheckout).toHaveBeenCalledWith('https://fedapay.test/x')
+    expect(window.open).not.toHaveBeenCalled()
     expect(paymentStatus.value).toBe('waiting')
   })
 
@@ -61,62 +57,22 @@ describe('useUgcCommissionPayment', () => {
     await initiate('mission', 'm1')
 
     expect(missionApi.payCommission).toHaveBeenCalledWith('m1')
-    expect(window.open).toHaveBeenCalledWith(
-      'https://fedapay.test/y',
-      '_blank',
-      'noopener,noreferrer',
-    )
+    expect(redirectToCheckout).toHaveBeenCalledWith('https://fedapay.test/y')
+    expect(window.open).not.toHaveBeenCalled()
   })
 
-  it('confirms when the booking polling sees commission_paid', async () => {
+  it('does not poll after redirecting (the page is left; usePaymentReturn verifies on return)', async () => {
     vi.useFakeTimers()
     vi.mocked(bookingApi.payCommission).mockResolvedValue(bookingCheckout('u'))
-    vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue(bookingStatus('commission_paid'))
 
-    const { initiate, paymentStatus } = useUgcCommissionPayment()
+    const { initiate } = useUgcCommissionPayment()
     await initiate('booking', 'b1')
-    await vi.advanceTimersByTimeAsync(5000)
+    await vi.advanceTimersByTimeAsync(130000)
 
-    expect(paymentStatus.value).toBe('confirmed')
+    expect(bookingApi.checkCommissionStatus).not.toHaveBeenCalled()
   })
 
-  it('confirms when the mission polling sees published', async () => {
-    vi.useFakeTimers()
-    vi.mocked(missionApi.payCommission).mockResolvedValue(missionCheckout('u'))
-    vi.mocked(missionApi.getCommissionStatus).mockResolvedValue(missionStatus('published'))
-
-    const { initiate, paymentStatus } = useUgcCommissionPayment()
-    await initiate('mission', 'm1')
-    await vi.advanceTimersByTimeAsync(5000)
-
-    expect(paymentStatus.value).toBe('confirmed')
-  })
-
-  it('keeps waiting while the booking is not settled (still pending)', async () => {
-    vi.useFakeTimers()
-    vi.mocked(bookingApi.payCommission).mockResolvedValue(bookingCheckout('u'))
-    vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue(bookingStatus('pending'))
-
-    const { initiate, paymentStatus } = useUgcCommissionPayment()
-    await initiate('booking', 'b1')
-    await vi.advanceTimersByTimeAsync(5000)
-
-    expect(paymentStatus.value).toBe('waiting')
-  })
-
-  it('does not detect a booking settlement on the cash "paid" status', async () => {
-    vi.useFakeTimers()
-    vi.mocked(bookingApi.payCommission).mockResolvedValue(bookingCheckout('u'))
-    vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue(bookingStatus('paid'))
-
-    const { initiate, paymentStatus } = useUgcCommissionPayment()
-    await initiate('booking', 'b1')
-    await vi.advanceTimersByTimeAsync(5000)
-
-    expect(paymentStatus.value).toBe('waiting')
-  })
-
-  it('fails when initiation throws and never opens a tab', async () => {
+  it('fails when initiation throws and never redirects', async () => {
     vi.mocked(bookingApi.payCommission).mockRejectedValue(new Error('boom'))
 
     const { initiate, paymentStatus, error } = useUgcCommissionPayment()
@@ -125,38 +81,7 @@ describe('useUgcCommissionPayment', () => {
     expect(ok).toBe(false)
     expect(paymentStatus.value).toBe('failed')
     expect(error.value).toBeTruthy()
-    expect(window.open).not.toHaveBeenCalled()
-  })
-
-  it('fails with the expiry message when polling never settles within the timeout window', async () => {
-    vi.useFakeTimers()
-    vi.mocked(bookingApi.payCommission).mockResolvedValue(bookingCheckout('u'))
-    vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue(bookingStatus('pending'))
-
-    const { initiate, paymentStatus, error, isPolling } = useUgcCommissionPayment()
-    await initiate('booking', 'b1')
-    expect(paymentStatus.value).toBe('waiting')
-
-    // POLL_TIMEOUT_MS = 120000 — advance past it; polling keeps seeing 'pending' until the timeout fires.
-    await vi.advanceTimersByTimeAsync(120000)
-
-    expect(paymentStatus.value).toBe('failed')
-    expect(error.value).toContain('délai')
-    expect(isPolling.value).toBe(false)
-  })
-
-  it('fails immediately with a refused message when the backend reports a failed provider status', async () => {
-    vi.useFakeTimers()
-    vi.mocked(bookingApi.payCommission).mockResolvedValue(bookingCheckout('u'))
-    vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue(bookingFailed())
-
-    const { initiate, paymentStatus, error, isPolling } = useUgcCommissionPayment()
-    await initiate('booking', 'b1')
-    await vi.advanceTimersByTimeAsync(5000) // un seul poll, bien avant le timeout 120s
-
-    expect(paymentStatus.value).toBe('failed')
-    expect(error.value).toContain('refusé')
-    expect(isPolling.value).toBe(false)
+    expect(redirectToCheckout).not.toHaveBeenCalled()
   })
 
   it('reset() clears state back to idle', async () => {
@@ -167,6 +92,18 @@ describe('useUgcCommissionPayment', () => {
     expect(paymentStatus.value).toBe('waiting')
 
     reset()
+    expect(paymentStatus.value).toBe('idle')
+  })
+
+  it('resets the redirecting state on a bfcache restore (persisted pageshow) but not otherwise', async () => {
+    vi.mocked(bookingApi.payCommission).mockResolvedValue(bookingCheckout('u'))
+    const { initiate, paymentStatus } = useUgcCommissionPayment()
+    await initiate('booking', 'b1')
+
+    restoreFromBfcache(false)
+    expect(paymentStatus.value).toBe('waiting')
+
+    restoreFromBfcache(true)
     expect(paymentStatus.value).toBe('idle')
   })
 })

@@ -4,6 +4,8 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { useSubscriptionPayment } from '../useSubscriptionPayment'
 import { useSubscriptionStatus } from '../useSubscriptionStatus'
 import { faceApi } from '../../services/faceApi'
+import { getApiErrorCode } from '@/features/auth/services/authApi'
+import { redirectToCheckout } from '@/lib/redirectToCheckout'
 import { resetAllSharedCachedResources } from '@/lib/createSharedCachedResource'
 import type {
   FaceSubscriptionPlan,
@@ -25,8 +27,11 @@ vi.mock('../../services/faceApi', () => ({
   },
 }))
 
+vi.mock('@/lib/redirectToCheckout', () => ({ redirectToCheckout: vi.fn() }))
+
 vi.mock('@/features/auth/services/authApi', () => ({
   getApiErrorMessage: vi.fn(() => 'Un paiement est déjà en cours pour cet abonnement.'),
+  getApiErrorCode: vi.fn(() => null),
 }))
 
 const CAPS: TierCapabilities = {
@@ -113,118 +118,153 @@ describe('useSubscriptionPayment (FP-2.7 tier-aware contract)', () => {
     openSpy.mockRestore()
   })
 
-  it('initiatePayment(plan) opens the checkout tab, sets waiting state and starts polling', async () => {
+  it('initiatePayment(plan) redirects the same tab to the checkout and sets the waiting (redirecting) state', async () => {
     vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
-      data: statusData('free', 'pending_payment', null),
-    })
 
     const { api, unmount } = mountWithComposable()
     const result = await api.initiatePayment('pro')
 
     expect(result).toBe(true)
     expect(faceApi.initiateSubscriptionPayment).toHaveBeenCalledWith('pro')
-    expect(openSpy).toHaveBeenCalledWith(
-      'https://checkout.fedapay.test/sess_abc',
-      '_blank',
-      'noopener,noreferrer',
-    )
+    expect(redirectToCheckout).toHaveBeenCalledWith('https://checkout.fedapay.test/sess_abc')
+    expect(openSpy).not.toHaveBeenCalled()
     expect(api.paymentState.value).toBe('waiting')
-    expect(api.isPolling.value).toBe(true)
+    expect(api.error.value).toBeNull()
 
     unmount()
   })
 
-  it('confirms a payment when polling detects an active status with a changed tier (free → pro)', async () => {
+  it('resets the redirecting state on a bfcache restore (persisted pageshow) but not otherwise', async () => {
     vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
-    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('active'))
-    vi.mocked(faceApi.getSubscriptionStatus)
-      .mockResolvedValueOnce({ data: statusData('free', 'pending_payment', null) })
-      .mockResolvedValueOnce({ data: statusData('pro', 'active', '2027-05-22T00:00:00Z') })
 
     const { api, unmount } = mountWithComposable()
     await api.initiatePayment('pro')
-    await vi.advanceTimersByTimeAsync(5000)
+    expect(api.paymentState.value).toBe('waiting')
 
-    expect(api.paymentState.value).toBe('confirmed')
-    expect(api.isPolling.value).toBe(false)
+    const nonPersisted = new Event('pageshow')
+    Object.defineProperty(nonPersisted, 'persisted', { value: false })
+    window.dispatchEvent(nonPersisted)
+    expect(api.paymentState.value).toBe('waiting')
+
+    const persisted = new Event('pageshow')
+    Object.defineProperty(persisted, 'persisted', { value: true })
+    window.dispatchEvent(persisted)
+    expect(api.paymentState.value).toBe('idle')
+    expect(api.isInitiating.value).toBe(false)
 
     unmount()
   })
 
-  it('confirms a same-tier renewal — tier unchanged but expires_at advanced (decision #7)', async () => {
-    const before = '2026-06-01T00:00:00Z'
-    const after = '2027-06-01T00:00:00Z'
-    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
-    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('active'))
-    vi.mocked(faceApi.getSubscriptionStatus)
-      .mockResolvedValueOnce({ data: statusData('pro', 'active', before) }) // initial seed
-      .mockResolvedValueOnce({ data: statusData('pro', 'active', before) }) // refresh in initiate
-      .mockResolvedValueOnce({ data: statusData('pro', 'active', after) }) // refresh in poll
+  it('saves the {tier, expires_at} snapshot (auth-scoped sessionStorage) BEFORE redirecting', async () => {
+    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('elite'))
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('pro', 'active', '2027-01-01T00:00:00Z'),
+    })
+    await useSubscriptionStatus().fetchStatus()
+    let atRedirect: string | null = null
+    vi.mocked(redirectToCheckout).mockImplementationOnce(() => {
+      atRedirect = sessionStorage.getItem('weact.auth.subscription-payment-snapshot')
+    })
 
-    // Seed the shared status singleton with the active-Pro baseline.
+    const { api, unmount } = mountWithComposable()
+    await api.initiatePayment('elite')
+
+    expect(JSON.parse(atRedirect ?? 'null')).toEqual({ tier: 'pro', expires_at: '2027-01-01T00:00:00Z' })
+    unmount()
+  })
+
+  it('resume also saves the snapshot before redirecting', async () => {
+    vi.mocked(faceApi.resumePendingSubscription).mockResolvedValue({
+      data: {
+        subscription_id: 'sub_x',
+        status: 'pending_payment',
+        checkout_url: 'https://checkout.fedapay.test/sess_r',
+        amount: 25000,
+        currency: 'XOF',
+      },
+    })
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('pro', 'active', '2027-01-01T00:00:00Z'),
+    })
     await useSubscriptionStatus().fetchStatus()
 
     const { api, unmount } = mountWithComposable()
-    await api.initiatePayment('pro')
-    await vi.advanceTimersByTimeAsync(5000)
+    await api.resumePayment()
 
-    expect(api.paymentState.value).toBe('confirmed')
-    expect(api.isPolling.value).toBe(false)
-
+    expect(JSON.parse(sessionStorage.getItem('weact.auth.subscription-payment-snapshot') ?? 'null')).toEqual({
+      tier: 'pro',
+      expires_at: '2027-01-01T00:00:00Z',
+    })
     unmount()
   })
 
-  it('fails the payment when polling detects status=failed', async () => {
+  it('a bfcache restore refreshes the (stale) subscription status so plan buttons / the resume banner are right', async () => {
     vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
-    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('failed'))
-    vi.mocked(faceApi.getSubscriptionStatus)
-      .mockResolvedValueOnce({ data: statusData('free', 'pending_payment', null) })
-      .mockResolvedValueOnce({ data: statusData('free', 'failed', null) })
-
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'pending_payment', null),
+    })
     const { api, unmount } = mountWithComposable()
     await api.initiatePayment('pro')
-    await vi.advanceTimersByTimeAsync(5000)
+    vi.mocked(faceApi.getSubscriptionStatus).mockClear()
 
-    expect(api.paymentState.value).toBe('failed')
-    expect(api.error.value).toBe('Le paiement a échoué. Veuillez réessayer.')
-    expect(api.isPolling.value).toBe(false)
+    const persisted = new Event('pageshow')
+    Object.defineProperty(persisted, 'persisted', { value: true })
+    window.dispatchEvent(persisted)
+    await flushPromises()
 
+    expect(faceApi.getSubscriptionStatus).toHaveBeenCalledTimes(1)
     unmount()
   })
 
-  it('fails the payment after the 120 s polling timeout', async () => {
-    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
-    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('pending_payment'))
+  it('a 409 PENDING_PAYMENT_EXISTS on initiate refreshes the status so the resume/cancel banner appears', async () => {
+    vi.mocked(faceApi.initiateSubscriptionPayment).mockRejectedValue(new Error('409'))
+    vi.mocked(getApiErrorCode).mockReturnValue('PENDING_PAYMENT_EXISTS')
     vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
       data: statusData('free', 'pending_payment', null),
     })
 
     const { api, unmount } = mountWithComposable()
-    await api.initiatePayment('pro')
-    await vi.advanceTimersByTimeAsync(120_000)
+    const result = await api.initiatePayment('pro')
 
-    expect(api.paymentState.value).toBe('failed')
-    expect(api.error.value).toContain('délai de confirmation a expiré')
-    expect(api.isPolling.value).toBe(false)
-
+    expect(result).toBe(false)
+    expect(faceApi.getSubscriptionStatus).toHaveBeenCalledTimes(1)
+    vi.mocked(getApiErrorCode).mockReturnValue(null)
     unmount()
   })
 
-  it('returns false and does not poll when the checkout popup is blocked', async () => {
+  it('another initiate error does NOT trigger a status refresh', async () => {
+    vi.mocked(faceApi.initiateSubscriptionPayment).mockRejectedValue(new Error('500'))
+
+    const { api, unmount } = mountWithComposable()
+    await api.initiatePayment('pro')
+
+    expect(faceApi.getSubscriptionStatus).not.toHaveBeenCalled()
+    unmount()
+  })
+
+  it('never reports « fenêtre bloquée » — window.open (null with noopener) is no longer used', async () => {
     vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
     openSpy.mockReturnValue(null)
 
     const { api, unmount } = mountWithComposable()
     const result = await api.initiatePayment('pro')
 
-    expect(result).toBe(false)
-    expect(api.paymentState.value).toBe('failed')
-    expect(api.error.value).toBe(
-      'La fenêtre de paiement a été bloquée. Autorisez les popups puis réessayez.',
-    )
-    expect(api.isPolling.value).toBe(false)
-    expect(faceApi.getSubscriptionStatus).not.toHaveBeenCalled()
+    expect(result).toBe(true)
+    expect(api.paymentState.value).toBe('waiting')
+    expect(api.error.value).toBeNull()
+    expect(openSpy).not.toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it('does not poll after the redirect', async () => {
+    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
+
+    const { api, unmount } = mountWithComposable()
+    await api.initiatePayment('pro')
+    await vi.advanceTimersByTimeAsync(130_000)
+
+    expect(faceApi.verifySubscriptionPayment).not.toHaveBeenCalled()
 
     unmount()
   })
@@ -252,21 +292,6 @@ describe('useSubscriptionPayment (FP-2.7 tier-aware contract)', () => {
     unmount()
   })
 
-  it('does not initiate a second payment while polling is active', async () => {
-    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
-      data: statusData('free', 'pending_payment', null),
-    })
-
-    const { api, unmount } = mountWithComposable()
-    await api.initiatePayment('pro')
-    const second = await api.initiatePayment('pro')
-
-    expect(second).toBe(false)
-    expect(faceApi.initiateSubscriptionPayment).toHaveBeenCalledOnce()
-
-    unmount()
-  })
 
   it('surfaces the formatted backend error when initiatePayment rejects', async () => {
     vi.mocked(faceApi.initiateSubscriptionPayment).mockRejectedValue(new Error('409 conflict'))
@@ -277,12 +302,11 @@ describe('useSubscriptionPayment (FP-2.7 tier-aware contract)', () => {
     expect(result).toBe(false)
     expect(api.paymentState.value).toBe('failed')
     expect(api.error.value).toBe('Un paiement est déjà en cours pour cet abonnement.')
-    expect(api.isPolling.value).toBe(false)
 
     unmount()
   })
 
-  it('reset() clears ephemeral state and stops polling', async () => {
+  it('reset() clears ephemeral state', async () => {
     vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
     vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
       data: statusData('free', 'pending_payment', null),
@@ -294,92 +318,28 @@ describe('useSubscriptionPayment (FP-2.7 tier-aware contract)', () => {
     api.reset()
 
     expect(api.isInitiating.value).toBe(false)
-    expect(api.isPolling.value).toBe(false)
     expect(api.paymentState.value).toBe('idle')
     expect(api.error.value).toBeNull()
 
     unmount()
   })
 
-  it('stops the poller when the consuming component unmounts (onUnmounted safety)', async () => {
-    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
-    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('pending_payment'))
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
-      data: statusData('free', 'pending_payment', null),
-    })
 
-    const { api, unmount } = mountWithComposable()
-    await api.initiatePayment('pro')
-    expect(api.isPolling.value).toBe(true)
-
-    unmount()
-
-    const callsBefore = vi.mocked(faceApi.getSubscriptionStatus).mock.calls.length
-    await vi.advanceTimersByTimeAsync(30_000)
-    const callsAfter = vi.mocked(faceApi.getSubscriptionStatus).mock.calls.length
-    expect(callsAfter).toBe(callsBefore)
-  })
-
-  it('does not overwrite paymentState=failed when an in-flight poll resolves after the timeout fires (P4 race guard)', async () => {
-    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
-
-    // Two getSubscriptionStatus calls: (1) the refresh inside initiatePayment;
-    // (2) the refresh inside the in-flight verifyPayment, which resolves after the timeout.
-    // The 2nd would normally flip paymentState to 'confirmed' (tier free → pro) — the P4
-    // guard must short-circuit that mutation because polling has already stopped.
-    vi.mocked(faceApi.getSubscriptionStatus)
-      .mockResolvedValueOnce({ data: statusData('free', 'pending_payment', null) })
-      .mockResolvedValueOnce({ data: statusData('pro', 'active', '2027-01-01T00:00:00Z') })
-
-    // Hang the first verify call so we can resolve it manually after the timeout fires.
-    let resolveVerify!: (response: SubscriptionVerifyPaymentResponse) => void
-    vi.mocked(faceApi.verifySubscriptionPayment).mockImplementationOnce(
-      () =>
-        new Promise<SubscriptionVerifyPaymentResponse>((resolve) => {
-          resolveVerify = resolve
-        }),
-    )
-
-    const { api, unmount } = mountWithComposable()
-    await api.initiatePayment('pro')
-    expect(api.isPolling.value).toBe(true)
-    expect(api.paymentState.value).toBe('waiting')
-
-    // Tick the first poll at T=5s — verifyPayment is now hanging on its first await.
-    await vi.advanceTimersByTimeAsync(5_000)
-    expect(api.isVerifying.value).toBe(true)
-
-    // Advance to the 120 s timeout — paymentState flips to 'failed' and polling stops.
-    await vi.advanceTimersByTimeAsync(115_000)
-    expect(api.isPolling.value).toBe(false)
-    expect(api.paymentState.value).toBe('failed')
-
-    // Resolve the hung verify with a state that would otherwise be "confirmed".
-    resolveVerify(verifyResponse('active'))
-    await flushPromises()
-
-    // P4 — the bail-out check must short-circuit the mutation; paymentState stays 'failed'.
-    expect(api.paymentState.value).toBe('failed')
-
-    unmount()
-  })
-
-  it('surfaces an error toast on a manual verifyPayment failure but stays silent on a polling failure (P11)', async () => {
-    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
+  it('surfaces an error on a manual verifyPayment failure but stays silent on a non-manual failure (P11)', async () => {
     vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
       data: statusData('free', 'pending_payment', null),
     })
     vi.mocked(faceApi.verifySubscriptionPayment).mockRejectedValue(
       new Error('Network error during verify'),
     )
+    await useSubscriptionStatus().fetchStatus()
 
     const { api, unmount } = mountWithComposable()
-    await api.initiatePayment('pro')
+    await flushPromises()
 
-    // Polling tick at T=5s — verifyPayment rejects, but polling swallows the error silently.
-    const errorBefore = api.error.value
-    await vi.advanceTimersByTimeAsync(5_000)
-    expect(api.error.value).toBe(errorBefore) // unchanged
+    // Non-manual verify (visibility reconciler path) swallows the error.
+    await api.verifyPayment()
+    expect(api.error.value).toBeNull()
 
     // Manual call surfaces the formatted error.
     await api.verifyPayment({ manual: true })
@@ -548,7 +508,6 @@ describe('cancelPending + visibility-aware auto-verify (FP-2.15.1)', () => {
     expect(ok).toBe(true)
     expect(faceApi.cancelPendingSubscription).toHaveBeenCalledOnce()
     expect(api.paymentState.value).toBe('idle')
-    expect(api.isPolling.value).toBe(false)
     expect(api.error.value).toBeNull()
     expect(api.isCancelling.value).toBe(false)
 
@@ -625,7 +584,7 @@ describe('cancelPending + visibility-aware auto-verify (FP-2.15.1)', () => {
     unmount()
   })
 
-  it('T5 — cancelPending() bails out (returns false) when isInitiating is true (FP-2.15.1 L2: isPolling intentionally no longer in the guard)', async () => {
+  it('T5 — cancelPending() bails out (returns false) when isInitiating is true ', async () => {
     let resolveInitiate: (value: SubscriptionInitiatePaymentResponse) => void = () => undefined
     vi.mocked(faceApi.initiateSubscriptionPayment).mockReturnValue(
       new Promise<SubscriptionInitiatePaymentResponse>((resolve) => {
@@ -650,65 +609,27 @@ describe('cancelPending + visibility-aware auto-verify (FP-2.15.1)', () => {
     unmount()
   })
 
-  it('T10 — cancelPending() called during paymentState=waiting stops polling, flips to idle, and reaches the backend (FP-2.15.1 L2)', async () => {
-    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
-    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('pending_payment'))
-    vi.mocked(faceApi.cancelPendingSubscription).mockResolvedValue({
-      data: { subscription_id: 'sub_pending', status: 'failed' as SubscriptionStatusValue },
-      message: 'Paiement annulé.',
-    })
-    vi.mocked(faceApi.getSubscriptionStatus)
-      .mockResolvedValueOnce({ data: statusData('free', 'pending_payment', null) })
-      .mockResolvedValueOnce({ data: statusData('free', 'failed', null) })
 
-    const { api, unmount } = mountWithComposable()
-    await api.initiatePayment('pro')
-    expect(api.isPolling.value).toBe(true)
-    expect(api.paymentState.value).toBe('waiting')
 
-    const verifyCallsBefore = vi.mocked(faceApi.verifySubscriptionPayment).mock.calls.length
-
-    const ok = await api.cancelPending()
-
-    expect(ok).toBe(true)
-    expect(faceApi.cancelPendingSubscription).toHaveBeenCalledOnce()
-    expect(api.isPolling.value).toBe(false)
-    expect(api.paymentState.value).toBe('idle')
-
-    // Polling is dead — no further verify calls fire after cancel.
-    await vi.advanceTimersByTimeAsync(10_000)
-    expect(vi.mocked(faceApi.verifySubscriptionPayment).mock.calls.length).toBe(verifyCallsBefore)
-
-    unmount()
-  })
-
-  it('T6 — visibilitychange auto-fires verifyPayment after the 120s polling timeout when document becomes visible and the pending-banner predicate is true', async () => {
-    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
-    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('pending_payment'))
+  it('T6 — visibilitychange auto-fires verifyPayment when the page is shown again with a pending payment armed (e.g. browser Back from the checkout)', async () => {
     vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
       data: statusData('free', 'pending_payment', null),
     })
+    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('active'))
+
+    // Seed the singleton so the Round 2 D3 watch arms hasArmedPayment on mount.
+    await useSubscriptionStatus().fetchStatus()
 
     const { api, unmount } = mountWithComposable()
-    await api.initiatePayment('pro')
-    await vi.advanceTimersByTimeAsync(120_000)
+    await flushPromises()
 
-    expect(api.paymentState.value).toBe('failed')
-    expect(api.isPolling.value).toBe(false)
-
-    // Re-mock for the visibility-triggered verify — backend has now confirmed.
-    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('active'))
     vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
       data: statusData('pro', 'active', '2027-05-23T00:00:00Z'),
     })
-
-    const verifyCallsBefore = vi.mocked(faceApi.verifySubscriptionPayment).mock.calls.length
     document.dispatchEvent(new Event('visibilitychange'))
     await flushPromises()
 
-    expect(vi.mocked(faceApi.verifySubscriptionPayment).mock.calls.length).toBe(
-      verifyCallsBefore + 1,
-    )
+    expect(faceApi.verifySubscriptionPayment).toHaveBeenCalledOnce()
     expect(api.paymentState.value).toBe('confirmed')
 
     unmount()
@@ -770,63 +691,6 @@ describe('cancelPending + visibility-aware auto-verify (FP-2.15.1)', () => {
     unmount()
   })
 
-  it('T9 — visibilitychange auto-fires verifyPayment when statusValue is active but CTA is all-false (active + pending tier-change)', async () => {
-    // Active Pro with a pending Élite tier change → representative statusValue stays
-    // 'active' but FP-2.3 forces CTA all-false because a pending row exists.
-    const activeProCtaForced = {
-      current: {
-        tier: 'pro' as FaceSubscriptionTier,
-        plan: 'pro' as FaceSubscriptionPlan,
-        status: 'active' as SubscriptionStatusValue,
-        starts_at: null,
-        expires_at: '2027-01-01T00:00:00Z',
-        cancelled_at: null,
-        capabilities: CAPS,
-      },
-      offers: [],
-      cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
-    }
-
-    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('elite'))
-    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('pending_payment'))
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({ data: activeProCtaForced })
-
-    await useSubscriptionStatus().fetchStatus()
-
-    const { api, unmount } = mountWithComposable()
-    await api.initiatePayment('elite')
-    expect(api.isPolling.value).toBe(true)
-
-    await vi.advanceTimersByTimeAsync(120_000)
-    expect(api.paymentState.value).toBe('failed')
-
-    const activeEliteConfirmed = {
-      current: {
-        tier: 'elite' as FaceSubscriptionTier,
-        plan: 'elite' as FaceSubscriptionPlan,
-        status: 'active' as SubscriptionStatusValue,
-        starts_at: null,
-        expires_at: '2027-05-23T00:00:00Z',
-        cancelled_at: null,
-        capabilities: { ...CAPS, sort_priority: 1 },
-      },
-      offers: [],
-      cta: { upgrade_available: false, downgrade_available: false, renew_available: false },
-    }
-    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue(verifyResponse('active'))
-    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({ data: activeEliteConfirmed })
-
-    const verifyCallsBefore = vi.mocked(faceApi.verifySubscriptionPayment).mock.calls.length
-    document.dispatchEvent(new Event('visibilitychange'))
-    await flushPromises()
-
-    expect(vi.mocked(faceApi.verifySubscriptionPayment).mock.calls.length).toBe(
-      verifyCallsBefore + 1,
-    )
-    expect(api.paymentState.value).toBe('confirmed')
-
-    unmount()
-  })
 })
 
 describe('resumePayment via backend (FP-2.15.2)', () => {
@@ -845,7 +709,7 @@ describe('resumePayment via backend (FP-2.15.2)', () => {
     openSpy.mockRestore()
   })
 
-  it('R1 — resumePayment() POSTs resume-payment, opens window with returned URL, starts polling, returns true', async () => {
+  it('R1 — resumePayment() POSTs resume-payment, redirects the same tab to the returned URL, returns true', async () => {
     vi.mocked(faceApi.resumePendingSubscription).mockResolvedValue({
       data: {
         subscription_id: 'sub_x',
@@ -865,13 +729,9 @@ describe('resumePayment via backend (FP-2.15.2)', () => {
 
     expect(result).toBe(true)
     expect(faceApi.resumePendingSubscription).toHaveBeenCalledOnce()
-    expect(openSpy).toHaveBeenCalledWith(
-      'https://checkout.fedapay.test/sess_resumed',
-      '_blank',
-      'noopener,noreferrer',
-    )
+    expect(redirectToCheckout).toHaveBeenCalledWith('https://checkout.fedapay.test/sess_resumed')
+    expect(openSpy).not.toHaveBeenCalled()
     expect(api.paymentState.value).toBe('waiting')
-    expect(api.isPolling.value).toBe(true)
 
     unmount()
   })
@@ -897,7 +757,7 @@ describe('resumePayment via backend (FP-2.15.2)', () => {
     expect(result).toBe(true)
     expect(openSpy).not.toHaveBeenCalled()
     expect(api.paymentState.value).toBe('confirmed')
-    expect(api.isPolling.value).toBe(false)
+    expect(redirectToCheckout).not.toHaveBeenCalled()
     expect(faceApi.getSubscriptionStatus).toHaveBeenCalled()
 
     unmount()
@@ -923,8 +783,7 @@ describe('resumePayment via backend (FP-2.15.2)', () => {
     expect(result).toBe(false)
     expect(api.paymentState.value).toBe('failed')
     expect(api.error.value).toContain('Aucune URL')
-    expect(openSpy).not.toHaveBeenCalled()
-    expect(api.isPolling.value).toBe(false)
+    expect(redirectToCheckout).not.toHaveBeenCalled()
 
     unmount()
   })
@@ -1017,11 +876,9 @@ describe('resumePayment via backend (FP-2.15.2)', () => {
     unmount()
   })
 
-  // Symmetric to initiatePayment's catch of a window.open throw (Round 2 P1):
-  // the resume flow wraps the body in try/catch so a sandbox iframe throw cannot
-  // strand paymentState in 'waiting' forever. With the backend-driven resume,
-  // the API call succeeds first; window.open then throws and is caught.
-  it('resumePayment catches a throw from window.open and surfaces a failed state', async () => {
+  // The resume flow wraps the body in try/catch so a throwing redirect cannot
+  // strand paymentState in 'waiting' forever.
+  it('resumePayment catches a throw from the redirect and surfaces a failed state', async () => {
     vi.mocked(faceApi.resumePendingSubscription).mockResolvedValue({
       data: {
         subscription_id: 'sub_x',
@@ -1034,8 +891,8 @@ describe('resumePayment via backend (FP-2.15.2)', () => {
     vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
       data: statusData('free', 'pending_payment', null),
     })
-    openSpy.mockImplementationOnce(() => {
-      throw new Error('Window.open is not allowed in this sandbox')
+    vi.mocked(redirectToCheckout).mockImplementationOnce(() => {
+      throw new Error('navigation blocked')
     })
 
     const { api, unmount } = mountWithComposable()
@@ -1049,7 +906,7 @@ describe('resumePayment via backend (FP-2.15.2)', () => {
     unmount()
   })
 
-  it('R7 — resumePayment() bails out when isInitiating / isPolling / isVerifying / isCancelling is true', async () => {
+  it('R7 — resumePayment() bails out when isInitiating / isVerifying / isCancelling is true', async () => {
     vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
       data: statusData('free', 'pending_payment', null),
     })
@@ -1067,18 +924,12 @@ describe('resumePayment via backend (FP-2.15.2)', () => {
     await flushPromises()
     expect(api.isInitiating.value).toBe(true)
 
-    let result = await api.resumePayment()
+    const result = await api.resumePayment()
     expect(result).toBe(false)
     expect(faceApi.resumePendingSubscription).not.toHaveBeenCalled()
 
     resolveInitiate(initiateResponse('pro'))
     await initiatePromise
-    expect(api.isPolling.value).toBe(true)
-
-    // Case 2 — isPolling already true (after initiate completes, polling is active)
-    result = await api.resumePayment()
-    expect(result).toBe(false)
-    expect(faceApi.resumePendingSubscription).not.toHaveBeenCalled()
 
     unmount()
   })

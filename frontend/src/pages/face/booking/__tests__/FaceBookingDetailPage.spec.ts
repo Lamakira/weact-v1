@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import FaceBookingDetailPage from '../FaceBookingDetailPage.vue'
+import { bookingApi } from '@/features/booking/services/bookingApi'
 
 const mockBooking = ref<Record<string, unknown> | null>(null)
 const mockIsLoading = ref(false)
@@ -17,6 +18,10 @@ const mockFetchBooking = vi.fn()
 const mockRefreshBooking = vi.fn()
 const mockUserableType = ref('Face')
 const mockUserId = ref(1)
+
+vi.mock('@/features/booking/services/bookingApi', () => ({
+  bookingApi: { checkPaymentStatus: vi.fn(), checkCommissionStatus: vi.fn() },
+}))
 
 vi.mock('@/features/booking/composables', () => ({
   useBookingDetail: () => ({
@@ -256,6 +261,98 @@ async function mountPage(
   await flushPromises()
   return wrapper
 }
+
+describe('FaceBookingDetailPage — return from the same-tab FedaPay checkout', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    mockFetchBooking.mockReset()
+    mockToastSuccess.mockReset()
+    vi.mocked(bookingApi.checkPaymentStatus).mockReset()
+    vi.mocked(bookingApi.checkCommissionStatus).mockReset()
+  })
+
+  it('does not verify anything without ?payment_return', async () => {
+    const wrapper = await mountPage(makeBooking({ status: 'accepted', producer_id: 2 }))
+
+    expect(bookingApi.checkPaymentStatus).not.toHaveBeenCalled()
+    expect(bookingApi.checkCommissionStatus).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="payment-return-verifying"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('payment_return=booking polls the CASH payment-status endpoint and shows the verification state', async () => {
+    vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue({ data: { status: 'accepted' } } as never)
+    const wrapper = await mountPage(
+      makeBooking({ status: 'accepted', producer_id: 2, can_pay: true }),
+      { payment_return: 'booking' },
+    )
+
+    expect(bookingApi.checkPaymentStatus).toHaveBeenCalledWith('booking-uuid-1')
+    expect(bookingApi.checkCommissionStatus).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="payment-return-verifying"]').text()).toContain(
+      'Vérification de votre paiement',
+    )
+    wrapper.unmount()
+  })
+
+  it('payment_return=booking confirmed: success toast, booking refetched, verification state gone', async () => {
+    vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue({ data: { status: 'paid' } } as never)
+    const wrapper = await mountPage(
+      makeBooking({ status: 'accepted', producer_id: 2 }),
+      { payment_return: 'booking' },
+    )
+    await flushPromises()
+
+    expect(mockToastSuccess).toHaveBeenCalledTimes(1)
+    expect(mockFetchBooking).toHaveBeenCalledTimes(2) // mount + refetch after confirmation
+    expect(wrapper.find('[data-testid="payment-return-verifying"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('payment_return=booking_commission polls the commission-status endpoint, not the cash one', async () => {
+    vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue({ data: { status: 'pending' } } as never)
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', type_contenu: 'UGC', commission_ugc: 2500, producer_id: 2 }),
+      { payment_return: 'booking_commission' },
+    )
+
+    expect(bookingApi.checkCommissionStatus).toHaveBeenCalledWith('booking-uuid-1')
+    expect(bookingApi.checkPaymentStatus).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('failed commission shows « Réessayer le paiement » which reopens the UGC overlay', async () => {
+    vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue({
+      data: { status: 'pending' },
+      commission_payment_status: 'failed',
+    } as never)
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', type_contenu: 'UGC', commission_ugc: 2500, producer_id: 2 }),
+      { payment_return: 'booking_commission' },
+    )
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="ugc-overlay-stub"]').attributes('data-open')).toBe('false')
+    await wrapper.find('[data-testid="payment-return-retry"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="ugc-overlay-stub"]').attributes('data-open')).toBe('true')
+    wrapper.unmount()
+  })
+
+  it('?pay=1 is suppressed when a payment_return is present (no auto-open of the tunnel)', async () => {
+    vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue({ data: { status: 'pending' } } as never)
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', type_contenu: 'UGC', commission_ugc: 2500, producer_id: 2 }),
+      { pay: '1', payment_return: 'booking_commission' },
+    )
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="ugc-overlay-stub"]').attributes('data-open')).toBe('false')
+    wrapper.unmount()
+  })
+})
 
 describe('FaceBookingDetailPage — shooting date guard', () => {
   beforeEach(() => {
@@ -524,6 +621,21 @@ describe('FaceBookingDetailPage — UGC commission CTA (story 1.6)', () => {
     const overlay = wrapper.find('[data-testid="ugc-overlay-stub"]')
     expect(overlay.exists()).toBe(true)
     expect(overlay.attributes('data-open')).toBe('true')
+  })
+
+  it('consumes ?pay=1 from the URL once handled, so a full-reload Back cannot reopen the tunnel', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', type_contenu: 'UGC', commission_ugc: 2500, producer_id: 2 }),
+      { pay: '1', keep: 'me' },
+    )
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="ugc-overlay-stub"]').attributes('data-open')).toBe('true')
+    const query = wrapper.vm.$route.query
+    expect(query.pay).toBeUndefined()
+    expect(query.keep).toBe('me')
   })
 
   it('opens the engagement modal on Accepter for a UGC booking without calling accept (story 2.4)', async () => {

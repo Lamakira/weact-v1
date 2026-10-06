@@ -74,6 +74,44 @@ trait RecordsFinancialEvent
     }
 
     /**
+     * Audit a FedaPay transaction we DETACHED from its entity (released cash selection,
+     * deleted hybrid escrow entry) while the transaction may still be paid later: a late
+     * `transaction.approved` webhook then finds no row, and ops needs this record to
+     * reconcile manually (HandleFedapayWebhook escalates CRITICAL with it).
+     *
+     * `fedapay_ref` carries the detached transaction id; `status` the FedaPay status when
+     * known (else 'detached'). Idempotent per transaction id. MUST be called inside an
+     * existing DB::transaction() context.
+     *
+     * @param  array<string, mixed>  $context  Entity ids and free-form audit data
+     */
+    protected function recordDetachedPayment(
+        string $entityType,
+        int $entityId,
+        string $fedapayTransactionId,
+        ?string $fedapayStatus,
+        int $amount,
+        array $context = [],
+    ): FinancialEvent {
+        return FinancialEvent::firstOrCreate(
+            ['idempotency_key' => "payment_detached:{$fedapayTransactionId}"],
+            [
+                'type' => FinancialEventType::PaymentDetached,
+                'booking_id' => null,
+                'amount' => $amount,
+                'fedapay_ref' => $fedapayTransactionId,
+                'status' => $fedapayStatus ?? 'detached',
+                'metadata' => array_merge($context, [
+                    'entity_type' => $entityType,
+                    'entity_id' => $entityId,
+                    'fedapay_status' => $fedapayStatus,
+                    'detached_at' => now()->toIso8601String(),
+                ]),
+            ],
+        );
+    }
+
+    /**
      * Check if a FinancialEvent already exists for the given booking + type + optional fedapay_ref.
      */
     protected function hasExistingFinancialEvent(

@@ -57,6 +57,8 @@ import {
 } from '@/components/ugc'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
+import { usePaymentReturn } from '@/composables/usePaymentReturn'
+import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
 import { useUgcShipment } from '@/composables/useUgcShipment'
 import { useUgcDeliverable } from '@/composables/useUgcDeliverable'
 
@@ -420,13 +422,6 @@ function handleRatingSubmitted(rating: BookingRating): void {
   toast.success('Évaluation envoyée avec succès')
 }
 
-async function handlePaymentSuccess(): Promise<void> {
-  showPaymentOverlay.value = false
-  if (bookingId.value) {
-    await fetchBooking(bookingId.value)
-    toast.success('Paiement confirmé !')
-  }
-}
 
 async function handleConfirmShipment(payload: ConfirmShipmentPayload): Promise<void> {
   if (!booking.value) return
@@ -499,14 +494,6 @@ async function handleUploadDeliverable(file: File): Promise<void> {
   toast.error(deliverableError.value || "Erreur lors de l'envoi de la vidéo Unboxing")
 }
 
-async function handleUgcCommissionSettled(): Promise<void> {
-  showUgcPaymentOverlay.value = false
-  if (bookingId.value) {
-    await fetchBooking(bookingId.value)
-    toast.success('Commission payée. La Face va recevoir votre demande.')
-  }
-}
-
 interface EchoChannel {
   listen: (event: string, callback: () => void) => EchoChannel
   stopListening: (event: string) => EchoChannel
@@ -560,14 +547,38 @@ watch(
   },
 )
 
+// Return from the same-tab FedaPay checkout (?payment_return=booking|booking_commission).
+const paymentReturn = usePaymentReturn({
+  kinds: ['booking', 'booking_commission'],
+  ids: () => ({ bookingId: bookingId.value }),
+  onConfirmed: async () => {
+    if (bookingId.value) await fetchBooking(bookingId.value)
+  },
+  onRetry: (kind) => {
+    if (kind === 'booking_commission') showUgcPaymentOverlay.value = true
+    else showPaymentOverlay.value = true
+  },
+})
+
 onMounted(async () => {
   if (bookingId.value) {
     await fetchBooking(bookingId.value)
   }
 
-  // Auto-open the commission tunnel when arriving from UGC booking creation (?pay=1).
-  if (route.query.pay === '1' && canPayUgcCommission.value) {
+  // A ?payment_return takes over: verify the payment, never also auto-open the tunnel.
+  const isPaymentReturn = route.query.payment_return !== undefined
+  if (isPaymentReturn) {
+    await paymentReturn.start()
+  } else if (route.query.pay === '1' && canPayUgcCommission.value) {
+    // Auto-open the commission tunnel when arriving from UGC booking creation (?pay=1).
     showUgcPaymentOverlay.value = true
+  }
+
+  // Consume ?pay (opened or not): a full-reload Back to this URL must not replay the tunnel.
+  if (route.query.pay !== undefined) {
+    const query = { ...route.query }
+    delete query.pay
+    void router.replace({ query })
   }
 
   countdownTicker = setInterval(() => {
@@ -623,6 +634,12 @@ onUnmounted(() => {
 
     <!-- Booking detail content -->
     <template v-else-if="booking">
+      <PaymentReturnBanner
+        :state="paymentReturn.state.value"
+        @retry="paymentReturn.retry"
+        @dismiss="paymentReturn.dismiss"
+      />
+
       <!-- Header: Status badge + title -->
       <div class="flex items-center gap-3 mb-6">
         <BookingStatusBadge :status="booking.status" />
@@ -980,7 +997,6 @@ onUnmounted(() => {
       v-if="booking"
       v-model="showPaymentOverlay"
       :booking="booking"
-      @payment-success="handlePaymentSuccess"
     />
 
     <!-- UGC engagement modal (Face accept — 2.4) -->
@@ -1001,8 +1017,6 @@ onUnmounted(() => {
       kind="booking"
       :owner-id="booking.id"
       :amount="booking.montant_total_producteur ?? 0"
-      :reference="booking.id"
-      @settled="handleUgcCommissionSettled"
     />
 
     <CancellationDialog

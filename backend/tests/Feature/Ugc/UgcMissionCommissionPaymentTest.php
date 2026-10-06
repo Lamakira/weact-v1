@@ -181,7 +181,33 @@ class UgcMissionCommissionPaymentTest extends TestCase
             'declined' => ['declined'],
             'canceled' => ['canceled'],
             'refunded' => ['refunded'],
+            'expired' => ['expired'],
         ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('terminalFailedProviderStatuses')]
+    public function test_retry_never_reuses_a_terminal_transaction_and_creates_a_fresh_checkout(string $providerStatus): void
+    {
+        $mission = $this->makePendingPaymentUgcMission();
+        $mission->update(['fedapay_transaction_id' => 940]);
+
+        $dead = \Mockery::mock(\FedaPay\Transaction::class);
+        $dead->status = $providerStatus;
+
+        $this->mock(FedapayService::class, function ($mock) use ($dead): void {
+            $mock->shouldReceive('retrieveTransaction')->once()->with(940)->andReturn($dead);
+            $mock->shouldNotReceive('regenerateTokenFromTransaction');
+            $mock->shouldReceive('initiatePaymentForUgcMission')
+                ->once()
+                ->andReturn(['fedapay_transaction_id' => 941, 'checkout_url' => 'https://fedapay.test/fresh']);
+        });
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$mission->uuid}/pay-commission")
+            ->assertOk()
+            ->assertJsonPath('checkout_url', 'https://fedapay.test/fresh');
+
+        $this->assertSame(941, (int) $mission->fresh()->fedapay_transaction_id);
     }
 
     public function test_non_owner_cannot_pay_mission_commission(): void

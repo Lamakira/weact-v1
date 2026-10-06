@@ -229,12 +229,18 @@ async function handleAccept(candidatureId: string): Promise<void> {
  */
 const paymentTarget = ref<{ id: string; faceName: string } | null>(null)
 
-/** Payment confirmed → the candidature is now accepted; refresh the list. */
-async function handlePaymentSuccess(): Promise<void> {
-  await refresh()
+/**
+ * « Réessayer le paiement » après un retour FedaPay en échec : rouvre l'overlay
+ * de règlement de la candidature (appelé par la page via ref).
+ */
+function openCandidaturePayment(candidatureId: string): void {
+  const candidature = candidatures.value.find((c) => c.id === candidatureId)
+  paymentTarget.value = { id: candidatureId, faceName: candidature?.face.display_name ?? '' }
 }
 
-/** Overlay closed (cancel / success / failed-dismiss) → drop the target. */
+defineExpose({ openCandidaturePayment })
+
+/** Overlay closed (cancel / failed-dismiss) → drop the target. */
 function handlePaymentOverlayClose(value: boolean): void {
   if (!value) {
     paymentTarget.value = null
@@ -542,7 +548,6 @@ onMounted(() => {
       :montant-remuneration="missionMontantRemuneration ?? null"
       :model-value="true"
       @update:model-value="handlePaymentOverlayClose"
-      @payment-success="handlePaymentSuccess"
     />
 
     <!-- Modal d'expédition UGC (3.2 — calque dialog reject ProducerCandidatureCard) -->

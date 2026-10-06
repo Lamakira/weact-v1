@@ -362,11 +362,25 @@ class MissionPaymentInitiationTest extends TestCase
             );
     }
 
-    public function test_retry_after_terminal_remote_failure_reuses_same_payment_record_with_new_checkout(): void
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function terminalProviderStatuses(): array
+    {
+        return [
+            'declined' => ['declined'],
+            'canceled' => ['canceled'],
+            'refunded' => ['refunded'],
+            'expired' => ['expired'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('terminalProviderStatuses')]
+    public function test_retry_after_terminal_remote_failure_reuses_same_payment_record_with_new_checkout(string $terminalStatus = 'declined'): void
     {
         $payment = $this->createPendingMissionPayment('123456');
         $failedTransaction = $this->makeTransactionStub(
-            status: 'declined',
+            status: $terminalStatus,
             checkoutUrl: 'https://checkout.fedapay.com/obsolete-token',
             expectsGenerateToken: false,
         );

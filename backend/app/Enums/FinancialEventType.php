@@ -14,6 +14,7 @@ enum FinancialEventType: string
     case Refund = 'refund';
     case Withdrawal = 'withdrawal';
     case Commission = 'commission';
+    case PaymentDetached = 'payment_detached';
 
     public function label(): string
     {
@@ -26,6 +27,7 @@ enum FinancialEventType: string
             self::Refund => 'Remboursement',
             self::Withdrawal => 'Retrait',
             self::Commission => 'Commission',
+            self::PaymentDetached => 'Paiement détaché',
         };
     }
 }

@@ -451,15 +451,18 @@ describe('ProducerCandidaturesSection', () => {
       expect(mockAcceptCandidature).not.toHaveBeenCalled()
     })
 
-    it('refreshes the candidatures list when the overlay emits payment-success', async () => {
+    it('exposes openCandidaturePayment so the page can reopen the règlement overlay after a failed return (« Réessayer le paiement »)', async () => {
       const wrapper = mountUgcHybridSection()
-      wrapper.findComponent(ProducerCandidatureCardStub).vm.$emit('accept', 'cand-1')
+      await flushPromises()
+      expect(wrapper.findComponent(UgcCandidaturePaymentOverlay).exists()).toBe(false)
+
+      ;(wrapper.vm as unknown as { openCandidaturePayment: (id: string) => void }).openCandidaturePayment('cand-1')
       await flushPromises()
 
-      wrapper.findComponent(UgcCandidaturePaymentOverlay).vm.$emit('payment-success')
-      await flushPromises()
-
-      expect(mockRefresh).toHaveBeenCalledTimes(1)
+      const overlay = wrapper.findComponent(UgcCandidaturePaymentOverlay)
+      expect(overlay.exists()).toBe(true)
+      expect(overlay.props('candidatureId')).toBe('cand-1')
+      expect(overlay.props('faceName')).toBe('Alice')
     })
 
     it('closes the overlay when it emits update:modelValue=false', async () => {

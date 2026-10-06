@@ -52,7 +52,7 @@ class UgcCommissionPaymentService
      *
      * @var list<string>
      */
-    private const TERMINAL_FAILED_STATUSES = ['declined', 'canceled', 'refunded'];
+    private const TERMINAL_FAILED_STATUSES = FedapayService::TERMINAL_FAILED_STATUSES;
 
     /**
      * Statut de paiement de commission dérivé du dernier checkAndProcess* (ugc-3-5 Item 3, exposition lecture).
@@ -332,15 +332,54 @@ class UgcCommissionPaymentService
             if ($existingEntry !== null) {
                 if ($existingEntry->escrow_status === EscrowStatus::Pending
                     && $existingEntry->fedapay_transaction_id !== null) {
-                    $regenerated = $this->fedapayService->regenerateTokenForTransaction(
-                        (int) $existingEntry->fedapay_transaction_id
+                    try {
+                        $existingTransaction = $this->fedapayService->retrieveTransaction(
+                            (int) $existingEntry->fedapay_transaction_id
+                        );
+                    } catch (\Throwable $e) {
+                        Log::warning('UGC hybride: lecture FedaPay de la transaction existante échouée — règlement non initié', [
+                            'candidature_id' => $locked->id,
+                            'mission_id' => $mission->id,
+                            'error' => $e->getMessage(),
+                        ]);
+
+                        // Même 422 que les autres pannes FedaPay ; la ValidationException
+                        // fait rollback de la transaction : l'entry existante est conservée.
+                        throw ValidationException::withMessages([
+                            'payment' => ['Le paiement du règlement est temporairement indisponible. Veuillez réessayer.'],
+                        ]);
+                    }
+
+                    if (! in_array($existingTransaction->status, self::TERMINAL_FAILED_STATUSES, true)) {
+                        $regenerated = $this->fedapayService->regenerateTokenFromTransaction($existingTransaction);
+
+                        return ['outcome' => 'initiated', 'candidature' => $locked, 'checkout_url' => $regenerated['checkout_url']];
+                    }
+
+                    // Transaction terminale (annulée/refusée/expirée) : un checkout régénéré
+                    // serait mort. Même effet que markUgcMissionCandidatureFailed (entry
+                    // Pending supprimée, slot in-flight libéré, candidature reste pending),
+                    // sans notifier le Producteur qui réessaie activement — puis on repart
+                    // sur le chemin de création d'une entry + transaction neuves. Audit de
+                    // la transaction détachée (rollback avec le reste si l'initiation échoue).
+                    $this->recordDetachedPayment(
+                        'mission_payment_candidature',
+                        $existingEntry->id,
+                        (string) $existingEntry->fedapay_transaction_id,
+                        (string) $existingTransaction->status,
+                        0,
+                        [
+                            'candidature_id' => $existingEntry->candidature_id,
+                            'face_id' => $existingEntry->face_id,
+                            'montant_face_recoit' => $existingEntry->montant_face_recoit,
+                            'reason' => 'reaccept_terminal_'.$existingTransaction->status,
+                        ],
                     );
-
-                    return ['outcome' => 'initiated', 'candidature' => $locked, 'checkout_url' => $regenerated['checkout_url']];
+                    $existingEntry->delete();
+                } else {
+                    // Entry non-Pending (déjà locked/released/refunded) → candidature déjà réglée.
+                    return ['outcome' => 'already'];
                 }
-
-                // Entry non-Pending (déjà locked/released/refunded) → candidature déjà réglée.
-                return ['outcome' => 'already'];
             }
 
             if ($lockedMission->status !== MissionStatus::Published) {
