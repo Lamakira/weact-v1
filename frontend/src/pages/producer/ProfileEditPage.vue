@@ -5,6 +5,7 @@
  * This component is rendered inside ProducerLayout via nested routing.
  */
 import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { X } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
@@ -37,6 +38,9 @@ const {
   fetchBio,
   saveBio,
 } = useProducerBio()
+
+// Deep-link from the WhatsApp banner (?focus=whatsapp)
+const route = useRoute()
 
 // Auth store for email
 const authStore = useAuthStore()
@@ -252,7 +256,7 @@ async function handleBioSave(newBio: string | null): Promise<void> {
       <div class="px-6 py-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Basic info section (agency_name or first_name/last_name) -->
         <div id="section-basic-info" data-testid="basic-info-section">
-          <BasicInfoSection />
+          <BasicInfoSection :focus-whatsapp="route.query.focus === 'whatsapp'" />
         </div>
 
         <!-- Profile info section -->

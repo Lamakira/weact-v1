@@ -60,6 +60,11 @@ vi.mock('@/composables/useToast', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }))
 
+// The page reads ?focus= from the route (WhatsApp banner deep-link).
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: {} }),
+}))
+
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
     user: h.userId === null ? null : { id: h.userId, email: 'prod@example.com' },

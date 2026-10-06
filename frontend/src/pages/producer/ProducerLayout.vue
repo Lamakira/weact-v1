@@ -5,20 +5,28 @@
  * Uses DashboardLayout with Producer-specific sidebar items.
  * Child routes render via <router-view> in the content area.
  */
-import { onMounted, computed, watch } from 'vue'
+import { onMounted, ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { LayoutDashboard, FileText, MessageCircle, User, PlusCircle, Users, CalendarCheck, Wallet, BadgeCheck, FolderDown } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { DashboardLayout, KeepAliveRouterView, type SidebarItem } from '@/components/layout'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
+import { useProducerBasicInfo } from '@/features/producer/composables/useProducerBasicInfo'
 import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
+import WhatsappMissingBanner from '@/components/WhatsappMissingBanner.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
 const { logout, isLoading } = useAuth()
 const { profile, fetchProfile } = useProducerProfilePhoto()
+// Basic-info is a shared cached resource: saving the number on the profile page
+// updates it in place, so the banner disappears without a refetch.
+const { basicInfo, fetchBasicInfo } = useProducerBasicInfo()
+
+const basicInfoLoaded = ref(false)
+const hasWhatsapp = computed(() => !!basicInfo.value?.whatsapp_number?.trim())
 const ugcValidationCountStore = useUgcValidationCountStore()
 
 // Sidebar navigation items for Producer dashboard. Computed so the « Validation
@@ -59,6 +67,13 @@ onMounted(async () => {
   } catch {
     // Silently fail - avatar will show fallback
   }
+
+  try {
+    await fetchBasicInfo()
+  } catch {
+    // Silently fail - the banner simply stays hidden until the data loads
+  }
+  basicInfoLoaded.value = basicInfo.value !== null
 })
 
 // The layout now persists across child navigations (App.vue keys it by the
@@ -92,6 +107,15 @@ async function handleLogout(): Promise<void> {
     <EmailVerificationBanner
       v-if="!authStore.isEmailVerified"
       data-testid="email-verification-banner"
+    />
+
+    <!-- WhatsApp reminder (shown until the Producer sets their number; admin-only data) -->
+    <WhatsappMissingBanner
+      v-if="basicInfoLoaded && !hasWhatsapp"
+      title="Renseignez votre numéro WhatsApp"
+      message="Ajoutez votre numéro WhatsApp pour que l'équipe WeAct puisse vous joindre rapidement."
+      cta-label="Renseigner mon WhatsApp"
+      to="/producer/profile?focus=whatsapp"
     />
 
     <!-- Child routes render here — meta.keepAlive-driven caching + page

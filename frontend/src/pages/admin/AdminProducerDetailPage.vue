@@ -13,6 +13,7 @@ import {
   X,
   ClipboardList,
   Mail,
+  MessageCircle,
 } from 'lucide-vue-next'
 import { useAdminProducers } from '@/features/admin/composables/useAdminProducers'
 import type { AdminProducerMission, UpdateAdminProducerForm } from '@/features/admin/services/adminProducersApi'
@@ -28,6 +29,12 @@ const { producer, isLoading, error, fetchProducer, updateProducer, toggleActive,
 const toast = useToast()
 
 const producerId = computed(() => route.params.id as string)
+
+// Direct wa.me link (digits only, same dialable rule as the "Faces à contacter" page).
+const whatsappLink = computed<string | null>(() => {
+  const digits = (producer.value?.whatsapp_number ?? '').replace(/\D/g, '')
+  return digits.length > 0 ? `https://wa.me/${digits}` : null
+})
 const isEditing = ref(false)
 const editForm = ref<UpdateAdminProducerForm>({})
 const editErrors = ref<Record<string, string[]>>({})
@@ -288,6 +295,25 @@ function getMissionStatusClass(status: string): string {
                     {{ producer.email }}
                   </a>
                   <span v-else>—</span>
+                </dd>
+              </div>
+              <div class="flex justify-between items-start gap-4">
+                <dt class="text-sm text-gray-500 flex items-center gap-1.5">
+                  <MessageCircle class="w-4 h-4" />
+                  Numéro WhatsApp
+                </dt>
+                <dd class="text-sm font-medium text-gray-900 text-right">
+                  <a
+                    v-if="whatsappLink"
+                    :href="whatsappLink"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-weact hover:underline"
+                    data-testid="whatsapp-link"
+                  >
+                    {{ producer.whatsapp_number }}
+                  </a>
+                  <span v-else data-testid="whatsapp-missing">—</span>
                 </dd>
               </div>
             </dl>

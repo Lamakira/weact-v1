@@ -2,6 +2,23 @@
 import { MessageCircle } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 
+// Defaults = the Face wording/target. The Producer layout overrides them.
+withDefaults(
+  defineProps<{
+    title?: string
+    message?: string
+    ctaLabel?: string
+    to?: string
+  }>(),
+  {
+    title: 'Renseignez votre numéro WhatsApp',
+    message:
+      'Votre numéro WhatsApp est utilisé uniquement pour vous contacter lorsque vous êtes retenu(e) pour une mission ou booké(e). Renseignez-le pour ne manquer aucune opportunité.',
+    ctaLabel: 'Renseigner mon WhatsApp',
+    to: '/face/profile?focus=whatsapp',
+  },
+)
+
 const router = useRouter()
 </script>
 
@@ -18,10 +35,10 @@ const router = useRouter()
 
       <div class="flex-1 min-w-0">
         <h3 class="text-sm font-semibold text-blue-800">
-          Renseignez votre numéro WhatsApp
+          {{ title }}
         </h3>
         <p class="mt-1 text-sm text-blue-700">
-          Votre numéro WhatsApp est utilisé uniquement pour vous contacter lorsque vous êtes retenu(e) pour une mission ou booké(e). Renseignez-le pour ne manquer aucune opportunité.
+          {{ message }}
         </p>
 
         <div class="mt-3">
@@ -29,9 +46,9 @@ const router = useRouter()
             type="button"
             class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
             data-testid="whatsapp-banner-cta"
-            @click="router.push('/face/profile?focus=whatsapp')"
+            @click="router.push(to)"
           >
-            Renseigner mon WhatsApp
+            {{ ctaLabel }}
           </button>
         </div>
       </div>

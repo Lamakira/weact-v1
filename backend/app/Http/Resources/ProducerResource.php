@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Models\Admin;
+use App\Models\Producer;
 use App\Models\User;
+use App\Support\Whatsapp;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -33,6 +36,13 @@ class ProducerResource extends JsonResource
             'last_name' => $this->last_name,
             'display_name' => $this->display_name,
             'bio' => $this->bio,
+            // PII: owner and admin only. The key is omitted (not nulled) for everyone
+            // else — this resource is also rendered to Faces (booking/mission payloads)
+            // and an off-platform number would defeat the platform.
+            ...($this->isPrivilegedViewer($request) ? [
+                'whatsapp_number' => $this->whatsapp_number,
+                'has_whatsapp' => Whatsapp::isDialable($this->whatsapp_number),
+            ] : []),
             'profile_photo_url' => $this->profile_photo_url,
             'thumbnail_url' => $this->thumbnail_url,
             'agency_logo_url' => $this->agency_logo_url,
@@ -46,5 +56,21 @@ class ProducerResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * True for an admin or for the Producer this resource describes.
+     */
+    private function isPrivilegedViewer(Request $request): bool
+    {
+        $viewer = $request->user();
+
+        if ($viewer instanceof Admin) {
+            return true;
+        }
+
+        return $viewer instanceof User
+            && $viewer->userable_type === Producer::class
+            && $viewer->userable_id === $this->id;
     }
 }

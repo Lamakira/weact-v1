@@ -79,6 +79,7 @@ export interface AgencyLogoResult {
 export interface ProducerBasicInfoAgency {
   type: 'agency'
   agency_name: string
+  whatsapp_number?: string | null
 }
 
 export interface ProducerBasicInfoParticulier {
@@ -86,6 +87,7 @@ export interface ProducerBasicInfoParticulier {
   first_name: string
   // Optional: a one-word name (single mononym) is valid.
   last_name: string | null
+  whatsapp_number?: string | null
 }
 
 export type ProducerBasicInfo = ProducerBasicInfoAgency | ProducerBasicInfoParticulier
@@ -99,11 +101,13 @@ export interface ProducerBasicInfoResponse {
 // Producer basic info form data (type-dependent)
 export interface ProducerBasicInfoAgencyFormData {
   agency_name: string
+  whatsapp_number?: string | null
 }
 
 export interface ProducerBasicInfoParticulierFormData {
   first_name?: string
   last_name?: string
+  whatsapp_number?: string | null
 }
 
 export type ProducerBasicInfoFormData =

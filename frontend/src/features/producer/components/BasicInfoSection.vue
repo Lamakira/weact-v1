@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { reactive, watch, onMounted, computed } from 'vue'
+import { reactive, watch, onMounted, computed, nextTick } from 'vue'
 import { useProducerBasicInfo } from '../composables/useProducerBasicInfo'
 import type { ProducerBasicInfoFormData } from '../types'
 import { useToast } from '@/composables/useToast'
+
+// Deep-link from the WhatsApp banner CTA: focus the number field once loaded.
+const props = withDefaults(defineProps<{ focusWhatsapp?: boolean }>(), { focusWhatsapp: false })
 
 const toast = useToast()
 
@@ -15,6 +18,8 @@ const form = reactive({
   // Particulier fields
   first_name: '',
   last_name: '',
+  // Both types (admin-only visibility, see backend ProducerResource)
+  whatsapp_number: '',
 })
 
 // Computed to check if this is an agency type
@@ -25,6 +30,7 @@ watch(
   () => basicInfo.value,
   (info) => {
     if (info) {
+      form.whatsapp_number = info.whatsapp_number ?? ''
       if (info.type === 'agency') {
         form.agency_name = info.agency_name ?? ''
       } else {
@@ -36,8 +42,15 @@ watch(
   { immediate: true },
 )
 
-onMounted(() => {
-  fetchBasicInfo()
+onMounted(async () => {
+  await fetchBasicInfo()
+
+  if (props.focusWhatsapp) {
+    await nextTick()
+    const input = document.getElementById('whatsapp_number')
+    input?.scrollIntoView?.({ block: 'center' })
+    input?.focus()
+  }
 })
 
 const handleSubmit = async () => {
@@ -45,14 +58,19 @@ const handleSubmit = async () => {
 
   let data: ProducerBasicInfoFormData
 
+  // Empty → null so the backend clears the number (same as the Face field).
+  const whatsapp_number = form.whatsapp_number.trim() || null
+
   if (isAgency.value) {
     data = {
       agency_name: form.agency_name,
+      whatsapp_number,
     }
   } else {
     data = {
       first_name: form.first_name,
       last_name: form.last_name,
+      whatsapp_number,
     }
   }
 
@@ -165,6 +183,23 @@ const handleSubmit = async () => {
               data-testid="last-name-input"
             />
           </div>
+        </div>
+
+        <!-- WhatsApp number (both types) -->
+        <div class="space-y-1.5">
+          <label for="whatsapp_number" class="text-sm font-medium text-gray-900">Numéro WhatsApp</label>
+          <input
+            id="whatsapp_number"
+            type="tel"
+            v-model="form.whatsapp_number"
+            maxlength="30"
+            placeholder="+229 01 00 00 00 00"
+            class="w-full px-3 py-2 text-sm rounded-lg border-gray-300 shadow-sm focus:ring-2 focus:ring-weact-500 focus:border-weact-500 transition-colors"
+            data-testid="whatsapp-number-input"
+          />
+          <p class="text-xs text-gray-500">
+            Visible uniquement par l'équipe WeAct, jamais par les Faces.
+          </p>
         </div>
 
         <!-- Action Button -->

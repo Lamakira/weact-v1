@@ -112,6 +112,7 @@ class UserDataController extends Controller
                 'first_name' => $producer->first_name,
                 'last_name' => $producer->last_name,
                 'bio' => $producer->bio,
+                'whatsapp_number' => $producer->whatsapp_number,
             ];
 
             // Missions
@@ -229,6 +230,7 @@ class UserDataController extends Controller
                     'first_name' => $producer->first_name ? 'Utilisateur' : null,
                     'last_name' => $producer->last_name ? 'Supprimé' : null,
                     'bio' => null,
+                    'whatsapp_number' => null,
                 ]);
             }
 

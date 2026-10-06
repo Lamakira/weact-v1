@@ -27,6 +27,7 @@ use Illuminate\Support\Str;
  * @property string|null $first_name
  * @property string|null $last_name
  * @property string|null $bio
+ * @property string|null $whatsapp_number
  * @property string|null $slug
  * @property-read User|null $user
  * @property-read string $display_name
@@ -124,8 +125,19 @@ class Producer extends Model
         'profile_photo_grid',
         'profile_photo_large',
         'bio',
+        'whatsapp_number',
         'agency_logo',
         'agency_logo_thumbnail',
+    ];
+
+    /**
+     * Hidden from raw model serialization: the WhatsApp number is PII visible to
+     * the owner and admins only. ProducerResource exposes it explicitly for them.
+     *
+     * @var list<string>
+     */
+    protected $hidden = [
+        'whatsapp_number',
     ];
 
     /**

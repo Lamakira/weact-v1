@@ -113,6 +113,7 @@ describe('BasicInfoSection (Producer)', () => {
       expect(mockClearError).toHaveBeenCalled()
       expect(mockUpdateBasicInfo).toHaveBeenCalledWith({
         agency_name: 'Nouvelle Agence',
+        whatsapp_number: null,
       })
     })
 
@@ -171,6 +172,7 @@ describe('BasicInfoSection (Producer)', () => {
       expect(mockUpdateBasicInfo).toHaveBeenCalledWith({
         first_name: 'Marie',
         last_name: 'Martin',
+        whatsapp_number: null,
       })
     })
 
@@ -193,7 +195,11 @@ describe('BasicInfoSection (Producer)', () => {
       await wrapper.find('form').trigger('submit')
       await flushPromises()
 
-      expect(mockUpdateBasicInfo).toHaveBeenCalledWith({ first_name: 'Madonna', last_name: '' })
+      expect(mockUpdateBasicInfo).toHaveBeenCalledWith({
+        first_name: 'Madonna',
+        last_name: '',
+        whatsapp_number: null,
+      })
     })
 
     it('shows an empty last name when the server returns null', async () => {
@@ -210,6 +216,88 @@ describe('BasicInfoSection (Producer)', () => {
       await flushPromises()
 
       expect(wrapper.text()).toContain('Modifiez votre nom')
+    })
+  })
+
+  describe('WhatsApp number', () => {
+    it('renders the field prefilled for a particulier', async () => {
+      mockBasicInfo.value = {
+        type: 'particulier',
+        first_name: 'Jean',
+        last_name: 'Dupont',
+        whatsapp_number: '+229 01 97 12 34 56',
+      }
+
+      const wrapper = mount(BasicInfoSection)
+      await flushPromises()
+
+      const input = wrapper.find('[data-testid="whatsapp-number-input"]')
+      expect(input.exists()).toBe(true)
+      expect((input.element as HTMLInputElement).value).toBe('+229 01 97 12 34 56')
+      expect(input.attributes('maxlength')).toBe('30')
+    })
+
+    it('renders the field for an agency, empty when no number is stored', async () => {
+      mockBasicInfo.value = { type: 'agency', agency_name: 'Production ABC', whatsapp_number: null }
+
+      const wrapper = mount(BasicInfoSection)
+      await flushPromises()
+
+      const input = wrapper.find('[data-testid="whatsapp-number-input"]')
+      expect(input.exists()).toBe(true)
+      expect((input.element as HTMLInputElement).value).toBe('')
+    })
+
+    it('submits the number with the rest of the form', async () => {
+      mockBasicInfo.value = { type: 'particulier', first_name: 'Marie', last_name: 'Martin' }
+      mockUpdateBasicInfo.mockResolvedValue({ success: true, message: 'ok' })
+
+      const wrapper = mount(BasicInfoSection)
+      await flushPromises()
+
+      await wrapper.find('[data-testid="whatsapp-number-input"]').setValue('+22997000000')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(mockUpdateBasicInfo).toHaveBeenCalledWith({
+        first_name: 'Marie',
+        last_name: 'Martin',
+        whatsapp_number: '+22997000000',
+      })
+    })
+
+    it('submits null when the field is cleared', async () => {
+      mockBasicInfo.value = {
+        type: 'agency',
+        agency_name: 'Production ABC',
+        whatsapp_number: '+22997000000',
+      }
+      mockUpdateBasicInfo.mockResolvedValue({ success: true, message: 'ok' })
+
+      const wrapper = mount(BasicInfoSection)
+      await flushPromises()
+
+      await wrapper.find('[data-testid="whatsapp-number-input"]').setValue('')
+      await wrapper.find('form').trigger('submit')
+      await flushPromises()
+
+      expect(mockUpdateBasicInfo).toHaveBeenCalledWith({
+        agency_name: 'Production ABC',
+        whatsapp_number: null,
+      })
+    })
+
+    it('focuses the field when deep-linked from the banner', async () => {
+      mockBasicInfo.value = { type: 'particulier', first_name: 'Marie', last_name: 'Martin' }
+
+      const wrapper = mount(BasicInfoSection, {
+        props: { focusWhatsapp: true },
+        attachTo: document.body,
+      })
+      await flushPromises()
+
+      expect(document.activeElement).toBe(wrapper.get('[data-testid="whatsapp-number-input"]').element)
+      wrapper.unmount()
     })
   })
 
