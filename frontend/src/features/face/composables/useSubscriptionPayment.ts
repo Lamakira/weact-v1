@@ -2,7 +2,8 @@ import { computed, onMounted, onUnmounted, ref, watch, type Ref } from 'vue'
 import { faceApi } from '../services/faceApi'
 import type { FaceSubscriptionPlan, FaceSubscriptionTier, SubscriptionPaymentState } from '../types'
 import { useSubscriptionStatus } from './useSubscriptionStatus'
-import { getApiErrorMessage } from '@/features/auth/services/authApi'
+import { getApiErrorCode, getApiErrorMessage } from '@/features/auth/services/authApi'
+import { saveSubscriptionPaymentSnapshot } from '../services/subscriptionPaymentSnapshot'
 import { redirectToCheckout } from '@/lib/redirectToCheckout'
 import { useCheckoutRedirect } from '@/lib/useCheckoutRedirect'
 
@@ -153,11 +154,21 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
       // 'waiting' = redirecting. The page is left: the return is verified on
       // /face/billing?payment_return=subscription (usePaymentReturn).
       paymentState.value = 'waiting'
+      saveSubscriptionPaymentSnapshot({ tier: snapshot.tier, expires_at: snapshot.expiresAt })
       redirectToCheckout(response.data.checkout_url)
       return true
     } catch (err) {
       error.value = getApiErrorMessage(err)
       paymentState.value = 'failed'
+      // 409 PENDING_PAYMENT_EXISTS: our status is stale (e.g. page restored from the
+      // bfcache) — refresh it so the resume / cancel banner appears.
+      if (getApiErrorCode(err) === 'PENDING_PAYMENT_EXISTS') {
+        try {
+          await refreshStatus()
+        } catch {
+          // Swallow — the user can manually verify / refresh.
+        }
+      }
       return false
     } finally {
       isInitiating.value = false
@@ -194,6 +205,7 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
       }
       hasArmedPayment.value = true
       paymentState.value = 'waiting'
+      saveSubscriptionPaymentSnapshot({ tier: snapshot.tier, expires_at: snapshot.expiresAt })
       redirectToCheckout(checkoutUrl)
       return true
     } catch (err) {
@@ -274,6 +286,11 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
   useCheckoutRedirect(() => {
     if (paymentState.value === 'waiting') paymentState.value = 'idle'
     isInitiating.value = false
+    // The status may be stale (a pending row was created before leaving): refresh so
+    // plan buttons / the resume-cancel banner reflect the server.
+    void refreshStatus().catch(() => {
+      // Swallow — the visibility reconciler / manual verify will retry.
+    })
   })
 
   onMounted(() => {

@@ -76,17 +76,12 @@ describe('UgcCandidaturePaymentOverlay (8-5)', () => {
     expect(mockInitiate).toHaveBeenCalledWith('cand-1')
   })
 
-  it('shows the success state and emits payment-success on confirm', async () => {
-    mockPaymentStatus.value = 'confirmed'
+  it('shows « Redirection vers FedaPay… » (no « onglet » wording) while the same-tab redirect is under way', () => {
+    mockPaymentStatus.value = 'waiting'
     const wrapper = mountOverlay()
 
-    expect(wrapper.text()).toContain('Paiement confirmé !')
-
-    await wrapper.find('[data-testid="ugc-hybrid-success-btn"]').trigger('click')
-
-    expect(wrapper.emitted('payment-success')).toBeTruthy()
-    // La fermeture passe aussi modelValue=false au parent.
-    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([false])
+    expect(wrapper.text()).toContain('Redirection vers FedaPay')
+    expect(wrapper.text()).not.toContain('onglet')
   })
 
   it('shows the failed state with the error and retries via reset()', async () => {

@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import {
   X,
   Loader2,
-  CheckCircle2,
   AlertCircle,
   CreditCard,
   ExternalLink,
@@ -14,7 +13,7 @@ import {
 /**
  * Hybrid per-Face payment overlay (ugc-8-5, D-8.5.e/i).
  *
- * Pattern calque of booking PaymentOverlay (4 states select/waiting/success/failed),
+ * Pattern calque of booking PaymentOverlay (3 states select/waiting/failed — success is handled by usePaymentReturn on return),
  * but candidature-typed: driven by useUgcCandidaturePayment. Shown when the Producer
  * accepts a HYBRID mission candidature — the cash règlement (escrow) is paid via
  * FedaPay before the candidature becomes accepted. Pricing is a CLIENT-SIDE PREVIEW
@@ -30,7 +29,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
-  'payment-success': []
 }>()
 
 const { isInitiating, paymentStatus, error, initiate, reset } =
@@ -50,12 +48,10 @@ const pricing = computed(() => {
   }
 })
 
-const step = computed((): 'select' | 'waiting' | 'success' | 'failed' => {
+const step = computed((): 'select' | 'waiting' | 'failed' => {
   switch (paymentStatus.value) {
     case 'waiting':
       return 'waiting'
-    case 'confirmed':
-      return 'success'
     case 'failed':
       return 'failed'
     default:
@@ -78,11 +74,6 @@ function handleRetry(): void {
 function handleClose(): void {
   reset()
   emit('update:modelValue', false)
-}
-
-function handleViewCandidature(): void {
-  emit('payment-success')
-  handleClose()
 }
 
 // Clean up on close
@@ -198,26 +189,6 @@ watch(
             >
               Annuler
             </button>
-          </div>
-
-          <!-- Step 3a: Success -->
-          <div v-if="step === 'success'" class="space-y-6 text-center">
-            <div
-              class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30"
-            >
-              <CheckCircle2 :size="32" class="text-emerald-600" />
-            </div>
-            <div>
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-                Paiement confirmé !
-              </h2>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                La candidature de {{ faceName }} est acceptée. Son cash est sécurisé.
-              </p>
-            </div>
-            <Button class="w-full" data-testid="ugc-hybrid-success-btn" @click="handleViewCandidature">
-              Voir la candidature
-            </Button>
           </div>
 
           <!-- Step 3b: Failed -->

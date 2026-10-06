@@ -240,12 +240,7 @@ function openCandidaturePayment(candidatureId: string): void {
 
 defineExpose({ openCandidaturePayment })
 
-/** Payment confirmed → the candidature is now accepted; refresh the list. */
-async function handlePaymentSuccess(): Promise<void> {
-  await refresh()
-}
-
-/** Overlay closed (cancel / success / failed-dismiss) → drop the target. */
+/** Overlay closed (cancel / failed-dismiss) → drop the target. */
 function handlePaymentOverlayClose(value: boolean): void {
   if (!value) {
     paymentTarget.value = null
@@ -553,7 +548,6 @@ onMounted(() => {
       :montant-remuneration="missionMontantRemuneration ?? null"
       :model-value="true"
       @update:model-value="handlePaymentOverlayClose"
-      @payment-success="handlePaymentSuccess"
     />
 
     <!-- Modal d'expédition UGC (3.2 — calque dialog reject ProducerCandidatureCard) -->

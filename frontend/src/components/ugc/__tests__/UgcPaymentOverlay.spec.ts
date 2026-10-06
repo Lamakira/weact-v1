@@ -28,7 +28,6 @@ type OverlayProps = {
   kind?: 'booking' | 'mission'
   ownerId?: string
   amount?: number
-  reference?: string
 }
 
 function mountOverlay(props: OverlayProps = {}) {
@@ -38,7 +37,6 @@ function mountOverlay(props: OverlayProps = {}) {
       kind: 'booking',
       ownerId: 'b1',
       amount: 4500,
-      reference: 'abcd1234efgh',
       ...props,
     },
     global: { stubs: { teleport: true } },
@@ -74,7 +72,7 @@ describe('UgcPaymentOverlay', () => {
   it('pays by redirecting the same tab to FedaPay and shows « Redirection vers FedaPay… » (booking)', async () => {
     vi.mocked(bookingApi.payCommission).mockResolvedValue(bookingCheckout())
 
-    const wrapper = mountOverlay({ kind: 'booking', ownerId: 'b1', reference: 'abcd1234efgh' })
+    const wrapper = mountOverlay({ kind: 'booking', ownerId: 'b1' })
     await wrapper.find('[data-testid="ugc-pay-button"]').trigger('click')
     await flushPromises()
 

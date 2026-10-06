@@ -43,23 +43,29 @@ const { startPolling, stopPolling } = useMissionPayment(0, missionId.value || ''
 const toast = useToast()
 
 // Return from the same-tab FedaPay checkout (?payment_return=mission_selection|
-// candidature_escrow|mission_commission). The return composable owns the
-// verification: the cash-only pending evaluation below is skipped meanwhile (it
-// polls the CASH payment-status endpoint, which is wrong for a UGC payment and
-// raised a false « initialisation échouée » banner).
+// candidature_escrow). The return composable owns the verification: the cash-only
+// pending evaluation below is skipped meanwhile (it polls the CASH payment-status
+// endpoint, which is wrong for a UGC payment and raised a false « initialisation
+// échouée » banner). Once the return flow is over (any outcome) the normal
+// evaluation is back, so a late webhook still updates the page.
+let returnFinished = false
 const sectionRef = ref<InstanceType<typeof ProducerCandidaturesSection> | null>(null)
 const paymentReturn = usePaymentReturn({
-  kinds: ['mission_selection', 'candidature_escrow', 'mission_commission'],
+  kinds: ['mission_selection', 'candidature_escrow'],
   ids: () => ({ missionId: missionId.value }),
   onConfirmed: async (kind) => {
     if (kind === 'mission_selection') paymentSuccessBanner.value = true
     await fetchMission()
   },
+  onFinished: (kind, outcome) => {
+    returnFinished = true
+    // Not confirmed (failed / timeout): re-evaluate the cash pending state now — failed
+    // offers « reconfirmer votre sélection », timeout resumes the normal polling.
+    if (kind === 'mission_selection' && outcome !== 'confirmed') void fetchMission()
+  },
   onRetry: (kind, ids) => {
     if (kind === 'candidature_escrow' && ids.candidatureId) {
       sectionRef.value?.openCandidaturePayment(ids.candidatureId)
-    } else if (kind === 'mission_commission') {
-      void router.push({ name: 'producer-missions', query: { pay: ids.missionId ?? missionId.value } })
     } else {
       // mission_selection: the selection was consumed — re-evaluate the page so
       // the producer can re-confirm it (« reconfirmer votre sélection »).
@@ -76,7 +82,7 @@ useCheckoutRedirect(() => {
 })
 
 function isPaymentReturnActive(): boolean {
-  return route.query.payment_return !== undefined || paymentReturn.isVerifying.value
+  return !returnFinished && (route.query.payment_return !== undefined || paymentReturn.isVerifying.value)
 }
 
 /**
@@ -304,7 +310,7 @@ onUnmounted(() => {
             show the spinner-style "pending confirmation" banner.
           -->
           <div
-            v-else-if="mission.status === 'pending_payment' && paymentInitializationFailed"
+            v-else-if="mission.status === 'pending_payment' && paymentInitializationFailed && paymentReturn.state.value !== 'failed'"
             data-testid="mission-payment-init-failed-banner"
             role="alert"
             aria-live="assertive"
@@ -329,7 +335,7 @@ onUnmounted(() => {
           </div>
           <!-- Pending payment banner (only when we have a trackable transaction to poll) -->
           <div
-            v-else-if="mission.status === 'pending_payment'"
+            v-else-if="mission.status === 'pending_payment' && paymentReturn.state.value === 'idle'"
             data-testid="mission-payment-pending-banner"
             role="status"
             aria-live="polite"

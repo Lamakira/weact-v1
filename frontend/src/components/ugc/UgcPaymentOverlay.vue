@@ -5,7 +5,7 @@ import {
   type UgcPaymentOwnerKind,
 } from '@/composables/useUgcCommissionPayment'
 import { Button } from '@/components/ui/button'
-import { X, Loader2, CheckCircle2, AlertCircle, ShieldCheck, ExternalLink } from 'lucide-vue-next'
+import { X, Loader2, AlertCircle, ShieldCheck, ExternalLink } from 'lucide-vue-next'
 import PayTile from './PayTile.vue'
 import { useDismissOnDeactivate } from '@/composables/useDismissOnDeactivate'
 
@@ -14,12 +14,10 @@ const props = defineProps<{
   kind: UgcPaymentOwnerKind
   ownerId: string
   amount: number
-  reference?: string
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
-  settled: []
 }>()
 
 // Close when the host page is deactivated by <keep-alive> — the teleported
@@ -30,24 +28,16 @@ useDismissOnDeactivate(() => props.modelValue, () => emit('update:modelValue', f
 const { isInitiating, paymentStatus, error, initiate, reset } =
   useUgcCommissionPayment()
 
-const step = computed((): 'select' | 'waiting' | 'success' | 'failed' => {
+const step = computed((): 'select' | 'waiting' | 'failed' => {
   switch (paymentStatus.value) {
     case 'waiting':
       return 'waiting'
-    case 'confirmed':
-      return 'success'
     case 'failed':
       return 'failed'
     default:
       return 'select'
   }
 })
-
-const successSubtitle = computed((): string =>
-  props.kind === 'booking'
-    ? 'Votre demande a été envoyée à la Face.'
-    : 'Votre mission est maintenant publiée.',
-)
 
 // RH.2 : le booking règle le total (cash + frais service, séquestré) ; la mission paie sa commission.
 const title = computed((): string =>
@@ -59,8 +49,6 @@ const reassurance = computed((): string =>
     ? 'Paiement sécurisé par FedaPay. La rémunération est séquestrée par WeAct et versée à la Face après validation des vidéos.'
     : "Paiement sécurisé par FedaPay. La commission n'est encaissée qu'après acceptation par la Face.",
 )
-
-const refShort = computed((): string => (props.reference ?? props.ownerId).slice(0, 8).toUpperCase())
 
 function formatXOF(amount: number): string {
   return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA'
@@ -77,11 +65,6 @@ function handleRetry(): void {
 function handleClose(): void {
   reset()
   emit('update:modelValue', false)
-}
-
-function handleDone(): void {
-  emit('settled')
-  handleClose()
 }
 
 watch(
@@ -165,21 +148,6 @@ watch(
             >
               Annuler
             </button>
-          </div>
-
-          <!-- Step: success -->
-          <div v-else-if="step === 'success'" class="space-y-6 text-center">
-            <CheckCircle2 :size="32" class="mx-auto text-emerald-600" />
-            <div>
-              <h2 class="text-lg font-semibold text-gray-900">Commission payée</h2>
-              <p class="mt-1 text-sm text-gray-500">{{ successSubtitle }}</p>
-              <div
-                class="mx-auto mt-4 inline-block rounded-md bg-gray-50 px-3 py-2 font-mono text-[11px] text-gray-700"
-              >
-                Réf. {{ refShort }}
-              </div>
-            </div>
-            <Button class="w-full" data-testid="ugc-done-button" @click="handleDone">Terminé</Button>
           </div>
 
           <!-- Step: failed -->

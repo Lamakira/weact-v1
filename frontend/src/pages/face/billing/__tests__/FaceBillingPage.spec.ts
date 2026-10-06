@@ -443,6 +443,57 @@ describe('FaceBillingPage', () => {
       wrapper.unmount()
     })
 
+    it('ONE banner: the pending resume/verify/cancel banner is suppressed while the return flow is verifying', async () => {
+      setupStatus({
+        current: makeCurrent({ tier: 'free', status: 'pending_payment', plan: 'pro' }),
+        cta: PENDING_CTA,
+      })
+      ctx.route.query = { payment_return: 'subscription' }
+      ctx.verifySubscriptionPayment.mockResolvedValue({ data: { subscription_id: 's', status: 'pending_payment' } })
+      const wrapper = mount(FaceBillingPage)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="payment-return-verifying"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="billing-banner-pending"]').exists()).toBe(false)
+      wrapper.unmount()
+    })
+
+    it('without a return, the pending banner is shown as before', async () => {
+      setupStatus({
+        current: makeCurrent({ tier: 'free', status: 'pending_payment', plan: 'pro' }),
+        cta: PENDING_CTA,
+      })
+      const wrapper = mount(FaceBillingPage)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="billing-banner-pending"]').exists()).toBe(true)
+      wrapper.unmount()
+    })
+
+    it('ONE toast: the reconciler confirmation toast stays silent during the return flow', async () => {
+      ctx.route.query = { payment_return: 'subscription' }
+      ctx.verifySubscriptionPayment.mockResolvedValue({ data: { subscription_id: 's', status: 'pending_payment' } })
+      const wrapper = mount(FaceBillingPage)
+      await flushPromises()
+
+      ;(ctx.payment.paymentState as { value: string }).value = 'confirmed'
+      await flushPromises()
+
+      expect(ctx.toast.success).not.toHaveBeenCalledWith('Paiement confirmé — ton abonnement est actif.')
+      wrapper.unmount()
+    })
+
+    it('without a return, the confirmation toast still fires', async () => {
+      const wrapper = mount(FaceBillingPage)
+      await flushPromises()
+
+      ;(ctx.payment.paymentState as { value: string }).value = 'confirmed'
+      await flushPromises()
+
+      expect(ctx.toast.success).toHaveBeenCalledWith('Paiement confirmé — ton abonnement est actif.')
+      wrapper.unmount()
+    })
+
     it('failed: shows « Réessayer le paiement » which sends the Face back to the plans', async () => {
       ctx.route.query = { payment_return: 'subscription' }
       ctx.verifySubscriptionPayment.mockResolvedValue({ data: { subscription_id: 's', status: 'failed' } })

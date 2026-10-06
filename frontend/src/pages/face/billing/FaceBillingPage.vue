@@ -103,6 +103,13 @@ const paymentReturn = usePaymentReturn({
   },
 })
 
+// ONE banner / ONE toast: while the return flow is active (verifying, or showing its
+// failed / timeout banner) the pending resume-verify-cancel banner, the failed
+// banner and the reconciler's confirmation toast stay silent.
+const returnActive = computed(
+  () => paymentReturn.state.value !== 'idle' || route.query.payment_return !== undefined,
+)
+
 onMounted(async () => {
   await load()
   if (route.query.payment_return !== undefined) void paymentReturn.start()
@@ -111,7 +118,7 @@ onMounted(async () => {
 // A confirmed payment mints a new active row + flips the old pending one — refresh
 // the history list so it reflects the new state without a manual reload.
 watch(paymentState, (state) => {
-  if (state === 'confirmed') {
+  if (state === 'confirmed' && !returnActive.value) {
     toast.success('Paiement confirmé — ton abonnement est actif.')
     void loadHistory().catch(() => {
       // Non-blocking — the status card already reflects the activation.
@@ -444,7 +451,7 @@ function toggleHistory(id: string): void {
       </div>
 
       <div
-        v-else-if="paymentState === 'failed' && paymentError"
+        v-else-if="paymentState === 'failed' && paymentError && !returnActive"
         class="flex items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 sm:p-5 text-sm text-red-700"
         data-testid="billing-banner-failed"
       >
@@ -460,7 +467,7 @@ function toggleHistory(id: string): void {
       </div>
 
       <div
-        v-else-if="hasPendingPayment"
+        v-else-if="hasPendingPayment && !returnActive"
         class="rounded-2xl border border-blue-200 bg-blue-50 p-4 sm:p-5 text-sm text-blue-800"
         data-testid="billing-banner-pending"
       >

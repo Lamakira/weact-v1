@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import {
   X,
   Loader2,
-  CheckCircle2,
   AlertCircle,
   CreditCard,
   ExternalLink,
@@ -19,7 +18,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
-  'payment-success': [booking: Booking]
 }>()
 
 const { isInitiating, paymentStatus, error, initiatePayment, reset } =
@@ -31,12 +29,10 @@ const pricing = computed(() => ({
   totalProducerPays: props.booking.montant_total_producteur,
 }))
 
-const step = computed((): 'select' | 'waiting' | 'success' | 'failed' => {
+const step = computed((): 'select' | 'waiting' | 'failed' => {
   switch (paymentStatus.value) {
     case 'waiting':
       return 'waiting'
-    case 'confirmed':
-      return 'success'
     case 'failed':
       return 'failed'
     default:
@@ -59,11 +55,6 @@ function handleRetry(): void {
 function handleClose(): void {
   reset()
   emit('update:modelValue', false)
-}
-
-function handleViewBooking(): void {
-  emit('payment-success', props.booking)
-  handleClose()
 }
 
 // Clean up on close
@@ -175,26 +166,6 @@ watch(
             >
               Annuler
             </button>
-          </div>
-
-          <!-- Step 3a: Success -->
-          <div v-if="step === 'success'" class="space-y-6 text-center">
-            <div
-              class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30"
-            >
-              <CheckCircle2 :size="32" class="text-emerald-600" />
-            </div>
-            <div>
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-                Paiement confirme !
-              </h2>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Le booking est maintenant confirme. La Face a ete notifiee.
-              </p>
-            </div>
-            <Button class="w-full" @click="handleViewBooking">
-              Voir le booking
-            </Button>
           </div>
 
           <!-- Step 3b: Failed -->

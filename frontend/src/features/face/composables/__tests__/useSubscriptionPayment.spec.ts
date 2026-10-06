@@ -4,6 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { useSubscriptionPayment } from '../useSubscriptionPayment'
 import { useSubscriptionStatus } from '../useSubscriptionStatus'
 import { faceApi } from '../../services/faceApi'
+import { getApiErrorCode } from '@/features/auth/services/authApi'
 import { redirectToCheckout } from '@/lib/redirectToCheckout'
 import { resetAllSharedCachedResources } from '@/lib/createSharedCachedResource'
 import type {
@@ -30,6 +31,7 @@ vi.mock('@/lib/redirectToCheckout', () => ({ redirectToCheckout: vi.fn() }))
 
 vi.mock('@/features/auth/services/authApi', () => ({
   getApiErrorMessage: vi.fn(() => 'Un paiement est déjà en cours pour cet abonnement.'),
+  getApiErrorCode: vi.fn(() => null),
 }))
 
 const CAPS: TierCapabilities = {
@@ -150,6 +152,93 @@ describe('useSubscriptionPayment (FP-2.7 tier-aware contract)', () => {
     expect(api.paymentState.value).toBe('idle')
     expect(api.isInitiating.value).toBe(false)
 
+    unmount()
+  })
+
+  it('saves the {tier, expires_at} snapshot (auth-scoped sessionStorage) BEFORE redirecting', async () => {
+    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('elite'))
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('pro', 'active', '2027-01-01T00:00:00Z'),
+    })
+    await useSubscriptionStatus().fetchStatus()
+    let atRedirect: string | null = null
+    vi.mocked(redirectToCheckout).mockImplementationOnce(() => {
+      atRedirect = sessionStorage.getItem('weact.auth.subscription-payment-snapshot')
+    })
+
+    const { api, unmount } = mountWithComposable()
+    await api.initiatePayment('elite')
+
+    expect(JSON.parse(atRedirect ?? 'null')).toEqual({ tier: 'pro', expires_at: '2027-01-01T00:00:00Z' })
+    unmount()
+  })
+
+  it('resume also saves the snapshot before redirecting', async () => {
+    vi.mocked(faceApi.resumePendingSubscription).mockResolvedValue({
+      data: {
+        subscription_id: 'sub_x',
+        status: 'pending_payment',
+        checkout_url: 'https://checkout.fedapay.test/sess_r',
+        amount: 25000,
+        currency: 'XOF',
+      },
+    })
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('pro', 'active', '2027-01-01T00:00:00Z'),
+    })
+    await useSubscriptionStatus().fetchStatus()
+
+    const { api, unmount } = mountWithComposable()
+    await api.resumePayment()
+
+    expect(JSON.parse(sessionStorage.getItem('weact.auth.subscription-payment-snapshot') ?? 'null')).toEqual({
+      tier: 'pro',
+      expires_at: '2027-01-01T00:00:00Z',
+    })
+    unmount()
+  })
+
+  it('a bfcache restore refreshes the (stale) subscription status so plan buttons / the resume banner are right', async () => {
+    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('pro'))
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'pending_payment', null),
+    })
+    const { api, unmount } = mountWithComposable()
+    await api.initiatePayment('pro')
+    vi.mocked(faceApi.getSubscriptionStatus).mockClear()
+
+    const persisted = new Event('pageshow')
+    Object.defineProperty(persisted, 'persisted', { value: true })
+    window.dispatchEvent(persisted)
+    await flushPromises()
+
+    expect(faceApi.getSubscriptionStatus).toHaveBeenCalledTimes(1)
+    unmount()
+  })
+
+  it('a 409 PENDING_PAYMENT_EXISTS on initiate refreshes the status so the resume/cancel banner appears', async () => {
+    vi.mocked(faceApi.initiateSubscriptionPayment).mockRejectedValue(new Error('409'))
+    vi.mocked(getApiErrorCode).mockReturnValue('PENDING_PAYMENT_EXISTS')
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'pending_payment', null),
+    })
+
+    const { api, unmount } = mountWithComposable()
+    const result = await api.initiatePayment('pro')
+
+    expect(result).toBe(false)
+    expect(faceApi.getSubscriptionStatus).toHaveBeenCalledTimes(1)
+    vi.mocked(getApiErrorCode).mockReturnValue(null)
+    unmount()
+  })
+
+  it('another initiate error does NOT trigger a status refresh', async () => {
+    vi.mocked(faceApi.initiateSubscriptionPayment).mockRejectedValue(new Error('500'))
+
+    const { api, unmount } = mountWithComposable()
+    await api.initiatePayment('pro')
+
+    expect(faceApi.getSubscriptionStatus).not.toHaveBeenCalled()
     unmount()
   })
 

@@ -148,12 +148,6 @@ function handlePayCommission(id: string): boolean {
   return false
 }
 
-function handleCommissionSettled(): void {
-  isUgcPayOpen.value = false
-  success('Commission payée. Votre mission est publiée.')
-  void refreshMissions()
-}
-
 function handleDeleteClick(id: string): void {
   const mission = missions.value.find((m) => m.id === id)
   if (mission) {
@@ -490,8 +484,6 @@ async function confirmComplete(): Promise<void> {
       kind="mission"
       :owner-id="payingMission.id"
       :amount="payingMission.commission_ugc ?? 0"
-      :reference="payingMission.id"
-      @settled="handleCommissionSettled"
     />
   </div>
 </template>

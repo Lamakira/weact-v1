@@ -13,7 +13,7 @@ import { useAuthStore } from '@/stores/auth'
  *
  * Strategy (no manual action required):
  *  - on mount: read status (cache-friendly) and reconcile once if a payment is pending;
- *  - on tab focus (visibilitychange → visible): reconcile (covers returning from the Fedapay tab);
+ *  - on tab focus (visibilitychange → visible): reconcile (covers coming back to the page, e.g. bfcache Back from the checkout);
  *  - while pending AND the tab is visible: poll every {@link RECONCILE_POLL_MS} so a
  *    late mobile-money confirmation is still caught — self-stops when the payment
  *    resolves (active/failed) or the tab is hidden.
@@ -24,8 +24,10 @@ import { useAuthStore } from '@/stores/auth'
  *
  * Mounted dashboard-wide via PendingSubscriptionPaymentBanner (FaceLayout) and site-wide
  * via SitewideSubscriptionPaymentBanner (public App.vue branches, gated to Faces). The
- * Facturation tab and /pricing already run their own useSubscriptionPayment polling, so
- * both mounts skip routes flagged `meta.ownSubscriptionSurface` in the router.
+ * Facturation tab and /pricing carry their own resume / verify / cancel controls (the
+ * checkout is now a same-tab redirect: no in-page polling, and the return is verified by
+ * usePaymentReturn on /face/billing), so both mounts skip routes flagged
+ * `meta.ownSubscriptionSurface` in the router.
  */
 const RECONCILE_POLL_MS = 6000
 

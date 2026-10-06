@@ -175,17 +175,92 @@ describe('usePaymentReturn', () => {
     expect(ctx.toast.success).toHaveBeenCalledWith('Votre abonnement est activé.')
   })
 
-  it('subscription: confirmed when the webhook already activated it (verify=free, current=active)', async () => {
-    ctx.route.query = { payment_return: 'subscription' }
-    ctx.current.value = { status: 'active' }
-    vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue({
-      data: { subscription_id: null, status: 'free' },
-    } as never)
-    const { api } = mountReturn()
+  describe('subscription snapshot guard (renewal / upgrade of an already active Face)', () => {
+    const snapshotKey = 'weact.auth.subscription-payment-snapshot'
+    const verify = (status: string) =>
+      vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue({
+        data: { subscription_id: 's', status },
+      } as never)
 
-    await api.start()
+    beforeEach(() => {
+      sessionStorage.clear()
+      ctx.route.query = { payment_return: 'subscription' }
+    })
 
-    expect(api.state.value).toBe('confirmed')
+    it('does NOT confirm when the status still reports the OLD active row (verify=free, nothing changed vs the snapshot)', async () => {
+      sessionStorage.setItem(snapshotKey, JSON.stringify({ tier: 'pro', expires_at: '2027-01-01T00:00:00Z' }))
+      ctx.current.value = { status: 'active', tier: 'pro', expires_at: '2027-01-01T00:00:00Z' } as never
+      verify('free')
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('verifying')
+      expect(ctx.toast.success).not.toHaveBeenCalled()
+    })
+
+    it('confirms when the tier changed vs the snapshot', async () => {
+      sessionStorage.setItem(snapshotKey, JSON.stringify({ tier: 'pro', expires_at: '2027-01-01T00:00:00Z' }))
+      ctx.current.value = { status: 'active', tier: 'elite', expires_at: '2027-01-01T00:00:00Z' } as never
+      verify('free')
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('confirmed')
+    })
+
+    it('confirms when expires_at moved forward vs the snapshot (same tier renewal)', async () => {
+      sessionStorage.setItem(snapshotKey, JSON.stringify({ tier: 'pro', expires_at: '2027-01-01T00:00:00Z' }))
+      ctx.current.value = { status: 'active', tier: 'pro', expires_at: '2028-01-01T00:00:00Z' } as never
+      verify('active')
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('confirmed')
+    })
+
+    it('does NOT confirm when expires_at is unchanged even if verify says active (snapshot is the stricter proof)', async () => {
+      sessionStorage.setItem(snapshotKey, JSON.stringify({ tier: 'pro', expires_at: '2027-01-01T00:00:00Z' }))
+      ctx.current.value = { status: 'active', tier: 'pro', expires_at: '2027-01-01T00:00:00Z' } as never
+      verify('active')
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('verifying')
+    })
+
+    it('without a snapshot, falls back to verify-payment only: free + active status is NOT a confirmation', async () => {
+      ctx.current.value = { status: 'active', tier: 'pro', expires_at: '2027-01-01T00:00:00Z' } as never
+      verify('free')
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('verifying')
+    })
+
+    it('without a snapshot, verify=active confirms', async () => {
+      verify('active')
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('confirmed')
+    })
+
+    it('clears the snapshot once the flow is over', async () => {
+      sessionStorage.setItem(snapshotKey, JSON.stringify({ tier: 'free', expires_at: null }))
+      ctx.current.value = { status: 'active', tier: 'pro', expires_at: '2027-01-01T00:00:00Z' } as never
+      verify('active')
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(sessionStorage.getItem(snapshotKey)).toBeNull()
+    })
   })
 
   it('failed: surfaces the failed state (no toast), keeps polling off, cleans the URL; retry hands over to onRetry', async () => {
@@ -211,23 +286,38 @@ describe('usePaymentReturn', () => {
   })
 
   it.each(['canceled', 'declined'])(
-    'fedapay_status=%s fails immediately without polling, then cleans the URL (hint only)',
+    'fedapay_status=%s asks the server ONCE, then fails right away without polling (hint only)',
     async (hint) => {
       ctx.route.query = { payment_return: 'booking', fedapay_status: hint }
+      vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('accepted'))
       const onRetry = vi.fn()
       const { api } = mountReturn({ onRetry })
 
       await api.start()
 
       expect(api.state.value).toBe('failed')
-      expect(bookingApi.checkPaymentStatus).not.toHaveBeenCalled()
+      expect(bookingApi.checkPaymentStatus).toHaveBeenCalledOnce()
       expect(ctx.toast.success).not.toHaveBeenCalled()
       expect(ctx.replace).toHaveBeenCalledWith({ query: {} })
+
+      await vi.advanceTimersByTimeAsync(30000)
+      expect(bookingApi.checkPaymentStatus).toHaveBeenCalledOnce()
 
       api.retry()
       expect(onRetry).toHaveBeenCalledWith('booking', expect.anything())
     },
   )
+
+  it('a crafted ?fedapay_status=canceled on a payment the server says is settled shows the success, not a false failure', async () => {
+    ctx.route.query = { payment_return: 'booking', fedapay_status: 'canceled' }
+    vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('paid'))
+    const { api } = mountReturn()
+
+    await api.start()
+
+    expect(api.state.value).toBe('confirmed')
+    expect(ctx.toast.success).toHaveBeenCalledOnce()
+  })
 
   it('fedapay_status=approved keeps the normal polling', async () => {
     ctx.route.query = { payment_return: 'booking', fedapay_status: 'approved' }
@@ -285,5 +375,207 @@ describe('usePaymentReturn', () => {
     await vi.advanceTimersByTimeAsync(60000)
 
     expect(bookingApi.checkPaymentStatus).toHaveBeenCalledOnce()
+  })
+
+  describe('outcome mapping (each branch is load-bearing)', () => {
+    it.each(['refused', 'expired', 'cancelled_by_producer', 'cancelled_by_face'])(
+      'booking: dead status %s is a failure, not a success',
+      async (status) => {
+        ctx.route.query = { payment_return: 'booking' }
+        vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes(status))
+        const { api } = mountReturn()
+
+        await api.start()
+
+        expect(api.state.value).toBe('failed')
+      },
+    )
+
+    it('booking: a later status (in_progress) is settled', async () => {
+      ctx.route.query = { payment_return: 'booking' }
+      vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('in_progress'))
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('confirmed')
+    })
+
+    it('booking_commission: still pending keeps polling (never settled)', async () => {
+      ctx.route.query = { payment_return: 'booking_commission' }
+      vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue(bookingRes('pending'))
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('verifying')
+    })
+
+    it('booking_commission: a later status (accepted by the Face) is settled', async () => {
+      ctx.route.query = { payment_return: 'booking_commission' }
+      vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue(bookingRes('accepted'))
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('confirmed')
+    })
+
+    it('booking_commission: dead booking status is a failure', async () => {
+      ctx.route.query = { payment_return: 'booking_commission' }
+      vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue(bookingRes('expired'))
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('failed')
+    })
+
+    it('mission_commission: commission_payment_status=failed is a failure', async () => {
+      ctx.route.query = { payment_return: 'mission_commission', mission: 'm-1' }
+      vi.mocked(missionApi.getCommissionStatus).mockResolvedValue(
+        bookingRes('pending_payment', { commission_payment_status: 'failed' }),
+      )
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('failed')
+    })
+
+    it('mission_commission: still pending_payment keeps polling', async () => {
+      ctx.route.query = { payment_return: 'mission_commission', mission: 'm-1' }
+      vi.mocked(missionApi.getCommissionStatus).mockResolvedValue(bookingRes('pending_payment'))
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('verifying')
+    })
+
+    it('candidature_escrow: payment_status=failed is a failure', async () => {
+      ctx.route.query = { payment_return: 'candidature_escrow', candidature: 'c-1' }
+      vi.mocked(candidatureApi.getCandidaturePaymentStatus).mockResolvedValue({
+        data: { candidature_status: 'pending', payment_status: 'failed', is_trackable: true },
+      })
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('failed')
+    })
+
+    it('candidature_escrow: pending but NOT trackable (webhook already removed the entry) is a failure', async () => {
+      ctx.route.query = { payment_return: 'candidature_escrow', candidature: 'c-1' }
+      vi.mocked(candidatureApi.getCandidaturePaymentStatus).mockResolvedValue({
+        data: { candidature_status: 'pending', payment_status: 'pending', is_trackable: false },
+      })
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('failed')
+    })
+
+    it('candidature_escrow: pending and trackable keeps polling', async () => {
+      ctx.route.query = { payment_return: 'candidature_escrow', candidature: 'c-1' }
+      vi.mocked(candidatureApi.getCandidaturePaymentStatus).mockResolvedValue({
+        data: { candidature_status: 'pending', payment_status: 'pending', is_trackable: true },
+      })
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('verifying')
+    })
+
+    it.each([
+      ['failed', { has_payment: true, is_trackable: true, status: 'failed' }],
+      ['refunded', { has_payment: true, is_trackable: true, status: 'refunded' }],
+      ['not trackable (transaction released server-side)', { has_payment: true, is_trackable: false, status: 'pending' }],
+      ['no payment row', { has_payment: false, is_trackable: false, status: undefined }],
+    ])('mission_selection: %s is a failure', async (_label, data) => {
+      ctx.route.query = { payment_return: 'mission_selection' }
+      vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
+        data: { ...data, mission_status: 'pending_payment' },
+      } as never)
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('failed')
+    })
+
+    it('mission_selection: pending and trackable keeps polling', async () => {
+      ctx.route.query = { payment_return: 'mission_selection' }
+      vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
+        data: { has_payment: true, is_trackable: true, status: 'pending', mission_status: 'pending_payment' },
+      })
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('verifying')
+    })
+  })
+
+  describe('robustness', () => {
+    it('onFinished is called after the cleanup with the outcome', async () => {
+      ctx.route.query = { payment_return: 'booking' }
+      vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('paid'))
+      const onFinished = vi.fn()
+      const { api } = mountReturn({ onFinished })
+
+      await api.start()
+
+      expect(onFinished).toHaveBeenCalledWith('booking', 'confirmed')
+    })
+
+    it('does not strip the query of another route when the user already navigated away', async () => {
+      ctx.route = { ...ctx.route, path: '/producer/missions', query: { payment_return: 'booking' } } as never
+      vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('paid'))
+      const { api } = mountReturn()
+
+      const started = api.start()
+      ctx.route.path = '/somewhere/else'
+      await started
+
+      expect(ctx.replace).not.toHaveBeenCalled()
+      delete (ctx.route as { path?: string }).path
+    })
+
+    it('no success toast when the page was torn down while onConfirmed was running', async () => {
+      ctx.route.query = { payment_return: 'booking' }
+      vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('paid'))
+      const holder: { unmount?: () => void } = {}
+      const { api, wrapper } = mountReturn({
+        onConfirmed: async () => {
+          holder.unmount?.()
+        },
+      })
+      holder.unmount = () => wrapper.unmount()
+
+      await api.start()
+
+      expect(ctx.toast.success).not.toHaveBeenCalled()
+      expect(ctx.replace).not.toHaveBeenCalled()
+    })
+
+    it('stops polling and goes back to idle when the page is deactivated (keep-alive)', async () => {
+      ctx.route.query = { payment_return: 'booking' }
+      vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('accepted'))
+      const { api, wrapper } = mountReturn()
+
+      await api.start()
+      expect(api.state.value).toBe('verifying')
+
+      // KeepAlive deactivation hook of the owning component instance.
+      const instance = wrapper.vm.$ as unknown as { da?: Array<() => void> }
+      instance.da?.forEach((hook) => hook())
+      await vi.advanceTimersByTimeAsync(60000)
+
+      expect(api.state.value).toBe('idle')
+      expect(bookingApi.checkPaymentStatus).toHaveBeenCalledOnce()
+    })
   })
 })

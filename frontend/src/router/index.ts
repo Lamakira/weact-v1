@@ -128,9 +128,16 @@ const router = createRouter({
       path: '/pricing',
       name: 'pricing',
       component: () => import('../views/PricingView.vue'),
-      // ownSubscriptionSurface: the page runs its own useSubscriptionPayment
-      // polling/controls — the shared payment banners must not mount here.
+      // ownSubscriptionSurface: the page carries its own resume/cancel controls
+      // (same-tab checkout, no polling) — the shared payment banners must not mount here.
       meta: { title: 'Tarifs - WEACT', ownSubscriptionSurface: true },
+    },
+    // Neutral FedaPay browser-return landing (backend fallback when no payment matched).
+    {
+      path: '/paiement/retour',
+      name: 'payment-return',
+      component: () => import('../views/PaymentReturnView.vue'),
+      meta: { title: 'Retour de paiement - WEACT', requiresAuth: true },
     },
     // Auth routes (guest only)
     {

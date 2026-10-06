@@ -623,6 +623,21 @@ describe('FaceBookingDetailPage — UGC commission CTA (story 1.6)', () => {
     expect(overlay.attributes('data-open')).toBe('true')
   })
 
+  it('consumes ?pay=1 from the URL once handled, so a full-reload Back cannot reopen the tunnel', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', type_contenu: 'UGC', commission_ugc: 2500, producer_id: 2 }),
+      { pay: '1', keep: 'me' },
+    )
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="ugc-overlay-stub"]').attributes('data-open')).toBe('true')
+    const query = wrapper.vm.$route.query
+    expect(query.pay).toBeUndefined()
+    expect(query.keep).toBe('me')
+  })
+
   it('opens the engagement modal on Accepter for a UGC booking without calling accept (story 2.4)', async () => {
     const wrapper = await mountPage(
       makeBooking({
