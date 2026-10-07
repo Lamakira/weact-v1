@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Mission;
 
+use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Models\Mission;
 use App\Models\Producer;
@@ -72,7 +73,7 @@ class DeleteMissionRequest extends FormRequest
             }
 
             // Whatever its status, a mission holding cash escrow (paid or settled) is never deletable.
-            if ($mission->hasCashEscrow() || $mission->payment()->exists()) {
+            if ($mission->hasCashEscrow() || $mission->payment()->whereIn('status', [MissionPaymentStatus::Pending->value, MissionPaymentStatus::Paid->value])->exists()) {
                 $validator->errors()->add(
                     'mission',
                     'Une mission dont le paiement a été effectué ne peut pas être supprimée.'

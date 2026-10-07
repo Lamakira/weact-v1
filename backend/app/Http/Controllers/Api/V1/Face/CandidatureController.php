@@ -438,10 +438,36 @@ class CandidatureController extends Controller
             ]);
         }
 
+        $payments = app(MissionPaymentService::class);
+
+        // Checkout cash : on interroge FedaPay (API serveur) AVANT de prendre le moindre verrou.
+        // Payé → réglé ici puis retrait refusé (candidature acceptée) ; en cours → refus ;
+        // indisponible → refus par prudence ; mort / abandonné → la sélection sera réinitialisée.
+        $assessment = $candidature->status === CandidatureStatus::Pending
+            ? $payments->assessCashCheckout($candidature)
+            : null;
+
+        if ($assessment !== null) {
+            if ($assessment['kind'] === MissionPaymentService::CHECKOUT_UNVERIFIABLE) {
+                return response()->json(ErrorCodes::InvalidStatus->envelope(
+                    'Impossible de vérifier le paiement pour le moment, réessayez dans quelques minutes.'
+                ), 422);
+            }
+
+            if ($assessment['kind'] === MissionPaymentService::CHECKOUT_IN_FLIGHT) {
+                return response()->json(ErrorCodes::InvalidStatus->envelope(
+                    'Le producteur est en train de payer ; réessayez dans une heure si le paiement n\'aboutit pas.'
+                ), 422);
+            }
+        }
+
         // Sous verrou : relit la candidature (une approbation concurrente peut l'avoir fait
         // avancer) puis applique les gardes et l'annulation de façon atomique.
-        $blocked = DB::transaction(function () use ($candidature): ?JsonResponse {
-            // Ordre de verrous : mission → candidature (puis payment / entry dans le service).
+        $blocked = DB::transaction(function () use ($candidature, $payments, $assessment): ?JsonResponse {
+            // Ordre de verrous (aligné sur markAsPaid) : payment → entries → mission → candidature.
+            if ($assessment !== null && $assessment['kind'] === MissionPaymentService::CHECKOUT_RESETTABLE) {
+                $payments->lockCashSelection($assessment['payment_id']);
+            }
             Mission::query()->lockForUpdate()->find($candidature->mission_id);
 
             /** @var Candidature $locked */
@@ -455,20 +481,10 @@ class CandidatureController extends Controller
                 );
             }
 
-            $payments = app(MissionPaymentService::class);
-
-            // Checkout cash en cours : la candidature fait partie de la sélection payée par le
-            // Producteur — se retirer maintenant laisserait N Faces facturées pour N-1 escrows.
-            $inFlight = $payments->inFlightPaymentKind($locked);
-
-            // Checkout abandonné (plus de transaction vivante) : on réinitialise la sélection
-            // entière (payment + entries supprimés, mission republiée) puis le retrait se poursuit.
-            if ($inFlight === MissionPaymentService::STALE_CASH_CHECKOUT
-                && ! $payments->resetPendingCashSelection($locked, 'face_withdrew_stale_checkout')) {
-                $inFlight = MissionPaymentService::IN_FLIGHT_CASH_CHECKOUT;
-            }
-
-            if ($inFlight === MissionPaymentService::IN_FLIGHT_CASH_CHECKOUT) {
+            // Checkout cash abandonné / mort : réinitialisation de la sélection entière (payment +
+            // entries supprimés, mission republiée), puis le retrait se poursuit.
+            if ($assessment !== null
+                && ! $payments->resetPendingCashSelection($locked, 'face_withdrew_stale_checkout', $assessment)) {
                 return response()->json(ErrorCodes::InvalidStatus->envelope(
                     'Le producteur est en train de payer ; réessayez dans une heure si le paiement n\'aboutit pas.'
                 ), 422);
@@ -477,6 +493,7 @@ class CandidatureController extends Controller
             // ugc-9-1 (D-9.1.j) : une candidature hybride Pending peut porter une entry escrow
             // Pending in-flight (paiement Producteur initié, webhook pas encore confirmé). On la
             // markFailed (supprime l'entry → libère le slot in-flight) AVANT le flip Cancelled.
+            $locked->unsetRelation('paymentEntry');
             $entry = $locked->paymentEntry;
             if ($entry !== null && $entry->escrow_status === EscrowStatus::Pending) {
                 $payments->markUgcMissionCandidatureFailed($entry, 'face_cancelled_pending');

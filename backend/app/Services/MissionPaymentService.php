@@ -19,12 +19,14 @@ use App\Mail\MissionCompletedMail;
 use App\Models\Candidature;
 use App\Models\Conversation;
 use App\Models\Face;
+use App\Models\FinancialEvent;
 use App\Models\Mission;
 use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
+use App\ValueObjects\BookingPricing;
 use App\ValueObjects\MissionPricing;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
@@ -907,7 +909,10 @@ class MissionPaymentService
         string $reason = 'attendance_absent',
         array $extraMetadata = [],
         ?string $walletLabel = null,
+        ?int $amountOverride = null,
     ): void {
+        $refundAmount = $amountOverride ?? (int) $entry->montant_face_recoit;
+
         $producerUserId = $this->getUserIdForProducer($mission->producer_id);
 
         if ($producerUserId === null) {
@@ -921,7 +926,7 @@ class MissionPaymentService
 
         $this->walletService->creditDirect(
             $producerUserId,
-            (int) $entry->montant_face_recoit,
+            $refundAmount,
             $walletLabel ?? "Mission : remboursement absence Face — {$mission->titre}",
         );
 
@@ -933,7 +938,7 @@ class MissionPaymentService
         $this->recordMissionAttendanceFinancialEvent(
             FinancialEventType::Refund,
             $entry,
-            (int) $entry->montant_face_recoit,
+            $refundAmount,
             [
                 'status' => 'completed',
                 'metadata' => array_merge(
@@ -960,10 +965,10 @@ class MissionPaymentService
      * entry already Locked → no-op). NO-THROW: a missing Face/candidature/mission logs
      * critical and returns, so the webhook job is never poisoned into a retry storm.
      */
-    public function markUgcMissionCandidaturePaid(MissionPaymentCandidature $entry, string $fedapayRef): void
+    public function markUgcMissionCandidaturePaid(MissionPaymentCandidature $entry, string $fedapayRef, ?int $paidAmount = null): void
     {
         /** @var Candidature|null $accepted */
-        $accepted = DB::transaction(function () use ($entry, $fedapayRef): ?Candidature {
+        $accepted = DB::transaction(function () use ($entry, $fedapayRef, $paidAmount): ?Candidature {
             // Ordre de verrous aligné : mission → entry → candidature (comme delete / complete).
             $preMissionId = Candidature::query()->whereKey($entry->candidature_id)->value('mission_id');
             if ($preMissionId !== null) {
@@ -1030,21 +1035,31 @@ class MissionPaymentService
                     'fedapay_ref' => $fedapayRef,
                 ]);
 
+                // Montant réellement débité par FedaPay (cash + 10 % de frais) : événement signé / transaction
+                // récupérée ; à défaut, recalcul déterministe (frais Producteur indépendants du palier Face).
+                $refundAmount = $paidAmount !== null && $paidAmount > 0
+                    ? $paidAmount
+                    : (int) (new BookingPricing((int) $lockedMission->montant_remuneration, 0.0))->totalProducerPays;
+                if ($refundAmount < (int) $lockedEntry->montant_face_recoit) {
+                    $refundAmount = (int) $lockedEntry->montant_face_recoit;
+                }
+
                 $this->refundToProducer(
                     $lockedEntry,
                     $lockedMission,
                     'late_approval_candidature_unavailable',
-                    walletLabel: "Mission : paiement reçu pour une candidature plus disponible — {$lockedMission->titre}",
+                    walletLabel: "Mission : paiement de {$refundAmount} XOF reçu pour une candidature plus disponible — {$lockedMission->titre}",
+                    amountOverride: $refundAmount,
                 );
 
                 $this->notifySafely(
                     userId: $this->getUserIdForProducer($lockedMission->producer_id),
                     type: 'mission_candidature_refunded',
                     data: [
-                        'message' => 'Votre paiement est arrivé alors que la candidature n\'était plus disponible : il vous a été remboursé.',
+                        'message' => "Votre paiement de {$refundAmount} XOF est arrivé alors que la candidature n'était plus disponible : il vous a été intégralement remboursé.",
                         'mission_id' => $lockedMission->id,
                         'candidature_id' => $lockedCandidature->id,
-                        'montant' => (int) $lockedEntry->montant_face_recoit,
+                        'montant' => $refundAmount,
                         'reason' => 'late_approval_candidature_unavailable',
                     ],
                 );
@@ -1238,7 +1253,11 @@ class MissionPaymentService
         $transaction = $this->fedapayService->retrieveTransaction((int) $entry->fedapay_transaction_id);
 
         if ($transaction->status === 'approved') {
-            $this->markUgcMissionCandidaturePaid($entry, (string) ($transaction->reference ?? 'fedapay_poll'));
+            $this->markUgcMissionCandidaturePaid(
+                $entry,
+                (string) ($transaction->reference ?? 'fedapay_poll'),
+                isset($transaction->amount) ? (int) $transaction->amount : null,
+            );
 
             // Approbation tardive sur une candidature plus acceptable : l'argent a été remboursé
             // au Producteur — ne jamais annoncer « paid ».
@@ -1434,103 +1453,180 @@ class MissionPaymentService
         }, 3);
     }
 
-    public const IN_FLIGHT_CASH_CHECKOUT = 'cash_checkout';
+    /** FedaPay indique `pending` depuis plus longtemps que cela : plus personne ne doit rester piégé. */
+    public const CASH_CHECKOUT_PENDING_MAX_HOURS = 24;
 
-    public const STALE_CASH_CHECKOUT = 'stale_cash_checkout';
+    /** Fenêtre d'initiation : une row sans transaction plus jeune que cela est peut-être en cours d'appel FedaPay. */
+    public const CASH_CHECKOUT_INITIATION_GRACE_MINUTES = 10;
 
-    public const IN_FLIGHT_HYBRID_PAYMENT = 'hybrid_payment';
+    public const CHECKOUT_IN_FLIGHT = 'in_flight';
 
-    /** Durée pendant laquelle un checkout cash est considéré « en cours » après l'attache de sa transaction FedaPay. */
-    public const CASH_CHECKOUT_IN_FLIGHT_MINUTES = 60;
+    public const CHECKOUT_RESETTABLE = 'resettable';
+
+    public const CHECKOUT_SETTLED = 'settled';
+
+    public const CHECKOUT_UNVERIFIABLE = 'unverifiable';
 
     /**
-     * Detects a payment currently in flight on a candidature (read it under the candidature lock).
-     *
-     * - `cash_checkout`: the candidature belongs to the selection of a Pending cash MissionPayment
-     *   with a FedaPay transaction attached less than CASH_CHECKOUT_IN_FLIGHT_MINUTES ago (the
-     *   Producer is on the checkout) — its Pending entry must not be touched.
-     * - `stale_cash_checkout`: same selection but abandoned (no transaction, or too old) — the
-     *   caller resets it through resetPendingCashSelection().
-     * - `hybrid_payment`: a parentless hybrid UGC entry is Pending with a FedaPay transaction.
-     *
-     * @return self::IN_FLIGHT_*|self::STALE_CASH_CHECKOUT|null
+     * Whether a parentless hybrid UGC entry is Pending with a FedaPay transaction on this candidature.
      */
-    public function inFlightPaymentKind(Candidature $candidature): ?string
+    public function hasInFlightHybridPayment(Candidature $candidature): bool
+    {
+        return MissionPaymentCandidature::query()
+            ->where('candidature_id', $candidature->id)
+            ->whereNull('mission_payment_id')
+            ->where('escrow_status', EscrowStatus::Pending->value)
+            ->whereNotNull('fedapay_transaction_id')
+            ->exists();
+    }
+
+    /**
+     * Assesses the cash checkout (Pending MissionPayment) a candidature belongs to, against
+     * FedaPay's real status (server-side API, never a browser hint). MUST be called OUTSIDE any
+     * DB transaction / row lock (it performs an HTTP call and may settle the payment).
+     *
+     * - approved / transferred → the payment is settled here (markAsPaid) → `settled`.
+     * - pending / created      → `in_flight`, unless pending for > CASH_CHECKOUT_PENDING_MAX_HOURS
+     *                            since FedaPay's own creation timestamp → `resettable`.
+     * - declined / canceled / expired / refunded → `resettable`.
+     * - FedaPay API error      → `unverifiable` (fail closed).
+     * - no transaction yet     → initiation window: `in_flight` if the row is younger than
+     *                            CASH_CHECKOUT_INITIATION_GRACE_MINUTES or the mission payment
+     *                            cache lock is held, else `resettable`.
+     *
+     * @return array{kind: string, payment_id: int, transaction_id: int|null, fedapay_status: string|null}|null
+     *                                                                                                          null when the candidature is not part of a Pending cash selection.
+     */
+    public function assessCashCheckout(Candidature $candidature): ?array
     {
         /** @var MissionPaymentCandidature|null $entry */
         $entry = MissionPaymentCandidature::query()
             ->where('candidature_id', $candidature->id)
             ->where('escrow_status', EscrowStatus::Pending->value)
+            ->whereNotNull('mission_payment_id')
             ->first();
 
         if ($entry === null) {
             return null;
         }
 
-        if ($entry->mission_payment_id !== null) {
-            /** @var MissionPayment|null $payment */
-            $payment = MissionPayment::query()
-                ->whereKey($entry->mission_payment_id)
-                ->where('status', MissionPaymentStatus::Pending->value)
-                ->first();
+        /** @var MissionPayment|null $payment */
+        $payment = MissionPayment::query()
+            ->whereKey($entry->mission_payment_id)
+            ->where('status', MissionPaymentStatus::Pending->value)
+            ->first();
 
-            if ($payment === null) {
-                return null;
-            }
-
-            return $this->isCashCheckoutLive($payment) ? self::IN_FLIGHT_CASH_CHECKOUT : self::STALE_CASH_CHECKOUT;
+        if ($payment === null) {
+            return null;
         }
 
-        return $entry->fedapay_transaction_id !== null ? self::IN_FLIGHT_HYBRID_PAYMENT : null;
+        $transactionId = $payment->fedapay_transaction_id !== null ? (int) $payment->fedapay_transaction_id : null;
+        $result = fn (string $kind, ?string $status = null): array => [
+            'kind' => $kind,
+            'payment_id' => $payment->id,
+            'transaction_id' => $transactionId,
+            'fedapay_status' => $status,
+        ];
+
+        if ($transactionId === null) {
+            $young = $payment->created_at === null
+                || $payment->created_at->gt(now()->subMinutes(self::CASH_CHECKOUT_INITIATION_GRACE_MINUTES));
+
+            return $result($young || $this->isMissionPaymentLockHeld($payment->mission_id)
+                ? self::CHECKOUT_IN_FLIGHT
+                : self::CHECKOUT_RESETTABLE);
+        }
+
+        try {
+            $transaction = $this->fedapayService->retrieveTransaction($transactionId);
+            $status = (string) $transaction->status;
+
+            if (in_array($status, ['approved', 'transferred'], true)) {
+                $this->markAsPaid($payment, (string) ($transaction->reference ?? $transactionId));
+
+                return $result(self::CHECKOUT_SETTLED, $status);
+            }
+
+            if (in_array($status, FedapayService::TERMINAL_FAILED_STATUSES, true)) {
+                return $result(self::CHECKOUT_RESETTABLE, $status);
+            }
+
+            $createdAt = isset($transaction->created_at) ? \Illuminate\Support\Carbon::parse((string) $transaction->created_at) : null;
+
+            if ($createdAt !== null && $createdAt->lt(now()->subHours(self::CASH_CHECKOUT_PENDING_MAX_HOURS))) {
+                return $result(self::CHECKOUT_RESETTABLE, $status);
+            }
+
+            return $result(self::CHECKOUT_IN_FLIGHT, $status);
+        } catch (\Throwable $e) {
+            Log::warning('MissionPaymentService::assessCashCheckout — FedaPay indisponible, refus par prudence', [
+                'payment_id' => $payment->id,
+                'transaction_id' => $transactionId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $result(self::CHECKOUT_UNVERIFIABLE);
+        }
     }
 
-    private function isCashCheckoutLive(MissionPayment $payment): bool
+    private function isMissionPaymentLockHeld(int $missionId): bool
     {
-        return $payment->fedapay_transaction_id !== null
-            && $payment->updated_at !== null
-            && $payment->updated_at->gt(now()->subMinutes(self::CASH_CHECKOUT_IN_FLIGHT_MINUTES));
+        $lock = Cache::lock("mission_payment_{$missionId}", 5);
+
+        if ($lock->get()) {
+            $lock->release();
+
+            return false;
+        }
+
+        return true;
     }
 
     /**
-     * Resets an abandoned (stale) cash selection: deletes the Pending MissionPayment and its Pending
-     * entries, puts the mission back to Published (selection cleared — candidatures stay Pending),
-     * records the PaymentDetached audit if a transaction was attached, and tells the Producer to
-     * redo the selection. A late FedaPay approval then hits the webhook's detached-payment escalation.
-     *
-     * MUST be called inside an existing DB::transaction(). Returns false (nothing done) if the
-     * payment is no longer Pending or became live again under the lock.
+     * Locks a cash selection in markAsPaid's order (payment → entries). Call it BEFORE locking the
+     * mission / candidature in the withdraw / reject paths. MUST be inside a DB::transaction().
      */
-    public function resetPendingCashSelection(Candidature $candidature, string $reason): bool
+    public function lockCashSelection(int $paymentId): void
     {
-        /** @var MissionPaymentCandidature|null $entry */
-        $entry = MissionPaymentCandidature::query()
-            ->where('candidature_id', $candidature->id)
-            ->whereNotNull('mission_payment_id')
-            ->first();
+        MissionPayment::query()->lockForUpdate()->find($paymentId);
+        MissionPaymentCandidature::query()->where('mission_payment_id', $paymentId)->lockForUpdate()->get();
+    }
 
-        if ($entry === null) {
-            return false;
-        }
-
-        // Ordre de verrous : mission → payment → entries.
-        /** @var Mission|null $mission */
-        $mission = Mission::query()->lockForUpdate()->find($candidature->mission_id);
+    /**
+     * Resets an abandoned cash selection (see assessCashCheckout → resettable): deletes the Pending
+     * MissionPayment and its Pending entries, puts the mission back to Published (selection cleared —
+     * candidatures stay Pending), records the PaymentDetached audit if a transaction was attached, and
+     * tells the Producer to redo the selection. A late FedaPay approval then hits the webhook's
+     * detached-payment path (Producer wallet credit + CRITICAL escalation).
+     *
+     * MUST be called inside an existing DB::transaction(). Returns false (nothing done) if, under the
+     * lock, the payment is no longer Pending or its transaction changed since the assessment.
+     *
+     * @param  array{kind: string, payment_id: int, transaction_id: int|null, fedapay_status: string|null}  $assessment
+     */
+    public function resetPendingCashSelection(Candidature $candidature, string $reason, array $assessment): bool
+    {
+        // Ordre de verrous (aligné sur markAsPaid) : payment → entries → mission.
+        $this->lockCashSelection($assessment['payment_id']);
 
         /** @var MissionPayment|null $payment */
-        $payment = MissionPayment::query()->lockForUpdate()->find($entry->mission_payment_id);
+        $payment = MissionPayment::query()->find($assessment['payment_id']);
 
         if ($payment === null
             || $payment->status !== MissionPaymentStatus::Pending
-            || $this->isCashCheckoutLive($payment)) {
+            || ($payment->fedapay_transaction_id !== null ? (int) $payment->fedapay_transaction_id : null) !== $assessment['transaction_id']) {
             return false;
         }
+
+        /** @var Mission|null $mission */
+        $mission = Mission::query()->lockForUpdate()->find($candidature->mission_id);
 
         if ($payment->fedapay_transaction_id !== null) {
             $this->recordDetachedPayment(
                 'mission_payment',
                 $payment->id,
                 (string) $payment->fedapay_transaction_id,
-                null,
+                $assessment['fedapay_status'],
                 (int) $payment->montant_total_producteur,
                 ['mission_id' => $payment->mission_id, 'producer_id' => $payment->producer_id, 'reason' => $reason],
             );
@@ -1555,6 +1651,68 @@ class MissionPaymentService
         );
 
         return true;
+    }
+
+    /**
+     * Closes the loop on a late approval of a transaction recorded as PaymentDetached for a cash
+     * selection: credits the Producer's wallet with the amount FedaPay actually charged (from the
+     * signed webhook event). Idempotent on the transaction id. The detached selection itself is
+     * NEVER settled. Returns true only when a credit was made now.
+     */
+    public function creditProducerForDetachedCashPayment(FinancialEvent $detachment, int $paidAmount, string $transactionId): bool
+    {
+        /** @var array<string, mixed> $metadata */
+        $metadata = is_array($detachment->metadata) ? $detachment->metadata : [];
+
+        if (($metadata['entity_type'] ?? null) !== 'mission_payment' || $paidAmount <= 0) {
+            return false;
+        }
+
+        $producerUserId = isset($metadata['producer_id']) ? $this->getUserIdForProducer((int) $metadata['producer_id']) : null;
+
+        if ($producerUserId === null) {
+            return false;
+        }
+
+        $credited = DB::transaction(function () use ($transactionId, $paidAmount, $producerUserId, $metadata): bool {
+            $event = FinancialEvent::firstOrCreate(
+                ['idempotency_key' => "detached_cash_late_credit:{$transactionId}"],
+                [
+                    'type' => FinancialEventType::Refund,
+                    'booking_id' => null,
+                    'amount' => $paidAmount,
+                    'fedapay_ref' => $transactionId,
+                    'status' => 'completed',
+                    'metadata' => array_merge($metadata, ['reason' => 'detached_cash_payment_late_approval']),
+                ],
+            );
+
+            if (! $event->wasRecentlyCreated) {
+                return false;
+            }
+
+            $this->walletService->creditDirect(
+                $producerUserId,
+                $paidAmount,
+                "Paiement de sélection reçu après annulation de la sélection — remboursement de {$paidAmount} XOF",
+            );
+
+            return true;
+        }, 3);
+
+        if ($credited) {
+            $this->notifySafely(
+                userId: $producerUserId,
+                type: 'mission_detached_payment_credited',
+                data: [
+                    'message' => "Votre paiement de {$paidAmount} XOF est arrivé après l'annulation de la sélection : il a été crédité sur votre portefeuille.",
+                    'mission_id' => $metadata['mission_id'] ?? null,
+                    'montant' => $paidAmount,
+                ],
+            );
+        }
+
+        return $credited;
     }
 
     /**

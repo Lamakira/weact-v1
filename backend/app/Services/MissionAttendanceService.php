@@ -474,7 +474,7 @@ class MissionAttendanceService
 
         $hasUnsettled = $mission->payment->entries()
             ->where('escrow_status', EscrowStatus::Locked)
-            ->whereIn('attendance_status', [AttendanceStatus::Pending, AttendanceStatus::Absent])
+            ->whereIn('attendance_status', [AttendanceStatus::Pending, AttendanceStatus::Absent, AttendanceStatus::Disputed])
             ->exists();
 
         if ($hasUnsettled) {

@@ -8,6 +8,7 @@ use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\CompensationType;
 use App\Enums\EscrowStatus;
+use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
 use App\Models\Candidature;
@@ -188,7 +189,10 @@ class MissionService
      */
     public function deleteMission(Mission $mission): void
     {
-        DB::transaction(function () use ($mission): void {
+        /** @var \Closure|null $deleteMediaFiles */
+        $deleteMediaFiles = null;
+
+        DB::transaction(function () use ($mission, &$deleteMediaFiles): void {
             // Lock the mission row and re-check under lock: a concurrent complete / attendance
             // validation must never race a delete of a mission holding cash escrow.
             /** @var Mission $locked */
@@ -201,21 +205,28 @@ class MissionService
                 MissionStatus::Completed,
             ], true)
                 || $locked->hasCashEscrow()
-                || $locked->payment()->exists()) {
+                || $locked->payment()->whereIn('status', [MissionPaymentStatus::Pending->value, MissionPaymentStatus::Paid->value])->exists()) {
                 throw ValidationException::withMessages([
                     'mission' => ['Une mission dont le paiement a été effectué ne peut pas être supprimée.'],
                 ]);
             }
 
             $this->cancelActiveCandidatesOnDelete($mission);
-            // Médias UGC : fichiers + rows AVANT le hard-delete — les tables enfants
-            // morph (product_photos, shipments, deliverables) n'ont pas de FK cascade.
-            // Couvre les product_photos de la mission ET, pour chaque candidature, son
-            // shipment (+ photos de réception) et ses livrables (le trou historique de
-            // detachAll, qui n'atteignait que les product_photos de la mission).
-            $this->ugcMediaCleanupService->purgeForMission($mission);
+            // Médias UGC : rows AVANT le hard-delete — les tables enfants morph (product_photos,
+            // shipments, deliverables) n'ont pas de FK cascade. Couvre les product_photos de la
+            // mission ET, pour chaque candidature, son shipment (+ photos de réception) et ses
+            // livrables. Les FICHIERS ne sont supprimés qu'après le commit : un rollback / retry
+            // de la transaction ne doit jamais perdre de média.
+            $deleteMediaFiles = $this->ugcMediaCleanupService->purgeForMissionDeferringFiles($mission);
+
+            // Une row de paiement `failed` sans escrow n'est pas bloquante : on la retire avec la mission.
+            $locked->payment()->where('status', MissionPaymentStatus::Failed->value)->delete();
             $mission->delete();
         }, 3);
+
+        if ($deleteMediaFiles !== null) {
+            $deleteMediaFiles();
+        }
     }
 
     /**
@@ -297,7 +308,9 @@ class MissionService
             /** @var Mission $locked */
             $locked = Mission::query()->lockForUpdate()->findOrFail($mission->id);
 
-            if ($locked->status === MissionStatus::PendingAttendanceValidation || $locked->hasCashEscrow()) {
+            if (in_array($locked->status, [MissionStatus::PendingAttendanceValidation, MissionStatus::PendingPayment], true)
+                || $locked->hasCashEscrow()
+                || $locked->payment()->where('status', MissionPaymentStatus::Pending->value)->exists()) {
                 throw ValidationException::withMessages([
                     'status' => ['Cette mission ne peut pas être clôturée manuellement : des présences ou un paiement sont en cours.'],
                 ]);

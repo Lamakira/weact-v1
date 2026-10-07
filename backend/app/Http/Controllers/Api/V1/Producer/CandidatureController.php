@@ -386,11 +386,30 @@ class CandidatureController extends Controller
             ], 400);
         }
 
-        // Sous verrou : relit la candidature et refuse si un paiement est en vol (checkout cash
-        // dont elle fait partie, ou paiement hybride FedaPay en cours) — sinon l'argent encaissé
-        // serait séquestré pour une candidature refusée.
-        $blocked = DB::transaction(function () use ($candidature): ?JsonResponse {
-            // Ordre de verrous : mission → candidature (puis payment / entry dans le service).
+        // Checkout cash : FedaPay (API serveur) est interrogé AVANT tout verrou — voir assessCashCheckout.
+        $assessment = $this->missionPayments->assessCashCheckout($candidature);
+
+        if ($assessment !== null) {
+            if ($assessment['kind'] === MissionPaymentService::CHECKOUT_UNVERIFIABLE) {
+                return response()->json(ErrorCodes::InvalidStatus->envelope(
+                    'Impossible de vérifier le paiement pour le moment, réessayez dans quelques minutes.'
+                ), 422);
+            }
+
+            if ($assessment['kind'] === MissionPaymentService::CHECKOUT_IN_FLIGHT) {
+                return response()->json(ErrorCodes::InvalidStatus->envelope(
+                    'Un paiement est en cours pour cette sélection : réessayez dans une heure s\'il n\'aboutit pas.'
+                ), 422);
+            }
+        }
+
+        // Sous verrou : relit la candidature et refuse si un paiement hybride est en vol — sinon
+        // l'argent encaissé serait séquestré pour une candidature refusée.
+        $blocked = DB::transaction(function () use ($candidature, $assessment): ?JsonResponse {
+            // Ordre de verrous (aligné sur markAsPaid) : payment → entries → mission → candidature.
+            if ($assessment !== null && $assessment['kind'] === MissionPaymentService::CHECKOUT_RESETTABLE) {
+                $this->missionPayments->lockCashSelection($assessment['payment_id']);
+            }
             Mission::query()->lockForUpdate()->find($candidature->mission_id);
 
             /** @var Candidature $locked */
@@ -405,21 +424,18 @@ class CandidatureController extends Controller
                 ], 400);
             }
 
-            $inFlight = $this->missionPayments->inFlightPaymentKind($locked);
-
-            // Checkout cash abandoné : la sélection est réinitialisée (le Producteur est notifié),
-            // puis le refus se poursuit normalement.
-            if ($inFlight === MissionPaymentService::STALE_CASH_CHECKOUT) {
-                $inFlight = $this->missionPayments->resetPendingCashSelection($locked, 'producer_rejected_stale_checkout')
-                    ? null
-                    : MissionPaymentService::IN_FLIGHT_CASH_CHECKOUT;
+            if ($this->missionPayments->hasInFlightHybridPayment($locked)) {
+                return response()->json(ErrorCodes::InvalidStatus->envelope(
+                    'Un paiement est en cours pour cette candidature : attendez sa confirmation avant de la refuser.'
+                ), 422);
             }
 
-            if ($inFlight !== null) {
+            // Checkout cash abandonné / mort : la sélection est réinitialisée (le Producteur est
+            // notifié), puis le refus se poursuit normalement.
+            if ($assessment !== null
+                && ! $this->missionPayments->resetPendingCashSelection($locked, 'producer_rejected_stale_checkout', $assessment)) {
                 return response()->json(ErrorCodes::InvalidStatus->envelope(
-                    $inFlight === MissionPaymentService::IN_FLIGHT_CASH_CHECKOUT
-                        ? 'Un paiement est en cours pour cette sélection : réessayez dans une heure s\'il n\'aboutit pas.'
-                        : 'Un paiement est en cours pour cette candidature : attendez sa confirmation avant de la refuser.'
+                    'Un paiement est en cours pour cette sélection : réessayez dans une heure s\'il n\'aboutit pas.'
                 ), 422);
             }
 

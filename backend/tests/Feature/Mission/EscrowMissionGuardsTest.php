@@ -298,6 +298,7 @@ class EscrowMissionGuardsTest extends TestCase
     {
         [$mission, $faces] = $this->pendingCheckoutMission(3);
         $target = $faces[0];
+        $this->fedapayReports('pending');
 
         $this->actingAs($target['faceUser'])
             ->postJson("/api/v1/face/candidatures/{$target['candidature']->uuid}/cancel")
@@ -311,6 +312,7 @@ class EscrowMissionGuardsTest extends TestCase
     public function test_producer_cannot_reject_candidature_selected_in_pending_cash_checkout(): void
     {
         [$mission, $faces] = $this->pendingCheckoutMission(2);
+        $this->fedapayReports('pending');
 
         $this->actingAs($this->producerUser)
             ->postJson("/api/v1/producer/candidatures/{$faces[0]['candidature']->uuid}/reject")
@@ -375,14 +377,15 @@ class EscrowMissionGuardsTest extends TestCase
 
         app(MissionPaymentService::class)->markUgcMissionCandidaturePaid($entry, 'ref_late');
 
+        // Le Producteur est remboursé de TOUT ce que FedaPay a débité (15000 cash + 10 % = 16500).
         $this->assertSame(EscrowStatus::Refunded, $entry->fresh()->escrow_status);
-        $this->assertSame(14250, (int) $this->producerUser->fresh()->balance);
+        $this->assertSame(16500, (int) $this->producerUser->fresh()->balance);
         $this->assertSame(CandidatureStatus::Rejected, $candidature->fresh()->status);
-        $this->assertDatabaseHas('financial_events', ['type' => 'refund', 'amount' => 14250]);
+        $this->assertDatabaseHas('financial_events', ['type' => 'refund', 'amount' => 16500]);
 
         // Idempotence : un re-jeu ne recrédite pas.
         app(MissionPaymentService::class)->markUgcMissionCandidaturePaid($entry->fresh(), 'ref_late');
-        $this->assertSame(14250, (int) $this->producerUser->fresh()->balance);
+        $this->assertSame(16500, (int) $this->producerUser->fresh()->balance);
     }
 
     public function test_legit_face_cancel_of_hybrid_pending_candidature_without_payment_works(): void
@@ -485,10 +488,10 @@ class EscrowMissionGuardsTest extends TestCase
         app(\App\Services\MissionService::class)->deleteMission($mission->fresh());
     }
 
-    public function test_stale_cash_checkout_face_withdrawal_resets_the_pending_payment(): void
+    public function test_terminal_fedapay_status_lets_the_face_withdraw_and_resets_the_selection(): void
     {
         [$mission, $faces] = $this->pendingCheckoutMission(3);
-        $this->ageCheckout($faces[0]['entry']->mission_payment_id, 61);
+        $this->fedapayReports('canceled');
 
         $this->actingAs($faces[0]['faceUser'])
             ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
@@ -502,6 +505,7 @@ class EscrowMissionGuardsTest extends TestCase
         $this->assertDatabaseHas('financial_events', [
             'type' => 'payment_detached',
             'fedapay_ref' => '777001',
+            'status' => 'canceled',
         ]);
         $this->assertDatabaseHas('notifications', [
             'user_id' => $this->producerUser->id,
@@ -509,10 +513,10 @@ class EscrowMissionGuardsTest extends TestCase
         ]);
     }
 
-    public function test_stale_cash_checkout_producer_reject_resets_the_pending_payment(): void
+    public function test_terminal_fedapay_status_lets_the_producer_reject_and_resets_the_selection(): void
     {
         [$mission, $faces] = $this->pendingCheckoutMission(2);
-        $this->ageCheckout($faces[0]['entry']->mission_payment_id, 90);
+        $this->fedapayReports('declined');
 
         $this->actingAs($this->producerUser)
             ->postJson("/api/v1/producer/candidatures/{$faces[0]['candidature']->uuid}/reject")
@@ -521,14 +525,137 @@ class EscrowMissionGuardsTest extends TestCase
         $this->assertSame(CandidatureStatus::Rejected, $faces[0]['candidature']->fresh()->status);
         $this->assertSame(CandidatureStatus::Pending, $faces[1]['candidature']->fresh()->status);
         $this->assertSame(0, MissionPayment::where('mission_id', $mission->id)->count());
-        $this->assertSame(0, MissionPaymentCandidature::count());
         $this->assertSame(MissionStatus::Published, $mission->fresh()->status);
     }
 
-    public function test_cash_checkout_without_transaction_does_not_block_withdrawal(): void
+    public function test_resume_then_withdraw_is_refused_while_fedapay_says_pending(): void
+    {
+        // F1 : le Producteur a repris le checkout (token régénéré, row intacte, updated_at ancien).
+        [$mission, $faces] = $this->pendingCheckoutMission(2);
+        $this->ageCheckout($faces[0]['entry']->mission_payment_id, 71);
+        $this->fedapayReports('pending', createdAt: now()->subMinutes(71));
+
+        $this->actingAs($faces[0]['faceUser'])
+            ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
+            ->assertStatus(422)
+            ->assertJsonPath('error.message', 'Le producteur est en train de payer ; réessayez dans une heure si le paiement n\'aboutit pas.');
+
+        $this->assertSame(1, MissionPayment::where('mission_id', $mission->id)->count());
+        $this->assertSame(2, MissionPaymentCandidature::count());
+        $this->assertSame(CandidatureStatus::Pending, $faces[0]['candidature']->fresh()->status);
+        $this->assertDatabaseMissing('financial_events', ['type' => 'payment_detached']);
+    }
+
+    public function test_approved_but_webhook_late_settles_the_payment_and_refuses_the_withdrawal(): void
+    {
+        [$mission, $faces] = $this->pendingCheckoutMission(2);
+        $this->ageCheckout($faces[0]['entry']->mission_payment_id, 120);
+        $this->fedapayReports('approved');
+
+        $this->actingAs($faces[0]['faceUser'])
+            ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
+            ->assertStatus(400);
+
+        $payment = MissionPayment::where('mission_id', $mission->id)->sole();
+        $this->assertSame(MissionPaymentStatus::Paid, $payment->status);
+        $this->assertSame(MissionStatus::Closed, $mission->fresh()->status);
+        $this->assertSame(CandidatureStatus::Accepted, $faces[0]['candidature']->fresh()->status);
+        $this->assertSame(EscrowStatus::Locked, $faces[0]['entry']->fresh()->escrow_status);
+        $this->assertDatabaseMissing('financial_events', ['type' => 'payment_detached']);
+    }
+
+    public function test_fedapay_api_error_fails_closed(): void
+    {
+        [$mission, $faces] = $this->pendingCheckoutMission(2);
+        $this->ageCheckout($faces[0]['entry']->mission_payment_id, 120);
+        $this->mock(\App\Services\FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('retrieveTransaction')->andThrow(new \RuntimeException('FedaPay down'));
+        });
+
+        $this->actingAs($faces[0]['faceUser'])
+            ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
+            ->assertStatus(422)
+            ->assertJsonPath('error.message', 'Impossible de vérifier le paiement pour le moment, réessayez dans quelques minutes.');
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/candidatures/{$faces[0]['candidature']->uuid}/reject")
+            ->assertStatus(422)
+            ->assertJsonPath('error.message', 'Impossible de vérifier le paiement pour le moment, réessayez dans quelques minutes.');
+
+        $this->assertSame(1, MissionPayment::where('mission_id', $mission->id)->count());
+        $this->assertSame(CandidatureStatus::Pending, $faces[0]['candidature']->fresh()->status);
+    }
+
+    public function test_pending_for_more_than_24h_allows_reset_and_late_approval_credits_the_producer_once(): void
+    {
+        [$mission, $faces] = $this->pendingCheckoutMission(2);
+        $this->fedapayReports('pending', createdAt: now()->subHours(25));
+
+        $this->actingAs($faces[0]['faceUser'])
+            ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
+            ->assertOk();
+
+        $this->assertSame(0, MissionPayment::where('mission_id', $mission->id)->count());
+        $this->assertDatabaseHas('financial_events', ['type' => 'payment_detached', 'fedapay_ref' => '777001']);
+
+        \Illuminate\Support\Facades\Log::spy();
+
+        // FedaPay a réellement débité 220000 (2 × 100000 + 10 %).
+        $this->runWebhook('evt_late_cash_1', 'transaction.approved', ['id' => 777001, 'reference' => 'ref_late', 'amount' => 220000]);
+
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('critical')->once();
+        $this->assertSame(220000, (int) $this->producerUser->fresh()->balance);
+        $this->assertSame(0, MissionPaymentCandidature::count());
+        $this->assertSame(MissionStatus::Published, $mission->fresh()->status);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->producerUser->id,
+            'type' => 'mission_detached_payment_credited',
+        ]);
+
+        // Rejeu (nouvel event, même transaction) : aucun second crédit.
+        $this->runWebhook('evt_late_cash_2', 'transaction.approved', ['id' => 777001, 'reference' => 'ref_late', 'amount' => 220000]);
+        $this->assertSame(220000, (int) $this->producerUser->fresh()->balance);
+        $this->assertSame(1, WalletTransaction::where('user_id', $this->producerUser->id)->count());
+    }
+
+    public function test_no_transaction_within_initiation_window_refuses_withdrawal(): void
+    {
+        [$mission, $faces] = $this->pendingCheckoutMission(2);
+        MissionPayment::query()->update(['fedapay_transaction_id' => null]); // created_at = maintenant
+
+        $this->actingAs($faces[0]['faceUser'])
+            ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
+            ->assertStatus(422);
+
+        $this->assertSame(1, MissionPayment::count());
+        $this->assertSame(CandidatureStatus::Pending, $faces[0]['candidature']->fresh()->status);
+    }
+
+    public function test_no_transaction_with_held_initiation_lock_refuses_withdrawal(): void
     {
         [$mission, $faces] = $this->pendingCheckoutMission(2);
         MissionPayment::query()->update(['fedapay_transaction_id' => null]);
+        DB::table('mission_payments')->update(['created_at' => now()->subMinutes(30)]);
+
+        $lock = \Illuminate\Support\Facades\Cache::lock("mission_payment_{$mission->id}", 30);
+        $this->assertTrue($lock->get());
+
+        try {
+            $this->actingAs($faces[0]['faceUser'])
+                ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
+                ->assertStatus(422);
+        } finally {
+            $lock->release();
+        }
+
+        $this->assertSame(1, MissionPayment::count());
+    }
+
+    public function test_no_transaction_after_initiation_window_resets_the_selection(): void
+    {
+        [$mission, $faces] = $this->pendingCheckoutMission(2);
+        MissionPayment::query()->update(['fedapay_transaction_id' => null]);
+        DB::table('mission_payments')->update(['created_at' => now()->subMinutes(11)]);
 
         $this->actingAs($faces[0]['faceUser'])
             ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
@@ -537,52 +664,6 @@ class EscrowMissionGuardsTest extends TestCase
         $this->assertSame(0, MissionPayment::count());
         $this->assertSame(MissionStatus::Published, $mission->fresh()->status);
         $this->assertDatabaseMissing('financial_events', ['type' => 'payment_detached']);
-    }
-
-    public function test_in_window_refusal_messages_are_truthful(): void
-    {
-        [$mission, $faces] = $this->pendingCheckoutMission(1);
-
-        $this->actingAs($faces[0]['faceUser'])
-            ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
-            ->assertStatus(422)
-            ->assertJsonPath('error.message', 'Le producteur est en train de payer ; réessayez dans une heure si le paiement n\'aboutit pas.');
-
-        $this->actingAs($this->producerUser)
-            ->postJson("/api/v1/producer/candidatures/{$faces[0]['candidature']->uuid}/reject")
-            ->assertStatus(422);
-    }
-
-    public function test_late_webhook_approval_after_reset_hits_the_escalation_path_with_audit(): void
-    {
-        [$mission, $faces] = $this->pendingCheckoutMission(2);
-        $this->ageCheckout($faces[0]['entry']->mission_payment_id, 120);
-
-        $this->actingAs($faces[0]['faceUser'])
-            ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
-            ->assertOk();
-
-        \Illuminate\Support\Facades\Log::spy();
-
-        $payload = ['entity' => ['id' => 777001, 'reference' => 'ref_late']];
-        $webhookEvent = \App\Models\FedapayWebhookEvent::create([
-            'fedapay_event_id' => 'evt_late_cash',
-            'event_name' => 'transaction.approved',
-            'payload' => $payload,
-            'status' => 'received',
-        ]);
-
-        (new \App\Jobs\HandleFedapayWebhook($webhookEvent->id, 'transaction.approved', $payload))->handle(
-            app(\App\Services\BookingService::class),
-            app(MissionPaymentService::class),
-            app(\App\Services\WalletService::class),
-            app(\App\Services\FaceSubscriptionPaymentService::class),
-        );
-
-        \Illuminate\Support\Facades\Log::shouldHaveReceived('critical')->once();
-        $this->assertSame(0, MissionPaymentCandidature::count());
-        $this->assertSame(MissionStatus::Published, $mission->fresh()->status);
-        $this->assertSame(1, \App\Models\FinancialEvent::where('type', 'payment_detached')->count());
     }
 
     public function test_legit_absent_entry_without_notified_at_does_not_freeze_completion(): void
@@ -608,6 +689,7 @@ class EscrowMissionGuardsTest extends TestCase
         $live = \Mockery::mock(\FedaPay\Transaction::class);
         $live->status = 'approved';
         $live->reference = 'ref_poll';
+        $live->amount = 16500;
         $this->mock(\App\Services\FedapayService::class, function ($mock) use ($live): void {
             $mock->shouldReceive('retrieveTransaction')->once()->with(8600)->andReturn($live);
         });
@@ -626,6 +708,104 @@ class EscrowMissionGuardsTest extends TestCase
             'user_id' => $this->producerUser->id,
             'type' => 'mission_candidature_refunded',
         ]);
+    }
+
+    public function test_failed_payment_row_without_escrow_does_not_block_deletion(): void
+    {
+        $mission = Mission::factory()->published()->create(['producer_id' => $this->producer->id]);
+        MissionPayment::create([
+            'mission_id' => $mission->id,
+            'producer_id' => $this->producer->id,
+            'nombre_faces_retenues' => 1,
+            'budget_par_face' => 100000,
+            'montant_sous_total' => 100000,
+            'commission_producteur' => 10000,
+            'montant_total_producteur' => 110000,
+            'commission_faces_total' => 10000,
+            'montant_total_faces' => 90000,
+            'status' => MissionPaymentStatus::Failed,
+        ]);
+
+        $this->actingAs($this->producerUser)
+            ->deleteJson("/api/v1/producer/missions/{$mission->uuid}")
+            ->assertOk();
+
+        $this->assertDatabaseMissing('missions', ['id' => $mission->id]);
+        $this->assertSame(0, MissionPayment::count());
+    }
+
+    public function test_late_approval_refund_uses_the_amount_actually_charged_and_states_it(): void
+    {
+        $mission = $this->hybridMission();
+        $candidature = $this->hybridCandidature($mission, CandidatureStatus::Cancelled);
+        $entry = $this->hybridEntry($candidature, EscrowStatus::Pending, '8700');
+
+        app(MissionPaymentService::class)->markUgcMissionCandidaturePaid($entry, 'ref_x', 17000);
+
+        $this->assertSame(17000, (int) $this->producerUser->fresh()->balance);
+        $tx = WalletTransaction::where('user_id', $this->producerUser->id)->sole();
+        $this->assertStringContainsString('17000', (string) $tx->description);
+        $notification = \App\Models\Notification::where('user_id', $this->producerUser->id)->where('type', 'mission_candidature_refunded')->sole();
+        $this->assertSame(17000, $notification->data['montant']);
+        $this->assertStringContainsString('17000', $notification->data['message']);
+    }
+
+    public function test_close_service_rechecks_pending_payment_under_lock(): void
+    {
+        [$mission] = $this->pendingCheckoutMission(1);
+        $mission->update(['status' => MissionStatus::Published]); // course : le row Pending est apparu
+
+        try {
+            app(\App\Services\MissionService::class)->closeMission($mission->fresh());
+            $this->fail('closeMission aurait dû refuser.');
+        } catch (\Illuminate\Validation\ValidationException) {
+        }
+        $this->assertSame(MissionStatus::Published, $mission->fresh()->status);
+
+        $mission->update(['status' => MissionStatus::PendingPayment]);
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        app(\App\Services\MissionService::class)->closeMission($mission->fresh());
+    }
+
+    public function test_auto_validation_does_not_complete_a_mission_with_an_open_dispute(): void
+    {
+        [$mission, $faces] = $this->paidCashMission(2, MissionStatus::PendingAttendanceValidation);
+        $faces[0]['entry']->update(['attendance_status' => AttendanceStatus::Disputed, 'notified_at' => now()->subDays(5)]);
+
+        app(\App\Services\MissionAttendanceService::class)->autoValidatePendingAsPresent($mission->fresh());
+
+        $this->assertSame(EscrowStatus::Released, $faces[1]['entry']->fresh()->escrow_status);
+        $this->assertSame(EscrowStatus::Locked, $faces[0]['entry']->fresh()->escrow_status);
+        $this->assertSame(MissionStatus::PendingAttendanceValidation, $mission->fresh()->status);
+    }
+
+    public function test_media_files_survive_a_delete_that_rolls_back(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+        $mission = Mission::factory()->published()->create(['producer_id' => $this->producer->id]);
+        $photo = $mission->productPhotos()->create([
+            'kind' => 'product', 'position' => 1, 'disk' => 'public',
+            'filename' => 'a.jpg', 'grid' => 'a.webp', 'large' => 'a.webp',
+        ]);
+        \Illuminate\Support\Facades\Storage::disk('public')->put('products/a.jpg', 'original');
+        \Illuminate\Support\Facades\Storage::disk('public')->put('products/grid/a.webp', 'grid');
+        \Illuminate\Support\Facades\Storage::disk('public')->put('products/large/a.webp', 'large');
+
+        // Échec APRÈS la purge des rows (ex. deadlock sur le DELETE final) : la transaction est annulée.
+        Mission::deleting(function (): void {
+            throw new \RuntimeException('boom');
+        });
+
+        try {
+            app(\App\Services\MissionService::class)->deleteMission($mission->fresh());
+            $this->fail('exception attendue');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('boom', $e->getMessage());
+        }
+
+        $this->assertDatabaseHas('product_photos', ['id' => $photo->id]);
+        \Illuminate\Support\Facades\Storage::disk('public')->assertExists('products/a.jpg');
+        \Illuminate\Support\Facades\Storage::disk('public')->assertExists('products/grid/a.webp');
     }
 
     // =====================================================================
@@ -779,5 +959,42 @@ class EscrowMissionGuardsTest extends TestCase
     private function ageCheckout(int $paymentId, int $minutes): void
     {
         DB::table('mission_payments')->where('id', $paymentId)->update(['updated_at' => now()->subMinutes($minutes)]);
+    }
+
+    /**
+     * Fait répondre FedaPay (retrieveTransaction, côté serveur) avec le statut donné.
+     */
+    private function fedapayReports(string $status, ?\Illuminate\Support\Carbon $createdAt = null, int $id = 777001): void
+    {
+        $transaction = \Mockery::mock(\FedaPay\Transaction::class);
+        $transaction->status = $status;
+        $transaction->reference = 'ref_'.$id;
+        $transaction->created_at = ($createdAt ?? now()->subMinutes(5))->toIso8601String();
+        $transaction->amount = 110000;
+
+        $this->mock(\App\Services\FedapayService::class, function ($mock) use ($id, $transaction): void {
+            $mock->shouldReceive('retrieveTransaction')->with($id)->andReturn($transaction);
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $entity
+     */
+    private function runWebhook(string $eventId, string $eventName, array $entity): void
+    {
+        $payload = ['entity' => $entity];
+        $webhookEvent = \App\Models\FedapayWebhookEvent::create([
+            'fedapay_event_id' => $eventId,
+            'event_name' => $eventName,
+            'payload' => $payload,
+            'status' => 'received',
+        ]);
+
+        (new \App\Jobs\HandleFedapayWebhook($webhookEvent->id, $eventName, $payload))->handle(
+            app(\App\Services\BookingService::class),
+            app(MissionPaymentService::class),
+            app(\App\Services\WalletService::class),
+            app(\App\Services\FaceSubscriptionPaymentService::class),
+        );
     }
 }

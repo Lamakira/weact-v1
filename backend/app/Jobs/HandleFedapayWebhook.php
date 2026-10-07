@@ -206,7 +206,7 @@ class HandleFedapayWebhook implements ShouldQueue
 
         if ($ugcEntry) {
             match ($this->eventName) {
-                'transaction.approved' => $missionPaymentService->markUgcMissionCandidaturePaid($ugcEntry, $fedapayRef),
+                'transaction.approved' => $missionPaymentService->markUgcMissionCandidaturePaid($ugcEntry, $fedapayRef, $this->extractPaidAmount($transactionData)),
                 'transaction.declined', 'transaction.canceled' => $missionPaymentService->markUgcMissionCandidatureFailed(
                     $ugcEntry,
                     "Payment {$this->eventName}"
@@ -326,11 +326,23 @@ class HandleFedapayWebhook implements ShouldQueue
                 ->where('type', FinancialEventType::PaymentDetached)
                 ->first();
 
+            // Sélection cash détachée puis payée : on rend l'argent au Producteur (montant réellement
+            // débité, issu de l'événement signé) — idempotent. La sélection détachée n'est JAMAIS réglée.
+            $creditedAmount = null;
+            if ($detachment !== null) {
+                $paidAmount = $this->extractPaidAmount($transactionData);
+                if ($paidAmount !== null
+                    && $missionPaymentService->creditProducerForDetachedCashPayment($detachment, $paidAmount, (string) $transactionId)) {
+                    $creditedAmount = $paidAmount;
+                }
+            }
+
             Log::critical('Fedapay webhook: paiement reçu pour une transaction détachée ou inconnue — argent encaissé, rien de réglé, réconciliation manuelle requise', [
                 'transaction_id' => $transactionId,
                 'event_name' => $this->eventName,
                 'transaction_status' => $transactionData['status'] ?? null,
                 'detachment_audit_found' => $detachment !== null,
+                'producer_wallet_credited_amount' => $creditedAmount,
                 'detachment_audit' => $detachment === null ? null : [
                     'financial_event_id' => $detachment->id,
                     'status' => $detachment->status,
