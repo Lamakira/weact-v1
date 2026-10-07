@@ -58,6 +58,25 @@ class DeleteMissionRequest extends FormRequest
                     'mission',
                     'Une mission clôturée, en attente de paiement ou terminée ne peut pas être supprimée'
                 );
+
+                return;
+            }
+
+            if ($mission->status === MissionStatus::PendingAttendanceValidation) {
+                $validator->errors()->add(
+                    'mission',
+                    'Une mission en attente de validation des présences ne peut pas être supprimée'
+                );
+
+                return;
+            }
+
+            // Whatever its status, a mission holding cash escrow (paid or settled) is never deletable.
+            if ($mission->hasCashEscrow()) {
+                $validator->errors()->add(
+                    'mission',
+                    'Une mission dont le paiement a été effectué ne peut pas être supprimée.'
+                );
             }
         });
     }

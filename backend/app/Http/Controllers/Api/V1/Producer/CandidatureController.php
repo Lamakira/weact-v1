@@ -283,6 +283,14 @@ class CandidatureController extends Controller
             abort(403, 'Cette candidature ne concerne pas une de vos missions');
         }
 
+        // Le release ne concerne que les missions UGC : sur une mission cash il rembourserait
+        // l'escrow d'une Face au Producteur et rouvrirait une mission payée.
+        if ($candidature->mission->type_mission !== MissionType::Ugc) {
+            return response()->json(ErrorCodes::InvalidStatus->envelope(
+                'La libération d\'une place n\'est possible que sur une mission UGC.'
+            ), 422);
+        }
+
         // Seule une candidature acceptée peut être libérée (escrow intact sinon).
         if ($candidature->status !== CandidatureStatus::Accepted) {
             return response()->json([
@@ -378,9 +386,43 @@ class CandidatureController extends Controller
             ], 400);
         }
 
-        // Update status
-        $candidature->status = CandidatureStatus::Rejected;
-        $candidature->save();
+        // Sous verrou : relit la candidature et refuse si un paiement est en vol (checkout cash
+        // dont elle fait partie, ou paiement hybride FedaPay en cours) — sinon l'argent encaissé
+        // serait séquestré pour une candidature refusée.
+        $blocked = DB::transaction(function () use ($candidature): ?JsonResponse {
+            /** @var Candidature $locked */
+            $locked = Candidature::query()->lockForUpdate()->findOrFail($candidature->id);
+
+            if ($locked->status !== CandidatureStatus::Pending) {
+                return response()->json([
+                    'error' => [
+                        'code' => 'INVALID_STATUS',
+                        'message' => 'Seules les candidatures en attente peuvent être refusées',
+                    ],
+                ], 400);
+            }
+
+            $inFlight = $this->missionPayments->inFlightPaymentKind($locked);
+
+            if ($inFlight !== null) {
+                return response()->json(ErrorCodes::InvalidStatus->envelope(
+                    $inFlight === MissionPaymentService::IN_FLIGHT_CASH_CHECKOUT
+                        ? 'Cette candidature fait partie de la sélection en cours de paiement : finalisez ou annulez le paiement avant de la refuser.'
+                        : 'Un paiement est en cours pour cette candidature : attendez sa confirmation avant de la refuser.'
+                ), 422);
+            }
+
+            $locked->status = CandidatureStatus::Rejected;
+            $locked->save();
+
+            return null;
+        });
+
+        if ($blocked !== null) {
+            return $blocked;
+        }
+
+        $candidature->refresh();
 
         // Create notification for the Face
         $candidature->loadMissing('face.user');

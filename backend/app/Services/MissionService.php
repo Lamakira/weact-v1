@@ -19,6 +19,7 @@ use App\Services\Ugc\UgcCommissionService;
 use App\Services\Ugc\UgcMediaCleanupService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class MissionService
 {
@@ -187,14 +188,28 @@ class MissionService
      */
     public function deleteMission(Mission $mission): void
     {
-        $this->cancelActiveCandidatesOnDelete($mission);
-        // Médias UGC : fichiers + rows AVANT le hard-delete — les tables enfants
-        // morph (product_photos, shipments, deliverables) n'ont pas de FK cascade.
-        // Couvre les product_photos de la mission ET, pour chaque candidature, son
-        // shipment (+ photos de réception) et ses livrables (le trou historique de
-        // detachAll, qui n'atteignait que les product_photos de la mission).
-        $this->ugcMediaCleanupService->purgeForMission($mission);
-        $mission->delete();
+        DB::transaction(function () use ($mission): void {
+            // Lock the mission row and re-check under lock: a concurrent complete / attendance
+            // validation must never race a delete of a mission holding cash escrow.
+            /** @var Mission $locked */
+            $locked = Mission::query()->lockForUpdate()->findOrFail($mission->id);
+
+            if (in_array($locked->status, [MissionStatus::PendingAttendanceValidation, MissionStatus::Closed, MissionStatus::Completed], true)
+                || $locked->hasCashEscrow()) {
+                throw ValidationException::withMessages([
+                    'mission' => ['Une mission dont le paiement a été effectué ne peut pas être supprimée.'],
+                ]);
+            }
+
+            $this->cancelActiveCandidatesOnDelete($mission);
+            // Médias UGC : fichiers + rows AVANT le hard-delete — les tables enfants
+            // morph (product_photos, shipments, deliverables) n'ont pas de FK cascade.
+            // Couvre les product_photos de la mission ET, pour chaque candidature, son
+            // shipment (+ photos de réception) et ses livrables (le trou historique de
+            // detachAll, qui n'atteignait que les product_photos de la mission).
+            $this->ugcMediaCleanupService->purgeForMission($mission);
+            $mission->delete();
+        });
     }
 
     /**
@@ -348,6 +363,24 @@ class MissionService
     public function completeMission(Mission $mission): Mission
     {
         return DB::transaction(function () use ($mission): Mission {
+            // Serialise with a concurrent delete / attendance action and re-read the state
+            // under lock: the same entry can never be paid twice through different keys.
+            /** @var Mission $mission */
+            $mission = Mission::query()->lockForUpdate()->findOrFail($mission->id);
+
+            if (! in_array($mission->status, [MissionStatus::Closed, MissionStatus::PendingAttendanceValidation], true)) {
+                throw ValidationException::withMessages([
+                    'status' => ['Cette mission ne peut pas être terminée dans son état actuel.'],
+                ]);
+            }
+
+            if ($mission->status === MissionStatus::PendingAttendanceValidation
+                && $mission->hasOpenAttendanceDispute()) {
+                throw ValidationException::withMessages([
+                    'status' => ['Une absence est encore dans sa fenêtre de contestation de 72 h ou fait l\'objet d\'un litige : la mission ne peut pas être terminée pour le moment.'],
+                ]);
+            }
+
             if (! $this->missionPaymentService->hasPaidPayment($mission)) {
                 throw new \RuntimeException('Mission completion requires a confirmed payment.');
             }
