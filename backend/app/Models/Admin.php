@@ -106,7 +106,8 @@ class Admin extends Authenticatable implements CanResetPasswordContract
      */
     public function sendPasswordResetNotification($token): void
     {
-        $this->notify(new AdminResetPasswordNotification($token));
+        // Sent after the response (not queued): see User::sendPasswordResetNotification().
+        dispatch(fn () => $this->notify(new AdminResetPasswordNotification($token)))->afterResponse();
     }
 
     /**

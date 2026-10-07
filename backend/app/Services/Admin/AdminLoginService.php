@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Services\Admin;
 
 use App\Models\Admin;
+use App\Notifications\AdminSecondFactorGuessingNotification;
 use App\Support\PasswordTimingGuard;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * Service for handling admin login (password step + optional TOTP step).
@@ -87,14 +90,16 @@ class AdminLoginService
 
         $email = $admin->email;
 
-        if ($this->throttle->isLocked($admin, $email, $ip)) {
+        if ($this->throttle->isLockedForSecondFactor($admin, $email, $ip)) {
             $this->throttle->logLockout($email, $ip);
 
-            return ['status' => 'locked', 'retry_after' => $this->throttle->retryAfter($admin, $email, $ip)];
+            return ['status' => 'locked', 'retry_after' => $this->throttle->retryAfterForSecondFactor($admin, $email, $ip)];
         }
 
         if (! $this->twoFactor->verifyCodeOrRecovery($admin, $code, $recoveryCode)) {
-            $this->throttle->recordFailure('auth.admin.two_factor.failed', $admin, $email, $ip);
+            if ($this->throttle->recordSecondFactorFailure($admin, $email, $ip)) {
+                $this->alertGuessing($admin);
+            }
 
             return ['status' => 'invalid_code'];
         }
@@ -108,12 +113,25 @@ class AdminLoginService
         Cache::forget($this->challengeKey($challenge));
 
         $this->throttle->clear($admin, $email, $ip);
+        $this->throttle->clearSecondFactor($admin, $email);
 
         return [
             'status' => 'ok',
             'admin' => $admin,
             'token' => $admin->createToken('admin-token', [Admin::ABILITY_TWO_FACTOR])->plainTextToken,
         ];
+    }
+
+    /**
+     * Security e-mail (queued). Must never break the login flow.
+     */
+    private function alertGuessing(Admin $admin): void
+    {
+        try {
+            $admin->notify(new AdminSecondFactorGuessingNotification);
+        } catch (Throwable $e) {
+            Log::error('auth.admin.two_factor.alert_failed', ['admin_id' => $admin->id, 'error' => $e->getMessage()]);
+        }
     }
 
     private function issueChallenge(Admin $admin): string

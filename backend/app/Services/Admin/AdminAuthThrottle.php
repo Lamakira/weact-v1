@@ -13,22 +13,37 @@ use Normalizer;
 /**
  * Per-account limiters + failure journal for the admin authentication surface.
  *
- * Two buckets, both fed by password failures AND 2FA code failures:
- *  - account + IP : 5 failures / 15 min. Locks the attacker's own IP only, so
- *    knowing an admin email is not enough to lock the real admin out from afar.
- *  - account alone: 20 failures / 15 min. Backstop against a distributed attack
- *    rotating IPs, deliberately much higher.
+ * Buckets (15 min decay):
+ *  - account + IP        : 5 failures, password AND second factor. Locks the attacker's IP.
+ *  - account alone       : 20 password failures. Backstop against IP rotation.
+ *  - second factor alone : 5 code failures (account-wide), only cleared by a full
+ *    successful 2FA login. Caps TOTP guessing by someone who knows the password,
+ *    whatever the number of IPs.
  *
- * The account subject is the admin id when the email resolves to an admin (the
- * lookup runs under an accent-insensitive collation, so spelling variants of one
- * address are one account), and a strongly normalized email otherwise. Applied
- * identically to unknown emails, so a lockout reveals nothing.
+ * Known trade-off (not eliminated): anyone who knows an admin email can still lock
+ * the account out remotely, by burning the account-wide buckets (20 password
+ * failures, or 5 wrong codes once the password is known) from several IPs. The IP
+ * split only prevents a SINGLE IP from doing it with 5 attempts. The mitigations
+ * are the 15 minute decay, the security e-mail sent to the admin, and the
+ * superadmin recovery path.
+ *
+ * The bucket key is ALWAYS derived from the normalized email (lowercase, NFKC,
+ * accents stripped) and never from the admin id: whether the DB lookup finds the
+ * admin depends on MySQL's collation, which does not fold the same characters as
+ * Str::ascii (`ı`, `ø`, `ł`...), so keying on the id for a found admin would make
+ * the lockout response an admin-existence oracle. Applied identically to unknown
+ * emails.
  */
 class AdminAuthThrottle
 {
     public const MAX_ATTEMPTS_PER_IP = 5;
 
     public const MAX_ATTEMPTS_PER_ACCOUNT = 20;
+
+    public const MAX_SECOND_FACTOR_FAILURES_PER_ACCOUNT = 5;
+
+    /** Consecutive wrong codes (after a correct password) that trigger the security e-mail. */
+    public const SECOND_FACTOR_ALERT_THRESHOLD = 3;
 
     public const DECAY_SECONDS = 900;
 
@@ -48,9 +63,7 @@ class AdminAuthThrottle
 
     public function accountSubject(?Admin $admin, string $email): string
     {
-        return $admin !== null
-            ? 'id:'.$admin->getKey()
-            : 'email:'.$this->normalizeEmail($email);
+        return 'email:'.$this->normalizeEmail($admin !== null ? $admin->email : $email);
     }
 
     public function accountKey(?Admin $admin, string $email): string
@@ -81,6 +94,65 @@ class AdminAuthThrottle
         }
 
         return max(1, ...($waits ?: [1]));
+    }
+
+    public function secondFactorKey(?Admin $admin, string $email): string
+    {
+        return 'admin-2fa-code:'.$this->accountSubject($admin, $email);
+    }
+
+    private function streakKey(?Admin $admin, string $email): string
+    {
+        return 'admin-2fa-streak:'.$this->accountSubject($admin, $email);
+    }
+
+    /**
+     * Lock check for the second-factor stage: the generic buckets OR the dedicated one.
+     */
+    public function isLockedForSecondFactor(?Admin $admin, string $email, string $ip): bool
+    {
+        return $this->isLocked($admin, $email, $ip)
+            || RateLimiter::tooManyAttempts($this->secondFactorKey($admin, $email), self::MAX_SECOND_FACTOR_FAILURES_PER_ACCOUNT);
+    }
+
+    public function retryAfterForSecondFactor(?Admin $admin, string $email, string $ip): int
+    {
+        $wait = $this->retryAfter($admin, $email, $ip);
+
+        if (RateLimiter::tooManyAttempts($this->secondFactorKey($admin, $email), self::MAX_SECOND_FACTOR_FAILURES_PER_ACCOUNT)) {
+            $wait = max($wait, RateLimiter::availableIn($this->secondFactorKey($admin, $email)));
+        }
+
+        return $wait;
+    }
+
+    /**
+     * Wrong TOTP/recovery code (always after a correct password). Counts toward the
+     * account+IP bucket and the dedicated second-factor bucket (NOT the 20 password one).
+     *
+     * @return bool true when this failure reaches the alert threshold (caller sends the e-mail)
+     */
+    public function recordSecondFactorFailure(?Admin $admin, string $email, string $ip): bool
+    {
+        RateLimiter::hit($this->accountIpKey($admin, $email, $ip), self::DECAY_SECONDS);
+        RateLimiter::hit($this->secondFactorKey($admin, $email), self::DECAY_SECONDS);
+        $streak = RateLimiter::hit($this->streakKey($admin, $email), self::DECAY_SECONDS);
+
+        Log::warning('auth.admin.two_factor.failed', [
+            'email_hash' => $this->emailFingerprint($email),
+            'ip' => $ip,
+        ]);
+
+        return $streak === self::SECOND_FACTOR_ALERT_THRESHOLD;
+    }
+
+    /**
+     * Full successful 2FA login: the only thing that clears the second-factor bucket.
+     */
+    public function clearSecondFactor(?Admin $admin, string $email): void
+    {
+        RateLimiter::clear($this->secondFactorKey($admin, $email));
+        RateLimiter::clear($this->streakKey($admin, $email));
     }
 
     public function clear(?Admin $admin, string $email, string $ip): void

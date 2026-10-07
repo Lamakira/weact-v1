@@ -107,7 +107,9 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function sendPasswordResetNotification($token): void
     {
-        $this->notify(new ResetPasswordNotification($token));
+        // Sent after the response (not queued): keeps the response time independent of
+        // whether the account exists, without writing the plaintext reset token to `jobs`.
+        dispatch(fn () => $this->notify(new ResetPasswordNotification($token)))->afterResponse();
     }
 
     /**

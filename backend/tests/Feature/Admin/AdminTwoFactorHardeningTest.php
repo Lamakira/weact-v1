@@ -13,11 +13,9 @@ use App\Services\Admin\AdminTwoFactorService;
 use App\Support\PasswordTimingGuard;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\Queue;
 use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
 
@@ -242,24 +240,27 @@ class AdminTwoFactorHardeningTest extends TestCase
         $this->postJson('/api/v1/auth/login', ['email' => 'ghost@test.com', 'password' => 'bad'])->assertStatus(401);
     }
 
-    // ------------------------------------------------ 5. queued resets
+    // ------------------------------------------------ 5. deferred resets
 
-    public function test_reset_password_notifications_are_queued(): void
+    public function test_reset_password_notifications_are_not_queued_so_the_token_never_lands_in_jobs(): void
     {
-        $this->assertInstanceOf(ShouldQueue::class, new ResetPasswordNotification('t'));
-        $this->assertInstanceOf(ShouldQueue::class, new AdminResetPasswordNotification('t'));
+        $this->assertNotInstanceOf(ShouldQueue::class, new ResetPasswordNotification('t'));
+        $this->assertNotInstanceOf(ShouldQueue::class, new AdminResetPasswordNotification('t'));
     }
 
-    public function test_forgot_password_pushes_the_mail_on_the_queue_instead_of_sending_it_inline(): void
+    public function test_forgot_password_sends_after_the_response_without_touching_the_queue(): void
     {
-        Queue::fake();
-        User::factory()->create(['email' => 'known@test.com']);
-        Admin::factory()->create(['email' => 'adm@test.com']);
+        Notification::fake();
+        $user = User::factory()->create(['email' => 'known@test.com']);
+        $admin = Admin::factory()->create(['email' => 'adm@test.com']);
 
         $this->postJson('/api/v1/auth/forgot-password', ['email' => 'known@test.com'])->assertOk();
         $this->postJson('/api/v1/admin/forgot-password', ['email' => 'adm@test.com'])->assertOk();
 
-        Queue::assertPushed(SendQueuedNotifications::class, 2);
+        // Delivered (deferred until after the response), never persisted as a job payload.
+        Notification::assertSentTo($user, ResetPasswordNotification::class);
+        Notification::assertSentTo($admin, AdminResetPasswordNotification::class);
+        $this->assertDatabaseCount('jobs', 0);
     }
 
     // ----------------------------------------------------------- 7. races

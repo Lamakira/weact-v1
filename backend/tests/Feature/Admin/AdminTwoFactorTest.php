@@ -6,9 +6,12 @@ namespace Tests\Feature\Admin;
 
 use App\Models\Admin;
 use App\Services\Admin\AdminAuthThrottle;
+use Illuminate\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\RateLimiter;
 use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
 
@@ -260,7 +263,8 @@ class AdminTwoFactorTest extends TestCase
     public function test_unenrolled_admin_can_reach_enrolment_and_logout(): void
     {
         $admin = Admin::factory()->withoutTwoFactor()->create();
-        $token = $admin->createToken('admin-token', ['2fa'])->plainTextToken;
+        // Production never issues `2fa` to an unenrolled admin: it gets the `enrol` token.
+        $token = $admin->createToken('admin-token', [Admin::ABILITY_ENROLMENT])->plainTextToken;
         $headers = ['Authorization' => 'Bearer '.$token];
 
         $this->getJson('/api/v1/admin/two-factor', $headers)
@@ -268,6 +272,62 @@ class AdminTwoFactorTest extends TestCase
             ->assertJsonPath('data.enabled', false);
         $this->postJson('/api/v1/admin/two-factor/enable', ['password' => 'password'], $headers)->assertOk();
         $this->postJson('/api/v1/admin/logout', [], $headers)->assertOk();
+    }
+
+    public function test_logout_works_with_an_enrol_token_and_revokes_it(): void
+    {
+        $admin = Admin::factory()->withoutTwoFactor()->create();
+        $headers = ['Authorization' => 'Bearer '.$admin->createToken('admin-token', [Admin::ABILITY_ENROLMENT])->plainTextToken];
+
+        $this->postJson('/api/v1/admin/logout', [], $headers)->assertOk();
+
+        $this->assertSame(0, $admin->tokens()->count());
+    }
+
+    public function test_existing_enrol_token_is_refused_by_the_ability_check_on_an_enrolled_account(): void
+    {
+        $admin = $this->twoFactorAdmin();
+        $headers = ['Authorization' => 'Bearer '.$admin->createToken('admin-token', [Admin::ABILITY_ENROLMENT])->plainTextToken];
+
+        $this->getJson('/api/v1/admin/me', $headers)
+            ->assertStatus(401)
+            ->assertJsonPath('error.code', 'ADMIN_2FA_SESSION_INVALID');
+
+        // The token still exists: the refusal comes from the ability, not from a revocation.
+        $this->assertSame(1, $admin->tokens()->count());
+    }
+
+    public function test_disable_is_refused_when_two_factor_is_not_enabled(): void
+    {
+        Notification::fake();
+        $admin = Admin::factory()->withoutTwoFactor()->create(['password' => self::PASSWORD]);
+        $this->actingAsAdmin($admin);
+
+        $this->postJson('/api/v1/admin/two-factor/disable', [
+            'password' => 'wrong', 'code' => '000000',
+        ])->assertStatus(409)->assertJsonPath('error.code', 'TWO_FACTOR_NOT_ENABLED');
+
+        // No throttle hit, no mail.
+        $this->assertFalse(app(AdminAuthThrottle::class)->isLocked($admin, $admin->email, '127.0.0.1'));
+        $this->assertSame(0, RateLimiter::attempts(app(AdminAuthThrottle::class)->accountKey($admin, $admin->email)));
+        Notification::assertNothingSent();
+    }
+
+    public function test_confirm_still_returns_token_and_codes_when_the_notification_dispatch_fails(): void
+    {
+        $admin = Admin::factory()->withoutTwoFactor()->create(['password' => self::PASSWORD]);
+        $this->actingAsAdmin($admin);
+        $secret = $this->postJson('/api/v1/admin/two-factor/enable', ['password' => self::PASSWORD])->json('data.secret');
+
+        $this->mock(NotificationDispatcher::class)
+            ->shouldReceive('send')->andThrow(new \RuntimeException('mail down'));
+
+        $this->postJson('/api/v1/admin/two-factor/confirm', [
+            'code' => (new Google2FA)->getCurrentOtp($secret),
+        ])->assertOk()
+            ->assertJsonCount(8, 'data.recovery_codes')
+            ->assertJsonStructure(['data' => ['token']]);
+        $this->assertTrue($admin->fresh()->hasTwoFactorEnabled());
     }
 
     public function test_enable_returns_secret_uri_and_qr_and_stays_pending_until_confirmed(): void

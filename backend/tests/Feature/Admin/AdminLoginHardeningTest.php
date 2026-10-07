@@ -7,6 +7,7 @@ namespace Tests\Feature\Admin;
 use App\Models\Admin;
 use App\Models\User;
 use App\Services\Admin\AdminAuthThrottle;
+use App\Services\Admin\AdminLoginService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -114,6 +115,33 @@ class AdminLoginHardeningTest extends TestCase
 
         $this->assertTrue($throttle->isLocked(null, 'ghost@test.com', '10.0.3.2'));
         $this->assertTrue($throttle->isLocked(null, ' GHOST@test.com ', '10.0.3.2'));
+    }
+
+    public function test_dotless_i_variant_shares_the_bucket_through_the_real_db_lookup(): void
+    {
+        // `ı` (dotless i) folds to `i` in Str::ascii but NOT in MySQL's utf8mb4_unicode_ci:
+        // the lookup of `admın@` finds nobody while `admin@` finds the admin.
+        Admin::factory()->withoutTwoFactor()->create(['email' => 'admin@test.com', 'password' => 'SecurePass123']);
+        $service = app(AdminLoginService::class);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->assertSame('invalid', $service->login('admın@test.com', 'bad', '10.0.5.1')['status']);
+        }
+
+        // The real admin's bucket is the very same one: locked, indistinguishable from an unknown email.
+        $this->assertSame('locked', $service->login('admin@test.com', 'SecurePass123', '10.0.5.1')['status']);
+    }
+
+    public function test_other_folded_characters_share_the_bucket_too(): void
+    {
+        Admin::factory()->withoutTwoFactor()->create(['email' => 'lolo@test.com', 'password' => 'SecurePass123']);
+        $service = app(AdminLoginService::class);
+
+        for ($i = 0; $i < 5; $i++) {
+            $service->login('łołø@test.com', 'bad', '10.0.5.2');
+        }
+
+        $this->assertSame('locked', $service->login('lolo@test.com', 'SecurePass123', '10.0.5.2')['status']);
     }
 
     public function test_failed_admin_login_is_logged_with_hashed_email_and_ip(): void
