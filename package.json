@@ -8,6 +8,8 @@
     "dev:backend": "cd backend && php artisan serve",
     "dev:queue": "cd backend && php artisan queue:work",
     "dev:frontend": "cd frontend && npm run dev",
+    "dev:reverb": "cd backend && php artisan reverb:start",
+    "dev:all": "concurrently -n backend,queue,reverb,frontend -c blue,yellow,magenta,green \"npm run dev:backend\" \"npm run dev:queue\" \"npm run dev:reverb\" \"npm run dev:frontend\"",
     "build": "cd frontend && npm run build",
     "build:check": "cd frontend && npm run build",
     "install:all": "cd backend && composer install && cd ../frontend && npm install",
