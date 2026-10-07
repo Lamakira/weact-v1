@@ -351,6 +351,24 @@ class UgcDeliverableLibraryTest extends TestCase
         $this->assertStringContainsString('.mp4', $disposition);
     }
 
+    public function test_download_forces_allowlisted_extension_for_legacy_hostile_path(): void
+    {
+        Storage::disk('local')->put('ugc/deliverables/unboxing/evil.hta', 'fake-video');
+        $booking = $this->makeBooking();
+        $deliverable = $this->makeValidatedDeliverable($booking);
+        $deliverable->update(['video_path' => 'ugc/deliverables/unboxing/evil.hta']);
+
+        $url = URL::temporarySignedRoute(
+            'producer.deliverables.download',
+            now()->addMinutes(30),
+            ['deliverable' => $deliverable->uuid],
+        );
+
+        $disposition = (string) $this->get($url)->assertOk()->headers->get('content-disposition');
+        $this->assertStringNotContainsString('.hta', $disposition);
+        $this->assertStringContainsString('.mp4', $disposition);
+    }
+
     public function test_unsigned_download_url_is_rejected(): void
     {
         $this->putSeedMedia();

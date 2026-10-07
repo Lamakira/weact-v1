@@ -24,7 +24,9 @@ use App\Models\User;
 use App\Services\Ugc\UgcDeliverableService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Storage;
 use Mockery\MockInterface;
 use Tests\TestCase;
@@ -650,7 +652,7 @@ class UgcDeliverableUploadTest extends TestCase
     public function test_other_face_cannot_upload(): void
     {
         [, $shipment] = $this->makeReceivedBooking();
-        $this->mockDeliverableService();
+        $service = $this->mockDeliverableService();
 
         $otherFace = Face::factory()->create();
         $otherFaceUser = User::factory()->create([
@@ -663,6 +665,46 @@ class UgcDeliverableUploadTest extends TestCase
             ->assertForbidden();
 
         $this->assertSame(0, Deliverable::count());
+        // 403 AVANT tout traitement du fichier : aucune sonde ffprobe d'un non-propriétaire.
+        $service->shouldNotHaveReceived('getVideoDuration');
+    }
+
+    public function test_upload_remuxes_after_commit_outside_the_shipment_lock_and_survives_a_remux_failure(): void
+    {
+        [, $shipment] = $this->makeReceivedBooking();
+        $this->partialMock(UgcDeliverableService::class, function (MockInterface $mock): void {
+            $mock->shouldReceive('getVideoDuration')->andReturn(42.0);
+            $mock->shouldReceive('storeMedia')->andReturnUsing(function (UploadedFile $video, DeliverableKind $kind): array {
+                $path = "ugc/deliverables/{$kind->value}/real.mp4";
+                Storage::disk('local')->put($path, "\0\0\0\x18ftypisom\0\0\0\0isom");
+
+                return ['video_path' => $path, 'thumbnail_path' => "ugc/deliverables/{$kind->value}/thumbnails/real.jpg", 'duree_seconds' => 42];
+            });
+        });
+
+        // Niveau de transaction de base (RefreshDatabase en ouvre déjà une) ; le remux
+        // doit tourner à ce niveau, donc HORS de la transaction + lock du Shipment.
+        $baseLevel = DB::transactionLevel();
+        $levels = [];
+        Process::fake(function () use (&$levels) {
+            $levels[] = DB::transactionLevel();
+
+            return Process::result(errorOutput: 'boom', exitCode: 1); // remux en échec
+        });
+        Event::fake([DeliverableUploaded::class]);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/shipments/{$shipment->uuid}/deliverables", ['video' => $this->fakeVideo()])
+            ->assertCreated(); // l'échec du remux n'invalide pas l'upload
+
+        // remux + repli audio (échec simulé) : 2 appels, tous hors transaction
+        $this->assertCount(2, $levels);
+        $this->assertSame([$baseLevel], array_values(array_unique($levels)), 'hors transaction / lock');
+        Process::assertRan(fn ($process): bool => in_array('-map_metadata', $process->command, true));
+        Storage::disk('local')->assertExists('ugc/deliverables/unboxing/real.mp4'); // original conservé
+        $this->assertSame(1, Deliverable::count());                                  // ligne cohérente avec le fichier
+        $this->assertSame([], glob(Storage::disk('local')->path('ugc/deliverables/unboxing').'/*.stripped.*'));
+        Event::assertDispatched(DeliverableUploaded::class);
     }
 
     public function test_producer_cannot_upload(): void

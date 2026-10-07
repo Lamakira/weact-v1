@@ -6,6 +6,7 @@ namespace App\Http\Requests\Ugc;
 
 use App\Models\Face;
 use App\Models\Shipment;
+use App\Support\UploadedMedia;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rules\File;
@@ -49,7 +50,8 @@ class ConfirmReceiptRequest extends FormRequest
             'reception_photos.*' => [
                 File::image()
                     ->types(['jpg', 'jpeg', 'png'])
-                    ->max(8 * 1024), // 8 Mo en Ko
+                    ->max(8 * 1024)
+                    ->rules([UploadedMedia::maxDimensions()]), // 8 Mo en Ko
             ],
         ];
     }

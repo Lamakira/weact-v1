@@ -9,11 +9,11 @@ use App\Jobs\GenerateImageVariants;
 use App\Models\Face;
 use App\Models\FacePhoto;
 use App\Support\ImageVariantGenerator;
+use App\Support\UploadedMedia;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class PhotoAlbumService
 {
@@ -28,12 +28,8 @@ class PhotoAlbumService
      */
     public function addPhoto(Face $face, UploadedFile $photo): FacePhoto
     {
-        // Generate unique filename with UUID
-        $extension = $photo->getClientOriginalExtension() ?: 'jpg';
-        $filename = Str::uuid()->toString().'.'.$extension;
-
         // Use transaction to ensure atomicity - cleanup files on DB failure
-        return DB::transaction(function () use ($face, $photo, $filename) {
+        return DB::transaction(function () use ($face, $photo) {
             // Re-check entitlement-aware quota inside the transaction, before any
             // filesystem write, to close the race between FormRequest validation
             // and service execution. DB transactions do not roll back filesystem
@@ -46,8 +42,8 @@ class PhotoAlbumService
 
             $nextPosition = $currentCount + 1;
 
-            // Store original photo
-            Storage::disk('public')->putFileAs(self::STORAGE_PATH, $photo, $filename);
+            // Original ré-encodé (EXIF supprimé), extension dérivée du contenu
+            $filename = UploadedMedia::storeImage('public', self::STORAGE_PATH, $photo, 'photo');
 
             try {
                 // Create FacePhoto record — variant columns stay null until the job fills them

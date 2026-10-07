@@ -108,7 +108,7 @@ class PersonalDataExposureWave2Test extends TestCase
         $article = Article::factory()->published()->create(['admin_id' => $admin->id]);
 
         $links = collect(
-            $this->withToken($admin->createToken('t')->plainTextToken)
+            $this->withToken($admin->createToken('t', [Admin::ABILITY_TWO_FACTOR])->plainTextToken)
                 ->getJson('/api/v1/admin/dashboard/recent-activity')
                 ->assertOk()
                 ->json('data')

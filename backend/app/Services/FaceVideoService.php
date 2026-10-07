@@ -8,6 +8,8 @@ use App\Enums\FaceVideoType;
 use App\Exceptions\VideoQuotaReachedException;
 use App\Models\Face;
 use App\Models\FaceVideo;
+use App\Support\UploadedMedia;
+use App\Support\VideoMetadataStripper;
 use FFMpeg\Coordinate\TimeCode;
 use FFMpeg\FFMpeg;
 use FFMpeg\FFProbe;
@@ -45,13 +47,13 @@ class FaceVideoService
      */
     public function uploadVideo(Face $face, FaceVideoType $type, UploadedFile $video): FaceVideo
     {
-        $extension = $video->getClientOriginalExtension() ?: 'mp4';
+        $extension = UploadedMedia::videoExtension($video, 'video');
         $filename = Str::uuid()->toString().'.'.$extension;
         $thumbnailFilename = Str::uuid()->toString().'.jpg';
         $storagePath = $this->storagePath($type);
         $thumbnailPath = $this->thumbnailPath($type);
 
-        return DB::transaction(function () use ($face, $type, $video, $filename, $thumbnailFilename, $storagePath, $thumbnailPath): FaceVideo {
+        $faceVideo = DB::transaction(function () use ($face, $type, $video, $filename, $thumbnailFilename, $storagePath, $thumbnailPath): FaceVideo {
             // Re-check the per-type quota inside the transaction, before any
             // filesystem write, to close the race with the FormRequest guard.
             // lockForUpdate serializes concurrent same-type uploads so two
@@ -101,6 +103,13 @@ class FaceVideoService
                 throw $e;
             }
         });
+
+        // Remux sans ré-encodage (métadonnées conteneur, GPS…) APRÈS le commit : jamais
+        // dans la transaction / sous le lock de quota. Un échec n'invalide pas l'upload
+        // (warning loggé, rattrapé par media:strip-metadata).
+        VideoMetadataStripper::stripOrLog(Storage::disk('public')->path($storagePath.'/'.$filename));
+
+        return $faceVideo;
     }
 
     /**
