@@ -66,5 +66,42 @@ class AppServiceProvider extends ServiceProvider
                     ], 429);
                 });
         });
+
+        $this->registerSecurityRateLimiters();
+    }
+
+    /**
+     * Named limiters for the security-relevant endpoints.
+     *
+     * An inline `throttle:X,Y` keys on user-id/IP only, so every inline limit on
+     * the same principal shares ONE counter regardless of route (public browsing
+     * ate the register/forgot-password allowance, a `throttle:60,1` request
+     * shortened the 10-minute password-change window). A named limiter's key is
+     * prefixed by its name, giving each purpose its own bucket.
+     */
+    private function registerSecurityRateLimiters(): void
+    {
+        $byIp = fn (Request $request): string => (string) $request->ip();
+        // Authenticated user routes (admins are refused there by `api.token`).
+        $byUserOrIp = fn (Request $request): string => (string) ($request->user()?->id ?: $request->ip());
+
+        // Coarse per-IP backstop vs password spraying; the per-account limit lives in LoginController.
+        RateLimiter::for('login', fn (Request $request) => Limit::perMinute(30)->by($byIp($request)));
+        RateLimiter::for('register', fn (Request $request) => Limit::perMinute(5)->by($byIp($request)));
+        RateLimiter::for('forgot-password', fn (Request $request) => Limit::perMinute(5)->by($byIp($request)));
+        RateLimiter::for('reset-password', fn (Request $request) => Limit::perMinute(5)->by($byIp($request)));
+        RateLimiter::for('email-verification-resend', fn (Request $request) => Limit::perMinute(1)->by($byUserOrIp($request)));
+        RateLimiter::for('email-change', fn (Request $request) => Limit::perMinutes(10, 3)->by($byUserOrIp($request)));
+        RateLimiter::for('password-change', fn (Request $request) => Limit::perMinutes(10, 5)->by($byUserOrIp($request)));
+
+        // Signed public links (verify email / confirm email change): one bucket per route and IP.
+        RateLimiter::for('email-link', fn (Request $request) => Limit::perMinute(10)
+            ->by(($request->route()?->getName() ?? 'email-link').'|'.$request->ip()));
+
+        // Admin surface: per-IP backstops; the per-account limit lives in AdminAuthThrottle.
+        RateLimiter::for('admin-login', fn (Request $request) => Limit::perMinute(5)->by($byIp($request)));
+        RateLimiter::for('admin-two-factor', fn (Request $request) => Limit::perMinute(10)->by($byIp($request)));
+        RateLimiter::for('admin-forgot-password', fn (Request $request) => Limit::perMinute(5)->by($byIp($request)));
+        RateLimiter::for('admin-reset-password', fn (Request $request) => Limit::perMinute(5)->by($byIp($request)));
     }
 }

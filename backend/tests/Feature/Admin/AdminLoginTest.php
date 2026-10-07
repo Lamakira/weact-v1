@@ -20,7 +20,7 @@ class AdminLoginTest extends TestCase
     {
         parent::setUp();
 
-        $this->admin = Admin::factory()->create([
+        $this->admin = Admin::factory()->withoutTwoFactor()->create([
             'email' => 'admin@test.com',
             'password' => $this->password,
         ]);

@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminFaceSubscriptionController;
 use App\Http\Controllers\Api\V1\Admin\AdminFinanceController;
 use App\Http\Controllers\Api\V1\Admin\AdminForgotPasswordController;
 use App\Http\Controllers\Api\V1\Admin\AdminResetPasswordController;
+use App\Http\Controllers\Api\V1\Admin\AdminTwoFactorController;
 use App\Http\Controllers\Api\V1\Admin\AdminUgcSuspensionController;
 use App\Http\Controllers\Api\V1\Admin\ArticleController;
 use App\Http\Controllers\Api\V1\Admin\AuthController;
@@ -22,23 +23,51 @@ use Illuminate\Support\Facades\Route;
 
 // Public admin routes (no auth)
 Route::prefix('v1/admin')->group(function () {
+    // Per-IP backstop only (named limiter, own counter). The per-account limit
+    // (5 failures / 15 min per email) lives in AdminLoginService.
     Route::post('/login', [AuthController::class, 'login'])
-        ->middleware('throttle:5,1')
+        ->middleware('throttle:admin-login')
         ->name('admin.login');
 
+    // Second login step: challenge id + TOTP or recovery code -> token.
+    Route::post('/login/two-factor', [AuthController::class, 'twoFactorChallenge'])
+        ->middleware('throttle:admin-two-factor')
+        ->name('admin.login.two-factor');
+
     Route::post('/forgot-password', AdminForgotPasswordController::class)
-        ->middleware('throttle:5,1')
+        ->middleware('throttle:admin-forgot-password')
         ->name('admin.forgot-password');
 
     Route::post('/reset-password', AdminResetPasswordController::class)
-        ->middleware('throttle:5,1')
+        ->middleware('throttle:admin-reset-password')
         ->name('admin.reset-password');
 });
 
-// Protected admin routes
-Route::prefix('v1/admin')->middleware(['auth:sanctum', 'api.token', 'admin'])->group(function () {
-    // Auth routes (all admin roles)
+// Admin routes reachable WITHOUT confirmed 2FA: logout + enrolment/management.
+// (`admin.2fa` below blocks everything else with 403 ADMIN_2FA_REQUIRED.)
+Route::prefix('v1/admin')->middleware(['auth:sanctum', 'api.token:admin', 'admin'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('admin.logout');
+
+    Route::prefix('two-factor')->group(function () {
+        Route::get('/', [AdminTwoFactorController::class, 'status'])->name('admin.two-factor.status');
+        Route::post('/enable', [AdminTwoFactorController::class, 'enable'])
+            ->middleware('throttle:admin-two-factor')
+            ->name('admin.two-factor.enable');
+        Route::post('/confirm', [AdminTwoFactorController::class, 'confirm'])
+            ->middleware('throttle:admin-two-factor')
+            ->name('admin.two-factor.confirm');
+        Route::post('/disable', [AdminTwoFactorController::class, 'disable'])
+            ->middleware('throttle:admin-two-factor')
+            ->name('admin.two-factor.disable');
+        Route::post('/recovery-codes', [AdminTwoFactorController::class, 'regenerateRecoveryCodes'])
+            ->middleware('throttle:admin-two-factor')
+            ->name('admin.two-factor.recovery-codes');
+    });
+});
+
+// Protected admin routes (2FA enrolment enforced)
+Route::prefix('v1/admin')->middleware(['auth:sanctum', 'api.token:admin', 'admin', 'admin.2fa'])->group(function () {
+    // Auth routes (all admin roles)
     Route::get('/me', [AuthController::class, 'me'])->name('admin.me');
 
     // Article management routes (all admin roles - editors manage articles)
@@ -212,5 +241,9 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'api.token', 'admin'])->g
         Route::post('/admins/{admin}/send-reset-link', [AdminController::class, 'sendPasswordReset'])
             ->middleware('throttle:30,1')
             ->name('admin.admins.send-reset-link');
+
+        Route::post('/admins/{admin}/two-factor/reset', [AdminTwoFactorController::class, 'reset'])
+            ->middleware('throttle:30,1')
+            ->name('admin.admins.two-factor.reset');
     });
 });

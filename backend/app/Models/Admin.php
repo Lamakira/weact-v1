@@ -21,6 +21,10 @@ use Laravel\Sanctum\HasApiTokens;
  * @property string $name
  * @property string $email
  * @property AdminRole $role
+ * @property string|null $two_factor_secret
+ * @property array<int, string>|null $two_factor_recovery_codes
+ * @property \Illuminate\Support\Carbon|null $two_factor_confirmed_at
+ * @property int|null $two_factor_last_used_timestep
  */
 class Admin extends Authenticatable implements CanResetPasswordContract
 {
@@ -46,6 +50,8 @@ class Admin extends Authenticatable implements CanResetPasswordContract
     protected $hidden = [
         'password',
         'remember_token',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
     ];
 
     /**
@@ -58,7 +64,18 @@ class Admin extends Authenticatable implements CanResetPasswordContract
         return [
             'password' => 'hashed',
             'role' => AdminRole::class,
+            'two_factor_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
+            'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Whether TOTP two-factor authentication is enrolled AND confirmed.
+     */
+    public function hasTwoFactorEnabled(): bool
+    {
+        return $this->two_factor_secret !== null && $this->two_factor_confirmed_at !== null;
     }
 
     public function isSuperAdmin(): bool
