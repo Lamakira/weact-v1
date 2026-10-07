@@ -8,19 +8,25 @@ use App\Concerns\RecordsFinancialEvent;
 use App\Enums\BookingCancellationReason;
 use App\Enums\BookingStatus;
 use App\Enums\CompensationType;
+use App\Enums\DisputeResolutionOutcome;
+use App\Enums\EscrowStatus;
 use App\Enums\FinancialEventType;
 use App\Enums\UgcRefundReason;
 use App\Events\BookingAccepted;
 use App\Events\BookingCancelled;
 use App\Events\BookingCompleted;
 use App\Events\BookingCreated;
+use App\Events\BookingDisputeSettled;
 use App\Events\BookingExpired;
 use App\Events\BookingNoShowReported;
 use App\Events\BookingPaid;
 use App\Events\BookingPartiallyConfirmed;
 use App\Events\BookingRefused;
+use App\Models\Admin;
 use App\Models\Booking;
+use App\Models\EscrowTransaction;
 use App\Models\Face;
+use App\Models\Notification;
 use App\Models\User;
 use App\Services\Ugc\UgcCommissionService;
 use App\Services\Ugc\UgcRefundService;
@@ -34,6 +40,18 @@ use Illuminate\Validation\ValidationException;
 class BookingService
 {
     use RecordsFinancialEvent;
+
+    /** Fenêtre de contestation Face avant remboursement automatique du Producteur. */
+    public const DISPUTE_WINDOW_HOURS = 72;
+
+    /** Au-delà, un booking payé sans suite est « legacy » : jamais relancé ni payé automatiquement. */
+    public const LEGACY_AFTER_DAYS = 30;
+
+    /** Relance 24 h après la fin du jour de tournage (jour J + 2 à 00:00). */
+    public const REMINDER_AFTER_DAYS = 2;
+
+    /** Paiement automatique de la Face 7 jours après la fin du jour de tournage (jour J + 8 à 00:00). */
+    public const SILENT_AUTO_COMPLETE_AFTER_DAYS = 8;
 
     public function __construct(
         private readonly FedapayService $fedapayService,
@@ -300,7 +318,8 @@ class BookingService
     /**
      * Cancel a booking (Producer only).
      * - pending/accepted: immediate cancel with no financial operation
-     * - paid: credit 90% to the Producer wallet
+     * - paid, before the shoot day: credit 90% to the Producer wallet immediately
+     * - paid, from the shoot day: escrow held 72 h (Face can contest), refund via settleDispute
      *
      * @throws ValidationException
      */
@@ -333,8 +352,22 @@ class BookingService
                 ]);
             }
 
+            // Annulation tardive d'un booking payé (à partir du jour du tournage) : les fonds
+            // restent en séquestre 72 h, la Face peut contester ; sans contestation le
+            // remboursement 90 % part automatiquement (bookings:settle-disputes).
+            $settlementDueAt = null;
+
             if ($booking->status === BookingStatus::Paid) {
-                $this->escrowService->refund($booking, $this->walletService);
+                $escrow = EscrowTransaction::query()
+                    ->where('booking_id', $booking->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($this->isShootDayReached($booking) && $escrow?->status === EscrowStatus::Locked->value) {
+                    $settlementDueAt = now()->addHours(self::DISPUTE_WINDOW_HOURS);
+                } else {
+                    $this->escrowService->refund($booking, $this->walletService);
+                }
             }
 
             $booking->update([
@@ -343,6 +376,7 @@ class BookingService
                 'custom_cancellation_reason' => $reason === BookingCancellationReason::Other->value
                     ? $customReason
                     : null,
+                'settlement_due_at' => $settlementDueAt,
             ]);
 
             return $booking->fresh();
@@ -440,9 +474,10 @@ class BookingService
     }
 
     /**
-     * Report a Face no-show on a paid booking whose shooting date has passed.
-     * Credits 100% of montant_total_producteur to Producer's wallet.
-     * Updates escrow to refunded. Applies rating penalty to Face.
+     * Report a Face no-show on a paid (or Face-confirmed) booking, from the day AFTER the
+     * shoot day. The money stays in escrow for 72 h: the Face can contest, an admin decides;
+     * uncontested, bookings:settle-disputes refunds the Producer (settleDispute).
+     * No wallet credit / escrow flip / rating penalty at report time.
      *
      * @throws ValidationException
      */
@@ -450,19 +485,14 @@ class BookingService
     {
         $reportedBooking = DB::transaction(function () use ($booking, $reporter): Booking {
             $lockedBooking = Booking::query()
-                ->with(['face.userable', 'escrowTransaction'])
+                ->with(['face.userable'])
                 ->lockForUpdate()
                 ->findOrFail($booking->id);
 
-            if ($lockedBooking->status !== BookingStatus::Paid) {
+            if (! in_array($lockedBooking->status, [BookingStatus::Paid, BookingStatus::ConfirmedByFace], true)
+                || $lockedBooking->type_contenu === 'UGC') {
                 throw ValidationException::withMessages([
                     'status' => ['Le signalement d\'absence n\'est possible que sur un booking payé.'],
-                ]);
-            }
-
-            if ($lockedBooking->date_debut?->isFuture() ?? false) {
-                throw ValidationException::withMessages([
-                    'date_debut' => ['Le signalement d\'absence n\'est possible qu\'après la date de tournage.'],
                 ]);
             }
 
@@ -472,42 +502,32 @@ class BookingService
                 ]);
             }
 
-            $lockedBooking->update(['status' => BookingStatus::NoShow]);
+            // Pas d'heure de tournage : absence signalable à partir du lendemain du jour de tournage.
+            if ($lockedBooking->date_debut === null
+                || now()->lt($lockedBooking->date_debut->copy()->startOfDay()->addDay())) {
+                throw ValidationException::withMessages([
+                    'date_debut' => ['Le signalement d\'absence est possible à partir du lendemain du tournage.'],
+                ]);
+            }
 
-            // Mark escrow as refunded (no FedaPay — wallet credit instead)
-            $this->escrowService->markRefundedForNoShow($lockedBooking);
+            $escrow = EscrowTransaction::query()
+                ->where('booking_id', $lockedBooking->id)
+                ->lockForUpdate()
+                ->first();
 
-            // Credit Producer wallet with 100% of montant_total_producteur
-            $this->walletService->credit(
-                $lockedBooking->producer_id,
-                $lockedBooking->montant_total_producteur,
-                $lockedBooking,
-                'Booking : remboursement absence Face (100%)',
-            );
+            if ($escrow === null || $escrow->status !== EscrowStatus::Locked->value) {
+                throw ValidationException::withMessages([
+                    'status' => ['Ce booking n\'a pas de paiement en séquestre.'],
+                ]);
+            }
 
-            // Record financial event for audit trail
-            $this->recordFinancialEvent(
-                FinancialEventType::Refund,
-                $lockedBooking,
-                $lockedBooking->montant_total_producteur,
-                ['status' => 'completed', 'metadata' => ['reason' => 'no_show', 'refund_percentage' => 100]],
-            );
+            $lockedBooking->update([
+                'status' => BookingStatus::NoShow,
+                'settlement_due_at' => now()->addHours(self::DISPUTE_WINDOW_HOURS),
+            ]);
 
             return $lockedBooking->fresh();
         });
-
-        // Apply rating penalty (non-fatal, outside transaction)
-        try {
-            $faceProfile = $reportedBooking->face?->userable;
-            if ($faceProfile instanceof Face) {
-                $faceProfile->increment('rating_penalty', 1.0);
-            }
-        } catch (\Throwable $e) {
-            Log::warning('Failed to apply face rating penalty after no-show report', [
-                'booking_id' => $reportedBooking->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
 
         // Dispatch event (non-fatal)
         try {
@@ -520,6 +540,244 @@ class BookingService
         }
 
         return $reportedBooking;
+    }
+
+    /**
+     * The Face contests a no-show report / a late Producer cancellation within the 72 h
+     * window. Freezes the automatic settlement: an admin decides (resolveDispute side).
+     *
+     * @throws ValidationException
+     */
+    public function contest(Booking $booking, User $face, string $message): Booking
+    {
+        $contested = DB::transaction(function () use ($booking, $face, $message): Booking {
+            /** @var Booking $locked */
+            $locked = Booking::query()->lockForUpdate()->findOrFail($booking->id);
+
+            if ($face->id !== $locked->face_id) {
+                throw ValidationException::withMessages([
+                    'actor' => ['Seule la Face concernée peut contester.'],
+                ]);
+            }
+
+            if (! $this->isPendingSettlementStatus($locked)) {
+                throw ValidationException::withMessages([
+                    'status' => ['Ce booking ne peut pas être contesté dans son état actuel.'],
+                ]);
+            }
+
+            if ($locked->disputed_at !== null) {
+                throw ValidationException::withMessages([
+                    'status' => ['Ce booking est déjà contesté.'],
+                ]);
+            }
+
+            $escrow = EscrowTransaction::query()
+                ->where('booking_id', $locked->id)
+                ->lockForUpdate()
+                ->first();
+
+            if ($escrow === null || $escrow->status !== EscrowStatus::Locked->value) {
+                throw ValidationException::withMessages([
+                    'status' => ['Ce booking n\'a pas de paiement en séquestre.'],
+                ]);
+            }
+
+            if (now()->gte($locked->settlement_due_at)) {
+                throw ValidationException::withMessages([
+                    'settlement_due_at' => ['Le délai de contestation de 72 h est dépassé.'],
+                ]);
+            }
+
+            $locked->update([
+                'disputed_at' => now(),
+                'dispute_message' => trim($message),
+            ]);
+
+            return $locked->fresh();
+        });
+
+        Log::info('BookingService::contest — booking contested by Face', [
+            'booking_id' => $contested->id,
+            'face_id' => $contested->face_id,
+            'status' => $contested->status->value,
+        ]);
+
+        try {
+            Notification::create([
+                'user_id' => $contested->producer_id,
+                'type' => 'booking_dispute_opened',
+                'data' => [
+                    'message' => 'La Face conteste votre signalement ou votre annulation. Un administrateur va trancher.',
+                    'booking_id' => $contested->id,
+                    'url' => "/producer/bookings/{$contested->uuid}",
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('BookingDisputeOpened notification failed', [
+                'booking_id' => $contested->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $contested;
+    }
+
+    /**
+     * Settle a pending-settlement booking (no-show / late Producer cancellation).
+     * - `$admin === null` : automatic settlement after the 72 h window, favor_producer only,
+     *   silent no-op (returns null) if the booking is no longer eligible (idempotent).
+     * - `$admin !== null` : admin decision on a CONTESTED booking, 422 if not eligible.
+     *
+     * Money (single transaction, booking row then escrow row):
+     * - favor_producer / no-show : escrow refunded, 100 % montant_total_producteur credited,
+     *   rating penalty on the Face (after commit).
+     * - favor_producer / late cancel : EscrowService::refund (90 %).
+     * - favor_face / no-show : booking Completed + escrow released (Face paid).
+     * - favor_face / late cancel : status unchanged + escrow released (Face paid).
+     *
+     * @return Booking|null the settled booking, null on automatic no-op
+     *
+     * @throws ValidationException
+     */
+    public function settleDispute(
+        Booking $booking,
+        DisputeResolutionOutcome $outcome,
+        ?Admin $admin = null,
+        ?string $notes = null,
+    ): ?Booking {
+        $automatic = $admin === null;
+
+        if ($automatic && $outcome !== DisputeResolutionOutcome::FavorProducer) {
+            throw new \InvalidArgumentException('Automatic settlement can only favor the Producer.');
+        }
+
+        $creditedAmount = 0;
+        $wasNoShow = false;
+
+        $settled = DB::transaction(function () use ($booking, $outcome, $admin, $notes, $automatic, &$creditedAmount, &$wasNoShow): ?Booking {
+            /** @var Booking|null $locked */
+            $locked = Booking::query()->with('face.userable')->lockForUpdate()->find($booking->id);
+
+            $eligible = $locked !== null
+                && $this->isPendingSettlementStatus($locked)
+                && ($automatic
+                    ? $locked->disputed_at === null && $locked->settlement_due_at->lte(now())
+                    : $locked->disputed_at !== null);
+
+            $escrow = $eligible
+                ? EscrowTransaction::query()->where('booking_id', $locked->id)->lockForUpdate()->first()
+                : null;
+
+            if (! $eligible || $escrow === null || $escrow->status !== EscrowStatus::Locked->value) {
+                if ($automatic) {
+                    return null;
+                }
+
+                throw ValidationException::withMessages([
+                    'booking' => ['Ce booking n\'est pas un litige en cours de résolution.'],
+                ]);
+            }
+
+            $wasNoShow = $locked->status === BookingStatus::NoShow;
+
+            $auditMetadata = array_filter([
+                'outcome' => $outcome->value,
+                'admin_id' => $admin?->id,
+                'admin_notes' => $notes,
+                'automatic' => $automatic,
+            ], static fn (mixed $value): bool => $value !== null);
+
+            $update = [
+                'dispute_resolved_at' => now(),
+                'dispute_outcome' => $outcome->value,
+                'dispute_resolved_by' => $admin?->id,
+                'dispute_admin_notes' => $notes,
+            ];
+
+            if ($outcome === DisputeResolutionOutcome::FavorProducer) {
+                if ($wasNoShow) {
+                    $this->escrowService->markRefundedForNoShow($locked);
+                    $creditedAmount = (int) $locked->montant_total_producteur;
+
+                    $this->walletService->credit(
+                        $locked->producer_id,
+                        $creditedAmount,
+                        $locked,
+                        'Booking : remboursement absence Face (100%)',
+                    );
+
+                    $this->recordFinancialEvent(
+                        FinancialEventType::Refund,
+                        $locked,
+                        $creditedAmount,
+                        [
+                            'status' => 'completed',
+                            'metadata' => array_merge(['reason' => 'no_show', 'refund_percentage' => 100], $auditMetadata),
+                        ],
+                    );
+                } else {
+                    $creditedAmount = (int) round($locked->montant_total_producteur * 0.90);
+                    $this->escrowService->refund($locked, $this->walletService, $auditMetadata);
+                }
+            } else {
+                $creditedAmount = (int) $locked->montant_face_recoit;
+
+                if ($wasNoShow) {
+                    $update['status'] = BookingStatus::Completed;
+                }
+
+                $locked->update($update);
+                $this->escrowService->release($locked->fresh(), $this->walletService);
+
+                return $locked->fresh();
+            }
+
+            $locked->update($update);
+
+            return $locked->fresh();
+        });
+
+        if ($settled === null) {
+            return null;
+        }
+
+        if ($outcome === DisputeResolutionOutcome::FavorProducer && $wasNoShow) {
+            try {
+                $settled->loadMissing('face.userable');
+                $faceProfile = $settled->face?->userable;
+                if ($faceProfile instanceof Face) {
+                    $faceProfile->increment('rating_penalty', 1.0);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Failed to apply face rating penalty after no-show settlement', [
+                    'booking_id' => $settled->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($outcome === DisputeResolutionOutcome::FavorFace && $wasNoShow) {
+            try {
+                BookingCompleted::dispatch($settled);
+            } catch (\Throwable $e) {
+                Log::warning('BookingCompleted dispatch failed after dispute settlement', [
+                    'booking_id' => $settled->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        try {
+            BookingDisputeSettled::dispatch($settled, $outcome, $creditedAmount);
+        } catch (\Throwable $e) {
+            Log::warning('BookingDisputeSettled dispatch failed', [
+                'booking_id' => $settled->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $settled;
     }
 
     /**
@@ -849,7 +1107,10 @@ class BookingService
                 return;
             }
 
-            if (! in_array($booking->status, [
+            $isSilentPaid = $booking->status === BookingStatus::Paid
+                && $this->isEligibleForSilentAutoComplete($booking);
+
+            if (! $isSilentPaid && ! in_array($booking->status, [
                 BookingStatus::ConfirmedByFace,
                 BookingStatus::ConfirmedByProducer,
             ], true)) {
@@ -858,6 +1119,42 @@ class BookingService
 
             $this->completeBooking($booking);
         });
+    }
+
+    /**
+     * Booking payé dont personne n'a confirmé ni signalé : complété automatiquement
+     * 7 jours après la fin du jour de tournage, uniquement après la relance, jamais pour
+     * un booking « legacy » (date_fin de plus de 30 jours) ni en cours de règlement.
+     * Appelé sous verrou de ligne par autoComplete.
+     */
+    private function isEligibleForSilentAutoComplete(Booking $booking): bool
+    {
+        if ($booking->type_contenu === 'UGC'
+            || $booking->completion_reminder_sent_at === null
+            || $booking->settlement_due_at !== null
+            || $booking->date_fin === null) {
+            return false;
+        }
+
+        return $booking->date_fin->gte(now()->subDays(self::LEGACY_AFTER_DAYS))
+            && now()->gte($booking->date_fin->copy()->startOfDay()->addDays(self::SILENT_AUTO_COMPLETE_AFTER_DAYS));
+    }
+
+    private function isShootDayReached(Booking $booking): bool
+    {
+        return $booking->date_debut !== null
+            && now()->gte($booking->date_debut->copy()->startOfDay());
+    }
+
+    /**
+     * Statut « règlement en attente » (hors contrôle d'escrow) : absence / annulation tardive
+     * avec fenêtre ouverte et non encore tranchée.
+     */
+    private function isPendingSettlementStatus(Booking $booking): bool
+    {
+        return in_array($booking->status, [BookingStatus::NoShow, BookingStatus::CancelledByProducer], true)
+            && $booking->settlement_due_at !== null
+            && $booking->dispute_resolved_at === null;
     }
 
     /**

@@ -10,6 +10,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\AcceptBookingRequest;
 use App\Http\Requests\Booking\CancelBookingRequest;
 use App\Http\Requests\Booking\ConfirmBookingRequest;
+use App\Http\Requests\Booking\ContestBookingRequest;
 use App\Http\Requests\Booking\CreateBookingRequest;
 use App\Http\Requests\Booking\PayBookingRequest;
 use App\Http\Requests\Booking\PayUgcCommissionRequest;
@@ -223,6 +224,21 @@ class BookingController extends Controller
         return response()->json([
             'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
             'message' => 'Absence signalée',
+        ]);
+    }
+
+    /**
+     * Contest a no-show report / late Producer cancellation within the 72 h window (Face only).
+     */
+    public function contest(ContestBookingRequest $request, Booking $booking): JsonResponse
+    {
+        Gate::authorize('contest', $booking);
+
+        $booking = $this->bookingService->contest($booking, $request->user(), $request->validated('message'));
+
+        return response()->json([
+            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+            'message' => 'Contestation enregistrée',
         ]);
     }
 

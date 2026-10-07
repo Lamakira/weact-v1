@@ -50,6 +50,14 @@ use Illuminate\Support\Facades\Auth;
  * @property int|null $fedapay_transaction_id
  * @property string|null $payment_mode
  * @property string|null $payment_initiation_key
+ * @property \Carbon\CarbonInterface|null $settlement_due_at
+ * @property \Carbon\CarbonInterface|null $disputed_at
+ * @property string|null $dispute_message
+ * @property \Carbon\CarbonInterface|null $dispute_resolved_at
+ * @property string|null $dispute_outcome
+ * @property int|null $dispute_resolved_by
+ * @property string|null $dispute_admin_notes
+ * @property \Carbon\CarbonInterface|null $completion_reminder_sent_at
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read \App\Models\User|null $face
@@ -108,6 +116,14 @@ class Booking extends Model
         'fedapay_transaction_id',
         'payment_mode',
         'payment_initiation_key',
+        'settlement_due_at',
+        'disputed_at',
+        'dispute_message',
+        'dispute_resolved_at',
+        'dispute_outcome',
+        'dispute_resolved_by',
+        'dispute_admin_notes',
+        'completion_reminder_sent_at',
     ];
 
     /**
@@ -168,6 +184,10 @@ class Booking extends Model
             'tarif_base' => 'integer',
             'montant_total_producteur' => 'integer',
             'montant_face_recoit' => 'integer',
+            'settlement_due_at' => 'datetime',
+            'disputed_at' => 'datetime',
+            'dispute_resolved_at' => 'datetime',
+            'completion_reminder_sent_at' => 'datetime',
         ];
     }
 

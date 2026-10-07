@@ -38,8 +38,12 @@ class NotifyPartyOnBookingCancelled
         } else {
             $producerName = (string) data_get($booking, 'producer.userable.display_name', 'Le Producteur');
             $recipientUserId = $booking->face_id;
+            // Annulation tardive (jour du tournage ou après) : fonds retenus 72 h, la Face peut contester.
+            $message = $booking->settlement_due_at !== null && $booking->dispute_resolved_at === null
+                ? "Votre booking a été annulé par {$producerName}. Vous pouvez contester jusqu'au {$booking->settlement_due_at->format('d/m/Y H:i')}. Vous n'êtes pas pénalisé."
+                : "Votre booking a été annulé par {$producerName}. Vous n'êtes pas pénalisé.";
             $notificationData = [
-                'message' => "Votre booking a été annulé par {$producerName}. Vous n'êtes pas pénalisé.",
+                'message' => $message,
                 'booking_id' => $booking->id,
                 'url' => "/face/bookings/{$booking->uuid}",
             ];

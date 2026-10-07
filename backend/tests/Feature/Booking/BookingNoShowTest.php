@@ -81,35 +81,23 @@ class BookingNoShowTest extends TestCase
             'status' => BookingStatus::NoShow->value,
         ]);
 
-        // Wallet credited with 100% of montant_total_producteur
-        $this->assertDatabaseHas('wallet_transactions', [
-            'user_id' => $this->producerUser->id,
-            'booking_id' => $booking->id,
-            'type' => 'credit',
-            'amount' => 50000,
-            'description' => 'Booking : remboursement absence Face (100%)',
-        ]);
-
-        // Producer balance updated
+        // Fenêtre de contestation de 72 h : rien n'est remboursé au signalement.
+        $this->assertDatabaseMissing('wallet_transactions', ['booking_id' => $booking->id]);
         $this->producerUser->refresh();
-        $this->assertEquals(50000, $this->producerUser->balance);
+        $this->assertEquals(0, $this->producerUser->balance);
 
-        // Escrow marked as refunded
         $this->assertDatabaseHas('escrow_transactions', [
             'booking_id' => $booking->id,
-            'status' => 'refunded',
+            'status' => 'locked',
         ]);
-
-        // Financial event recorded
-        $this->assertDatabaseHas('financial_events', [
+        $this->assertDatabaseMissing('financial_events', [
             'booking_id' => $booking->id,
             'type' => FinancialEventType::Refund->value,
-            'amount' => 50000,
         ]);
 
-        // Rating penalty applied
         $this->face->refresh();
-        $this->assertEquals(1.0, $this->face->rating_penalty);
+        $this->assertEquals(0.0, $this->face->rating_penalty);
+        $this->assertNotNull($booking->fresh()->settlement_due_at);
 
         Event::assertDispatched(BookingNoShowReported::class);
     }
@@ -125,7 +113,8 @@ class BookingNoShowTest extends TestCase
         $response = $this->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->uuid}/report-no-show");
 
-        $response->assertUnprocessable();
+        // Policy : seul un booking payé / confirmé par la Face est signalable.
+        $response->assertForbidden();
     }
 
     public function test_no_show_fails_if_date_debut_is_in_the_future(): void
@@ -178,11 +167,11 @@ class BookingNoShowTest extends TestCase
             ->postJson("/api/v1/bookings/{$booking->uuid}/report-no-show")
             ->assertOk();
 
-        // Second report fails (status is now no_show, not paid)
+        // Second report refused by the policy (status is now no_show, not paid)
         $response = $this->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->uuid}/report-no-show");
 
-        $response->assertUnprocessable();
+        $response->assertForbidden();
     }
 
     public function test_no_show_fails_if_paid_booking_has_no_escrow_transaction(): void
@@ -197,7 +186,8 @@ class BookingNoShowTest extends TestCase
         $response = $this->withApiToken($this->producerUser)
             ->postJson("/api/v1/bookings/{$booking->uuid}/report-no-show");
 
-        $response->assertStatus(500);
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['status']);
 
         $this->assertDatabaseHas('bookings', [
             'id' => $booking->id,
@@ -257,7 +247,7 @@ class BookingNoShowTest extends TestCase
         );
     }
 
-    public function test_report_no_show_e2e_dispatches_wallet_credited_email_to_producer(): void
+    public function test_report_no_show_e2e_sends_no_wallet_email_until_settlement_then_emails_producer(): void
     {
         Mail::fake();
         // PAS de Event::fake — on veut que les listeners s'exécutent réellement.
@@ -279,6 +269,12 @@ class BookingNoShowTest extends TestCase
             ->postJson("/api/v1/bookings/{$booking->uuid}/report-no-show");
 
         $response->assertOk();
+
+        // Fonds retenus 72 h : aucun email « wallet crédité » au signalement.
+        Mail::assertNotQueued(\App\Mail\WalletCreditedMail::class);
+
+        $this->travel(73)->hours();
+        $this->artisan('bookings:settle-disputes')->assertSuccessful();
 
         Mail::assertQueued(
             \App\Mail\WalletCreditedMail::class,

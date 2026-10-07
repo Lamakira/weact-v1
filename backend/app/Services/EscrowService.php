@@ -201,8 +201,10 @@ class EscrowService
     /**
      * Process a refund for a cancelled paid booking by crediting the Producer wallet.
      * MUST be called inside an existing DB::transaction().
+     *
+     * @param  array<string, mixed>  $extraMetadata  Fusionné dans metadata du FinancialEvent (audit litige)
      */
-    public function refund(Booking $booking, WalletService $walletService): void
+    public function refund(Booking $booking, WalletService $walletService, array $extraMetadata = []): void
     {
         /** @var EscrowTransaction|null $escrow */
         $escrow = $booking->escrowTransaction()->lockForUpdate()->first();
@@ -242,11 +244,11 @@ class EscrowService
             $refundAmount,
             [
                 'status' => 'completed',
-                'metadata' => [
+                'metadata' => array_merge([
                     'refund_channel' => 'wallet',
                     'refund_percentage' => 90,
                     'retained_amount' => $retainedAmount,
-                ],
+                ], $extraMetadata),
             ],
         );
     }
