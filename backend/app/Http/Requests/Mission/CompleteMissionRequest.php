@@ -95,6 +95,17 @@ class CompleteMissionRequest extends FormRequest
                 return;
             }
 
+            // The 72h dispute window (or an open dispute) must be settled first — through the
+            // crons / admin resolution — before the Producer can force the completion.
+            if ($mission->hasOpenAttendanceDispute()) {
+                $validator->errors()->add(
+                    'status',
+                    'Une absence est encore dans sa fenêtre de contestation de 72 h ou fait l\'objet d\'un litige : la mission ne peut pas être terminée pour le moment.'
+                );
+
+                return;
+            }
+
             /** @var MissionPayment|null $payment */
             $payment = $mission->payment;
 

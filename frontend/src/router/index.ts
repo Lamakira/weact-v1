@@ -576,7 +576,21 @@ const router = createRouter({
           component: () => import('../pages/admin/AdminArticleEditPage.vue'),
           meta: { title: 'Modifier un article - WEACT' },
         },
+        {
+          path: 'security',
+          name: 'admin-security',
+          component: () => import('../pages/admin/AdminSecurityPage.vue'),
+          meta: { title: 'Sécurité du compte - WEACT' },
+        },
       ],
+    },
+    // Mandatory TOTP enrolment (admin auth required, outside AdminLayout: shown
+    // while the admin has no confirmed 2FA and every other admin route is 403)
+    {
+      path: '/admin/two-factor/setup',
+      name: 'admin-two-factor-setup',
+      component: () => import('../pages/admin/AdminTwoFactorSetupPage.vue'),
+      meta: { requiresAdminAuth: true, title: 'Double authentification - WEACT' },
     },
     // Public routes (no auth required)
     {
@@ -683,6 +697,8 @@ router.beforeEach((to, _from, next) => {
         'admin-articles-list',
         'admin-articles-create',
         'admin-articles-edit',
+        'admin-security',
+        'admin-two-factor-setup',
       ]
       if (!allowedEditorRoutes.includes(to.name as string)) {
         return next({ name: 'admin-articles-list' })

@@ -370,7 +370,7 @@ class MissionAttendanceServiceTest extends TestCase
         $this->assertSame(MissionStatus::PendingAttendanceValidation, $mission->fresh()->status);
     }
 
-    public function test_mark_attendance_completes_mission_with_locked_disputed_present(): void
+    public function test_mark_attendance_keeps_mission_pending_with_locked_disputed_present(): void
     {
         [$mission, $faces] = $this->createPaidMissionWithFaces(2, MissionStatus::PendingAttendanceValidation);
         $faces[1]['entry']->update(['attendance_status' => AttendanceStatus::Disputed]);
@@ -381,7 +381,8 @@ class MissionAttendanceServiceTest extends TestCase
         $this->assertSame(AttendanceStatus::Present, $faces[0]['entry']->fresh()->attendance_status);
         $this->assertSame(EscrowStatus::Locked, $faces[1]['entry']->fresh()->escrow_status);
         $this->assertSame(AttendanceStatus::Disputed, $faces[1]['entry']->fresh()->attendance_status);
-        $this->assertSame(MissionStatus::Completed, $mission->fresh()->status);
+        // Litige ouvert : jamais de complétion tant que l'admin n'a pas tranché.
+        $this->assertSame(MissionStatus::PendingAttendanceValidation, $mission->fresh()->status);
     }
 
     public function test_mark_attendance_is_idempotent(): void
@@ -768,14 +769,14 @@ class MissionAttendanceServiceTest extends TestCase
         );
     }
 
-    public function test_mission_can_complete_with_locked_disputed_entries_remaining(): void
+    public function test_mission_stays_pending_with_locked_disputed_entries_remaining(): void
     {
         [$mission, $faces] = $this->createPaidMissionWithFaces(2);
         $faces[1]['entry']->update(['attendance_status' => AttendanceStatus::Disputed]);
 
         $this->service->markAttendance($mission, [$faces[0]['entry']->id => 'present'], $this->producerUser);
 
-        $this->assertSame(MissionStatus::Completed, $mission->fresh()->status);
+        $this->assertSame(MissionStatus::PendingAttendanceValidation, $mission->fresh()->status);
         $this->assertSame(EscrowStatus::Locked, $faces[1]['entry']->fresh()->escrow_status);
         $this->assertSame(AttendanceStatus::Disputed, $faces[1]['entry']->fresh()->attendance_status);
     }
@@ -873,7 +874,7 @@ class MissionAttendanceServiceTest extends TestCase
         $this->service->autoValidatePendingAsPresent($mission->refresh());
     }
 
-    public function test_auto_validate_pending_as_present_keeps_disputed_entries_locked_but_completes_mission(): void
+    public function test_auto_validate_pending_as_present_keeps_disputed_entries_locked_and_mission_pending(): void
     {
         [$mission, $faces] = $this->createPaidMissionWithFaces(2, MissionStatus::PendingAttendanceValidation);
 
@@ -884,7 +885,7 @@ class MissionAttendanceServiceTest extends TestCase
 
         $result = $this->service->autoValidatePendingAsPresent($mission);
 
-        $this->assertSame(MissionStatus::Completed, $result->status);
+        $this->assertSame(MissionStatus::PendingAttendanceValidation, $result->status);
 
         $this->assertDatabaseHas('mission_payment_candidatures', [
             'id' => $faces[0]['entry']->id,
@@ -1095,6 +1096,6 @@ class MissionAttendanceServiceTest extends TestCase
         ]);
 
         $mission->refresh();
-        $this->assertSame(MissionStatus::Completed, $mission->status);
+        $this->assertSame(MissionStatus::PendingAttendanceValidation, $mission->status);
     }
 }

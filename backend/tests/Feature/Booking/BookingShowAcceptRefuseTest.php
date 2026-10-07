@@ -83,14 +83,11 @@ class BookingShowAcceptRefuseTest extends TestCase
             ->assertJsonPath('data.id', $this->booking->uuid);
     }
 
-    public function test_legacy_numeric_booking_route_still_resolves(): void
+    public function test_numeric_booking_route_no_longer_resolves(): void
     {
-        $response = $this->actingAs($this->producerUser)
-            ->getJson("/api/v1/bookings/{$this->booking->id}");
-
-        $response->assertOk()
-            ->assertJsonPath('data.id', $this->booking->uuid)
-            ->assertJsonPath('data.realtime_channel_key', $this->booking->id);
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/bookings/{$this->booking->id}")
+            ->assertNotFound();
     }
 
     public function test_unauthorized_user_cannot_view_booking(): void

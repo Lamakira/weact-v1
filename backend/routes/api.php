@@ -51,33 +51,35 @@ Route::prefix('v1')->group(function (): void {
         ])->header('Cache-Control', 'private, max-age=300'))->name('auth.registration-status');
 
         Route::post('/register/face', RegisterFaceController::class)
-            ->middleware('throttle:5,1')
+            ->middleware('throttle:register')
             ->name('auth.register.face');
 
         Route::post('/register/producer', RegisterProducerController::class)
-            ->middleware('throttle:5,1')
+            ->middleware('throttle:register')
             ->name('auth.register.producer');
 
         Route::post('/login', LoginController::class)
-            // Coarse per-IP backstop vs password spraying (30/min, decay 1 min,
-            // tunable). The per-account limit (5/min) lives in LoginController.
-            ->middleware('throttle:30,1')
+            // Coarse per-IP backstop vs password spraying (30/min, tunable in
+            // AppServiceProvider). The per-account limit (5/min) lives in LoginController.
+            ->middleware('throttle:login')
             ->name('auth.login');
 
         Route::post('/forgot-password', ForgotPasswordController::class)
-            ->middleware('throttle:5,1')
+            ->middleware('throttle:forgot-password')
             ->name('auth.forgot-password');
 
         Route::post('/reset-password', ResetPasswordController::class)
-            ->middleware('throttle:5,1') // parity with forgot-password: bound reset attempts per IP
+            ->middleware('throttle:reset-password') // parity with forgot-password: bound reset attempts per IP
             ->name('auth.reset-password');
 
         // Email verification (public - signature validation handled in controller)
         Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
+            ->middleware('throttle:email-link')
             ->name('verification.verify');
 
         // Email change confirmation (public - signature validation handled in controller)
         Route::get('/email/change/confirm/{id}/{hash}', [EmailChangeController::class, 'confirmChange'])
+            ->middleware('throttle:email-link')
             ->name('email-change.confirm');
 
         // Google Sign-In. The callback lives here, not in routes/web.php: it is a
@@ -128,7 +130,7 @@ Route::prefix('v1')->group(function (): void {
 
             $user = $request->user()->loadMissing('userable');
 
-            return (new UserResource($user))->additional([
+            return UserResource::forOwner($user)->additional([
                 'meta' => [],
                 'message' => 'Authenticated user retrieved',
             ]);
@@ -143,7 +145,7 @@ Route::prefix('v1')->group(function (): void {
         // Email verification routes (authenticated)
         Route::prefix('email')->group(function (): void {
             Route::post('/verification-notification', [EmailVerificationController::class, 'sendVerificationNotification'])
-                ->middleware('throttle:1,1')
+                ->middleware('throttle:email-verification-resend')
                 ->name('verification.send');
 
             Route::get('/verification-status', [EmailVerificationController::class, 'status'])
@@ -151,7 +153,7 @@ Route::prefix('v1')->group(function (): void {
 
             // Email change routes
             Route::post('/change', [EmailChangeController::class, 'requestChange'])
-                ->middleware('throttle:3,10')
+                ->middleware('throttle:email-change')
                 ->name('email-change.request');
 
             Route::delete('/change', [EmailChangeController::class, 'cancelChange'])
@@ -163,7 +165,7 @@ Route::prefix('v1')->group(function (): void {
 
         // Password change route
         Route::put('/password', [PasswordChangeController::class, 'update'])
-            ->middleware('throttle:5,10')
+            ->middleware('throttle:password-change')
             ->name('password.update');
 
         // User data rights (Art. 437-443 Code du Numerique)

@@ -19,6 +19,10 @@ class ProducerReviewController extends Controller
      */
     public function index(Producer $producer): AnonymousResourceCollection
     {
+        // Same visibility rule as the profile endpoint: a deactivated account's
+        // reviews are no longer public.
+        abort_unless((bool) data_get($producer->loadMissing('user'), 'user.is_active'), 404);
+
         $reviews = $producer->ratingsReceived()
             ->with('rater.userable')
             ->orderByDesc('created_at')

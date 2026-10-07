@@ -8,6 +8,7 @@ export interface AdminData {
   name: string
   email: string
   role: 'superadmin' | 'admin' | 'editor'
+  two_factor_enabled?: boolean
   created_at: string
 }
 
@@ -115,6 +116,17 @@ export const adminsApi = {
     await getCsrfCookie()
     const response = await adminApiClient.post<{ data: null; message: string }>(
       `/admin/admins/${adminId}/send-reset-link`,
+    )
+    return response.data
+  },
+
+  /**
+   * Reset another admin's two-factor authentication (superadmin only, audited server-side)
+   */
+  async resetTwoFactor(adminId: string): Promise<{ message: string }> {
+    await getCsrfCookie()
+    const response = await adminApiClient.post<{ message: string }>(
+      `/admin/admins/${adminId}/two-factor/reset`,
     )
     return response.data
   },

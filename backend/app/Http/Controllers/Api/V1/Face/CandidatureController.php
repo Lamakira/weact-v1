@@ -165,7 +165,7 @@ class CandidatureController extends Controller
                     'data' => [
                         'message' => "Nouvelle candidature reçue pour la mission \"{$mission->titre}\"",
                         'mission_id' => $mission->id,
-                        'url' => "/producer/missions/{$mission->id}/candidatures",
+                        'url' => "/producer/missions/{$mission->uuid}/candidatures",
                     ],
                 ]);
             } catch (\Throwable) {
@@ -271,7 +271,7 @@ class CandidatureController extends Controller
                     'data' => [
                         'message' => $face->prenom.' a confirmé sa participation à la mission "'.$mission->titre.'".',
                         'mission_id' => $mission->id,
-                        'url' => "/producer/missions/{$mission->id}/candidatures",
+                        'url' => "/producer/missions/{$mission->uuid}/candidatures",
                     ],
                 ]);
             } catch (\Throwable) {
@@ -438,23 +438,75 @@ class CandidatureController extends Controller
             ]);
         }
 
-        // Verify candidature is pending
-        if ($candidature->status !== CandidatureStatus::Pending) {
-            return response()->json(
-                ErrorCodes::InvalidStatus->envelope('Seules les candidatures en attente peuvent être annulées.'),
-                400
-            );
+        $payments = app(MissionPaymentService::class);
+
+        // Checkout cash : on interroge FedaPay (API serveur) AVANT de prendre le moindre verrou.
+        // Payé → réglé ici puis retrait refusé (candidature acceptée) ; en cours → refus ;
+        // indisponible → refus par prudence ; mort / abandonné → la sélection sera réinitialisée.
+        $assessment = $candidature->status === CandidatureStatus::Pending
+            ? $payments->assessCashCheckout($candidature)
+            : null;
+
+        if ($assessment !== null) {
+            if ($assessment['kind'] === MissionPaymentService::CHECKOUT_UNVERIFIABLE) {
+                return response()->json(ErrorCodes::InvalidStatus->envelope(
+                    'Impossible de vérifier le paiement pour le moment, réessayez dans quelques minutes.'
+                ), 422);
+            }
+
+            if ($assessment['kind'] === MissionPaymentService::CHECKOUT_IN_FLIGHT) {
+                return response()->json(ErrorCodes::InvalidStatus->envelope(
+                    'Le producteur est en train de payer ; réessayez dans une heure si le paiement n\'aboutit pas.'
+                ), 422);
+            }
         }
 
-        // ugc-9-1 (D-9.1.j) : une candidature hybride Pending peut porter une entry escrow
-        // Pending in-flight (paiement Producteur initié, webhook pas encore confirmé). On la
-        // markFailed (supprime l'entry → libère le slot in-flight) AVANT le flip Cancelled.
-        $entry = $candidature->paymentEntry;
-        if ($entry !== null && $entry->escrow_status === EscrowStatus::Pending) {
-            app(MissionPaymentService::class)->markUgcMissionCandidatureFailed($entry, 'face_cancelled_pending');
-        }
+        // Sous verrou : relit la candidature (une approbation concurrente peut l'avoir fait
+        // avancer) puis applique les gardes et l'annulation de façon atomique.
+        $blocked = DB::transaction(function () use ($candidature, $payments, $assessment): ?JsonResponse {
+            // Ordre de verrous (aligné sur markAsPaid) : payment → entries → mission → candidature.
+            if ($assessment !== null && $assessment['kind'] === MissionPaymentService::CHECKOUT_RESETTABLE) {
+                $payments->lockCashSelection($assessment['payment_id']);
+            }
+            Mission::query()->lockForUpdate()->find($candidature->mission_id);
 
-        $candidature->update(['status' => CandidatureStatus::Cancelled]);
+            /** @var Candidature $locked */
+            $locked = Candidature::query()->lockForUpdate()->findOrFail($candidature->id);
+
+            // Verify candidature is pending
+            if ($locked->status !== CandidatureStatus::Pending) {
+                return response()->json(
+                    ErrorCodes::InvalidStatus->envelope('Seules les candidatures en attente peuvent être annulées.'),
+                    400
+                );
+            }
+
+            // Checkout cash abandonné / mort : réinitialisation de la sélection entière (payment +
+            // entries supprimés, mission republiée), puis le retrait se poursuit.
+            if ($assessment !== null
+                && ! $payments->resetPendingCashSelection($locked, 'face_withdrew_stale_checkout', $assessment)) {
+                return response()->json(ErrorCodes::InvalidStatus->envelope(
+                    'Le producteur est en train de payer ; réessayez dans une heure si le paiement n\'aboutit pas.'
+                ), 422);
+            }
+
+            // ugc-9-1 (D-9.1.j) : une candidature hybride Pending peut porter une entry escrow
+            // Pending in-flight (paiement Producteur initié, webhook pas encore confirmé). On la
+            // markFailed (supprime l'entry → libère le slot in-flight) AVANT le flip Cancelled.
+            $locked->unsetRelation('paymentEntry');
+            $entry = $locked->paymentEntry;
+            if ($entry !== null && $entry->escrow_status === EscrowStatus::Pending) {
+                $payments->markUgcMissionCandidatureFailed($entry, 'face_cancelled_pending');
+            }
+
+            $locked->update(['status' => CandidatureStatus::Cancelled]);
+
+            return null;
+        }, 3);
+
+        if ($blocked !== null) {
+            return $blocked;
+        }
 
         return response()->json([
             'message' => 'Candidature annulée avec succès.',

@@ -7,16 +7,22 @@ export {
 } from '@/features/auth/services/authApi'
 
 /**
- * Admin auth response from API
+ * Admin profile as returned by the API
  */
-interface AdminAuthResponse {
+interface AdminProfile {
+  id: string
+  name: string
+  email: string
+  role: 'superadmin' | 'admin' | 'editor'
+  two_factor_enabled?: boolean
+}
+
+/**
+ * Admin token response (login without 2FA, or second login step)
+ */
+export interface AdminTokenResponse {
   data: {
-    admin: {
-      id: string
-      name: string
-      email: string
-      role: 'superadmin' | 'admin' | 'editor'
-    }
+    admin: AdminProfile
     token: string
   }
   message: string
@@ -24,15 +30,39 @@ interface AdminAuthResponse {
 }
 
 /**
+ * Admin login step 1 response when 2FA is enabled: no token, a short-lived challenge
+ */
+export interface AdminTwoFactorChallengeResponse {
+  data: {
+    two_factor_required: true
+    challenge: string
+  }
+  message: string
+  meta: Record<string, unknown>
+}
+
+export type AdminLoginResponse = AdminTokenResponse | AdminTwoFactorChallengeResponse
+
+export function isTwoFactorChallenge(
+  response: AdminLoginResponse,
+): response is AdminTwoFactorChallengeResponse {
+  return 'two_factor_required' in response.data && response.data.two_factor_required === true
+}
+
+/**
+ * Admin login step 2 payload: challenge + TOTP code OR recovery code
+ */
+export interface AdminTwoFactorLoginForm {
+  challenge: string
+  code?: string
+  recovery_code?: string
+}
+
+/**
  * Admin me response from API
  */
 interface AdminMeResponse {
-  data: {
-    id: string
-    name: string
-    email: string
-    role: 'superadmin' | 'admin' | 'editor'
-  }
+  data: AdminProfile
   message: string
 }
 
@@ -61,9 +91,18 @@ export const adminAuthApi = {
   /**
    * Login an admin with email and password
    */
-  async login(data: AdminLoginForm): Promise<AdminAuthResponse> {
+  async login(data: AdminLoginForm): Promise<AdminLoginResponse> {
     await getCsrfCookie()
-    const response = await adminApiClient.post<AdminAuthResponse>('/admin/login', data)
+    const response = await adminApiClient.post<AdminLoginResponse>('/admin/login', data)
+    return response.data
+  },
+
+  /**
+   * Login step 2: exchange the challenge + TOTP/recovery code for a token
+   */
+  async verifyTwoFactor(data: AdminTwoFactorLoginForm): Promise<AdminTokenResponse> {
+    await getCsrfCookie()
+    const response = await adminApiClient.post<AdminTokenResponse>('/admin/login/two-factor', data)
     return response.data
   },
 

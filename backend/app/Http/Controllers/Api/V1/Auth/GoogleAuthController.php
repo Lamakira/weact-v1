@@ -227,7 +227,7 @@ class GoogleAuthController extends Controller
         return response()->json([
             'data' => [
                 'needs_completion' => false,
-                'user' => new UserResource($user),
+                'user' => UserResource::forOwner($user),
                 'token' => $user->createToken('auth-token')->plainTextToken,
                 'redirect' => $payload['redirect'],
             ],
@@ -274,7 +274,7 @@ class GoogleAuthController extends Controller
 
         return response()->json([
             'data' => [
-                'user' => new UserResource($result['user']),
+                'user' => UserResource::forOwner($result['user']),
                 'token' => $result['token'],
             ],
             'message' => 'Inscription réussie',

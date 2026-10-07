@@ -23,7 +23,7 @@ class AdminCreateTest extends TestCase
         parent::setUp();
 
         $this->admin = Admin::factory()->superAdmin()->create();
-        $this->adminToken = $this->admin->createToken('admin-token')->plainTextToken;
+        $this->adminToken = $this->admin->createToken('admin-token', ['2fa'])->plainTextToken;
     }
 
     public function test_creates_a_new_admin_with_valid_data(): void

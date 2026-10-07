@@ -88,6 +88,16 @@ class UpdateMissionRequest extends FormRequest
                     'mission',
                     'Une mission clôturée ou terminée ne peut pas être modifiée'
                 );
+
+                return;
+            }
+
+            // Un date_tournage repoussé dans le futur gèlerait l'auto-validation des présences.
+            if ($mission->status === MissionStatus::PendingAttendanceValidation) {
+                $validator->errors()->add(
+                    'mission',
+                    'Une mission en attente de validation des présences ne peut pas être modifiée'
+                );
             }
         });
     }

@@ -23,7 +23,7 @@ class AdminArticlesListTest extends TestCase
     {
         parent::setUp();
         $this->admin = Admin::factory()->create();
-        $this->adminToken = $this->admin->createToken('admin-token')->plainTextToken;
+        $this->adminToken = $this->admin->createToken('admin-token', ['2fa'])->plainTextToken;
     }
 
     public function test_admin_can_list_articles(): void

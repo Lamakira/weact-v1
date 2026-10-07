@@ -28,7 +28,22 @@ class AdminFactory extends Factory
             'email' => fake()->unique()->safeEmail(),
             'password' => 'password',
             'role' => AdminRole::Admin,
+            // Par défaut un admin a la 2FA confirmée : la garde `admin.2fa` laisse passer.
+            'two_factor_secret' => 'JBSWY3DPEHPK3PXP',
+            'two_factor_confirmed_at' => now(),
         ];
+    }
+
+    /**
+     * State: no 2FA enrolled (admin who must enrol at next login).
+     */
+    public function withoutTwoFactor(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'two_factor_secret' => null,
+            'two_factor_recovery_codes' => null,
+            'two_factor_confirmed_at' => null,
+        ]);
     }
 
     /**

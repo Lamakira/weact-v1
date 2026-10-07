@@ -51,6 +51,6 @@ class BookingMessageResource extends JsonResource
             return $displayName;
         }
 
-        return (string) ($sender->email ?? 'Utilisateur');
+        return 'Utilisateur';
     }
 }

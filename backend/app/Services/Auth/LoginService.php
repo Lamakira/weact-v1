@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Auth;
 
 use App\Models\User;
-use Illuminate\Support\Facades\Hash;
+use App\Support\PasswordTimingGuard;
 
 /**
  * Service for handling user login
@@ -26,7 +26,12 @@ class LoginService
         // bad credentials: a distinct code would be an account-enumeration oracle
         // ("this email exists and signs in with Google"), and the generic login
         // response is a property this codebase deliberately holds.
-        if ($user === null || $user->password === null || ! Hash::check($password, $user->password)) {
+        //
+        // PasswordTimingGuard always spends one bcrypt check (dummy hash when the
+        // user is unknown or password-less) so response time does not reveal it.
+        $passwordValid = PasswordTimingGuard::check($password, $user?->password);
+
+        if ($user === null || ! $passwordValid) {
             return null;
         }
 

@@ -37,7 +37,7 @@ onMounted(async () => {
         errorMessage.value = 'Ce lien de confirmation a expiré. Veuillez refaire une demande de changement d\'email.'
         break
       case 'INVALID_CONFIRMATION_LINK':
-        errorMessage.value = 'Ce lien de confirmation est invalide.'
+        errorMessage.value = 'Ce lien de confirmation est invalide ou a expiré. Veuillez refaire une demande de changement d\'email.'
         break
       case 'NO_PENDING_EMAIL_CHANGE':
         errorMessage.value = 'Aucun changement d\'email en attente pour ce compte.'

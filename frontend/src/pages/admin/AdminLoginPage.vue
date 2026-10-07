@@ -4,7 +4,7 @@ import { RouterLink, useRouter, useRoute } from 'vue-router'
 import { useForm, useField } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import { z } from 'zod'
-import { Mail, Lock, Shield } from 'lucide-vue-next'
+import { Mail, Lock, Shield, KeyRound } from 'lucide-vue-next'
 import { useAdminAuth } from '@/features/admin/composables/useAdminAuth'
 import { useAdminAuthStore } from '@/stores/adminAuth'
 import { FloatingField } from '@/components/ui/form'
@@ -12,8 +12,13 @@ import logoNoir from '@/assets/images/logonoir.png'
 
 const router = useRouter()
 const route = useRoute()
-const { login, isLoading } = useAdminAuth()
+const { login, verifyTwoFactor, isLoading } = useAdminAuth()
 const adminAuthStore = useAdminAuthStore()
+
+// Step 2 (2FA): set once the password was accepted but a second factor is required
+const challenge = ref<string | null>(null)
+const useRecoveryCode = ref(false)
+const twoFactorCode = ref('')
 
 // Warning message for session expired redirect
 const warningMessage = ref<string | null>(null)
@@ -56,6 +61,66 @@ onMounted(() => {
   }
 })
 
+/**
+ * After a full login: send the admin to the 2FA enrolment page if not enrolled
+ * yet, otherwise to the requested page / default landing page.
+ */
+function redirectAfterLogin(): void {
+  if (adminAuthStore.admin?.two_factor_enabled === false) {
+    router.push({ name: 'admin-two-factor-setup' })
+    return
+  }
+  const redirectPath = route.query.redirect as string
+  const defaultRoute = adminAuthStore.isEditor ? 'admin-articles-list' : 'admin-dashboard'
+  if (redirectPath) {
+    router.push(redirectPath)
+  } else {
+    router.push({ name: defaultRoute })
+  }
+}
+
+function backToCredentials(): void {
+  challenge.value = null
+  useRecoveryCode.value = false
+  twoFactorCode.value = ''
+  apiError.value = null
+}
+
+function toggleRecoveryCode(): void {
+  useRecoveryCode.value = !useRecoveryCode.value
+  twoFactorCode.value = ''
+  apiError.value = null
+}
+
+// Step 2 submit handler
+async function onSubmitTwoFactor(): Promise<void> {
+  if (!challenge.value) return
+  apiError.value = null
+
+  const code = twoFactorCode.value.trim()
+  if (!code) {
+    apiError.value = 'Le code de vérification est obligatoire.'
+    return
+  }
+
+  const result = await verifyTwoFactor({
+    challenge: challenge.value,
+    ...(useRecoveryCode.value ? { recovery_code: code } : { code }),
+  })
+
+  if (result.success) {
+    redirectAfterLogin()
+    return
+  }
+
+  // Expired / consumed challenge or lockout: the second step cannot continue
+  if (result.errorCode === 'TWO_FACTOR_CHALLENGE_INVALID') {
+    backToCredentials()
+  }
+  apiError.value = result.message ?? 'Une erreur est survenue'
+  twoFactorCode.value = ''
+}
+
 // Submit handler
 const onSubmit = handleSubmit(async (values) => {
   apiError.value = null
@@ -65,15 +130,13 @@ const onSubmit = handleSubmit(async (values) => {
     password: values.password,
   })
 
+  if (result.twoFactorChallenge) {
+    challenge.value = result.twoFactorChallenge
+    return
+  }
+
   if (result.success) {
-    // Check for redirect query param
-    const redirectPath = route.query.redirect as string
-    const defaultRoute = adminAuthStore.isEditor ? 'admin-articles-list' : 'admin-dashboard'
-    if (redirectPath) {
-      router.push(redirectPath)
-    } else {
-      router.push({ name: defaultRoute })
-    }
+    redirectAfterLogin()
   } else {
     // Set field-specific errors from API
     if (result.errors) {
@@ -120,8 +183,77 @@ const onSubmit = handleSubmit(async (values) => {
           <p class="text-sm text-amber-700">{{ warningMessage }}</p>
         </div>
 
-        <!-- Login Form -->
-        <form @submit="onSubmit" class="space-y-5" data-testid="admin-login-form">
+        <!-- Step 2: second factor (TOTP or recovery code) -->
+        <form
+          v-if="challenge"
+          class="space-y-5"
+          data-testid="admin-two-factor-form"
+          @submit.prevent="onSubmitTwoFactor"
+        >
+          <p class="text-sm text-gray-600">
+            {{
+              useRecoveryCode
+                ? 'Saisissez un de vos codes de secours (usage unique).'
+                : "Saisissez le code à 6 chiffres affiché par votre application d'authentification."
+            }}
+          </p>
+
+          <div
+            v-if="apiError"
+            class="rounded-lg bg-red-50 p-3 border border-red-200"
+            role="alert"
+            data-testid="api-error"
+          >
+            <p class="text-sm text-red-700">{{ apiError }}</p>
+          </div>
+
+          <FloatingField
+            id="admin-two-factor-code"
+            v-model="twoFactorCode"
+            type="text"
+            :label="useRecoveryCode ? 'Code de secours' : 'Code de vérification'"
+            :icon="KeyRound"
+            :inputmode="useRecoveryCode ? 'text' : 'numeric'"
+            autocomplete="one-time-code"
+            required
+            data-testid="two-factor-code-input"
+          />
+
+          <button
+            type="submit"
+            :disabled="isLoading"
+            class="w-full py-3 bg-primary-500 text-white font-medium rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            data-testid="two-factor-submit-button"
+          >
+            {{ isLoading ? 'Vérification en cours...' : 'Vérifier' }}
+          </button>
+
+          <div class="flex flex-col items-center gap-2 text-sm">
+            <button
+              type="button"
+              class="text-primary-600 hover:text-primary-700 transition-colors"
+              data-testid="toggle-recovery-code"
+              @click="toggleRecoveryCode"
+            >
+              {{
+                useRecoveryCode
+                  ? "Utiliser le code de l'application"
+                  : "Je n'ai plus accès à mon application : utiliser un code de secours"
+              }}
+            </button>
+            <button
+              type="button"
+              class="text-gray-500 hover:text-gray-700 transition-colors"
+              data-testid="back-to-credentials"
+              @click="backToCredentials"
+            >
+              Retour
+            </button>
+          </div>
+        </form>
+
+        <!-- Login Form (step 1) -->
+        <form v-else @submit="onSubmit" class="space-y-5" data-testid="admin-login-form">
           <!-- General API error -->
           <div
             v-if="apiError"
@@ -194,7 +326,7 @@ const onSubmit = handleSubmit(async (values) => {
         </form>
 
         <!-- Forgot password link -->
-        <div class="mt-6 text-center">
+        <div v-if="!challenge" class="mt-6 text-center">
           <RouterLink
             to="/admin/forgot-password"
             class="text-sm text-primary-600 hover:text-primary-700 transition-colors"

@@ -17,14 +17,26 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class ProducerResource extends JsonResource
 {
     /**
+     * True when the caller guarantees the rendered Producer IS the authenticated
+     * account's own profile (nested in UserResource::forOwner).
+     */
+    private bool $renderedForOwner = false;
+
+    public static function forOwner(Producer $producer): self
+    {
+        $resource = new self($producer);
+        $resource->renderedForOwner = true;
+
+        return $resource;
+    }
+
+    /**
      * Transform the resource into an array.
      *
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
     {
-        /** @var User|null $user */
-        $user = $this->user;
         $type = $this->currentType();
 
         return [
@@ -51,8 +63,12 @@ class ProducerResource extends JsonResource
             'ratings_count' => $this->ratings_count,
             'missions_count' => $this->missions_count,
             'missions' => MissionSummaryResource::collection($this->whenLoaded('missions')),
-            'email' => $this->whenLoaded('user', fn () => $user?->email),
-            'is_active' => $this->whenLoaded('user', fn () => $user?->is_active),
+            // PII: owner/admin only, and only when the relation is already loaded —
+            // never lazy-load the user from a resource (it would run for every viewer).
+            ...($this->isPrivilegedViewer($request) && $this->resource->relationLoaded('user') ? [
+                'email' => $this->user?->email,
+                'is_active' => $this->user?->is_active,
+            ] : []),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
@@ -63,6 +79,10 @@ class ProducerResource extends JsonResource
      */
     private function isPrivilegedViewer(Request $request): bool
     {
+        if ($this->renderedForOwner) {
+            return true;
+        }
+
         $viewer = $request->user();
 
         if ($viewer instanceof Admin) {
