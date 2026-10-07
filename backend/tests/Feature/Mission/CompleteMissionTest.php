@@ -7,7 +7,6 @@ namespace Tests\Feature\Mission;
 use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
-use App\Enums\FinancialEventType;
 use App\Enums\MissionPaymentStatus;
 use App\Mail\MissionCompletedMail;
 use App\Models\Candidature;
@@ -242,7 +241,7 @@ class CompleteMissionTest extends TestCase
         );
     }
 
-    public function test_complete_mission_with_one_present_one_absent_one_disputed_routes_correctly(): void
+    public function test_complete_mission_with_an_open_dispute_is_refused_whatever_the_status(): void
     {
         Mail::fake();
 
@@ -300,58 +299,25 @@ class CompleteMissionTest extends TestCase
                 'attendance_status' => $explicitStatuses[$i],
             ]);
         }
-
+        // Vague 2 (fenêtre de contestation) : un litige ouvert bloque TOUJOURS la complétion,
+        // quel que soit le statut de la mission — rien n'est payé ni remboursé.
         $response = $this->actingAs($this->producerUser)
             ->postJson("/api/v1/producer/missions/{$mission->uuid}/complete");
 
-        $response->assertOk()->assertJsonPath('data.status', 'completed');
+        $response->assertStatus(422);
 
-        $this->assertDatabaseHas('missions', [
-            'id' => $mission->id,
-            'status' => 'completed',
-        ]);
-
-        // Face[present] received the release.
-        $users[0]->refresh();
-        $this->assertSame(90000, $users[0]->balance);
-
-        // Face[absent] received nothing.
-        $users[1]->refresh();
-        $this->assertSame(0, $users[1]->balance);
-
-        // Face[disputed] received nothing.
-        $users[2]->refresh();
-        $this->assertSame(0, $users[2]->balance);
-
-        // Producer received exactly one refund (Face[absent]).
-        $this->producerUser->refresh();
-        $this->assertSame(90000, $this->producerUser->balance);
-
-        // Disputed entry stays Locked + disputed (invariant 5: Completed mission may keep
-        // a disputed Locked entry pending admin resolution in FIX-26.8).
-        $this->assertDatabaseHas('mission_payment_candidatures', [
-            'id' => $entries[2]->id,
-            'escrow_status' => 'locked',
-            'attendance_status' => 'disputed',
-        ]);
-
-        $this->assertSame(
-            1,
-            FinancialEvent::where('type', FinancialEventType::EscrowRelease)->count(),
-        );
-        $this->assertSame(
-            1,
-            FinancialEvent::where('type', FinancialEventType::Refund)->count(),
-        );
-        $this->assertDatabaseMissing('financial_events', [
-            'idempotency_key' => "mission_attendance_escrow_release:{$entries[2]->id}",
-        ]);
-        $this->assertDatabaseMissing('financial_events', [
-            'idempotency_key' => "mission_attendance_refund:{$entries[2]->id}",
-        ]);
-
-        // Only 1 mail queued (Face[present]).
-        Mail::assertQueuedCount(1);
+        $this->assertDatabaseHas('missions', ['id' => $mission->id, 'status' => 'closed']);
+        foreach ($users as $user) {
+            $this->assertSame(0, $user->fresh()->balance);
+        }
+        $this->assertSame(0, $this->producerUser->fresh()->balance);
+        foreach ($entries as $entry) {
+            $this->assertDatabaseHas('mission_payment_candidatures', [
+                'id' => $entry->id,
+                'escrow_status' => 'locked',
+            ]);
+        }
+        $this->assertSame(0, FinancialEvent::count());
     }
 
     public function test_cannot_complete_published_mission(): void

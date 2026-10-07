@@ -41,6 +41,54 @@ class UgcMediaCleanupService
      * public) ET, pour chaque candidature, son shipment (+ photos de réception)
      * et ses deliverables. Appelé par MissionService::deleteMission.
      */
+    /**
+     * Comme purgeForMission, mais ne supprime que les ROWS : les fichiers sont différés et rendus
+     * dans une closure à appeler APRÈS le commit de la transaction englobante (un rollback ne
+     * perd alors aucun fichier).
+     */
+    public function purgeForMissionDeferringFiles(Mission $mission): \Closure
+    {
+        $this->deferredFileDeletions = [];
+        $this->deferringFiles = true;
+
+        try {
+            $this->purgeForMission($mission);
+        } finally {
+            $this->deferringFiles = false;
+        }
+
+        $jobs = $this->deferredFileDeletions;
+        $this->deferredFileDeletions = [];
+
+        return function () use ($jobs): void {
+            foreach ($jobs as $job) {
+                try {
+                    $job();
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('UgcMediaCleanupService: suppression différée de fichier échouée', [
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        };
+    }
+
+    private bool $deferringFiles = false;
+
+    /** @var list<\Closure> */
+    private array $deferredFileDeletions = [];
+
+    private function removeFiles(\Closure $deletion): void
+    {
+        if ($this->deferringFiles) {
+            $this->deferredFileDeletions[] = $deletion;
+
+            return;
+        }
+
+        $deletion();
+    }
+
     public function purgeForMission(Mission $mission): void
     {
         $this->purgeOwner($mission);
@@ -120,7 +168,7 @@ class UgcMediaCleanupService
         if (! $owner instanceof Candidature) {
             foreach ($owner->productPhotos()->get() as $photo) {
                 /** @var ProductPhoto $photo */
-                $this->imageVariantGenerator->deleteFiles($photo);
+                $this->removeFiles(fn () => $this->imageVariantGenerator->deleteFiles($photo));
                 $photo->delete();
             }
         }
@@ -128,7 +176,7 @@ class UgcMediaCleanupService
         // deliverables + shipment : portés par Booking | Candidature.
         if ($owner instanceof Booking || $owner instanceof Candidature) {
             foreach ($owner->deliverables()->get() as $deliverable) {
-                $this->deliverableService->deleteFiles($deliverable);
+                $this->removeFiles(fn () => $this->deliverableService->deleteFiles($deliverable));
                 $deliverable->delete();
             }
 
