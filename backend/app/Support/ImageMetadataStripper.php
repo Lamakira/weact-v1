@@ -8,11 +8,20 @@ namespace App\Support;
  * Suppression SANS PERTE des métadonnées d'une image, au niveau des octets (aucun
  * décodage : mémoire constante, quelle que soit la taille de l'image).
  *
- * JPEG : on retire APP1 (Exif ET XMP), APP13 (IPTC/Photoshop) et COM ; on garde
- * APP0 (JFIF), APP2 (profil ICC, donc les couleurs), APP14 (Adobe) et tout ce qui
- * suit le SOS, intact. Si l'EXIF d'origine portait une Orientation ≠ 1, on
- * insère un APP1 Exif MINIMAL ne contenant QUE ce tag (les navigateurs le
- * respectent) : ni GPS, ni appareil, ni dates ne survivent.
+ * JPEG : ALLOWLIST de segments. On garde APP0 (JFIF/JFXX), APP2 SEULEMENT s'il
+ * porte un profil ICC (`ICC_PROFILE\0`, multi-chunks dans l'ordre : les couleurs
+ * sont préservées), APP14 (Adobe) et les segments de décodage (DQT, DHT, SOF, DRI,
+ * DAC, DNL, SOS). Tout le reste est retiré : APP1 (Exif ET XMP), APP2 non-ICC
+ * (dont MPF, qui pointe vers des images secondaires), APP3, APP11 (JUMBF/C2PA),
+ * APP12, APP13, APP15, COM… Les données entropiques sont parcourues (octets
+ * `FF00`, marqueurs RSTn, scans multiples) pour trouver l'EOI de l'image
+ * PRINCIPALE : tout octet APRÈS cet EOI (images MPF secondaires avec leur propre
+ * Exif, trailers Samsung SEFT, vidéo des Motion Photos…) est supprimé et compte
+ * comme « sale ». Parseur tolérant façon libjpeg : les octets parasites entre
+ * segments d'en-tête sont ignorés (bornés) ; seul un fichier sans SOS valide est
+ * refusé. Si l'EXIF d'origine portait une Orientation ≠ 1, on insère un APP1
+ * Exif MINIMAL ne contenant QUE ce tag (les navigateurs le respectent) : ni GPS,
+ * ni appareil, ni dates ne survivent.
  *
  * PNG : on retire les chunks eXIf, tEXt, iTXt, zTXt ; tout le reste (iCCP, sRGB,
  * gAMA, cHRM, pHYs, IDAT…) est copié tel quel.
@@ -26,6 +35,11 @@ final class ImageMetadataStripper
     private const PNG_DROPPED_CHUNKS = ['eXIf', 'tEXt', 'iTXt', 'zTXt'];
 
     private const EXIF_HEADER = "Exif\0\0";
+
+    private const CHUNK = 65536;
+
+    /** Octets parasites tolérés avant le SOS (libjpeg-like), au-delà : refus. */
+    private const MAX_STRAY_BYTES = 65536;
 
     /**
      * @return 'jpeg'|'png'|null
@@ -143,85 +157,169 @@ final class ImageMetadataStripper
      */
     private static function jpeg($in, $out): bool
     {
-        self::write($out, (string) fread($in, 2)); // SOI
+        $buf = (string) fread($in, self::CHUNK);
+        $p = 0;
+
+        if (! str_starts_with($buf, "\xFF\xD8")) {
+            throw new \RuntimeException('Corrupt JPEG: no SOI.');
+        }
+        self::write($out, "\xFF\xD8");
+        $p = 2;
+
+        // Garantit $need octets disponibles à partir du début du tampon (compacte puis lit).
+        $fill = function (int $need) use (&$buf, &$p, $in): bool {
+            while (strlen($buf) < $need) {
+                if ($p > 0) {
+                    $buf = substr($buf, $p);
+                    $need -= $p;
+                    $p = 0;
+                }
+                $more = fread($in, self::CHUNK);
+                if ($more === false || $more === '') {
+                    return false;
+                }
+                $buf .= $more;
+            }
+
+            return true;
+        };
 
         $dirty = false;
         $orientationDone = false;
+        $sawSos = false;
+        $stray = 0;
 
         while (true) {
-            $byte = fread($in, 1);
-            if ($byte === false || $byte === '') {
-                return $dirty; // fin de fichier avant SOS : on s'arrête là
-            }
-            if ($byte !== "\xFF") {
-                throw new \RuntimeException('Corrupt JPEG: marker expected.');
+            if (! $fill($p + 1)) {
+                return self::jpegEnd($sawSos, $dirty);
             }
 
-            do { // octets de remplissage 0xFF éventuels
-                $marker = fread($in, 1);
-                if ($marker === false || $marker === '') {
-                    throw new \RuntimeException('Corrupt JPEG: truncated marker.');
+            $ff = strpos($buf, "\xFF", $p);
+            if ($ff === false) {
+                // Aucun marqueur dans le tampon : données entropiques, ou octets parasites.
+                $chunk = substr($buf, $p);
+                $buf = '';
+                $p = 0;
+                if ($sawSos) {
+                    self::write($out, $chunk);
+                } else {
+                    $stray += strlen($chunk);
+                    if (! self::strayOk($stray, $out, $dirty)) {
+                        return true;
+                    }
                 }
-            } while ($marker === "\xFF");
-
-            $code = ord($marker);
-
-            if ($code === 0xD9) { // EOI
-                self::write($out, "\xFF\xD9");
-
-                return $dirty;
-            }
-            if ($code === 0x01 || ($code >= 0xD0 && $code <= 0xD8)) { // marqueurs sans longueur
-                self::write($out, "\xFF".$marker);
 
                 continue;
             }
-            if ($code === 0xDA) { // SOS : tout le reste est copié tel quel
-                if ($out !== null) {
-                    self::write($out, "\xFF".$marker);
-                    stream_copy_to_stream($in, $out);
+
+            if ($ff > $p) {
+                $chunk = substr($buf, $p, $ff - $p);
+                if ($sawSos) {
+                    self::write($out, $chunk);
+                } else {
+                    $stray += strlen($chunk);
+                    if (! self::strayOk($stray, $out, $dirty)) {
+                        return true;
+                    }
+                }
+                $p = $ff;
+            }
+
+            if (! $fill($p + 2)) {
+                // « FF » isolé en fin de fichier
+                if ($sawSos) {
+                    self::write($out, substr($buf, $p));
+                }
+
+                return self::jpegEnd($sawSos, $dirty);
+            }
+
+            $code = ord($buf[$p + 1]);
+
+            if ($code === 0xFF) { // octet de remplissage avant un marqueur
+                $p += 1;
+
+                continue;
+            }
+
+            if ($sawSos && ($code === 0x00 || ($code >= 0xD0 && $code <= 0xD7))) { // FF00 / RSTn : données entropiques
+                self::write($out, substr($buf, $p, 2));
+                $p += 2;
+
+                continue;
+            }
+
+            if ($code === 0x00 || $code === 0x01 || ($code >= 0xD0 && $code <= 0xD8)) { // sans longueur, hors scan : parasite
+                $stray += 2;
+                if (! self::strayOk($stray, $out, $dirty)) {
+                    return true;
+                }
+                $p += 2;
+
+                continue;
+            }
+
+            if ($code === 0xD9) { // EOI de l'image principale
+                if (! $sawSos) {
+                    throw new \RuntimeException('Corrupt JPEG: EOI before any SOS.');
+                }
+                self::write($out, "\xFF\xD9");
+                $p += 2;
+
+                // Tout ce qui suit l'EOI est retiré (et signalé).
+                if ($fill($p + 1)) {
+                    if ($out === null) {
+                        return true;
+                    }
+                    $dirty = true;
                 }
 
                 return $dirty;
             }
 
-            $lengthBytes = (string) fread($in, 2);
-            if (strlen($lengthBytes) < 2) {
-                throw new \RuntimeException('Corrupt JPEG: truncated segment.');
+            if (! $fill($p + 4)) {
+                return self::jpegEnd($sawSos, $dirty); // segment tronqué
             }
             /** @var array{1: int} $unpacked */
-            $unpacked = unpack('n', $lengthBytes);
+            $unpacked = unpack('n', substr($buf, $p + 2, 2));
             $length = $unpacked[1];
-            if ($length < 2) {
-                throw new \RuntimeException('Corrupt JPEG: bad segment length.');
+            if ($length < 2) { // longueur invalide : marqueur parasite
+                $stray += 2;
+                if (! self::strayOk($stray, $out, $dirty)) {
+                    return true;
+                }
+                $p += 2;
+
+                continue;
             }
-            $payload = $length > 2 ? (string) fread($in, $length - 2) : '';
-            if (strlen($payload) !== $length - 2) {
-                throw new \RuntimeException('Corrupt JPEG: truncated segment.');
+            if (! $fill($p + 2 + $length)) {
+                return self::jpegEnd($sawSos, $dirty); // segment tronqué
             }
+
+            $raw = substr($buf, $p, 2 + $length);
+            $payload = substr($raw, 4);
+            $p += 2 + $length;
 
             $replacement = null;
-            $keep = true;
+            $keep = self::keepSegment($code, $payload);
 
-            if ($code === 0xED || $code === 0xFE) { // IPTC / commentaire
-                $keep = false;
-            } elseif ($code === 0xE1) { // APP1 : Exif ou XMP
-                $keep = false;
+            if ($code === 0xE1 && ! $sawSos && ! $orientationDone && str_starts_with($payload, self::EXIF_HEADER)) {
+                $orientation = self::exifOrientation(substr($payload, 6));
 
-                if (! $orientationDone && str_starts_with($payload, self::EXIF_HEADER)) {
-                    $orientation = self::exifOrientation(substr($payload, 6));
+                if ($orientation !== null && $orientation > 1) {
+                    $orientationDone = true;
+                    $minimal = self::minimalExifPayload($orientation);
 
-                    if ($orientation !== null && $orientation > 1) {
-                        $orientationDone = true;
-                        $minimal = self::minimalExifPayload($orientation);
-
-                        if ($payload === $minimal) {
-                            $keep = true; // déjà canonique : idempotent
-                        } else {
-                            $replacement = $minimal;
-                        }
+                    if ($payload === $minimal) {
+                        $keep = true; // déjà canonique : idempotent
+                    } else {
+                        $replacement = $minimal;
                     }
                 }
+            }
+
+            if ($code === 0xDA) {
+                $sawSos = true;
             }
 
             if (! $keep) {
@@ -232,11 +330,56 @@ final class ImageMetadataStripper
             }
 
             if ($keep) {
-                self::write($out, "\xFF".$marker.$lengthBytes.$payload);
+                self::write($out, $raw);
             } elseif ($replacement !== null) {
                 self::write($out, "\xFF\xE1".pack('n', strlen($replacement) + 2).$replacement);
             }
         }
+    }
+
+    private static function jpegEnd(bool $sawSos, bool $dirty): bool
+    {
+        if (! $sawSos) {
+            throw new \RuntimeException('Corrupt JPEG: no valid SOS found.');
+        }
+
+        return $dirty; // fichier tronqué après le SOS : on s'arrête là
+    }
+
+    /**
+     * Comptabilise des octets parasites avant le SOS (supprimés, donc « sale »).
+     *
+     * @param  resource|null  $out
+     * @return bool Faux si on doit s'arrêter (détection : déjà sale)
+     *
+     * @throws \RuntimeException Trop d'octets parasites : pas un JPEG exploitable
+     */
+    private static function strayOk(int $stray, $out, bool &$dirty): bool
+    {
+        if ($stray > self::MAX_STRAY_BYTES) {
+            throw new \RuntimeException('Corrupt JPEG: no valid SOS found.');
+        }
+        if ($out === null) {
+            return false;
+        }
+        $dirty = true;
+
+        return true;
+    }
+
+    /**
+     * Allowlist des segments JPEG conservés.
+     */
+    private static function keepSegment(int $code, string $payload): bool
+    {
+        return match (true) {
+            $code === 0xE0 => str_starts_with($payload, "JFIF\0") || str_starts_with($payload, "JFXX\0"),
+            $code === 0xE2 => str_starts_with($payload, "ICC_PROFILE\0"),
+            $code === 0xEE => str_starts_with($payload, 'Adobe'),
+            $code === 0xDB, $code === 0xDD, $code === 0xDC, $code === 0xDA => true, // DQT, DRI, DNL, SOS
+            $code >= 0xC0 && $code <= 0xCF => $code !== 0xC8, // SOF*, DHT (C4), DAC (CC) ; C8 réservé
+            default => false,
+        };
     }
 
     /**
@@ -280,6 +423,14 @@ final class ImageMetadataStripper
             }
 
             if ($type === 'IEND') {
+                $extra = fread($in, 1);
+                if ($extra !== false && $extra !== '') { // octets après IEND : retirés (le flux s'arrête ici)
+                    if ($out === null) {
+                        return true;
+                    }
+                    $dirty = true;
+                }
+
                 return $dirty;
             }
         }

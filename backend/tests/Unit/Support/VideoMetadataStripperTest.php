@@ -73,13 +73,15 @@ class VideoMetadataStripperTest extends TestCase
         $this->assertArrayNotHasKey('location', $this->probe($path)['format']['tags'] ?? []);
     }
 
-    public function test_command_maps_only_video_and_audio_and_does_not_strip_stream_metadata(): void
+    public function test_command_maps_only_video_and_audio_and_clears_all_metadata_with_a_bare_map_metadata_minus_one(): void
     {
         $cmd = implode(' ', VideoMetadataStripper::command('/in.mp4', '/out.mp4'));
 
         $this->assertStringContainsString('-map 0:v -map 0:a?', $cmd);
         $this->assertStringContainsString('-map_metadata -1', $cmd);
         $this->assertStringContainsString('-c copy', $cmd);
+        // `-map_metadata -1` seul efface les métadonnées globales, de flux ET de chapitres ;
+        // la rotation est une side data (display matrix), pas une métadonnée.
         $this->assertStringNotContainsString('-map_metadata:s', $cmd);
         $this->assertStringNotContainsString('-map 0 ', $cmd);
     }
@@ -88,14 +90,14 @@ class VideoMetadataStripperTest extends TestCase
     {
         Process::fake(['*' => Process::result(errorOutput: 'boom', exitCode: 1)]);
         $path = $this->path();
-        file_put_contents($path, "\0\0\0\x18ftypisom\0\0\0\0isom");
+        file_put_contents($path, $this->ftyp('isom'));
 
         try {
             VideoMetadataStripper::strip($path);
             $this->fail('exception attendue');
         } catch (\RuntimeException) {
             $this->assertStringContainsString('ftypisom', (string) file_get_contents($path));
-            $this->assertFileDoesNotExist($path.'.stripped.mp4');
+            $this->assertSame([], glob($path.'.stripped.*'));
         }
 
         Process::assertRan(fn ($process): bool => $process->timeout === 120);
@@ -111,5 +113,200 @@ class VideoMetadataStripperTest extends TestCase
 
         Process::assertNothingRan();
         $this->assertSame('not a video', file_get_contents($path));
+    }
+
+    private function ftyp(string $brand): string
+    {
+        return pack('N', 24).'ftyp'.str_pad($brand, 4).pack('N', 0).'isom';
+    }
+
+    /**
+     * Fake ffmpeg qui « réussit » en créant le fichier de sortie (dernier argument).
+     */
+    private function fakeFfmpegWriting(string $content = 'stripped', ?\Closure $before = null): \Closure
+    {
+        return function ($process) use ($content, $before) {
+            if ($before !== null) {
+                $before($process);
+            }
+            $cmd = $process->command;
+            file_put_contents((string) end($cmd), $content);
+
+            return Process::result();
+        };
+    }
+
+    public function test_stream_level_metadata_is_cleared_by_the_remux(): void
+    {
+        $mov = tempnam(sys_get_temp_dir(), 'vms').'.mov';
+        if (! $this->ffmpegRun(['-f', 'lavfi', '-i', 'testsrc=duration=1:size=64x64:rate=10', '-metadata:s:v:0', 'handler_name=SECRETHANDLER', $mov])) {
+            $this->markTestSkipped('ffmpeg indisponible.');
+        }
+        $this->assertStringContainsString('SECRETHANDLER', (string) file_get_contents($mov));
+
+        VideoMetadataStripper::strip($mov);
+
+        $this->assertStringNotContainsString('SECRETHANDLER', (string) file_get_contents($mov));
+    }
+
+    public function test_successful_remux_replaces_the_original_keeps_its_mode_and_leaves_no_temp(): void
+    {
+        $path = $this->path();
+        file_put_contents($path, $this->ftyp('isom').'original');
+        chmod($path, 0640);
+        Process::fake($this->fakeFfmpegWriting('stripped')); // sans vrai ffmpeg : couvre le chemin rename
+
+        VideoMetadataStripper::strip($path);
+
+        $this->assertSame('stripped', file_get_contents($path));
+        clearstatcache();
+        $this->assertSame(0640, fileperms($path) & 0777, 'le mode du fichier original est conservé');
+        $this->assertSame([], glob($path.'.*'));
+        Process::assertRan(fn ($process): bool => in_array('-map_metadata', $process->command, true) && in_array($path, $process->command, true));
+    }
+
+    public function test_temp_file_names_are_unique_per_call(): void
+    {
+        $path = $this->path();
+        file_put_contents($path, $this->ftyp('isom'));
+        $outputs = [];
+        Process::fake($this->fakeFfmpegWriting($this->ftyp('isom'), function ($process) use (&$outputs): void {
+            $cmd = $process->command;
+            $outputs[] = end($cmd);
+        }));
+
+        VideoMetadataStripper::strip($path);
+        VideoMetadataStripper::strip($path);
+
+        $this->assertCount(2, array_unique($outputs));
+        $this->assertNotSame($path.'.stripped.mp4', $outputs[0], 'nom aléatoire, pas déterministe');
+        $this->assertStringStartsWith($path.'.', (string) $outputs[0]);
+    }
+
+    public function test_original_deleted_during_the_remux_is_not_resurrected(): void
+    {
+        $path = $this->path();
+        file_put_contents($path, $this->ftyp('isom'));
+        Process::fake($this->fakeFfmpegWriting('stripped', fn () => unlink($path)));
+
+        try {
+            VideoMetadataStripper::strip($path);
+            $this->fail('exception attendue');
+        } catch (\RuntimeException) {
+            $this->assertFileDoesNotExist($path);
+            $this->assertSame([], glob($path.'.*'), 'le temporaire est supprimé');
+        }
+    }
+
+    public function test_original_replaced_during_the_remux_is_left_alone(): void
+    {
+        $path = $this->path();
+        file_put_contents($path, $this->ftyp('isom').'v1');
+        Process::fake($this->fakeFfmpegWriting('stripped-v1', function () use ($path): void {
+            unlink($path);
+            file_put_contents($path, $this->ftyp('isom').'NEWER-UPLOAD'); // ré-upload concurrent
+        }));
+
+        try {
+            VideoMetadataStripper::strip($path);
+            $this->fail('exception attendue');
+        } catch (\RuntimeException) {
+            $this->assertStringContainsString('NEWER-UPLOAD', (string) file_get_contents($path));
+            $this->assertSame([], glob($path.'.*'));
+        }
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function isoBmffLayouts(): array
+    {
+        return [
+            'free puis ftyp' => ['free-ftyp'],
+            'wide puis mdat' => ['wide-mdat'],
+            'skip puis moov' => ['skip-moov'],
+            'moov seul' => ['moov'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('isoBmffLayouts')]
+    public function test_container_detection_scans_the_first_top_level_atoms(string $layout): void
+    {
+        $atom = fn (string $type, string $body = "\0\0\0\0"): string => pack('N', 8 + strlen($body)).$type.$body;
+        $bytes = match ($layout) {
+            'free-ftyp' => $atom('free', str_repeat("\0", 16)).$this->ftyp('isom'),
+            'wide-mdat' => $atom('wide').$atom('mdat', 'data'),
+            'skip-moov' => $atom('skip').$atom('moov', 'data'),
+            default => $atom('moov', 'data'),
+        };
+        $path = $this->path();
+        file_put_contents($path, $bytes);
+
+        $this->assertNotNull(VideoMetadataStripper::format($path));
+        $this->assertSame('mov', VideoMetadataStripper::format($this->writeTmp($this->ftyp('qt  '))));
+        $this->assertNull(VideoMetadataStripper::format($this->writeTmp('plain text, not a video at all')));
+    }
+
+    private function writeTmp(string $bytes): string
+    {
+        $path = $this->path();
+        file_put_contents($path, $bytes);
+
+        return $path;
+    }
+
+    public function test_audio_codec_failure_falls_back_to_reencoding_audio_only_and_video_stays_copied(): void
+    {
+        $path = $this->path();
+        file_put_contents($path, $this->ftyp('isom').'original');
+        $calls = [];
+        Process::fake(function ($process) use (&$calls) {
+            $calls[] = implode(' ', $process->command);
+            if (count($calls) === 1) {
+                return Process::result(errorOutput: 'Could not find tag for codec apac', exitCode: 1);
+            }
+            $cmd = $process->command;
+            file_put_contents((string) end($cmd), 'stripped-aac');
+
+            return Process::result();
+        });
+
+        VideoMetadataStripper::strip($path);
+
+        $this->assertCount(2, $calls);
+        $this->assertStringContainsString('-c copy', $calls[0]);
+        $this->assertStringContainsString('-c:v copy -c:a aac -b:a 160k', $calls[1]);
+        $this->assertStringContainsString('-map_metadata -1', $calls[1]);
+        $this->assertSame('stripped-aac', file_get_contents($path));
+        $this->assertSame([], glob($path.'.*'));
+    }
+
+    public function test_when_the_fallback_also_fails_the_original_is_kept_and_a_warning_logged(): void
+    {
+        $path = $this->path();
+        file_put_contents($path, $this->ftyp('isom').'original');
+        Process::fake(['*' => Process::result(errorOutput: 'boom', exitCode: 1)]);
+        \Illuminate\Support\Facades\Log::spy();
+
+        VideoMetadataStripper::stripOrLog($path);
+
+        Process::assertRanTimes(fn ($process): bool => true, 2); // 1er essai + repli audio
+        $this->assertStringContainsString('original', (string) file_get_contents($path));
+        $this->assertSame([], glob($path.'.*'));
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->once();
+    }
+
+    /**
+     * @param  list<string>  $args
+     */
+    private function ffmpegRun(array $args): bool
+    {
+        $bin = (string) config('ffmpeg.ffmpeg_binary', '/usr/bin/ffmpeg');
+        if (! is_executable($bin)) {
+            return false;
+        }
+        exec(escapeshellarg($bin).' -y -v error '.implode(' ', array_map('escapeshellarg', $args)).' 2>&1', $out, $code);
+
+        return $code === 0;
     }
 }

@@ -28,6 +28,20 @@ trait BuildsMediaFixtures
         return "II*\0".pack('V', 8).$ifd0.$gps.$rationals."Canon\0";
     }
 
+    /**
+     * Payload TIFF/EXIF big-endian (« MM ») : Orientation seule + une entrée GPSInfo.
+     */
+    protected function exifTiffBigEndian(int $orientation): string
+    {
+        $ifd0 = pack('n', 2)
+            .pack('nnNn', 0x0112, 3, 1, $orientation)."\0\0"
+            .pack('nnNN', 0x8825, 4, 1, 38)
+            .pack('N', 0);
+        $gps = pack('n', 1).pack('nnN', 0x0001, 2, 1)."N\0\0\0".pack('N', 0);
+
+        return "MM\0*".pack('N', 8).$ifd0.$gps;
+    }
+
     protected function app1Exif(int $orientation): string
     {
         $tiff = $this->exifTiff($orientation);

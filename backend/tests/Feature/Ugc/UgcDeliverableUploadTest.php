@@ -697,7 +697,9 @@ class UgcDeliverableUploadTest extends TestCase
             ->postJson("/api/v1/face/shipments/{$shipment->uuid}/deliverables", ['video' => $this->fakeVideo()])
             ->assertCreated(); // l'échec du remux n'invalide pas l'upload
 
-        $this->assertSame([$baseLevel], $levels, 'un seul remux, hors transaction');
+        // remux + repli audio (échec simulé) : 2 appels, tous hors transaction
+        $this->assertCount(2, $levels);
+        $this->assertSame([$baseLevel], array_values(array_unique($levels)), 'hors transaction / lock');
         Process::assertRan(fn ($process): bool => in_array('-map_metadata', $process->command, true));
         Storage::disk('local')->assertExists('ugc/deliverables/unboxing/real.mp4'); // original conservé
         $this->assertSame(1, Deliverable::count());                                  // ligne cohérente avec le fichier

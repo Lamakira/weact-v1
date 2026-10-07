@@ -17,7 +17,8 @@ use Illuminate\Validation\ValidationException;
  * domaine de l'API.
  *
  * Les images sont nettoyées SANS PERTE au niveau des octets (ImageMetadataStripper :
- * EXIF/GPS/XMP/IPTC retirés, ICC conservé, Orientation minimale conservée) :
+ * allowlist de segments, octets après l'EOI supprimés, ICC conservé, Orientation
+ * minimale conservée) :
  * aucun décodage dans la requête, mémoire constante. Le décodage reste dans le
  * job de génération des variantes (worker de queue).
  */
@@ -32,8 +33,11 @@ final class UploadedMedia
         'video/msvideo' => 'avi',
     ];
 
-    /** Plafond en pixels par côté (protège le worker qui décode les variantes). */
-    public const MAX_IMAGE_DIMENSION = 8000;
+    /**
+     * Plafond en pixels par côté. Le décodage a lieu dans le worker de queue (variantes),
+     * jamais dans la requête ; 12000 laisse passer les photos 48/50 MP (8064x6048, 8160x6144).
+     */
+    public const MAX_IMAGE_DIMENSION = 12000;
 
     /**
      * @param  string  $field  Nom du champ de la requête (clé de l'erreur de validation)

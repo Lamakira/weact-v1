@@ -49,6 +49,7 @@ class StripMediaMetadataCommand extends Command implements Isolatable
         $prefix = is_string($pathOption) && $pathOption !== '' ? trim($pathOption, '/') : null;
 
         $rows = [];
+        $failures = [];
         $totals = ['scanned' => 0, 'with_metadata' => 0, 'cleaned' => 0, 'failed' => 0, 'unknown' => 0, 'stale_temp_removed' => 0];
         $remaining = $limit;
 
@@ -110,6 +111,7 @@ class StripMediaMetadataCommand extends Command implements Isolatable
                         : MediaMetadataCleaner::videoHasMetadata($fullPath);
                 } catch (\Throwable $e) {
                     $stats['failed']++;
+                    $failures[] = $target['disk'].':'.$file.' — '.$e->getMessage();
                     Log::warning('media:strip-metadata inspection failed — file untouched', ['disk' => $target['disk'], 'path' => $file, 'error' => $e->getMessage()]);
 
                     continue;
@@ -121,11 +123,12 @@ class StripMediaMetadataCommand extends Command implements Isolatable
 
                 $stats['with_metadata']++;
 
-                if ($remaining !== null) {
-                    $remaining--;
-                }
-
                 if (! $apply) {
+                    // Dry run : chaque fichier signalé consomme un slot de --limit.
+                    if ($remaining !== null) {
+                        $remaining--;
+                    }
+
                     continue;
                 }
 
@@ -136,8 +139,15 @@ class StripMediaMetadataCommand extends Command implements Isolatable
                         VideoMetadataStripper::strip($fullPath);
                     }
                     $stats['cleaned']++;
+
+                    // Seuls les nettoyages RÉUSSIS consomment un slot de --limit : un fichier
+                    // en échec déterministe ne bloque pas le lot, on passe au suivant.
+                    if ($remaining !== null) {
+                        $remaining--;
+                    }
                 } catch (\Throwable $e) {
                     $stats['failed']++;
+                    $failures[] = $target['disk'].':'.$file.' — '.$e->getMessage();
                     Log::warning('media:strip-metadata cleaning failed — original kept', ['disk' => $target['disk'], 'path' => $file, 'error' => $e->getMessage()]);
                 }
             }
@@ -158,6 +168,13 @@ class StripMediaMetadataCommand extends Command implements Isolatable
         }
 
         $this->table(['disque', 'dossier', 'scannés', 'avec métadonnées', $apply ? 'nettoyés' : 'à nettoyer', 'échecs', 'ignorés (format inconnu)'], $rows);
+
+        foreach (array_slice($failures, 0, 50) as $failure) {
+            $this->warn('échec : '.$failure);
+        }
+        if (count($failures) > 50) {
+            $this->warn(sprintf('… et %d autre(s) échec(s), voir les logs.', count($failures) - 50));
+        }
 
         Log::info('media:strip-metadata terminé', ['apply' => $apply, 'limit' => $limit, 'path' => $prefix] + $totals);
 
@@ -222,7 +239,7 @@ class StripMediaMetadataCommand extends Command implements Isolatable
 
     private function isTempFile(string $file): bool
     {
-        return (bool) preg_match('#\.(stripped\.[a-z0-9]+|stripping\.tmp)$#i', $file);
+        return (bool) preg_match('#\.(stripped\.[a-z0-9.]+|stripping\.tmp)$#i', $file);
     }
 
     private function isStale(string $fullPath): bool

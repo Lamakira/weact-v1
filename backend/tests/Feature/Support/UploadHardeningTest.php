@@ -155,22 +155,31 @@ class UploadHardeningTest extends TestCase
         $this->assertSame($sos($original), $sos((string) file_get_contents($stored)));
     }
 
-    public function test_image_dimension_rule_caps_each_side_with_a_french_message(): void
+    private function pngHeaderOnly(int $width, int $height): string
     {
-        $this->assertSame(8000, UploadedMedia::MAX_IMAGE_DIMENSION);
+        $ihdr = pack('NNCCCCC', $width, $height, 8, 2, 0, 0, 0);
 
-        $validator = validator(
-            ['photo' => UploadedFile::fake()->image('big.jpg', 8001, 10)],
-            ['photo' => [UploadedMedia::maxDimensions()]],
-        );
-        $this->assertTrue($validator->fails());
-        $this->assertSame('Image trop grande : 8000 pixels maximum par côté.', $validator->errors()->first('photo'));
+        return "\x89PNG\r\n\x1a\n".pack('N', 13).'IHDR'.$ihdr.pack('N', crc32('IHDR'.$ihdr));
+    }
 
-        $validator = validator(
-            ['photo' => UploadedFile::fake()->image('ok.jpg', 8000, 10)],
-            ['photo' => [UploadedMedia::maxDimensions()]],
-        );
-        $this->assertFalse($validator->fails());
+    public function test_image_dimension_rule_accepts_50mp_phone_photos_and_caps_at_12000_with_a_french_message(): void
+    {
+        $this->assertSame(12000, UploadedMedia::MAX_IMAGE_DIMENSION);
+
+        $check = function (int $w, int $h): \Illuminate\Validation\Validator {
+            return validator(
+                ['photo' => $this->upload('p.png', $this->pngHeaderOnly($w, $h), 'image/png')],
+                ['photo' => [UploadedMedia::maxDimensions()]],
+            );
+        };
+
+        $this->assertFalse($check(8160, 6144)->fails(), '50 MP');
+        $this->assertFalse($check(8064, 6048)->fails(), '48 MP');
+        $this->assertFalse($check(12000, 100)->fails());
+
+        $tooBig = $check(12001, 10);
+        $this->assertTrue($tooBig->fails());
+        $this->assertSame('Image trop grande : 12000 pixels maximum par côté.', $tooBig->errors()->first('photo'));
     }
 
     public function test_store_media_derives_extension_from_content_and_does_not_remux_under_the_lock(): void
@@ -214,7 +223,9 @@ class UploadHardeningTest extends TestCase
         $portfolio = app(FaceVideoService::class)->uploadVideo($face, FaceVideoType::Acting, new UploadedFile($src, 'evil.hta', null, null, true));
         $presentation = app(PresentationVideoService::class)->uploadPresentationVideo($face, new UploadedFile($src, 'evil.html', null, null, true));
 
-        $this->assertSame([$baseLevel, $baseLevel], $levels, 'remux hors transaction (et hors lock de quota)');
+        // 2 vidéos x (remux + repli audio après l'échec) = 4 appels, tous hors transaction (et hors lock de quota)
+        $this->assertCount(4, $levels);
+        $this->assertSame([$baseLevel], array_values(array_unique($levels)));
         $this->assertSame('mp4', pathinfo($portfolio->filename, PATHINFO_EXTENSION));
         Storage::disk('public')->assertExists('videos/faces/acting/'.$portfolio->filename);
         Storage::disk('public')->assertExists('videos/faces/presentation/'.$presentation['video']);
@@ -230,9 +241,9 @@ class UploadHardeningTest extends TestCase
         $user = \App\Models\User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
 
         $this->actingAs($user)
-            ->postJson('/api/v1/face/profile/photo', ['photo' => UploadedFile::fake()->image('big.jpg', 8001, 10)])
+            ->postJson('/api/v1/face/profile/photo', ['photo' => UploadedFile::fake()->image('big.jpg', 12001, 10)])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['photo'])
-            ->assertJsonFragment(['Image trop grande : 8000 pixels maximum par côté.']);
+            ->assertJsonFragment(['Image trop grande : 12000 pixels maximum par côté.']);
     }
 }

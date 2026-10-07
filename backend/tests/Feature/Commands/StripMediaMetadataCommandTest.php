@@ -50,7 +50,7 @@ class StripMediaMetadataCommandTest extends TestCase
         $this->assertTrue(ImageMetadataStripper::isDirty($full));
     }
 
-    public function test_apply_cleans_in_place_bakes_orientation_and_second_run_skips(): void
+    public function test_apply_cleans_in_place_keeps_orientation_tag_and_second_run_skips(): void
     {
         $public = $this->putDirtyJpeg('public', 'avatars/faces/a.jpg');
         $private = $this->putDirtyJpeg('local', 'products/p.jpg');
@@ -210,5 +210,37 @@ class StripMediaMetadataCommandTest extends TestCase
         $this->assertFileDoesNotExist($old);
         $this->assertFileDoesNotExist($oldVideo);
         $this->assertFileExists($new, 'un temporaire récent peut appartenir à un run en cours');
+    }
+
+    public function test_failures_do_not_consume_limit_slots_and_are_listed(): void
+    {
+        $tiff = "II*\0".pack('V', 8).pack('v', 0).pack('V', 0);
+        $app1 = "\xFF\xE1".pack('n', 2 + 6 + strlen($tiff))."Exif\0\0".$tiff;
+        // 3 fichiers « cassés » (APP1 puis octets sans SOS) triés AVANT les bons.
+        foreach (['a1', 'a2', 'a3'] as $name) {
+            Storage::disk('public')->put("avatars/faces/{$name}.jpg", "\xFF\xD8".$app1.str_repeat('garbage', 5));
+        }
+        $good1 = $this->putDirtyJpeg('public', 'avatars/faces/b1.jpg');
+        $good2 = $this->putDirtyJpeg('public', 'avatars/faces/b2.jpg');
+        $good3 = $this->putDirtyJpeg('public', 'avatars/faces/b3.jpg');
+
+        $this->artisan('media:strip-metadata', ['--apply' => true, '--limit' => 2])
+            ->expectsOutputToContain('2 nettoyé(s), 3 échec(s)')
+            ->expectsOutputToContain('avatars/faces/a1.jpg')
+            ->assertExitCode(1);
+
+        $this->assertFalse(ImageMetadataStripper::isDirty($good1));
+        $this->assertFalse(ImageMetadataStripper::isDirty($good2));
+        $this->assertTrue(ImageMetadataStripper::isDirty($good3), '--limit=2 : le 3e bon fichier attend le prochain lot');
+    }
+
+    public function test_trailing_data_after_eoi_is_picked_up_by_the_retro_command(): void
+    {
+        $path = Storage::disk('public')->path('avatars/faces/motion.jpg');
+        Storage::disk('public')->put('avatars/faces/motion.jpg', $this->plainJpeg(8, 8)."\0\0\0\x18ftypmp42 SECRET");
+
+        $this->artisan('media:strip-metadata', ['--apply' => true])->expectsOutputToContain('1 nettoyé(s)')->assertExitCode(0);
+
+        $this->assertStringNotContainsString('SECRET', (string) file_get_contents($path));
     }
 }

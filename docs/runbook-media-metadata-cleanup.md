@@ -11,20 +11,36 @@ GPS sur 12 772, 22 vidéos publiques sur 515 avec localisation).
 
 ## Ce qui est fait aux fichiers
 
-- Images (JPEG, PNG), au niveau des octets, SANS décodage ni ré-encodage :
-  - JPEG : segments APP1 (Exif et XMP), APP13 (IPTC/Photoshop) et COM retirés ;
-    APP0 (JFIF), APP2 (ICC), APP14 (Adobe) et tout le flux d'image conservés
-    tels quels. Si l'EXIF d'origine avait une Orientation différente de 1, un
-    APP1 minimal ne contenant QUE l'Orientation est réinséré (la photo reste à
-    l'endroit dans les navigateurs ; ni GPS, ni appareil, ni date ne survivent).
-  - PNG : chunks `eXIf`, `tEXt`, `iTXt`, `zTXt` retirés ; le reste est copié.
-  - Le format est reconnu par les octets magiques, pas par l'extension.
+- Images (JPEG, PNG), au niveau des octets, SANS décodage ni ré-encodage des pixels :
+  - JPEG, par ALLOWLIST de segments. Conservés : APP0 (JFIF/JFXX), APP2 seulement
+    s'il porte un profil ICC (`ICC_PROFILE`, multi-chunks dans l'ordre), APP14
+    (Adobe) et les segments de décodage (DQT, DHT, SOF, DRI, SOS…). Retirés :
+    tous les autres APPn (APP1 Exif et XMP, APP2 MPF, APP3, APP11 JUMBF/C2PA,
+    APP12, APP13, APP15…) et les commentaires COM.
+  - JPEG, octets APRÈS l'image principale : tout ce qui suit l'EOI de l'image
+    principale est supprimé (images MPF secondaires avec leur propre Exif/GPS,
+    trailers Samsung SEFT, vidéo des Motion Photos Google/Samsung). Pour les
+    détecter, le fichier est parcouru en entier (données entropiques comprises).
+  - JPEG, orientation : si l'EXIF d'origine avait une Orientation différente de 1,
+    un APP1 minimal ne contenant QUE l'Orientation est réinséré (la photo reste à
+    l'endroit dans les navigateurs ; les pixels ne sont PAS pivotés ; ni GPS, ni
+    appareil, ni date ne survivent).
+  - PNG : chunks `eXIf`, `tEXt`, `iTXt`, `zTXt` retirés et octets après `IEND`
+    supprimés ; le reste est copié.
+  - Le format est reconnu par les octets magiques, pas par l'extension. Les octets
+    parasites entre segments d'en-tête d'un JPEG sont tolérés (comme libjpeg) ;
+    seul un fichier sans SOS valide est refusé.
 - Vidéos : remux ffmpeg en copie de flux (`-c copy`, sans ré-encodage) ne gardant
   que les flux vidéo et audio (`-map 0:v -map 0:a?`) : les pistes de données,
   sous-titres et télémétrie (qui peuvent contenir le GPS) sont écartées, ainsi
-  que les tags globaux et les chapitres. La rotation (display matrix) est
-  conservée.
-- Chemin et nom de fichier inchangés (les lignes en base les référencent).
+  que les tags globaux, de flux et les chapitres. La rotation (display matrix) est
+  conservée. Si le `-c copy` échoue (codec audio inconnu, par exemple l'audio
+  spatial `apac` des iPhone récents avec ffmpeg 6.1), un repli retente UNE fois
+  avec `-c:v copy -c:a aac -b:a 160k` : l'audio est alors ré-encodé (légère
+  perte), la vidéo reste intacte. Si le repli échoue aussi, l'original est
+  conservé et l'échec est compté.
+- Chemin, nom de fichier ET mode (permissions) inchangés : les lignes en base les
+  référencent et les fichiers restent lisibles par le serveur web.
 - Idempotent : un fichier propre est ignoré, on peut relancer à volonté.
 
 ## Ce qui est traité
@@ -39,7 +55,7 @@ GPS sur 12 772, 22 vidéos publiques sur 515 avec localisation).
 - Les fichiers sont sélectionnés par octets magiques : une extension atypique
   (`.jfif`, `.jpe`, `.m4v`, aucune) est traitée. Les fichiers non reconnus sont
   comptés et loggés (colonne « ignorés »), jamais modifiés.
-- Les temporaires d'un run interrompu (`*.stripping.tmp`, `*.stripped.*`) ne
+- Les temporaires d'un run interrompu (`*.stripping.tmp`, `*.stripped.<aléa>.<ext>`) ne
   sont jamais traités comme médias ; avec `--apply`, ceux de plus d'une heure
   sont supprimés.
 
@@ -53,8 +69,11 @@ GPS sur 12 772, 22 vidéos publiques sur 515 avec localisation).
 | `--path=PREFIXE` | Restreint aux dossiers sous ce préfixe, ex. `--path=avatars/faces` ou `--path=ugc/deliverables` |
 | `--isolated` | **À mettre à chaque fois.** Sans lui, la protection contre deux exécutions simultanées (`Isolatable`) n'est PAS active. |
 
-Code de sortie : 0 si aucun échec, 1 sinon (détail dans les logs, niveau
-`warning`, avec disque et chemin).
+Code de sortie : 0 si aucun échec, 1 sinon. Chaque échec est listé en fin de
+sortie (disque, chemin, cause ; 50 premiers) et loggé en `warning`. Un échec ne
+consomme PAS de slot de `--limit` : un fichier en échec déterministe est ignoré
+et le lot continue sur les fichiers suivants (il réapparaîtra à chaque passage
+tant qu'il n'est pas traité à la main).
 
 ## Utilisateur d'exécution
 
@@ -95,18 +114,29 @@ fuite côté serveur mais il faut en avoir conscience.
 4. Dry run final : tout doit afficher 0 « avec métadonnées » et 0 échec.
 5. Purger le cache `/storage/` (section précédente).
 
-## Durées attendues (estimations, à confirmer sur le premier lot)
+## Durées et volumes attendus (estimations, à confirmer sur le premier lot)
 
 - Images : le nettoyage est une copie d'octets sans décodage, en mémoire
-  constante : de l'ordre de quelques dizaines de millisecondes par fichier
-  (lecture + écriture du fichier). Le scan des 12 772 JPEG (lecture des seuls
-  en-têtes) et le nettoyage des ~808 concernés se comptent en secondes à
-  quelques minutes, dominés par les accès disque.
-- Vidéos : un `ffprobe` par fichier (< 1 s), puis remux en copie de flux pour
-  les ~22 concernées : quelques secondes chacune (temps dominé par la copie
-  disque, fichiers jusqu'à 200 Mo, timeout du remux : 120 s).
-- Prévoir un espace disque libre d'au moins la taille du plus gros fichier
-  (écriture dans un fichier temporaire à côté de l'original).
+  constante. En revanche, la détection (dry run comme `--apply`) lit chaque fichier
+  EN ENTIER pour retrouver l'EOI et d'éventuelles données après l'image : prévoir
+  une lecture complète des ~12 800 JPEG (plusieurs dizaines de Go), donc des
+  minutes à quelques dizaines de minutes selon le disque. Le nettoyage des
+  fichiers concernés ajoute une réécriture (quelques dizaines de ms chacun).
+- Le nombre de fichiers « avec métadonnées » sera supérieur aux ~808 JPEG avec GPS
+  mesurés : sont aussi comptés les APP1 sans GPS (appareil, dates), XMP, IPTC,
+  commentaires, MPF et données après l'EOI. Le dry run donne le chiffre réel.
+- Vidéos : 522 vidéos et plus (515 publiques mesurées + livrables privés). La
+  plupart seront remuxées, pas seulement les ~22 avec localisation : `creation_time`,
+  `encoder`, les tags de flux et les pistes de données/sous-titres comptent comme
+  métadonnées. Compter un `ffprobe` (< 1 s) puis un remux en copie de flux par
+  fichier : quelques secondes chacun (dominé par la copie disque, fichiers jusqu'à
+  200 Mo, timeout de 120 s par tentative, deux tentatives au maximum avec le
+  repli audio). Prévoir donc de l'ordre de la demi-heure à l'heure pour
+  l'ensemble, à lancer par lots.
+- Espace disque : le remux écrit une copie temporaire à côté de l'original. Prévoir
+  un espace libre d'au moins la taille de la plus grosse vidéo (200 Mo au plus),
+  en pratique quelques centaines de Mo de marge suffisent car les fichiers sont
+  traités un par un.
 
 ## Comportement en cas d'échec
 
@@ -127,7 +157,8 @@ transaction de base de données, jamais sous un verrou.
 
 Aucun retour arrière automatique n'est nécessaire dans le sens où un original
 n'est remplacé qu'après un nettoyage réussi. Le nettoyage des images est sans
-perte (aucun ré-encodage) ; celui des vidéos est une copie de flux. En
+perte (aucun ré-encodage des pixels) ; celui des vidéos est une copie de flux (sauf
+l'audio, ré-encodé en AAC dans le seul cas du repli décrit plus haut). En
 revanche **le remplacement est définitif** : une fois nettoyé, le fichier
 d'origine (avec son EXIF/GPS, et pour les vidéos ses pistes de données et
 sous-titres) n'existe plus. La seule voie de retour est la sauvegarde de
