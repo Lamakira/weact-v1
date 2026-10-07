@@ -75,7 +75,7 @@ export interface ReleaseCandidatureResponse {
 export interface CandidaturePaymentStatusResponse {
   data: {
     candidature_status: CandidatureStatusType
-    payment_status: 'pending' | 'paid' | 'failed'
+    payment_status: 'pending' | 'paid' | 'failed' | 'refunded'
     is_trackable: boolean
   }
 }
