@@ -65,7 +65,10 @@ class BookingDisputeWindowLegacyTest extends TestCase
 
     private function as(User|Admin $user): static
     {
-        return $this->withToken($user->createToken('test-token')->plainTextToken);
+        // Jeton admin émis après le second facteur (middleware admin.2fa), comme Tests\TestCase::actingAs.
+        $abilities = $user instanceof Admin ? [Admin::ABILITY_TWO_FACTOR] : ['*'];
+
+        return $this->withToken($user->createToken('test-token', $abilities)->plainTextToken);
     }
 
     /**
