@@ -31,11 +31,11 @@ class AgencyLogoService
             throw new InvalidArgumentException('Only Agency producers can upload logos.');
         }
 
-        // Delete old logos if they exist
-        $this->deleteLogo($producer);
-
         // Original ré-encodé (EXIF supprimé), extension dérivée du contenu
         $filename = UploadedMedia::storeImage('public', self::STORAGE_PATH, $logo, 'logo');
+
+        // L'ancien logo (et sa vignette) n'est supprimé qu'APRÈS le stockage réussi du nouveau.
+        $this->deleteLogo($producer);
 
         // Aucun décodage dans la requête (memory_limit FPM) : la vignette est générée par
         // un job de queue ; la colonne reste null (URL de vignette null) en attendant.

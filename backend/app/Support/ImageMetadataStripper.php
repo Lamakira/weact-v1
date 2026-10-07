@@ -25,8 +25,10 @@ namespace App\Support;
  *  supprimé, de même qu'un segment final tronqué ; cela compte comme « sale ».
  *  Parseur tolérant façon libjpeg pour les octets parasites entre segments
  *  (bornés), mais STRICT sur ce qui change le sens du fichier : un segment de
- *  longueur < 2 est refusé, un second SOF avant l'EOI principal est refusé, et un
- *  fichier sans SOS valide est refusé. Les dimensions du PREMIER SOF (ce que le
+ *  longueur < 2 est refusé, un second SOF avant l'EOI principal est refusé, un
+ *  fichier sans SOS valide est refusé, ainsi que plus de 64 scans (décode bomb
+ *  progressive : le coût est linéaire en scans) ou plus de 4096 segments d'en-tête.
+ *  Les runs d'octets de remplissage FF sont sautés d'un coup (strspn). Les dimensions du PREMIER SOF (ce que le
  *  décodeur décodera) sont exposées par stripReport() : elles servent à plafonner
  *  la taille de ce qui sera réellement décodé par le worker, indépendamment de
  *  getimagesize() (qui peut diverger du décodeur sur un fichier fabriqué).
@@ -35,7 +37,9 @@ namespace App\Support;
  *
  * PNG : ALLOWLIST de chunks (IHDR, PLTE, IDAT, IEND, tRNS, cHRM, gAMA, iCCP, sBIT,
  * sRGB, cICP, mDCv, cLLi, bKGD, hIST, pHYs, sPLT, acTL, fcTL, fdAT). Tout le reste
- * (tIME, tEXt/iTXt/zTXt, caBX C2PA, chunks privés…) est retiré. Un `eXIf` avec une
+ * (tIME, tEXt/iTXt/zTXt, caBX C2PA, chunks privés…) est retiré. Une longueur de chunk
+ * déclarée plus grande que le fichier (ou qu'un IHDR ≠ 13 octets) est refusée avant toute
+ * lecture. Un `eXIf` avec une
  * Orientation ≠ 1 est remplacé par un `eXIf` minimal (même TIFF canonique que
  * l'APP1 JPEG), sinon supprimé. Les octets après IEND sont supprimés.
  *
@@ -56,6 +60,16 @@ final class ImageMetadataStripper
 
     /** Octets parasites tolérés avant le SOS (libjpeg-like), au-delà : refus. */
     private const MAX_STRAY_BYTES = 65536;
+
+    /**
+     * Nombre maximal de scans (SOS) d'un JPEG. Le décodage coûte linéairement en scans : un
+     * progressif de 4000x4000 avec 5000 scans de 53 octets tient en 453 Ko et occupe un worker
+     * ~6 s (minutes à 50 MP). libjpeg n'en produit qu'une dizaine par défaut.
+     */
+    private const MAX_SCANS = 64;
+
+    /** Nombre maximal de segments d'en-tête (gardés ou retirés) : un fichier honnête en a quelques dizaines. */
+    private const MAX_SEGMENTS = 4096;
 
     /** Taille maximale d'un eXIf PNG examiné (au-delà : supprimé). */
     private const MAX_PNG_EXIF_BYTES = 65536;
@@ -247,7 +261,7 @@ final class ImageMetadataStripper
         }
 
         try {
-            return $format === 'jpeg' ? self::jpeg($in, $out) : self::png($in, $out);
+            return $format === 'jpeg' ? self::jpeg($in, $out) : self::png($in, $out, (int) filesize($path));
         } finally {
             fclose($in);
         }
@@ -291,6 +305,8 @@ final class ImageMetadataStripper
         $orientationDone = false;
         $sawSos = false;
         $stray = 0;
+        $segments = 0;
+        $scans = 0;
         $width = null;
         $height = null;
 
@@ -302,7 +318,12 @@ final class ImageMetadataStripper
             if ($sawSos) {
                 // Données entropiques : FF00 (bourrage) et RSTn sont du contenu. On saute en bloc
                 // jusqu'au prochain vrai marqueur (FF suivi d'autre chose), en C (preg) : rapide.
-                if (preg_match('/\xFF[^\x00\xD0-\xD7]/', $buf, $found, PREG_OFFSET_CAPTURE, $p) === 1) {
+                $matched = preg_match('/\xFF[^\x00\xD0-\xD7]/', $buf, $found, PREG_OFFSET_CAPTURE, $p);
+                if ($matched === false) {
+                    throw new \RuntimeException('Corrupt JPEG: scan data could not be examined.');
+                }
+
+                if ($matched === 1) {
                     $at = $found[0][1];
                     if ($at > $p) {
                         self::write($out, substr($buf, $p, $at - $p));
@@ -330,7 +351,7 @@ final class ImageMetadataStripper
 
                 if ($stop > $p) { // octets parasites avant le prochain marqueur
                     $stray += $stop - $p;
-                    if (! self::strayOk($stray, $out, $dirty)) {
+                    if (! self::strayOk($stray, $out, $dirty, $sawSos)) {
                         return ['dirty' => true, 'width' => $width, 'height' => $height];
                     }
                 }
@@ -351,8 +372,8 @@ final class ImageMetadataStripper
 
             $code = ord($buf[$p + 1]);
 
-            if ($code === 0xFF) { // octet de remplissage avant un marqueur
-                $p += 1;
+            if ($code === 0xFF) { // run d'octets de remplissage : on le saute d'un coup (le dernier FF préfixe le vrai marqueur)
+                $p += max(1, strspn($buf, "\xFF", $p) - 1);
 
                 continue;
             }
@@ -366,7 +387,7 @@ final class ImageMetadataStripper
 
             if ($code === 0x00 || $code === 0x01 || ($code >= 0xD0 && $code <= 0xD8)) { // sans longueur, hors scan : parasite
                 $stray += 2;
-                if (! self::strayOk($stray, $out, $dirty)) {
+                if (! self::strayOk($stray, $out, $dirty, $sawSos)) {
                     return ['dirty' => true, 'width' => $width, 'height' => $height];
                 }
                 $p += 2;
@@ -411,6 +432,10 @@ final class ImageMetadataStripper
             $payload = substr($raw, 4);
             $p += 2 + $length;
 
+            if (++$segments > self::MAX_SEGMENTS) {
+                throw new ImageRejectedException('Image non supportée : structure JPEG anormale (trop de segments).');
+            }
+
             if (self::isSof($code)) {
                 if ($width !== null) {
                     throw new \RuntimeException('Corrupt JPEG: several frame headers.');
@@ -437,6 +462,10 @@ final class ImageMetadataStripper
 
             if ($code === 0xDA) {
                 $sawSos = true;
+
+                if (++$scans > self::MAX_SCANS) {
+                    throw new ImageRejectedException('Image non supportée : trop de passes de compression JPEG.');
+                }
             }
 
             if ($newPayload === null || $newPayload !== $payload) {
@@ -476,10 +505,12 @@ final class ImageMetadataStripper
      *
      * @throws \RuntimeException Trop d'octets parasites : pas un JPEG exploitable
      */
-    private static function strayOk(int $stray, $out, bool &$dirty): bool
+    private static function strayOk(int $stray, $out, bool &$dirty, bool $sawSos): bool
     {
         if ($stray > self::MAX_STRAY_BYTES) {
-            throw new \RuntimeException('Corrupt JPEG: no valid SOS found.');
+            throw new \RuntimeException($sawSos
+                ? 'Corrupt JPEG: too many stray bytes after the scan data.'
+                : 'Corrupt JPEG: no valid SOS found.');
         }
         if ($out === null) {
             return false;
@@ -517,7 +548,7 @@ final class ImageMetadataStripper
      * @param  resource|null  $out
      * @return array{dirty: bool, width: int|null, height: int|null}
      */
-    private static function png($in, $out): array
+    private static function png($in, $out, int $fileSize): array
     {
         self::write($out, (string) fread($in, 8));
         $dirty = false;
@@ -536,6 +567,14 @@ final class ImageMetadataStripper
             $length = $unpacked[1];
             $type = substr($header, 4, 4);
             $rest = $length + 4; // données + CRC
+
+            // Une longueur déclarée absurde ne doit jamais piloter une allocation ou un fseek.
+            if ($length > 0x7FFFFFFF || $rest > $fileSize - (int) ftell($in)) {
+                throw new \RuntimeException('Corrupt PNG: chunk length exceeds the file.');
+            }
+            if ($type === 'IHDR' && $length !== 13) {
+                throw new \RuntimeException('Corrupt PNG: IHDR must be 13 bytes.');
+            }
 
             if ($type === 'eXIf' && ! $orientationDone && $length <= self::MAX_PNG_EXIF_BYTES) {
                 $raw = (string) fread($in, $rest);
@@ -582,7 +621,7 @@ final class ImageMetadataStripper
                 continue;
             }
 
-            if ($type === 'IHDR' && $length >= 8 && $width === null) {
+            if ($type === 'IHDR' && $width === null) {
                 $data = (string) fread($in, $length);
                 $crc = (string) fread($in, 4);
                 if (strlen($data) !== $length || strlen($crc) !== 4) {
@@ -614,6 +653,40 @@ final class ImageMetadataStripper
                 return ['dirty' => $dirty, 'width' => $width, 'height' => $height];
             }
         }
+    }
+
+    /**
+     * Orientation EXIF (2 à 8) portée par le chunk eXIf d'un PNG, ou null. Intervention
+     * n'applique l'orientation EXIF qu'aux JPEG/TIFF : pour un PNG, c'est à l'appelant de
+     * l'appliquer après décodage.
+     */
+    public static function pngOrientation(string $bytes): ?int
+    {
+        if (! str_starts_with($bytes, self::PNG_SIGNATURE)) {
+            return null;
+        }
+
+        $offset = 8;
+        $size = strlen($bytes);
+        while ($offset + 8 <= $size) {
+            /** @var array{1: int} $unpacked */
+            $unpacked = unpack('N', substr($bytes, $offset, 4));
+            $length = $unpacked[1];
+            $type = substr($bytes, $offset + 4, 4);
+
+            if ($type === 'IDAT' || $type === 'IEND') {
+                return null;
+            }
+            if ($type === 'eXIf' && $length <= self::MAX_PNG_EXIF_BYTES && $offset + 8 + $length <= $size) {
+                $orientation = self::exifOrientation(substr($bytes, $offset + 8, $length));
+
+                return $orientation !== null && $orientation > 1 ? $orientation : null;
+            }
+
+            $offset += 12 + $length;
+        }
+
+        return null;
     }
 
     /**

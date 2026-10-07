@@ -411,6 +411,8 @@ class ImageMetadataStripperTest extends TestCase
         $this->assertFalse(ImageMetadataStripper::isDirty($out));
     }
 
+    private const SOS_MARKER = "\xFF\xDA";
+
     private const SOS = "\xFF\xDA\x00\x08\x01\x01\x00\x00\x3F\x00";
 
     private function sof(int $width, int $height, int $code = 0xC0): string
@@ -656,5 +658,145 @@ class ImageMetadataStripperTest extends TestCase
 
         $this->assertCount(1, $seen);
         $this->assertMatchesRegularExpression('/\.stripping\.[a-f0-9]{8,}\.tmp$/', $seen[0]);
+    }
+
+    private function scans(int $count): string
+    {
+        $scan = self::SOS."\x00"; // le scan le moins cher possible
+        $jpeg = $this->bareJpeg($this->dqt(), $this->sof(8, 8, 0xC2), $this->dht()).str_repeat($scan, $count)."\xFF\xD9";
+
+        return $jpeg;
+    }
+
+    public function test_more_than_64_scans_are_rejected_decode_bomb(): void
+    {
+        $this->assertNotNull(ImageMetadataStripper::stripReport($this->tmp($this->scans(64)), sys_get_temp_dir().'/scans64.out')['width']);
+
+        try {
+            ImageMetadataStripper::strip($this->tmp($this->scans(65)), sys_get_temp_dir().'/scans65.out');
+            $this->fail('exception attendue');
+        } catch (\App\Support\ImageRejectedException $e) {
+            $this->assertStringContainsString('Image non supportée', $e->getMessage());
+        }
+    }
+
+    public function test_a_normal_progressive_jpeg_is_accepted(): void
+    {
+        $im = imagecreatetruecolor(64, 48);
+        imageinterlace($im, true);
+        ob_start();
+        imagejpeg($im, null, 85);
+        $jpeg = (string) ob_get_clean();
+        $this->assertGreaterThan(1, substr_count($jpeg, self::SOS_MARKER), 'fixture progressive (plusieurs scans)');
+
+        $in = $this->tmp($jpeg);
+        ImageMetadataStripper::strip($in, $in.'.out');
+
+        $this->assertNotFalse(imagecreatefromjpeg($in.'.out'));
+    }
+
+    public function test_png_with_a_huge_declared_chunk_length_is_rejected_without_allocating(): void
+    {
+        $sig = "\x89PNG\r\n\x1a\n";
+        $huge = $sig.pack('N', 0x7FFFFFF0).'IHDR'.pack('NN', 100, 100).str_repeat("\0", 16);
+
+        $this->expectException(\RuntimeException::class);
+        ImageMetadataStripper::strip($this->tmp($huge), sys_get_temp_dir().'/huge.out');
+    }
+
+    public function test_png_ihdr_must_be_exactly_13_bytes_and_chunks_cannot_exceed_the_file(): void
+    {
+        $sig = "\x89PNG\r\n\x1a\n";
+
+        foreach ([
+            $sig.$this->chunk('IHDR', str_repeat("\0", 14)),
+            $sig.$this->chunk('IHDR', pack('NNCCCCC', 8, 8, 8, 2, 0, 0, 0)).pack('N', 5000).'IDATshort',
+        ] as $bad) {
+            try {
+                ImageMetadataStripper::strip($this->tmp($bad), sys_get_temp_dir().'/bad.out');
+                $this->fail('exception attendue');
+            } catch (\RuntimeException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
+    public function test_a_large_idat_chunk_is_streamed_with_bounded_memory(): void
+    {
+        $ihdr = $this->chunk('IHDR', pack('NNCCCCC', 8, 8, 8, 2, 0, 0, 0));
+        $path = tempnam(sys_get_temp_dir(), 'bigpng');
+        $h = fopen($path, 'wb');
+        $data = str_repeat("\0", 1024 * 1024);
+        fwrite($h, "\x89PNG\r\n\x1a\n".$ihdr.pack('N', 24 * 1024 * 1024).'IDAT');
+        for ($i = 0; $i < 24; $i++) {
+            fwrite($h, $data);
+        }
+        fwrite($h, pack('N', 0).$this->chunk('IEND', ''));
+        fclose($h);
+        unset($data);
+
+        gc_collect_cycles();
+        memory_reset_peak_usage();
+        $before = memory_get_peak_usage();
+        ImageMetadataStripper::strip($path, $path.'.out');
+
+        $this->assertLessThan(4 * 1024 * 1024, memory_get_peak_usage() - $before);
+        $this->assertSame(filesize($path), filesize($path.'.out'));
+    }
+
+    public function test_fill_byte_runs_are_skipped_quickly_before_and_after_the_scan(): void
+    {
+        $fill = str_repeat("\xFF", 8 * 1024 * 1024);
+        $afterScan = $this->bareJpeg($this->dqt(), $this->sof(8, 8), $this->dht(), self::SOS, 'DATA', $fill)."\xD9";
+        $beforeHeaders = "\xFF\xD8".$fill.substr($this->bareJpeg($this->dqt(), $this->sof(8, 8), $this->dht(), self::SOS, 'DATA', "\xFF\xD9"), 2);
+
+        $start = microtime(true);
+        foreach ([$afterScan, $beforeHeaders] as $jpeg) {
+            $in = $this->tmp($jpeg);
+            ImageMetadataStripper::strip($in, $in.'.out');
+            $out = (string) file_get_contents($in.'.out');
+            $this->assertStringEndsWith("DATA\xFF\xD9", $out);
+            $this->assertLessThan(1024, strlen($out), 'les octets de remplissage sont supprimés');
+        }
+        $this->assertLessThan(15, microtime(true) - $start, 'marge très large : le parcours octet par octet prenait plusieurs secondes');
+    }
+
+    public function test_millions_of_tiny_segments_are_rejected(): void
+    {
+        $jpeg = "\xFF\xD8".str_repeat($this->segment(0xE5, ''), 5000).$this->dqt().$this->sof(8, 8).$this->dht().self::SOS."\0\xFF\xD9";
+
+        $this->expectException(\App\Support\ImageRejectedException::class);
+        ImageMetadataStripper::strip($this->tmp($jpeg), sys_get_temp_dir().'/tiny.out');
+    }
+
+    public function test_many_stray_markers_after_the_scan_give_an_accurate_message(): void
+    {
+        $jpeg = $this->bareJpeg($this->dqt(), $this->sof(8, 8), $this->dht(), self::SOS, 'DATA'.str_repeat("\xFF\x01", 33000)."\xFF\xD9");
+
+        try {
+            ImageMetadataStripper::strip($this->tmp($jpeg), sys_get_temp_dir().'/stray.out');
+            $this->fail('exception attendue');
+        } catch (\RuntimeException $e) {
+            $this->assertStringNotContainsString('no valid SOS', $e->getMessage());
+            $this->assertStringContainsString('after the scan data', $e->getMessage());
+        }
+    }
+
+    public function test_png_orientation_helper_reads_the_exif_chunk(): void
+    {
+        $png = $this->pngWithChunks(40, 20, $this->chunk('eXIf', $this->exifTiff(6)));
+        $this->assertSame(6, ImageMetadataStripper::pngOrientation($png));
+        $this->assertNull(ImageMetadataStripper::pngOrientation($this->pngWithChunks(40, 20)));
+        $this->assertNull(ImageMetadataStripper::pngOrientation('not a png'));
+    }
+
+    public function test_zero_dimensions_are_rejected_by_the_dimension_policy(): void
+    {
+        $this->assertNotNull(\App\Support\UploadedMedia::dimensionError(0, 100));
+        $this->assertNotNull(\App\Support\UploadedMedia::dimensionError(100, 0));
+        $this->assertNull(\App\Support\UploadedMedia::dimensionError(1, 1));
+
+        $zero = "\x89PNG\r\n\x1a\n".$this->chunk('IHDR', pack('NNCCCCC', 0, 10, 8, 2, 0, 0, 0));
+        $this->assertNotNull(\App\Support\UploadedMedia::decodeBlocker($zero));
     }
 }

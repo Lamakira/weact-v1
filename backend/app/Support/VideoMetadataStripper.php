@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 
@@ -12,7 +13,8 @@ use Illuminate\Support\Facades\Process;
  * (`-c copy`) : coût quasi nul, même sur 200 Mo. Réécrit le fichier en place
  * (temp unique + rename).
  *
- * - `-map 0:v -map 0:a?` : on ne garde que les flux vidéo et audio. Les pistes de
+ * - `-map 0:V -map 0:a?` : on ne garde que les flux vidéo (V majuscule : sans les pochettes
+ *   « attached pic », des JPEG avec leur propre EXIF) et audio. Les pistes de
  *   données (mebx iPhone, mett Pixel, tmcd), sous-titres (mov_text DJI) et
  *   télémétrie (gpmd GoPro) sont écartées : elles font échouer le `-c copy` sur
  *   les vrais fichiers de téléphone ET peuvent embarquer le GPS.
@@ -27,12 +29,31 @@ use Illuminate\Support\Facades\Process;
  *   ré-encodage (un décodeur serait de toute façon nécessaire). S'il n'existe AUCUN
  *   flux audio allowlisté, on ne supprime jamais tout l'audio en silence : l'original
  *   est conservé, l'échec est loggé (et listé par la commande de rétrofit).
+ * - Temps borné (le remux est synchrone dans la requête web, FPM n'a que quelques workers) :
+ *   budget total de 150 s ; ffprobe 15 s ; le repli n'est tenté qu'après un échec RAPIDE
+ *   (jamais après un timeout) et seulement s'il reste au moins 30 s de budget, avec pour
+ *   timeout le budget restant.
  */
 final class VideoMetadataStripper
 {
     public const FORMATS = ['mp4', 'mov', 'avi'];
 
     private const TIMEOUT_SECONDS = 120;
+
+    /** Budget total (remux + sonde + repli) en secondes. */
+    private const TOTAL_BUDGET_SECONDS = 150;
+
+    /** Sous ce reliquat de budget, le repli n'est pas tenté. */
+    private const MIN_FALLBACK_SECONDS = 30;
+
+    private const PROBE_TIMEOUT_SECONDS = 15;
+
+    /**
+     * Horloge injectable pour les tests (secondes, float). @internal
+     *
+     * @var (\Closure(): float)|null
+     */
+    public static ?\Closure $clock = null;
 
     /** Codecs audio qu'un `-c copy` sait recopier sans décodeur ni risque. */
     private const AUDIO_ALLOWLIST = ['aac', 'mp3', 'opus', 'vorbis', 'flac', 'alac', 'ac3', 'eac3', 'pcm_s16le', 'pcm_s24le', 'pcm_f32le'];
@@ -121,7 +142,7 @@ final class VideoMetadataStripper
             (string) config('ffmpeg.ffmpeg_binary', '/usr/bin/ffmpeg'),
             '-y', '-v', 'error',
             '-i', $input,
-            '-map', '0:v',
+            '-map', '0:V',
             ...($audioIndexes === null ? ['-map', '0:a?'] : $audioMaps),
             '-map_metadata', '-1',
             '-map_chapters', '-1',
@@ -167,19 +188,40 @@ final class VideoMetadataStripper
         // Nom unique : un upload en cours et la commande de rétrofit ne se marchent pas dessus.
         $temp = $path.'.stripped.'.bin2hex(random_bytes(6)).'.'.$format;
 
+        $startedAt = self::now();
+
         try {
-            $result = Process::timeout(self::TIMEOUT_SECONDS)->run(self::command($path, $temp, $format));
+            try {
+                $result = Process::timeout(self::TIMEOUT_SECONDS)->run(self::command($path, $temp, $format));
+            } catch (ProcessTimedOutException) {
+                // Un timeout n'est pas un problème de codec : pas de repli (on doublerait l'attente).
+                throw new \RuntimeException('Video metadata stripping failed: ffmpeg timed out, original kept.');
+            }
 
             if (! $result->successful()) {
                 @unlink($temp);
 
-                // Repli : même copie de flux, mais seulement vidéo + audio allowlisté.
+                // Repli : même copie de flux, mais seulement vidéo + audio allowlisté, dans le budget restant.
+                $remaining = (int) floor(self::TOTAL_BUDGET_SECONDS - (self::now() - $startedAt));
+                if ($remaining < self::MIN_FALLBACK_SECONDS) {
+                    throw new \RuntimeException("Video metadata stripping failed: fallback skipped, time budget exhausted ({$remaining}s left): ".trim($result->errorOutput()));
+                }
+
                 $audio = self::allowlistedAudioIndexes($path);
                 if ($audio === []) {
                     throw new \RuntimeException('Video metadata stripping failed (no copyable audio stream, original kept): '.trim($result->errorOutput()));
                 }
 
-                $result = Process::timeout(self::TIMEOUT_SECONDS)->run(self::command($path, $temp, $format, $audio));
+                $remaining = (int) floor(self::TOTAL_BUDGET_SECONDS - (self::now() - $startedAt));
+                if ($remaining < self::MIN_FALLBACK_SECONDS) {
+                    throw new \RuntimeException("Video metadata stripping failed: fallback skipped, time budget exhausted ({$remaining}s left).");
+                }
+
+                try {
+                    $result = Process::timeout(min(self::TIMEOUT_SECONDS, $remaining))->run(self::command($path, $temp, $format, $audio));
+                } catch (ProcessTimedOutException) {
+                    throw new \RuntimeException('Video metadata stripping failed: fallback ffmpeg timed out, original kept.');
+                }
             }
 
             if (! $result->successful()) {
@@ -206,6 +248,11 @@ final class VideoMetadataStripper
         }
     }
 
+    private static function now(): float
+    {
+        return (self::$clock ?? static fn (): float => microtime(true))();
+    }
+
     /**
      * Indices des flux audio dont le codec est dans l'allowlist (vide si ffprobe échoue
      * ou s'il n'y en a aucun).
@@ -214,7 +261,7 @@ final class VideoMetadataStripper
      */
     private static function allowlistedAudioIndexes(string $path): array
     {
-        $probe = Process::timeout(60)->run([
+        $probe = Process::timeout(self::PROBE_TIMEOUT_SECONDS)->run([
             (string) config('ffmpeg.ffprobe_binary', '/usr/bin/ffprobe'),
             '-v', 'error',
             '-show_entries', 'stream=index,codec_type,codec_name',

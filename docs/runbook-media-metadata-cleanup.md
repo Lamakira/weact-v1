@@ -37,9 +37,14 @@ GPS sur 12 772, 22 vidéos publiques sur 515 avec localisation).
   - Le format est reconnu par les octets magiques, pas par l'extension. Les octets
     parasites entre segments d'en-tête d'un JPEG sont tolérés (comme libjpeg) ;
     sont REFUSÉS : un segment de longueur < 2, un second en-tête de frame (SOF)
-    avant la fin de l'image principale, et un fichier sans SOS valide.
+    avant la fin de l'image principale, un fichier sans SOS valide, plus de 64
+    scans (SOS : le coût de décodage est linéaire en nombre de scans, un JPEG
+    progressif de 450 Ko avec 5000 scans immobilise un worker plusieurs secondes ;
+    libjpeg n'en produit qu'une dizaine) et plus de 4096 segments d'en-tête.
+    Côté PNG : IHDR de longueur autre que 13 et chunks dont la longueur déclarée
+    dépasse le fichier.
 - Plafonds de taille d'image (à l'upload ET dans les jobs de queue) : 12000 px par
-  côté et 52 millions de pixels au total (garde les 48/50 MP des téléphones,
+  côté, 52 millions de pixels au total, et au moins 1 pixel par côté (garde les 48/50 MP des téléphones,
   8160x6144 = 50,1 MP ; refuse les modes 108/200 MP). La mesure porte sur ce que le
   décodeur lira réellement (premier SOF / IHDR du fichier NETTOYÉ), pas seulement sur
   `getimagesize()` de l'original, et échoue FERMÉE : une dimension illisible est un
@@ -63,6 +68,14 @@ GPS sur 12 772, 22 vidéos publiques sur 515 avec localisation).
   silence : l'original est conservé, un warning est loggé et le fichier est compté
   comme ÉCHEC (listé en fin de commande) pour traitement manuel. Il en va de même si
   le repli échoue à son tour : l'original reste en place, avec ses métadonnées.
+- Les pochettes (« attached pic », JPEG avec leur propre EXIF) sont exclues du
+  remux (`-map 0:V`).
+- Temps borné (le remux d'un upload est synchrone dans la requête web, PHP-FPM n'a
+  que 5 workers) : budget total de 150 s ; `ffprobe` limité à 15 s ; le repli n'est
+  jamais tenté après un timeout de ffmpeg (seulement après un échec rapide) et
+  seulement s'il reste au moins 30 s de budget, avec le budget restant comme
+  timeout. Un remux abandonné laisse l'original intact et sera repris par cette
+  commande.
 - Chemin, nom de fichier ET mode (permissions) inchangés : les lignes en base les
   référencent et les fichiers restent lisibles par le serveur web.
 - Idempotent : un fichier propre est ignoré, on peut relancer à volonté.
@@ -191,3 +204,23 @@ d'origine (avec son EXIF/GPS, et pour les vidéos ses pistes de données et
 sous-titres) n'existe plus. La seule voie de retour est la sauvegarde de
 `storage/app` faite à l'étape 1 : restaurer les fichiers concernés depuis
 l'archive.
+
+## Files de queue : `retry_after` doit rester supérieur au `--timeout` du worker
+
+Les jobs qui décodent des images (`GenerateImageVariants`, vignette de logo
+d'agence) ont un `$timeout = 60` explicite. En production, le worker tourne avec
+`--timeout=90` (supervisor, hors dépôt). La clé `retry_after` de la connexion
+`database` (`config/queue.php`, variable `DB_QUEUE_RETRY_AFTER`) doit rester
+STRICTEMENT supérieure au `--timeout` du supervisor : à égalité, un job encore en
+cours à 90 s peut être repris une seconde fois par un autre worker. Le défaut du
+dépôt est maintenant de 150 s ; vérifier qu'aucune valeur `DB_QUEUE_RETRY_AFTER`
+plus basse n'est posée dans le `.env` de production, et ajuster ensemble les deux
+valeurs si le `--timeout` du supervisor évolue.
+
+## Orientation des PNG
+
+Un PNG dont le chunk `eXIf` (minimal) porte une orientation est affiché pivoté par
+les navigateurs. Intervention n'applique l'orientation EXIF qu'aux JPEG/TIFF :
+`ImageVariantGenerator` applique donc lui-même la rotation/le miroir
+correspondant (les 8 orientations) aux variantes générées à partir d'un PNG, pour
+qu'elles restent cohérentes avec l'original.

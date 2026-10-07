@@ -77,13 +77,14 @@ class VideoMetadataStripperTest extends TestCase
     {
         $cmd = implode(' ', VideoMetadataStripper::command('/in.mp4', '/out.mp4'));
 
-        $this->assertStringContainsString('-map 0:v -map 0:a?', $cmd);
+        $this->assertStringContainsString('-map 0:V -map 0:a?', $cmd); // V majuscule : exclut les pochettes (attached pics)
         $this->assertStringContainsString('-map_metadata -1', $cmd);
         $this->assertStringContainsString('-c copy', $cmd);
         // `-map_metadata -1` seul efface les métadonnées globales, de flux ET de chapitres ;
         // la rotation est une side data (display matrix), pas une métadonnée.
         $this->assertStringNotContainsString('-map_metadata:s', $cmd);
         $this->assertStringNotContainsString('-map 0 ', $cmd);
+        $this->assertStringNotContainsString('0:v ', $cmd);
     }
 
     public function test_strip_runs_with_a_120s_timeout_and_keeps_original_on_failure(): void
@@ -293,8 +294,8 @@ class VideoMetadataStripperTest extends TestCase
         VideoMetadataStripper::strip($path);
 
         $this->assertCount(2, $commands);
-        $this->assertStringContainsString('-map 0:v -map 0:a? ', $commands[0]);
-        $this->assertStringContainsString('-map 0:v -map 0:1 ', $commands[1]);
+        $this->assertStringContainsString('-map 0:V -map 0:a? ', $commands[0]);
+        $this->assertStringContainsString('-map 0:V -map 0:1 ', $commands[1]);
         $this->assertStringNotContainsString('0:2', $commands[1], 'flux audio non allowlisté écarté');
         $this->assertStringNotContainsString('0:3', $commands[1]);
         $this->assertStringContainsString('-c copy', $commands[1]);
@@ -354,5 +355,100 @@ class VideoMetadataStripperTest extends TestCase
         exec(escapeshellarg($bin).' -y -v error '.implode(' ', array_map('escapeshellarg', $args)).' 2>&1', $out, $code);
 
         return $code === 0;
+    }
+
+    protected function tearDown(): void
+    {
+        VideoMetadataStripper::$clock = null;
+        parent::tearDown();
+    }
+
+    private function timedOut(): \Illuminate\Process\Exceptions\ProcessTimedOutException
+    {
+        $symfony = new \Symfony\Component\Process\Exception\ProcessTimedOutException(
+            new \Symfony\Component\Process\Process(['ffmpeg']),
+            \Symfony\Component\Process\Exception\ProcessTimedOutException::TYPE_GENERAL,
+        );
+
+        return new \Illuminate\Process\Exceptions\ProcessTimedOutException($symfony, Process::result());
+    }
+
+    public function test_a_timed_out_first_remux_does_not_trigger_the_fallback(): void
+    {
+        $path = $this->path();
+        file_put_contents($path, $this->ftyp('isom').'original');
+        $ran = [];
+        Process::fake(function ($process) use (&$ran) {
+            $ran[] = (string) $process->command[0];
+
+            throw $this->timedOut();
+        });
+        \Illuminate\Support\Facades\Log::spy();
+
+        VideoMetadataStripper::stripOrLog($path);
+
+        $this->assertCount(1, $ran, 'ni ffprobe ni second ffmpeg après un timeout');
+        $this->assertStringContainsString('original', (string) file_get_contents($path));
+        $this->assertSame([], glob($path.'.*'));
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->once();
+    }
+
+    public function test_fallback_is_skipped_when_less_than_30_seconds_of_the_150_second_budget_remain(): void
+    {
+        $path = $this->path();
+        file_put_contents($path, $this->ftyp('isom').'original');
+        $now = 0.0;
+        VideoMetadataStripper::$clock = function () use (&$now): float {
+            return $now;
+        };
+        $ran = [];
+        Process::fake(function ($process) use (&$ran, &$now) {
+            $ran[] = (string) $process->command[0];
+            $now = 130.0; // le premier remux a échoué vite... mais après 130 s écoulées
+
+            return Process::result(errorOutput: 'fail', exitCode: 1);
+        });
+
+        try {
+            VideoMetadataStripper::strip($path);
+            $this->fail('exception attendue');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('budget', $e->getMessage());
+        }
+
+        $this->assertCount(1, $ran, 'pas de ffprobe ni de second ffmpeg');
+        $this->assertStringContainsString('original', (string) file_get_contents($path));
+    }
+
+    public function test_fallback_gets_only_the_remaining_budget_and_ffprobe_is_capped_at_15_seconds(): void
+    {
+        $path = $this->path();
+        file_put_contents($path, $this->ftyp('isom').'original');
+        $now = 0.0;
+        VideoMetadataStripper::$clock = function () use (&$now): float {
+            return $now;
+        };
+        $timeouts = [];
+        Process::fake(function ($process) use (&$now, &$timeouts) {
+            $cmd = $process->command;
+            $timeouts[basename((string) $cmd[0])][] = $process->timeout;
+            if (str_contains((string) $cmd[0], 'ffprobe')) {
+                return Process::result(output: json_encode(['streams' => [['index' => 0, 'codec_type' => 'video', 'codec_name' => 'h264'], ['index' => 1, 'codec_type' => 'audio', 'codec_name' => 'aac']]]));
+            }
+            if (count($timeouts['ffmpeg']) === 1) {
+                $now = 100.0;
+
+                return Process::result(errorOutput: 'fail', exitCode: 1);
+            }
+            file_put_contents((string) end($cmd), 'stripped');
+
+            return Process::result();
+        });
+
+        VideoMetadataStripper::strip($path);
+
+        $this->assertSame([15], $timeouts['ffprobe']);
+        $this->assertSame([120, 50], $timeouts['ffmpeg'], '150 s de budget - 100 s écoulées = 50 s pour le repli');
+        $this->assertSame('stripped', file_get_contents($path));
     }
 }

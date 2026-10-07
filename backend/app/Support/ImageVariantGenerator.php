@@ -128,6 +128,14 @@ class ImageVariantGenerator
                 }
 
                 $decoded = Image::read($source);
+
+                // Intervention n'applique l'orientation EXIF qu'aux JPEG/TIFF : pour un PNG dont le
+                // eXIf (minimal) porte une orientation, les navigateurs pivotent l'original — les
+                // variantes doivent suivre.
+                $pngOrientation = ImageMetadataStripper::pngOrientation($source);
+                if ($pngOrientation !== null) {
+                    $decoded = self::applyOrientation($decoded, $pngOrientation);
+                }
             }
 
             // cover()/scaleDown() mutate the image in place, so every variant
@@ -197,6 +205,23 @@ class ImageVariantGenerator
         }
 
         return ['generated' => $generated, 'skipped' => $skipped, 'missing_source' => false];
+    }
+
+    /**
+     * Mêmes transformations que l'AlignRotationModifier d'Intervention pour les 8 orientations EXIF.
+     */
+    private static function applyOrientation(ImageInterface $image, int $orientation): ImageInterface
+    {
+        return match ($orientation) {
+            2 => $image->flop(),
+            3 => $image->rotate(180),
+            4 => $image->rotate(180)->flop(),
+            5 => $image->rotate(270)->flop(),
+            6 => $image->rotate(270),
+            7 => $image->rotate(90)->flop(),
+            8 => $image->rotate(90),
+            default => $image,
+        };
     }
 
     /**

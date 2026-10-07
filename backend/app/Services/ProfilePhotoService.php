@@ -23,11 +23,12 @@ class ProfilePhotoService
      */
     public function uploadProfilePhoto(Face $face, UploadedFile $photo): array
     {
-        // Delete old photos if they exist
-        $this->deleteProfilePhoto($face);
-
         // Original ré-encodé (EXIF supprimé), extension dérivée du contenu
         $filename = UploadedMedia::storeImage('public', self::STORAGE_PATH, $photo, 'photo');
+
+        // L'ancienne photo (et ses variantes) n'est supprimée qu'APRÈS le stockage réussi de la
+        // nouvelle : un upload rejeté ne doit jamais laisser l'utilisateur sans photo.
+        $this->deleteProfilePhoto($face);
 
         // Update Face model — variant columns stay null until the job fills them
         $face->update([

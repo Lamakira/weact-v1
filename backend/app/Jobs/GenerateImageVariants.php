@@ -28,6 +28,13 @@ class GenerateImageVariants implements ShouldQueue
 {
     use Queueable;
 
+    /**
+     * Borne explicite (secondes) : doit rester STRICTEMENT inférieure à `retry_after` de la
+     * connexion de queue, sinon un job encore en cours serait repris en double. Les erreurs de
+     * décodage sont absorbées (warning, pas de retry).
+     */
+    public int $timeout = 60;
+
     public const TYPE_FACE = 'face';
 
     public const TYPE_PRODUCER = 'producer';

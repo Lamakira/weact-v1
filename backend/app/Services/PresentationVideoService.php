@@ -47,25 +47,36 @@ class PresentationVideoService
      */
     public function uploadPresentationVideo(Face $face, UploadedFile $video): array
     {
-        $result = DB::transaction(function () use ($face, $video) {
-            // Delete old video if exists
-            $this->deletePresentationVideo($face);
+        // Extension validée AVANT toute suppression : un fichier rejeté ne doit pas coûter
+        // sa vidéo actuelle à l'utilisateur.
+        $extension = UploadedMedia::videoExtension($video, 'video');
 
-            // Generate unique filename with UUID
-            $extension = UploadedMedia::videoExtension($video, 'video');
+        $result = DB::transaction(function () use ($face, $video, $extension) {
             $filename = Str::uuid()->toString().'.'.$extension;
             $thumbnailFilename = Str::uuid()->toString().'.jpg';
+            $disk = Storage::disk('public');
 
-            // Store video using the public disk
-            Storage::disk('public')->putFileAs(self::STORAGE_PATH, $video, $filename);
+            // Nouveau fichier + miniature d'abord ; l'ancien n'est supprimé qu'ensuite. Sur échec
+            // (écriture, ffmpeg), on retire ce qui vient d'être écrit et l'ancien reste intact.
+            try {
+                if ($disk->putFileAs(self::STORAGE_PATH, $video, $filename) === false) {
+                    throw new \RuntimeException("Failed to store presentation video [{$filename}].");
+                }
 
-            // Generate and save thumbnail from the first frame
-            $this->generateThumbnail(
-                Storage::disk('public')->path(self::STORAGE_PATH.'/'.$filename),
-                $thumbnailFilename
-            );
+                $this->generateThumbnail(
+                    $disk->path(self::STORAGE_PATH.'/'.$filename),
+                    $thumbnailFilename
+                );
+            } catch (\Throwable $e) {
+                $disk->delete(self::STORAGE_PATH.'/'.$filename);
+                $disk->delete(self::THUMBNAIL_PATH.'/'.$thumbnailFilename);
 
-            // Update Face model
+                throw $e;
+            }
+
+            // Supprime l'ancienne vidéo (colonnes encore sur l'ancien état) puis pose la nouvelle.
+            $this->deletePresentationVideo($face);
+
             $face->update([
                 'presentation_video' => $filename,
                 'presentation_video_thumbnail' => $thumbnailFilename,

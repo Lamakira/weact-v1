@@ -120,8 +120,10 @@ class ArticleService
         }
 
         if ($featuredImage) {
+            // Nouveau fichier stocké (et validé) AVANT de supprimer l'ancien.
+            $newImage = $this->uploadFeaturedImage($featuredImage);
             $this->deleteOldImage($article);
-            $updateData['featured_image'] = $this->uploadFeaturedImage($featuredImage);
+            $updateData['featured_image'] = $newImage;
         }
 
         if (! empty($updateData)) {

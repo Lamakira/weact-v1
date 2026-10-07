@@ -24,6 +24,13 @@ class GenerateAgencyLogoThumbnail implements ShouldQueue
 {
     use Queueable;
 
+    /**
+     * Borne explicite (secondes) : doit rester STRICTEMENT inférieure à `retry_after` de la
+     * connexion de queue, sinon un job encore en cours serait repris en double. Les erreurs de
+     * décodage sont absorbées (warning, pas de retry).
+     */
+    public int $timeout = 60;
+
     public const LOGO_PATH = 'logos/agencies';
 
     public const THUMBNAIL_PATH = 'logos/agencies/thumbnails';

@@ -67,6 +67,10 @@ final class UploadedMedia
      */
     public static function dimensionError(int $width, int $height): ?string
     {
+        if ($width < 1 || $height < 1) {
+            return 'Image illisible ou corrompue.';
+        }
+
         if ($width > self::MAX_IMAGE_DIMENSION || $height > self::MAX_IMAGE_DIMENSION) {
             return 'Image trop grande : '.self::MAX_IMAGE_DIMENSION.' pixels maximum par côté.';
         }
@@ -131,6 +135,8 @@ final class UploadedMedia
         try {
             try {
                 $report = ImageMetadataStripper::stripReport($source, $temp);
+            } catch (ImageRejectedException $e) {
+                throw ValidationException::withMessages([$field => [$e->getMessage()]]);
             } catch (\RuntimeException) {
                 throw self::invalid($field);
             }

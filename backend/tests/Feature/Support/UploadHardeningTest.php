@@ -291,13 +291,18 @@ class UploadHardeningTest extends TestCase
         Queue::assertNothingPushed();
     }
 
-    public function test_crafted_jpeg_with_decoy_sof_behind_a_fake_length_is_rejected_on_the_stripped_dimensions(): void
+    /**
+     * Rejeté ICI par la règle de validation (jpegDimensions traite FF01 comme un marqueur sans
+     * paramètre et voit donc 30000x30000), pas par la garde de storeImage : celle-ci est prouvée
+     * directement par test_store_image_checks_the_stripped_output_and_reports_the_pixel_cap_message.
+     */
+    public function test_crafted_jpeg_with_decoy_sof_behind_a_fake_length_is_rejected_at_the_endpoint_by_the_rule(): void
     {
         Storage::fake('public');
         Queue::fake();
         $file = UploadedFile::fake()->createWithContent('b.jpg', $this->craftedB());
 
-        // getimagesize voit 100x100 : la règle d'en-tête passe, c'est storeImage qui doit refuser.
+        // getimagesize voit 100x100 mais notre lecteur d'en-tête voit 30000x30000 : la règle refuse.
         $this->actingAs($this->faceUser())
             ->postJson('/api/v1/face/profile/photo', ['photo' => $file])
             ->assertStatus(422)
@@ -336,10 +341,19 @@ class UploadHardeningTest extends TestCase
         $this->assertSame('Image trop grande : 50 mégapixels maximum. Réduisez la résolution de la photo et réessayez.', $tooMany->errors()->first('photo'));
     }
 
-    public function test_rule_fails_closed_when_getimagesize_cannot_read_a_jpeg(): void
+    public function test_rule_fails_closed_when_only_getimagesize_cannot_read_a_jpeg(): void
     {
+        // « FF 00 » avant le premier marqueur : notre lecteur le saute et lit 100x100, getimagesize() échoue.
+        $sof = $this->sofSeg(100, 100);
+        $dqt = $this->segment(0xDB, "\x00".str_repeat("\x01", 64));
+        $jpeg = "\xFF\xD8\xFF\x00".$dqt.$sof;
+        $path = tempnam(sys_get_temp_dir(), 'gis');
+        file_put_contents($path, $jpeg);
+        $this->assertSame([100, 100], \App\Support\ImageMetadataStripper::dimensions($path));
+        $this->assertFalse(@getimagesize($path));
+
         $validator = validator(
-            ['photo' => $this->upload('a.jpg', $this->craftedA())],
+            ['photo' => $this->upload('a.jpg', $jpeg)],
             ['photo' => [UploadedMedia::maxDimensions()]],
         );
 
@@ -400,5 +414,211 @@ class UploadHardeningTest extends TestCase
         \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')
             ->withArgs(fn (string $message): bool => str_contains($message, 'non décodée'))
             ->once();
+    }
+
+    private function truncatedBeforeSos(): string
+    {
+        return "\xFF\xD8".$this->segment(0xDB, "\x00".str_repeat("\x01", 64)).$this->sofSeg(100, 100);
+    }
+
+    private function scansJpeg(int $count): string
+    {
+        $sos = "\xFF\xDA\x00\x08\x01\x01\x00\x00\x3F\x00\x00";
+
+        return "\xFF\xD8".$this->segment(0xDB, "\x00".str_repeat("\x01", 64)).$this->segment(0xC2, pack('CnnC', 8, 8, 8, 1)."\x01\x11\x00")
+            .$this->segment(0xC4, "\x00".str_repeat("\x00", 16)).str_repeat($sos, $count)."\xFF\xD9";
+    }
+
+    public function test_jpeg_with_more_than_64_scans_is_rejected_at_the_endpoint_with_a_french_message(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+
+        $this->actingAs($this->faceUser())
+            ->postJson('/api/v1/face/profile/photo', ['photo' => UploadedFile::fake()->createWithContent('bomb.jpg', $this->scansJpeg(65))])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['photo'])
+            ->assertJsonFragment(['Image non supportée : trop de passes de compression JPEG.']);
+
+        $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
+    public function test_normal_progressive_jpeg_is_accepted_at_the_endpoint(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+        $im = imagecreatetruecolor(64, 48);
+        imageinterlace($im, true);
+        ob_start();
+        imagejpeg($im, null, 85);
+        $jpeg = (string) ob_get_clean();
+
+        $this->actingAs($this->faceUser())
+            ->postJson('/api/v1/face/profile/photo', ['photo' => UploadedFile::fake()->createWithContent('p.jpg', $jpeg)])
+            ->assertOk();
+    }
+
+    public function test_png_with_a_huge_declared_chunk_length_gets_a_422_not_a_fatal(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+        $png = "\x89PNG\r\n\x1a\n".pack('N', 0x7FFFFFF0).'IHDR'.pack('NN', 100, 100).str_repeat("\0", 16);
+
+        $this->actingAs($this->faceUser())
+            ->postJson('/api/v1/face/profile/photo', ['photo' => UploadedFile::fake()->createWithContent('p.png', $png)])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['photo']);
+    }
+
+    public function test_zero_dimension_images_are_rejected_by_the_rule(): void
+    {
+        $validator = validator(
+            ['photo' => $this->upload('z.png', $this->pngHeaderOnly(0, 10), 'image/png')],
+            ['photo' => [UploadedMedia::maxDimensions()]],
+        );
+
+        $this->assertTrue($validator->fails());
+    }
+
+    private function seedVariants(Face $face): void
+    {
+        $name = (string) $face->profile_photo;
+        Storage::disk('public')->put('avatars/faces/thumbnails/'.$name, 'thumb');
+        Storage::disk('public')->put('avatars/faces/medium/'.pathinfo($name, PATHINFO_FILENAME).'.webp', 'medium');
+        $face->update([
+            'profile_photo_thumbnail' => $name,
+            'profile_photo_medium' => pathinfo($name, PATHINFO_FILENAME).'.webp',
+        ]);
+    }
+
+    public function test_failed_face_photo_replacement_keeps_the_previous_photo_and_variants(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+        $face = Face::factory()->create();
+        $user = \App\Models\User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+        app(ProfilePhotoService::class)->uploadProfilePhoto($face, $this->upload('a.jpg', $this->plainJpeg(40, 20)));
+        $face->refresh();
+        $this->seedVariants($face);
+        $old = (string) $face->profile_photo;
+
+        // Tronqué avant le SOS : dimensions lisibles (la règle passe), le stripper refuse.
+        $this->actingAs($user)
+            ->postJson('/api/v1/face/profile/photo', ['photo' => UploadedFile::fake()->createWithContent('t.jpg', $this->truncatedBeforeSos())])
+            ->assertStatus(422);
+
+        Storage::disk('public')->assertExists('avatars/faces/'.$old);
+        Storage::disk('public')->assertExists('avatars/faces/thumbnails/'.$old);
+        Storage::disk('public')->assertExists('avatars/faces/medium/'.pathinfo($old, PATHINFO_FILENAME).'.webp');
+        $fresh = $face->fresh();
+        $this->assertSame($old, $fresh->profile_photo);
+        $this->assertSame($old, $fresh->profile_photo_thumbnail);
+        $this->assertCount(3, Storage::disk('public')->allFiles());
+    }
+
+    public function test_successful_face_photo_replacement_deletes_the_previous_files_after_storing_the_new_one(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+        $face = Face::factory()->create();
+        app(ProfilePhotoService::class)->uploadProfilePhoto($face, $this->upload('a.jpg', $this->plainJpeg(40, 20)));
+        $face->refresh();
+        $this->seedVariants($face);
+        $old = (string) $face->profile_photo;
+
+        $result = app(ProfilePhotoService::class)->uploadProfilePhoto($face, $this->upload('b.jpg', $this->plainJpeg(30, 30)));
+
+        $this->assertNotSame($old, $result['photo']);
+        Storage::disk('public')->assertMissing('avatars/faces/'.$old);
+        Storage::disk('public')->assertMissing('avatars/faces/thumbnails/'.$old);
+        Storage::disk('public')->assertExists('avatars/faces/'.$result['photo']);
+        $this->assertSame($result['photo'], $face->fresh()->profile_photo);
+        $this->assertNull($face->fresh()->profile_photo_thumbnail);
+    }
+
+    public function test_failed_producer_photo_replacement_keeps_the_previous_photo(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+        $producer = Producer::factory()->create();
+        $user = \App\Models\User::factory()->create(['userable_type' => Producer::class, 'userable_id' => $producer->id]);
+        app(ProducerProfilePhotoService::class)->uploadProfilePhoto($producer, $this->upload('a.jpg', $this->plainJpeg(40, 20)));
+        $producer->refresh();
+        $old = (string) $producer->profile_photo;
+
+        $this->actingAs($user)
+            ->postJson('/api/v1/producer/profile/photo', ['photo' => UploadedFile::fake()->createWithContent('t.jpg', $this->truncatedBeforeSos())])
+            ->assertStatus(422);
+
+        Storage::disk('public')->assertExists('avatars/producers/'.$old);
+        $this->assertSame($old, $producer->fresh()->profile_photo);
+    }
+
+    public function test_failed_agency_logo_replacement_keeps_the_previous_logo_and_thumbnail(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+        $agency = Producer::factory()->agency()->create();
+        $user = \App\Models\User::factory()->create(['userable_type' => Producer::class, 'userable_id' => $agency->id]);
+        app(AgencyLogoService::class)->uploadLogo($agency, $this->upload('a.jpg', $this->plainJpeg(40, 20)));
+        $agency->refresh();
+        $old = (string) $agency->agency_logo;
+        $thumb = pathinfo($old, PATHINFO_FILENAME).'.jpg';
+        Storage::disk('public')->put('logos/agencies/thumbnails/'.$thumb, 'thumb');
+        $agency->update(['agency_logo_thumbnail' => $thumb]);
+
+        $this->actingAs($user)
+            ->postJson('/api/v1/producer/profile/logo', ['logo' => UploadedFile::fake()->createWithContent('t.jpg', $this->truncatedBeforeSos())])
+            ->assertStatus(422);
+
+        Storage::disk('public')->assertExists('logos/agencies/'.$old);
+        Storage::disk('public')->assertExists('logos/agencies/thumbnails/'.$thumb);
+        $fresh = $agency->fresh();
+        $this->assertSame($old, $fresh->agency_logo);
+        $this->assertSame($thumb, $fresh->agency_logo_thumbnail);
+    }
+
+    public function test_failed_article_image_replacement_keeps_the_previous_image(): void
+    {
+        Storage::fake('public');
+        $article = \App\Models\Article::factory()->create(['featured_image' => 'old.jpg']);
+        Storage::disk('public')->put('articles/featured/old.jpg', 'old-bytes');
+
+        try {
+            app(ArticleService::class)->updateArticle($article, [], UploadedFile::fake()->createWithContent('t.jpg', $this->truncatedBeforeSos()));
+            $this->fail('ValidationException attendue');
+        } catch (ValidationException) {
+            Storage::disk('public')->assertExists('articles/featured/old.jpg');
+            $this->assertSame('old.jpg', $article->fresh()->featured_image);
+        }
+    }
+
+    public function test_presentation_video_replacement_with_a_rejected_file_keeps_the_previous_video(): void
+    {
+        Storage::fake('public');
+        $face = Face::factory()->create(['presentation_video' => 'old.mp4', 'presentation_video_thumbnail' => 'old.jpg']);
+        Storage::disk('public')->put('videos/faces/presentation/old.mp4', 'old');
+        Storage::disk('public')->put('videos/faces/presentation/thumbnails/old.jpg', 'thumb');
+
+        try {
+            app(PresentationVideoService::class)->uploadPresentationVideo($face, UploadedFile::fake()->create('v.mp4', 10, 'text/html'));
+            $this->fail('ValidationException attendue');
+        } catch (ValidationException) {
+            Storage::disk('public')->assertExists('videos/faces/presentation/old.mp4');
+            Storage::disk('public')->assertExists('videos/faces/presentation/thumbnails/old.jpg');
+            $this->assertSame('old.mp4', $face->fresh()->presentation_video);
+        }
+    }
+
+    public function test_png_exif_orientation_is_applied_to_generated_variants(): void
+    {
+        Storage::fake('public');
+        $face = Face::factory()->create(['profile_photo' => 'o.png']);
+        // 40x20 avec eXIf Orientation=6 : le navigateur affiche l'original pivoté (20x40), les variantes doivent suivre.
+        Storage::disk('public')->put('avatars/faces/o.png', $this->pngWithChunks(40, 20, $this->pngChunk('eXIf', $this->exifTiff(6))));
+
+        app(\App\Support\ImageVariantGenerator::class)->generate($face);
+
+        $this->assertSame([20, 40], array_slice(getimagesize(Storage::disk('public')->path('avatars/faces/medium/o.webp')), 0, 2));
     }
 }

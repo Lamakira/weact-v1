@@ -42,6 +42,24 @@ trait BuildsMediaFixtures
         return "MM\0*".pack('N', 8).$ifd0.$gps;
     }
 
+    protected function pngChunk(string $type, string $data): string
+    {
+        return pack('N', strlen($data)).$type.$data.pack('N', crc32($type.$data));
+    }
+
+    /**
+     * PNG valide (GD) avec des chunks supplémentaires insérés juste après l'IHDR.
+     */
+    protected function pngWithChunks(int $width, int $height, string ...$extraChunks): string
+    {
+        $im = imagecreatetruecolor($width, $height);
+        ob_start();
+        imagepng($im);
+        $png = (string) ob_get_clean();
+
+        return substr($png, 0, 33).implode('', $extraChunks).substr($png, 33);
+    }
+
     protected function app1Exif(int $orientation): string
     {
         $tiff = $this->exifTiff($orientation);
