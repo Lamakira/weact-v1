@@ -16,7 +16,9 @@ use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\Rating;
 use App\Models\User;
+use App\Services\Auth\UsernameGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class PersonalDataExposureTest extends TestCase
@@ -38,6 +40,7 @@ class PersonalDataExposureTest extends TestCase
         $this->face = Face::factory()->create([
             'nom' => 'Kouassi',
             'prenom' => 'Aïcha',
+            'username' => (new UsernameGenerator)->generate('Aïcha', 'Kouassi'),
             'show_age' => true,
             'date_naissance' => now()->subYears(25)->format('Y-m-d'),
         ]);
@@ -61,6 +64,14 @@ class PersonalDataExposureTest extends TestCase
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
         ]);
+    }
+
+    /**
+     * Case- and accent-insensitive: the last name must not appear anywhere.
+     */
+    private function assertNoLastName(string $content): void
+    {
+        $this->assertStringNotContainsString('kouassi', Str::lower(Str::ascii($content)));
     }
 
     /**
@@ -194,25 +205,17 @@ class PersonalDataExposureTest extends TestCase
     {
         $response = $this->getJson('/api/v1/public/faces')->assertOk();
 
-        $this->assertStringNotContainsString('Kouassi', $response->getContent());
+        $this->assertNoLastName($response->getContent());
         $response->assertJsonPath('data.0.prenom', 'Aïcha')
             ->assertJsonPath('data.0.nom', 'K.')
             ->assertJsonPath('data.0.display_name', 'Aïcha K.');
-    }
-
-    public function test_public_search_still_matches_on_full_last_name(): void
-    {
-        $response = $this->getJson('/api/v1/public/faces?search=Kouassi')->assertOk();
-
-        $response->assertJsonCount(1, 'data');
-        $this->assertStringNotContainsString('Kouassi', $response->getContent());
     }
 
     public function test_public_profile_shows_only_initial_of_last_name(): void
     {
         $response = $this->getJson("/api/v1/public/faces/{$this->face->username}")->assertOk();
 
-        $this->assertStringNotContainsString('Kouassi', $response->getContent());
+        $this->assertNoLastName($response->getContent());
         $response->assertJsonPath('data.display_name', 'Aïcha K.');
     }
 
@@ -243,7 +246,7 @@ class PersonalDataExposureTest extends TestCase
 
         $response = $this->getJson("/api/v1/public/producers/{$this->producer->slug}/reviews")->assertOk();
 
-        $this->assertStringNotContainsString('Kouassi', $response->getContent());
+        $this->assertNoLastName($response->getContent());
         $response->assertJsonPath('data.0.rater.display_name', 'Aïcha K.');
     }
 

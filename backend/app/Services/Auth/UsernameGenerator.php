@@ -53,14 +53,21 @@ class UsernameGenerator
     ];
 
     /**
-     * Build a unique, URL-safe username from a Face's first and last name.
+     * Build a unique, URL-safe username from a Face's first name and the INITIAL
+     * of the last name (« Aïcha Kouassi » → `aichak`).
+     *
+     * The username is public (listing payloads, /faces/{username} URL): it must
+     * never spell out the last name. Only generated handles follow this rule —
+     * usernames already stored (all chosen at signup with the old
+     * « prenom + nom » form, before this generator shipped) and usernames picked
+     * by the Face are deliberately NOT renamed, so no data migration is needed.
      *
      * The uniqueness check here is advisory: the unique index on `faces.username`
      * remains the source of truth, and FaceRegistrationService retries on violation.
      */
     public function generate(string $prenom, string $nom): string
     {
-        $base = $this->slugify($prenom.' '.$nom);
+        $base = $this->slugify($prenom, $nom);
 
         $candidate = $base;
         $counter = 1;
@@ -79,23 +86,28 @@ class UsernameGenerator
      */
     public function generateWithRandomSuffix(string $prenom, string $nom): string
     {
-        $base = Str::substr($this->slugify($prenom.' '.$nom), 0, self::BASE_LENGTH);
+        $base = Str::substr($this->slugify($prenom, $nom), 0, self::BASE_LENGTH);
 
         return $base.Str::lower(Str::random(4));
     }
 
-    private function slugify(string $fullName): string
+    private function slugify(string $prenom, string $nom): string
     {
-        $base = Str::of($fullName)
-            ->ascii()
-            ->lower()
-            ->replaceMatches('/[^a-z0-9]+/', '')
-            ->substr(0, self::BASE_LENGTH)
-            ->value();
+        $initial = Str::substr($this->fold($nom), 0, 1);
+        $base = Str::substr($this->fold($prenom), 0, self::BASE_LENGTH - strlen($initial)).$initial;
 
         // Below the minimum (« A B » → `ab`) the handle would be one the user could
         // not even re-submit through the profile form: use the fallback instead.
         return strlen($base) >= self::MIN_LENGTH ? $base : self::FALLBACK_BASE;
+    }
+
+    private function fold(string $value): string
+    {
+        return Str::of($value)
+            ->ascii()
+            ->lower()
+            ->replaceMatches('/[^a-z0-9]+/', '')
+            ->value();
     }
 
     private function isTaken(string $candidate): bool

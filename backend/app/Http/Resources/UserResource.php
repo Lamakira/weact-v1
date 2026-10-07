@@ -108,8 +108,12 @@ class UserResource extends JsonResource
     private function transformUserable(): mixed
     {
         return match ($this->userable_type) {
-            Face::class => new FaceResource($this->userable),
-            Producer::class => new ProducerResource($this->userable),
+            Face::class => $this->renderedForOwner && $this->userable instanceof Face
+                ? FaceResource::forOwner($this->userable)
+                : new FaceResource($this->userable),
+            Producer::class => $this->renderedForOwner && $this->userable instanceof Producer
+                ? ProducerResource::forOwner($this->userable)
+                : new ProducerResource($this->userable),
             default => $this->userable,
         };
     }

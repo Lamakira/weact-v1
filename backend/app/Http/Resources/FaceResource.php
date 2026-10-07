@@ -19,6 +19,21 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class FaceResource extends JsonResource
 {
     /**
+     * True when the caller guarantees the rendered Face IS the authenticated
+     * account's own profile (nested in UserResource::forOwner on login/register/
+     * Google responses, where `$request->user()` is not reliable).
+     */
+    private bool $renderedForOwner = false;
+
+    public static function forOwner(Face $face): self
+    {
+        $resource = new self($face);
+        $resource->renderedForOwner = true;
+
+        return $resource;
+    }
+
+    /**
      * Transform the resource into an array.
      *
      * @return array<string, mixed>
@@ -135,6 +150,10 @@ class FaceResource extends JsonResource
     {
         $user = $request->user();
 
+        if ($this->renderedForOwner) {
+            return $this->age;
+        }
+
         // Admin always sees age
         if ($user instanceof Admin) {
             return $this->age;
@@ -157,6 +176,10 @@ class FaceResource extends JsonResource
     private function resolveViewerContext(Request $request): string
     {
         $user = $request->user();
+
+        if ($this->renderedForOwner) {
+            return 'owner';
+        }
 
         if ($user instanceof Admin) {
             return 'admin';

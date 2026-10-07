@@ -17,6 +17,20 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class ProducerResource extends JsonResource
 {
     /**
+     * True when the caller guarantees the rendered Producer IS the authenticated
+     * account's own profile (nested in UserResource::forOwner).
+     */
+    private bool $renderedForOwner = false;
+
+    public static function forOwner(Producer $producer): self
+    {
+        $resource = new self($producer);
+        $resource->renderedForOwner = true;
+
+        return $resource;
+    }
+
+    /**
      * Transform the resource into an array.
      *
      * @return array<string, mixed>
@@ -65,6 +79,10 @@ class ProducerResource extends JsonResource
      */
     private function isPrivilegedViewer(Request $request): bool
     {
+        if ($this->renderedForOwner) {
+            return true;
+        }
+
         $viewer = $request->user();
 
         if ($viewer instanceof Admin) {
