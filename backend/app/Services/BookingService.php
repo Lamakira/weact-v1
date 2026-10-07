@@ -1122,6 +1122,13 @@ class BookingService
             // Confirmée par la Face seule : le Producteur garde son délai pour signaler une absence
             // (jamais payée avant date_fin + 72 h, confirmation + 72 h, ni l'échéance du rappel).
             if ($booking->status === BookingStatus::ConfirmedByFace) {
+                // Legacy (jamais relancé, fin > 30 j avant la confirmation de la Face) : jamais payé
+                // automatiquement, il attend la confirmation du Producteur ou un signalement.
+                if ($booking->face_confirmed_at !== null
+                    && $booking->isLegacyForAutoPayment($booking->face_confirmed_at)) {
+                    return;
+                }
+
                 $dueAt = $booking->faceConfirmedAutoCompleteDueAt();
 
                 if ($dueAt === null || now()->lt($dueAt)) {
@@ -1149,8 +1156,8 @@ class BookingService
             return false;
         }
 
-        return $booking->date_fin->gte(now()->subDays(self::LEGACY_AFTER_DAYS))
-            && now()->gte($dueAt);
+        // La relance (déjà exigée ci-dessus) tient lieu d'avertissement : l'âge ne compte plus.
+        return now()->gte($dueAt);
     }
 
     private function isShootDayReached(Booking $booking): bool

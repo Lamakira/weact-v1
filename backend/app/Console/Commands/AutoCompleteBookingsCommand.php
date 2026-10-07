@@ -43,12 +43,11 @@ class AutoCompleteBookingsCommand extends Command
                     ])->where('date_fin', '<=', $cutoff);
                 })->orWhere(function ($silent): void {
                     // Booking payé sans suite, relancé : présélection large, la règle exacte
-                    // (jour J + 8, fenêtre « legacy » 30 j, etc.) est revérifiée sous verrou
+                    // (échéance datée : jour J + 8, relance + 6 j) est revérifiée sous verrou
                     // par BookingService::autoComplete.
                     $silent->where('status', BookingStatus::Paid->value)
                         ->whereNotNull('completion_reminder_sent_at')
                         ->whereNull('settlement_due_at')
-                        ->where('date_fin', '>=', now()->subDays(BookingService::LEGACY_AFTER_DAYS))
                         ->where('date_fin', '<=', now()->subDays(BookingService::SILENT_AUTO_COMPLETE_AFTER_DAYS - 1));
                 });
             })

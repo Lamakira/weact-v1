@@ -70,6 +70,7 @@ function makeStale(overrides: Partial<AdminStalePaidBooking> = {}): AdminStalePa
     days_since_date_fin: 192,
     auto_complete_due_at: null,
     is_legacy: true,
+    status: 'paid',
     ...overrides,
   }
 }
@@ -233,6 +234,19 @@ describe('AdminBookingDisputesPage', () => {
     const targets = links.map((link) => link.props('to'))
     expect(targets).toContainEqual({ name: 'admin-booking-detail', params: { id: 'legacy-uuid' } })
     expect(targets).toContainEqual({ name: 'admin-booking-detail', params: { id: 'dispute-uuid' } })
+  })
+
+  it('labels a legacy booking confirmed by the Face alone as never auto-paid', async () => {
+    stalePaidRef.value = [
+      makeStale({ id: 'confirmed-uuid', status: 'confirmed_by_face', is_legacy: true, auto_complete_due_at: null }),
+    ]
+    const wrapper = mountPage()
+    wrappers.push(wrapper)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="stale-auto-payment"]').text()).toBe(
+      'Confirmé par la Face seulement : jamais payé automatiquement',
+    )
   })
 
   it('keeps the modal open with the notes when the resolution fails, and closes it on success', async () => {

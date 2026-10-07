@@ -87,6 +87,9 @@ async function submitResolve(): Promise<void> {
 }
 
 function autoPaymentLabel(booking: AdminStalePaidBooking): string {
+  if (booking.is_legacy && booking.status === 'confirmed_by_face') {
+    return 'Confirmé par la Face seulement : jamais payé automatiquement'
+  }
   if (booking.is_legacy) return 'Ancien booking : jamais payé automatiquement'
   if (booking.auto_complete_due_at) {
     return `Paiement automatique prévu le ${formatDate(booking.auto_complete_due_at, false)}`

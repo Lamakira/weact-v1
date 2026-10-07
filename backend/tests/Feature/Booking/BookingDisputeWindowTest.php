@@ -730,8 +730,9 @@ class BookingDisputeWindowTest extends TestCase
         $this->artisan('bookings:remind-pending-confirmation')->assertSuccessful();
         $this->assertNull($legacy->fresh()->completion_reminder_sent_at);
 
-        // Même avec un rappel déjà posé, un legacy n'est jamais payé automatiquement.
-        $legacy->update(['completion_reminder_sent_at' => now()->subDays(50)]);
+        // Sans relance, un legacy n'est jamais payé automatiquement, même des semaines plus tard.
+        Carbon::setTestNow(now()->addDays(30));
+        $this->artisan('bookings:remind-pending-confirmation')->assertSuccessful();
         $this->artisan('bookings:auto-complete')->assertSuccessful();
 
         $this->assertSame(BookingStatus::Paid, $legacy->fresh()->status);

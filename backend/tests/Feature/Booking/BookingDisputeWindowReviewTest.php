@@ -191,7 +191,12 @@ class BookingDisputeWindowReviewTest extends TestCase
         $this->artisan('bookings:auto-complete')->assertSuccessful();
         $this->assertSame(BookingStatus::Paid, $booking->fresh()->status);
 
-        Carbon::setTestNow(now()->addDays(6)->addMinute());
+        // Minimum de 6 jours entre la relance et le paiement : pas à rappel + 5 j 23 h.
+        Carbon::setTestNow(now()->addDays(5)->addHours(23));
+        $this->artisan('bookings:auto-complete')->assertSuccessful();
+        $this->assertSame(BookingStatus::Paid, $booking->fresh()->status);
+
+        Carbon::setTestNow(now()->addHour());
         $this->artisan('bookings:auto-complete')->assertSuccessful();
         $this->assertSame(BookingStatus::Completed, $booking->fresh()->status);
     }

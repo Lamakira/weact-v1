@@ -241,6 +241,19 @@ class Booking extends Model
     }
 
     /**
+     * « Legacy » : booking dont personne n'a été relancé et dont la fin remonte à plus de 30 jours
+     * (relativement à $at, par défaut maintenant). Jamais payé automatiquement — seule une
+     * confirmation explicite du Producteur (ou un admin) le règle. Une fois la relance envoyée,
+     * celle-ci tient lieu d'avertissement et l'âge ne compte plus.
+     */
+    public function isLegacyForAutoPayment(?CarbonInterface $at = null): bool
+    {
+        return $this->completion_reminder_sent_at === null
+            && $this->date_fin !== null
+            && $this->date_fin->lt(($at ?? now())->copy()->subDays(30));
+    }
+
+    /**
      * Absence / annulation tardive en cours de règlement (fenêtre de 72 h non tranchée).
      */
     public function isPendingSettlement(): bool
@@ -259,7 +272,9 @@ class Booking extends Model
     {
         $query->whereIn('status', [BookingStatus::NoShow->value, BookingStatus::CancelledByProducer->value])
             ->whereNotNull('settlement_due_at')
-            ->whereNull('dispute_resolved_at');
+            ->whereNull('dispute_resolved_at')
+            // Condition de la spec : le règlement automatique n'agit que sur un escrow encore bloqué.
+            ->whereHas('escrowTransaction', fn ($escrow) => $escrow->where('status', 'locked'));
     }
 
     /**

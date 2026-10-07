@@ -79,7 +79,7 @@ const hasNoFunds = computed(() => props.balance === 0 && props.pendingEscrow ===
           <p class="text-sm text-gray-500">En litige</p>
           <p class="font-medium text-amber-700">{{ formatCurrency(props.heldInDispute) }}</p>
           <p class="max-w-xs text-xs text-gray-400">
-            Absence signalée ou annulation tardive : ces fonds restent bloqués 72 h, le temps d'une éventuelle contestation.
+            Montant retenu le temps du règlement d'une absence ou d'une annulation.
           </p>
         </div>
       </div>

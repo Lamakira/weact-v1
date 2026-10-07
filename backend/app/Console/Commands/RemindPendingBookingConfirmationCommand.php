@@ -40,9 +40,11 @@ class RemindPendingBookingConfirmationCommand extends Command
             ->whereRaw("BINARY type_contenu != 'UGC'")
             ->whereNull('completion_reminder_sent_at')
             ->whereNull('settlement_due_at')
+            // Fenêtre de relance = non-legacy (voir Booking::isLegacyForAutoPayment, même seuil de 30 jours).
             ->where('date_fin', '>=', now()->subDays(BookingService::LEGACY_AFTER_DAYS))
             ->where('date_fin', '<', $dueBefore)
-            ->get();
+            ->get()
+            ->reject(fn (Booking $booking): bool => $booking->isLegacyForAutoPayment());
 
         $this->info("Found {$bookings->count()} booking(s) requiring a confirmation reminder.");
 
@@ -63,8 +65,27 @@ class RemindPendingBookingConfirmationCommand extends Command
                 }
 
                 // L'échéance affichée dépend de l'heure réelle de la relance (rappel + 6 jours minimum).
-                $booking->completion_reminder_sent_at = now();
-                $this->notifyParties($booking);
+                $claimedAt = now();
+                $booking->completion_reminder_sent_at = $claimedAt;
+
+                if (! $this->notifyParties($booking)) {
+                    // Producteur injoignable (notification ET email en échec) : on libère la relance
+                    // pour que le prochain passage réessaie, sinon la Face serait payée sans qu'il ait été prévenu.
+                    Booking::query()
+                        ->whereKey($booking->id)
+                        ->where('status', BookingStatus::Paid->value)
+                        ->where('completion_reminder_sent_at', $claimedAt)
+                        ->update(['completion_reminder_sent_at' => null]);
+
+                    Log::warning('Booking completion reminder released: Producer could not be notified', [
+                        'booking_id' => $booking->id,
+                    ]);
+                    $this->warn("Reminder released for booking #{$booking->id}: Producer not notified, will retry.");
+                    $failed++;
+
+                    continue;
+                }
+
                 $sent++;
                 $this->info("Reminder sent for booking #{$booking->id}");
             } catch (\Throwable $e) {
@@ -82,12 +103,52 @@ class RemindPendingBookingConfirmationCommand extends Command
         return self::SUCCESS;
     }
 
-    private function notifyParties(Booking $booking): void
+    /**
+     * Le Producteur est prévenu en premier : retourne false si AUCUN de ses deux canaux n'a abouti.
+     */
+    private function notifyParties(Booking $booking): bool
     {
         $booking->loadMissing('face.userable', 'producer.userable');
 
         $dueAt = $booking->silentAutoCompleteDueAt();
         $autoDate = $dueAt !== null ? Booking::formatForBusiness($dueAt, 'd/m/Y') : '';
+        $producerNotified = false;
+
+        try {
+            Notification::create([
+                'user_id' => $booking->producer_id,
+                'type' => 'booking_completion_reminder',
+                'data' => [
+                    'message' => "Confirmez la prestation ou signalez une absence avant le {$autoDate}, sinon la Face sera payée automatiquement.",
+                    'booking_id' => $booking->id,
+                    'url' => "/producer/bookings/{$booking->uuid}",
+                ],
+            ]);
+            $producerNotified = true;
+        } catch (\Throwable $e) {
+            Log::warning('Booking completion reminder (Producer) notification failed', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        try {
+            $producerEmail = trim((string) $booking->producer?->email);
+
+            if ($producerEmail !== '') {
+                Mail::to($producerEmail)->queue(new BookingCompletionReminderMail($booking, $autoDate));
+                $producerNotified = true;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Booking completion reminder email queue failed', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        if (! $producerNotified) {
+            return false;
+        }
 
         try {
             Notification::create([
@@ -106,34 +167,6 @@ class RemindPendingBookingConfirmationCommand extends Command
             ]);
         }
 
-        try {
-            Notification::create([
-                'user_id' => $booking->producer_id,
-                'type' => 'booking_completion_reminder',
-                'data' => [
-                    'message' => "Confirmez la prestation ou signalez une absence avant le {$autoDate}, sinon la Face sera payée automatiquement.",
-                    'booking_id' => $booking->id,
-                    'url' => "/producer/bookings/{$booking->uuid}",
-                ],
-            ]);
-        } catch (\Throwable $e) {
-            Log::warning('Booking completion reminder (Producer) notification failed', [
-                'booking_id' => $booking->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
-
-        try {
-            $producerEmail = trim((string) $booking->producer?->email);
-
-            if ($producerEmail !== '') {
-                Mail::to($producerEmail)->queue(new BookingCompletionReminderMail($booking, $autoDate));
-            }
-        } catch (\Throwable $e) {
-            Log::warning('Booking completion reminder email queue failed', [
-                'booking_id' => $booking->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        return true;
     }
 }

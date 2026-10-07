@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Listeners\Booking;
 
 use App\Events\BookingNoShowReported;
+use App\Mail\BookingNoShowFaceMail;
 use App\Models\Booking;
 use App\Models\Notification;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener(event: BookingNoShowReported::class)]
@@ -56,6 +58,20 @@ class NotifyPartiesOnBookingNoShow
             ]);
         } catch (\Throwable $e) {
             Log::warning('BookingNoShow face notification failed', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // Email Face : elle ne doit pas rater la fenêtre de contestation faute d'avoir ouvert l'application.
+        try {
+            $faceEmail = trim((string) $booking->face?->email);
+
+            if ($dueAt !== null && $faceEmail !== '') {
+                Mail::to($faceEmail)->queue(new BookingNoShowFaceMail($booking, $dueAt));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('BookingNoShow face email queue failed', [
                 'booking_id' => $booking->id,
                 'error' => $e->getMessage(),
             ]);

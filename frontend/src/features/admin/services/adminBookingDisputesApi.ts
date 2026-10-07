@@ -24,6 +24,8 @@ export interface AdminBookingDispute {
 // Booking payé sans suite (lecture seule) — jamais payé automatiquement s'il est « legacy ».
 export interface AdminStalePaidBooking {
   id: string
+  // 'paid', ou 'confirmed_by_face' pour un ancien booking confirmé par la Face seule
+  status: string
   face: AdminBookingDisputeParty
   producer: AdminBookingDisputeParty
   date_debut: string | null

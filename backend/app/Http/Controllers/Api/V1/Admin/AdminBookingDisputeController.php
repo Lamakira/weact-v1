@@ -41,10 +41,20 @@ class AdminBookingDisputeController extends Controller
             ->get();
 
         $stalePaid = Booking::query()
-            ->where('status', BookingStatus::Paid->value)
             ->whereRaw("BINARY type_contenu != 'UGC'")
             ->whereNotNull('date_fin')
-            ->where('date_fin', '<', now()->subDays(self::STALE_PAID_AFTER_DAYS))
+            ->where(function ($query): void {
+                $query->where(function ($paid): void {
+                    $paid->where('status', BookingStatus::Paid->value)
+                        ->where('date_fin', '<', now()->subDays(self::STALE_PAID_AFTER_DAYS));
+                })->orWhere(function ($confirmed): void {
+                    // Legacy confirmé par la Face seule : jamais payé automatiquement, reste à arbitrer.
+                    $confirmed->where('status', BookingStatus::ConfirmedByFace->value)
+                        ->whereNull('completion_reminder_sent_at')
+                        ->whereNotNull('face_confirmed_at')
+                        ->whereRaw('date_fin < DATE_SUB(face_confirmed_at, INTERVAL ? DAY)', [BookingService::LEGACY_AFTER_DAYS]);
+                });
+            })
             ->with(['face.userable', 'producer.userable'])
             ->orderBy('date_fin')
             ->limit(200)
@@ -106,10 +116,14 @@ class AdminBookingDisputeController extends Controller
      */
     private function stalePaidItem(Booking $booking): array
     {
-        $isLegacy = $booking->date_fin !== null
-            && $booking->date_fin->lt(now()->subDays(BookingService::LEGACY_AFTER_DAYS));
+        // Même définition que le paiement automatique (Booking::isLegacyForAutoPayment), évaluée
+        // à la confirmation de la Face pour un booking confirmé par elle seule.
+        $isLegacy = $booking->isLegacyForAutoPayment(
+            $booking->status === BookingStatus::ConfirmedByFace ? $booking->face_confirmed_at : null,
+        );
 
         return [
+            'status' => $booking->status->value,
             // Échéance du paiement automatique (null : ancien booking, jamais payé auto, ou relance pas encore partie).
             'auto_complete_due_at' => $isLegacy ? null : $booking->silentAutoCompleteDueAt()?->toIso8601String(),
             'is_legacy' => $isLegacy,

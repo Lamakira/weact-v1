@@ -1168,6 +1168,7 @@ describe('FaceBookingDetailPage — fenêtre de contestation 72 h', () => {
     mockError.value = null
     mockActionError.value = null
     mockActionErrorCode.value = null
+    mockActionErrorStatus.value = null
     mockUserableType.value = 'Face'
     mockUserId.value = 1
     mockFetchBooking.mockReset()

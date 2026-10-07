@@ -15,7 +15,9 @@ describe('WalletBalance — fonds en litige', () => {
 
     expect(line.text()).toContain('En litige')
     expect(line.text().replace(/\s/g, '')).toContain('90000')
-    expect(line.text()).toContain('72 h')
+    // Wording neutre : la durée de 72 h devient fausse une fois le litige contesté.
+    expect(line.text()).not.toContain('72 h')
+    expect(line.text()).toContain('Montant retenu le temps du règlement d\'une absence ou d\'une annulation.')
     // Les fonds en attente restent affichés séparément.
     expect(wrapper.text()).toContain('Fonds en attente')
   })

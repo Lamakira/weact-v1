@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Listeners\Booking;
 
 use App\Events\BookingPartiallyConfirmed;
+use App\Mail\BookingFaceConfirmedMail;
 use App\Models\Booking;
 use App\Models\Notification;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 #[AsEventListener(event: BookingPartiallyConfirmed::class)]
@@ -42,6 +44,28 @@ class NotifyOtherPartyOnBookingPartialConfirmation
             ]);
         } catch (\Throwable $e) {
             Log::warning('Partial confirmation notification failed', [
+                'booking_id' => $event->booking->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // Face en premier : le Producteur reçoit aussi l'échéance par email (comme le rappel du chemin silencieux).
+        try {
+            $booking = $event->booking;
+            $dueAt = $booking->faceConfirmedAutoCompleteDueAt();
+
+            if ($event->confirmer->id === $booking->face_id && $dueAt !== null) {
+                $booking->loadMissing('face.userable', 'producer');
+                $producerEmail = trim((string) $booking->producer?->email);
+
+                if ($producerEmail !== '') {
+                    Mail::to($producerEmail)->queue(
+                        new BookingFaceConfirmedMail($booking, Booking::formatForBusiness($dueAt))
+                    );
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Partial confirmation email queue failed', [
                 'booking_id' => $event->booking->id,
                 'error' => $e->getMessage(),
             ]);
