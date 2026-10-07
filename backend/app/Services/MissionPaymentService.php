@@ -468,9 +468,22 @@ class MissionPaymentService
                     /** @var object{url:string} $tokenObj */
                     $tokenObj = $existing->generateToken();
 
+                    // Reprise du checkout : on « touche » la row — updated_at sert d'ancre de dernière
+                    // reprise pour le seuil de 24 h (voir assessCashCheckout).
+                    $payment->touch();
+
                     return ['payment' => $payment, 'checkout_url' => $tokenObj->url];
                 }
 
+                // Audit AVANT de détacher la transaction morte (réconciliation si elle était payée plus tard).
+                $this->recordDetachedPayment(
+                    'mission_payment',
+                    $payment->id,
+                    (string) $payment->fedapay_transaction_id,
+                    (string) $existing->status,
+                    (int) $payment->montant_total_producteur,
+                    ['mission_id' => $payment->mission_id, 'producer_id' => $payment->producer_id, 'reason' => 'resume_terminal_transaction'],
+                );
                 $this->clearTerminalTransaction($payment);
             }
 
@@ -1181,6 +1194,8 @@ class MissionPaymentService
                         'candidature_id' => $lockedEntry->candidature_id,
                         'face_id' => $lockedEntry->face_id,
                         'montant_face_recoit' => $lockedEntry->montant_face_recoit,
+                        'mission_id' => $mission instanceof Mission ? $mission->id : null,
+                        'producer_id' => $mission instanceof Mission ? $mission->producer_id : null,
                         'reason' => $reason,
                     ],
                 );
@@ -1553,6 +1568,12 @@ class MissionPaymentService
 
             $createdAt = isset($transaction->created_at) ? \Illuminate\Support\Carbon::parse((string) $transaction->created_at) : null;
 
+            // Ancre = max(création FedaPay, dernière reprise du checkout) : un Producteur qui reprend
+            // son paiement le jour 2 ne doit pas voir sa sélection réinitialisée en plein checkout.
+            if ($createdAt !== null && $payment->updated_at !== null && $payment->updated_at->gt($createdAt)) {
+                $createdAt = $payment->updated_at;
+            }
+
             if ($createdAt !== null && $createdAt->lt(now()->subHours(self::CASH_CHECKOUT_PENDING_MAX_HOURS))) {
                 return $result(self::CHECKOUT_RESETTABLE, $status);
             }
@@ -1654,6 +1675,47 @@ class MissionPaymentService
     }
 
     /**
+     * Resolves a late approval against the PaymentDetached audit of this transaction: credits the
+     * Producer (idempotent) and reports what happened.
+     *
+     * @param  \Closure(): ?int  $paidAmountResolver  amount FedaPay charged, from the signed event
+     * @return int|null amount credited to the Producer wallet (now OR by an earlier delivery),
+     *                  null when nothing could be credited (no audit / no amount / not creditable)
+     */
+    public function creditDetachedPayment(string $transactionId, \Closure $paidAmountResolver): ?int
+    {
+        /** @var FinancialEvent|null $detachment */
+        $detachment = FinancialEvent::query()
+            ->where('fedapay_ref', $transactionId)
+            ->where('type', FinancialEventType::PaymentDetached->value)
+            ->first();
+
+        if ($detachment === null) {
+            return null;
+        }
+
+        $already = FinancialEvent::query()
+            ->where('idempotency_key', "detached_cash_late_credit:{$transactionId}")
+            ->first();
+
+        if ($already !== null) {
+            return (int) $already->amount;
+        }
+
+        $paidAmount = $paidAmountResolver();
+
+        if ($paidAmount === null) {
+            return null;
+        }
+
+        $this->creditProducerForDetachedCashPayment($detachment, $paidAmount, $transactionId);
+
+        return FinancialEvent::query()
+            ->where('idempotency_key', "detached_cash_late_credit:{$transactionId}")
+            ->exists() ? $paidAmount : null;
+    }
+
+    /**
      * Closes the loop on a late approval of a transaction recorded as PaymentDetached for a cash
      * selection: credits the Producer's wallet with the amount FedaPay actually charged (from the
      * signed webhook event). Idempotent on the transaction id. The detached selection itself is
@@ -1664,7 +1726,7 @@ class MissionPaymentService
         /** @var array<string, mixed> $metadata */
         $metadata = is_array($detachment->metadata) ? $detachment->metadata : [];
 
-        if (($metadata['entity_type'] ?? null) !== 'mission_payment' || $paidAmount <= 0) {
+        if (! in_array($metadata['entity_type'] ?? null, ['mission_payment', 'mission_payment_candidature'], true) || $paidAmount <= 0) {
             return false;
         }
 
@@ -1683,7 +1745,7 @@ class MissionPaymentService
                     'amount' => $paidAmount,
                     'fedapay_ref' => $transactionId,
                     'status' => 'completed',
-                    'metadata' => array_merge($metadata, ['reason' => 'detached_cash_payment_late_approval']),
+                    'metadata' => array_merge($metadata, ['reason' => 'detached_payment_late_approval']),
                 ],
             );
 

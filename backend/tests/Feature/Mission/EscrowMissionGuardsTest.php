@@ -589,6 +589,8 @@ class EscrowMissionGuardsTest extends TestCase
     public function test_pending_for_more_than_24h_allows_reset_and_late_approval_credits_the_producer_once(): void
     {
         [$mission, $faces] = $this->pendingCheckoutMission(2);
+        // Transaction attachée / dernière reprise il y a 25 h : la row n'a pas été touchée depuis.
+        $this->ageCheckout($faces[0]['entry']->mission_payment_id, 25 * 60);
         $this->fedapayReports('pending', createdAt: now()->subHours(25));
 
         $this->actingAs($faces[0]['faceUser'])
@@ -603,7 +605,10 @@ class EscrowMissionGuardsTest extends TestCase
         // FedaPay a réellement débité 220000 (2 × 100000 + 10 %).
         $this->runWebhook('evt_late_cash_1', 'transaction.approved', ['id' => 777001, 'reference' => 'ref_late', 'amount' => 220000]);
 
-        \Illuminate\Support\Facades\Log::shouldHaveReceived('critical')->once();
+        \Illuminate\Support\Facades\Log::shouldNotHaveReceived('critical');
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $m) => str_contains($m, 'déjà crédité automatiquement'))
+            ->once();
         $this->assertSame(220000, (int) $this->producerUser->fresh()->balance);
         $this->assertSame(0, MissionPaymentCandidature::count());
         $this->assertSame(MissionStatus::Published, $mission->fresh()->status);
@@ -613,7 +618,11 @@ class EscrowMissionGuardsTest extends TestCase
         ]);
 
         // Rejeu (nouvel event, même transaction) : aucun second crédit.
-        $this->runWebhook('evt_late_cash_2', 'transaction.approved', ['id' => 777001, 'reference' => 'ref_late', 'amount' => 220000]);
+        $this->runWebhook('evt_late_cash_2', 'transaction.transferred', ['id' => 777001, 'reference' => 'ref_late', 'amount' => 220000]);
+        \Illuminate\Support\Facades\Log::shouldNotHaveReceived('critical');
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $m) => str_contains($m, 'déjà crédité automatiquement'))
+            ->twice();
         $this->assertSame(220000, (int) $this->producerUser->fresh()->balance);
         $this->assertSame(1, WalletTransaction::where('user_id', $this->producerUser->id)->count());
     }
@@ -806,6 +815,114 @@ class EscrowMissionGuardsTest extends TestCase
         $this->assertDatabaseHas('product_photos', ['id' => $photo->id]);
         \Illuminate\Support\Facades\Storage::disk('public')->assertExists('products/a.jpg');
         \Illuminate\Support\Facades\Storage::disk('public')->assertExists('products/grid/a.webp');
+    }
+
+    public function test_webhook_racing_a_reset_still_credits_the_producer(): void
+    {
+        [$mission, $faces] = $this->pendingCheckoutMission(1);
+        $paymentId = $faces[0]['entry']->mission_payment_id;
+        // État post-reset : audit de détachement posé, mais le webhook avait déjà lu la row.
+        \App\Models\FinancialEvent::create([
+            'type' => \App\Enums\FinancialEventType::PaymentDetached,
+            'amount' => 110000,
+            'fedapay_ref' => '777001',
+            'idempotency_key' => 'payment_detached:777001',
+            'status' => 'pending',
+            'metadata' => [
+                'entity_type' => 'mission_payment', 'entity_id' => $paymentId,
+                'mission_id' => $mission->id, 'producer_id' => $this->producer->id,
+            ],
+        ]);
+        $racing = \Mockery::mock(MissionPaymentService::class, [
+            app(\App\Services\FedapayService::class),
+            app(\App\Services\WalletService::class),
+            app(\App\Services\FaceEntitlementService::class),
+        ])->makePartial();
+        $racing->shouldReceive('markAsPaid')->andThrow(new \Illuminate\Database\Eloquent\ModelNotFoundException);
+        $this->instance(MissionPaymentService::class, $racing);
+
+        \Illuminate\Support\Facades\Log::spy();
+        $this->runWebhook('evt_race_1', 'transaction.approved', ['id' => 777001, 'reference' => 'ref', 'amount' => 110000]);
+
+        $this->assertSame(110000, (int) $this->producerUser->fresh()->balance);
+        \Illuminate\Support\Facades\Log::shouldNotHaveReceived('critical');
+
+        $this->runWebhook('evt_race_2', 'transaction.approved', ['id' => 777001, 'reference' => 'ref', 'amount' => 110000]);
+        $this->assertSame(110000, (int) $this->producerUser->fresh()->balance);
+    }
+
+    public function test_resume_on_day_two_refuses_the_withdrawal_even_if_fedapay_created_at_is_old(): void
+    {
+        [$mission, $faces] = $this->pendingCheckoutMission(2);
+        $paymentId = $faces[0]['entry']->mission_payment_id;
+        $this->ageCheckout($paymentId, 25 * 60);
+
+        $transaction = \Mockery::mock(\FedaPay\Transaction::class);
+        $transaction->status = 'pending';
+        $transaction->reference = 'ref';
+        $transaction->created_at = now()->subHours(25)->toIso8601String();
+        $transaction->shouldReceive('generateToken')->andReturn((object) ['url' => 'https://pay.test/resume']);
+        $this->mock(\App\Services\FedapayService::class, function ($mock) use ($transaction): void {
+            $mock->shouldReceive('retrieveTransaction')->with(777001)->andReturn($transaction);
+        });
+
+        // Le Producteur reprend le checkout (jour 2) : la row est « touchée ».
+        app(MissionPaymentService::class)->initiatePayment(MissionPayment::findOrFail($paymentId));
+
+        $this->actingAs($faces[0]['faceUser'])
+            ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
+            ->assertStatus(422);
+
+        $this->assertSame(1, MissionPayment::count());
+        $this->assertDatabaseMissing('financial_events', ['type' => 'payment_detached']);
+    }
+
+    public function test_resume_after_a_dead_transaction_records_the_detached_audit(): void
+    {
+        [$mission, $faces] = $this->pendingCheckoutMission(1);
+        $paymentId = $faces[0]['entry']->mission_payment_id;
+
+        $dead = \Mockery::mock(\FedaPay\Transaction::class);
+        $dead->status = 'canceled';
+        $this->mock(\App\Services\FedapayService::class, function ($mock) use ($dead): void {
+            $mock->shouldReceive('retrieveTransaction')->with(777001)->andReturn($dead);
+            $mock->shouldReceive('initiatePaymentForMission')->andReturn(['fedapay_transaction_id' => 888001, 'checkout_url' => 'https://pay.test/new']);
+        });
+
+        app(MissionPaymentService::class)->initiatePayment(MissionPayment::findOrFail($paymentId));
+
+        $this->assertDatabaseHas('financial_events', [
+            'type' => 'payment_detached',
+            'fedapay_ref' => '777001',
+            'status' => 'canceled',
+        ]);
+    }
+
+    public function test_hybrid_face_cancel_during_live_payment_then_late_approval_credits_the_producer_once(): void
+    {
+        $mission = $this->hybridMission();
+        $candidature = $this->hybridCandidature($mission, CandidatureStatus::Pending);
+        $this->hybridEntry($candidature, EscrowStatus::Pending, '8800');
+        $faceUser = User::query()->where('userable_id', $candidature->face_id)->where('userable_type', Face::class)->firstOrFail();
+
+        $this->actingAs($faceUser)
+            ->postJson("/api/v1/face/candidatures/{$candidature->uuid}/cancel")
+            ->assertOk();
+        $this->assertDatabaseMissing('mission_payment_candidatures', ['candidature_id' => $candidature->id]);
+
+        \Illuminate\Support\Facades\Log::spy();
+        $this->runWebhook('evt_hyb_1', 'transaction.approved', ['id' => 8800, 'reference' => 'ref_h', 'amount' => 16500]);
+
+        $this->assertSame(16500, (int) $this->producerUser->fresh()->balance);
+        \Illuminate\Support\Facades\Log::shouldNotHaveReceived('critical');
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->producerUser->id,
+            'type' => 'mission_detached_payment_credited',
+        ]);
+
+        $this->runWebhook('evt_hyb_2', 'transaction.approved', ['id' => 8800, 'reference' => 'ref_h', 'amount' => 16500]);
+        $this->assertSame(16500, (int) $this->producerUser->fresh()->balance);
+        $this->assertSame(1, WalletTransaction::where('user_id', $this->producerUser->id)->count());
     }
 
     // =====================================================================
