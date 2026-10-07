@@ -120,6 +120,29 @@ class BookingDisputeWindowLegacyTest extends TestCase
         $this->assertSame(90000, $this->faceUser->fresh()->balance);
     }
 
+    public function test_legacy_face_confirmation_never_promises_an_automatic_payment(): void
+    {
+        Mail::fake();
+
+        $booking = $this->makeBooking(BookingStatus::Paid, [
+            'date_debut' => now()->subDays(60),
+            'date_fin' => now()->subDays(60),
+        ]);
+
+        $this->as($this->faceUser)->postJson("/api/v1/bookings/{$booking->uuid}/confirm")->assertOk();
+
+        $this->assertNull($booking->fresh()->faceConfirmedAutoCompleteDueAt());
+        Mail::assertNotQueued(BookingFaceConfirmedMail::class);
+
+        $message = (string) (Notification::query()
+            ->where('user_id', $this->producerUser->id)
+            ->where('type', 'booking_confirmation_pending')
+            ->firstOrFail()
+            ->data['message'] ?? '');
+        $this->assertStringContainsString('ne sera pas payé automatiquement', $message);
+        $this->assertStringNotContainsString('sinon elle sera payée automatiquement', $message);
+    }
+
     public function test_legacy_booking_confirmed_by_the_face_stays_reportable_as_no_show(): void
     {
         $booking = $this->makeBooking(BookingStatus::ConfirmedByFace, [

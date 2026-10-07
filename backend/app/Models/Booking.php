@@ -224,6 +224,11 @@ class Booking extends Model
             return null;
         }
 
+        // Legacy à la confirmation de la Face : aucun paiement automatique, donc aucune échéance à annoncer.
+        if ($this->face_confirmed_at !== null && $this->isLegacyForAutoPayment($this->face_confirmed_at)) {
+            return null;
+        }
+
         $due = $this->date_fin->copy()->addHours(72);
 
         $candidates = [

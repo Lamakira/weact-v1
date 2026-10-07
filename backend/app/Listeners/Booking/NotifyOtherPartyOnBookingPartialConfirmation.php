@@ -27,6 +27,10 @@ class NotifyOtherPartyOnBookingPartialConfirmation
                 // Le paiement automatique de la Face est daté : le Producteur sait jusqu'à quand signaler une absence.
                 $producerMessage = 'La Face a confirmé la prestation. Si elle n\'est pas venue, signalez son absence avant le '
                     .Booking::formatForBusiness($dueAt).' ; sinon elle sera payée automatiquement.';
+            } elseif ($booking->face_confirmed_at !== null && $booking->isLegacyForAutoPayment($booking->face_confirmed_at)) {
+                // Ancien booking : jamais payé automatiquement, seul le Producteur (ou un admin) le règle.
+                $producerMessage = 'La Face a confirmé la prestation. Confirmez-la à votre tour ou signalez son absence : '
+                    .'ce booking ne sera pas payé automatiquement.';
             }
 
             Notification::create([
