@@ -21,7 +21,7 @@ class AdminTokenSeparationTest extends TestCase
 
     private function bearer(Admin|User $principal): array
     {
-        return ['Authorization' => 'Bearer '.$principal->createToken('t')->plainTextToken];
+        return ['Authorization' => 'Bearer '.$principal->createToken('t', ['2fa'])->plainTextToken];
     }
 
     public function test_admin_token_is_refused_on_user_notification_routes(): void

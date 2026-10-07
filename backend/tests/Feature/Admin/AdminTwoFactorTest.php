@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Tests\Feature\Admin;
 
 use App\Models\Admin;
+use App\Services\Admin\AdminAuthThrottle;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\RateLimiter;
 use PragmaRX\Google2FA\Google2FA;
 use Tests\TestCase;
 
@@ -43,7 +43,7 @@ class AdminTwoFactorTest extends TestCase
      */
     private function actingAsAdmin(Admin $admin): void
     {
-        $this->withToken($admin->createToken('admin-token')->plainTextToken);
+        $this->withToken($admin->createToken('admin-token', ['2fa'])->plainTextToken);
     }
 
     private function startChallenge(string $email = 'admin@test.com'): string
@@ -260,13 +260,13 @@ class AdminTwoFactorTest extends TestCase
     public function test_unenrolled_admin_can_reach_enrolment_and_logout(): void
     {
         $admin = Admin::factory()->withoutTwoFactor()->create();
-        $token = $admin->createToken('admin-token')->plainTextToken;
+        $token = $admin->createToken('admin-token', ['2fa'])->plainTextToken;
         $headers = ['Authorization' => 'Bearer '.$token];
 
         $this->getJson('/api/v1/admin/two-factor', $headers)
             ->assertOk()
             ->assertJsonPath('data.enabled', false);
-        $this->postJson('/api/v1/admin/two-factor/enable', [], $headers)->assertOk();
+        $this->postJson('/api/v1/admin/two-factor/enable', ['password' => 'password'], $headers)->assertOk();
         $this->postJson('/api/v1/admin/logout', [], $headers)->assertOk();
     }
 
@@ -275,7 +275,7 @@ class AdminTwoFactorTest extends TestCase
         $admin = Admin::factory()->withoutTwoFactor()->create(['email' => 'new@test.com']);
         $this->actingAsAdmin($admin);
 
-        $response = $this->postJson('/api/v1/admin/two-factor/enable');
+        $response = $this->postJson('/api/v1/admin/two-factor/enable', ['password' => 'password']);
 
         $response->assertOk()
             ->assertJsonStructure(['data' => ['secret', 'otpauth_uri', 'qr_svg']]);
@@ -293,7 +293,7 @@ class AdminTwoFactorTest extends TestCase
     {
         $this->actingAsAdmin($this->twoFactorAdmin());
 
-        $this->postJson('/api/v1/admin/two-factor/enable')
+        $this->postJson('/api/v1/admin/two-factor/enable', ['password' => 'password'])
             ->assertStatus(409)
             ->assertJsonPath('error.code', 'TWO_FACTOR_ALREADY_ENABLED');
     }
@@ -302,7 +302,7 @@ class AdminTwoFactorTest extends TestCase
     {
         $admin = Admin::factory()->withoutTwoFactor()->create();
         $this->actingAsAdmin($admin);
-        $secret = $this->postJson('/api/v1/admin/two-factor/enable')->json('data.secret');
+        $secret = $this->postJson('/api/v1/admin/two-factor/enable', ['password' => 'password'])->json('data.secret');
         $google2fa = new Google2FA;
 
         $response = $this->postJson('/api/v1/admin/two-factor/confirm', [
@@ -314,8 +314,11 @@ class AdminTwoFactorTest extends TestCase
         $this->assertTrue($fresh->hasTwoFactorEnabled());
         $this->assertSame($response->json('data.recovery_codes'), $fresh->two_factor_recovery_codes);
 
+        // Confirmation revokes the old tokens and returns a fresh one.
+        $this->assertNotEmpty($response->json('data.token'));
+
         // Recovery codes are never exposed again by the status endpoint.
-        $this->getJson('/api/v1/admin/two-factor')
+        $this->getJson('/api/v1/admin/two-factor', ['Authorization' => 'Bearer '.$response->json('data.token')])
             ->assertOk()
             ->assertJsonPath('data.enabled', true)
             ->assertJsonPath('data.recovery_codes_remaining', 8)
@@ -326,7 +329,7 @@ class AdminTwoFactorTest extends TestCase
     {
         $admin = Admin::factory()->withoutTwoFactor()->create();
         $this->actingAsAdmin($admin);
-        $this->postJson('/api/v1/admin/two-factor/enable');
+        $this->postJson('/api/v1/admin/two-factor/enable', ['password' => 'password']);
 
         $this->postJson('/api/v1/admin/two-factor/confirm', ['code' => '000000'])
             ->assertStatus(422)
@@ -405,7 +408,7 @@ class AdminTwoFactorTest extends TestCase
     {
         $super = Admin::factory()->superAdmin()->create();
         $target = $this->twoFactorAdmin();
-        $target->createToken('admin-token');
+        $target->createToken('admin-token', ['2fa']);
         $this->actingAsAdmin($super);
         Log::spy();
 
@@ -434,17 +437,28 @@ class AdminTwoFactorTest extends TestCase
 
     public function test_limiter_is_cleared_after_successful_full_login(): void
     {
-        $this->twoFactorAdmin();
-        $this->postJson('/api/v1/admin/login/two-factor', [
-            'challenge' => $this->startChallenge(),
-            'code' => '000000',
-        ])->assertStatus(401);
+        $admin = $this->twoFactorAdmin();
+        $challenge = $this->startChallenge();
+
+        for ($i = 0; $i < 4; $i++) {
+            $this->postJson('/api/v1/admin/login/two-factor', [
+                'challenge' => $challenge,
+                'code' => '000000',
+            ])->assertStatus(401);
+        }
 
         $this->postJson('/api/v1/admin/login/two-factor', [
-            'challenge' => $this->startChallenge(),
+            'challenge' => $challenge,
             'code' => $this->totp(),
         ])->assertOk();
 
-        $this->assertFalse(RateLimiter::tooManyAttempts('admin-account:admin@test.com', 1));
+        // 4 failures + 1 more would lock (5) if the counter had not been cleared.
+        $challenge = $this->startChallenge();
+        $this->postJson('/api/v1/admin/login/two-factor', [
+            'challenge' => $challenge,
+            'code' => '000000',
+        ])->assertStatus(401);
+
+        $this->assertFalse(app(AdminAuthThrottle::class)->isLocked($admin, 'admin@test.com', '127.0.0.1'));
     }
 }

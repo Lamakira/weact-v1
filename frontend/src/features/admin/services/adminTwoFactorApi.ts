@@ -29,22 +29,25 @@ export const adminTwoFactorApi = {
   },
 
   /** Start enrolment: returns the secret, the otpauth URI and the QR code */
-  async enable(): Promise<AdminTwoFactorSetup> {
+  async enable(password: string): Promise<AdminTwoFactorSetup> {
     await getCsrfCookie()
     const response = await adminApiClient.post<{ data: AdminTwoFactorSetup }>(
       '/admin/two-factor/enable',
+      { password },
     )
     return response.data.data
   },
 
-  /** Confirm enrolment with a valid code: returns the recovery codes (shown once) */
-  async confirm(code: string): Promise<string[]> {
+  /**
+   * Confirm enrolment with a valid code: returns the recovery codes (shown once)
+   * and a NEW token (every other token of the admin is revoked server-side).
+   */
+  async confirm(code: string): Promise<{ recovery_codes: string[]; token: string }> {
     await getCsrfCookie()
-    const response = await adminApiClient.post<{ data: { recovery_codes: string[] } }>(
-      '/admin/two-factor/confirm',
-      { code },
-    )
-    return response.data.data.recovery_codes
+    const response = await adminApiClient.post<{
+      data: { recovery_codes: string[]; token: string }
+    }>('/admin/two-factor/confirm', { code })
+    return response.data.data
   },
 
   async disable(data: AdminTwoFactorReauthForm): Promise<void> {

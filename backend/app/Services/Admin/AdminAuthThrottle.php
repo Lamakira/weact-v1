@@ -4,55 +4,99 @@ declare(strict_types=1);
 
 namespace App\Services\Admin;
 
+use App\Models\Admin;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
+use Normalizer;
 
 /**
- * Per-account limiter + failure journal for the admin authentication surface.
+ * Per-account limiters + failure journal for the admin authentication surface.
  *
- * The key is the normalized email only (no IP): an attacker rotating IPs
- * cannot bypass it. It is shared by password failures and 2FA code failures,
- * and is applied identically to unknown emails so a lockout reveals nothing.
+ * Two buckets, both fed by password failures AND 2FA code failures:
+ *  - account + IP : 5 failures / 15 min. Locks the attacker's own IP only, so
+ *    knowing an admin email is not enough to lock the real admin out from afar.
+ *  - account alone: 20 failures / 15 min. Backstop against a distributed attack
+ *    rotating IPs, deliberately much higher.
+ *
+ * The account subject is the admin id when the email resolves to an admin (the
+ * lookup runs under an accent-insensitive collation, so spelling variants of one
+ * address are one account), and a strongly normalized email otherwise. Applied
+ * identically to unknown emails, so a lockout reveals nothing.
  */
 class AdminAuthThrottle
 {
-    public const MAX_ATTEMPTS = 5;
+    public const MAX_ATTEMPTS_PER_IP = 5;
+
+    public const MAX_ATTEMPTS_PER_ACCOUNT = 20;
 
     public const DECAY_SECONDS = 900;
 
-    public function key(string $email): string
+    /**
+     * Lowercase + NFKC + strip accents/diacritics + trim.
+     */
+    public function normalizeEmail(string $email): string
     {
-        return 'admin-account:'.Str::lower(trim($email));
+        $email = trim($email);
+
+        if (class_exists(Normalizer::class)) {
+            $email = Normalizer::normalize($email, Normalizer::FORM_KC) ?: $email;
+        }
+
+        return Str::lower(Str::ascii($email));
     }
 
-    public function isLocked(string $email): bool
+    public function accountSubject(?Admin $admin, string $email): string
     {
-        return RateLimiter::tooManyAttempts($this->key($email), self::MAX_ATTEMPTS);
+        return $admin !== null
+            ? 'id:'.$admin->getKey()
+            : 'email:'.$this->normalizeEmail($email);
     }
 
-    public function retryAfter(string $email): int
+    public function accountKey(?Admin $admin, string $email): string
     {
-        return max(1, RateLimiter::availableIn($this->key($email)));
+        return 'admin-account:'.$this->accountSubject($admin, $email);
     }
 
-    public function hit(string $email): void
+    public function accountIpKey(?Admin $admin, string $email, string $ip): string
     {
-        RateLimiter::hit($this->key($email), self::DECAY_SECONDS);
+        return $this->accountKey($admin, $email).'|'.$ip;
     }
 
-    public function clear(string $email): void
+    public function isLocked(?Admin $admin, string $email, string $ip): bool
     {
-        RateLimiter::clear($this->key($email));
+        return RateLimiter::tooManyAttempts($this->accountIpKey($admin, $email, $ip), self::MAX_ATTEMPTS_PER_IP)
+            || RateLimiter::tooManyAttempts($this->accountKey($admin, $email), self::MAX_ATTEMPTS_PER_ACCOUNT);
+    }
+
+    public function retryAfter(?Admin $admin, string $email, string $ip): int
+    {
+        $waits = [];
+
+        if (RateLimiter::tooManyAttempts($this->accountIpKey($admin, $email, $ip), self::MAX_ATTEMPTS_PER_IP)) {
+            $waits[] = RateLimiter::availableIn($this->accountIpKey($admin, $email, $ip));
+        }
+        if (RateLimiter::tooManyAttempts($this->accountKey($admin, $email), self::MAX_ATTEMPTS_PER_ACCOUNT)) {
+            $waits[] = RateLimiter::availableIn($this->accountKey($admin, $email));
+        }
+
+        return max(1, ...($waits ?: [1]));
+    }
+
+    public function clear(?Admin $admin, string $email, string $ip): void
+    {
+        RateLimiter::clear($this->accountIpKey($admin, $email, $ip));
+        RateLimiter::clear($this->accountKey($admin, $email));
     }
 
     /**
      * OWASP A09: journal a failed attempt (email fingerprinted, never in clear)
-     * and count it toward the per-account limit.
+     * and count it toward both buckets.
      */
-    public function recordFailure(string $event, string $email, string $ip): void
+    public function recordFailure(string $event, ?Admin $admin, string $email, string $ip): void
     {
-        $this->hit($email);
+        RateLimiter::hit($this->accountIpKey($admin, $email, $ip), self::DECAY_SECONDS);
+        RateLimiter::hit($this->accountKey($admin, $email), self::DECAY_SECONDS);
 
         Log::warning($event, [
             'email_hash' => $this->emailFingerprint($email),

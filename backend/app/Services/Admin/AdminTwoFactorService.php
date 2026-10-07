@@ -9,7 +9,10 @@ use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\PersonalAccessToken;
+use Laravel\Sanctum\TransientToken;
 use PragmaRX\Google2FA\Google2FA;
 
 /**
@@ -124,23 +127,49 @@ class AdminTwoFactorService
     public function consumeRecoveryCode(Admin $admin, string $recoveryCode): bool
     {
         $recoveryCode = Str::lower(trim($recoveryCode));
-        $codes = $admin->two_factor_recovery_codes ?? [];
 
-        $matched = null;
-        foreach ($codes as $index => $stored) {
-            if (hash_equals((string) $stored, $recoveryCode)) {
-                $matched = $index;
+        // Read-modify-write under a row lock: two concurrent requests presenting
+        // the same code are serialized, and the second one re-reads the list
+        // WITHOUT the consumed code (a stale in-memory model is never trusted).
+        return DB::transaction(function () use ($admin, $recoveryCode): bool {
+            $locked = Admin::query()->whereKey($admin->getKey())->lockForUpdate()->firstOrFail();
+            $codes = $locked->two_factor_recovery_codes ?? [];
+
+            $matched = null;
+            foreach ($codes as $index => $stored) {
+                if (hash_equals((string) $stored, $recoveryCode)) {
+                    $matched = $index;
+                }
             }
+
+            if ($matched === null) {
+                return false;
+            }
+
+            unset($codes[$matched]);
+            $remaining = array_values($codes);
+            $locked->forceFill(['two_factor_recovery_codes' => $remaining])->save();
+            $admin->forceFill(['two_factor_recovery_codes' => $remaining])->syncOriginal();
+
+            return true;
+        });
+    }
+
+    /**
+     * Revoke every token of the admin except the one making the current request
+     * (used when the security posture changes: enrolment, disable, new codes).
+     */
+    public function revokeOtherTokens(Admin $admin): void
+    {
+        /** @var PersonalAccessToken|TransientToken|null $current */
+        $current = $admin->currentAccessToken();
+        $query = $admin->tokens();
+
+        if ($current instanceof PersonalAccessToken) {
+            $query->where('id', '!=', $current->getKey());
         }
 
-        if ($matched === null) {
-            return false;
-        }
-
-        unset($codes[$matched]);
-        $admin->forceFill(['two_factor_recovery_codes' => array_values($codes)])->save();
-
-        return true;
+        $query->delete();
     }
 
     /**

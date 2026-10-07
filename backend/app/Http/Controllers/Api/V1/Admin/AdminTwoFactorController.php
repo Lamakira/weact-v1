@@ -7,7 +7,9 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\AdminTwoFactorCodeRequest;
 use App\Http\Requests\Admin\AdminTwoFactorConfirmRequest;
+use App\Http\Requests\Admin\AdminTwoFactorEnableRequest;
 use App\Models\Admin;
+use App\Notifications\AdminTwoFactorChangedNotification;
 use App\Services\Admin\AdminAuthThrottle;
 use App\Services\Admin\AdminTwoFactorService;
 use Illuminate\Http\JsonResponse;
@@ -43,13 +45,24 @@ class AdminTwoFactorController extends Controller
         ]);
     }
 
-    public function enable(Request $request): JsonResponse
+    public function enable(AdminTwoFactorEnableRequest $request): JsonResponse
     {
         /** @var Admin $admin */
         $admin = $request->user();
 
         if ($admin->hasTwoFactorEnabled()) {
             return $this->error('La double authentification est déjà activée.', 'TWO_FACTOR_ALREADY_ENABLED', 409);
+        }
+
+        // A leaked token alone must not allow binding an attacker's authenticator.
+        if ($this->throttle->isLocked($admin, $admin->email, (string) $request->ip())) {
+            return $this->locked($admin, (string) $request->ip());
+        }
+
+        if (! Hash::check($request->validated('password'), $admin->password)) {
+            $this->throttle->recordFailure('auth.admin.two_factor.failed', $admin, $admin->email, (string) $request->ip());
+
+            return $this->error('Mot de passe incorrect', 'INVALID_PASSWORD', 422);
         }
 
         return response()->json([
@@ -67,22 +80,32 @@ class AdminTwoFactorController extends Controller
             return $this->error('Aucune activation en cours.', 'TWO_FACTOR_NOT_STARTED', 409);
         }
 
-        if ($this->throttle->isLocked($admin->email)) {
-            return $this->locked($admin);
+        $ip = (string) $request->ip();
+
+        if ($this->throttle->isLocked($admin, $admin->email, $ip)) {
+            return $this->locked($admin, $ip);
         }
 
         $codes = $this->twoFactor->confirmEnrolment($admin, $request->validated('code'));
 
         if ($codes === null) {
-            $this->throttle->recordFailure('auth.admin.two_factor.failed', $admin->email, (string) $request->ip());
+            $this->throttle->recordFailure('auth.admin.two_factor.failed', $admin, $admin->email, $ip);
 
             return $this->error('Code de vérification incorrect', 'TWO_FACTOR_INVALID_CODE', 422);
         }
 
-        $this->throttle->clear($admin->email);
+        $this->throttle->clear($admin, $admin->email, $ip);
+
+        // Every token issued before the enrolment (including the enrolment-limited
+        // one used here) is revoked; a fresh token carrying the `2fa` ability is
+        // returned. A token stolen before enrolment therefore gains nothing.
+        $admin->tokens()->delete();
+        $token = $admin->createToken('admin-token', [Admin::ABILITY_TWO_FACTOR])->plainTextToken;
+
+        $admin->notify(new AdminTwoFactorChangedNotification(AdminTwoFactorChangedNotification::EVENT_ENABLED));
 
         return response()->json([
-            'data' => ['recovery_codes' => $codes],
+            'data' => ['recovery_codes' => $codes, 'token' => $token],
             'message' => 'Double authentification activée',
         ]);
     }
@@ -97,11 +120,14 @@ class AdminTwoFactorController extends Controller
         }
 
         $this->twoFactor->disable($admin);
+        $this->twoFactor->revokeOtherTokens($admin);
 
         Log::warning('audit.admin.two_factor.disabled', [
             'admin_id' => $admin->id,
             'ip' => $request->ip(),
         ]);
+
+        $admin->notify(new AdminTwoFactorChangedNotification(AdminTwoFactorChangedNotification::EVENT_DISABLED));
 
         return response()->json(['message' => 'Double authentification désactivée']);
     }
@@ -119,8 +145,13 @@ class AdminTwoFactorController extends Controller
             return $failure;
         }
 
+        $codes = $this->twoFactor->regenerateRecoveryCodes($admin);
+        $this->twoFactor->revokeOtherTokens($admin);
+
+        $admin->notify(new AdminTwoFactorChangedNotification(AdminTwoFactorChangedNotification::EVENT_RECOVERY_CODES_REGENERATED));
+
         return response()->json([
-            'data' => ['recovery_codes' => $this->twoFactor->regenerateRecoveryCodes($admin)],
+            'data' => ['recovery_codes' => $codes],
             'message' => 'Nouveaux codes de secours générés',
         ]);
     }
@@ -147,6 +178,8 @@ class AdminTwoFactorController extends Controller
             'ip' => $request->ip(),
         ]);
 
+        $admin->notify(new AdminTwoFactorChangedNotification(AdminTwoFactorChangedNotification::EVENT_RESET));
+
         return response()->json(['message' => 'Double authentification réinitialisée']);
     }
 
@@ -156,30 +189,32 @@ class AdminTwoFactorController extends Controller
      */
     private function reauthenticate(AdminTwoFactorCodeRequest $request, Admin $admin): ?JsonResponse
     {
-        if ($this->throttle->isLocked($admin->email)) {
-            return $this->locked($admin);
+        $ip = (string) $request->ip();
+
+        if ($this->throttle->isLocked($admin, $admin->email, $ip)) {
+            return $this->locked($admin, $ip);
         }
 
         if (! Hash::check($request->validated('password'), $admin->password)) {
-            $this->throttle->recordFailure('auth.admin.two_factor.failed', $admin->email, (string) $request->ip());
+            $this->throttle->recordFailure('auth.admin.two_factor.failed', $admin, $admin->email, $ip);
 
             return $this->error('Mot de passe incorrect', 'INVALID_PASSWORD', 422);
         }
 
         if (! $this->twoFactor->verifyCodeOrRecovery($admin, $request->validated('code'), $request->validated('recovery_code'))) {
-            $this->throttle->recordFailure('auth.admin.two_factor.failed', $admin->email, (string) $request->ip());
+            $this->throttle->recordFailure('auth.admin.two_factor.failed', $admin, $admin->email, $ip);
 
             return $this->error('Code de vérification incorrect', 'TWO_FACTOR_INVALID_CODE', 422);
         }
 
-        $this->throttle->clear($admin->email);
+        $this->throttle->clear($admin, $admin->email, $ip);
 
         return null;
     }
 
-    private function locked(Admin $admin): JsonResponse
+    private function locked(Admin $admin, string $ip): JsonResponse
     {
-        $retryAfter = $this->throttle->retryAfter($admin->email);
+        $retryAfter = $this->throttle->retryAfter($admin, $admin->email, $ip);
 
         return $this->error(
             'Trop de tentatives. Veuillez réessayer dans '.(int) ceil($retryAfter / 60).' minute(s).',

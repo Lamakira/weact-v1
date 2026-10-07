@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Support;
 
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 /**
  * Equalises the cost of a login attempt whether the account exists or not.
@@ -17,21 +16,26 @@ use Illuminate\Support\Str;
  */
 final class PasswordTimingGuard
 {
-    private static ?string $dummyHash = null;
+    /**
+     * Precomputed bcrypt hash (cost 12 = the app's BCRYPT_ROUNDS) of a random,
+     * discarded string. A constant, NOT computed per request: hashing lazily in
+     * a static runs on every request without Octane, which would make the
+     * unknown-account path cost two bcrypts (reversed timing leak).
+     *
+     * Generated once with:
+     *   php -r 'echo password_hash("weact-timing-guard-dummy-password", PASSWORD_BCRYPT, ["cost" => 12]);'
+     * Keep the cost in sync with BCRYPT_ROUNDS if that ever changes.
+     */
+    public const DUMMY_HASH = '$2y$12$Hzu.dQdLTx70V28rlBRTsuD6YN.pMVsoLue2JNFhBjVBuEuPVnOTu';
 
     public static function check(string $password, ?string $hash): bool
     {
         if ($hash === null || $hash === '') {
-            Hash::check($password, self::dummyHash());
+            Hash::check($password, self::DUMMY_HASH);
 
             return false;
         }
 
         return Hash::check($password, $hash);
-    }
-
-    private static function dummyHash(): string
-    {
-        return self::$dummyHash ??= Hash::make(Str::random(40));
     }
 }

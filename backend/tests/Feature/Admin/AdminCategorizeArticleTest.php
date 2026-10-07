@@ -24,7 +24,7 @@ class AdminCategorizeArticleTest extends TestCase
         parent::setUp();
 
         $this->admin = Admin::factory()->create();
-        $this->adminToken = $this->admin->createToken('admin-token')->plainTextToken;
+        $this->adminToken = $this->admin->createToken('admin-token', ['2fa'])->plainTextToken;
     }
 
     private function endpoint(Article $article): string

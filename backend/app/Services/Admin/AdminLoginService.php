@@ -16,6 +16,9 @@ class AdminLoginService
 {
     public const CHALLENGE_TTL_MINUTES = 5;
 
+    /** Longer than the challenge TTL so an expired-then-replayed id stays refused. */
+    private const SPENT_MARKER_TTL_SECONDS = 900;
+
     public function __construct(
         private readonly AdminAuthThrottle $throttle,
         private readonly AdminTwoFactorService $twoFactor,
@@ -34,19 +37,21 @@ class AdminLoginService
      */
     public function login(string $email, string $password, string $ip): array
     {
-        if ($this->throttle->isLocked($email)) {
+        // Lookup first: the lock is keyed on the admin id (the DB collation is
+        // accent-insensitive, so spelling variants of an email are one account).
+        $admin = Admin::where('email', $email)->first();
+
+        if ($this->throttle->isLocked($admin, $email, $ip)) {
             $this->throttle->logLockout($email, $ip);
 
-            return ['status' => 'locked', 'retry_after' => $this->throttle->retryAfter($email)];
+            return ['status' => 'locked', 'retry_after' => $this->throttle->retryAfter($admin, $email, $ip)];
         }
-
-        $admin = Admin::where('email', $email)->first();
 
         // Always runs one bcrypt check, even for an unknown email (timing parity).
         $passwordValid = PasswordTimingGuard::check($password, $admin?->password);
 
         if ($admin === null || ! $passwordValid) {
-            $this->throttle->recordFailure('auth.admin.login.failed', $email, $ip);
+            $this->throttle->recordFailure('auth.admin.login.failed', $admin, $email, $ip);
 
             return ['status' => 'invalid'];
         }
@@ -55,12 +60,14 @@ class AdminLoginService
             return ['status' => 'two_factor', 'challenge' => $this->issueChallenge($admin)];
         }
 
-        $this->throttle->clear($email);
+        $this->throttle->clear($admin, $email, $ip);
 
+        // No confirmed 2FA: enrolment-limited token (the `admin.2fa` middleware
+        // refuses it everywhere except enrolment and logout).
         return [
             'status' => 'ok',
             'admin' => $admin,
-            'token' => $admin->createToken('admin-token')->plainTextToken,
+            'token' => $admin->createToken('admin-token', [Admin::ABILITY_ENROLMENT])->plainTextToken,
         ];
     }
 
@@ -80,29 +87,32 @@ class AdminLoginService
 
         $email = $admin->email;
 
-        if ($this->throttle->isLocked($email)) {
+        if ($this->throttle->isLocked($admin, $email, $ip)) {
             $this->throttle->logLockout($email, $ip);
 
-            return ['status' => 'locked', 'retry_after' => $this->throttle->retryAfter($email)];
+            return ['status' => 'locked', 'retry_after' => $this->throttle->retryAfter($admin, $email, $ip)];
         }
 
         if (! $this->twoFactor->verifyCodeOrRecovery($admin, $code, $recoveryCode)) {
-            $this->throttle->recordFailure('auth.admin.two_factor.failed', $email, $ip);
+            $this->throttle->recordFailure('auth.admin.two_factor.failed', $admin, $email, $ip);
 
             return ['status' => 'invalid_code'];
         }
 
-        // Single use: pull() returns null if a concurrent request already consumed it.
-        if (Cache::pull($this->challengeKey($challenge)) === null) {
+        // Single use, atomically: Cache::pull is get-then-forget and two concurrent
+        // requests could both pass. Cache::add on a ":spent" marker has exactly one
+        // winner (insertOrIgnore on the database store, SET NX on Redis).
+        if (! Cache::add($this->challengeKey($challenge).':spent', true, self::SPENT_MARKER_TTL_SECONDS)) {
             return ['status' => 'challenge_invalid'];
         }
+        Cache::forget($this->challengeKey($challenge));
 
-        $this->throttle->clear($email);
+        $this->throttle->clear($admin, $email, $ip);
 
         return [
             'status' => 'ok',
             'admin' => $admin,
-            'token' => $admin->createToken('admin-token')->plainTextToken,
+            'token' => $admin->createToken('admin-token', [Admin::ABILITY_TWO_FACTOR])->plainTextToken,
         ];
     }
 

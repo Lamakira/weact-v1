@@ -6,7 +6,7 @@
  */
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ShieldCheck, KeyRound, Loader2 } from 'lucide-vue-next'
+import { ShieldCheck, KeyRound, Lock, Loader2 } from 'lucide-vue-next'
 import { useAdminAuth } from '@/features/admin/composables/useAdminAuth'
 import { useAdminTwoFactor } from '@/features/admin/composables/useAdminTwoFactor'
 import { useAdminAuthStore } from '@/stores/adminAuth'
@@ -29,6 +29,7 @@ const {
 } = useAdminTwoFactor()
 
 const code = ref('')
+const password = ref('')
 const apiError = ref<string | null>(null)
 const initializing = ref(true)
 const savedCodes = ref(false)
@@ -49,12 +50,22 @@ onMounted(async () => {
     return
   }
 
-  const result = await startSetup()
+  initializing.value = false
+})
+
+// Step 0: the current password is required before a secret is generated
+async function onStart(): Promise<void> {
+  apiError.value = null
+  if (!password.value) {
+    apiError.value = 'Le mot de passe est obligatoire.'
+    return
+  }
+  const result = await startSetup(password.value)
+  password.value = ''
   if (!result.success) {
     apiError.value = result.message ?? 'Impossible de démarrer la configuration'
   }
-  initializing.value = false
-})
+}
 
 async function onConfirm(): Promise<void> {
   apiError.value = null
@@ -197,12 +208,40 @@ async function handleLogout(): Promise<void> {
           </form>
         </div>
 
-        <!-- Failure to start (network, already enabled...) -->
-        <div v-else-if="apiError" class="space-y-4">
-          <div class="rounded-lg bg-red-50 p-3 border border-red-200" role="alert" data-testid="api-error">
+        <!-- Step 0: confirm the current password, then generate the secret -->
+        <form v-else class="space-y-4" data-testid="setup-password-form" @submit.prevent="onStart">
+          <p class="text-sm text-gray-600">
+            Pour votre sécurité, confirmez votre mot de passe avant de configurer l'application
+            d'authentification.
+          </p>
+          <div
+            v-if="apiError"
+            class="rounded-lg bg-red-50 p-3 border border-red-200"
+            role="alert"
+            data-testid="api-error"
+          >
             <p class="text-sm text-red-700">{{ apiError }}</p>
           </div>
-        </div>
+          <FloatingField
+            id="admin-setup-password"
+            v-model="password"
+            type="password"
+            label="Mot de passe actuel"
+            :icon="Lock"
+            autocomplete="current-password"
+            password-toggle
+            required
+            data-testid="setup-password-input"
+          />
+          <button
+            type="submit"
+            :disabled="isLoading"
+            class="w-full py-3 bg-primary-500 text-white font-medium rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            data-testid="setup-password-button"
+          >
+            Continuer
+          </button>
+        </form>
 
         <div class="mt-6 text-center">
           <button

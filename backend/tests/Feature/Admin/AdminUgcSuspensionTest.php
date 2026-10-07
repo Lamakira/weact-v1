@@ -128,7 +128,7 @@ class AdminUgcSuspensionTest extends TestCase
 
     private function actingAsAdmin(Admin $admin): static
     {
-        return $this->withToken($admin->createToken('admin-test-token')->plainTextToken);
+        return $this->withToken($admin->createToken('admin-test-token', ['2fa'])->plainTextToken);
     }
 
     private function entitlement(): FaceEntitlementService

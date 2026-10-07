@@ -54,13 +54,17 @@ describe('useAdminTwoFactor', () => {
     mockEnable.mockResolvedValue({ secret: 'ABC', otpauth_uri: 'otpauth://totp/x', qr_svg: '<svg/>' })
     const { startSetup, setup } = useAdminTwoFactor()
 
-    await startSetup()
+    await startSetup('MyPassword1')
 
+    expect(mockEnable).toHaveBeenCalledWith('MyPassword1')
     expect(setup.value?.secret).toBe('ABC')
   })
 
   it('keeps recovery codes in memory and flags the admin enrolled after confirmation', async () => {
-    mockConfirm.mockResolvedValue(['aaaaa-bbbbb', 'ccccc-ddddd'])
+    mockConfirm.mockResolvedValue({
+      recovery_codes: ['aaaaa-bbbbb', 'ccccc-ddddd'],
+      token: 'new-full-token',
+    })
     const { confirmSetup, recoveryCodes, setup } = useAdminTwoFactor()
 
     const result = await confirmSetup('123456')
@@ -68,6 +72,7 @@ describe('useAdminTwoFactor', () => {
     expect(mockConfirm).toHaveBeenCalledWith('123456')
     expect(result.success).toBe(true)
     expect(recoveryCodes.value).toEqual(['aaaaa-bbbbb', 'ccccc-ddddd'])
+    expect(useAdminAuthStore().token).toBe('new-full-token')
     expect(setup.value).toBeNull()
     expect(useAdminAuthStore().admin?.two_factor_enabled).toBe(true)
     // Recovery codes are never persisted

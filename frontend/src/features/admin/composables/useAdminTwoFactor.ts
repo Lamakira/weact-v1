@@ -50,16 +50,19 @@ export function useAdminTwoFactor() {
   }
 
   /** Start enrolment: generates a fresh secret + QR code */
-  function startSetup(): Promise<ActionResult> {
+  function startSetup(password: string): Promise<ActionResult> {
     return run(async () => {
-      setup.value = await adminTwoFactorApi.enable()
+      setup.value = await adminTwoFactorApi.enable(password)
     })
   }
 
   /** Confirm enrolment with a code from the authenticator app */
   function confirmSetup(code: string): Promise<ActionResult> {
     return run(async () => {
-      recoveryCodes.value = await adminTwoFactorApi.confirm(code)
+      const confirmed = await adminTwoFactorApi.confirm(code)
+      recoveryCodes.value = confirmed.recovery_codes
+      // The enrolment-limited token was revoked: swap in the full-access one
+      adminAuthStore.setToken(confirmed.token)
       setup.value = null
       markEnabled(true)
     })

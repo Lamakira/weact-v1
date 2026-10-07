@@ -24,7 +24,7 @@ class AdminLogoutTest extends TestCase
 
     public function test_successful_logout_returns_200_and_revokes_token(): void
     {
-        $token = $this->admin->createToken('admin-token')->plainTextToken;
+        $token = $this->admin->createToken('admin-token', ['2fa'])->plainTextToken;
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->postJson('/api/v1/admin/logout');
@@ -45,7 +45,7 @@ class AdminLogoutTest extends TestCase
 
     public function test_token_is_revoked_after_logout(): void
     {
-        $token = $this->admin->createToken('admin-token')->plainTextToken;
+        $token = $this->admin->createToken('admin-token', ['2fa'])->plainTextToken;
 
         // Verify token exists before logout
         $this->assertDatabaseCount('personal_access_tokens', 1);
@@ -72,7 +72,7 @@ class AdminLogoutTest extends TestCase
 
     public function test_logout_with_already_revoked_token_returns_401(): void
     {
-        $token = $this->admin->createToken('admin-token')->plainTextToken;
+        $token = $this->admin->createToken('admin-token', ['2fa'])->plainTextToken;
 
         // Manually revoke the token
         $this->admin->tokens()->delete();

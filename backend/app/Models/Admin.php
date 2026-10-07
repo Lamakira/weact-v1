@@ -31,6 +31,19 @@ class Admin extends Authenticatable implements CanResetPasswordContract
     use CanResetPassword, HasApiTokens, HasFactory, HasRouteUuid, Notifiable;
 
     /**
+     * Sanctum ability carried ONLY by tokens issued after a successful second
+     * factor (login step 2, or enrolment confirmation). The `admin.2fa`
+     * middleware requires this exact ability: legacy `*` tokens do not count.
+     */
+    public const ABILITY_TWO_FACTOR = '2fa';
+
+    /**
+     * Ability of the limited token handed to an admin who has no confirmed 2FA yet:
+     * good for enrolment and logout only.
+     */
+    public const ABILITY_ENROLMENT = 'enrol';
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
