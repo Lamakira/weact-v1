@@ -17,20 +17,12 @@ class AdminForgotPasswordController extends Controller
      */
     public function __invoke(AdminForgotPasswordRequest $request): JsonResponse
     {
-        $status = Password::broker('admins')->sendResetLink(
+        // Same generic success whether the account exists, is unknown or is
+        // throttled by the broker (RESET_THROTTLED would reveal the account).
+        Password::broker('admins')->sendResetLink(
             $request->only('email')
         );
 
-        if ($status === Password::RESET_THROTTLED) {
-            return response()->json([
-                'error' => [
-                    'message' => 'Veuillez patienter avant de réessayer',
-                    'code' => 'THROTTLED',
-                ],
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        // Always return success to prevent email enumeration (OWASP best practice)
         return response()->json([
             'data' => null,
             'message' => 'Email de réinitialisation envoyé',

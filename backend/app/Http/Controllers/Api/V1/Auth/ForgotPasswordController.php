@@ -17,23 +17,14 @@ class ForgotPasswordController extends Controller
      */
     public function __invoke(ForgotPasswordRequest $request): JsonResponse
     {
-        $status = Password::sendResetLink(
+        // OWASP: the response must not depend on the account. RESET_LINK_SENT,
+        // INVALID_USER AND RESET_THROTTLED (broker-side, only reachable for an
+        // existing account) all return the very same generic success, otherwise
+        // the throttled answer is an account-enumeration oracle.
+        Password::sendResetLink(
             $request->only('email')
         );
 
-        // OWASP Best Practice: Always return success message to prevent email enumeration.
-        // Only exception is rate limiting (RESET_THROTTLED) which applies to all requests.
-        if ($status === Password::RESET_THROTTLED) {
-            return response()->json([
-                'error' => [
-                    'message' => 'Veuillez patienter avant de réessayer',
-                    'code' => 'THROTTLED',
-                ],
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        // For all other statuses (RESET_LINK_SENT, INVALID_USER, etc.),
-        // return success to prevent attackers from enumerating valid emails.
         return response()->json([
             'data' => null,
             'message' => 'Email envoyé',

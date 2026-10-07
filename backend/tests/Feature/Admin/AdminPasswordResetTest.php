@@ -155,7 +155,7 @@ class AdminPasswordResetTest extends TestCase
 
     public function test_admin_can_login_with_new_password_after_reset(): void
     {
-        $admin = Admin::factory()->create([
+        $admin = Admin::factory()->withoutTwoFactor()->create([
             'email' => 'admin@weact.test',
             'password' => Hash::make('OldPassword1'),
         ]);

@@ -70,7 +70,7 @@ class GoogleCompleteRegistrationTest extends TestCase
         $response->assertStatus(201)
             ->assertJsonPath('data.user.email', 'jean@gmail.com')
             ->assertJsonPath('data.user.userable_type', 'Face')
-            ->assertJsonPath('data.user.userable.username', 'jeandupont')
+            ->assertJsonPath('data.user.userable.username', 'jeand')
             ->assertJsonPath('data.user.has_password', false)
             ->assertJsonPath('message', 'Inscription réussie');
 
@@ -245,7 +245,7 @@ class GoogleCompleteRegistrationTest extends TestCase
 
         $face = Face::where('nom', 'Dupont')->firstOrFail();
 
-        $this->assertSame('jeandupont', $face->username);
+        $this->assertSame('jeand', $face->username);
         $this->assertNull($face->sexe);
         $this->assertNull($face->nationalite);
         $this->assertNull($face->whatsapp_number);

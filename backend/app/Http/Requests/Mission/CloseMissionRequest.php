@@ -88,6 +88,24 @@ class CloseMissionRequest extends FormRequest
                 return;
             }
 
+            if ($mission->status === MissionStatus::PendingAttendanceValidation) {
+                $validator->errors()->add(
+                    'status',
+                    'Une mission en attente de validation des présences ne peut pas être clôturée'
+                );
+
+                return;
+            }
+
+            if ($mission->hasCashEscrow()) {
+                $validator->errors()->add(
+                    'status',
+                    'Une mission dont le paiement a été effectué ne peut pas être clôturée manuellement'
+                );
+
+                return;
+            }
+
             if ($mission->date_tournage !== null && $mission->date_tournage->isBefore(now()->startOfDay())) {
                 $validator->errors()->add(
                     'status',

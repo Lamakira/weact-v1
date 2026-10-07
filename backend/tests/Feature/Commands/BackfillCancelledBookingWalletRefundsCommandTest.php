@@ -68,7 +68,7 @@ class BackfillCancelledBookingWalletRefundsCommandTest extends TestCase
             'booking_id' => $booking->id,
             'type' => 'credit',
             'amount' => $expectedRefund,
-            'description' => "Booking : rattrapage remboursement annulation",
+            'description' => 'Booking : rattrapage remboursement annulation',
         ]);
 
         $this->assertDatabaseHas('escrow_transactions', [

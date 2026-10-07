@@ -43,35 +43,17 @@ class EmailVerificationController extends Controller
      */
     public function verify(Request $request, int $id, string $hash): JsonResponse
     {
+        // Signature FIRST, then user lookup + hash: unknown user, wrong hash,
+        // forged or expired signature all yield ONE generic error, so the link
+        // endpoint cannot be used to probe which user ids exist.
+        if (! $request->hasValidSignature()) {
+            return $this->invalidLinkResponse();
+        }
+
         $user = User::find($id);
 
-        if (! $user) {
-            return response()->json([
-                'error' => [
-                    'code' => 'USER_NOT_FOUND',
-                    'message' => 'Utilisateur non trouvé.',
-                ],
-            ], Response::HTTP_NOT_FOUND);
-        }
-
-        // Verify the hash matches the user's email
-        if (! hash_equals(sha1($user->getEmailForVerification()), $hash)) {
-            return response()->json([
-                'error' => [
-                    'code' => 'INVALID_VERIFICATION_LINK',
-                    'message' => 'Lien de vérification invalide.',
-                ],
-            ], Response::HTTP_FORBIDDEN);
-        }
-
-        // Check if the link has expired (signature validation)
-        if (! $request->hasValidSignature()) {
-            return response()->json([
-                'error' => [
-                    'code' => 'VERIFICATION_LINK_EXPIRED',
-                    'message' => 'Le lien de vérification a expiré. Veuillez en demander un nouveau.',
-                ],
-            ], Response::HTTP_FORBIDDEN);
+        if (! $user || ! hash_equals(sha1($user->getEmailForVerification()), $hash)) {
+            return $this->invalidLinkResponse();
         }
 
         if ($user->hasVerifiedEmail()) {
@@ -111,5 +93,15 @@ class EmailVerificationController extends Controller
                 ? 'Email vérifié.'
                 : 'Email non vérifié.',
         ]);
+    }
+
+    private function invalidLinkResponse(): JsonResponse
+    {
+        return response()->json([
+            'error' => [
+                'code' => 'INVALID_VERIFICATION_LINK',
+                'message' => 'Lien de vérification invalide ou expiré. Veuillez en demander un nouveau.',
+            ],
+        ], Response::HTTP_FORBIDDEN);
     }
 }

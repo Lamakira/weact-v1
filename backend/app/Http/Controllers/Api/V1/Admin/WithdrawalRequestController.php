@@ -37,7 +37,7 @@ class WithdrawalRequestController extends Controller
 
         $withdrawalRequests = $query->paginate(20)->through(
             fn (WithdrawalRequest $withdrawalRequest): array => [
-                'id' => $withdrawalRequest->id,
+                'id' => $withdrawalRequest->uuid,
                 'amount' => (int) $withdrawalRequest->amount,
                 'payment_mode' => $withdrawalRequest->payment_mode,
                 'phone_number' => $withdrawalRequest->phone_number,
@@ -146,7 +146,7 @@ class WithdrawalRequestController extends Controller
 
         return response()->json([
             'data' => [
-                'id' => $processedRequest->id,
+                'id' => $processedRequest->uuid,
                 'status' => $processedRequest->status,
             ],
             'message' => 'Withdrawal request approved successfully',
@@ -188,7 +188,7 @@ class WithdrawalRequestController extends Controller
 
         return response()->json([
             'data' => [
-                'id' => $processedRequest->id,
+                'id' => $processedRequest->uuid,
                 'status' => $processedRequest->status,
             ],
             'message' => 'Withdrawal request rejected successfully',

@@ -80,21 +80,12 @@ class ReportController extends Controller
     }
 
     /**
-     * Resolve a reportable model from either its legacy numeric ID or its public UUID.
+     * Resolve a reportable model from its public UUID only (sequential ids would reveal which exist).
      *
      * @param  class-string<Model>  $modelClass
      */
     private function resolveReportable(string $modelClass, string $identifier): ?Model
     {
-        $query = $modelClass::query();
-
-        if (ctype_digit($identifier)) {
-            $reportable = $query->find((int) $identifier);
-            if ($reportable) {
-                return $reportable;
-            }
-        }
-
         return $modelClass::query()
             ->where('uuid', $identifier)
             ->first();

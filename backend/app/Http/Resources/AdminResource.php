@@ -24,6 +24,7 @@ class AdminResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'role' => $this->role->value,
+            'two_factor_enabled' => $this->hasTwoFactorEnabled(),
             'created_at' => $this->created_at?->toISOString(),
         ];
     }

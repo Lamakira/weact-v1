@@ -45,7 +45,6 @@ class FaceController extends Controller
 
                 return $q->where(function ($query) use ($escaped) {
                     $query->where('prenom', 'like', "%{$escaped}%")
-                        ->orWhere('nom', 'like', "%{$escaped}%")
                         ->orWhere('username', 'like', "%{$escaped}%")
                         ->orWhere('bio', 'like', "%{$escaped}%");
                 });

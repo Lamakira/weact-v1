@@ -126,7 +126,7 @@ class AdminAttendanceDisputeControllerTest extends TestCase
 
     private function actingAsAdmin(Admin $admin): static
     {
-        return $this->withToken($admin->createToken('admin-test-token')->plainTextToken);
+        return $this->withToken($admin->createToken('admin-test-token', ['2fa'])->plainTextToken);
     }
 
     public function test_index_returns_disputed_entries_only(): void

@@ -395,19 +395,14 @@ class PublicFacesListTest extends TestCase
         $this->assertEquals($adjoua->uuid, $response->json('data.0.id'));
     }
 
-    public function test_search_by_nom_returns_matching_faces(): void
+    public function test_search_by_nom_does_not_return_the_face(): void
     {
         $face = Face::factory()->create(['nom' => 'Dossou']);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
 
-        $other = Face::factory()->create(['nom' => 'Agbangla']);
-        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $other->id]);
-
-        $response = $this->getJson('/api/v1/public/faces?search=Dossou');
-
-        $response->assertOk();
-        $this->assertEquals(1, $response->json('meta.total'));
-        $this->assertEquals($face->uuid, $response->json('data.0.id'));
+        $this->getJson('/api/v1/public/faces?search=Dossou')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 0);
     }
 
     public function test_search_by_username_returns_matching_faces(): void

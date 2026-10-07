@@ -226,7 +226,7 @@ class ProducerWhatsappTest extends TestCase
     public function test_admin_sees_the_number_in_list_and_detail(): void
     {
         $this->producer->update(['whatsapp_number' => self::NUMBER]);
-        $token = Admin::factory()->create()->createToken('admin-token')->plainTextToken;
+        $token = Admin::factory()->create()->createToken('admin-token', ['2fa'])->plainTextToken;
 
         $this->withToken($token)
             ->getJson("/api/v1/admin/producers/{$this->producer->uuid}")
@@ -242,7 +242,7 @@ class ProducerWhatsappTest extends TestCase
 
     public function test_admin_detail_reports_no_whatsapp_when_missing(): void
     {
-        $token = Admin::factory()->create()->createToken('admin-token')->plainTextToken;
+        $token = Admin::factory()->create()->createToken('admin-token', ['2fa'])->plainTextToken;
 
         $response = $this->withToken($token)
             ->getJson("/api/v1/admin/producers/{$this->producer->uuid}")

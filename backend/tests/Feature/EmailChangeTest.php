@@ -180,7 +180,7 @@ class EmailChangeTest extends TestCase
 
         $response->assertForbidden()
             ->assertJson([
-                'error' => ['code' => 'CONFIRMATION_LINK_EXPIRED'],
+                'error' => ['code' => 'INVALID_CONFIRMATION_LINK'],
             ]);
 
         $this->assertEquals('old@example.com', $this->user->fresh()->email);

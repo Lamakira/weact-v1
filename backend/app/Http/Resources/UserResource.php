@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Models\Admin;
 use App\Models\Face;
 use App\Models\Producer;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
@@ -15,6 +17,24 @@ use Illuminate\Support\Carbon;
  */
 class UserResource extends JsonResource
 {
+    /**
+     * True when the caller guarantees the rendered account IS the authenticated
+     * account (login, register, Google exchange, /user). Never derived from the
+     * request: a stale session can make `$request->user()` another account.
+     */
+    private bool $renderedForOwner = false;
+
+    /**
+     * Render an account for itself (owner view: email, verification, has_password).
+     */
+    public static function forOwner(User $user): self
+    {
+        $resource = new self($user);
+        $resource->renderedForOwner = true;
+
+        return $resource;
+    }
+
     /**
      * Transform the resource into an array.
      *
@@ -29,17 +49,32 @@ class UserResource extends JsonResource
         /** @var Carbon|null $updatedAt */
         $updatedAt = $this->updated_at;
 
+        // PII: the account identifiers (email, verification state, internal
+        // userable_id, is_active) belong to the account owner and to admins only.
+        // This resource is also rendered for the OTHER party of a booking. The auth
+        // responses (login, register, Google, /user) opt in through forOwner().
+        // Admin and User ids live in different tables, so identity is checked on
+        // the class, not on the bare id.
+        $viewer = $request->user();
+        $isOwner = $this->renderedForOwner
+            || ($viewer instanceof User && $viewer->id === $this->id);
+        $isPrivileged = $viewer instanceof Admin || $isOwner;
+
         $data = [
             'id' => $this->id,
-            'email' => $this->email,
-            'is_active' => $this->is_active,
+            ...($isPrivileged ? [
+                'email' => $this->email,
+                'is_active' => $this->is_active,
+            ] : []),
             'userable_type' => $this->getReadableUserableType(),
-            'userable_id' => $this->userable_id,
+            ...($isPrivileged ? ['userable_id' => $this->userable_id] : []),
             'userable' => $this->whenLoaded('userable', function () {
                 return $this->transformUserable();
             }),
-            'email_verified' => $this->hasVerifiedEmail(),
-            'email_verified_at' => $emailVerifiedAt?->toIso8601String(),
+            ...($isPrivileged ? [
+                'email_verified' => $this->hasVerifiedEmail(),
+                'email_verified_at' => $emailVerifiedAt?->toIso8601String(),
+            ] : []),
             'created_at' => $createdAt?->toIso8601String(),
             'updated_at' => $updatedAt?->toIso8601String(),
         ];
@@ -48,12 +83,7 @@ class UserResource extends JsonResource
         // disabled state, delete-account copy) and would otherwise probe for them.
         // Owner-only: it means "signs in with Google only", which the other party
         // of a booking (rendered through this same resource) must not learn.
-        // `user() === null` covers the unauthenticated auth responses (login,
-        // register, Google exchange/complete), which return the account that just
-        // authenticated.
-        $viewer = $request->user();
-
-        if ($viewer === null || $viewer->id === $this->id) {
+        if ($isOwner) {
             $data['has_password'] = $this->password !== null;
         }
 
@@ -78,8 +108,12 @@ class UserResource extends JsonResource
     private function transformUserable(): mixed
     {
         return match ($this->userable_type) {
-            Face::class => new FaceResource($this->userable),
-            Producer::class => new ProducerResource($this->userable),
+            Face::class => $this->renderedForOwner && $this->userable instanceof Face
+                ? FaceResource::forOwner($this->userable)
+                : new FaceResource($this->userable),
+            Producer::class => $this->renderedForOwner && $this->userable instanceof Producer
+                ? ProducerResource::forOwner($this->userable)
+                : new ProducerResource($this->userable),
             default => $this->userable,
         };
     }

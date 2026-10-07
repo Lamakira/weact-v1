@@ -25,7 +25,7 @@ class RegisterFaceController extends Controller
 
         return response()->json([
             'data' => [
-                'user' => new UserResource($result['user']),
+                'user' => UserResource::forOwner($result['user']),
                 'token' => $result['token'],
             ],
             'message' => 'Inscription réussie',

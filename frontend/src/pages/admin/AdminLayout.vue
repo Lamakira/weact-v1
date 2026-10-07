@@ -6,7 +6,7 @@
  * Child routes render via <router-view> in the content area.
  */
 import { computed } from 'vue'
-import { LayoutDashboard, FileText, ShieldCheck, Briefcase, CalendarCheck, UserCheck, Building, TrendingUp, Scale, MessageCircle, Ban, CreditCard, Gavel } from 'lucide-vue-next'
+import { LayoutDashboard, FileText, ShieldCheck, Briefcase, CalendarCheck, UserCheck, Building, TrendingUp, Scale, MessageCircle, Ban, CreditCard, Gavel, Lock } from 'lucide-vue-next'
 import { useAdminAuth } from '@/features/admin/composables/useAdminAuth'
 import { useAdminAuthStore } from '@/stores/adminAuth'
 import { DashboardLayout, KeepAliveRouterView, type SidebarItem } from '@/components/layout'
@@ -29,12 +29,13 @@ const allSidebarItems: SidebarItem[] = [
   { label: 'Suspensions UGC', icon: Ban, to: '/admin/ugc/suspensions' },
   { label: 'Abonnements', icon: CreditCard, to: '/admin/subscriptions' },
   { label: 'Finances', icon: TrendingUp, to: '/admin/finance' },
+  { label: 'Sécurité', icon: Lock, to: '/admin/security' },
 ]
 
 const sidebarItems = computed(() =>
   allSidebarItems.filter((item) => {
     if (item.to === '/admin/admins') return adminAuthStore.isSuperAdmin
-    if (adminAuthStore.isEditor) return item.to === '/admin/articles'
+    if (adminAuthStore.isEditor) return item.to === '/admin/articles' || item.to === '/admin/security'
     return true
   }),
 )

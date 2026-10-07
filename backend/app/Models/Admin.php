@@ -21,10 +21,27 @@ use Laravel\Sanctum\HasApiTokens;
  * @property string $name
  * @property string $email
  * @property AdminRole $role
+ * @property string|null $two_factor_secret
+ * @property array<int, string>|null $two_factor_recovery_codes
+ * @property \Illuminate\Support\Carbon|null $two_factor_confirmed_at
+ * @property int|null $two_factor_last_used_timestep
  */
 class Admin extends Authenticatable implements CanResetPasswordContract
 {
     use CanResetPassword, HasApiTokens, HasFactory, HasRouteUuid, Notifiable;
+
+    /**
+     * Sanctum ability carried ONLY by tokens issued after a successful second
+     * factor (login step 2, or enrolment confirmation). The `admin.2fa`
+     * middleware requires this exact ability: legacy `*` tokens do not count.
+     */
+    public const ABILITY_TWO_FACTOR = '2fa';
+
+    /**
+     * Ability of the limited token handed to an admin who has no confirmed 2FA yet:
+     * good for enrolment and logout only.
+     */
+    public const ABILITY_ENROLMENT = 'enrol';
 
     /**
      * The attributes that are mass assignable.
@@ -46,6 +63,8 @@ class Admin extends Authenticatable implements CanResetPasswordContract
     protected $hidden = [
         'password',
         'remember_token',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
     ];
 
     /**
@@ -58,7 +77,18 @@ class Admin extends Authenticatable implements CanResetPasswordContract
         return [
             'password' => 'hashed',
             'role' => AdminRole::class,
+            'two_factor_secret' => 'encrypted',
+            'two_factor_recovery_codes' => 'encrypted:array',
+            'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Whether TOTP two-factor authentication is enrolled AND confirmed.
+     */
+    public function hasTwoFactorEnabled(): bool
+    {
+        return $this->two_factor_secret !== null && $this->two_factor_confirmed_at !== null;
     }
 
     public function isSuperAdmin(): bool
@@ -76,7 +106,8 @@ class Admin extends Authenticatable implements CanResetPasswordContract
      */
     public function sendPasswordResetNotification($token): void
     {
-        $this->notify(new AdminResetPasswordNotification($token));
+        // Sent after the response (not queued): see User::sendPasswordResetNotification().
+        dispatch(fn () => $this->notify(new AdminResetPasswordNotification($token)))->afterResponse();
     }
 
     /**

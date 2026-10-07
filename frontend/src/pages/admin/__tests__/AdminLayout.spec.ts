@@ -59,9 +59,9 @@ describe('AdminLayout - entrée nav Abonnements', () => {
     expect(labels).toContain('Abonnements')
   })
 
-  it('masque l\'entrée Abonnements pour un editor (articles uniquement)', () => {
+  it('masque l\'entrée Abonnements pour un editor (articles + sécurité uniquement)', () => {
     const labels = sidebarLabels(mountLayout('editor'))
     expect(labels).not.toContain('Abonnements')
-    expect(labels).toEqual(['Articles'])
+    expect(labels).toEqual(['Articles', 'Sécurité'])
   })
 })

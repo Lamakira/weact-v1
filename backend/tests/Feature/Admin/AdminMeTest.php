@@ -27,7 +27,7 @@ class AdminMeTest extends TestCase
 
     public function test_me_returns_authenticated_admin_data(): void
     {
-        $token = $this->admin->createToken('admin-token')->plainTextToken;
+        $token = $this->admin->createToken('admin-token', ['2fa'])->plainTextToken;
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->getJson('/api/v1/admin/me');
@@ -52,7 +52,7 @@ class AdminMeTest extends TestCase
 
     public function test_me_response_excludes_sensitive_fields(): void
     {
-        $token = $this->admin->createToken('admin-token')->plainTextToken;
+        $token = $this->admin->createToken('admin-token', ['2fa'])->plainTextToken;
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->getJson('/api/v1/admin/me');
@@ -80,7 +80,7 @@ class AdminMeTest extends TestCase
 
     public function test_me_response_field_types(): void
     {
-        $token = $this->admin->createToken('admin-token')->plainTextToken;
+        $token = $this->admin->createToken('admin-token', ['2fa'])->plainTextToken;
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->getJson('/api/v1/admin/me');

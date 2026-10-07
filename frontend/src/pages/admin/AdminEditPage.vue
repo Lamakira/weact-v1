@@ -82,6 +82,25 @@ async function handleSendResetLink(): Promise<void> {
   }
 }
 
+const isResettingTwoFactor = ref(false)
+const confirmingTwoFactorReset = ref(false)
+
+async function handleResetTwoFactor(): Promise<void> {
+  if (!admin.value) return
+  isResettingTwoFactor.value = true
+
+  try {
+    const result = await adminsApi.resetTwoFactor(admin.value.id)
+    toast.success(result.message ?? 'Double authentification réinitialisée')
+    admin.value = { ...admin.value, two_factor_enabled: false }
+  } catch (error) {
+    toast.error(getApiErrorMessage(error) ?? 'Impossible de réinitialiser la double authentification')
+  } finally {
+    isResettingTwoFactor.value = false
+    confirmingTwoFactorReset.value = false
+  }
+}
+
 function goBack(): void {
   router.push({ name: 'admin-admins-list' })
 }
@@ -233,6 +252,53 @@ function goBack(): void {
             <KeyRound v-else class="h-4 w-4" />
             {{ isSendingResetLink ? 'Envoi en cours...' : 'Envoyer un lien de réinitialisation' }}
           </button>
+        </div>
+
+        <!-- Reset two-factor authentication (superadmin only, not for self) -->
+        <div
+          v-if="adminAuthStore.isSuperAdmin && !isSelf"
+          class="mt-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm"
+          data-testid="reset-two-factor-section"
+        >
+          <h3 class="text-sm font-medium text-gray-900 mb-2">Double authentification</h3>
+          <p class="text-xs text-gray-500 mb-4">
+            {{
+              admin.two_factor_enabled
+                ? "Activée. Réinitialisez-la si cet administrateur a perdu son téléphone et ses codes de secours : ses sessions seront fermées et il devra la reconfigurer à sa prochaine connexion. L'opération est journalisée."
+                : "Non configurée : cet administrateur devra l'activer à sa prochaine connexion."
+            }}
+          </p>
+          <template v-if="admin.two_factor_enabled">
+            <button
+              v-if="!confirmingTwoFactorReset"
+              type="button"
+              class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+              data-testid="reset-two-factor-btn"
+              @click="confirmingTwoFactorReset = true"
+            >
+              <ShieldCheck class="h-4 w-4" />
+              Réinitialiser la double authentification
+            </button>
+            <div v-else class="flex items-center gap-3">
+              <button
+                type="button"
+                :disabled="isResettingTwoFactor"
+                class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                data-testid="confirm-reset-two-factor-btn"
+                @click="handleResetTwoFactor"
+              >
+                <Loader2 v-if="isResettingTwoFactor" class="h-4 w-4 animate-spin" />
+                Confirmer la réinitialisation
+              </button>
+              <button
+                type="button"
+                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                @click="confirmingTwoFactorReset = false"
+              >
+                Annuler
+              </button>
+            </div>
+          </template>
         </div>
       </div>
     </template>
