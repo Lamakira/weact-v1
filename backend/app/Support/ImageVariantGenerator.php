@@ -24,7 +24,9 @@ use Intervention\Image\Laravel\Facades\Image;
  *
  * Only MISSING variants are produced (idempotent, resumable): a variant is
  * considered present when its DB column is filled AND the file exists on
- * disk. The original file is never re-encoded, moved or deleted by generate().
+ * disk. generate() never re-encodes, moves or deletes the original: it is
+ * already sanitized once at upload (UploadedMedia::storeImage — EXIF stripped,
+ * orientation baked into the pixels, extension taken from the detected content).
  */
 class ImageVariantGenerator
 {

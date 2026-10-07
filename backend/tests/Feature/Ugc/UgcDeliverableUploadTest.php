@@ -650,7 +650,7 @@ class UgcDeliverableUploadTest extends TestCase
     public function test_other_face_cannot_upload(): void
     {
         [, $shipment] = $this->makeReceivedBooking();
-        $this->mockDeliverableService();
+        $service = $this->mockDeliverableService();
 
         $otherFace = Face::factory()->create();
         $otherFaceUser = User::factory()->create([
@@ -663,6 +663,8 @@ class UgcDeliverableUploadTest extends TestCase
             ->assertForbidden();
 
         $this->assertSame(0, Deliverable::count());
+        // 403 AVANT tout traitement du fichier : aucune sonde ffprobe d'un non-propriétaire.
+        $service->shouldNotHaveReceived('getVideoDuration');
     }
 
     public function test_producer_cannot_upload(): void

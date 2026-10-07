@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1\Producer;
 
 use App\Http\Controllers\Controller;
 use App\Models\Deliverable;
+use App\Support\UploadedMedia;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -41,7 +42,12 @@ class ProducerDeliverableMediaController extends Controller
         $path = $deliverable->video_path;
         abort_unless($disk->exists($path), 404);
 
-        $ext = pathinfo($path, PATHINFO_EXTENSION) ?: 'mp4';
+        // Extension forcée depuis l'allowlist vidéo : une ligne historique stockée
+        // avec une extension client douteuse (.hta, .html…) n'est jamais exposée.
+        $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if (! in_array($ext, UploadedMedia::VIDEO_EXTENSIONS, true)) {
+            $ext = 'mp4';
+        }
         $filename = 'ugc-'.$deliverable->kind->value.'-'.substr($deliverable->uuid, 0, 8).'.'.$ext;
 
         return response()->download($disk->path($path), $filename); // Content-Disposition: attachment

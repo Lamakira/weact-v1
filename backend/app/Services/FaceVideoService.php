@@ -8,6 +8,8 @@ use App\Enums\FaceVideoType;
 use App\Exceptions\VideoQuotaReachedException;
 use App\Models\Face;
 use App\Models\FaceVideo;
+use App\Support\UploadedMedia;
+use App\Support\VideoMetadataStripper;
 use FFMpeg\Coordinate\TimeCode;
 use FFMpeg\FFMpeg;
 use FFMpeg\FFProbe;
@@ -45,7 +47,7 @@ class FaceVideoService
      */
     public function uploadVideo(Face $face, FaceVideoType $type, UploadedFile $video): FaceVideo
     {
-        $extension = $video->getClientOriginalExtension() ?: 'mp4';
+        $extension = UploadedMedia::videoExtension($video);
         $filename = Str::uuid()->toString().'.'.$extension;
         $thumbnailFilename = Str::uuid()->toString().'.jpg';
         $storagePath = $this->storagePath($type);
@@ -70,6 +72,9 @@ class FaceVideoService
 
             try {
                 $disk->putFileAs($storagePath, $video, $filename);
+
+                // Remux sans ré-encodage : supprime les métadonnées conteneur (GPS…)
+                VideoMetadataStripper::strip($disk->path($storagePath.'/'.$filename));
 
                 $this->generateThumbnail(
                     $disk->path($storagePath.'/'.$filename),

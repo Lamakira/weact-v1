@@ -22,6 +22,8 @@ use App\Models\Deliverable;
 use App\Models\Shipment;
 use App\Services\BookingService;
 use App\Services\MissionPaymentService;
+use App\Support\UploadedMedia;
+use App\Support\VideoMetadataStripper;
 use FFMpeg\Coordinate\TimeCode;
 use FFMpeg\FFMpeg;
 use FFMpeg\FFProbe;
@@ -349,7 +351,7 @@ class UgcDeliverableService
     {
         $disk = Storage::disk((string) config('ugc.storage_disk', 'local'));
         $uuid = (string) Str::uuid();
-        $extension = $video->getClientOriginalExtension() ?: 'mp4';
+        $extension = UploadedMedia::videoExtension($video);
 
         $dir = "ugc/deliverables/{$kind->value}";
         $thumbnailDir = "{$dir}/thumbnails";
@@ -366,6 +368,9 @@ class UgcDeliverableService
 
         try {
             $disk->putFileAs($dir, $video, $videoFilename);
+
+            // Remux sans ré-encodage : supprime les métadonnées conteneur (GPS…)
+            VideoMetadataStripper::strip($disk->path($videoPath));
 
             // Miniature ffmpeg (frame 0) sur le fichier stocké (disque privé).
             $this->generateThumbnail($disk->path($videoPath), $disk->path($thumbnailPath));

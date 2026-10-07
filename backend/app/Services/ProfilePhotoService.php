@@ -7,9 +7,8 @@ namespace App\Services;
 use App\Jobs\GenerateImageVariants;
 use App\Models\Face;
 use App\Support\ImageVariantGenerator;
+use App\Support\UploadedMedia;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class ProfilePhotoService
 {
@@ -27,12 +26,8 @@ class ProfilePhotoService
         // Delete old photos if they exist
         $this->deleteProfilePhoto($face);
 
-        // Generate unique filename with UUID
-        $extension = $photo->getClientOriginalExtension() ?: 'jpg';
-        $filename = Str::uuid()->toString().'.'.$extension;
-
-        // Store original photo using the public disk
-        Storage::disk('public')->putFileAs(self::STORAGE_PATH, $photo, $filename);
+        // Original ré-encodé (EXIF supprimé), extension dérivée du contenu
+        $filename = UploadedMedia::storeImage('public', self::STORAGE_PATH, $photo);
 
         // Update Face model — variant columns stay null until the job fills them
         $face->update([

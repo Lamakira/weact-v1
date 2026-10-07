@@ -7,9 +7,8 @@ namespace App\Services;
 use App\Jobs\GenerateImageVariants;
 use App\Models\Producer;
 use App\Support\ImageVariantGenerator;
+use App\Support\UploadedMedia;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class ProducerProfilePhotoService
 {
@@ -26,10 +25,8 @@ class ProducerProfilePhotoService
     {
         $this->deleteProfilePhoto($producer);
 
-        $extension = $photo->getClientOriginalExtension() ?: 'jpg';
-        $filename = Str::uuid()->toString().'.'.$extension;
-
-        Storage::disk('public')->putFileAs(self::STORAGE_PATH, $photo, $filename);
+        // Original ré-encodé (EXIF supprimé), extension dérivée du contenu
+        $filename = UploadedMedia::storeImage('public', self::STORAGE_PATH, $photo);
 
         // Variant columns stay null until the job fills them
         $producer->update([

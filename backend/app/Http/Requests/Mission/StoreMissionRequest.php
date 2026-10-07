@@ -7,6 +7,7 @@ namespace App\Http\Requests\Mission;
 use App\Enums\CompensationType;
 use App\Enums\MissionType;
 use App\Models\Producer;
+use App\Support\UploadedMedia;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\File;
@@ -62,7 +63,8 @@ class StoreMissionRequest extends FormRequest
             $rules['product_photos.*'] = [
                 File::image()
                     ->types(['jpg', 'jpeg', 'png'])
-                    ->max(8 * 1024), // 8 Mo en Ko
+                    ->max(8 * 1024)
+                    ->dimensions(UploadedMedia::maxDimensions()), // 8 Mo en Ko
             ];
 
             if ($this->input('type_compensation') === CompensationType::Hybrid->value) {

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Face;
+use App\Support\UploadedMedia;
+use App\Support\VideoMetadataStripper;
 use FFMpeg\Coordinate\TimeCode;
 use FFMpeg\FFMpeg;
 use FFMpeg\FFProbe;
@@ -50,12 +52,15 @@ class PresentationVideoService
             $this->deletePresentationVideo($face);
 
             // Generate unique filename with UUID
-            $extension = $video->getClientOriginalExtension() ?: 'mp4';
+            $extension = UploadedMedia::videoExtension($video);
             $filename = Str::uuid()->toString().'.'.$extension;
             $thumbnailFilename = Str::uuid()->toString().'.jpg';
 
             // Store video using the public disk
             Storage::disk('public')->putFileAs(self::STORAGE_PATH, $video, $filename);
+
+            // Remux sans ré-encodage : supprime les métadonnées conteneur (GPS…)
+            VideoMetadataStripper::strip(Storage::disk('public')->path(self::STORAGE_PATH.'/'.$filename));
 
             // Generate and save thumbnail from the first frame
             $this->generateThumbnail(

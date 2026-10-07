@@ -10,6 +10,7 @@ use App\Models\Booking;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
+use App\Support\UploadedMedia;
 use App\ValueObjects\BookingPricing;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
@@ -82,7 +83,8 @@ class CreateBookingRequest extends FormRequest
             $rules['product_photos.*'] = [
                 File::image()
                     ->types(['jpg', 'jpeg', 'png'])
-                    ->max(8 * 1024), // 8 Mo en Ko
+                    ->max(8 * 1024)
+                    ->dimensions(UploadedMedia::maxDimensions()), // 8 Mo en Ko
             ];
 
             if ($this->input('type_compensation') === CompensationType::Hybrid->value) {

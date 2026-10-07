@@ -7,6 +7,7 @@ namespace App\Http\Requests\Admin;
 use App\Enums\ArticleCategory;
 use App\Enums\ArticleStatus;
 use App\Models\Admin;
+use App\Support\UploadedMedia;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -28,7 +29,7 @@ class StoreArticleRequest extends FormRequest
             'category' => ['required', Rule::in(ArticleCategory::values())],
             'status' => ['sometimes', Rule::in(ArticleStatus::values())],
             'excerpt' => ['sometimes', 'nullable', 'string', 'max:500'],
-            'featured_image' => ['sometimes', 'nullable', 'image', 'mimes:jpeg,png', 'max:2048'],
+            'featured_image' => ['sometimes', 'nullable', 'image', 'mimes:jpeg,png', 'max:2048', UploadedMedia::maxDimensions()],
         ];
     }
 

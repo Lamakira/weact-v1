@@ -10,9 +10,9 @@ use App\Models\Mission;
 use App\Models\ProductPhoto;
 use App\Models\Shipment;
 use App\Support\ImageVariantGenerator;
+use App\Support\UploadedMedia;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 /**
  * Stockage/nettoyage des photos produit UGC (spec photos produit) — partagé
@@ -42,18 +42,12 @@ class ProductPhotoService
 
         try {
             foreach ($photos as $index => $photo) {
-                $extension = $photo->getClientOriginalExtension() ?: 'jpg';
-                $filename = Str::uuid()->toString().'.'.$extension;
-
                 // Les disques `local`/`public` sont configurés `throw => false` :
-                // putFileAs RETOURNE false sur échec d'écriture (disque plein,
-                // permissions) au lieu de lever. Sans cette garde, on créerait une
-                // row pointant un fichier absent (vignette cassée permanente, job
-                // no-op). On lève pour déclencher le cleanup + rollback ci-dessous
-                // (calque ImageVariantGenerator::generate).
-                if (Storage::disk($disk)->putFileAs($storagePath, $photo, $filename) === false) {
-                    throw new \RuntimeException("Failed to store product photo original [{$filename}] on disk [{$disk}].");
-                }
+                // put() RETOURNE false sur échec d'écriture ; storeImage lève dans
+                // ce cas pour déclencher le cleanup + rollback ci-dessous (sinon
+                // row pointant un fichier absent). Original ré-encodé (EXIF/GPS
+                // supprimé), extension dérivée du contenu (jamais du nom client).
+                $filename = UploadedMedia::storeImage($disk, $storagePath, $photo);
                 $stored[] = $filename;
 
                 /** @var ProductPhoto $productPhoto */

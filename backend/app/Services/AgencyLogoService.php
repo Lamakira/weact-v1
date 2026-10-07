@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Producer;
+use App\Support\UploadedMedia;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -38,12 +39,8 @@ class AgencyLogoService
         // Delete old logos if they exist
         $this->deleteLogo($producer);
 
-        // Generate unique filename with UUID
-        $extension = $logo->getClientOriginalExtension() ?: 'jpg';
-        $filename = Str::uuid()->toString().'.'.$extension;
-
-        // Store original logo using the public disk
-        Storage::disk('public')->putFileAs(self::STORAGE_PATH, $logo, $filename);
+        // Original ré-encodé (EXIF supprimé), extension dérivée du contenu
+        $filename = UploadedMedia::storeImage('public', self::STORAGE_PATH, $logo);
 
         // Generate and save thumbnail from the uploaded file directly
         $thumbnailFilename = $this->generateThumbnail($logo, $filename);
