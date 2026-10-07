@@ -40,7 +40,7 @@ class AgencyLogoService
         $this->deleteLogo($producer);
 
         // Original ré-encodé (EXIF supprimé), extension dérivée du contenu
-        $filename = UploadedMedia::storeImage('public', self::STORAGE_PATH, $logo);
+        $filename = UploadedMedia::storeImage('public', self::STORAGE_PATH, $logo, 'logo');
 
         // Generate and save thumbnail from the uploaded file directly
         $thumbnailFilename = $this->generateThumbnail($logo, $filename);

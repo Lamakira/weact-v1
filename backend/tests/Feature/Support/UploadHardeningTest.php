@@ -5,18 +5,21 @@ declare(strict_types=1);
 namespace Tests\Feature\Support;
 
 use App\Enums\DeliverableKind;
+use App\Enums\FaceVideoType;
 use App\Models\Face;
+use App\Models\FaceSubscription;
 use App\Models\Producer;
 use App\Services\Admin\ArticleService;
 use App\Services\AgencyLogoService;
+use App\Services\FaceVideoService;
+use App\Services\PresentationVideoService;
 use App\Services\ProducerProfilePhotoService;
 use App\Services\ProfilePhotoService;
 use App\Services\Ugc\UgcDeliverableService;
 use App\Support\UploadedMedia;
-use App\Support\VideoMetadataStripper;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -97,121 +100,139 @@ class UploadHardeningTest extends TestCase
         $this->assertSame('jpg', pathinfo($filename, PATHINFO_EXTENSION));
     }
 
-    public function test_png_keeps_png_extension_and_non_allowlisted_content_is_rejected(): void
+    public function test_png_keeps_png_extension_and_non_image_content_is_rejected_under_the_field_name(): void
     {
+        Storage::fake('public');
         $im = imagecreatetruecolor(10, 10);
         ob_start();
         imagepng($im);
         $png = (string) ob_get_clean();
 
-        $this->assertSame('png', UploadedMedia::imageExtension($this->upload('x.html', $png, 'image/png')));
+        $name = UploadedMedia::storeImage('public', 'avatars/faces', $this->upload('x.html', $png, 'image/png'), 'photo');
+        $this->assertSame('png', pathinfo($name, PATHINFO_EXTENSION));
 
-        $this->expectException(ValidationException::class);
-        UploadedMedia::imageExtension($this->upload('x.jpg', '<html></html>', 'text/html'));
+        try {
+            UploadedMedia::storeImage('public', 'avatars/faces', $this->upload('x.jpg', '<html></html>', 'image/jpeg'), 'photo');
+            $this->fail('ValidationException attendue');
+        } catch (ValidationException $e) {
+            $this->assertSame(['photo'], array_keys($e->errors()), 'clé = nom réel du champ, pas "file"');
+        }
     }
 
-    public function test_video_extension_is_allowlisted_by_mime(): void
+    public function test_video_extension_is_allowlisted_by_mime_and_error_is_keyed_by_field(): void
     {
-        $this->assertSame('mp4', UploadedMedia::videoExtension(UploadedFile::fake()->create('v.hta', 10, 'video/mp4')));
-        $this->assertSame('mov', UploadedMedia::videoExtension(UploadedFile::fake()->create('v.html', 10, 'video/quicktime')));
-        $this->assertSame('avi', UploadedMedia::videoExtension(UploadedFile::fake()->create('v.mp4', 10, 'video/x-msvideo')));
+        $this->assertSame('mp4', UploadedMedia::videoExtension(UploadedFile::fake()->create('v.hta', 10, 'video/mp4'), 'video'));
+        $this->assertSame('mov', UploadedMedia::videoExtension(UploadedFile::fake()->create('v.html', 10, 'video/quicktime'), 'video'));
+        $this->assertSame('avi', UploadedMedia::videoExtension(UploadedFile::fake()->create('v.mp4', 10, 'video/x-msvideo'), 'video'));
 
-        $this->expectException(ValidationException::class);
-        UploadedMedia::videoExtension(UploadedFile::fake()->create('v.mp4', 10, 'text/html'));
+        try {
+            UploadedMedia::videoExtension(UploadedFile::fake()->create('v.mp4', 10, 'text/html'), 'video');
+            $this->fail('ValidationException attendue');
+        } catch (ValidationException $e) {
+            $this->assertSame(['video'], array_keys($e->errors()));
+        }
     }
 
-    public function test_stored_original_has_no_exif_and_orientation_is_applied_to_pixels(): void
+    public function test_stored_original_drops_gps_but_keeps_orientation_and_pixels_untouched(): void
     {
         Storage::fake('public');
 
-        // 40x20 taggé orientation 6 (rotation 90 horaire) => 20x40 une fois orienté.
-        $filename = UploadedMedia::storeImage('public', 'avatars/faces', $this->upload('p.jpg', $this->jpegWithExif(40, 20, 6)));
+        $original = $this->jpegWithExif(40, 20, 6);
+        $filename = UploadedMedia::storeImage('public', 'avatars/faces', $this->upload('p.jpg', $original), 'photo');
 
         $stored = Storage::disk('public')->path('avatars/faces/'.$filename);
-        $exif = @exif_read_data($stored);
+        $exif = exif_read_data($stored);
 
-        $this->assertFalse(is_array($exif) && array_key_exists('GPSLatitude', $exif), 'GPS EXIF must be stripped');
-        $this->assertFalse(is_array($exif) && array_key_exists('GPSLatitudeRef', $exif));
-        $this->assertFalse(is_array($exif) && array_key_exists('Orientation', $exif));
-        $this->assertStringNotContainsString('Exif', (string) file_get_contents($stored));
+        $this->assertSame(6, $exif['Orientation']);
+        foreach (['GPSLatitude', 'GPSLatitudeRef', 'GPSInfo', 'Make'] as $key) {
+            $this->assertArrayNotHasKey($key, $exif);
+        }
+        $this->assertStringNotContainsString('Canon', (string) file_get_contents($stored));
 
-        [$width, $height] = getimagesize($stored);
-        $this->assertSame(20, $width);
-        $this->assertSame(40, $height);
+        // Aucun ré-encodage : mêmes dimensions (la rotation reste portée par l'Orientation).
+        $this->assertSame([40, 20], array_slice(getimagesize($stored), 0, 2));
+        $sos = fn (string $b): string => substr($b, (int) strpos($b, "\xFF\xDA"));
+        $this->assertSame($sos($original), $sos((string) file_get_contents($stored)));
     }
 
-    public function test_image_dimension_rule_caps_each_side(): void
+    public function test_image_dimension_rule_caps_each_side_with_a_french_message(): void
     {
-        $this->assertSame(6000, UploadedMedia::MAX_IMAGE_DIMENSION);
+        $this->assertSame(8000, UploadedMedia::MAX_IMAGE_DIMENSION);
 
         $validator = validator(
-            ['photo' => UploadedFile::fake()->image('big.jpg', 6001, 10)],
+            ['photo' => UploadedFile::fake()->image('big.jpg', 8001, 10)],
             ['photo' => [UploadedMedia::maxDimensions()]],
         );
         $this->assertTrue($validator->fails());
+        $this->assertSame('Image trop grande : 8000 pixels maximum par côté.', $validator->errors()->first('photo'));
 
         $validator = validator(
-            ['photo' => UploadedFile::fake()->image('ok.jpg', 600, 10)],
+            ['photo' => UploadedFile::fake()->image('ok.jpg', 8000, 10)],
             ['photo' => [UploadedMedia::maxDimensions()]],
         );
         $this->assertFalse($validator->fails());
     }
 
-    public function test_video_metadata_stripper_remuxes_with_map_metadata_minus_one_and_copy(): void
-    {
-        Process::fake();
-        $path = tempnam(sys_get_temp_dir(), 'vid').'.mp4';
-        file_put_contents($path, 'original');
-        // Le faux processus ne produit rien : on pré-crée la sortie attendue.
-        file_put_contents($path.'.stripped.mp4', 'stripped');
-
-        VideoMetadataStripper::strip($path);
-
-        Process::assertRan(function ($process) use ($path): bool {
-            $cmd = $process->command;
-            $joined = implode(' ', $cmd);
-
-            return str_contains($joined, '-map_metadata -1')
-                && str_contains($joined, '-c copy')
-                && in_array($path, $cmd, true)
-                && ! str_contains($joined, 'libx264');
-        });
-        $this->assertSame('stripped', file_get_contents($path));
-    }
-
-    public function test_video_metadata_stripper_failure_keeps_original_and_throws(): void
-    {
-        Process::fake(['*' => Process::result(errorOutput: 'boom', exitCode: 1)]);
-        $path = tempnam(sys_get_temp_dir(), 'vid').'.mp4';
-        file_put_contents($path, 'original');
-
-        try {
-            VideoMetadataStripper::strip($path);
-            $this->fail('Expected exception');
-        } catch (\RuntimeException) {
-            $this->assertSame('original', file_get_contents($path));
-        }
-    }
-
-    public function test_deliverable_upload_survives_a_failing_remux_without_inconsistent_state(): void
+    public function test_store_media_derives_extension_from_content_and_does_not_remux_under_the_lock(): void
     {
         $src = tempnam(sys_get_temp_dir(), 'vid').'.mp4';
         if (! $this->mp4WithLocation($src)) {
             $this->markTestSkipped('ffmpeg indisponible.');
         }
         Storage::fake('local');
-        Log::spy();
-        // Seul le remux échoue ; ffprobe/miniature (php-ffmpeg) tournent pour de vrai.
-        Process::fake(['*-map_metadata*' => Process::result(errorOutput: 'boom', exitCode: 1)]);
+        Process::fake();
 
         $upload = new UploadedFile($src, 'evil.hta', null, null, true);
         $media = app(UgcDeliverableService::class)->storeMedia($upload, DeliverableKind::Unboxing);
 
         $disk = Storage::disk('local');
-        $this->assertStringEndsWith('.mp4', $media['video_path']); // extension depuis le contenu
-        $disk->assertExists($media['video_path']);                  // original conservé
-        $disk->assertExists($media['thumbnail_path']);              // miniature : tout est cohérent
-        $this->assertSame([], glob(dirname($disk->path($media['video_path'])).'/*.stripped.*'));
-        Log::shouldHaveReceived('warning')->once();
+        $this->assertStringEndsWith('.mp4', $media['video_path']);
+        $disk->assertExists($media['video_path']);
+        $disk->assertExists($media['thumbnail_path']);
+        // Le remux est fait par upload() APRÈS le commit, jamais dans storeMedia (appelé sous lock).
+        Process::assertNothingRan();
+    }
+
+    public function test_portfolio_and_presentation_videos_are_remuxed_after_commit_and_survive_a_remux_failure(): void
+    {
+        $src = tempnam(sys_get_temp_dir(), 'vid').'.mp4';
+        if (! $this->mp4WithLocation($src)) {
+            $this->markTestSkipped('ffmpeg indisponible.');
+        }
+        Storage::fake('public');
+        $face = Face::factory()->create();
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $face->id]);
+
+        $baseLevel = DB::transactionLevel();
+        $levels = [];
+        Process::fake(function () use (&$levels) {
+            $levels[] = DB::transactionLevel();
+
+            return Process::result(errorOutput: 'boom', exitCode: 1);
+        });
+
+        $portfolio = app(FaceVideoService::class)->uploadVideo($face, FaceVideoType::Acting, new UploadedFile($src, 'evil.hta', null, null, true));
+        $presentation = app(PresentationVideoService::class)->uploadPresentationVideo($face, new UploadedFile($src, 'evil.html', null, null, true));
+
+        $this->assertSame([$baseLevel, $baseLevel], $levels, 'remux hors transaction (et hors lock de quota)');
+        $this->assertSame('mp4', pathinfo($portfolio->filename, PATHINFO_EXTENSION));
+        Storage::disk('public')->assertExists('videos/faces/acting/'.$portfolio->filename);
+        Storage::disk('public')->assertExists('videos/faces/presentation/'.$presentation['video']);
+        $this->assertSame(1, $face->videos()->count());
+        $this->assertSame($presentation['video'], $face->fresh()->presentation_video);
+    }
+
+    public function test_profile_photo_endpoint_rejects_oversized_dimensions_with_french_message(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+        $face = Face::factory()->create();
+        $user = \App\Models\User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+
+        $this->actingAs($user)
+            ->postJson('/api/v1/face/profile/photo', ['photo' => UploadedFile::fake()->image('big.jpg', 8001, 10)])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['photo'])
+            ->assertJsonFragment(['Image trop grande : 8000 pixels maximum par côté.']);
     }
 }

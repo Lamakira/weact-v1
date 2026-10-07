@@ -47,7 +47,7 @@ class ProductPhotoService
                 // ce cas pour déclencher le cleanup + rollback ci-dessous (sinon
                 // row pointant un fichier absent). Original ré-encodé (EXIF/GPS
                 // supprimé), extension dérivée du contenu (jamais du nom client).
-                $filename = UploadedMedia::storeImage($disk, $storagePath, $photo);
+                $filename = UploadedMedia::storeImage($disk, $storagePath, $photo, $kind === 'reception' ? 'reception_photos' : 'product_photos');
                 $stored[] = $filename;
 
                 /** @var ProductPhoto $productPhoto */

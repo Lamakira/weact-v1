@@ -47,21 +47,17 @@ class PresentationVideoService
      */
     public function uploadPresentationVideo(Face $face, UploadedFile $video): array
     {
-        return DB::transaction(function () use ($face, $video) {
+        $result = DB::transaction(function () use ($face, $video) {
             // Delete old video if exists
             $this->deletePresentationVideo($face);
 
             // Generate unique filename with UUID
-            $extension = UploadedMedia::videoExtension($video);
+            $extension = UploadedMedia::videoExtension($video, 'video');
             $filename = Str::uuid()->toString().'.'.$extension;
             $thumbnailFilename = Str::uuid()->toString().'.jpg';
 
             // Store video using the public disk
             Storage::disk('public')->putFileAs(self::STORAGE_PATH, $video, $filename);
-
-            // Remux sans ré-encodage : supprime les métadonnées conteneur (GPS…).
-            // Un échec n'invalide pas l'upload (warning loggé, rattrapé par media:strip-metadata).
-            VideoMetadataStripper::stripOrLog(Storage::disk('public')->path(self::STORAGE_PATH.'/'.$filename));
 
             // Generate and save thumbnail from the first frame
             $this->generateThumbnail(
@@ -80,6 +76,13 @@ class PresentationVideoService
                 'thumbnail' => $thumbnailFilename,
             ];
         });
+
+        // Remux sans ré-encodage (métadonnées conteneur, GPS…) APRÈS le commit : jamais
+        // dans la transaction. Un échec n'invalide pas l'upload (warning loggé,
+        // rattrapé par media:strip-metadata).
+        VideoMetadataStripper::stripOrLog(Storage::disk('public')->path(self::STORAGE_PATH.'/'.$result['video']));
+
+        return $result;
     }
 
     /**

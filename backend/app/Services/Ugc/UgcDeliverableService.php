@@ -228,6 +228,16 @@ class UgcDeliverableService
 
         // Post-commit : un rollback ne notifie pas / n'efface pas (D-2.4.f reconduite).
         if ($result['outcome'] === 'uploaded') {
+            // Remux sans ré-encodage (métadonnées conteneur, GPS…) APRÈS le commit : jamais
+            // sous le lock du Shipment. Fait AVANT la notification Producteur pour qu'il
+            // ne récupère jamais la version brute. Un échec n'invalide pas l'upload
+            // (warning loggé, rattrapé par media:strip-metadata).
+            $storedPath = $result['deliverable']->video_path;
+            $disk = Storage::disk((string) config('ugc.storage_disk', 'local'));
+            if ($disk->exists($storedPath)) {
+                VideoMetadataStripper::stripOrLog($disk->path($storedPath));
+            }
+
             // Ancien média (re-upload) supprimé POST-COMMIT, hors transaction (un
             // rollback ne doit pas effacer le fichier de la ligne courante — AC6).
             $oldMedia = $result['old_media'] ?? null;
@@ -351,7 +361,7 @@ class UgcDeliverableService
     {
         $disk = Storage::disk((string) config('ugc.storage_disk', 'local'));
         $uuid = (string) Str::uuid();
-        $extension = UploadedMedia::videoExtension($video);
+        $extension = UploadedMedia::videoExtension($video, 'video');
 
         $dir = "ugc/deliverables/{$kind->value}";
         $thumbnailDir = "{$dir}/thumbnails";
@@ -368,10 +378,6 @@ class UgcDeliverableService
 
         try {
             $disk->putFileAs($dir, $video, $videoFilename);
-
-            // Remux sans ré-encodage : supprime les métadonnées conteneur (GPS…).
-            // Un échec n'invalide pas l'upload (warning loggé, rattrapé par media:strip-metadata).
-            VideoMetadataStripper::stripOrLog($disk->path($videoPath));
 
             // Miniature ffmpeg (frame 0) sur le fichier stocké (disque privé).
             $this->generateThumbnail($disk->path($videoPath), $disk->path($thumbnailPath));

@@ -27,7 +27,7 @@ class ProfilePhotoService
         $this->deleteProfilePhoto($face);
 
         // Original ré-encodé (EXIF supprimé), extension dérivée du contenu
-        $filename = UploadedMedia::storeImage('public', self::STORAGE_PATH, $photo);
+        $filename = UploadedMedia::storeImage('public', self::STORAGE_PATH, $photo, 'photo');
 
         // Update Face model — variant columns stay null until the job fills them
         $face->update([

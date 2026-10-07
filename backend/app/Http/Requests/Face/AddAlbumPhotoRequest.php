@@ -36,7 +36,7 @@ class AddAlbumPhotoRequest extends FormRequest
                 File::image()
                     ->types(['jpg', 'jpeg', 'png'])
                     ->max(8 * 1024)
-                    ->dimensions(UploadedMedia::maxDimensions()), // 8MB in KB
+                    ->rules([UploadedMedia::maxDimensions()]), // 8MB in KB
             ],
         ];
     }

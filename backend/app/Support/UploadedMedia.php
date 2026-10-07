@@ -4,32 +4,25 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Rules\MaxImageDimensions;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Dimensions;
 use Illuminate\Validation\ValidationException;
-use Intervention\Image\Laravel\Facades\Image;
 
 /**
- * Durcissement des uploads : l'extension stockée est dérivée du CONTENU détecté
- * (mime sniffé), jamais du nom client, via une allowlist explicite par type de
- * média. Un JPEG valide envoyé sous `x.html` n'est donc jamais servi en
- * text/html depuis le domaine de l'API.
+ * Durcissement des uploads : l'extension stockée est dérivée du CONTENU détecté,
+ * jamais du nom client, via une allowlist explicite par type de média. Un JPEG
+ * valide envoyé sous `x.html` n'est donc jamais servi en text/html depuis le
+ * domaine de l'API.
  *
- * Les images sont ré-encodées une fois à l'upload (GD) : les métadonnées EXIF
- * (GPS, appareil…) sont supprimées, l'orientation EXIF étant appliquée aux
- * pixels AVANT (autoOrientation à la lecture).
+ * Les images sont nettoyées SANS PERTE au niveau des octets (ImageMetadataStripper :
+ * EXIF/GPS/XMP/IPTC retirés, ICC conservé, Orientation minimale conservée) :
+ * aucun décodage dans la requête, mémoire constante. Le décodage reste dans le
+ * job de génération des variantes (worker de queue).
  */
 final class UploadedMedia
 {
-    /** Allowlist images : mime détecté => extension stockée. */
-    public const IMAGE_EXTENSIONS = [
-        'image/jpeg' => 'jpg',
-        'image/png' => 'png',
-    ];
-
     /** Allowlist vidéos : mime détecté => extension stockée. */
     public const VIDEO_EXTENSIONS = [
         'video/mp4' => 'mp4',
@@ -39,91 +32,89 @@ final class UploadedMedia
         'video/msvideo' => 'avi',
     ];
 
-    /** Plafond en pixels par côté (anti decompression bomb). */
-    public const MAX_IMAGE_DIMENSION = 6000;
-
-    private const JPEG_QUALITY = 85;
-
-    public static function imageExtension(UploadedFile $file): string
-    {
-        return self::extensionFor($file, self::IMAGE_EXTENSIONS);
-    }
-
-    public static function videoExtension(UploadedFile $file): string
-    {
-        return self::extensionFor($file, self::VIDEO_EXTENSIONS);
-    }
+    /** Plafond en pixels par côté (protège le worker qui décode les variantes). */
+    public const MAX_IMAGE_DIMENSION = 8000;
 
     /**
-     * Règle de validation `dimensions` partagée par tous les uploads d'image.
-     */
-    public static function maxDimensions(): Dimensions
-    {
-        return Rule::dimensions()
-            ->maxWidth(self::MAX_IMAGE_DIMENSION)
-            ->maxHeight(self::MAX_IMAGE_DIMENSION);
-    }
-
-    /**
-     * Ré-encode l'image (sans EXIF, orientation appliquée) et l'écrit sur le
-     * disque sous un nom UUID + extension issue de l'allowlist.
+     * @param  string  $field  Nom du champ de la requête (clé de l'erreur de validation)
      *
+     * @throws ValidationException Type de vidéo non autorisé
+     */
+    public static function videoExtension(UploadedFile $file, string $field): string
+    {
+        $mime = $file->getMimeType();
+
+        if (! is_string($mime) || ! isset(self::VIDEO_EXTENSIONS[strtolower($mime)])) {
+            throw self::invalid($field);
+        }
+
+        return self::VIDEO_EXTENSIONS[strtolower($mime)];
+    }
+
+    /**
+     * Règle de validation partagée par tous les uploads d'image.
+     */
+    public static function maxDimensions(): MaxImageDimensions
+    {
+        return new MaxImageDimensions;
+    }
+
+    /**
+     * Écrit l'image sur le disque, débarrassée de ses métadonnées (copie
+     * octet-à-octet sans décodage), sous un nom UUID + extension issue des octets
+     * magiques (jpg|png).
+     *
+     * @param  string  $field  Nom du champ de la requête (clé de l'erreur de validation)
      * @return string Le nom de fichier stocké
      *
-     * @throws ValidationException Type non autorisé ou image illisible
+     * @throws ValidationException Format non autorisé ou image corrompue
      * @throws \RuntimeException Échec d'écriture sur le disque
      */
-    public static function storeImage(string $disk, string $directory, UploadedFile $file): string
+    public static function storeImage(string $disk, string $directory, UploadedFile $file, string $field): string
     {
-        $extension = self::imageExtension($file);
-        $filename = Str::uuid()->toString().'.'.$extension;
+        $source = $file->getRealPath();
+        $format = $source === false ? null : ImageMetadataStripper::format($source);
+        if ($source === false || $format === null) {
+            throw self::invalid($field);
+        }
 
-        $path = $file->getRealPath();
-        if ($path === false) {
-            throw self::invalid();
+        $filename = Str::uuid()->toString().'.'.($format === 'png' ? 'png' : 'jpg');
+
+        $temp = tempnam(sys_get_temp_dir(), 'img');
+        if ($temp === false) {
+            throw new \RuntimeException('Cannot create temporary file.');
         }
 
         try {
-            $bytes = self::reencode($path, $extension === 'png');
-        } catch (\Throwable) {
-            throw self::invalid();
+            try {
+                ImageMetadataStripper::strip($source, $temp);
+            } catch (\RuntimeException) {
+                throw self::invalid($field);
+            }
+
+            $stream = fopen($temp, 'rb');
+            if ($stream === false) {
+                throw new \RuntimeException('Cannot read temporary file.');
+            }
+
+            try {
+                $written = Storage::disk($disk)->put($directory.'/'.$filename, $stream);
+            } finally {
+                fclose($stream);
+            }
+        } finally {
+            @unlink($temp);
         }
 
-        if (Storage::disk($disk)->put($directory.'/'.$filename, $bytes) === false) {
+        if ($written === false) {
             throw new \RuntimeException("Failed to store image [{$filename}] on disk [{$disk}].");
         }
 
         return $filename;
     }
 
-    /**
-     * Ré-encode un fichier image sans aucune métadonnée. Image::read applique
-     * l'orientation EXIF aux pixels (autoOrientation, config/image.php) AVANT
-     * l'encodage ; GD n'écrit ni EXIF ni XMP.
-     */
-    public static function reencode(string $fullPath, bool $png): string
+    private static function invalid(string $field): ValidationException
     {
-        $image = Image::read($fullPath);
-
-        return ($png ? $image->toPng() : $image->toJpeg(self::JPEG_QUALITY))->toString();
-    }
-
-    /**
-     * @param  array<string, string>  $allowlist
-     */
-    private static function extensionFor(UploadedFile $file, array $allowlist): string
-    {
-        $mime = $file->getMimeType();
-
-        if (! is_string($mime) || ! isset($allowlist[strtolower($mime)])) {
-            throw self::invalid();
-        }
-
-        return $allowlist[strtolower($mime)];
-    }
-
-    private static function invalid(): ValidationException
-    {
-        return ValidationException::withMessages(['file' => ['Format de fichier non supporté.']]);
+        return ValidationException::withMessages([$field => ['Format de fichier non supporté.']]);
     }
 }

@@ -43,7 +43,7 @@ class PhotoAlbumService
             $nextPosition = $currentCount + 1;
 
             // Original ré-encodé (EXIF supprimé), extension dérivée du contenu
-            $filename = UploadedMedia::storeImage('public', self::STORAGE_PATH, $photo);
+            $filename = UploadedMedia::storeImage('public', self::STORAGE_PATH, $photo, 'photo');
 
             try {
                 // Create FacePhoto record — variant columns stay null until the job fills them

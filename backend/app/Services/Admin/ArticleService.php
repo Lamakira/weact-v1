@@ -146,6 +146,6 @@ class ArticleService
 
     private function uploadFeaturedImage(UploadedFile $image): string
     {
-        return UploadedMedia::storeImage('public', self::STORAGE_PATH, $image);
+        return UploadedMedia::storeImage('public', self::STORAGE_PATH, $image, 'featured_image');
     }
 }

@@ -26,7 +26,7 @@ class ProducerProfilePhotoService
         $this->deleteProfilePhoto($producer);
 
         // Original ré-encodé (EXIF supprimé), extension dérivée du contenu
-        $filename = UploadedMedia::storeImage('public', self::STORAGE_PATH, $photo);
+        $filename = UploadedMedia::storeImage('public', self::STORAGE_PATH, $photo, 'photo');
 
         // Variant columns stay null until the job fills them
         $producer->update([

@@ -84,7 +84,7 @@ class CreateBookingRequest extends FormRequest
                 File::image()
                     ->types(['jpg', 'jpeg', 'png'])
                     ->max(8 * 1024)
-                    ->dimensions(UploadedMedia::maxDimensions()), // 8 Mo en Ko
+                    ->rules([UploadedMedia::maxDimensions()]), // 8 Mo en Ko
             ];
 
             if ($this->input('type_compensation') === CompensationType::Hybrid->value) {

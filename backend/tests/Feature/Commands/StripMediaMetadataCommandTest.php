@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Commands;
 
+use App\Support\ImageMetadataStripper;
 use App\Support\MediaMetadataCleaner;
 use App\Support\VideoMetadataStripper;
 use Illuminate\Support\Facades\Log;
@@ -46,7 +47,7 @@ class StripMediaMetadataCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertSame($before, hash_file('sha256', $full));
-        $this->assertTrue(MediaMetadataCleaner::imageHasMetadata($full));
+        $this->assertTrue(ImageMetadataStripper::isDirty($full));
     }
 
     public function test_apply_cleans_in_place_bakes_orientation_and_second_run_skips(): void
@@ -62,15 +63,17 @@ class StripMediaMetadataCommandTest extends TestCase
             ->assertExitCode(0);
 
         foreach ([$public, $private] as $path) {
-            $exif = @exif_read_data($path);
-            $this->assertFalse(is_array($exif) && isset($exif['GPSLatitude']) || is_array($exif) && isset($exif['Orientation']));
-            $this->assertFalse(MediaMetadataCleaner::imageHasMetadata($path));
-            [$w, $h] = getimagesize($path);
-            $this->assertSame([20, 40], [$w, $h], 'orientation 6 doit être appliquée aux pixels');
+            $exif = exif_read_data($path);
+            $this->assertSame(6, $exif['Orientation'], 'orientation conservée dans un EXIF minimal');
+            $this->assertArrayNotHasKey('GPSLatitude', $exif);
+            $this->assertArrayNotHasKey('Make', $exif);
+            $this->assertFalse(ImageMetadataStripper::isDirty($path));
+            $this->assertSame([40, 20], array_slice(getimagesize($path), 0, 2), 'aucun ré-encodage : pixels intacts');
         }
         Storage::disk('public')->assertExists('avatars/faces/a.jpg'); // même chemin, même nom
         $this->assertSame($variantHash, hash_file('sha256', $variant));
         $this->assertSame([], glob(dirname($public).'/*.tmp'));
+        $this->assertSame([], glob(dirname($public).'/*.stripping.tmp'));
 
         $cleanHash = hash_file('sha256', $public);
 
@@ -91,8 +94,8 @@ class StripMediaMetadataCommandTest extends TestCase
             ->expectsOutputToContain('1 nettoyé(s)')
             ->assertExitCode(0);
 
-        $this->assertTrue(MediaMetadataCleaner::imageHasMetadata($producer), '--path exclut avatars/producers');
-        $this->assertSame(1, (int) ! MediaMetadataCleaner::imageHasMetadata($a) + (int) ! MediaMetadataCleaner::imageHasMetadata($b), '--limit=1');
+        $this->assertTrue(ImageMetadataStripper::isDirty($producer), '--path exclut avatars/producers');
+        $this->assertSame(1, (int) ! ImageMetadataStripper::isDirty($a) + (int) ! ImageMetadataStripper::isDirty($b), '--limit=1');
     }
 
     public function test_undecodable_image_is_left_intact_counted_and_batch_continues(): void
@@ -109,7 +112,7 @@ class StripMediaMetadataCommandTest extends TestCase
             ->assertExitCode(1);
 
         $this->assertSame($brokenHash, hash_file('sha256', $broken));
-        $this->assertFalse(MediaMetadataCleaner::imageHasMetadata($good));
+        $this->assertFalse(ImageMetadataStripper::isDirty($good));
         Log::shouldHaveReceived('warning')->atLeast()->once();
     }
 
@@ -166,5 +169,46 @@ class StripMediaMetadataCommandTest extends TestCase
         $this->assertSame('original', file_get_contents($path));
         $this->assertFileDoesNotExist($path.'.stripped.mp4');
         Log::shouldHaveReceived('warning')->withArgs(fn (string $message, array $context): bool => ($context['path'] ?? null) === $path)->once();
+    }
+
+    public function test_files_are_selected_by_magic_bytes_and_unknown_formats_are_reported(): void
+    {
+        // Extensions atypiques : sélectionnés par leurs octets magiques.
+        $jfif = $this->putDirtyJpeg('public', 'avatars/faces/legacy.jfif');
+        $noExt = $this->putDirtyJpeg('public', 'avatars/faces/noext');
+        Storage::disk('public')->put('avatars/faces/notes.txt', 'not an image');
+
+        $this->artisan('media:strip-metadata', ['--apply' => true])
+            ->expectsOutputToContain('2 nettoyé(s), 0 échec(s), 1 ignoré(s) (format inconnu)')
+            ->assertExitCode(0);
+
+        $this->assertFalse(ImageMetadataStripper::isDirty($jfif));
+        $this->assertFalse(ImageMetadataStripper::isDirty($noExt));
+        $this->assertSame('not an image', Storage::disk('public')->get('avatars/faces/notes.txt'));
+    }
+
+    public function test_stale_temp_files_are_ignored_and_removed_only_when_older_than_one_hour(): void
+    {
+        $dir = 'avatars/faces';
+        Storage::disk('public')->put($dir.'/old.jpg.stripping.tmp', 'partial');
+        Storage::disk('public')->put($dir.'/new.jpg.stripping.tmp', 'partial');
+        Storage::disk('public')->put($dir.'/old.mp4.stripped.mp4', 'partial');
+        $old = Storage::disk('public')->path($dir.'/old.jpg.stripping.tmp');
+        $oldVideo = Storage::disk('public')->path($dir.'/old.mp4.stripped.mp4');
+        $new = Storage::disk('public')->path($dir.'/new.jpg.stripping.tmp');
+        touch($old, time() - 7200);
+        touch($oldVideo, time() - 7200);
+
+        // Dry run : rien supprimé, et jamais compté comme média.
+        $this->artisan('media:strip-metadata')->expectsOutputToContain('0 scanné(s)')->assertExitCode(0);
+        $this->assertFileExists($old);
+
+        $this->artisan('media:strip-metadata', ['--apply' => true])
+            ->expectsOutputToContain('2 temporaire(s) périmé(s) supprimé(s)')
+            ->assertExitCode(0);
+
+        $this->assertFileDoesNotExist($old);
+        $this->assertFileDoesNotExist($oldVideo);
+        $this->assertFileExists($new, 'un temporaire récent peut appartenir à un run en cours');
     }
 }

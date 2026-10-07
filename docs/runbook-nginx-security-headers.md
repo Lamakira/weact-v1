@@ -25,6 +25,16 @@ add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment
 add_header Strict-Transport-Security "max-age=300" always;
 ```
 
+**Piège d'héritage `add_header`** : en nginx, un bloc (`location`, `if`) qui
+définit son propre `add_header` ne reçoit AUCUN des `add_header` du niveau
+supérieur. Tout `location` qui pose déjà un `add_header` perd donc les en-têtes
+ci-dessus et doit les répéter : `location /storage/` (section 2), mais aussi le
+`location` PHP (`~ \.php$` / `/api`, s'il pose des en-têtes CORS ou de cache) et
+la règle `no-cache` de `index.html` de la SPA. Après application, vérifier avec
+`curl -I` CHAQUE type de réponse (API, `index.html`, asset hashé, `/storage/`),
+pas seulement la page d'accueil. Le plus sûr est de placer ces en-têtes dans un
+snippet `include`-é dans chaque bloc qui a son propre `add_header`.
+
 Notes :
 
 - `X-Frame-Options: DENY` convient si aucune page n'est embarquée dans une
@@ -38,19 +48,28 @@ Notes :
   `includeSubDomains` ni `preload` sans validation explicite : ils sont
   difficiles à annuler.
 
-## 2. `location /storage/`
+## 2. `location /storage/` : FUSIONNER dans le bloc existant
 
-Attention : en nginx, un `add_header` posé dans une `location` **remplace**
-tous ceux hérités du `server`. Il faut donc répéter les en-têtes du bloc 1
-dans cette `location`.
+Un bloc `location /storage/` existe déjà (ou doit être créé) selon
+`docs/runbook-images-cache-headers.md` (section 2). Il ne faut **pas** en
+ajouter un second : nginx refuserait la configuration (location dupliquée) ou
+ignorerait l'un des deux. Les en-têtes de sécurité sont ajoutés DANS ce bloc,
+à côté du `Cache-Control` existant, et les en-têtes du `server` y sont répétés
+(un `add_header` dans la `location` remplace tous ceux hérités) :
 
 ```nginx
 location /storage/ {
-    # (conserver ici le root/alias/try_files existant)
+    # --- existant (runbook-images-cache-headers.md) ---
+    add_header Cache-Control "public, max-age=31536000, immutable" always;
+    access_log off;
+    try_files $uri =404;
 
+    # --- à ajouter (sécurité) ---
     add_header X-Content-Type-Options "nosniff" always;
     add_header Content-Security-Policy "sandbox; default-src 'none'; img-src 'self'; media-src 'self'" always;
+    add_header X-Frame-Options "DENY" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
     add_header Strict-Transport-Security "max-age=300" always;
 }
 ```
@@ -63,6 +82,8 @@ Effet :
   est ouvert directement, il est exécuté dans une origine opaque, sans script
   ni ressource externe ; `img-src` et `media-src` autorisent uniquement le
   rendu d'images/vidéos de la même origine.
+- `X-Frame-Options` et `Permissions-Policy` sont répétés ici car ils ne sont
+  pas hérités du `server` (voir le piège de la section 1).
 
 Considérations `Content-Disposition` :
 
@@ -78,7 +99,12 @@ Considérations `Content-Disposition` :
 - Les fichiers historiques déjà stockés avec une extension douteuse (`.html`,
   `.svg`…) sont neutralisés par `nosniff` + CSP `sandbox`. Un audit du
   répertoire `storage/app/public` pour repérer ces fichiers reste recommandé :
-  `find storage/app/public -type f ! -iregex '.*\.\(jpe?g\|png\|webp\|mp4\|mov\|avi\)$'`.
+  `find storage/app/public -type f ! -iregex '.*\.\(jpe?g\|png\|webp\|mp4\|mov\|avi\)$'`
+  (mesure en production : aucun fichier hors allowlist à ce jour).
+- Les fichiers de `/storage/` peuvent être réécrits en place par
+  `media:strip-metadata` (voir `docs/runbook-media-metadata-cleanup.md`) : le
+  `immutable` ci-dessus n'est alors plus vrai pour ces fichiers, d'où la purge
+  de cache décrite dans le runbook de nettoyage.
 
 ## 3. Déploiement
 
@@ -98,7 +124,10 @@ curl -sI https://<domaine-api>/api/v1/health | grep -iE 'x-content-type|x-frame|
 
 # Média public (remplacer par un chemin réel)
 curl -sI https://<domaine-api>/storage/avatars/faces/<fichier>.jpg \
-  | grep -iE 'x-content-type|content-security|content-type'
+  | grep -iE 'x-content-type|content-security|content-type|x-frame|permissions|cache-control'
+
+# Autres blocs qui ont leur propre add_header (cf. piège section 1)
+curl -sI https://<domaine-app>/ | grep -iE 'x-content-type|x-frame|permissions|cache-control'
 ```
 
 Attendu : `X-Content-Type-Options: nosniff` partout, la CSP `sandbox` sur
