@@ -65,6 +65,8 @@ export interface Producer {
   first_name: string | null
   last_name: string | null
   display_name: string
+  /** Public profile URL segment (`/producers/:slug`). */
+  slug?: string | null
   created_at: string
   updated_at: string
 }
