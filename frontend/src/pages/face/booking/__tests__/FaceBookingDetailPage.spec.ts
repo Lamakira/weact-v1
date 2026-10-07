@@ -14,6 +14,7 @@ const mockActionErrorCode = ref<string | null>(null)
 const mockIsReportingNoShow = ref(false)
 const mockAccept = vi.fn()
 const mockReportNoShow = vi.fn()
+const mockContest = vi.fn()
 const mockFetchBooking = vi.fn()
 const mockRefreshBooking = vi.fn()
 const mockUserableType = ref('Face')
@@ -38,6 +39,7 @@ vi.mock('@/features/booking/composables', () => ({
     isRefusing: ref(false),
     isCancelling: ref(false),
     isReportingNoShow: mockIsReportingNoShow,
+    isContesting: ref(false),
     error: mockActionError,
     errorCode: mockActionErrorCode,
     confirm: vi.fn(),
@@ -45,6 +47,7 @@ vi.mock('@/features/booking/composables', () => ({
     refuse: vi.fn(),
     cancel: vi.fn(),
     reportNoShow: mockReportNoShow,
+    contest: mockContest,
     clearError: vi.fn(),
   }),
 }))
@@ -517,6 +520,54 @@ describe('FaceBookingDetailPage — no-show report button', () => {
 
     const btn = wrapper.find('[data-testid="report-no-show-btn"]')
     expect(btn.exists()).toBe(false)
+  })
+
+  it('shows "Signaler une absence" when the Face already confirmed (confirmed_by_face)', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const pastDate = new Date(Date.now() - 86400000).toISOString()
+    const wrapper = await mountPage(makeBooking({ status: 'confirmed_by_face', date_debut: pastDate, producer_id: 2 }))
+
+    expect(wrapper.find('[data-testid="report-no-show-btn"]').exists()).toBe(true)
+  })
+
+  it('hides "Signaler une absence" on the shoot day itself (allowed from the day after only)', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-10T15:00:00Z'))
+
+    try {
+      const wrapper = await mountPage(makeBooking({ date_debut: '2026-10-10T00:00:00Z', producer_id: 2 }))
+      expect(wrapper.find('[data-testid="report-no-show-btn"]').exists()).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows "Signaler une absence" the day after the shoot day', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-11T00:30:00Z'))
+
+    try {
+      const wrapper = await mountPage(makeBooking({ date_debut: '2026-10-10T00:00:00Z', producer_id: 2 }))
+      expect(wrapper.find('[data-testid="report-no-show-btn"]').exists()).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('explains the 72h hold in the no-show dialog', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const pastDate = new Date(Date.now() - 86400000).toISOString()
+    const wrapper = await mountPage(makeBooking({ date_debut: pastDate, producer_id: 2 }), {})
+    await wrapper.find('[data-testid="report-no-show-btn"]').trigger('click')
+
+    expect(document.body.textContent).toContain('séquestre pendant 72 h')
+    wrapper.unmount()
   })
 
   it('shows the custom cancellation reason when present on the booking', async () => {
@@ -1102,5 +1153,138 @@ describe('FaceBookingDetailPage — carte de suivi Face & réception (story 3.4)
     // D-4.2.d : le 201 porte la DeliverableResource → refetch (mount + refetch).
     expect(mockFetchBooking).toHaveBeenCalledTimes(2)
     expect(mockFetchBooking).toHaveBeenLastCalledWith('booking-uuid-1')
+  })
+})
+
+describe('FaceBookingDetailPage — fenêtre de contestation 72 h', () => {
+  const dueAt = '2099-01-01T12:00:00Z'
+
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    mockBooking.value = null
+    mockIsLoading.value = false
+    mockError.value = null
+    mockActionError.value = null
+    mockActionErrorCode.value = null
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    mockFetchBooking.mockReset()
+    mockRefreshBooking.mockReset()
+    mockContest.mockReset()
+    mockToastSuccess.mockReset()
+    mockToastError.mockReset()
+  })
+
+  it('shows the producer a refund date banner and no contest button', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const wrapper = await mountPage(makeBooking({ status: 'no_show', producer_id: 2, settlement_due_at: dueAt }))
+
+    expect(wrapper.find('[data-testid="settlement-producer"]').text()).toContain('Remboursement prévu le')
+    expect(wrapper.find('[data-testid="settlement-producer"]').text()).toContain('si la Face ne conteste pas')
+    expect(wrapper.find('[data-testid="contest-btn"]').exists()).toBe(false)
+  })
+
+  it('shows the face the contest deadline and a Contester button', async () => {
+    const wrapper = await mountPage(makeBooking({ status: 'no_show', settlement_due_at: dueAt }))
+
+    expect(wrapper.find('[data-testid="settlement-face"]').text()).toContain('Vous pouvez contester jusqu\'au')
+    expect(wrapper.find('[data-testid="contest-btn"]').exists()).toBe(true)
+  })
+
+  it('shows the same banner for a late producer cancellation', async () => {
+    const wrapper = await mountPage(
+      makeBooking({ status: 'cancelled_by_producer', settlement_due_at: dueAt, cancellation_reason: 'other' }),
+    )
+
+    expect(wrapper.find('[data-testid="contest-btn"]').exists()).toBe(true)
+  })
+
+  it('hides the contest button once the window is over', async () => {
+    const wrapper = await mountPage(
+      makeBooking({ status: 'no_show', settlement_due_at: '2020-01-01T00:00:00Z' }),
+    )
+
+    expect(wrapper.find('[data-testid="contest-btn"]').exists()).toBe(false)
+  })
+
+  it('shows "Contestation en cours" when disputed, without contest button', async () => {
+    const wrapper = await mountPage(
+      makeBooking({ status: 'no_show', settlement_due_at: dueAt, disputed_at: '2026-10-10T10:00:00Z' }),
+    )
+
+    expect(wrapper.find('[data-testid="settlement-disputed"]').text()).toContain(
+      'Contestation en cours : un administrateur va trancher.',
+    )
+    expect(wrapper.find('[data-testid="contest-btn"]').exists()).toBe(false)
+  })
+
+  it('shows the resolved outcome on one line', async () => {
+    const wrapper = await mountPage(
+      makeBooking({
+        status: 'completed',
+        settlement_due_at: dueAt,
+        dispute_resolved_at: '2026-10-11T10:00:00Z',
+        dispute_outcome: 'favor_face',
+      }),
+    )
+
+    expect(wrapper.find('[data-testid="settlement-banner"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="dispute-outcome"]').text()).toContain('en faveur de la Face')
+  })
+
+  it('shows no settlement banner on a legacy no-show (no settlement_due_at)', async () => {
+    const wrapper = await mountPage(makeBooking({ status: 'no_show', settlement_due_at: null }))
+
+    expect(wrapper.find('[data-testid="settlement-banner"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="dispute-outcome"]').exists()).toBe(false)
+  })
+
+  it('keeps the confirm button disabled until the message has 10 characters, then calls the API', async () => {
+    const contested = makeBooking({ status: 'no_show', settlement_due_at: dueAt, disputed_at: '2026-10-10T10:00:00Z' })
+    mockContest.mockResolvedValue(contested)
+    const wrapper = await mountPage(makeBooking({ status: 'no_show', settlement_due_at: dueAt }))
+
+    await wrapper.find('[data-testid="contest-btn"]').trigger('click')
+    const textarea = document.body.querySelector<HTMLTextAreaElement>('[data-testid="contest-message"]')
+    const confirmBtn = () => document.body.querySelector<HTMLButtonElement>('[data-testid="confirm-contest-btn"]')
+    expect(textarea).not.toBeNull()
+    expect(confirmBtn()!.disabled).toBe(true)
+
+    textarea!.value = 'court'
+    textarea!.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    expect(confirmBtn()!.disabled).toBe(true)
+
+    textarea!.value = '  J\'étais bien présente sur place.  '
+    textarea!.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    expect(confirmBtn()!.disabled).toBe(false)
+
+    confirmBtn()!.click()
+    await flushPromises()
+
+    expect(mockContest).toHaveBeenCalledWith('booking-uuid-1', 'J\'étais bien présente sur place.')
+    expect(mockToastSuccess).toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="settlement-disputed"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('shows an error toast and keeps the dialog open when the contest fails', async () => {
+    mockContest.mockResolvedValue(null)
+    mockActionError.value = 'Le délai de contestation de 72 h est dépassé.'
+    const wrapper = await mountPage(makeBooking({ status: 'no_show', settlement_due_at: dueAt }))
+
+    await wrapper.find('[data-testid="contest-btn"]').trigger('click')
+    const textarea = document.body.querySelector<HTMLTextAreaElement>('[data-testid="contest-message"]')!
+    textarea.value = 'Message de contestation suffisant.'
+    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    document.body.querySelector<HTMLButtonElement>('[data-testid="confirm-contest-btn"]')!.click()
+    await flushPromises()
+
+    expect(mockToastError).toHaveBeenCalledWith('Le délai de contestation de 72 h est dépassé.')
+    expect(document.body.querySelector('[data-testid="contest-dialog"]')).not.toBeNull()
+    wrapper.unmount()
   })
 })

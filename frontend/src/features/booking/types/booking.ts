@@ -127,6 +127,8 @@ export interface BookingUser {
   userable?: BookingFaceUserable | BookingProducerUserable
 }
 
+export type DisputeOutcome = 'favor_face' | 'favor_producer'
+
 // Booking data from API
 export interface Booking {
   id: string
@@ -158,6 +160,15 @@ export interface Booking {
   fedapay_transaction_id: number | null
   payment_mode: string | null
   accepted_at: string | null
+  // Fenêtre de contestation 72 h (absence Face / annulation Producteur tardive).
+  // `settlement_due_at` null = booking sans règlement en attente (ou déjà réglé).
+  settlement_due_at?: string | null
+  disputed_at?: string | null
+  dispute_resolved_at?: string | null
+  dispute_outcome?: DisputeOutcome | null
+  completion_reminder_sent_at?: string | null
+  // Visible de la Face concernée et des admins uniquement (null pour le Producteur).
+  dispute_message?: string | null
   face?: BookingUser
   producer?: BookingUser
   can_accept: boolean

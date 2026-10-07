@@ -25,6 +25,7 @@ const allSidebarItems: SidebarItem[] = [
   { label: 'Réservations', icon: CalendarCheck, to: '/admin/bookings' },
   { label: 'Faces à contacter', icon: MessageCircle, to: '/admin/engagements' },
   { label: 'Litiges', icon: Scale, to: '/admin/attendance-disputes' },
+  { label: 'Litiges réservations', icon: Scale, to: '/admin/booking-disputes' },
   { label: 'Suspensions UGC', icon: Ban, to: '/admin/ugc/suspensions' },
   { label: 'Abonnements', icon: CreditCard, to: '/admin/subscriptions' },
   { label: 'Finances', icon: TrendingUp, to: '/admin/finance' },
