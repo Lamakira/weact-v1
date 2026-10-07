@@ -194,8 +194,14 @@ class MissionService
             /** @var Mission $locked */
             $locked = Mission::query()->lockForUpdate()->findOrFail($mission->id);
 
-            if (in_array($locked->status, [MissionStatus::PendingAttendanceValidation, MissionStatus::Closed, MissionStatus::Completed], true)
-                || $locked->hasCashEscrow()) {
+            if (in_array($locked->status, [
+                MissionStatus::PendingAttendanceValidation,
+                MissionStatus::PendingPayment,
+                MissionStatus::Closed,
+                MissionStatus::Completed,
+            ], true)
+                || $locked->hasCashEscrow()
+                || $locked->payment()->exists()) {
                 throw ValidationException::withMessages([
                     'mission' => ['Une mission dont le paiement a été effectué ne peut pas être supprimée.'],
                 ]);
@@ -209,7 +215,7 @@ class MissionService
             // detachAll, qui n'atteignait que les product_photos de la mission).
             $this->ugcMediaCleanupService->purgeForMission($mission);
             $mission->delete();
-        });
+        }, 3);
     }
 
     /**
@@ -284,9 +290,23 @@ class MissionService
      */
     public function closeMission(Mission $mission): Mission
     {
-        $mission->update([
-            'status' => MissionStatus::Closed,
-        ]);
+        DB::transaction(function () use ($mission): void {
+            // Sous verrou : un close ne doit jamais convertir une mission en attente de validation
+            // des présences (ou portant un escrow cash) en Closed — cela contournerait la fenêtre
+            // de contestation 72 h au moment du complete.
+            /** @var Mission $locked */
+            $locked = Mission::query()->lockForUpdate()->findOrFail($mission->id);
+
+            if ($locked->status === MissionStatus::PendingAttendanceValidation || $locked->hasCashEscrow()) {
+                throw ValidationException::withMessages([
+                    'status' => ['Cette mission ne peut pas être clôturée manuellement : des présences ou un paiement sont en cours.'],
+                ]);
+            }
+
+            $locked->update([
+                'status' => MissionStatus::Closed,
+            ]);
+        }, 3);
 
         /** @var Mission $freshMission */
         $freshMission = $mission->fresh();
@@ -374,8 +394,7 @@ class MissionService
                 ]);
             }
 
-            if ($mission->status === MissionStatus::PendingAttendanceValidation
-                && $mission->hasOpenAttendanceDispute()) {
+            if ($mission->hasOpenAttendanceDispute()) {
                 throw ValidationException::withMessages([
                     'status' => ['Une absence est encore dans sa fenêtre de contestation de 72 h ou fait l\'objet d\'un litige : la mission ne peut pas être terminée pour le moment.'],
                 ]);
@@ -414,7 +433,7 @@ class MissionService
             $this->notifyProducerOnCompletion($freshMission);
 
             return $freshMission;
-        });
+        }, 3);
     }
 
     public function notifyProducerOnCompletion(Mission $mission): void

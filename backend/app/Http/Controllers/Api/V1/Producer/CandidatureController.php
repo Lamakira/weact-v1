@@ -390,6 +390,9 @@ class CandidatureController extends Controller
         // dont elle fait partie, ou paiement hybride FedaPay en cours) — sinon l'argent encaissé
         // serait séquestré pour une candidature refusée.
         $blocked = DB::transaction(function () use ($candidature): ?JsonResponse {
+            // Ordre de verrous : mission → candidature (puis payment / entry dans le service).
+            Mission::query()->lockForUpdate()->find($candidature->mission_id);
+
             /** @var Candidature $locked */
             $locked = Candidature::query()->lockForUpdate()->findOrFail($candidature->id);
 
@@ -404,10 +407,18 @@ class CandidatureController extends Controller
 
             $inFlight = $this->missionPayments->inFlightPaymentKind($locked);
 
+            // Checkout cash abandoné : la sélection est réinitialisée (le Producteur est notifié),
+            // puis le refus se poursuit normalement.
+            if ($inFlight === MissionPaymentService::STALE_CASH_CHECKOUT) {
+                $inFlight = $this->missionPayments->resetPendingCashSelection($locked, 'producer_rejected_stale_checkout')
+                    ? null
+                    : MissionPaymentService::IN_FLIGHT_CASH_CHECKOUT;
+            }
+
             if ($inFlight !== null) {
                 return response()->json(ErrorCodes::InvalidStatus->envelope(
                     $inFlight === MissionPaymentService::IN_FLIGHT_CASH_CHECKOUT
-                        ? 'Cette candidature fait partie de la sélection en cours de paiement : finalisez ou annulez le paiement avant de la refuser.'
+                        ? 'Un paiement est en cours pour cette sélection : réessayez dans une heure s\'il n\'aboutit pas.'
                         : 'Un paiement est en cours pour cette candidature : attendez sa confirmation avant de la refuser.'
                 ), 422);
             }
@@ -416,7 +427,7 @@ class CandidatureController extends Controller
             $locked->save();
 
             return null;
-        });
+        }, 3);
 
         if ($blocked !== null) {
             return $blocked;

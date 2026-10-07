@@ -371,7 +371,8 @@ class Mission extends Model
 
     /**
      * Whether a cash entry still blocks completion: a Disputed entry (open dispute) or an
-     * Absent one whose 72 h dispute window has not elapsed (or has no `notified_at`).
+     * Absent one whose 72 h dispute window has not elapsed. A legacy Absent row without `notified_at`
+     * counts as a closed window (the settle cron skips it too — treating it as open would freeze it forever).
      */
     public function hasOpenAttendanceDispute(): bool
     {
@@ -382,10 +383,7 @@ class Mission extends Model
                 $q->where('attendance_status', AttendanceStatus::Disputed->value)
                     ->orWhere(function (Builder $absent): void {
                         $absent->where('attendance_status', AttendanceStatus::Absent->value)
-                            ->where(function (Builder $window): void {
-                                $window->whereNull('notified_at')
-                                    ->orWhere('notified_at', '>', now()->subHours(72));
-                            });
+                            ->where('notified_at', '>', now()->subHours(72));
                     });
             })
             ->exists();

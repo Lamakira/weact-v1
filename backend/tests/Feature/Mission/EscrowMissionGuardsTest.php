@@ -399,6 +399,236 @@ class EscrowMissionGuardsTest extends TestCase
     }
 
     // =====================================================================
+    // Vague 2 : revue indépendante
+    // =====================================================================
+
+    public function test_close_chain_cannot_bypass_the_dispute_window(): void
+    {
+        [$mission, $faces] = $this->paidCashMission(2);
+
+        $this->actingAs($this->producerUser)->postJson(
+            "/api/v1/producer/missions/{$mission->uuid}/validate-attendance",
+            ['entries' => [
+                ['entry_id' => $faces[0]['entry']->id, 'status' => 'absent'],
+                ['entry_id' => $faces[1]['entry']->id, 'status' => 'present'],
+            ]],
+        )->assertOk();
+        $this->assertSame(MissionStatus::PendingAttendanceValidation, $mission->fresh()->status);
+
+        // Étape 2 de la chaîne : close (PAV → Closed) doit être refusé...
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$mission->uuid}/close")
+            ->assertStatus(422);
+        $this->assertSame(MissionStatus::PendingAttendanceValidation, $mission->fresh()->status);
+
+        // ... et la complétion reste refusée (fenêtre ouverte).
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$mission->uuid}/complete")
+            ->assertStatus(422);
+
+        $this->assertSame(EscrowStatus::Locked, $faces[0]['entry']->fresh()->escrow_status);
+        $this->assertSame(0, (int) $this->producerUser->fresh()->balance);
+    }
+
+    public function test_complete_checks_the_dispute_window_whatever_the_mission_status(): void
+    {
+        [$mission, $faces] = $this->paidCashMission(1); // Closed
+        $faces[0]['entry']->update([
+            'attendance_status' => AttendanceStatus::Absent,
+            'notified_at' => now()->subHour(),
+        ]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$mission->uuid}/complete")
+            ->assertStatus(422);
+
+        $this->assertSame(EscrowStatus::Locked, $faces[0]['entry']->fresh()->escrow_status);
+        $this->assertSame(0, (int) $this->producerUser->fresh()->balance);
+    }
+
+    public function test_close_service_refuses_a_mission_with_a_paid_cash_payment(): void
+    {
+        [$mission] = $this->paidCashMission(1);
+        $mission->update(['status' => MissionStatus::Published]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$mission->uuid}/close")
+            ->assertStatus(422);
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        app(\App\Services\MissionService::class)->closeMission($mission->fresh());
+    }
+
+    public function test_delete_service_refuses_a_mission_that_has_a_pending_payment_row(): void
+    {
+        // Course : le DELETE a passé la FormRequest (Published), puis un confirm-selection concurrent
+        // a créé un MissionPayment Pending avant que le service ne prenne le verrou.
+        [$mission] = $this->pendingCheckoutMission(1);
+        $mission->update(['status' => MissionStatus::Published]);
+
+        try {
+            app(\App\Services\MissionService::class)->deleteMission($mission->fresh());
+            $this->fail('deleteMission aurait dû refuser.');
+        } catch (\Illuminate\Validation\ValidationException) {
+            // attendu
+        }
+
+        $this->assertDatabaseHas('missions', ['id' => $mission->id]);
+        $this->assertSame(1, MissionPayment::where('mission_id', $mission->id)->count());
+    }
+
+    public function test_delete_service_refuses_a_pending_payment_mission(): void
+    {
+        [$mission] = $this->pendingCheckoutMission(1);
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        app(\App\Services\MissionService::class)->deleteMission($mission->fresh());
+    }
+
+    public function test_stale_cash_checkout_face_withdrawal_resets_the_pending_payment(): void
+    {
+        [$mission, $faces] = $this->pendingCheckoutMission(3);
+        $this->ageCheckout($faces[0]['entry']->mission_payment_id, 61);
+
+        $this->actingAs($faces[0]['faceUser'])
+            ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
+            ->assertOk();
+
+        $this->assertSame(CandidatureStatus::Cancelled, $faces[0]['candidature']->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $faces[1]['candidature']->fresh()->status);
+        $this->assertSame(0, MissionPayment::where('mission_id', $mission->id)->count());
+        $this->assertSame(0, MissionPaymentCandidature::count());
+        $this->assertSame(MissionStatus::Published, $mission->fresh()->status);
+        $this->assertDatabaseHas('financial_events', [
+            'type' => 'payment_detached',
+            'fedapay_ref' => '777001',
+        ]);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->producerUser->id,
+            'type' => 'mission_selection_reset',
+        ]);
+    }
+
+    public function test_stale_cash_checkout_producer_reject_resets_the_pending_payment(): void
+    {
+        [$mission, $faces] = $this->pendingCheckoutMission(2);
+        $this->ageCheckout($faces[0]['entry']->mission_payment_id, 90);
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/candidatures/{$faces[0]['candidature']->uuid}/reject")
+            ->assertOk();
+
+        $this->assertSame(CandidatureStatus::Rejected, $faces[0]['candidature']->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $faces[1]['candidature']->fresh()->status);
+        $this->assertSame(0, MissionPayment::where('mission_id', $mission->id)->count());
+        $this->assertSame(0, MissionPaymentCandidature::count());
+        $this->assertSame(MissionStatus::Published, $mission->fresh()->status);
+    }
+
+    public function test_cash_checkout_without_transaction_does_not_block_withdrawal(): void
+    {
+        [$mission, $faces] = $this->pendingCheckoutMission(2);
+        MissionPayment::query()->update(['fedapay_transaction_id' => null]);
+
+        $this->actingAs($faces[0]['faceUser'])
+            ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
+            ->assertOk();
+
+        $this->assertSame(0, MissionPayment::count());
+        $this->assertSame(MissionStatus::Published, $mission->fresh()->status);
+        $this->assertDatabaseMissing('financial_events', ['type' => 'payment_detached']);
+    }
+
+    public function test_in_window_refusal_messages_are_truthful(): void
+    {
+        [$mission, $faces] = $this->pendingCheckoutMission(1);
+
+        $this->actingAs($faces[0]['faceUser'])
+            ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
+            ->assertStatus(422)
+            ->assertJsonPath('error.message', 'Le producteur est en train de payer ; réessayez dans une heure si le paiement n\'aboutit pas.');
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/candidatures/{$faces[0]['candidature']->uuid}/reject")
+            ->assertStatus(422);
+    }
+
+    public function test_late_webhook_approval_after_reset_hits_the_escalation_path_with_audit(): void
+    {
+        [$mission, $faces] = $this->pendingCheckoutMission(2);
+        $this->ageCheckout($faces[0]['entry']->mission_payment_id, 120);
+
+        $this->actingAs($faces[0]['faceUser'])
+            ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
+            ->assertOk();
+
+        \Illuminate\Support\Facades\Log::spy();
+
+        $payload = ['entity' => ['id' => 777001, 'reference' => 'ref_late']];
+        $webhookEvent = \App\Models\FedapayWebhookEvent::create([
+            'fedapay_event_id' => 'evt_late_cash',
+            'event_name' => 'transaction.approved',
+            'payload' => $payload,
+            'status' => 'received',
+        ]);
+
+        (new \App\Jobs\HandleFedapayWebhook($webhookEvent->id, 'transaction.approved', $payload))->handle(
+            app(\App\Services\BookingService::class),
+            app(MissionPaymentService::class),
+            app(\App\Services\WalletService::class),
+            app(\App\Services\FaceSubscriptionPaymentService::class),
+        );
+
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('critical')->once();
+        $this->assertSame(0, MissionPaymentCandidature::count());
+        $this->assertSame(MissionStatus::Published, $mission->fresh()->status);
+        $this->assertSame(1, \App\Models\FinancialEvent::where('type', 'payment_detached')->count());
+    }
+
+    public function test_legit_absent_entry_without_notified_at_does_not_freeze_completion(): void
+    {
+        [$mission, $faces] = $this->paidCashMission(1, MissionStatus::PendingAttendanceValidation);
+        $faces[0]['entry']->update(['attendance_status' => AttendanceStatus::Absent, 'notified_at' => null]);
+
+        $this->assertFalse($mission->fresh()->hasOpenAttendanceDispute());
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/producer/missions/{$mission->uuid}/complete")
+            ->assertOk();
+
+        $this->assertSame(EscrowStatus::Refunded, $faces[0]['entry']->fresh()->escrow_status);
+    }
+
+    public function test_late_approval_refund_is_labelled_notified_and_reported_as_refunded(): void
+    {
+        $mission = $this->hybridMission();
+        $candidature = $this->hybridCandidature($mission, CandidatureStatus::Rejected);
+        $entry = $this->hybridEntry($candidature, EscrowStatus::Pending, '8600');
+
+        $live = \Mockery::mock(\FedaPay\Transaction::class);
+        $live->status = 'approved';
+        $live->reference = 'ref_poll';
+        $this->mock(\App\Services\FedapayService::class, function ($mock) use ($live): void {
+            $mock->shouldReceive('retrieveTransaction')->once()->with(8600)->andReturn($live);
+        });
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/candidatures/{$candidature->uuid}/payment-status")
+            ->assertOk()
+            ->assertJsonPath('data.payment_status', 'refunded')
+            ->assertJsonPath('data.is_trackable', false);
+
+        $this->assertSame(EscrowStatus::Refunded, $entry->fresh()->escrow_status);
+        $tx = WalletTransaction::where('user_id', $this->producerUser->id)->sole();
+        $this->assertStringNotContainsString('absence', (string) $tx->description);
+        $this->assertStringContainsString('plus disponible', (string) $tx->description);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->producerUser->id,
+            'type' => 'mission_candidature_refunded',
+        ]);
+    }
+
+    // =====================================================================
     // Fixtures
     // =====================================================================
 
@@ -544,5 +774,10 @@ class EscrowMissionGuardsTest extends TestCase
             'locked_at' => $escrow === EscrowStatus::Locked ? now() : null,
             'fedapay_transaction_id' => $txn ?? ('99'.$candidature->id),
         ]);
+    }
+
+    private function ageCheckout(int $paymentId, int $minutes): void
+    {
+        DB::table('mission_payments')->where('id', $paymentId)->update(['updated_at' => now()->subMinutes($minutes)]);
     }
 }

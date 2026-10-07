@@ -441,6 +441,9 @@ class CandidatureController extends Controller
         // Sous verrou : relit la candidature (une approbation concurrente peut l'avoir fait
         // avancer) puis applique les gardes et l'annulation de façon atomique.
         $blocked = DB::transaction(function () use ($candidature): ?JsonResponse {
+            // Ordre de verrous : mission → candidature (puis payment / entry dans le service).
+            Mission::query()->lockForUpdate()->find($candidature->mission_id);
+
             /** @var Candidature $locked */
             $locked = Candidature::query()->lockForUpdate()->findOrFail($candidature->id);
 
@@ -456,9 +459,18 @@ class CandidatureController extends Controller
 
             // Checkout cash en cours : la candidature fait partie de la sélection payée par le
             // Producteur — se retirer maintenant laisserait N Faces facturées pour N-1 escrows.
-            if ($payments->inFlightPaymentKind($locked) === MissionPaymentService::IN_FLIGHT_CASH_CHECKOUT) {
+            $inFlight = $payments->inFlightPaymentKind($locked);
+
+            // Checkout abandonné (plus de transaction vivante) : on réinitialise la sélection
+            // entière (payment + entries supprimés, mission republiée) puis le retrait se poursuit.
+            if ($inFlight === MissionPaymentService::STALE_CASH_CHECKOUT
+                && ! $payments->resetPendingCashSelection($locked, 'face_withdrew_stale_checkout')) {
+                $inFlight = MissionPaymentService::IN_FLIGHT_CASH_CHECKOUT;
+            }
+
+            if ($inFlight === MissionPaymentService::IN_FLIGHT_CASH_CHECKOUT) {
                 return response()->json(ErrorCodes::InvalidStatus->envelope(
-                    'Le producteur est en train de finaliser le paiement de cette mission : vous pourrez retirer votre candidature une fois le paiement terminé.'
+                    'Le producteur est en train de payer ; réessayez dans une heure si le paiement n\'aboutit pas.'
                 ), 422);
             }
 
@@ -473,7 +485,7 @@ class CandidatureController extends Controller
             $locked->update(['status' => CandidatureStatus::Cancelled]);
 
             return null;
-        });
+        }, 3);
 
         if ($blocked !== null) {
             return $blocked;

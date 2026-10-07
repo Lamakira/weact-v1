@@ -267,6 +267,8 @@ class MissionAttendanceService
     public function autoSettleAbsentAfterDisputeWindow(MissionPaymentCandidature $entry): MissionPaymentCandidature
     {
         return DB::transaction(function () use ($entry): MissionPaymentCandidature {
+            $this->lockMissionOfEntry($entry->id);
+
             /** @var MissionPaymentCandidature $lockedEntry */
             $lockedEntry = MissionPaymentCandidature::lockForUpdate()->findOrFail($entry->id);
 
@@ -316,7 +318,7 @@ class MissionAttendanceService
             $freshEntry = $lockedEntry->fresh();
 
             return $freshEntry;
-        });
+        }, 3);
     }
 
     public function disputeAttendance(MissionPaymentCandidature $entry, User $actor): MissionPaymentCandidature
@@ -384,6 +386,8 @@ class MissionAttendanceService
         string $notes,
     ): MissionPaymentCandidature {
         return DB::transaction(function () use ($entry, $outcome, $admin, $notes): MissionPaymentCandidature {
+            $this->lockMissionOfEntry($entry->id);
+
             /** @var MissionPaymentCandidature $lockedEntry */
             $lockedEntry = MissionPaymentCandidature::lockForUpdate()->findOrFail($entry->id);
 
@@ -432,7 +436,21 @@ class MissionAttendanceService
             $freshEntry = $lockedEntry->fresh();
 
             return $freshEntry;
-        });
+        }, 3);
+    }
+
+    /**
+     * Ordre de verrous mission → entry (aligné sur completeMission / deleteMission) : verrouille
+     * la mission de l'entry AVANT l'entry pour éviter les inversions (deadlock → 500).
+     */
+    private function lockMissionOfEntry(int $entryId): void
+    {
+        $paymentId = MissionPaymentCandidature::query()->whereKey($entryId)->value('mission_payment_id');
+        $missionId = $paymentId !== null ? MissionPayment::query()->whereKey($paymentId)->value('mission_id') : null;
+
+        if ($missionId !== null) {
+            Mission::query()->lockForUpdate()->find($missionId);
+        }
     }
 
     private function tryCompleteIfReady(Mission $mission): void

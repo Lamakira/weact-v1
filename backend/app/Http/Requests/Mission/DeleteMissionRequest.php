@@ -72,7 +72,7 @@ class DeleteMissionRequest extends FormRequest
             }
 
             // Whatever its status, a mission holding cash escrow (paid or settled) is never deletable.
-            if ($mission->hasCashEscrow()) {
+            if ($mission->hasCashEscrow() || $mission->payment()->exists()) {
                 $validator->errors()->add(
                     'mission',
                     'Une mission dont le paiement a été effectué ne peut pas être supprimée.'
