@@ -125,6 +125,16 @@ adminApiClient.interceptors.response.use(
         })
       }
     }
+    // 403 ADMIN_2FA_REQUIRED: the admin is logged in but has not enrolled TOTP yet.
+    // Every admin route (except enrolment + logout) is refused until then.
+    if (
+      error.response?.status === 403 &&
+      error.response.data?.error?.code === 'ADMIN_2FA_REQUIRED' &&
+      routerInstance &&
+      routerInstance.currentRoute.value.name !== 'admin-two-factor-setup'
+    ) {
+      routerInstance.push({ name: 'admin-two-factor-setup' })
+    }
     return Promise.reject(error)
   },
 )
@@ -158,6 +168,7 @@ export function setStoredAdmin(admin: {
   name: string
   email: string
   role: 'superadmin' | 'admin' | 'editor'
+  two_factor_enabled?: boolean
 }): void {
   localStorage.setItem(ADMIN_USER_KEY, JSON.stringify(admin))
 }
@@ -170,6 +181,7 @@ export function getStoredAdmin(): {
   name: string
   email: string
   role: 'superadmin' | 'admin' | 'editor'
+  two_factor_enabled?: boolean
 } | null {
   const stored = localStorage.getItem(ADMIN_USER_KEY)
   if (stored) {
