@@ -33,7 +33,7 @@ class AdminEngagementListTest extends TestCase
         parent::setUp();
 
         $this->admin = Admin::factory()->create();
-        $this->adminToken = $this->admin->createToken('admin-token')->plainTextToken;
+        $this->adminToken = $this->admin->createToken('admin-token', ['2fa'])->plainTextToken;
     }
 
     // ─── INCLUSION / UNIFIED SHAPE ───────────────────────────────
@@ -320,7 +320,7 @@ class AdminEngagementListTest extends TestCase
     public function test_editor_role_forbidden_403(): void
     {
         $editor = Admin::factory()->editor()->create();
-        $editorToken = $editor->createToken('admin-token')->plainTextToken;
+        $editorToken = $editor->createToken('admin-token', ['2fa'])->plainTextToken;
 
         $this->withToken($editorToken)
             ->getJson('/api/v1/admin/engagements')

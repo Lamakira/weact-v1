@@ -69,7 +69,7 @@ class PremiumAlbumMaskingTest extends TestCase
 
     private function adminToken(): string
     {
-        return Admin::factory()->create()->createToken('admin-token')->plainTextToken;
+        return Admin::factory()->create()->createToken('admin-token', ['2fa'])->plainTextToken;
     }
 
     // ===================================================================

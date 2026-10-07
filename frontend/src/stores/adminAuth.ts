@@ -18,6 +18,7 @@ export interface AdminUser {
   name: string
   email: string
   role: 'superadmin' | 'admin' | 'editor'
+  two_factor_enabled?: boolean
 }
 
 export const useAdminAuthStore = defineStore('adminAuth', () => {

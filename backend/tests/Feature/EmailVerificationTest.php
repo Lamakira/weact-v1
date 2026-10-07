@@ -177,7 +177,7 @@ class EmailVerificationTest extends TestCase
         $response->assertForbidden()
             ->assertJson([
                 'error' => [
-                    'code' => 'VERIFICATION_LINK_EXPIRED',
+                    'code' => 'INVALID_VERIFICATION_LINK',
                 ],
             ]);
 

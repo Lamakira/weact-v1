@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Middleware\EnsureAdminRole;
+use App\Http\Middleware\EnsureAdminTwoFactorEnrolled;
 use App\Http\Middleware\EnsureApiBearerToken;
 use App\Http\Middleware\EnsureEmailIsVerified;
 use App\Http\Middleware\EnsureGoogleOAuthEnabled;
@@ -59,6 +60,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin' => EnsureUserIsAdmin::class,
             'admin.role' => EnsureAdminRole::class,
+            'admin.2fa' => EnsureAdminTwoFactorEnrolled::class,
             'api.token' => EnsureApiBearerToken::class,
             'superadmin' => EnsureSuperAdmin::class,
             'face' => EnsureUserIsFace::class,

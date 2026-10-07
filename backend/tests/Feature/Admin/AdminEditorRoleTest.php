@@ -27,8 +27,8 @@ class AdminEditorRoleTest extends TestCase
 
         $this->editor = Admin::factory()->editor()->create();
         $this->admin = Admin::factory()->create(); // default role = admin
-        $this->editorToken = $this->editor->createToken('editor-token')->plainTextToken;
-        $this->adminToken = $this->admin->createToken('admin-token')->plainTextToken;
+        $this->editorToken = $this->editor->createToken('editor-token', ['2fa'])->plainTextToken;
+        $this->adminToken = $this->admin->createToken('admin-token', ['2fa'])->plainTextToken;
     }
 
     // ─── EDITOR CAN ACCESS ARTICLES ──────────────────────────────

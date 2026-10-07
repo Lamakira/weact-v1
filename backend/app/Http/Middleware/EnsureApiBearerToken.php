@@ -17,8 +17,13 @@ class EnsureApiBearerToken
 {
     /**
      * Force API authentication to use the current Bearer token instead of a stale session user.
+     *
+     * Admins and users share numeric ids, so the token's principal type is
+     * pinned per surface: `api.token` (default) accepts User tokens only,
+     * `api.token:admin` accepts Admin tokens (User tokens are then refused by
+     * the `admin` middleware).
      */
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next, string $surface = 'user'): Response
     {
         $plainTextToken = $request->bearerToken();
         $accessToken = $plainTextToken ? PersonalAccessToken::findToken($plainTextToken) : null;
@@ -41,6 +46,10 @@ class EnsureApiBearerToken
                     'code' => 'UNAUTHENTICATED',
                 ],
             ], Response::HTTP_UNAUTHORIZED);
+        }
+
+        if ($surface !== 'admin' && $tokenable instanceof Admin) {
+            abort(Response::HTTP_FORBIDDEN, 'Cette action n\'est pas autorisée');
         }
 
         $authenticatedUser = $tokenable->withAccessToken($accessToken);

@@ -61,7 +61,7 @@ onMounted(async () => {
     if (errorCode === 'VERIFICATION_LINK_EXPIRED') {
       errorMessage.value = 'Ce lien de vérification a expiré. Veuillez en demander un nouveau.'
     } else if (errorCode === 'INVALID_VERIFICATION_LINK') {
-      errorMessage.value = 'Ce lien de vérification est invalide.'
+      errorMessage.value = 'Ce lien de vérification est invalide ou a expiré. Veuillez en demander un nouveau.'
     } else if (errorCode === 'USER_NOT_FOUND') {
       errorMessage.value = 'Utilisateur non trouvé.'
     } else {

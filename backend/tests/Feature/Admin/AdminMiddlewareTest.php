@@ -28,7 +28,7 @@ class AdminMiddlewareTest extends TestCase
     public function test_admin_token_passes_middleware(): void
     {
         $admin = Admin::factory()->create();
-        $token = $admin->createToken('admin-token')->plainTextToken;
+        $token = $admin->createToken('admin-token', ['2fa'])->plainTextToken;
 
         $response = $this->getJson('/api/v1/admin/test-protected', [
             'Authorization' => "Bearer {$token}",
