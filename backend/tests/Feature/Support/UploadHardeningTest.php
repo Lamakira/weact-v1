@@ -246,4 +246,159 @@ class UploadHardeningTest extends TestCase
             ->assertJsonValidationErrors(['photo'])
             ->assertJsonFragment(['Image trop grande : 12000 pixels maximum par côté.']);
     }
+
+    private function sofSeg(int $w, int $h): string
+    {
+        return $this->segment(0xC0, pack('CnnC', 8, $h, $w, 1)."\x01\x11\x00");
+    }
+
+    private function craftedA(): string
+    {
+        $sos = "\xFF\xDA\x00\x08\x01\x01\x00\x00\x3F\x00";
+
+        return "\xFF\xD8\xFF\xE1\x00\x00".$this->segment(0xDB, "\x00".str_repeat("\x01", 64)).$this->sofSeg(30000, 30000)
+            .$this->segment(0xC4, "\x00".str_repeat("\x00", 16)).$sos.str_repeat("\0", 64)."\xFF\xD9";
+    }
+
+    private function craftedB(): string
+    {
+        $sos = "\xFF\xDA\x00\x08\x01\x01\x00\x00\x3F\x00";
+        $inner = $this->segment(0xDB, "\x00".str_repeat("\x01", 64)).$this->sofSeg(30000, 30000)
+            .$this->segment(0xC4, "\x00".str_repeat("\x00", 16)).$sos.str_repeat("\0", 64)."\xFF\xD9";
+
+        return "\xFF\xD8\xFF\x01".pack('n', 2 + strlen($inner)).$inner.$this->sofSeg(100, 100);
+    }
+
+    private function faceUser(): \App\Models\User
+    {
+        $face = Face::factory()->create();
+
+        return \App\Models\User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+    }
+
+    public function test_crafted_jpeg_with_zero_length_segment_is_rejected_at_the_endpoint(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+        $file = UploadedFile::fake()->createWithContent('a.jpg', $this->craftedA());
+
+        $this->actingAs($this->faceUser())
+            ->postJson('/api/v1/face/profile/photo', ['photo' => $file])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['photo']);
+
+        $this->assertSame([], Storage::disk('public')->allFiles());
+        Queue::assertNothingPushed();
+    }
+
+    public function test_crafted_jpeg_with_decoy_sof_behind_a_fake_length_is_rejected_on_the_stripped_dimensions(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+        $file = UploadedFile::fake()->createWithContent('b.jpg', $this->craftedB());
+
+        // getimagesize voit 100x100 : la règle d'en-tête passe, c'est storeImage qui doit refuser.
+        $this->actingAs($this->faceUser())
+            ->postJson('/api/v1/face/profile/photo', ['photo' => $file])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['photo']);
+
+        $this->assertSame([], Storage::disk('public')->allFiles());
+        Queue::assertNothingPushed();
+    }
+
+    public function test_store_image_checks_the_stripped_output_and_reports_the_pixel_cap_message(): void
+    {
+        Storage::fake('public');
+
+        try {
+            UploadedMedia::storeImage('public', 'avatars/faces', $this->upload('b.jpg', $this->craftedB()), 'photo');
+            $this->fail('ValidationException attendue');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('Image trop grande', $e->errors()['photo'][0]);
+        }
+        $this->assertSame([], Storage::disk('public')->allFiles());
+    }
+
+    public function test_pixel_cap_accepts_50mp_phones_and_rejects_54mp_with_the_french_message(): void
+    {
+        $this->assertSame(52_000_000, UploadedMedia::MAX_IMAGE_PIXELS);
+        $check = fn (int $w, int $h) => validator(
+            ['photo' => $this->upload('p.png', $this->pngHeaderOnly($w, $h), 'image/png')],
+            ['photo' => [UploadedMedia::maxDimensions()]],
+        );
+
+        $this->assertFalse($check(8160, 6144)->fails(), '50,1 MP');
+        $this->assertFalse($check(8064, 6048)->fails(), '48,8 MP');
+
+        $tooMany = $check(9000, 6000); // 54 MP, chaque côté < 12000
+        $this->assertTrue($tooMany->fails());
+        $this->assertSame('Image trop grande : 50 mégapixels maximum. Réduisez la résolution de la photo et réessayez.', $tooMany->errors()->first('photo'));
+    }
+
+    public function test_rule_fails_closed_when_getimagesize_cannot_read_a_jpeg(): void
+    {
+        $validator = validator(
+            ['photo' => $this->upload('a.jpg', $this->craftedA())],
+            ['photo' => [UploadedMedia::maxDimensions()]],
+        );
+
+        $this->assertTrue($validator->fails());
+    }
+
+    public function test_variant_job_skips_an_oversized_stored_file_without_decoding_nor_throwing(): void
+    {
+        Storage::fake('public');
+        \Illuminate\Support\Facades\Log::spy();
+        $face = Face::factory()->create(['profile_photo' => 'huge.png']);
+        Storage::disk('public')->put('avatars/faces/huge.png', $this->pngHeaderOnly(30000, 30000));
+
+        // Le générateur refuse AVANT de décoder (rien n'est écrit) ...
+        try {
+            app(\App\Support\ImageVariantGenerator::class)->generate($face);
+            $this->fail('RuntimeException attendue');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('non décodée', $e->getMessage());
+        }
+        $this->assertSame([], Storage::disk('public')->files('avatars/faces/thumbnails'));
+
+        // ... et le job l'absorbe : warning, pas d'exception, donc pas de retry.
+        \App\Jobs\GenerateImageVariants::forModel($face)->handle(app(\App\Support\ImageVariantGenerator::class));
+
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context = []): bool => str_contains($message, 'échec de génération')
+                && str_contains((string) ($context['exception_message'] ?? ''), 'non décodée'))
+            ->once();
+    }
+
+    public function test_variant_job_skips_an_unreadable_stored_file_without_decoding_nor_throwing(): void
+    {
+        Storage::fake('public');
+        \Illuminate\Support\Facades\Log::spy();
+        $face = Face::factory()->create(['profile_photo' => 'broken.jpg']);
+        Storage::disk('public')->put('avatars/faces/broken.jpg', $this->craftedA());
+
+        \App\Jobs\GenerateImageVariants::forModel($face)->handle(app(\App\Support\ImageVariantGenerator::class));
+
+        $this->assertSame([], Storage::disk('public')->files('avatars/faces/thumbnails'));
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context = []): bool => str_contains((string) ($context['exception_message'] ?? ''), 'non décodée'))
+            ->once();
+    }
+
+    public function test_logo_thumbnail_job_skips_an_oversized_stored_logo_without_decoding(): void
+    {
+        Storage::fake('public');
+        \Illuminate\Support\Facades\Log::spy();
+        $agency = Producer::factory()->agency()->create(['agency_logo' => 'huge.png']);
+        Storage::disk('public')->put('logos/agencies/huge.png', $this->pngHeaderOnly(30000, 30000));
+
+        (new \App\Jobs\GenerateAgencyLogoThumbnail($agency->id, 'huge.png'))->handle();
+
+        $this->assertNull($agency->fresh()->agency_logo_thumbnail);
+        $this->assertSame([], Storage::disk('public')->files('logos/agencies/thumbnails'));
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message): bool => str_contains($message, 'non décodée'))
+            ->once();
+    }
 }

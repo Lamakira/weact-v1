@@ -118,6 +118,15 @@ class ImageVariantGenerator
                     return ['generated' => [], 'skipped' => $skipped, 'missing_source' => true];
                 }
 
+                // Défense en profondeur : jamais de décodage d'un fichier hors plafonds ou
+                // illisible (GD alloue hors memory_limit). On lève AVANT de décoder : le job
+                // (GenerateImageVariants) l'attrape, loggue un warning et abandonne sans retry ;
+                // la commande de rétrofit compte la ligne en échec. Rien n'a encore été écrit.
+                $blocker = UploadedMedia::decodeBlocker($source);
+                if ($blocker !== null) {
+                    throw new \RuntimeException('Image non décodée ('.$blocker.')');
+                }
+
                 $decoded = Image::read($source);
             }
 

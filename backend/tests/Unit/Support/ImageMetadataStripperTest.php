@@ -189,7 +189,9 @@ class ImageMetadataStripperTest extends TestCase
         $this->assertContains('pHYs', $types);
         $this->assertContains('IDAT', $types);
         $this->assertSame('IEND', end($types));
-        foreach (['tEXt', 'iTXt', 'zTXt', 'eXIf'] as $dropped) {
+        $this->assertContains('eXIf', $types, 'orientation 6 : eXIf minimal conservé');
+        $this->assertStringNotContainsString('Canon', (string) file_get_contents($out));
+        foreach (['tEXt', 'iTXt', 'zTXt'] as $dropped) {
             $this->assertNotContains($dropped, $types);
         }
         $this->assertFalse(ImageMetadataStripper::isDirty($out));
@@ -222,13 +224,17 @@ class ImageMetadataStripperTest extends TestCase
         $path = tempnam(sys_get_temp_dir(), 'big');
         $h = fopen($path, 'wb');
         fwrite($h, "\xFF\xD8".$this->app1Exif(6).$this->segment(0xE2, self::ICC)."\xFF\xDA\x00\x08\x01\x01\x00\x00\x3F\x00");
-        $block = str_repeat('0123456789abcdef', 65536); // 1 Mo
+        // Unité de 1009 octets : bourrage FF00, RSTn et FF de remplissage avant un marqueur
+        // (1 octet supprimé par unité), comme dans un vrai flux entropique.
+        $unit = str_repeat('0123456789', 100)."\xFF\x00cd\xFF\xD0\xFF\xFF\xD1";
+        $block = str_repeat($unit, 1040); // ~1 Mo
         for ($i = 0; $i < 48; $i++) {
             fwrite($h, $block);
         }
         fwrite($h, "\xFF\xD9");
         fclose($h);
         unset($block);
+        $units = 48 * 1040;
 
         $out = $path.'.out';
         gc_collect_cycles();
@@ -239,7 +245,7 @@ class ImageMetadataStripperTest extends TestCase
 
         $delta = memory_get_peak_usage() - $before;
         $this->assertLessThan(4 * 1024 * 1024, $delta, "pic mémoire {$delta} octets sur un fichier de 48 Mo");
-        $this->assertSame(filesize($path) - strlen($this->app1Exif(6)) + 36, filesize($out));
+        $this->assertSame(filesize($path) - strlen($this->app1Exif(6)) + 36 - $units, filesize($out), 'FF de remplissage retirés, FF00/RSTn intacts');
     }
 
     public function test_big_endian_exif_orientation_is_preserved_in_the_minimal_segment(): void
@@ -256,11 +262,32 @@ class ImageMetadataStripperTest extends TestCase
         $this->assertArrayNotHasKey('GPSInfo', $exif);
     }
 
+    /**
+     * JPEG GD réellement PROPRE : on le passe d'abord par le stripper (GD écrit un COM
+     * « CREATOR: gd-jpeg »), puis on vérifie qu'il est propre.
+     */
+    private function cleanJpeg(int $w = 40, int $h = 20): string
+    {
+        $in = $this->tmp($this->plainJpeg($w, $h));
+        ImageMetadataStripper::strip($in, $in.'.clean');
+        $this->assertFalse(ImageMetadataStripper::isDirty($in.'.clean'), 'fixture de base propre');
+
+        return (string) file_get_contents($in.'.clean');
+    }
+
+    public function test_trailing_bytes_after_eoi_are_the_only_reason_for_dirty(): void
+    {
+        $clean = $this->cleanJpeg();
+
+        $this->assertFalse(ImageMetadataStripper::isDirty($this->tmp($clean)));
+        $this->assertTrue(ImageMetadataStripper::isDirty($this->tmp($clean."\0\0\0\x18ftypmp42 SECRET")));
+    }
+
     private function motionPhoto(): string
     {
         $secondary = $this->withSegments($this->plainJpeg(8, 8), $this->app1Exif(3)); // image secondaire AVEC son Exif/GPS
         $mpf = $this->segment(0xE2, "MPF\0".str_repeat("\x01", 20));                  // APP2 MPF : pointe vers l'image secondaire
-        $primary = $this->withSegments($this->plainJpeg(40, 20), $this->segment(0xE2, self::ICC), $mpf);
+        $primary = $this->withSegments($this->cleanJpeg(), $this->segment(0xE2, self::ICC), $mpf);
 
         return $primary.$secondary."\0\0\0\x18ftypmp42 SECRET-MOTION-VIDEO";
     }
@@ -382,5 +409,252 @@ class ImageMetadataStripperTest extends TestCase
         ImageMetadataStripper::strip($in, $out);
         $this->assertStringNotContainsString('TRAILING-SECRET', (string) file_get_contents($out));
         $this->assertFalse(ImageMetadataStripper::isDirty($out));
+    }
+
+    private const SOS = "\xFF\xDA\x00\x08\x01\x01\x00\x00\x3F\x00";
+
+    private function sof(int $width, int $height, int $code = 0xC0): string
+    {
+        return $this->segment($code, pack('CnnC', 8, $height, $width, 1)."\x01\x11\x00");
+    }
+
+    private function bareJpeg(string ...$parts): string
+    {
+        return "\xFF\xD8".implode('', $parts);
+    }
+
+    private function dqt(): string
+    {
+        return $this->segment(0xDB, "\x00".str_repeat("\x01", 64));
+    }
+
+    private function dht(): string
+    {
+        return $this->segment(0xC4, "\x00".str_repeat("\x00", 16));
+    }
+
+    public function test_zero_length_segment_is_a_hard_reject_not_stray_bytes(): void
+    {
+        // (a) FFD8 FFE1 0000 + DQT + SOF0(30000x30000) + DHT + SOS + données + EOI
+        $jpeg = "\xFF\xD8\xFF\xE1\x00\x00".$this->dqt().$this->sof(30000, 30000).$this->dht().self::SOS.str_repeat("\0", 64)."\xFF\xD9";
+
+        $this->expectException(\RuntimeException::class);
+        ImageMetadataStripper::strip($this->tmp($jpeg), sys_get_temp_dir().'/never.out');
+    }
+
+    public function test_dimensions_of_the_first_sof_are_reported_even_when_a_decoy_sof_hides_behind_a_fake_length(): void
+    {
+        // (b) FFD8 FF01 <len> [DQT, SOF 30000², DHT, SOS, data, EOI] puis un SOF 100x100
+        $inner = $this->dqt().$this->sof(30000, 30000).$this->dht().self::SOS.str_repeat("\0", 64)."\xFF\xD9";
+        $jpeg = "\xFF\xD8\xFF\x01".pack('n', 2 + strlen($inner)).$inner.$this->sof(100, 100);
+
+        // getimagesize (PHP) se laisse tromper : c'est la divergence exploitée.
+        $this->assertSame([100, 100], array_slice(getimagesize($this->tmp($jpeg)) ?: [], 0, 2));
+
+        $in = $this->tmp($jpeg);
+        $report = ImageMetadataStripper::stripReport($in, $in.'.out');
+
+        $this->assertSame([30000, 30000], [$report['width'], $report['height']], 'on mesure ce que le décodeur décodera');
+        $this->assertSame([30000, 30000], ImageMetadataStripper::dimensions($in.'.out'));
+    }
+
+    public function test_a_second_sof_before_the_primary_eoi_is_rejected(): void
+    {
+        $jpeg = $this->bareJpeg($this->dqt(), $this->sof(100, 100), $this->sof(30000, 30000), $this->dht(), self::SOS, "\0\0\xFF\xD9");
+
+        $this->expectException(\RuntimeException::class);
+        ImageMetadataStripper::strip($this->tmp($jpeg), sys_get_temp_dir().'/never.out');
+    }
+
+    public function test_dimensions_helper_reads_jpeg_and_png_headers_and_returns_null_when_unreadable(): void
+    {
+        $this->assertSame([40, 20], ImageMetadataStripper::dimensions($this->tmp($this->plainJpeg(40, 20))));
+
+        $im = imagecreatetruecolor(7, 5);
+        ob_start();
+        imagepng($im);
+        $this->assertSame([7, 5], ImageMetadataStripper::dimensions($this->tmp((string) ob_get_clean())));
+
+        $this->assertNull(ImageMetadataStripper::dimensions($this->tmp('<html></html>')));
+        $this->assertNull(ImageMetadataStripper::dimensions($this->tmp($this->bareJpeg($this->dqt(), self::SOS, "\0\xFF\xD9"))), 'JPEG sans SOF');
+    }
+
+    private function pngWith(string ...$extraChunks): string
+    {
+        $im = imagecreatetruecolor(8, 8);
+        ob_start();
+        imagepng($im);
+        $png = (string) ob_get_clean();
+
+        return substr($png, 0, 33).implode('', $extraChunks).substr($png, 33);
+    }
+
+    public function test_png_uses_an_allowlist_time_c2pa_and_private_chunks_are_removed(): void
+    {
+        $in = $this->tmp($this->pngWith(
+            $this->chunk('tIME', pack('nCCCCC', 2026, 10, 7, 12, 0, 0)),
+            $this->chunk('caBX', 'C2PA-IDENTITY-GPS'),
+            $this->chunk('prVt', 'PRIVATE-SECRET'),
+        ));
+        $out = $in.'.out';
+
+        $this->assertTrue(ImageMetadataStripper::isDirty($in));
+        $this->assertTrue(ImageMetadataStripper::strip($in, $out));
+
+        $result = (string) file_get_contents($out);
+        $types = $this->pngChunks($result);
+        foreach (['tIME', 'caBX', 'prVt'] as $dropped) {
+            $this->assertNotContains($dropped, $types);
+        }
+        $this->assertStringNotContainsString('SECRET', $result);
+        $this->assertFalse(ImageMetadataStripper::isDirty($out));
+    }
+
+    public function test_png_animation_and_color_chunks_are_kept_in_order(): void
+    {
+        $kept = [
+            $this->chunk('cICP', "\x01\x0D\x00\x01"),
+            $this->chunk('acTL', pack('NN', 1, 0)),
+            $this->chunk('fcTL', str_repeat("\0", 26)),
+            $this->chunk('sBIT', "\x08\x08\x08"),
+            $this->chunk('bKGD', "\0\0\0\0\0\0"),
+        ];
+        $in = $this->tmp($this->pngWith(...$kept));
+        $out = $in.'.out';
+
+        $this->assertFalse(ImageMetadataStripper::isDirty($in));
+        ImageMetadataStripper::strip($in, $out);
+
+        $types = $this->pngChunks((string) file_get_contents($out));
+        $this->assertSame(['IHDR', 'cICP', 'acTL', 'fcTL', 'sBIT', 'bKGD'], array_slice($types, 0, 6));
+        $this->assertSame((string) file_get_contents($in), (string) file_get_contents($out));
+    }
+
+    public function test_png_exif_keeps_only_a_minimal_orientation_chunk(): void
+    {
+        $in = $this->tmp($this->pngWith($this->chunk('eXIf', $this->exifTiff(6))));
+        $out = $in.'.out';
+
+        $this->assertTrue(ImageMetadataStripper::strip($in, $out));
+        $result = (string) file_get_contents($out);
+
+        $this->assertContains('eXIf', $this->pngChunks($result));
+        $this->assertStringNotContainsString('Canon', $result);
+        $this->assertFalse(ImageMetadataStripper::isDirty($out), 'eXIf minimal canonique = idempotent');
+
+        $exifPayload = $this->pngChunkData($result, 'eXIf');
+        $this->assertSame(26, strlen($exifPayload));
+        $this->assertSame("II*\0", substr($exifPayload, 0, 4));
+        $this->assertSame(6, unpack('v', substr($exifPayload, 18, 2))[1], 'Orientation=6');
+
+        // Orientation 1 : eXIf supprimé
+        $in2 = $this->tmp($this->pngWith($this->chunk('eXIf', $this->exifTiff(1))));
+        ImageMetadataStripper::strip($in2, $in2.'.out');
+        $this->assertNotContains('eXIf', $this->pngChunks((string) file_get_contents($in2.'.out')));
+    }
+
+    private function pngChunkData(string $png, string $type): string
+    {
+        $pos = 8;
+        while ($pos < strlen($png)) {
+            $len = unpack('N', substr($png, $pos, 4))[1];
+            if (substr($png, $pos + 4, 4) === $type) {
+                return substr($png, $pos + 8, $len);
+            }
+            $pos += 12 + $len;
+        }
+
+        return '';
+    }
+
+    public function test_png_dimensions_are_reported_from_ihdr(): void
+    {
+        $in = $this->tmp($this->pngWith());
+        $report = ImageMetadataStripper::stripReport($in, $in.'.out');
+
+        $this->assertSame([8, 8], [$report['width'], $report['height']]);
+    }
+
+    public function test_jfif_is_rewritten_canonical_without_thumbnail_and_jfxx_is_dropped(): void
+    {
+        $jfifWithThumb = $this->segment(0xE0, "JFIF\0\x01\x02\x01\x00\x48\x00\x48\x02\x02".str_repeat("\x7F", 12)); // vignette 2x2 RGB
+        $jfxx = $this->segment(0xE0, "JFXX\0\x10".'GPS-LAT-12.34-SECRET');
+        $adobe = $this->segment(0xEE, "Adobe\0\x64\0\0\0\0\x01".'TRAILING-SECRET');
+        $jpeg = $this->bareJpeg($jfifWithThumb, $jfxx, $adobe, $this->dqt(), $this->sof(8, 8), $this->dht(), self::SOS, "\0\0\xFF\xD9");
+        $in = $this->tmp($jpeg);
+        $out = $in.'.out';
+
+        $this->assertTrue(ImageMetadataStripper::isDirty($in));
+        $this->assertTrue(ImageMetadataStripper::strip($in, $out));
+
+        $result = (string) file_get_contents($out);
+        $segments = $this->segments($result);
+        $app0 = array_values(array_filter($segments, fn (array $s): bool => $s[0] === 0xE0));
+        $this->assertCount(1, $app0, 'JFXX supprimé');
+        $this->assertSame("JFIF\0\x01\x02\x01\x00\x48\x00\x48\x00\x00", $app0[0][1], 'JFIF canonique : version, unités, densité conservées, vignette 0x0');
+        $adobeOut = array_values(array_filter($segments, fn (array $s): bool => $s[0] === 0xEE));
+        $this->assertSame(12, strlen($adobeOut[0][1]), 'APP14 limité à 12 octets');
+        $this->assertStringNotContainsString('SECRET', $result);
+        $this->assertFalse(ImageMetadataStripper::isDirty($out));
+    }
+
+    public function test_truncated_final_segment_is_flagged_dirty_in_both_modes_and_discarded(): void
+    {
+        // données de scan sans EOI, puis un segment COM tronqué contenant du texte
+        $jpeg = $this->bareJpeg($this->dqt(), $this->sof(8, 8), $this->dht(), self::SOS, "SCANDATA\xFF\xFE\x7F\xFFGPS 6.37,2.39 SECRET");
+        $in = $this->tmp($jpeg);
+        $out = $in.'.out';
+
+        $this->assertTrue(ImageMetadataStripper::isDirty($in), 'détection');
+        $this->assertTrue(ImageMetadataStripper::strip($in, $out), 'application');
+        $this->assertStringNotContainsString('SECRET', (string) file_get_contents($out));
+        $this->assertFalse(ImageMetadataStripper::isDirty($out));
+    }
+
+    public function test_strip_in_place_does_not_resurrect_a_file_deleted_during_the_strip(): void
+    {
+        $path = $this->tmp($this->jpegWithExif(40, 20, 6));
+
+        try {
+            ImageMetadataStripper::stripInPlace($path, function () use ($path): void {
+                unlink($path); // supprimé pendant le nettoyage
+            });
+            $this->fail('exception attendue');
+        } catch (\RuntimeException) {
+            $this->assertFileDoesNotExist($path);
+            $this->assertSame([], glob($path.'.*'));
+        }
+    }
+
+    public function test_strip_in_place_leaves_a_file_replaced_during_the_strip_untouched(): void
+    {
+        $path = $this->tmp($this->jpegWithExif(40, 20, 6));
+
+        try {
+            ImageMetadataStripper::stripInPlace($path, function () use ($path): void {
+                unlink($path);
+                file_put_contents($path, 'NEWER-FILE-CONTENT-DIFFERENT-SIZE');
+            });
+            $this->fail('exception attendue');
+        } catch (\RuntimeException) {
+            $this->assertSame('NEWER-FILE-CONTENT-DIFFERENT-SIZE', file_get_contents($path));
+            $this->assertSame([], glob($path.'.*'));
+        }
+    }
+
+    public function test_strip_in_place_temp_names_are_unique(): void
+    {
+        $path = $this->tmp($this->jpegWithExif(40, 20, 6));
+        $seen = [];
+        try {
+            ImageMetadataStripper::stripInPlace($path, function () use ($path, &$seen): void {
+                $seen = glob($path.'.*');
+                throw new \RuntimeException('stop');
+            });
+        } catch (\RuntimeException) {
+        }
+
+        $this->assertCount(1, $seen);
+        $this->assertMatchesRegularExpression('/\.stripping\.[a-f0-9]{8,}\.tmp$/', $seen[0]);
     }
 }

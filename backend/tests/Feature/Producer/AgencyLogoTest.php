@@ -154,6 +154,26 @@ class AgencyLogoTest extends TestCase
         $this->assertSame([], Storage::disk('public')->files('logos/agencies/thumbnails'));
     }
 
+    public function test_delete_logo_removes_a_thumbnail_claimed_by_the_job_after_the_model_was_loaded(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        $service = app(\App\Services\AgencyLogoService::class);
+        $service->uploadLogo($this->agencyProducer, UploadedFile::fake()->image('logo.png', 60, 60));
+
+        // Modèle chargé AVANT que le job ne réclame la colonne (cas requête de suppression de compte).
+        $stale = Producer::find($this->agencyProducer->id);
+        $this->assertNull($stale->agency_logo_thumbnail);
+        (new \App\Jobs\GenerateAgencyLogoThumbnail($stale->id, (string) $stale->agency_logo))->handle();
+        $thumbnail = 'logos/agencies/thumbnails/'.pathinfo((string) $stale->agency_logo, PATHINFO_FILENAME).'.jpg';
+        Storage::disk('public')->assertExists($thumbnail);
+
+        $service->deleteLogo($stale);
+
+        Storage::disk('public')->assertMissing($thumbnail);
+        $this->assertSame([], Storage::disk('public')->allFiles());
+        $this->assertNull(Producer::find($stale->id)->agency_logo_thumbnail);
+    }
+
     public function test_old_logo_is_deleted_when_uploading_new_one(): void
     {
         // Upload first logo

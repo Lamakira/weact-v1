@@ -239,7 +239,7 @@ class StripMediaMetadataCommand extends Command implements Isolatable
 
     private function isTempFile(string $file): bool
     {
-        return (bool) preg_match('#\.(stripped\.[a-z0-9.]+|stripping\.tmp)$#i', $file);
+        return (bool) preg_match('#\.(stripped|stripping)\.[a-z0-9.]+$#i', $file);
     }
 
     private function isStale(string $fullPath): bool

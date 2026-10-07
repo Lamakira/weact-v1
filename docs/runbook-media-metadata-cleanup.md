@@ -12,33 +12,57 @@ GPS sur 12 772, 22 vidéos publiques sur 515 avec localisation).
 ## Ce qui est fait aux fichiers
 
 - Images (JPEG, PNG), au niveau des octets, SANS décodage ni ré-encodage des pixels :
-  - JPEG, par ALLOWLIST de segments. Conservés : APP0 (JFIF/JFXX), APP2 seulement
-    s'il porte un profil ICC (`ICC_PROFILE`, multi-chunks dans l'ordre), APP14
-    (Adobe) et les segments de décodage (DQT, DHT, SOF, DRI, SOS…). Retirés :
-    tous les autres APPn (APP1 Exif et XMP, APP2 MPF, APP3, APP11 JUMBF/C2PA,
-    APP12, APP13, APP15…) et les commentaires COM.
+  - JPEG, par ALLOWLIST de segments. Conservés : APP0 `JFIF` (réécrit sous sa forme
+    canonique de 16 octets : version, unités et densité conservées, vignette 0x0),
+    APP2 seulement s'il porte un profil ICC (`ICC_PROFILE`, multi-chunks dans
+    l'ordre), APP14 `Adobe` (limité à ses 12 octets) et les segments de décodage
+    (DQT, DHT, SOF, DRI, SOS…). Retirés : `JFXX` (il peut embarquer un JPEG avec son
+    propre Exif), APP1 (Exif et XMP), APP2 non-ICC (dont MPF), APP3, APP11
+    (JUMBF/C2PA), APP12, APP13, APP15… et les commentaires COM.
   - JPEG, octets APRÈS l'image principale : tout ce qui suit l'EOI de l'image
     principale est supprimé (images MPF secondaires avec leur propre Exif/GPS,
-    trailers Samsung SEFT, vidéo des Motion Photos Google/Samsung). Pour les
-    détecter, le fichier est parcouru en entier (données entropiques comprises).
+    trailers Samsung SEFT, vidéo des Motion Photos Google/Samsung), de même qu'un
+    segment final tronqué. Pour les détecter, le fichier est parcouru en entier
+    (données entropiques comprises). La détection (dry run) et l'application voient
+    exactement les mêmes choses.
   - JPEG, orientation : si l'EXIF d'origine avait une Orientation différente de 1,
     un APP1 minimal ne contenant QUE l'Orientation est réinséré (la photo reste à
     l'endroit dans les navigateurs ; les pixels ne sont PAS pivotés ; ni GPS, ni
     appareil, ni date ne survivent).
-  - PNG : chunks `eXIf`, `tEXt`, `iTXt`, `zTXt` retirés et octets après `IEND`
-    supprimés ; le reste est copié.
+  - PNG, par ALLOWLIST de chunks (IHDR, PLTE, IDAT, IEND, tRNS, cHRM, gAMA, iCCP,
+    sBIT, sRGB, cICP, mDCv, cLLi, bKGD, hIST, pHYs, sPLT, acTL, fcTL, fdAT). Tout le
+    reste est retiré : `tIME`, `tEXt`/`iTXt`/`zTXt`, `caBX` (C2PA), chunks privés. Un
+    `eXIf` avec une Orientation ≠ 1 est remplacé par un `eXIf` minimal (Orientation
+    seule), sinon supprimé. Les octets après `IEND` sont supprimés.
   - Le format est reconnu par les octets magiques, pas par l'extension. Les octets
     parasites entre segments d'en-tête d'un JPEG sont tolérés (comme libjpeg) ;
-    seul un fichier sans SOS valide est refusé.
+    sont REFUSÉS : un segment de longueur < 2, un second en-tête de frame (SOF)
+    avant la fin de l'image principale, et un fichier sans SOS valide.
+- Plafonds de taille d'image (à l'upload ET dans les jobs de queue) : 12000 px par
+  côté et 52 millions de pixels au total (garde les 48/50 MP des téléphones,
+  8160x6144 = 50,1 MP ; refuse les modes 108/200 MP). La mesure porte sur ce que le
+  décodeur lira réellement (premier SOF / IHDR du fichier NETTOYÉ), pas seulement sur
+  `getimagesize()` de l'original, et échoue FERMÉE : une dimension illisible est un
+  refus. Les jobs qui décodent (`GenerateImageVariants`, vignette de logo d'agence)
+  relisent l'en-tête avant de décoder : un fichier stocké hors plafonds ou illisible
+  n'est jamais décodé ; le job loggue un warning (`image non décodée`) et abandonne
+  sans exception ni retry (la commande `images:generate-variants` compte la ligne en
+  échec). Contexte :
+  GD (libgd système) alloue ses tampons en dehors de `memory_limit`.
 - Vidéos : remux ffmpeg en copie de flux (`-c copy`, sans ré-encodage) ne gardant
   que les flux vidéo et audio (`-map 0:v -map 0:a?`) : les pistes de données,
   sous-titres et télémétrie (qui peuvent contenir le GPS) sont écartées, ainsi
   que les tags globaux, de flux et les chapitres. La rotation (display matrix) est
   conservée. Si le `-c copy` échoue (codec audio inconnu, par exemple l'audio
-  spatial `apac` des iPhone récents avec ffmpeg 6.1), un repli retente UNE fois
-  avec `-c:v copy -c:a aac -b:a 160k` : l'audio est alors ré-encodé (légère
-  perte), la vidéo reste intacte. Si le repli échoue aussi, l'original est
-  conservé et l'échec est compté.
+  spatial `apac` des iPhone récents avec ffmpeg 6.1, que ffmpeg ne sait pas
+  copier), un repli sonde les flux avec ffprobe puis retente UNE fois, toujours en
+  copie de flux, en ne mappant que la vidéo et les flux audio dont le codec est dans
+  une allowlist (aac, mp3, opus, vorbis, flac, alac, ac3, eac3, pcm_s16le,
+  pcm_s24le, pcm_f32le) ; les autres flux audio sont écartés. Aucun ré-encodage.
+  S'il n'existe AUCUN flux audio allowlisté, l'audio n'est jamais supprimé en
+  silence : l'original est conservé, un warning est loggé et le fichier est compté
+  comme ÉCHEC (listé en fin de commande) pour traitement manuel. Il en va de même si
+  le repli échoue à son tour : l'original reste en place, avec ses métadonnées.
 - Chemin, nom de fichier ET mode (permissions) inchangés : les lignes en base les
   référencent et les fichiers restent lisibles par le serveur web.
 - Idempotent : un fichier propre est ignoré, on peut relancer à volonté.
@@ -55,7 +79,7 @@ GPS sur 12 772, 22 vidéos publiques sur 515 avec localisation).
 - Les fichiers sont sélectionnés par octets magiques : une extension atypique
   (`.jfif`, `.jpe`, `.m4v`, aucune) est traitée. Les fichiers non reconnus sont
   comptés et loggés (colonne « ignorés »), jamais modifiés.
-- Les temporaires d'un run interrompu (`*.stripping.tmp`, `*.stripped.<aléa>.<ext>`) ne
+- Les temporaires d'un run interrompu (`*.stripping.<aléa>.tmp`, `*.stripped.<aléa>.<ext>`) ne
   sont jamais traités comme médias ; avec `--apply`, ceux de plus d'une heure
   sont supprimés.
 
@@ -140,9 +164,12 @@ fuite côté serveur mais il faut en avoir conscience.
 
 ## Comportement en cas d'échec
 
-Chaque fichier est écrit dans un fichier temporaire du même dossier, puis
-renommé atomiquement sur l'original, UNIQUEMENT après un nettoyage / remux
-réussi. En cas d'échec (image corrompue, ffmpeg en erreur, disque plein) :
+Chaque fichier est écrit dans un fichier temporaire du même dossier (nom unique),
+puis renommé atomiquement sur l'original, UNIQUEMENT après un nettoyage / remux
+réussi ET si l'original est toujours le même fichier (empreinte inode / taille /
+mtime relue juste avant le rename, pour les images comme pour les vidéos) : une
+photo supprimée ou remplacée pendant le nettoyage n'est jamais ressuscitée, le
+temporaire est jeté. En cas d'échec (image corrompue, ffmpeg en erreur, disque plein) :
 l'original n'est pas touché, le temporaire est supprimé, un warning est loggé,
 l'échec est compté et la commande continue. Les échecs persistants se
 repèrent dans le récapitulatif et les logs ; un fichier corrompu doit être
@@ -157,8 +184,8 @@ transaction de base de données, jamais sous un verrou.
 
 Aucun retour arrière automatique n'est nécessaire dans le sens où un original
 n'est remplacé qu'après un nettoyage réussi. Le nettoyage des images est sans
-perte (aucun ré-encodage des pixels) ; celui des vidéos est une copie de flux (sauf
-l'audio, ré-encodé en AAC dans le seul cas du repli décrit plus haut). En
+perte (aucun ré-encodage des pixels) ; celui des vidéos est une copie de flux (aucun
+ré-encodage, y compris dans le repli, qui écarte seulement des flux audio non copiables). En
 revanche **le remplacement est définitif** : une fois nettoyé, le fichier
 d'origine (avec son EXIF/GPS, et pour les vidéos ses pistes de données et
 sous-titres) n'existe plus. La seule voie de retour est la sauvegarde de

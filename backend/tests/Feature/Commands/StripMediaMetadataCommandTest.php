@@ -237,7 +237,13 @@ class StripMediaMetadataCommandTest extends TestCase
     public function test_trailing_data_after_eoi_is_picked_up_by_the_retro_command(): void
     {
         $path = Storage::disk('public')->path('avatars/faces/motion.jpg');
-        Storage::disk('public')->put('avatars/faces/motion.jpg', $this->plainJpeg(8, 8)."\0\0\0\x18ftypmp42 SECRET");
+        // Base PROPRE (le JPEG GD porte un COM « gd-jpeg », sale d'office) : les octets
+        // après l'EOI sont alors l'unique raison pour laquelle le fichier est « sale ».
+        $base = tempnam(sys_get_temp_dir(), 'base');
+        file_put_contents($base, $this->plainJpeg(8, 8));
+        ImageMetadataStripper::strip($base, $base.'.clean');
+        $this->assertFalse(ImageMetadataStripper::isDirty($base.'.clean'));
+        Storage::disk('public')->put('avatars/faces/motion.jpg', file_get_contents($base.'.clean')."\0\0\0\x18ftypmp42 SECRET");
 
         $this->artisan('media:strip-metadata', ['--apply' => true])->expectsOutputToContain('1 nettoyé(s)')->assertExitCode(0);
 

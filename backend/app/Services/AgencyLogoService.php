@@ -60,7 +60,20 @@ class AgencyLogoService
         $deleted = false;
         $disk = Storage::disk('public');
 
+        // Le modèle a pu être chargé avant que le job de vignette ne réclame sa colonne
+        // (suppression de compte, ré-upload) : on relit pour ne pas orpheliner la vignette.
+        if ($producer->exists) {
+            $producer->refresh();
+        }
+
         if ($producer->agency_logo) {
+            // Nom dérivé de la vignette (même uuid, .jpg) : supprimé même si la colonne est encore null.
+            $derived = self::THUMBNAIL_PATH.'/'.pathinfo((string) $producer->agency_logo, PATHINFO_FILENAME).'.jpg';
+            if ($disk->exists($derived)) {
+                $disk->delete($derived);
+                $deleted = true;
+            }
+
             $logoPath = self::STORAGE_PATH.'/'.$producer->agency_logo;
             if ($disk->exists($logoPath)) {
                 $disk->delete($logoPath);

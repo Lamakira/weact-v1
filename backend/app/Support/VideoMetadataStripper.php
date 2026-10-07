@@ -19,15 +19,23 @@ use Illuminate\Support\Facades\Process;
  * - `-map_metadata -1` (nu) efface les métadonnées GLOBALES, de FLUX et de
  *   CHAPITRES. La rotation n'est pas une métadonnée : c'est une side data
  *   « display matrix » du flux vidéo, conservée par `-c copy` (ffmpeg 6.1).
- * - Repli : si le `-c copy` échoue (codec audio inconnu, ex. audio spatial `apac`
- *   de l'iPhone 16), on retente UNE fois avec `-c:v copy -c:a aac -b:a 160k`
- *   (audio ré-encodé, vidéo intacte). Si cela échoue aussi, l'original est conservé.
+ * - Repli : si le `-c copy` échoue (codec audio inconnu, ex. audio spatial `apac` de
+ *   l'iPhone 16, que ffmpeg 6.1 ne sait pas copier), on sonde les flux avec ffprobe
+ *   puis on retente UNE fois, toujours en `-c copy`, en ne mappant que le(s) flux
+ *   vidéo et les flux audio dont le codec est dans l'allowlist (aac, mp3, opus,
+ *   vorbis, flac, alac, ac3, eac3, pcm_*) ; les autres flux audio sont écartés. Aucun
+ *   ré-encodage (un décodeur serait de toute façon nécessaire). S'il n'existe AUCUN
+ *   flux audio allowlisté, on ne supprime jamais tout l'audio en silence : l'original
+ *   est conservé, l'échec est loggé (et listé par la commande de rétrofit).
  */
 final class VideoMetadataStripper
 {
     public const FORMATS = ['mp4', 'mov', 'avi'];
 
     private const TIMEOUT_SECONDS = 120;
+
+    /** Codecs audio qu'un `-c copy` sait recopier sans décodeur ni risque. */
+    private const AUDIO_ALLOWLIST = ['aac', 'mp3', 'opus', 'vorbis', 'flac', 'alac', 'ac3', 'eac3', 'pcm_s16le', 'pcm_s24le', 'pcm_f32le'];
 
     /** Atomes de tête ignorés lors de la détection du conteneur ISO-BMFF. */
     private const SKIPPABLE_ATOMS = ['wide', 'free', 'skip', 'junk', 'pnot'];
@@ -99,19 +107,25 @@ final class VideoMetadataStripper
     }
 
     /**
-     * @param  bool  $reencodeAudio  Repli : audio ré-encodé en AAC, vidéo toujours copiée
+     * @param  list<int>|null  $audioIndexes  Repli : indices des seuls flux audio à mapper (null = `0:a?`)
      * @return list<string>
      */
-    public static function command(string $input, string $output, string $format = 'mp4', bool $reencodeAudio = false): array
+    public static function command(string $input, string $output, string $format = 'mp4', ?array $audioIndexes = null): array
     {
+        $audioMaps = [];
+        foreach ($audioIndexes ?? [] as $index) {
+            array_push($audioMaps, '-map', '0:'.$index);
+        }
+
         return [
             (string) config('ffmpeg.ffmpeg_binary', '/usr/bin/ffmpeg'),
             '-y', '-v', 'error',
             '-i', $input,
-            '-map', '0:v', '-map', '0:a?',
+            '-map', '0:v',
+            ...($audioIndexes === null ? ['-map', '0:a?'] : $audioMaps),
             '-map_metadata', '-1',
             '-map_chapters', '-1',
-            ...($reencodeAudio ? ['-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k'] : ['-c', 'copy']),
+            '-c', 'copy',
             '-f', $format,
             $output,
         ];
@@ -145,7 +159,7 @@ final class VideoMetadataStripper
             throw new \RuntimeException('Video metadata stripping failed: unrecognised container.');
         }
 
-        $before = self::fingerprint($path);
+        $before = FileFingerprint::of($path);
         if ($before === null) {
             throw new \RuntimeException('Video metadata stripping failed: original not found.');
         }
@@ -158,8 +172,14 @@ final class VideoMetadataStripper
 
             if (! $result->successful()) {
                 @unlink($temp);
-                // Repli : codec audio inconnu avec -c copy → audio ré-encodé, vidéo intacte.
-                $result = Process::timeout(self::TIMEOUT_SECONDS)->run(self::command($path, $temp, $format, true));
+
+                // Repli : même copie de flux, mais seulement vidéo + audio allowlisté.
+                $audio = self::allowlistedAudioIndexes($path);
+                if ($audio === []) {
+                    throw new \RuntimeException('Video metadata stripping failed (no copyable audio stream, original kept): '.trim($result->errorOutput()));
+                }
+
+                $result = Process::timeout(self::TIMEOUT_SECONDS)->run(self::command($path, $temp, $format, $audio));
             }
 
             if (! $result->successful()) {
@@ -167,7 +187,7 @@ final class VideoMetadataStripper
             }
 
             // L'original a pu être supprimé / remplacé pendant le remux : ne rien ressusciter.
-            if (self::fingerprint($path) !== $before) {
+            if (FileFingerprint::of($path) !== $before) {
                 throw new \RuntimeException('Video metadata stripping aborted: original changed or removed meanwhile.');
             }
 
@@ -187,13 +207,38 @@ final class VideoMetadataStripper
     }
 
     /**
-     * @return array{int, int, int}|null inode, taille, mtime
+     * Indices des flux audio dont le codec est dans l'allowlist (vide si ffprobe échoue
+     * ou s'il n'y en a aucun).
+     *
+     * @return list<int>
      */
-    private static function fingerprint(string $path): ?array
+    private static function allowlistedAudioIndexes(string $path): array
     {
-        clearstatcache(true, $path);
-        $stat = @stat($path);
+        $probe = Process::timeout(60)->run([
+            (string) config('ffmpeg.ffprobe_binary', '/usr/bin/ffprobe'),
+            '-v', 'error',
+            '-show_entries', 'stream=index,codec_type,codec_name',
+            '-of', 'json',
+            $path,
+        ]);
 
-        return $stat === false ? null : [$stat['ino'], $stat['size'], $stat['mtime']];
+        if (! $probe->successful()) {
+            return [];
+        }
+
+        $data = json_decode($probe->output(), true);
+        $streams = is_array($data) && isset($data['streams']) && is_array($data['streams']) ? $data['streams'] : [];
+
+        $indexes = [];
+        foreach ($streams as $stream) {
+            if (is_array($stream)
+                && ($stream['codec_type'] ?? null) === 'audio'
+                && in_array(strtolower((string) ($stream['codec_name'] ?? '')), self::AUDIO_ALLOWLIST, true)
+                && isset($stream['index'])) {
+                $indexes[] = (int) $stream['index'];
+            }
+        }
+
+        return $indexes;
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Models\Producer;
+use App\Support\UploadedMedia;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -58,7 +59,20 @@ class GenerateAgencyLogoThumbnail implements ShouldQueue
         $thumbnailPath = self::THUMBNAIL_PATH.'/'.$thumbnailFilename;
 
         try {
-            $image = Image::read((string) $disk->get(self::LOGO_PATH.'/'.$this->logo));
+            $bytes = (string) $disk->get(self::LOGO_PATH.'/'.$this->logo);
+
+            // Défense en profondeur : pas de décodage hors plafonds / illisible, ni exception ni retry.
+            $blocker = UploadedMedia::decodeBlocker($bytes);
+            if ($blocker !== null) {
+                Log::warning('GenerateAgencyLogoThumbnail: image non décodée ('.$blocker.')', [
+                    'producer_id' => $this->producerId,
+                    'logo' => $this->logo,
+                ]);
+
+                return;
+            }
+
+            $image = Image::read($bytes);
             $image->cover(self::THUMBNAIL_SIZE, self::THUMBNAIL_SIZE);
 
             if ($disk->put($thumbnailPath, $image->toJpeg(self::THUMBNAIL_QUALITY)->toString()) === false) {

@@ -255,42 +255,88 @@ class VideoMetadataStripperTest extends TestCase
         return $path;
     }
 
-    public function test_audio_codec_failure_falls_back_to_reencoding_audio_only_and_video_stays_copied(): void
+    /**
+     * Faux ffmpeg/ffprobe : le 1er ffmpeg échoue ; ffprobe renvoie les flux donnés ; le 2e ffmpeg réussit.
+     *
+     * @param  list<array{index: int, codec_type: string, codec_name: string}>  $streams
+     * @param  list<string>  $ffmpegCommands  alimenté avec les commandes ffmpeg reçues
+     */
+    private function fakeProbeFallback(array $streams, array &$ffmpegCommands, bool $secondSucceeds = true): \Closure
+    {
+        return function ($process) use ($streams, &$ffmpegCommands, $secondSucceeds) {
+            $cmd = $process->command;
+            if (str_contains((string) $cmd[0], 'ffprobe')) {
+                return Process::result(output: json_encode(['streams' => $streams]));
+            }
+            $ffmpegCommands[] = implode(' ', $cmd);
+            if (count($ffmpegCommands) === 1 || ! $secondSucceeds) {
+                return Process::result(errorOutput: 'Could not find tag for codec none', exitCode: 1);
+            }
+            file_put_contents((string) end($cmd), 'stripped-fallback');
+
+            return Process::result();
+        };
+    }
+
+    public function test_copy_failure_falls_back_to_mapping_only_allowlisted_audio_streams_without_reencoding(): void
     {
         $path = $this->path();
         file_put_contents($path, $this->ftyp('isom').'original');
-        $calls = [];
-        Process::fake(function ($process) use (&$calls) {
-            $calls[] = implode(' ', $process->command);
-            if (count($calls) === 1) {
-                return Process::result(errorOutput: 'Could not find tag for codec apac', exitCode: 1);
-            }
-            $cmd = $process->command;
-            file_put_contents((string) end($cmd), 'stripped-aac');
-
-            return Process::result();
-        });
+        $commands = [];
+        Process::fake($this->fakeProbeFallback([
+            ['index' => 0, 'codec_type' => 'video', 'codec_name' => 'hevc'],
+            ['index' => 1, 'codec_type' => 'audio', 'codec_name' => 'aac'],
+            ['index' => 2, 'codec_type' => 'audio', 'codec_name' => 'none'], // iPhone spatial audio (apac)
+            ['index' => 3, 'codec_type' => 'data', 'codec_name' => 'none'],
+        ], $commands));
 
         VideoMetadataStripper::strip($path);
 
-        $this->assertCount(2, $calls);
-        $this->assertStringContainsString('-c copy', $calls[0]);
-        $this->assertStringContainsString('-c:v copy -c:a aac -b:a 160k', $calls[1]);
-        $this->assertStringContainsString('-map_metadata -1', $calls[1]);
-        $this->assertSame('stripped-aac', file_get_contents($path));
+        $this->assertCount(2, $commands);
+        $this->assertStringContainsString('-map 0:v -map 0:a? ', $commands[0]);
+        $this->assertStringContainsString('-map 0:v -map 0:1 ', $commands[1]);
+        $this->assertStringNotContainsString('0:2', $commands[1], 'flux audio non allowlisté écarté');
+        $this->assertStringNotContainsString('0:3', $commands[1]);
+        $this->assertStringContainsString('-c copy', $commands[1]);
+        $this->assertStringNotContainsString('-c:a', $commands[1], 'aucun ré-encodage audio');
+        $this->assertStringContainsString('-map_metadata -1', $commands[1]);
+        $this->assertSame('stripped-fallback', file_get_contents($path));
         $this->assertSame([], glob($path.'.*'));
     }
 
-    public function test_when_the_fallback_also_fails_the_original_is_kept_and_a_warning_logged(): void
+    public function test_no_allowlisted_audio_keeps_the_original_and_logs_a_warning_instead_of_dropping_all_audio(): void
     {
         $path = $this->path();
         file_put_contents($path, $this->ftyp('isom').'original');
-        Process::fake(['*' => Process::result(errorOutput: 'boom', exitCode: 1)]);
+        $commands = [];
+        Process::fake($this->fakeProbeFallback([
+            ['index' => 0, 'codec_type' => 'video', 'codec_name' => 'hevc'],
+            ['index' => 1, 'codec_type' => 'audio', 'codec_name' => 'none'],
+        ], $commands));
         \Illuminate\Support\Facades\Log::spy();
 
         VideoMetadataStripper::stripOrLog($path);
 
-        Process::assertRanTimes(fn ($process): bool => true, 2); // 1er essai + repli audio
+        $this->assertCount(1, $commands, 'pas de second ffmpeg : on ne supprime jamais tout l\'audio en silence');
+        $this->assertStringContainsString('original', (string) file_get_contents($path));
+        $this->assertSame([], glob($path.'.*'));
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->once();
+    }
+
+    public function test_when_the_fallback_ffmpeg_also_fails_the_original_is_kept_and_a_warning_logged(): void
+    {
+        $path = $this->path();
+        file_put_contents($path, $this->ftyp('isom').'original');
+        $commands = [];
+        Process::fake($this->fakeProbeFallback([
+            ['index' => 0, 'codec_type' => 'video', 'codec_name' => 'h264'],
+            ['index' => 1, 'codec_type' => 'audio', 'codec_name' => 'aac'],
+        ], $commands, false));
+        \Illuminate\Support\Facades\Log::spy();
+
+        VideoMetadataStripper::stripOrLog($path);
+
+        $this->assertCount(2, $commands);
         $this->assertStringContainsString('original', (string) file_get_contents($path));
         $this->assertSame([], glob($path.'.*'));
         \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->once();

@@ -17,8 +17,8 @@ use Illuminate\Validation\ValidationException;
  * domaine de l'API.
  *
  * Les images sont nettoyées SANS PERTE au niveau des octets (ImageMetadataStripper :
- * allowlist de segments, octets après l'EOI supprimés, ICC conservé, Orientation
- * minimale conservée) :
+ * allowlist de segments/chunks, octets après l'EOI supprimés, ICC conservé,
+ * Orientation minimale conservée) :
  * aucun décodage dans la requête, mémoire constante. Le décodage reste dans le
  * job de génération des variantes (worker de queue).
  */
@@ -40,6 +40,13 @@ final class UploadedMedia
     public const MAX_IMAGE_DIMENSION = 12000;
 
     /**
+     * Plafond de pixels TOTAL : garde les 48/50 MP des téléphones (8160x6144 = 50,1 MP,
+     * 8064x6048) et refuse les modes 108/200 MP. GD (libgd système) alloue ses tampons
+     * en dehors de memory_limit : c'est ce plafond qui protège la RAM de l'hôte.
+     */
+    public const MAX_IMAGE_PIXELS = 52_000_000;
+
+    /**
      * @param  string  $field  Nom du champ de la requête (clé de l'erreur de validation)
      *
      * @throws ValidationException Type de vidéo non autorisé
@@ -53,6 +60,38 @@ final class UploadedMedia
         }
 
         return self::VIDEO_EXTENSIONS[strtolower($mime)];
+    }
+
+    /**
+     * Message d'erreur si ces dimensions dépassent les plafonds (côté ET total), sinon null.
+     */
+    public static function dimensionError(int $width, int $height): ?string
+    {
+        if ($width > self::MAX_IMAGE_DIMENSION || $height > self::MAX_IMAGE_DIMENSION) {
+            return 'Image trop grande : '.self::MAX_IMAGE_DIMENSION.' pixels maximum par côté.';
+        }
+
+        if ($width * $height > self::MAX_IMAGE_PIXELS) {
+            return 'Image trop grande : 50 mégapixels maximum. Réduisez la résolution de la photo et réessayez.';
+        }
+
+        return null;
+    }
+
+    /**
+     * Raison pour laquelle une image DÉJÀ stockée (contenu en mémoire) ne doit pas être
+     * décodée (hors plafonds ou illisible), sinon null. Défense en profondeur des jobs
+     * qui décodent : GD alloue ses tampons hors memory_limit.
+     */
+    public static function decodeBlocker(string $bytes): ?string
+    {
+        $dimensions = ImageMetadataStripper::dimensionsFromBytes($bytes);
+
+        if ($dimensions === null) {
+            return 'dimensions illisibles';
+        }
+
+        return self::dimensionError($dimensions[0], $dimensions[1]);
     }
 
     /**
@@ -91,9 +130,18 @@ final class UploadedMedia
 
         try {
             try {
-                ImageMetadataStripper::strip($source, $temp);
+                $report = ImageMetadataStripper::stripReport($source, $temp);
             } catch (\RuntimeException) {
                 throw self::invalid($field);
+            }
+
+            // On plafonne ce que le worker DÉCODERA (le fichier nettoyé), pas ce que
+            // getimagesize() croit voir dans l'original : fail closed si illisible.
+            $error = $report['width'] === null || $report['height'] === null
+                ? 'Image illisible ou corrompue.'
+                : self::dimensionError($report['width'], $report['height']);
+            if ($error !== null) {
+                throw ValidationException::withMessages([$field => [$error]]);
             }
 
             $stream = fopen($temp, 'rb');
