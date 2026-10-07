@@ -106,7 +106,13 @@ class AdminBookingDisputeController extends Controller
      */
     private function stalePaidItem(Booking $booking): array
     {
+        $isLegacy = $booking->date_fin !== null
+            && $booking->date_fin->lt(now()->subDays(BookingService::LEGACY_AFTER_DAYS));
+
         return [
+            // Échéance du paiement automatique (null : ancien booking, jamais payé auto, ou relance pas encore partie).
+            'auto_complete_due_at' => $isLegacy ? null : $booking->silentAutoCompleteDueAt()?->toIso8601String(),
+            'is_legacy' => $isLegacy,
             'id' => $booking->uuid,
             'face' => ['display_name' => (string) data_get($booking, 'face.userable.display_name', 'Face')],
             'producer' => ['display_name' => (string) data_get($booking, 'producer.userable.display_name', 'Producteur')],

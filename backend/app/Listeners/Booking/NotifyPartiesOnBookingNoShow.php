@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Listeners\Booking;
 
 use App\Events\BookingNoShowReported;
+use App\Models\Booking;
 use App\Models\Notification;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
@@ -17,7 +18,9 @@ class NotifyPartiesOnBookingNoShow
         $booking = $event->booking;
         $booking->loadMissing('face.userable', 'producer.userable');
 
-        $dueAt = $booking->settlement_due_at?->format('d/m/Y H:i');
+        $dueAt = $booking->settlement_due_at !== null
+            ? Booking::formatForBusiness($booking->settlement_due_at)
+            : null;
         $context = trim((string) $booking->type_contenu) !== ''
             ? trim((string) $booking->type_contenu)
             : "booking #{$booking->id}";

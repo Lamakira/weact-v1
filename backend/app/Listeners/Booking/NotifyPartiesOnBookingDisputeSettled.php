@@ -25,16 +25,20 @@ class NotifyPartiesOnBookingDisputeSettled
         // Seul le chemin favor_producer distingue absence / annulation (le statut NoShow est conservé).
         $isNoShow = $booking->status === BookingStatus::NoShow;
 
+        $penalty = $isNoShow ? ' Une pénalité a été appliquée à votre profil.' : '';
+        $contested = $booking->disputed_at !== null;
+
         if ($event->outcome === DisputeResolutionOutcome::FavorProducer) {
-            $producerMessage = $isNoShow
-                ? "Absence confirmée : {$amount} XOF ont été crédités dans votre portefeuille."
-                : "Annulation réglée : {$amount} XOF ont été crédités dans votre portefeuille.";
-            $faceMessage = $isNoShow
-                ? 'Le litige sur votre absence a été tranché en faveur du Producteur. Une pénalité a été appliquée à votre profil.'
-                : 'Le litige sur l\'annulation a été tranché en faveur du Producteur.';
+            // Deuxième personne pour le destinataire ; sans contestation, aucun administrateur n'est intervenu.
+            $producerMessage = $contested
+                ? "L'administrateur a tranché en votre faveur : {$amount} XOF ont été crédités dans votre portefeuille."
+                : "Aucune contestation de la Face : vous avez été remboursé de {$amount} XOF sur votre wallet.";
+            $faceMessage = $contested
+                ? "L'administrateur a tranché en faveur du Producteur.{$penalty}"
+                : "Délai de contestation écoulé : le Producteur a été remboursé.{$penalty}";
         } else {
-            $producerMessage = 'Le litige a été tranché en faveur de la Face : le paiement lui est versé.';
-            $faceMessage = "Le litige a été tranché en votre faveur : {$amount} XOF ont été ajoutés à votre portefeuille.";
+            $producerMessage = "L'administrateur a tranché en faveur de la Face : le paiement lui est versé.";
+            $faceMessage = "L'administrateur a tranché en votre faveur : {$amount} XOF ont été ajoutés à votre portefeuille.";
         }
 
         $this->notify($booking->producer_id, $producerMessage, "/producer/bookings/{$booking->uuid}", $booking->id);

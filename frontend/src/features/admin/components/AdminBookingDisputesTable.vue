@@ -8,16 +8,16 @@ import type {
   BookingDisputeOutcome,
 } from '../services/adminBookingDisputesApi'
 
-defineProps<{
+const props = defineProps<{
   disputes: AdminBookingDispute[]
   stalePaid: AdminStalePaidBooking[]
   isLoading: boolean
   isSubmitting: boolean
   error: string | null
-}>()
-
-const emit = defineEmits<{
-  resolve: [id: string, outcome: BookingDisputeOutcome, notes: string]
+  // Erreur de la dernière résolution, affichée dans la modale (qui reste ouverte avec les notes)
+  resolveError?: string | null
+  // La modale reste ouverte jusqu'à la fin de la requête ; true = résolu, false = échec (notes conservées)
+  resolveHandler: (id: string, outcome: BookingDisputeOutcome, notes: string) => Promise<boolean>
 }>()
 
 const resolveTarget = ref<AdminBookingDispute | null>(null)
@@ -68,15 +68,30 @@ function closeResolveModal(): void {
   resolveFormError.value = null
 }
 
-function submitResolve(): void {
+async function submitResolve(): Promise<void> {
   const notes = resolveNotes.value.trim()
   if (notes.length < 5) {
     resolveFormError.value = 'Une note d\'au moins 5 caractères est requise.'
     return
   }
-  if (!resolveTarget.value || !resolveOutcome.value) return
-  emit('resolve', resolveTarget.value.id, resolveOutcome.value, notes)
-  closeResolveModal()
+  if (!resolveTarget.value || !resolveOutcome.value || props.isSubmitting) return
+
+  resolveFormError.value = null
+  const ok = await props.resolveHandler(resolveTarget.value.id, resolveOutcome.value, notes)
+  if (ok) {
+    closeResolveModal()
+  } else {
+    // Échec (ex. 422) : la modale reste ouverte, notes conservées.
+    resolveFormError.value = props.resolveError ?? 'Impossible de résoudre le litige.'
+  }
+}
+
+function autoPaymentLabel(booking: AdminStalePaidBooking): string {
+  if (booking.is_legacy) return 'Ancien booking : jamais payé automatiquement'
+  if (booking.auto_complete_due_at) {
+    return `Paiement automatique prévu le ${formatDate(booking.auto_complete_due_at, false)}`
+  }
+  return 'Relance pas encore envoyée'
 }
 </script>
 
@@ -99,13 +114,13 @@ function submitResolve(): void {
       </div>
 
       <div
-        v-else-if="disputes.length === 0"
+        v-else-if="disputes.length === 0 && !error"
         class="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-10 text-center text-sm text-gray-500"
       >
         Aucun litige en attente.
       </div>
 
-      <div v-else class="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+      <div v-else-if="disputes.length > 0" class="overflow-x-auto rounded-2xl border border-gray-100 bg-white shadow-sm">
         <table class="min-w-full divide-y divide-gray-100">
           <thead class="bg-gray-50">
             <tr class="text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -127,6 +142,13 @@ function submitResolve(): void {
                 <div v-if="dispute.cancellation_reason" class="text-xs text-gray-500">
                   Raison : {{ dispute.cancellation_reason }}
                 </div>
+                <RouterLink
+                  :to="{ name: 'admin-booking-detail', params: { id: dispute.id } }"
+                  class="text-xs font-medium text-[#198496] hover:underline"
+                  data-testid="dispute-booking-link"
+                >
+                  Voir la réservation
+                </RouterLink>
               </td>
               <td class="px-4 py-3 align-top text-gray-700">
                 <div>Producteur : {{ formatCurrency(dispute.montant_total_producteur) }}</div>
@@ -175,13 +197,21 @@ function submitResolve(): void {
       </div>
 
       <div
-        v-if="stalePaid.length === 0"
+        v-if="isLoading && stalePaid.length === 0"
+        class="flex items-center justify-center py-8 text-gray-400"
+        data-testid="stale-paid-loading"
+      >
+        <Loader2 class="h-6 w-6 animate-spin" />
+      </div>
+
+      <div
+        v-else-if="stalePaid.length === 0 && !error"
         class="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-8 text-center text-sm text-gray-500"
       >
         Aucun booking payé sans suite.
       </div>
 
-      <div v-else class="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+      <div v-else-if="stalePaid.length > 0" class="overflow-x-auto rounded-2xl border border-gray-100 bg-white shadow-sm">
         <table class="min-w-full divide-y divide-gray-100">
           <thead class="bg-gray-50">
             <tr class="text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
@@ -189,6 +219,7 @@ function submitResolve(): void {
               <th class="px-4 py-3">Fin du tournage</th>
               <th class="px-4 py-3">Montant payé</th>
               <th class="px-4 py-3">Ancienneté</th>
+              <th class="px-4 py-3">Paiement automatique</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 text-sm" data-testid="stale-paid-rows">
@@ -196,12 +227,22 @@ function submitResolve(): void {
               <td class="px-4 py-3 align-top">
                 <div class="font-medium text-gray-900">{{ booking.producer.display_name }}</div>
                 <div class="text-xs text-gray-500">Face : {{ booking.face.display_name }}</div>
+                <RouterLink
+                  :to="{ name: 'admin-booking-detail', params: { id: booking.id } }"
+                  class="text-xs font-medium text-[#198496] hover:underline"
+                  data-testid="stale-booking-link"
+                >
+                  Voir la réservation
+                </RouterLink>
               </td>
               <td class="px-4 py-3 align-top text-gray-700">{{ formatDate(booking.date_fin, false) }}</td>
               <td class="px-4 py-3 align-top font-semibold text-gray-900">
                 {{ formatCurrency(booking.montant_total_producteur) }}
               </td>
               <td class="px-4 py-3 align-top text-gray-700">{{ booking.days_since_date_fin }} jours</td>
+              <td class="px-4 py-3 align-top text-gray-700" data-testid="stale-auto-payment">
+                {{ autoPaymentLabel(booking) }}
+              </td>
             </tr>
           </tbody>
         </table>

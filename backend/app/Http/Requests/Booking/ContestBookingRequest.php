@@ -4,13 +4,20 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Booking;
 
+use App\Models\Booking;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ContestBookingRequest extends FormRequest
 {
+    /**
+     * L'autorisation précède la validation : un tiers avec un mauvais payload reçoit 403, pas 422.
+     */
     public function authorize(): bool
     {
-        return true;
+        $booking = $this->route('booking');
+
+        return $booking instanceof Booking
+            && ($this->user()?->can('contest', $booking) ?? false);
     }
 
     protected function prepareForValidation(): void

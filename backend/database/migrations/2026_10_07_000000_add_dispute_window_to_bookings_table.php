@@ -24,6 +24,7 @@ return new class extends Migration
             $table->foreignId('dispute_resolved_by')->nullable()->constrained('admins')->nullOnDelete();
             $table->text('dispute_admin_notes')->nullable();
             $table->timestamp('completion_reminder_sent_at')->nullable();
+            $table->timestamp('face_confirmed_at')->nullable();
         });
     }
 
@@ -41,6 +42,7 @@ return new class extends Migration
                 'dispute_resolved_by',
                 'dispute_admin_notes',
                 'completion_reminder_sent_at',
+                'face_confirmed_at',
             ]);
         });
     }

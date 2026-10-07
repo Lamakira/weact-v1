@@ -208,13 +208,13 @@ class BookingDisputeWindowTest extends TestCase
             ->where('user_id', $this->faceUser->id)
             ->where('type', 'booking_no_show')
             ->firstOrFail();
-        $this->assertStringContainsString('Vous pouvez contester jusqu\'au 13/10/2026 12:00', $faceNotif->data['message']);
+        $this->assertStringContainsString('Vous pouvez contester jusqu\'au 13/10/2026 13:00', $faceNotif->data['message']);
 
         $producerNotif = Notification::query()
             ->where('user_id', $this->producerUser->id)
             ->where('type', 'booking_no_show')
             ->firstOrFail();
-        $this->assertStringContainsString('13/10/2026 12:00', $producerNotif->data['message']);
+        $this->assertStringContainsString('13/10/2026 13:00', $producerNotif->data['message']);
     }
 
     public function test_no_wallet_credited_email_is_sent_at_report_time(): void
@@ -279,7 +279,7 @@ class BookingDisputeWindowTest extends TestCase
             ->where('user_id', $this->faceUser->id)
             ->where('type', 'booking_cancelled')
             ->firstOrFail();
-        $this->assertStringContainsString('contester jusqu\'au 13/10/2026 12:00', $notif->data['message']);
+        $this->assertStringContainsString('contester jusqu\'au 13/10/2026 13:00', $notif->data['message']);
         Mail::assertNotQueued(WalletCreditedMail::class);
     }
 

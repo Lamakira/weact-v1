@@ -190,7 +190,7 @@ class BookingNotificationTest extends TestCase
 
         $this->assertNotNull($notification);
         $this->assertStringContainsString('Face a confirmé', $notification->data['message']);
-        $this->assertStringContainsString('votre tour', $notification->data['message']);
+        $this->assertStringContainsString('signalez son absence avant le', $notification->data['message']);
         $this->assertEquals("/producer/bookings/{$this->booking->uuid}", $notification->data['url']);
     }
 

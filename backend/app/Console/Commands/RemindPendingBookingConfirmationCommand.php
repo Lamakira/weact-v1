@@ -62,6 +62,8 @@ class RemindPendingBookingConfirmationCommand extends Command
                     continue;
                 }
 
+                // L'échéance affichée dépend de l'heure réelle de la relance (rappel + 6 jours minimum).
+                $booking->completion_reminder_sent_at = now();
                 $this->notifyParties($booking);
                 $sent++;
                 $this->info("Reminder sent for booking #{$booking->id}");
@@ -84,10 +86,8 @@ class RemindPendingBookingConfirmationCommand extends Command
     {
         $booking->loadMissing('face.userable', 'producer.userable');
 
-        $autoDate = $booking->date_fin->copy()
-            ->startOfDay()
-            ->addDays(BookingService::SILENT_AUTO_COMPLETE_AFTER_DAYS)
-            ->format('d/m/Y');
+        $dueAt = $booking->silentAutoCompleteDueAt();
+        $autoDate = $dueAt !== null ? Booking::formatForBusiness($dueAt, 'd/m/Y') : '';
 
         try {
             Notification::create([

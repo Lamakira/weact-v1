@@ -31,6 +31,8 @@ export interface WalletTransactionsMeta {
 export interface WalletData {
   balance: number
   pending_escrow: number
+  /** Fonds retenus par une fenêtre de contestation (absence / annulation tardive) — Face uniquement */
+  held_in_dispute?: number
   withdrawal_mode: 'manual' | 'fedapay'
   withdrawal_requests: WalletWithdrawalRequest[]
   /** Flat array of transactions (no nested `data` key) */

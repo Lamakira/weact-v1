@@ -24,7 +24,7 @@ onMounted(() => {
   fetchDisputes()
 })
 
-async function handleResolve(id: string, outcome: BookingDisputeOutcome, notes: string): Promise<void> {
+async function handleResolve(id: string, outcome: BookingDisputeOutcome, notes: string): Promise<boolean> {
   const success = await resolveDispute(id, outcome, notes)
   if (success) {
     toast.success(resolveSuccess.value ?? 'Litige résolu avec succès')
@@ -34,6 +34,7 @@ async function handleResolve(id: string, outcome: BookingDisputeOutcome, notes: 
   } else {
     toast.error(resolveError.value ?? 'Erreur lors de la résolution.')
   }
+  return success
 }
 
 function handleRefresh(): void {
@@ -70,7 +71,8 @@ function handleRefresh(): void {
       :is-loading="isLoading"
       :is-submitting="isResolving"
       :error="error"
-      @resolve="handleResolve"
+      :resolve-error="resolveError"
+      :resolve-handler="handleResolve"
     />
   </div>
 </template>

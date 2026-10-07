@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
+import { mount, flushPromises, RouterLinkStub, type VueWrapper } from '@vue/test-utils'
 import { ref } from 'vue'
 import type {
   AdminBookingDispute,
@@ -68,8 +68,26 @@ function makeStale(overrides: Partial<AdminStalePaidBooking> = {}): AdminStalePa
     montant_total_producteur: 55000,
     montant_face_recoit: 45000,
     days_since_date_fin: 192,
+    auto_complete_due_at: null,
+    is_legacy: true,
     ...overrides,
   }
+}
+
+function mountPage(options: { attachTo?: HTMLElement } = {}) {
+  return mount(AdminBookingDisputesPage, {
+    ...options,
+    global: { stubs: { RouterLink: RouterLinkStub } },
+  })
+}
+
+async function fillNotesAndConfirm(notes: string): Promise<void> {
+  const textarea = document.body.querySelector<HTMLTextAreaElement>('#booking-dispute-resolve-notes')!
+  textarea.value = notes
+  textarea.dispatchEvent(new Event('input', { bubbles: true }))
+  await flushPromises()
+  document.body.querySelector<HTMLButtonElement>('[data-testid="booking-resolve-confirm"]')!.click()
+  await flushPromises()
 }
 
 describe('AdminBookingDisputesPage', () => {
@@ -91,14 +109,14 @@ describe('AdminBookingDisputesPage', () => {
   })
 
   it('fetches the disputes on mount', async () => {
-    wrappers.push(mount(AdminBookingDisputesPage))
+    wrappers.push(mountPage())
     await flushPromises()
 
     expect(mockFetchDisputes).toHaveBeenCalledTimes(1)
   })
 
   it('shows both empty states', async () => {
-    const wrapper = mount(AdminBookingDisputesPage)
+    const wrapper = mountPage()
     wrappers.push(wrapper)
     await flushPromises()
 
@@ -109,7 +127,7 @@ describe('AdminBookingDisputesPage', () => {
   it('renders the disputes list and the read-only stale paid section', async () => {
     disputesRef.value = [makeDispute()]
     stalePaidRef.value = [makeStale()]
-    const wrapper = mount(AdminBookingDisputesPage)
+    const wrapper = mountPage()
     wrappers.push(wrapper)
     await flushPromises()
 
@@ -132,7 +150,7 @@ describe('AdminBookingDisputesPage', () => {
     mockResolveDispute.mockResolvedValue(true)
     resolveSuccessRef.value = 'Litige résolu avec succès'
 
-    const wrapper = mount(AdminBookingDisputesPage, { attachTo: document.body })
+    const wrapper = mountPage({ attachTo: document.body })
     wrappers.push(wrapper)
     await flushPromises()
 
@@ -154,7 +172,7 @@ describe('AdminBookingDisputesPage', () => {
     disputesRef.value = [makeDispute({ id: 'booking-uuid-8', status: 'cancelled_by_producer' })]
     mockResolveDispute.mockResolvedValue(true)
 
-    const wrapper = mount(AdminBookingDisputesPage, { attachTo: document.body })
+    const wrapper = mountPage({ attachTo: document.body })
     wrappers.push(wrapper)
     await flushPromises()
 
@@ -176,12 +194,76 @@ describe('AdminBookingDisputesPage', () => {
     expect(mockResolveDispute).toHaveBeenCalledWith('booking-uuid-8', 'favor_face', 'Annulation trop tardive')
   })
 
+  it('does not claim there is nothing to review when the load failed', async () => {
+    errorRef.value = 'Impossible de charger les litiges.'
+    const wrapper = mountPage()
+    wrappers.push(wrapper)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Impossible de charger les litiges.')
+    expect(wrapper.text()).not.toContain('Aucun litige en attente.')
+    expect(wrapper.text()).not.toContain('Aucun booking payé sans suite.')
+  })
+
+  it('shows a loading state in the stale paid section', async () => {
+    isLoadingRef.value = true
+    const wrapper = mountPage()
+    wrappers.push(wrapper)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="stale-paid-loading"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('Aucun booking payé sans suite.')
+  })
+
+  it('tells which stale rows will be paid automatically and links to the booking', async () => {
+    stalePaidRef.value = [
+      makeStale({ id: 'legacy-uuid', is_legacy: true, auto_complete_due_at: null }),
+      makeStale({ id: 'auto-uuid', is_legacy: false, auto_complete_due_at: '2026-10-16T08:00:00.000Z' }),
+    ]
+    disputesRef.value = [makeDispute({ id: 'dispute-uuid' })]
+    const wrapper = mountPage()
+    wrappers.push(wrapper)
+    await flushPromises()
+
+    const cells = wrapper.findAll('[data-testid="stale-auto-payment"]')
+    expect(cells[0].text()).toBe('Ancien booking : jamais payé automatiquement')
+    expect(cells[1].text()).toContain('Paiement automatique prévu le')
+
+    const links = wrapper.findAllComponents(RouterLinkStub)
+    const targets = links.map((link) => link.props('to'))
+    expect(targets).toContainEqual({ name: 'admin-booking-detail', params: { id: 'legacy-uuid' } })
+    expect(targets).toContainEqual({ name: 'admin-booking-detail', params: { id: 'dispute-uuid' } })
+  })
+
+  it('keeps the modal open with the notes when the resolution fails, and closes it on success', async () => {
+    disputesRef.value = [makeDispute({ id: 'booking-uuid-9' })]
+    mockResolveDispute.mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    resolveErrorRef.value = 'Le litige a déjà été tranché.'
+
+    const wrapper = mountPage({ attachTo: document.body })
+    wrappers.push(wrapper)
+    await flushPromises()
+
+    await wrapper.find('[data-testid="resolve-favor-face"]').trigger('click')
+    await fillNotesAndConfirm('Notes de décision')
+
+    expect(document.body.querySelector('[data-testid="booking-resolve-modal"]')).not.toBeNull()
+    expect(document.body.querySelector<HTMLTextAreaElement>('#booking-dispute-resolve-notes')!.value).toBe('Notes de décision')
+    expect(document.body.textContent).toContain('Le litige a déjà été tranché.')
+
+    resolveErrorRef.value = null
+    document.body.querySelector<HTMLButtonElement>('[data-testid="booking-resolve-confirm"]')!.click()
+    await flushPromises()
+
+    expect(document.body.querySelector('[data-testid="booking-resolve-modal"]')).toBeNull()
+  })
+
   it('shows an error toast when the resolution fails', async () => {
     disputesRef.value = [makeDispute()]
     mockResolveDispute.mockResolvedValue(false)
     resolveErrorRef.value = 'Impossible de résoudre le litige.'
 
-    const wrapper = mount(AdminBookingDisputesPage, { attachTo: document.body })
+    const wrapper = mountPage({ attachTo: document.body })
     wrappers.push(wrapper)
     await flushPromises()
 

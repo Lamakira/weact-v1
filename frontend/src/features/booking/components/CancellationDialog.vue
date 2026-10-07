@@ -129,7 +129,7 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
             <p class="mb-2 text-sm font-medium text-amber-900">Conséquences financières</p>
             <p class="text-sm text-amber-800">
               Le tournage est arrivé : le remboursement n'est pas immédiat. Les fonds restent en séquestre pendant 72 h et la Face peut contester.
-              Sans contestation, {{ formatCurrency(refundAmount) }} vous sont remboursés ({{ formatCurrency(retainedAmount) }} retenus par WEACT) ; en cas de contestation, un administrateur tranche.
+              Sans contestation, {{ formatCurrency(refundAmount) }} vous sont remboursés ({{ formatCurrency(retainedAmount) }} retenus par WEACT) ; en cas de contestation, un administrateur tranche — s'il tranche en faveur de la Face, vous ne serez pas remboursé.
             </p>
           </div>
 

@@ -18,12 +18,13 @@ class WalletResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        /** @var array{balance: int, pending_escrow: int, transactions: LengthAwarePaginator, withdrawal_requests: Collection<int, \App\Models\WithdrawalRequest>} $data */
+        /** @var array{balance: int, pending_escrow: int, held_in_dispute: int, transactions: LengthAwarePaginator, withdrawal_requests: Collection<int, \App\Models\WithdrawalRequest>} $data */
         $data = $this->resource;
 
         return [
             'balance' => $data['balance'],
             'pending_escrow' => $data['pending_escrow'],
+            'held_in_dispute' => $data['held_in_dispute'],
             'withdrawal_mode' => config('app.withdrawal_mode', 'manual'),
             'withdrawal_requests' => WithdrawalRequestResource::collection($data['withdrawal_requests']),
             'transactions' => WalletTransactionResource::collection($data['transactions']),

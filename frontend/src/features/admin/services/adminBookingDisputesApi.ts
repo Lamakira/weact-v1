@@ -31,6 +31,10 @@ export interface AdminStalePaidBooking {
   montant_total_producteur: number
   montant_face_recoit: number
   days_since_date_fin: number
+  // Échéance du paiement automatique (null : ancien booking ou relance pas encore partie)
+  auto_complete_due_at: string | null
+  // Fin du tournage de plus de 30 jours : jamais payé automatiquement
+  is_legacy: boolean
 }
 
 export interface AdminBookingDisputesPayload {

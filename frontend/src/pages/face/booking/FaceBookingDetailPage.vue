@@ -80,6 +80,7 @@ const {
   isContesting,
   error: actionError,
   errorCode: actionErrorCode,
+  errorStatus: actionErrorStatus,
   accept,
   refuse,
   confirm,
@@ -282,6 +283,14 @@ const settlementDueLabel = computed(() => {
   return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(due))
 })
 
+// Délai écoulé, non contesté : le règlement automatique part au prochain passage du job horaire.
+const isWindowOver = computed(
+  () =>
+    isPendingSettlement.value
+    && !booking.value?.disputed_at
+    && new Date(booking.value?.settlement_due_at ?? 0).getTime() <= nowTimestamp.value,
+)
+
 const canContest = computed(
   () =>
     isFace.value
@@ -291,10 +300,24 @@ const canContest = computed(
 )
 
 const disputeOutcomeLabel = computed<string | null>(() => {
-  if (!booking.value?.dispute_resolved_at || !booking.value.dispute_outcome) return null
-  return booking.value.dispute_outcome === 'favor_face'
-    ? 'Litige tranché en faveur de la Face : le paiement lui est versé.'
-    : 'Litige tranché en faveur du Producteur : il a été remboursé.'
+  const current = booking.value
+  if (!current?.dispute_resolved_at || !current.dispute_outcome) return null
+
+  const contested = !!current.disputed_at
+  // Deuxième personne pour le lecteur ; sans contestation, aucun administrateur n'est intervenu.
+  if (current.dispute_outcome === 'favor_face') {
+    return isFace.value
+      ? 'L\'administrateur a tranché en votre faveur : le paiement vous est versé.'
+      : 'L\'administrateur a tranché en faveur de la Face : le paiement lui est versé.'
+  }
+  if (isFace.value) {
+    return contested
+      ? 'L\'administrateur a tranché en faveur du Producteur.'
+      : 'Délai de contestation écoulé : le Producteur a été remboursé.'
+  }
+  return contested
+    ? 'L\'administrateur a tranché en votre faveur : vous avez été remboursé.'
+    : 'Aucune contestation : vous avez été remboursé.'
 })
 
 const canSubmitContest = computed(() => {
@@ -499,8 +522,16 @@ async function handleContest(): Promise<void> {
     showContestDialog.value = false
     contestMessage.value = ''
     toast.success('Contestation envoyée. Un administrateur va trancher.')
-  } else {
-    toast.error(actionError.value || 'Erreur lors de la contestation')
+    return
+  }
+
+  toast.error(actionError.value || 'Erreur lors de la contestation')
+
+  // 403/422 : la fenêtre s'est refermée ou le booking a changé — on recharge l'état réel.
+  if (actionErrorStatus.value === 403 || actionErrorStatus.value === 422) {
+    showContestDialog.value = false
+    contestMessage.value = ''
+    if (bookingId.value) await fetchBooking(bookingId.value)
   }
 }
 
@@ -945,8 +976,14 @@ onUnmounted(() => {
             <p v-if="isDisputed" data-testid="settlement-disputed">
               Contestation en cours : un administrateur va trancher.
             </p>
+            <p v-else-if="isWindowOver" data-testid="settlement-over">
+              Délai terminé : règlement en cours.
+            </p>
             <template v-else-if="isFace">
-              <p data-testid="settlement-face">Vous pouvez contester jusqu'au {{ settlementDueLabel }}.</p>
+              <p data-testid="settlement-face">
+                Vous pouvez contester jusqu'au {{ settlementDueLabel }}.
+                Sans contestation de votre part, le Producteur sera remboursé le {{ settlementDueLabel }}.
+              </p>
               <button
                 v-if="canContest"
                 class="mt-3 inline-flex items-center justify-center gap-2 rounded-lg border border-amber-400 bg-white px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100 transition-colors"

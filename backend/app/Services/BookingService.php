@@ -1085,7 +1085,9 @@ class BookingService
                 ? BookingStatus::ConfirmedByFace
                 : BookingStatus::ConfirmedByProducer;
 
-            $booking->update(['status' => $newStatus]);
+            $booking->update($isFace
+                ? ['status' => $newStatus, 'face_confirmed_at' => now()]
+                : ['status' => $newStatus]);
 
             BookingPartiallyConfirmed::dispatch($booking->fresh(), $confirmer);
 
@@ -1117,6 +1119,16 @@ class BookingService
                 return;
             }
 
+            // Confirmée par la Face seule : le Producteur garde son délai pour signaler une absence
+            // (jamais payée avant date_fin + 72 h, confirmation + 72 h, ni l'échéance du rappel).
+            if ($booking->status === BookingStatus::ConfirmedByFace) {
+                $dueAt = $booking->faceConfirmedAutoCompleteDueAt();
+
+                if ($dueAt === null || now()->lt($dueAt)) {
+                    return;
+                }
+            }
+
             $this->completeBooking($booking);
         });
     }
@@ -1129,15 +1141,16 @@ class BookingService
      */
     private function isEligibleForSilentAutoComplete(Booking $booking): bool
     {
+        $dueAt = $booking->silentAutoCompleteDueAt();
+
         if ($booking->type_contenu === 'UGC'
-            || $booking->completion_reminder_sent_at === null
-            || $booking->settlement_due_at !== null
-            || $booking->date_fin === null) {
+            || $dueAt === null
+            || $booking->settlement_due_at !== null) {
             return false;
         }
 
         return $booking->date_fin->gte(now()->subDays(self::LEGACY_AFTER_DAYS))
-            && now()->gte($booking->date_fin->copy()->startOfDay()->addDays(self::SILENT_AUTO_COMPLETE_AFTER_DAYS));
+            && now()->gte($dueAt);
     }
 
     private function isShootDayReached(Booking $booking): bool

@@ -39,6 +39,9 @@ class BackfillCancelledBookingWalletRefundsCommand extends Command
                 BookingStatus::CancelledByFace,
             ])
             ->whereNotNull('fedapay_transaction_id')
+            // Annulations tardives (fenêtre de contestation 72 h) : réglées par bookings:settle-disputes
+            // ou par un admin — le rattrapage ne doit jamais court-circuiter ce circuit.
+            ->whereNull('settlement_due_at')
             ->orderBy('id');
 
         if ($bookingId !== null) {
@@ -95,6 +98,15 @@ class BackfillCancelledBookingWalletRefundsCommand extends Command
                         ];
                     }
 
+                    /** @var \App\Models\EscrowTransaction $escrow */
+                    // Escrow déjà versé à la Face (litige tranché en sa faveur, etc.) : jamais remboursé en plus.
+                    if ($escrow->status === EscrowStatus::Released->value) {
+                        return [
+                            'action' => 'released',
+                            'booking_id' => $lockedBooking->id,
+                        ];
+                    }
+
                     if ($dryRun) {
                         return [
                             'action' => 'dry-run',
@@ -114,7 +126,7 @@ class BackfillCancelledBookingWalletRefundsCommand extends Command
                         userId: $lockedBooking->producer_id,
                         amount: $missingAmount,
                         booking: $lockedBooking,
-                        description: "Booking : rattrapage remboursement annulation",
+                        description: 'Booking : rattrapage remboursement annulation',
                     );
 
                     $hasCompletedRefundEvent = FinancialEvent::query()
@@ -155,8 +167,13 @@ class BackfillCancelledBookingWalletRefundsCommand extends Command
                     'credited' => $this->info("Booking #{$result['booking_id']} backfilled: +{$result['credited_amount']} XOF"),
                     'dry-run' => $this->line("DRY RUN booking #{$result['booking_id']}: missing {$result['missing_amount']} XOF"),
                     'warning' => $this->warn("Booking #{$result['booking_id']} skipped: missing escrow"),
+                    'released' => $this->warn("Booking #{$result['booking_id']} skipped: escrow already released to the Face"),
                     default => $this->line("Booking #{$result['booking_id']} skipped: already credited"),
                 };
+
+                if ($result['action'] === 'released') {
+                    Log::warning('Cancelled booking wallet refund backfill skipped because escrow is already released', $result);
+                }
 
                 if ($result['action'] === 'credited') {
                     $credited++;

@@ -76,7 +76,19 @@ class BookingController extends Controller
         // Apply status filter group
         $statusFilter = $request->query('status');
         if ($statusFilter && isset(self::STATUS_FILTER_MAP[$statusFilter])) {
-            $query->whereIn('status', self::STATUS_FILTER_MAP[$statusFilter]);
+            $statuses = self::STATUS_FILTER_MAP[$statusFilter];
+
+            if ($statusFilter === 'active') {
+                // Absence / annulation tardive en fenêtre de contestation : encore « vivant » pour la Face.
+                $query->where(function ($q) use ($statuses): void {
+                    $q->whereIn('status', $statuses)->orWhere(fn ($p) => $p->pendingSettlement());
+                });
+            } elseif ($statusFilter === 'cancelled') {
+                $query->whereIn('status', $statuses)
+                    ->whereNot(fn ($p) => $p->pendingSettlement());
+            } else {
+                $query->whereIn('status', $statuses);
+            }
         }
 
         return BookingResource::collection($query->paginate(15));

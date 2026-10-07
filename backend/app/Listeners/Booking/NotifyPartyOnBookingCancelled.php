@@ -7,6 +7,7 @@ namespace App\Listeners\Booking;
 use App\Enums\BookingStatus;
 use App\Events\BookingCancelled;
 use App\Mail\BookingCancelledMail;
+use App\Models\Booking;
 use App\Models\Notification;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -39,8 +40,11 @@ class NotifyPartyOnBookingCancelled
             $producerName = (string) data_get($booking, 'producer.userable.display_name', 'Le Producteur');
             $recipientUserId = $booking->face_id;
             // Annulation tardive (jour du tournage ou après) : fonds retenus 72 h, la Face peut contester.
+            $dueLabel = $booking->settlement_due_at !== null
+                ? Booking::formatForBusiness($booking->settlement_due_at)
+                : '';
             $message = $booking->settlement_due_at !== null && $booking->dispute_resolved_at === null
-                ? "Votre booking a été annulé par {$producerName}. Vous pouvez contester jusqu'au {$booking->settlement_due_at->format('d/m/Y H:i')}. Vous n'êtes pas pénalisé."
+                ? "Votre booking a été annulé par {$producerName}. Vous pouvez contester jusqu'au {$dueLabel}. Vous n'êtes pas pénalisé."
                 : "Votre booking a été annulé par {$producerName}. Vous n'êtes pas pénalisé.";
             $notificationData = [
                 'message' => $message,

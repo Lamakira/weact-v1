@@ -9,6 +9,7 @@ use App\Enums\BookingStatus;
 use App\Enums\CompensationType;
 use App\Enums\UgcRefundReason;
 use App\Exceptions\MoneyColumnImmutableException;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -58,6 +59,7 @@ use Illuminate\Support\Facades\Auth;
  * @property int|null $dispute_resolved_by
  * @property string|null $dispute_admin_notes
  * @property \Carbon\CarbonInterface|null $completion_reminder_sent_at
+ * @property \Carbon\CarbonInterface|null $face_confirmed_at
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read \App\Models\User|null $face
@@ -124,6 +126,7 @@ class Booking extends Model
         'dispute_resolved_by',
         'dispute_admin_notes',
         'completion_reminder_sent_at',
+        'face_confirmed_at',
     ];
 
     /**
@@ -188,7 +191,83 @@ class Booking extends Model
             'disputed_at' => 'datetime',
             'dispute_resolved_at' => 'datetime',
             'completion_reminder_sent_at' => 'datetime',
+            'face_confirmed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Échéance du paiement automatique d'un booking payé sans suite : le plus tardif de
+     * « fin du jour de tournage + 8 jours » et « relance + 6 jours » (la Face n'est jamais
+     * payée moins de 6 jours après que le Producteur a été prévenu). Null tant que
+     * la relance n'est pas partie.
+     */
+    public function silentAutoCompleteDueAt(): ?CarbonInterface
+    {
+        if ($this->completion_reminder_sent_at === null || $this->date_fin === null) {
+            return null;
+        }
+
+        $byShootDay = $this->date_fin->copy()->startOfDay()->addDays(8);
+        $byReminder = $this->completion_reminder_sent_at->copy()->addDays(6);
+
+        return $byShootDay->greaterThan($byReminder) ? $byShootDay : $byReminder;
+    }
+
+    /**
+     * Échéance du paiement automatique d'un booking confirmé par la Face seule : le plus
+     * tardif de date_fin + 72 h, confirmation Face + 72 h et, si une relance est partie,
+     * l'échéance silencieuse — le Producteur garde toujours son délai pour signaler une absence.
+     */
+    public function faceConfirmedAutoCompleteDueAt(): ?CarbonInterface
+    {
+        if ($this->date_fin === null) {
+            return null;
+        }
+
+        $due = $this->date_fin->copy()->addHours(72);
+
+        $candidates = [
+            $this->face_confirmed_at?->copy()->addHours(72),
+            $this->silentAutoCompleteDueAt(),
+        ];
+
+        foreach ($candidates as $candidate) {
+            if ($candidate !== null && $candidate->greaterThan($due)) {
+                $due = $candidate;
+            }
+        }
+
+        return $due;
+    }
+
+    /**
+     * Absence / annulation tardive en cours de règlement (fenêtre de 72 h non tranchée).
+     */
+    public function isPendingSettlement(): bool
+    {
+        return in_array($this->status, [BookingStatus::NoShow, BookingStatus::CancelledByProducer], true)
+            && $this->settlement_due_at !== null
+            && $this->dispute_resolved_at === null;
+    }
+
+    /**
+     * Même règle que isPendingSettlement(), côté requête.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Booking>  $query
+     */
+    public function scopePendingSettlement($query): void
+    {
+        $query->whereIn('status', [BookingStatus::NoShow->value, BookingStatus::CancelledByProducer->value])
+            ->whereNotNull('settlement_due_at')
+            ->whereNull('dispute_resolved_at');
+    }
+
+    /**
+     * Date affichée aux utilisateurs : fuseau métier (la base stocke en UTC).
+     */
+    public static function formatForBusiness(CarbonInterface $date, string $format = 'd/m/Y H:i'): string
+    {
+        return $date->copy()->setTimezone((string) config('app.business_timezone'))->format($format);
     }
 
     /**
