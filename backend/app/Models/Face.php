@@ -178,6 +178,44 @@ class Face extends Model
     }
 
     /**
+     * Initial of the last name with a trailing dot ("K."), null when no last name.
+     * Public payloads never carry the full last name.
+     */
+    public function lastNameInitial(): ?string
+    {
+        $nom = trim((string) $this->nom);
+
+        return $nom === '' ? null : mb_strtoupper(mb_substr($nom, 0, 1)).'.';
+    }
+
+    /**
+     * Public display name: first name + initial of the last name ("Aïcha K.").
+     */
+    public function publicDisplayName(): string
+    {
+        $name = trim("{$this->prenom} {$this->lastNameInitial()}");
+
+        return $name !== '' ? $name : ($this->username ?? 'Face');
+    }
+
+    /**
+     * Whether the Face is known to be under 18. An unknown birth date is not a minor.
+     */
+    public function isMinor(): bool
+    {
+        return $this->age !== null && $this->age < 18;
+    }
+
+    /**
+     * Age as shown to anyone other than the owner/admin: never for a minor,
+     * otherwise only when the Face opted in via show_age.
+     */
+    public function publiclyVisibleAge(): ?int
+    {
+        return $this->show_age && ! $this->isMinor() ? $this->age : null;
+    }
+
+    /**
      * Get the age calculated from date_naissance.
      */
     protected function age(): Attribute

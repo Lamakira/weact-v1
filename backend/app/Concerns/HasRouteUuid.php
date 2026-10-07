@@ -32,16 +32,10 @@ trait HasRouteUuid
     {
         $field ??= $this->getRouteKeyName();
 
-        $boundModel = $this->newQuery()
-            ->where($field, $value)
-            ->first();
-
-        if ($boundModel !== null || $field !== $this->getRouteKeyName() || ! is_numeric($value)) {
-            return $boundModel;
-        }
-
+        // No integer-id fallback: sequential ids would make every route
+        // enumerable. Binding is by uuid (or the explicit custom field) only.
         return $this->newQuery()
-            ->whereKey((int) $value)
+            ->where($field, $value)
             ->first();
     }
 }

@@ -6,7 +6,6 @@ namespace App\Http\Resources;
 
 use App\Enums\FaceVideoType;
 use App\Models\FaceVideo;
-use App\Models\User;
 use App\Services\FaceEntitlementService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -15,7 +14,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Resource for PUBLIC Face profile (detail view).
  *
  * Exposes all public-safe fields including bio, photos, videos, and experiences.
- * Sensitive data (tariffs, full name) are excluded.
+ * Sensitive data (tariffs, full last name, internal ids) are excluded.
  *
  * @mixin \App\Models\Face
  */
@@ -45,17 +44,15 @@ class PublicFaceProfileResource extends JsonResource
             return $video->position <= $quota;
         })->values();
 
-        /** @var User|null $user */
-        $user = $this->user;
-
         return [
             'id' => $this->uuid,
-            'user_id' => $user?->id,
             'username' => $this->username,
             'prenom' => $this->prenom,
+            // Initial only: the full last name is never public (no `nom` key here).
+            'display_name' => $this->publicDisplayName(),
             'sexe' => $this->sexe?->value,
             'sexe_label' => $this->sexe?->label(),
-            'age' => $this->show_age ? $this->age : null,
+            'age' => $this->publiclyVisibleAge(),
             'nationalite' => $this->nationalite,
             'langues' => $this->langues ?? [],
             'taille' => $this->taille,
