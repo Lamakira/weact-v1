@@ -110,8 +110,12 @@ function goToProfile(): void {
 }
 
 function goToPublicProfile(): void {
-  if (authStore.user?.userable?.id) {
-    router.push({ name: 'public-producer-profile', params: { id: authStore.user.userable.id } })
+  // The public route is `/producers/:slug`: an id param never matched it.
+  const userable = authStore.user?.userable
+  const slug = userable && 'slug' in userable ? userable.slug : null
+
+  if (slug) {
+    router.push({ name: 'public-producer-profile', params: { slug } })
   }
 }
 

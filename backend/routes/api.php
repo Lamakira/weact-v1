@@ -128,7 +128,7 @@ Route::prefix('v1')->group(function (): void {
 
             $user = $request->user()->loadMissing('userable');
 
-            return (new UserResource($user))->additional([
+            return UserResource::forOwner($user)->additional([
                 'meta' => [],
                 'message' => 'Authenticated user retrieved',
             ]);

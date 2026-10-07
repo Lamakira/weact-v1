@@ -47,7 +47,7 @@ class AdminWithdrawalRequestTest extends TestCase
 
     public function test_admin_can_list_withdrawal_requests(): void
     {
-        WithdrawalRequest::factory()->create([
+        $pending = WithdrawalRequest::factory()->create([
             'user_id' => $this->faceUser->id,
             'status' => 'pending',
         ]);
@@ -57,6 +57,7 @@ class AdminWithdrawalRequestTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $pending->uuid)
             ->assertJsonPath('data.0.user_email', $this->faceUser->email)
             ->assertJsonPath('data.0.user_name', (string) $this->faceUser->userable?->display_name)
             ->assertJsonPath('data.0.status', 'pending');

@@ -78,7 +78,7 @@ class AdminDashboardService
         // Latest missions created
         $recentMissions = Mission::orderBy('created_at', 'desc')
             ->limit(5)
-            ->get(['id', 'titre', 'status', 'created_at']);
+            ->get(['id', 'uuid', 'titre', 'status', 'created_at']);
 
         foreach ($recentMissions as $mission) {
             $this->activities[] = [
@@ -86,14 +86,14 @@ class AdminDashboardService
                 'title' => $mission->titre,
                 'description' => 'Mission '.$mission->status->label(),
                 'timestamp' => $mission->created_at->toISOString(),
-                'link' => '/admin/missions/'.$mission->id,
+                'link' => '/admin/missions/'.$mission->uuid,
             ];
         }
 
         // Latest articles published
         $recentArticles = Article::orderBy('created_at', 'desc')
             ->limit(5)
-            ->get(['id', 'title', 'status', 'created_at']);
+            ->get(['id', 'uuid', 'title', 'status', 'created_at']);
 
         foreach ($recentArticles as $article) {
             $this->activities[] = [
@@ -101,7 +101,7 @@ class AdminDashboardService
                 'title' => $article->title,
                 'description' => 'Article '.$article->status->label(),
                 'timestamp' => $article->created_at->toISOString(),
-                'link' => '/admin/articles/'.$article->id.'/edit',
+                'link' => '/admin/articles/'.$article->uuid.'/edit',
             ];
         }
 
@@ -121,8 +121,8 @@ class AdminDashboardService
                 'description' => "Inscription $type",
                 'timestamp' => $user->created_at->toISOString(),
                 'link' => str_contains($user->userable_type, 'Face')
-                    ? '/admin/faces/'.$user->userable_id
-                    : '/admin/producers/'.$user->userable_id,
+                    ? '/admin/faces/'.data_get($user, 'userable.uuid')
+                    : '/admin/producers/'.data_get($user, 'userable.uuid'),
             ];
         }
 

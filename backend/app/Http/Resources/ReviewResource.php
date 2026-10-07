@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Models\Face;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -35,8 +36,11 @@ class ReviewResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'formatted_date' => $this->created_at?->translatedFormat('j F Y'),
             'rater' => [
-                'display_name' => data_get($userable, 'display_name')
-                    ?? ($rater !== null ? $rater->email : 'Utilisateur'),
+                // Public payload: a Face reviewer is shown as "Prénom K." (never the
+                // full last name), and the rater's email is never a fallback.
+                'display_name' => $userable instanceof Face
+                    ? $userable->publicDisplayName()
+                    : (data_get($userable, 'display_name') ?? 'Utilisateur'),
                 'profile_photo_url' => data_get($userable, 'profile_photo_url'),
                 'profile_photo_thumbnail_url' => data_get($userable, 'thumbnail_url'),
             ],

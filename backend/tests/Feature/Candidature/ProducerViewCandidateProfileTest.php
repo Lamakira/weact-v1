@@ -289,7 +289,7 @@ class ProducerViewCandidateProfileTest extends TestCase
     public function test_producer_can_view_any_face_profile(): void
     {
         // Any producer can view any Face's profile (needed for direct bookings)
-        $otherFace = Face::factory()->create([
+        $otherFace = Face::factory()->withActiveUser()->create([
             'nom' => 'Martin',
             'prenom' => 'Jean',
         ]);
@@ -325,7 +325,7 @@ class ProducerViewCandidateProfileTest extends TestCase
     public function test_returns_partial_profile_when_face_has_missing_fields(): void
     {
         // Create a Face with minimal data
-        $minimalFace = Face::factory()->create([
+        $minimalFace = Face::factory()->withActiveUser()->create([
             'nom' => 'Test',
             'prenom' => 'User',
             'bio' => null,
@@ -363,7 +363,7 @@ class ProducerViewCandidateProfileTest extends TestCase
         ]);
 
         // Create another Face who applied to the other mission
-        $otherFace = Face::factory()->create([
+        $otherFace = Face::factory()->withActiveUser()->create([
             'nom' => 'Other',
             'prenom' => 'Face',
         ]);
@@ -445,7 +445,7 @@ class ProducerViewCandidateProfileTest extends TestCase
     public function test_candidate_profile_returns_null_for_missing_personal_info(): void
     {
         // Face without personal info (existing data)
-        $minimalFace = Face::factory()->create([
+        $minimalFace = Face::factory()->withActiveUser()->create([
             'nom' => 'NoPersInfo',
             'prenom' => 'Face',
         ]);
@@ -470,7 +470,7 @@ class ProducerViewCandidateProfileTest extends TestCase
     public function test_empty_photos_and_experiences_return_empty_arrays(): void
     {
         // Create Face without photos or experiences
-        $faceWithoutExtras = Face::factory()->create([
+        $faceWithoutExtras = Face::factory()->withActiveUser()->create([
             'nom' => 'Simple',
             'prenom' => 'Face',
         ]);

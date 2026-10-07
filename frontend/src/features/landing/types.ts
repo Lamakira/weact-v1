@@ -32,7 +32,7 @@ export interface LandingFace {
   id: string
   username: string
   prenom: string
-  nom: string
+  nom: string | null
   ville: string | null
   categories: Array<{ value: string; label: string }>
   is_available: boolean

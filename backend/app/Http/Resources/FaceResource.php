@@ -19,14 +19,27 @@ use Illuminate\Http\Resources\Json\JsonResource;
 class FaceResource extends JsonResource
 {
     /**
+     * True when the caller guarantees the rendered Face IS the authenticated
+     * account's own profile (nested in UserResource::forOwner on login/register/
+     * Google responses, where `$request->user()` is not reliable).
+     */
+    private bool $renderedForOwner = false;
+
+    public static function forOwner(Face $face): self
+    {
+        $resource = new self($face);
+        $resource->renderedForOwner = true;
+
+        return $resource;
+    }
+
+    /**
      * Transform the resource into an array.
      *
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
     {
-        $user = $this->user;
-
         $entitlement = app(FaceEntitlementService::class);
         $capabilities = $entitlement->capabilities($this->resource);
         $viewer = $this->resolveViewerContext($request);
@@ -87,8 +100,12 @@ class FaceResource extends JsonResource
             'profile_completion_is_complete' => $this->profile_completion_is_complete,
             'average_rating' => $this->average_rating,
             'ratings_count' => $this->ratings_count,
-            'email' => $this->whenLoaded('user', fn () => $user?->email),
-            'is_active' => $this->whenLoaded('user', fn () => $user?->is_active),
+            // PII: owner/admin only, and only when the relation is already loaded —
+            // never lazy-load the user from a resource (it would run for every viewer).
+            ...($isPrivileged && $this->resource->relationLoaded('user') ? [
+                'email' => $this->user?->email,
+                'is_active' => $this->user?->is_active,
+            ] : []),
             'experiences' => ExperienceResource::collection($this->whenLoaded('experiences')),
             'experiences_count' => $this->experiences_count,
             'photos' => $isPrivileged
@@ -127,11 +144,15 @@ class FaceResource extends JsonResource
 
     /**
      * Resolve age visibility based on requesting user context.
-     * Admins and the Face owner always see age. Others respect show_age.
+     * Admins and the Face owner always see age. Others never see a minor's age and respect show_age.
      */
     private function resolveAge(Request $request): ?int
     {
         $user = $request->user();
+
+        if ($this->renderedForOwner) {
+            return $this->age;
+        }
 
         // Admin always sees age
         if ($user instanceof Admin) {
@@ -143,8 +164,8 @@ class FaceResource extends JsonResource
             return $this->age;
         }
 
-        // Everyone else (producers) respects show_age
-        return $this->show_age ? $this->age : null;
+        // Everyone else (producers): never a minor, otherwise respects show_age
+        return $this->publiclyVisibleAge();
     }
 
     /**
@@ -155,6 +176,10 @@ class FaceResource extends JsonResource
     private function resolveViewerContext(Request $request): string
     {
         $user = $request->user();
+
+        if ($this->renderedForOwner) {
+            return 'owner';
+        }
 
         if ($user instanceof Admin) {
             return 'admin';

@@ -165,7 +165,7 @@ class CandidatureController extends Controller
                     'data' => [
                         'message' => "Nouvelle candidature reçue pour la mission \"{$mission->titre}\"",
                         'mission_id' => $mission->id,
-                        'url' => "/producer/missions/{$mission->id}/candidatures",
+                        'url' => "/producer/missions/{$mission->uuid}/candidatures",
                     ],
                 ]);
             } catch (\Throwable) {
@@ -271,7 +271,7 @@ class CandidatureController extends Controller
                     'data' => [
                         'message' => $face->prenom.' a confirmé sa participation à la mission "'.$mission->titre.'".',
                         'mission_id' => $mission->id,
-                        'url' => "/producer/missions/{$mission->id}/candidatures",
+                        'url' => "/producer/missions/{$mission->uuid}/candidatures",
                     ],
                 ]);
             } catch (\Throwable) {

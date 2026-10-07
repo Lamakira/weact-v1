@@ -62,7 +62,7 @@ class FaceRegistrationTest extends TestCase
             ->assertJsonPath('data.user.userable_type', 'Face')
             ->assertJsonPath('data.user.userable.nom', 'Doe')
             ->assertJsonPath('data.user.userable.prenom', 'John')
-            ->assertJsonPath('data.user.userable.username', 'johndoe')
+            ->assertJsonPath('data.user.userable.username', 'johnd')
             ->assertJsonPath('message', 'Inscription réussie');
 
         // Verify token is present and not empty
@@ -99,7 +99,7 @@ class FaceRegistrationTest extends TestCase
         $response = $this->postJson('/api/v1/auth/register/face', $data);
 
         $response->assertStatus(201)
-            ->assertJsonPath('data.user.userable.username', 'leagbedondjamena');
+            ->assertJsonPath('data.user.userable.username', 'leag');
     }
 
     public function test_username_generation_disambiguates_homonyms(): void
@@ -107,13 +107,13 @@ class FaceRegistrationTest extends TestCase
         Face::create([
             'nom' => 'Doe',
             'prenom' => 'John',
-            'username' => 'johndoe',
+            'username' => 'johnd',
         ]);
 
         $response = $this->postJson('/api/v1/auth/register/face', $this->validData);
 
         $response->assertStatus(201)
-            ->assertJsonPath('data.user.userable.username', 'johndoe2');
+            ->assertJsonPath('data.user.userable.username', 'johnd2');
     }
 
     public function test_pays_falls_back_to_its_database_default(): void
@@ -302,11 +302,11 @@ class FaceRegistrationTest extends TestCase
         $this->assertDatabaseHas('faces', [
             'nom' => 'Doe',
             'prenom' => 'John',
-            'username' => 'johndoe',
+            'username' => 'johnd',
             'date_naissance' => '1995-06-15',
         ]);
 
-        $face = Face::where('username', 'johndoe')->first();
+        $face = Face::where('username', 'johnd')->first();
 
         $this->assertDatabaseHas('users', [
             'email' => 'john@example.com',
@@ -317,7 +317,7 @@ class FaceRegistrationTest extends TestCase
         // Verify polymorphic relationship works
         $user = User::where('email', 'john@example.com')->first();
         $this->assertInstanceOf(Face::class, $user->userable);
-        $this->assertEquals('johndoe', $user->userable->username);
+        $this->assertEquals('johnd', $user->userable->username);
 
         // Verify reverse relationship
         $this->assertInstanceOf(User::class, $face->user);
@@ -431,9 +431,9 @@ class FaceRegistrationTest extends TestCase
     {
         $this->postJson('/api/v1/auth/register/face', $this->validData)
             ->assertStatus(201)
-            ->assertJsonPath('data.user.userable.username', 'johndoe');
+            ->assertJsonPath('data.user.userable.username', 'johnd');
 
-        $this->assertDatabaseHas('faces', ['username' => 'johndoe', 'sexe' => null, 'whatsapp_number' => null]);
+        $this->assertDatabaseHas('faces', ['username' => 'johnd', 'sexe' => null, 'whatsapp_number' => null]);
     }
 
     public function test_face_names_are_capped_at_the_profile_limit_of_100(): void
@@ -462,7 +462,7 @@ class FaceRegistrationTest extends TestCase
         $result = (new FaceRegistrationService($generator))->register($this->validData);
 
         $this->assertNotSame('johndoe', $result['face']->username);
-        $this->assertStringStartsWith('johndoe', $result['face']->username);
+        $this->assertStringStartsWith('johnd', $result['face']->username);
         $this->assertSame(2, Face::query()->count());
         $this->assertSame(1, User::query()->count());
     }

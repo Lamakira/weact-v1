@@ -53,7 +53,7 @@ class AccountDeletionReRegistrationTest extends TestCase
             ->assertJsonPath('data.user.email', 'john@example.com')
             ->assertJsonPath('data.user.userable.nom', 'Martin')
             ->assertJsonPath('data.user.userable.prenom', 'Alice')
-            ->assertJsonPath('data.user.userable.username', 'alicemartin');
+            ->assertJsonPath('data.user.userable.username', 'alicem');
 
         $secondToken = $secondRegistration->json('data.token');
         $newUserId = (int) $secondRegistration->json('data.user.id');
@@ -79,7 +79,7 @@ class AccountDeletionReRegistrationTest extends TestCase
         $basicInfoResponse->assertOk()
             ->assertJsonPath('data.nom', 'Martin')
             ->assertJsonPath('data.prenom', 'Alice')
-            ->assertJsonPath('data.username', 'alicemartin');
+            ->assertJsonPath('data.username', 'alicem');
     }
 
     /**
