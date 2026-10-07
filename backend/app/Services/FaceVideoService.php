@@ -73,8 +73,9 @@ class FaceVideoService
             try {
                 $disk->putFileAs($storagePath, $video, $filename);
 
-                // Remux sans ré-encodage : supprime les métadonnées conteneur (GPS…)
-                VideoMetadataStripper::strip($disk->path($storagePath.'/'.$filename));
+                // Remux sans ré-encodage : supprime les métadonnées conteneur (GPS…).
+                // Un échec n'invalide pas l'upload (warning loggé, rattrapé par media:strip-metadata).
+                VideoMetadataStripper::stripOrLog($disk->path($storagePath.'/'.$filename));
 
                 $this->generateThumbnail(
                     $disk->path($storagePath.'/'.$filename),

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 
 /**
@@ -32,6 +33,24 @@ final class VideoMetadataStripper
     }
 
     /**
+     * Variante tolérante pour les NOUVEAUX uploads : un remux en échec ne fait pas
+     * échouer l'upload. Le fichier original reste intact (strip() ne le remplace
+     * qu'après un remux réussi) et un warning est loggé ; `media:strip-metadata`
+     * le rattrapera.
+     */
+    public static function stripOrLog(string $path): void
+    {
+        try {
+            self::strip($path);
+        } catch (\Throwable $e) {
+            Log::warning('video metadata strip failed — original kept, to be caught by media:strip-metadata', [
+                'path' => $path,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
      * @throws \RuntimeException Si le remux échoue (le fichier original n'est alors pas modifié)
      */
     public static function strip(string $path): void
@@ -39,18 +58,20 @@ final class VideoMetadataStripper
         $extension = pathinfo($path, PATHINFO_EXTENSION);
         $temp = $path.'.stripped.'.$extension;
 
-        $result = Process::timeout(300)->run(self::command($path, $temp));
+        try {
+            $result = Process::timeout(300)->run(self::command($path, $temp));
 
-        if (! $result->successful()) {
+            if (! $result->successful()) {
+                throw new \RuntimeException('Video metadata stripping failed: '.trim($result->errorOutput()));
+            }
+
+            if (! rename($temp, $path)) {
+                throw new \RuntimeException('Video metadata stripping failed: cannot replace original.');
+            }
+        } catch (\Throwable $e) {
             @unlink($temp);
 
-            throw new \RuntimeException('Video metadata stripping failed: '.trim($result->errorOutput()));
-        }
-
-        if (! rename($temp, $path)) {
-            @unlink($temp);
-
-            throw new \RuntimeException('Video metadata stripping failed: cannot replace original.');
+            throw $e;
         }
     }
 }

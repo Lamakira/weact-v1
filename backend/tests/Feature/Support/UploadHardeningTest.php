@@ -4,21 +4,25 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Support;
 
+use App\Enums\DeliverableKind;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Services\Admin\ArticleService;
 use App\Services\AgencyLogoService;
 use App\Services\ProducerProfilePhotoService;
 use App\Services\ProfilePhotoService;
+use App\Services\Ugc\UgcDeliverableService;
 use App\Support\UploadedMedia;
 use App\Support\VideoMetadataStripper;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Concerns\BuildsMediaFixtures;
 use Tests\TestCase;
 
 /**
@@ -27,33 +31,8 @@ use Tests\TestCase;
  */
 class UploadHardeningTest extends TestCase
 {
+    use BuildsMediaFixtures;
     use RefreshDatabase;
-
-    /**
-     * JPEG valide (GD) avec un segment APP1 EXIF : orientation + latitude GPS.
-     */
-    private function jpegWithExif(int $width, int $height, int $orientation): string
-    {
-        $im = imagecreatetruecolor($width, $height);
-        imagefilledrectangle($im, 0, 0, intdiv($width, 2), $height, (int) imagecolorallocate($im, 255, 0, 0));
-        ob_start();
-        imagejpeg($im, null, 90);
-        $jpeg = (string) ob_get_clean();
-
-        $ifd0 = pack('v', 2)
-            .pack('vvVv2', 0x0112, 3, 1, $orientation, 0)
-            .pack('vvVV', 0x8825, 4, 1, 38)
-            .pack('V', 0);
-        $gps = pack('v', 2)
-            .pack('vvV', 0x0001, 2, 1)."N\0\0\0"
-            .pack('vvVV', 0x0002, 5, 3, 68)
-            .pack('V', 0);
-        $rationals = pack('V6', 6, 1, 30, 1, 0, 1);
-        $tiff = "II*\0".pack('V', 8).$ifd0.$gps.$rationals;
-        $app1 = "\xFF\xE1".pack('n', 2 + 6 + strlen($tiff))."Exif\0\0".$tiff;
-
-        return substr($jpeg, 0, 2).$app1.substr($jpeg, 2);
-    }
 
     private function upload(string $name, string $bytes, string $mime = 'image/jpeg'): UploadedFile
     {
@@ -212,5 +191,27 @@ class UploadHardeningTest extends TestCase
         } catch (\RuntimeException) {
             $this->assertSame('original', file_get_contents($path));
         }
+    }
+
+    public function test_deliverable_upload_survives_a_failing_remux_without_inconsistent_state(): void
+    {
+        $src = tempnam(sys_get_temp_dir(), 'vid').'.mp4';
+        if (! $this->mp4WithLocation($src)) {
+            $this->markTestSkipped('ffmpeg indisponible.');
+        }
+        Storage::fake('local');
+        Log::spy();
+        // Seul le remux échoue ; ffprobe/miniature (php-ffmpeg) tournent pour de vrai.
+        Process::fake(['*-map_metadata*' => Process::result(errorOutput: 'boom', exitCode: 1)]);
+
+        $upload = new UploadedFile($src, 'evil.hta', null, null, true);
+        $media = app(UgcDeliverableService::class)->storeMedia($upload, DeliverableKind::Unboxing);
+
+        $disk = Storage::disk('local');
+        $this->assertStringEndsWith('.mp4', $media['video_path']); // extension depuis le contenu
+        $disk->assertExists($media['video_path']);                  // original conservé
+        $disk->assertExists($media['thumbnail_path']);              // miniature : tout est cohérent
+        $this->assertSame([], glob(dirname($disk->path($media['video_path'])).'/*.stripped.*'));
+        Log::shouldHaveReceived('warning')->once();
     }
 }

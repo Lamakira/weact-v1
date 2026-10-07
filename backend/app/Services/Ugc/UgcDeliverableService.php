@@ -369,8 +369,9 @@ class UgcDeliverableService
         try {
             $disk->putFileAs($dir, $video, $videoFilename);
 
-            // Remux sans ré-encodage : supprime les métadonnées conteneur (GPS…)
-            VideoMetadataStripper::strip($disk->path($videoPath));
+            // Remux sans ré-encodage : supprime les métadonnées conteneur (GPS…).
+            // Un échec n'invalide pas l'upload (warning loggé, rattrapé par media:strip-metadata).
+            VideoMetadataStripper::stripOrLog($disk->path($videoPath));
 
             // Miniature ffmpeg (frame 0) sur le fichier stocké (disque privé).
             $this->generateThumbnail($disk->path($videoPath), $disk->path($thumbnailPath));

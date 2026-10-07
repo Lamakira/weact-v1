@@ -84,8 +84,7 @@ final class UploadedMedia
         }
 
         try {
-            $image = Image::read($path); // autoOrientation (config/image.php) : pixels déjà orientés
-            $bytes = ($extension === 'png' ? $image->toPng() : $image->toJpeg(self::JPEG_QUALITY))->toString();
+            $bytes = self::reencode($path, $extension === 'png');
         } catch (\Throwable) {
             throw self::invalid();
         }
@@ -95,6 +94,18 @@ final class UploadedMedia
         }
 
         return $filename;
+    }
+
+    /**
+     * Ré-encode un fichier image sans aucune métadonnée. Image::read applique
+     * l'orientation EXIF aux pixels (autoOrientation, config/image.php) AVANT
+     * l'encodage ; GD n'écrit ni EXIF ni XMP.
+     */
+    public static function reencode(string $fullPath, bool $png): string
+    {
+        $image = Image::read($fullPath);
+
+        return ($png ? $image->toPng() : $image->toJpeg(self::JPEG_QUALITY))->toString();
     }
 
     /**

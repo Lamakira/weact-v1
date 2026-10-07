@@ -59,8 +59,9 @@ class PresentationVideoService
             // Store video using the public disk
             Storage::disk('public')->putFileAs(self::STORAGE_PATH, $video, $filename);
 
-            // Remux sans ré-encodage : supprime les métadonnées conteneur (GPS…)
-            VideoMetadataStripper::strip(Storage::disk('public')->path(self::STORAGE_PATH.'/'.$filename));
+            // Remux sans ré-encodage : supprime les métadonnées conteneur (GPS…).
+            // Un échec n'invalide pas l'upload (warning loggé, rattrapé par media:strip-metadata).
+            VideoMetadataStripper::stripOrLog(Storage::disk('public')->path(self::STORAGE_PATH.'/'.$filename));
 
             // Generate and save thumbnail from the first frame
             $this->generateThumbnail(
