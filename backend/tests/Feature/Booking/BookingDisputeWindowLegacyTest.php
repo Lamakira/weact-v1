@@ -361,6 +361,38 @@ class BookingDisputeWindowLegacyTest extends TestCase
         $this->assertFalse(Notification::query()->where('type', 'booking_completion_reminder')->exists());
     }
 
+    public function test_reminder_claim_is_released_even_when_the_clock_ticks_between_claim_and_release(): void
+    {
+        $booking = $this->makeBooking(BookingStatus::Paid, [
+            'date_debut' => now()->subDays(5),
+            'date_fin' => now()->subDays(5),
+        ]);
+
+        $producerId = $this->producerUser->id;
+        Notification::creating(function (Notification $notification) use ($producerId): void {
+            if ($notification->user_id === $producerId) {
+                throw new \RuntimeException('notification down');
+            }
+        });
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('mail down'));
+
+        // Horloge qui avance d'une seconde à chaque lecture : un claim et une libération
+        // calculés avec deux now() distincts ne désignent plus la même valeur.
+        $base = now()->startOfSecond();
+        $ticks = 0;
+        Carbon::setTestNow(function () use ($base, &$ticks) {
+            return $base->copy()->addSeconds($ticks++);
+        });
+
+        try {
+            $this->artisan('bookings:remind-pending-confirmation')->assertSuccessful();
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        $this->assertNull($booking->fresh()->completion_reminder_sent_at);
+    }
+
     public function test_reminder_is_kept_when_only_one_producer_channel_fails(): void
     {
         $booking = $this->makeBooking(BookingStatus::Paid, [

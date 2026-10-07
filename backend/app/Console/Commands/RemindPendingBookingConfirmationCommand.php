@@ -54,18 +54,20 @@ class RemindPendingBookingConfirmationCommand extends Command
         foreach ($bookings as $booking) {
             try {
                 // Claim atomique : reste idempotent en cas de chevauchement d'exécutions.
+                // Une seule valeur, à la seconde (précision de la colonne), sert au claim ET à sa
+                // libération : deux now() successifs peuvent tomber sur deux secondes différentes.
+                $claimedAt = now()->startOfSecond();
                 $claimed = Booking::query()
                     ->whereKey($booking->id)
                     ->where('status', BookingStatus::Paid->value)
                     ->whereNull('completion_reminder_sent_at')
-                    ->update(['completion_reminder_sent_at' => now()]);
+                    ->update(['completion_reminder_sent_at' => $claimedAt]);
 
                 if ($claimed === 0) {
                     continue;
                 }
 
                 // L'échéance affichée dépend de l'heure réelle de la relance (rappel + 6 jours minimum).
-                $claimedAt = now();
                 $booking->completion_reminder_sent_at = $claimedAt;
 
                 if (! $this->notifyParties($booking)) {
