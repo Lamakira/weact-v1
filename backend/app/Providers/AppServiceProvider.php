@@ -2,12 +2,15 @@
 
 namespace App\Providers;
 
+use App\Logging\CriticalLogAlerter;
 use App\Models\Notification;
 use App\Observers\NotificationObserver;
 use Carbon\Carbon;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -35,6 +38,10 @@ class AppServiceProvider extends ServiceProvider
 
         // Broadcast NotificationCreated event whenever a notification is persisted
         Notification::observe(NotificationObserver::class);
+
+        // Alertes e-mail admin sur logs critical/alert/emergency (no-op si ADMIN_ALERT_EMAILS vide).
+        // Enregistrement explicite : après un déploiement, rafraîchir le cache d'événements (event:cache).
+        Event::listen(MessageLogged::class, [CriticalLogAlerter::class, 'handle']);
 
         // Set Carbon locale globally for French date formatting
         Carbon::setLocale('fr');
