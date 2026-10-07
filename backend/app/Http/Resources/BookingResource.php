@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Enums\BookingStatus;
+use App\Models\Admin;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Auth;
@@ -51,6 +52,15 @@ class BookingResource extends JsonResource
             'fedapay_transaction_id' => $user && $user->id === $this->producer_id ? $this->fedapay_transaction_id : null,
             'payment_mode' => $this->payment_mode,
             'accepted_at' => $this->accepted_at?->toISOString(),
+            'settlement_due_at' => $this->settlement_due_at?->toIso8601String(),
+            'disputed_at' => $this->disputed_at?->toIso8601String(),
+            'dispute_resolved_at' => $this->dispute_resolved_at?->toIso8601String(),
+            'dispute_outcome' => $this->dispute_outcome,
+            'completion_reminder_sent_at' => $this->completion_reminder_sent_at?->toIso8601String(),
+            // Message de contestation : visible de la Face concernée et des admins uniquement.
+            'dispute_message' => $user instanceof Admin || ($user && $user->id === $this->face_id)
+                ? $this->dispute_message
+                : null,
             'shipment' => new ShipmentResource($this->whenLoaded('shipment')),
             'deliverables' => DeliverableResource::collection($this->whenLoaded('deliverables')),
             // Photos produit UGC (spec photos produit) — whenLoaded : la clé est OMISE

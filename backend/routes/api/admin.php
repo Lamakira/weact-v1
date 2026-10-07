@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\Admin\AdminAttendanceDisputeController;
+use App\Http\Controllers\Api\V1\Admin\AdminBookingDisputeController;
 use App\Http\Controllers\Api\V1\Admin\AdminController;
 use App\Http\Controllers\Api\V1\Admin\AdminDashboardController;
 use App\Http\Controllers\Api\V1\Admin\AdminEngagementController;
@@ -174,6 +175,14 @@ Route::prefix('v1/admin')->middleware(['auth:sanctum', 'api.token:admin', 'admin
         Route::post('/attendance-disputes/{entry}/resolve', [AdminAttendanceDisputeController::class, 'resolve'])
             ->middleware('throttle:30,1')
             ->name('admin.attendance-disputes.resolve');
+
+        // Booking dispute resolution (absence Face / annulation Producteur tardive, fenêtre 72 h)
+        Route::get('/booking-disputes', [AdminBookingDisputeController::class, 'index'])
+            ->middleware('throttle:30,1')
+            ->name('admin.booking-disputes.index');
+        Route::post('/booking-disputes/{booking}/resolve', [AdminBookingDisputeController::class, 'resolve'])
+            ->middleware('throttle:30,1')
+            ->name('admin.booking-disputes.resolve');
 
         // UGC soft-suspension appeals review + reactivation (épic 5, story 5.3)
         Route::get('/ugc/suspensions', [AdminUgcSuspensionController::class, 'index'])

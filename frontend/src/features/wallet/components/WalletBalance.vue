@@ -5,12 +5,14 @@ import { Wallet, Info, AlertCircle, ArrowUpRight } from 'lucide-vue-next'
 interface Props {
   balance: number
   pendingEscrow: number
+  heldInDispute?: number
   showWithdraw?: boolean
   showPendingEscrow?: boolean
   emptyStateDescription?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  heldInDispute: 0,
   showWithdraw: true,
   showPendingEscrow: true,
   emptyStateDescription: 'Vos revenus apparaîtront ici après votre premier booking.',
@@ -25,7 +27,7 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value)
 
-const hasNoFunds = computed(() => props.balance === 0 && props.pendingEscrow === 0)
+const hasNoFunds = computed(() => props.balance === 0 && props.pendingEscrow === 0 && props.heldInDispute === 0)
 </script>
 
 <template>
@@ -73,6 +75,13 @@ const hasNoFunds = computed(() => props.balance === 0 && props.pendingEscrow ===
         >
           {{ formatCurrency(props.pendingEscrow) }}
         </p>
+        <div v-if="props.showPendingEscrow && props.heldInDispute > 0" class="md:text-right" data-testid="held-in-dispute">
+          <p class="text-sm text-gray-500">En litige</p>
+          <p class="font-medium text-amber-700">{{ formatCurrency(props.heldInDispute) }}</p>
+          <p class="max-w-xs text-xs text-gray-400">
+            Montant retenu le temps du règlement d'une absence ou d'une annulation.
+          </p>
+        </div>
       </div>
     </div>
 

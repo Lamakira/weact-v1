@@ -25,7 +25,7 @@ php artisan bookings:backfill-cancelled-wallet-refunds --dry-run
 php artisan bookings:backfill-cancelled-wallet-refunds
 ```
 
-- La commande est idempotente. Pour cibler un booking précis :
+- La commande est idempotente (elle ne crédite que le manquant). Elle ignore les annulations tardives en fenêtre de contestation de 72 h (`settlement_due_at` renseigné : réglées par `bookings:settle-disputes` ou par un admin) et ne touche jamais un escrow déjà libéré (`released`) à la Face : ces lignes sont sautées, avec un avertissement pour l'escrow libéré. Pour cibler un booking précis :
 
 ```bash
 cd backend

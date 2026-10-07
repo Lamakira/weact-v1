@@ -13,6 +13,7 @@ import type { WithdrawPayload } from '@/features/wallet/services/walletApi'
 const {
   balance,
   pendingEscrow,
+  heldInDispute,
   withdrawalMode,
   withdrawalRequests,
   transactions,
@@ -65,6 +66,7 @@ onMounted(() => {
     <WalletBalance
       :balance="balance"
       :pending-escrow="pendingEscrow"
+      :held-in-dispute="heldInDispute"
       @withdraw="showWithdrawForm = true"
     />
 

@@ -68,6 +68,38 @@ function mountDialog({
   })
 }
 
+describe('CancellationDialog — annulation tardive', () => {
+  function mountPaid(isLateCancel: boolean) {
+    return mount(CancellationDialog, {
+      props: {
+        booking: makeBooking({ status: BookingStatus.PAID }),
+        isOpen: true,
+        isCancelling: false,
+        isFace: false,
+        isLateCancel,
+      },
+      global: { stubs: { Teleport: true } },
+    })
+  }
+
+  it('explains the 72h hold and the no-refund risk instead of the immediate refund', () => {
+    const wrapper = mountPaid(true)
+    const notice = wrapper.get('[data-testid="late-cancel-notice"]')
+
+    expect(notice.text()).toContain('72 h')
+    expect(notice.text()).toContain('la Face peut contester')
+    expect(notice.text()).toContain('vous ne serez pas remboursé')
+    expect(wrapper.text()).not.toContain('Montant remboursé')
+  })
+
+  it('keeps the immediate refund breakdown before the shoot day', () => {
+    const wrapper = mountPaid(false)
+
+    expect(wrapper.find('[data-testid="late-cancel-notice"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Montant remboursé')
+  })
+})
+
 describe('CancellationDialog', () => {
   it('does not show the removed price disagreement reason', () => {
     const wrapper = mountDialog()

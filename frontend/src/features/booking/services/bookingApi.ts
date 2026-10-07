@@ -134,6 +134,15 @@ export const bookingApi = {
   },
 
   /**
+   * Contest a no-show report / late Producer cancellation within the 72 h window (Face only)
+   */
+  async contestBooking(bookingId: string, message: string): Promise<BookingResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<BookingResponse>(`/bookings/${bookingId}/contest`, { message })
+    return response.data
+  },
+
+  /**
    * Check Fedapay transaction status and process if approved.
    * Fallback polling when webhook delivery is unreliable (sandbox/ngrok).
    */

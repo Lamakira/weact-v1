@@ -104,7 +104,7 @@ function submitResolve(): void {
     </div>
 
     <!-- Table -->
-    <div v-else class="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+    <div v-else class="overflow-x-auto rounded-2xl border border-gray-100 bg-white shadow-sm">
       <table class="min-w-full divide-y divide-gray-100">
         <thead class="bg-gray-50">
           <tr class="text-left text-xs font-semibold uppercase tracking-wider text-gray-500">

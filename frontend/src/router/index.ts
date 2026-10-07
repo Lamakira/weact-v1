@@ -547,6 +547,12 @@ const router = createRouter({
           meta: { title: 'Litiges présence - WEACT' },
         },
         {
+          path: 'booking-disputes',
+          name: 'admin-booking-disputes',
+          component: () => import('../pages/admin/AdminBookingDisputesPage.vue'),
+          meta: { title: 'Litiges réservations - WEACT' },
+        },
+        {
           path: 'ugc/suspensions',
           name: 'admin-ugc-suspensions',
           component: () => import('../pages/admin/AdminUgcSuspensionsPage.vue'),

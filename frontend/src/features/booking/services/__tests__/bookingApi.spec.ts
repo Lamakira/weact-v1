@@ -26,6 +26,24 @@ function makeUgcData(overrides: Partial<CreateBookingData> = {}): CreateBookingD
   }
 }
 
+describe('bookingApi.contestBooking', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockPost.mockResolvedValue({ data: { data: { id: 'b-1' } } })
+    mockGetCsrfCookie.mockResolvedValue(undefined)
+  })
+
+  it('posts the message to the contest endpoint after fetching the CSRF cookie', async () => {
+    const result = await bookingApi.contestBooking('booking-uuid-9', 'J\'étais présente sur place.')
+
+    expect(mockGetCsrfCookie).toHaveBeenCalledTimes(1)
+    expect(mockPost).toHaveBeenCalledWith('/bookings/booking-uuid-9/contest', {
+      message: 'J\'étais présente sur place.',
+    })
+    expect(result).toEqual({ data: { id: 'b-1' } })
+  })
+})
+
 describe('bookingApi.createBooking — FormData photos produit', () => {
   beforeEach(() => {
     vi.clearAllMocks()

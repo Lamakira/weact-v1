@@ -16,8 +16,10 @@ use App\Console\Commands\RebuildFaceListingRanksCommand;
 use App\Console\Commands\ReconcileWalletCommand;
 use App\Console\Commands\RemindBookingPaymentCommand;
 use App\Console\Commands\RemindFaceSubscriptionRenewalsCommand;
+use App\Console\Commands\RemindPendingBookingConfirmationCommand;
 use App\Console\Commands\RemindShootingDayCommand;
 use App\Console\Commands\RotateFaceListingRanksCommand;
+use App\Console\Commands\SettleBookingDisputesCommand;
 use App\Console\Commands\SettleDisputedMissionAttendanceCommand;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Inspiring;
@@ -30,6 +32,8 @@ Artisan::command('inspire', function () {
 
 // Register scheduled commands
 app(Schedule::class)->command(AutoCompleteBookingsCommand::class)->hourly();
+app(Schedule::class)->command(SettleBookingDisputesCommand::class)->hourly()->withoutOverlapping();
+app(Schedule::class)->command(RemindPendingBookingConfirmationCommand::class)->hourly()->withoutOverlapping();
 app(Schedule::class)->command(ExpireUnacceptedBookingsCommand::class)->hourly();
 app(Schedule::class)->command(ExpireUnpaidBookingsCommand::class)->hourly();
 app(Schedule::class)->command(ExpireUnacceptedUgcDealsCommand::class)->hourly();
