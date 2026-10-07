@@ -379,7 +379,7 @@ class VideoMetadataStripperTest extends TestCase
         file_put_contents($path, $this->ftyp('isom').'original');
         $ran = [];
         Process::fake(function ($process) use (&$ran) {
-            $ran[] = (string) $process->command[0];
+            $ran[] = basename((string) $process->command[0]);
 
             throw $this->timedOut();
         });
@@ -387,10 +387,15 @@ class VideoMetadataStripperTest extends TestCase
 
         VideoMetadataStripper::stripOrLog($path);
 
-        $this->assertCount(1, $ran, 'ni ffprobe ni second ffmpeg après un timeout');
+        // Exactement UN appel ffmpeg ; ni ffprobe ni second ffmpeg (un repli ferait échouer ces assertions).
+        $this->assertSame(['ffmpeg'], $ran);
         $this->assertStringContainsString('original', (string) file_get_contents($path));
         $this->assertSame([], glob($path.'.*'));
-        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')->once();
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context = []): bool => str_contains($message, 'video metadata strip failed')
+                && str_contains((string) ($context['error'] ?? ''), 'timed out')
+                && ($context['path'] ?? null) === $path)
+            ->once();
     }
 
     public function test_fallback_is_skipped_when_less_than_30_seconds_of_the_150_second_budget_remain(): void

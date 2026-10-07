@@ -610,15 +610,246 @@ class UploadHardeningTest extends TestCase
         }
     }
 
-    public function test_png_exif_orientation_is_applied_to_generated_variants(): void
+    /**
+     * PNG asymétrique : fond blanc, bloc rouge 10x10 dans le coin haut-gauche, eXIf d'orientation donnée.
+     */
+    private function markedPng(int $width, int $height, int $orientation): string
+    {
+        $im = imagecreatetruecolor($width, $height);
+        imagefilledrectangle($im, 0, 0, $width - 1, $height - 1, (int) imagecolorallocate($im, 255, 255, 255));
+        imagefilledrectangle($im, 0, 0, 9, 9, (int) imagecolorallocate($im, 255, 0, 0));
+        ob_start();
+        imagepng($im);
+        $png = (string) ob_get_clean();
+
+        return substr($png, 0, 33).$this->pngChunk('eXIf', $this->exifTiff($orientation)).substr($png, 33);
+    }
+
+    private function isRedAt(string $path, int $x, int $y): bool
+    {
+        $im = imagecreatefromstring((string) file_get_contents($path));
+        $rgb = imagecolorat($im, $x, $y);
+
+        return (($rgb >> 16) & 0xFF) > 200 && (($rgb >> 8) & 0xFF) < 90 && ($rgb & 0xFF) < 90;
+    }
+
+    /**
+     * @return array<string, array{int, array{int, int}, array{int, int}, array{int, int}}>
+     */
+    public static function pngOrientations(): array
+    {
+        // orientation => [dimensions attendues, [x, y] où le bloc rouge doit se trouver, [x, y] blanc de contrôle]
+        return [
+            '6 rotation 90 horaire : haut-gauche => haut-droite' => [6, [20, 40], [15, 5], [5, 35]],
+            '8 rotation 90 anti-horaire : haut-gauche => bas-gauche' => [8, [20, 40], [5, 35], [15, 5]],
+            '2 miroir horizontal : haut-gauche => haut-droite' => [2, [40, 20], [35, 5], [5, 5]],
+        ];
+    }
+
+    /**
+     * @param  array{int, int}  $size
+     * @param  array{int, int}  $red
+     * @param  array{int, int}  $white
+     */
+    #[DataProvider('pngOrientations')]
+    public function test_png_exif_orientation_is_applied_to_generated_variants(int $orientation, array $size, array $red, array $white): void
     {
         Storage::fake('public');
         $face = Face::factory()->create(['profile_photo' => 'o.png']);
-        // 40x20 avec eXIf Orientation=6 : le navigateur affiche l'original pivoté (20x40), les variantes doivent suivre.
-        Storage::disk('public')->put('avatars/faces/o.png', $this->pngWithChunks(40, 20, $this->pngChunk('eXIf', $this->exifTiff(6))));
+        Storage::disk('public')->put('avatars/faces/o.png', $this->markedPng(40, 20, $orientation));
 
         app(\App\Support\ImageVariantGenerator::class)->generate($face);
 
-        $this->assertSame([20, 40], array_slice(getimagesize(Storage::disk('public')->path('avatars/faces/medium/o.webp')), 0, 2));
+        $medium = Storage::disk('public')->path('avatars/faces/medium/o.webp');
+        $this->assertSame($size, array_slice(getimagesize($medium), 0, 2));
+        $this->assertTrue($this->isRedAt($medium, $red[0], $red[1]), 'le bloc rouge doit être à la position attendue');
+        $this->assertFalse($this->isRedAt($medium, $white[0], $white[1]), 'le coin de contrôle doit rester blanc');
+    }
+
+    public function test_agency_logo_thumbnail_applies_the_png_exif_orientation_too(): void
+    {
+        Storage::fake('public');
+        $agency = Producer::factory()->agency()->create(['agency_logo' => 'logo.png']);
+        // 40x40, bloc rouge en haut à gauche, orientation 6 (90° horaire) : il doit finir en haut à droite.
+        $im = imagecreatetruecolor(40, 40);
+        imagefilledrectangle($im, 0, 0, 39, 39, (int) imagecolorallocate($im, 255, 255, 255));
+        imagefilledrectangle($im, 0, 0, 9, 9, (int) imagecolorallocate($im, 255, 0, 0));
+        ob_start();
+        imagepng($im);
+        $png = (string) ob_get_clean();
+        Storage::disk('public')->put('logos/agencies/logo.png', substr($png, 0, 33).$this->pngChunk('eXIf', $this->exifTiff(6)).substr($png, 33));
+
+        (new \App\Jobs\GenerateAgencyLogoThumbnail($agency->id, 'logo.png'))->handle();
+
+        $thumb = Storage::disk('public')->path('logos/agencies/thumbnails/logo.jpg');
+        $this->assertTrue($this->isRedAt($thumb, 130, 20), 'haut-droite');
+        $this->assertFalse($this->isRedAt($thumb, 20, 20), 'haut-gauche redevenu blanc');
+    }
+
+    public function test_image_jobs_fail_on_timeout_and_never_retry(): void
+    {
+        $variants = new \App\Jobs\GenerateImageVariants('face', 1);
+        $logo = new \App\Jobs\GenerateAgencyLogoThumbnail(1, 'x.png');
+
+        foreach ([$variants, $logo] as $job) {
+            $this->assertSame(60, $job->timeout);
+            $this->assertTrue($job->failOnTimeout);
+            $this->assertSame(1, $job->tries);
+        }
+    }
+
+    /**
+     * Fait échouer toute mise à jour d'un modèle (simule une panne DB) sur un dispatcher isolé.
+     *
+     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $model
+     */
+    private function withFailingUpdates(string $model, \Closure $callback): void
+    {
+        $original = $model::getEventDispatcher();
+        $isolated = new \Illuminate\Events\Dispatcher;
+        $model::setEventDispatcher($isolated);
+        $model::updating(function (): void {
+            throw new \RuntimeException('simulated db failure');
+        });
+
+        try {
+            $callback();
+        } finally {
+            $model::setEventDispatcher($original);
+        }
+    }
+
+    public function test_face_photo_db_failure_keeps_old_files_and_removes_the_new_one(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+        $face = Face::factory()->create();
+        app(ProfilePhotoService::class)->uploadProfilePhoto($face, $this->upload('a.jpg', $this->plainJpeg(40, 20)));
+        $face->refresh();
+        $this->seedVariants($face);
+        $before = Storage::disk('public')->allFiles();
+        $old = (string) $face->profile_photo;
+
+        $this->withFailingUpdates(Face::class, function () use ($face): void {
+            try {
+                app(ProfilePhotoService::class)->uploadProfilePhoto($face, $this->upload('b.jpg', $this->plainJpeg(30, 30)));
+                $this->fail('exception attendue');
+            } catch (\RuntimeException $e) {
+                $this->assertSame('simulated db failure', $e->getMessage());
+            }
+        });
+
+        $this->assertEqualsCanonicalizing($before, Storage::disk('public')->allFiles(), 'anciens fichiers intacts, nouveau fichier retiré');
+        $this->assertSame($old, $face->fresh()->profile_photo);
+    }
+
+    public function test_producer_photo_db_failure_keeps_old_files_and_removes_the_new_one(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+        $producer = Producer::factory()->create();
+        app(ProducerProfilePhotoService::class)->uploadProfilePhoto($producer, $this->upload('a.jpg', $this->plainJpeg(40, 20)));
+        $before = Storage::disk('public')->allFiles();
+
+        $this->withFailingUpdates(Producer::class, function () use ($producer): void {
+            try {
+                app(ProducerProfilePhotoService::class)->uploadProfilePhoto($producer, $this->upload('b.jpg', $this->plainJpeg(30, 30)));
+                $this->fail('exception attendue');
+            } catch (\RuntimeException $e) {
+                $this->assertSame('simulated db failure', $e->getMessage());
+            }
+        });
+
+        $this->assertEqualsCanonicalizing($before, Storage::disk('public')->allFiles());
+    }
+
+    public function test_replacement_deletes_variants_claimed_by_the_job_meanwhile_and_derived_names_of_unclaimed_ones(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+        $face = Face::factory()->create();
+        app(ProfilePhotoService::class)->uploadProfilePhoto($face, $this->upload('a.jpg', $this->plainJpeg(40, 20)));
+        $old = (string) Face::find($face->id)->profile_photo;
+        $uuid = pathinfo($old, PATHINFO_FILENAME);
+
+        // Modèle chargé AVANT que le job de variantes ne réclame ses colonnes...
+        $stale = Face::find($face->id);
+        foreach (['thumbnails/'.$old, 'medium/'.$uuid.'.webp', 'grid/'.$uuid.'.webp', 'large/'.$uuid.'.webp'] as $variant) {
+            Storage::disk('public')->put('avatars/faces/'.$variant, 'variant');
+        }
+        // ... il en a réclamé deux ; grid et large existent sur disque mais leurs colonnes sont encore nulles.
+        Face::whereKey($face->id)->update(['profile_photo_thumbnail' => $old, 'profile_photo_medium' => $uuid.'.webp']);
+        $this->assertNull($stale->profile_photo_thumbnail);
+
+        $result = app(ProfilePhotoService::class)->uploadProfilePhoto($stale, $this->upload('b.jpg', $this->plainJpeg(30, 30)));
+
+        $this->assertSame(['avatars/faces/'.$result['photo']], Storage::disk('public')->allFiles(), 'plus aucun fichier de l\'ancienne photo');
+    }
+
+    public function test_producer_replacement_cleans_variants_claimed_meanwhile_and_derived_names(): void
+    {
+        Storage::fake('public');
+        Queue::fake();
+        $producer = Producer::factory()->create();
+        app(ProducerProfilePhotoService::class)->uploadProfilePhoto($producer, $this->upload('a.jpg', $this->plainJpeg(40, 20)));
+        $old = (string) Producer::find($producer->id)->profile_photo;
+        $uuid = pathinfo($old, PATHINFO_FILENAME);
+        $stale = Producer::find($producer->id);
+        foreach (['thumbnails/'.$old, 'medium/'.$uuid.'.webp', 'grid/'.$uuid.'.webp', 'large/'.$uuid.'.webp'] as $variant) {
+            Storage::disk('public')->put('avatars/producers/'.$variant, 'variant');
+        }
+        Producer::whereKey($producer->id)->update(['profile_photo_medium' => $uuid.'.webp']);
+
+        $result = app(ProducerProfilePhotoService::class)->uploadProfilePhoto($stale, $this->upload('b.jpg', $this->plainJpeg(30, 30)));
+
+        $this->assertSame(['avatars/producers/'.$result['photo']], Storage::disk('public')->allFiles());
+    }
+
+    public function test_presentation_video_db_failure_keeps_the_old_video_and_removes_the_new_files(): void
+    {
+        $src = tempnam(sys_get_temp_dir(), 'vid').'.mp4';
+        if (! $this->mp4WithLocation($src)) {
+            $this->markTestSkipped('ffmpeg indisponible.');
+        }
+        Storage::fake('public');
+        Process::fake(); // pas de vrai remux
+        $face = Face::factory()->create(['presentation_video' => 'old.mp4', 'presentation_video_thumbnail' => 'old.jpg']);
+        Storage::disk('public')->put('videos/faces/presentation/old.mp4', 'old');
+        Storage::disk('public')->put('videos/faces/presentation/thumbnails/old.jpg', 'thumb');
+        $before = Storage::disk('public')->allFiles();
+
+        $this->withFailingUpdates(Face::class, function () use ($face, $src): void {
+            try {
+                app(PresentationVideoService::class)->uploadPresentationVideo($face, new UploadedFile($src, 'new.mp4', null, null, true));
+                $this->fail('exception attendue');
+            } catch (\RuntimeException $e) {
+                $this->assertSame('simulated db failure', $e->getMessage());
+            }
+        });
+
+        $this->assertEqualsCanonicalizing($before, Storage::disk('public')->allFiles(), 'ancienne vidéo intacte, nouveaux fichiers retirés');
+        $this->assertSame('old.mp4', $face->fresh()->presentation_video);
+    }
+
+    public function test_presentation_video_thumbnail_failure_cleans_new_files_and_keeps_the_old_video(): void
+    {
+        Storage::fake('public');
+        $face = Face::factory()->create(['presentation_video' => 'old.mp4', 'presentation_video_thumbnail' => 'old.jpg']);
+        Storage::disk('public')->put('videos/faces/presentation/old.mp4', 'old');
+        Storage::disk('public')->put('videos/faces/presentation/thumbnails/old.jpg', 'thumb');
+        $before = Storage::disk('public')->allFiles();
+
+        // Fichier vide : accepté par l'allowlist de mime, mais ffmpeg ne peut pas en extraire de miniature.
+        try {
+            app(PresentationVideoService::class)->uploadPresentationVideo($face, UploadedFile::fake()->create('v.mp4', 10, 'video/mp4'));
+            $this->fail('exception attendue (miniature impossible)');
+        } catch (\Throwable $e) {
+            $this->assertNotInstanceOf(ValidationException::class, $e);
+        }
+
+        $this->assertEqualsCanonicalizing($before, Storage::disk('public')->allFiles());
+        $face = $face->fresh();
+        $this->assertSame('old.mp4', $face->presentation_video);
+        $this->assertSame('old.jpg', $face->presentation_video_thumbnail);
     }
 }

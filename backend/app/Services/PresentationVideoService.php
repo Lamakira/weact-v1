@@ -51,42 +51,48 @@ class PresentationVideoService
         // sa vidéo actuelle à l'utilisateur.
         $extension = UploadedMedia::videoExtension($video, 'video');
 
-        $result = DB::transaction(function () use ($face, $video, $extension) {
-            $filename = Str::uuid()->toString().'.'.$extension;
-            $thumbnailFilename = Str::uuid()->toString().'.jpg';
-            $disk = Storage::disk('public');
+        $filename = Str::uuid()->toString().'.'.$extension;
+        $thumbnailFilename = Str::uuid()->toString().'.jpg';
+        $disk = Storage::disk('public');
+        $oldPaths = [];
 
-            // Nouveau fichier + miniature d'abord ; l'ancien n'est supprimé qu'ensuite. Sur échec
-            // (écriture, ffmpeg), on retire ce qui vient d'être écrit et l'ancien reste intact.
-            try {
-                if ($disk->putFileAs(self::STORAGE_PATH, $video, $filename) === false) {
-                    throw new \RuntimeException("Failed to store presentation video [{$filename}].");
-                }
-
-                $this->generateThumbnail(
-                    $disk->path(self::STORAGE_PATH.'/'.$filename),
-                    $thumbnailFilename
-                );
-            } catch (\Throwable $e) {
-                $disk->delete(self::STORAGE_PATH.'/'.$filename);
-                $disk->delete(self::THUMBNAIL_PATH.'/'.$thumbnailFilename);
-
-                throw $e;
+        // Nouveau fichier + miniature d'abord. Sur échec (écriture, ffmpeg, DB), on retire ce qui
+        // vient d'être écrit et l'ancienne vidéo reste intacte (fichiers ET référence).
+        try {
+            if ($disk->putFileAs(self::STORAGE_PATH, $video, $filename) === false) {
+                throw new \RuntimeException("Failed to store presentation video [{$filename}].");
             }
 
-            // Supprime l'ancienne vidéo (colonnes encore sur l'ancien état) puis pose la nouvelle.
-            $this->deletePresentationVideo($face);
+            $this->generateThumbnail(
+                $disk->path(self::STORAGE_PATH.'/'.$filename),
+                $thumbnailFilename
+            );
 
+            $face->refresh();
+            $oldPaths = array_filter([
+                $face->presentation_video ? self::STORAGE_PATH.'/'.$face->presentation_video : null,
+                $face->presentation_video_thumbnail ? self::THUMBNAIL_PATH.'/'.$face->presentation_video_thumbnail : null,
+            ]);
+
+            // Une seule mise à jour vers les nouveaux noms.
             $face->update([
                 'presentation_video' => $filename,
                 'presentation_video_thumbnail' => $thumbnailFilename,
             ]);
+        } catch (\Throwable $e) {
+            $disk->delete(self::STORAGE_PATH.'/'.$filename);
+            $disk->delete(self::THUMBNAIL_PATH.'/'.$thumbnailFilename);
 
-            return [
-                'video' => $filename,
-                'thumbnail' => $thumbnailFilename,
-            ];
-        });
+            throw $e;
+        }
+
+        // Les anciens fichiers ne sont supprimés qu'APRÈS le succès de l'écriture DB.
+        $disk->delete(array_values($oldPaths));
+
+        $result = [
+            'video' => $filename,
+            'thumbnail' => $thumbnailFilename,
+        ];
 
         // Remux sans ré-encodage (métadonnées conteneur, GPS…) APRÈS le commit : jamais
         // dans la transaction. Un échec n'invalide pas l'upload (warning loggé,

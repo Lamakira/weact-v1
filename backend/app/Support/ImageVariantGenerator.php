@@ -132,10 +132,7 @@ class ImageVariantGenerator
                 // Intervention n'applique l'orientation EXIF qu'aux JPEG/TIFF : pour un PNG dont le
                 // eXIf (minimal) porte une orientation, les navigateurs pivotent l'original — les
                 // variantes doivent suivre.
-                $pngOrientation = ImageMetadataStripper::pngOrientation($source);
-                if ($pngOrientation !== null) {
-                    $decoded = self::applyOrientation($decoded, $pngOrientation);
-                }
+                $decoded = self::alignOrientation($decoded, $source);
             }
 
             // cover()/scaleDown() mutate the image in place, so every variant
@@ -208,6 +205,21 @@ class ImageVariantGenerator
     }
 
     /**
+     * Applique l'orientation du chunk eXIf d'un PNG (Intervention ne le fait que pour JPEG/TIFF),
+     * uniquement si l'image n'a pas déjà été alignée par la bibliothèque (pas de double rotation).
+     */
+    public static function alignOrientation(ImageInterface $image, string $bytes): ImageInterface
+    {
+        if ($image->exif('IFD0.Orientation') !== null) {
+            return $image;
+        }
+
+        $orientation = ImageMetadataStripper::pngOrientation($bytes);
+
+        return $orientation === null ? $image : self::applyOrientation($image, $orientation);
+    }
+
+    /**
      * Mêmes transformations que l'AlignRotationModifier d'Intervention pour les 8 orientations EXIF.
      */
     private static function applyOrientation(ImageInterface $image, int $orientation): ImageInterface
@@ -238,14 +250,37 @@ class ImageVariantGenerator
         $disk = Storage::disk(self::diskFor($model));
         $deletedAny = false;
 
-        foreach ($this->referencedFiles($model) as $file) {
-            if ($disk->exists($file['path'])) {
-                $disk->delete($file['path']);
+        foreach ($this->candidateFiles($model) as $path) {
+            if ($disk->exists($path)) {
+                $disk->delete($path);
                 $deletedAny = true;
             }
         }
 
         return $deletedAny;
+    }
+
+    /**
+     * Every path that can belong to the model's CURRENT original: the referenced ones
+     * (filled columns) PLUS the names derived from the original's uuid for variants whose
+     * column is still null (a variant job may have written the file without having claimed
+     * the column yet — or claimed it after the caller loaded the model).
+     *
+     * @return list<string>
+     */
+    public function candidateFiles(Face|Producer|FacePhoto|ProductPhoto $model): array
+    {
+        $paths = array_column($this->referencedFiles($model), 'path');
+        $config = self::layoutFor($model);
+        $original = $model->getAttribute($config['original_column']);
+
+        if (is_string($original) && $original !== '') {
+            foreach ($config['variants'] as $variant => $spec) {
+                $paths[] = $spec['dir'].'/'.$this->variantFilename($variant, $original);
+            }
+        }
+
+        return array_values(array_unique($paths));
     }
 
     /**

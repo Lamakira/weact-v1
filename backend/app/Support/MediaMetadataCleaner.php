@@ -17,8 +17,9 @@ final class MediaMetadataCleaner
 
     /**
      * Vrai si le conteneur porte un tag autre que les tags structurels
-     * (localisation, modèle d'appareil, dates…) OU un flux autre que vidéo/audio
-     * (données, sous-titres, télémétrie : peuvent embarquer le GPS).
+     * (localisation, modèle d'appareil, dates…), un flux autre que vidéo/audio
+     * (données, sous-titres, télémétrie : peuvent embarquer le GPS) OU une pochette
+     * (flux vidéo `attached_pic`).
      *
      * @throws \RuntimeException Si ffprobe échoue
      */
@@ -27,7 +28,7 @@ final class MediaMetadataCleaner
         $result = Process::timeout(60)->run([
             (string) config('ffmpeg.ffprobe_binary', '/usr/bin/ffprobe'),
             '-v', 'error',
-            '-show_entries', 'format_tags:stream=codec_type',
+            '-show_entries', 'format_tags:stream=codec_type:stream_disposition=attached_pic',
             '-of', 'json',
             $fullPath,
         ]);
@@ -55,6 +56,11 @@ final class MediaMetadataCleaner
         foreach ($streams as $stream) {
             $type = is_array($stream) ? ($stream['codec_type'] ?? null) : null;
             if ($type !== 'video' && $type !== 'audio') {
+                return true;
+            }
+
+            // Pochette (« attached pic ») : un JPEG avec son propre EXIF, que `-map 0:v` recopiait.
+            if (is_array($stream) && is_array($stream['disposition'] ?? null) && (int) ($stream['disposition']['attached_pic'] ?? 0) === 1) {
                 return true;
             }
         }

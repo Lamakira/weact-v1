@@ -698,10 +698,21 @@ class ImageMetadataStripperTest extends TestCase
     public function test_png_with_a_huge_declared_chunk_length_is_rejected_without_allocating(): void
     {
         $sig = "\x89PNG\r\n\x1a\n";
-        $huge = $sig.pack('N', 0x7FFFFFF0).'IHDR'.pack('NN', 100, 100).str_repeat("\0", 16);
+        $path = $this->tmp($sig.pack('N', 0x7FFFFFF0).'IHDR'.pack('NN', 100, 100).str_repeat("\0", 16));
 
-        $this->expectException(\RuntimeException::class);
-        ImageMetadataStripper::strip($this->tmp($huge), sys_get_temp_dir().'/huge.out');
+        gc_collect_cycles();
+        memory_reset_peak_usage();
+        $before = memory_get_peak_usage();
+
+        try {
+            ImageMetadataStripper::strip($path, sys_get_temp_dir().'/huge.out');
+            $this->fail('exception attendue');
+        } catch (\RuntimeException) {
+            // attendu
+        }
+
+        // Une allocation pilotée par la longueur déclarée (~2 Go) ferait exploser ce pic.
+        $this->assertLessThan(4 * 1024 * 1024, memory_get_peak_usage() - $before);
     }
 
     public function test_png_ihdr_must_be_exactly_13_bytes_and_chunks_cannot_exceed_the_file(): void

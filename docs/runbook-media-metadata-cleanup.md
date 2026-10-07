@@ -69,7 +69,9 @@ GPS sur 12 772, 22 vidéos publiques sur 515 avec localisation).
   comme ÉCHEC (listé en fin de commande) pour traitement manuel. Il en va de même si
   le repli échoue à son tour : l'original reste en place, avec ses métadonnées.
 - Les pochettes (« attached pic », JPEG avec leur propre EXIF) sont exclues du
-  remux (`-map 0:V`).
+  remux (`-map 0:V`). La commande de rétrofit signale aussi (`ffprobe`, disposition `attached_pic`)
+  les vidéos nettoyées auparavant avec `-map 0:v` qui portent encore une pochette, et les
+  remuxe à nouveau.
 - Temps borné (le remux d'un upload est synchrone dans la requête web, PHP-FPM n'a
   que 5 workers) : budget total de 150 s ; `ffprobe` limité à 15 s ; le repli n'est
   jamais tenté après un timeout de ffmpeg (seulement après un échec rapide) et
@@ -208,7 +210,7 @@ l'archive.
 ## Files de queue : `retry_after` doit rester supérieur au `--timeout` du worker
 
 Les jobs qui décodent des images (`GenerateImageVariants`, vignette de logo
-d'agence) ont un `$timeout = 60` explicite. En production, le worker tourne avec
+d'agence) ont un `$timeout = 60` explicite, `failOnTimeout = true` et `tries = 1` (un dépassement les marque en échec au lieu de tuer le worker puis de les rejouer). En production, le worker tourne avec
 `--timeout=90` (supervisor, hors dépôt). La clé `retry_after` de la connexion
 `database` (`config/queue.php`, variable `DB_QUEUE_RETRY_AFTER`) doit rester
 STRICTEMENT supérieure au `--timeout` du supervisor : à égalité, un job encore en
