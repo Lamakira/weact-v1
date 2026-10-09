@@ -19,6 +19,7 @@ import ActiveMissionsPanel from '@/features/dashboard/components/producer/Active
 import ReputationPanel from '@/features/dashboard/components/producer/ReputationPanel.vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import { buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 const authStore = useAuthStore()
 const { stats, isLoading: statsLoading, error: statsError, fetchStats, retry } = useProducerDashboardStats()
@@ -90,7 +91,7 @@ const publicProfileSlug = computed(() => {
       <RouterLink
         v-if="publicProfileSlug"
         :to="{ name: 'public-producer-profile', params: { slug: publicProfileSlug } }"
-        :class="[buttonVariants({ variant: 'regie-secondary', size: 'regie' }), 'hidden md:inline-flex']"
+        :class="cn(buttonVariants({ variant: 'regie-secondary', size: 'regie' }), 'hidden md:inline-flex')"
         data-testid="public-profile-button"
       >
         <Eye aria-hidden="true" />
