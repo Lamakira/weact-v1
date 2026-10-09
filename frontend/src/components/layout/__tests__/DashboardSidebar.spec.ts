@@ -9,6 +9,9 @@ import { LayoutDashboard, FileText, MessageCircle, User } from 'lucide-vue-next'
 vi.mock('@/assets/images/logonoir.png', () => ({
   default: '/mock-logo.png',
 }))
+vi.mock('@/assets/images/logo-mark.svg', () => ({
+  default: '/mock-logo-mark.svg',
+}))
 
 // Mock useSidebarState
 const mockIsExpanded = ref(true)
@@ -105,10 +108,15 @@ describe('DashboardSidebar', () => {
       expect(wrapper.find('[data-testid="dashboard-sidebar"]').classes()).toContain('w-64')
     })
 
-    it('shows "Réduire" text on toggle button', () => {
+    it('shows the full logo and an icon-only collapse button next to it', () => {
       mockIsExpanded.value = true
       const wrapper = mountSidebar()
-      expect(wrapper.find('[data-testid="sidebar-toggle"]').text()).toContain('Réduire')
+      const toggle = wrapper.find('[data-testid="sidebar-toggle"]')
+      expect(wrapper.find('[data-testid="sidebar-logo"] img').attributes('src')).toBe('/mock-logo.png')
+      expect(toggle.attributes('aria-label')).toBe('Réduire la barre latérale')
+      expect(toggle.text()).toBe('')
+      expect(wrapper.find('[data-testid="sidebar-header"]').element.contains(toggle.element)).toBe(true)
+      expect(wrapper.find('[data-testid="sidebar-logo-mark"]').exists()).toBe(false)
     })
   })
 
@@ -119,6 +127,30 @@ describe('DashboardSidebar', () => {
       // Labels should not be visible (using v-if)
       const dashboardItem = wrapper.find('[data-testid="sidebar-item-dashboard"]')
       expect(dashboardItem.find('span').exists()).toBe(false)
+    })
+
+    it('shows only the W mark instead of the full logo, and clicking it expands', async () => {
+      mockIsExpanded.value = false
+      const wrapper = mountSidebar()
+      const mark = wrapper.find('[data-testid="sidebar-logo-mark"]')
+      expect(mark.exists()).toBe(true)
+      expect(mark.find('img').attributes('src')).toBe('/mock-logo-mark.svg')
+      expect(mark.attributes('aria-label')).toBe('Agrandir la barre latérale')
+      expect(wrapper.find('[data-testid="sidebar-logo"]').exists()).toBe(false)
+      await mark.trigger('click')
+      expect(mockToggle).toHaveBeenCalled()
+    })
+
+    it('uses the same icon colors as the expanded state', () => {
+      const colorClasses = (expanded: boolean) => {
+        mockIsExpanded.value = expanded
+        const wrapper = mountSidebar()
+        const inactive = wrapper.find('[data-testid="sidebar-item-messages"]').classes()
+        const active = wrapper.find('[data-testid="sidebar-item-dashboard"]').classes()
+        const pick = (cs: string[]) => cs.filter((c) => /^(text-|hover:text-|hover:bg-|bg-)/.test(c)).sort()
+        return { inactive: pick(inactive).filter((c) => c !== 'font-medium'), active: pick(active) }
+      }
+      expect(colorClasses(false)).toEqual(colorClasses(true))
     })
 
     it('applies collapsed width class', () => {
