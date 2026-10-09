@@ -134,6 +134,8 @@ async function handleCancel(): Promise<void> {
           id="new-email"
           v-model="newEmail"
           type="email"
+          name="new_email"
+          autocomplete="off"
           required
           class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
           :class="{ 'border-red-300': fieldErrors?.email }"
@@ -158,6 +160,8 @@ async function handleCancel(): Promise<void> {
           id="current-password"
           v-model="password"
           type="password"
+          name="email_change_password"
+          autocomplete="current-password"
           required
           class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
           :class="{ 'border-red-300': fieldErrors?.password }"

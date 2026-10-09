@@ -83,6 +83,19 @@ describe('EmailChangeForm', () => {
     expect(wrapper.find('[data-testid="show-form-button"]').exists()).toBe(false)
   })
 
+  it('uses non-login autocomplete hints (no password manager login prompt)', async () => {
+    const wrapper = mount(EmailChangeForm)
+
+    await wrapper.find('[data-testid="show-form-button"]').trigger('click')
+
+    const email = wrapper.find('[data-testid="new-email-input"]')
+    expect(email.attributes('autocomplete')).toBe('off')
+    expect(email.attributes('name')).toBe('new_email')
+    expect(wrapper.find('[data-testid="password-input"]').attributes('autocomplete')).toBe(
+      'current-password',
+    )
+  })
+
   it('hides form when cancel button is clicked', async () => {
     const wrapper = mount(EmailChangeForm)
 

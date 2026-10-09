@@ -378,6 +378,18 @@ function isActiveSection(familyId: FamilyId, sectionId: string): boolean {
   return activeFamily.value === familyId && activeSection.value === sectionId
 }
 
+// Les formulaires mot de passe / email ne sont montés qu'à la première ouverture de la
+// section « Sécurité » (puis gardés montés) : sinon le gestionnaire de mots de passe du
+// navigateur les détecte dès l'arrivée sur la page, même masqués par v-show.
+const securityVisited = ref(false)
+watch(
+  [activeFamily, activeSection],
+  () => {
+    if (isActiveSection('compte', 'securite')) securityVisited.value = true
+  },
+  { immediate: true },
+)
+
 // Tab state is reflected in the URL (?tab=&section=) so reloads, shareable links and
 // the browser back button all work. Clicks update state directly AND push the URL;
 // the watcher syncs state back from the URL on external changes (back button / deep
@@ -1218,10 +1230,12 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 
               <!-- COMPTE -->
               <div v-show="isActiveSection('compte', 'securite')" class="p-6 md:p-7 space-y-4" data-testid="panel-securite">
-                <EmailChangeForm />
-                <div class="border-t border-gray-100 pt-4">
-                  <PasswordChangeForm />
-                </div>
+                <template v-if="securityVisited">
+                  <EmailChangeForm />
+                  <div class="border-t border-gray-100 pt-4">
+                    <PasswordChangeForm />
+                  </div>
+                </template>
               </div>
 
               <div v-show="isActiveSection('compte', 'donnees')" class="p-6 md:p-7" data-testid="panel-donnees">
