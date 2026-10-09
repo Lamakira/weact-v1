@@ -92,7 +92,9 @@ class MissionController extends Controller
             ->when($request->budget_max, fn ($q, $max) => $q->where('budget', '<=', $max))
             ->when($request->date_tournage, fn ($q, $date) => $q->where('date_tournage', '>=', $date))
             ->when($request->type_mission, fn ($q, $type) => $q->where('type_mission', $type))
-            ->with('producer')
+            ->with(['producer' => fn ($q) => $q->withRatingAggregates()])
+            ->withPaidPaymentFlag()
+            ->withCount('candidatures')
             ->orderBy('created_at', 'desc')
             ->paginate(12);
 

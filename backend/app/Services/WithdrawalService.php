@@ -79,24 +79,26 @@ class WithdrawalService
                 'phone_country' => $validated['phone_country'],
                 'status' => 'pending',
             ]);
-
-            $adminEmail = (string) config('app.admin_email', '');
-
-            if ($adminEmail !== '') {
-                Mail::to($adminEmail)->send(
-                    new WithdrawalRequestSubmittedMail($withdrawalRequest->loadMissing('user.userable'))
-                );
-            } else {
-                Log::warning('Withdrawal request created but admin_email is not configured — no notification sent to admin', [
-                    'withdrawal_request_id' => $withdrawalRequest->id,
-                    'user_id' => $user->id,
-                ]);
-            }
-
-            return $withdrawalRequest;
         } finally {
             $lock->release();
         }
+
+        // Queued once the lock is released (and after the surrounding commit, if any):
+        // the SMTP round-trip must not extend the per-user withdrawal lock.
+        $adminEmail = (string) config('app.admin_email', '');
+
+        if ($adminEmail !== '') {
+            Mail::to($adminEmail)->queue(
+                (new WithdrawalRequestSubmittedMail($withdrawalRequest->loadMissing('user.userable')))->afterCommit()
+            );
+        } else {
+            Log::warning('Withdrawal request created but admin_email is not configured — no notification sent to admin', [
+                'withdrawal_request_id' => $withdrawalRequest->id,
+                'user_id' => $user->id,
+            ]);
+        }
+
+        return $withdrawalRequest;
     }
 
     /**

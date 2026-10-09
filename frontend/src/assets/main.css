@@ -5,28 +5,19 @@
 
 /* ── Custom Fonts ── */
 
-/* Zalando Sans – Body text (variable font, all weights) */
+/* Zalando Sans – Body text (variable font wght, WOFF2 sous-ensemble latin + ponctuation FR ; axe wdth figé, jamais utilisé) */
 @font-face {
   font-family: 'Zalando Sans';
-  src: url('@/assets/fonts/zalando_sans/ZalandoSans-VariableFont_wdth,wght.ttf') format('truetype');
+  src: url('@/assets/fonts/zalando_sans/ZalandoSans-Variable.woff2') format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: 'Zalando Sans';
-  src: url('@/assets/fonts/zalando_sans/ZalandoSans-Italic-VariableFont_wdth,wght.ttf') format('truetype');
+  src: url('@/assets/fonts/zalando_sans/ZalandoSans-Italic-Variable.woff2') format('woff2');
   font-weight: 100 900;
   font-style: italic;
-  font-display: swap;
-}
-
-/* After – Headings */
-@font-face {
-  font-family: 'After';
-  src: url('@/assets/fonts/after-font/after-regular.otf') format('opentype');
-  font-weight: 400;
-  font-style: normal;
   font-display: swap;
 }
 

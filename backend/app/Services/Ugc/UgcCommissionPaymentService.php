@@ -19,6 +19,7 @@ use App\Models\Mission;
 use App\Models\MissionPaymentCandidature;
 use App\Services\FaceEntitlementService;
 use App\Services\FedapayService;
+use App\Support\FedapayPollCache;
 use App\ValueObjects\BookingPricing;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -252,7 +253,10 @@ class UgcCommissionPaymentService
             return $booking;
         }
 
-        $transaction = $this->fedapayService->retrieveTransaction((int) $booking->fedapay_transaction_id);
+        $transaction = FedapayPollCache::remember(
+            (int) $booking->fedapay_transaction_id,
+            fn () => $this->fedapayService->retrieveTransaction((int) $booking->fedapay_transaction_id),
+        );
 
         if ($transaction->status === 'approved') {
             $this->lastCommissionPaymentStatus = 'paid';
@@ -614,7 +618,10 @@ class UgcCommissionPaymentService
             return $mission;
         }
 
-        $transaction = $this->fedapayService->retrieveTransaction((int) $mission->fedapay_transaction_id);
+        $transaction = FedapayPollCache::remember(
+            (int) $mission->fedapay_transaction_id,
+            fn () => $this->fedapayService->retrieveTransaction((int) $mission->fedapay_transaction_id),
+        );
 
         if ($transaction->status === 'approved') {
             $this->lastCommissionPaymentStatus = 'paid';

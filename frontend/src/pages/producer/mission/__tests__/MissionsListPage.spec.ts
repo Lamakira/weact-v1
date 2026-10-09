@@ -12,7 +12,7 @@ const routeQuery: { value: Record<string, unknown> } = { value: {} }
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: routerPushSpy, replace: routerReplaceSpy }),
-  useRoute: () => ({ query: routeQuery.value }),
+  useRoute: () => ({ name: 'producer-missions', query: routeQuery.value }),
 }))
 
 vi.mock('@/stores/auth', () => ({
@@ -65,15 +65,14 @@ const ugcMissionFixture: Mission = {
 vi.mock('@/features/mission/composables', () => ({
   useMissionsList: () => ({
     missions: ref<Mission[]>([missionFixture, ugcMissionFixture]),
-    allMissions: ref<Mission[]>([missionFixture, ugcMissionFixture]),
     isLoading: ref(false),
     error: ref(null),
-    isEmpty: ref(false),
-    hasNoMissions: ref(false),
-    statusFilter: ref<string>(''),
+    currentPage: ref(1),
+    lastPage: ref(1),
+    total: ref(2),
+    hasLoaded: ref(true),
     fetchMissions: fetchMissionsSpy,
     refreshMissions: vi.fn(),
-    setStatusFilter: vi.fn(),
   }),
   useDeleteMission: () => ({ deleteMission: vi.fn(), isDeleting: ref(false) }),
   useCloseMission: () => ({ closeMission: vi.fn(), isClosing: ref(false) }),
@@ -82,34 +81,35 @@ vi.mock('@/features/mission/composables', () => ({
 }))
 
 vi.mock('@/features/mission/components', () => ({
-  MissionCard: defineComponent({
-    name: 'MissionCardStub',
-    props: { mission: { type: Object, required: true }, emailVerified: { type: Boolean, required: true } },
-    emits: ['edit', 'delete', 'view-candidatures', 'close', 'reopen', 'complete', 'view-attendance', 'pay-commission'],
-    setup(props, { emit }) {
+  MissionsTable: defineComponent({
+    name: 'MissionsTableStub',
+    props: { missions: { type: Array, required: true }, emailVerified: { type: Boolean, default: true } },
+    emits: ['edit', 'delete', 'view-candidatures', 'close', 'reopen', 'complete', 'view-attendance', 'pay-commission', 'retry'],
+    setup(props, { emit, slots }) {
       return () =>
-        h(
-          'div',
-          { 'data-testid': `mission-card-${props.mission.id}` },
-          [
-            h(
-              'button',
-              {
-                'data-testid': `view-attendance-${props.mission.id}`,
-                onClick: () => emit('view-attendance', props.mission.id),
-              },
-              'Valider les présences',
-            ),
-            h(
-              'button',
-              {
-                'data-testid': `pay-commission-${props.mission.id}`,
-                onClick: () => emit('pay-commission', props.mission.id),
-              },
-              'Régler la commission',
-            ),
-          ],
-        )
+        h('div', { 'data-testid': 'missions-table-stub' }, [
+          ...(props.missions as { id: string }[]).map((mission) =>
+            h('div', { 'data-testid': `mission-card-${mission.id}` }, [
+              h(
+                'button',
+                {
+                  'data-testid': `view-attendance-${mission.id}`,
+                  onClick: () => emit('view-attendance', mission.id),
+                },
+                'Valider les présences',
+              ),
+              h(
+                'button',
+                {
+                  'data-testid': `pay-commission-${mission.id}`,
+                  onClick: () => emit('pay-commission', mission.id),
+                },
+                'Régler la commission',
+              ),
+            ]),
+          ),
+          slots.empty?.(),
+        ])
     },
   }),
   DeleteMissionDialog: defineComponent({ name: 'DeleteMissionDialogStub', setup: () => () => h('div') }),

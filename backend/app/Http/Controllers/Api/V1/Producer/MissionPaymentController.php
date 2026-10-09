@@ -16,6 +16,7 @@ use App\Models\Producer;
 use App\Services\FedapayService;
 use App\Services\MissionPaymentService;
 use App\Services\Ugc\UgcCommissionPaymentService;
+use App\Support\FedapayPollCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -122,7 +123,10 @@ class MissionPaymentController extends Controller
             && $payment->fedapay_transaction_id !== null
         ) {
             try {
-                $transaction = $this->fedapayService->retrieveTransaction((int) $payment->fedapay_transaction_id);
+                $transaction = FedapayPollCache::remember(
+                    (int) $payment->fedapay_transaction_id,
+                    fn () => $this->fedapayService->retrieveTransaction((int) $payment->fedapay_transaction_id),
+                );
 
                 if ($transaction->status === 'approved') {
                     $payment = $this->missionPaymentService->markAsPaid(

@@ -38,7 +38,7 @@ function cancelEnteringPublicRoute(element: Element): void {
 // Bootstrap notification store on app reload for authenticated users
 onMounted(() => {
   if (authStore.isAuthenticated && !notificationStore.isSubscribed) {
-    notificationStore.subscribe()
+    void notificationStore.subscribe()
     notificationStore.fetchUnreadCount()
   }
 })
@@ -135,7 +135,7 @@ const isLandingPage = computed(() => {
       <SitewideSubscriptionPaymentBanner />
 
       <!-- Main Content -->
-      <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
+      <main class="flex-1 min-h-screen supports-[height:100dvh]:min-h-[100dvh] max-w-7xl w-full mx-auto px-4 py-8">
         <RouterView v-slot="{ Component }">
           <Transition
             name="page"

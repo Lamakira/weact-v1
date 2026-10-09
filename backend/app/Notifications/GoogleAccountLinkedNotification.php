@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -12,9 +13,11 @@ use Illuminate\Notifications\Notification;
  * Sent when a Google sign-in took over a local account whose address was never
  * verified: the previous password was removed and every session closed.
  */
-class GoogleAccountLinkedNotification extends Notification
+class GoogleAccountLinkedNotification extends Notification implements ShouldQueue
 {
     use Queueable;
+
+    // Informative only (no token, no link): queued.
 
     /**
      * @return array<int, string>

@@ -236,6 +236,17 @@ export const BookingFilterLabel: Record<BookingFilterStatus, string> = {
   cancelled: 'Annulés',
 }
 
+// Server-side sort keys accepted by GET /bookings (`montant` = the viewer's own amount)
+export const BOOKING_SORT_KEYS = ['date_debut', 'created_at', 'montant', 'status'] as const
+export type BookingSortKey = (typeof BOOKING_SORT_KEYS)[number]
+
+// Optional list parameters (sort / page size) of GET /bookings
+export interface BookingListOptions {
+  sort?: BookingSortKey | null
+  direction?: 'asc' | 'desc'
+  perPage?: number
+}
+
 // Paginated booking list response
 export interface BookingListResponse {
   data: Booking[]

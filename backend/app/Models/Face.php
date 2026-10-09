@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Concerns\HasImageVariantUrls;
+use App\Concerns\HasRatingAggregates;
 use App\Concerns\HasRouteUuid;
 use App\Enums\FaceCategory;
 use App\Enums\FaceGender;
@@ -72,7 +73,7 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
  */
 class Face extends Model
 {
-    use HasFactory, HasImageVariantUrls, HasRouteUuid;
+    use HasFactory, HasImageVariantUrls, HasRatingAggregates, HasRouteUuid;
 
     /**
      * The attributes that are mass assignable.
@@ -434,11 +435,29 @@ class Face extends Model
     }
 
     /**
+     * Pre-load the acting-video flag read by the profile-completion accessors
+     * (listings: no per-row exists query).
+     *
+     * @param  Builder<static>  $query
+     */
+    public function scopeWithActingVideoFlag(Builder $query): void
+    {
+        $query->withExists([
+            'videos as has_acting_video' => fn ($q) => $q->where('type', FaceVideoType::Acting),
+        ]);
+    }
+
+    /**
      * Whether this Face has at least one acting portfolio video. Eager-load
-     * aware: reads the loaded `videos` relation when present, else one query.
+     * aware: reads the pre-loaded flag or the loaded `videos` relation when
+     * present, else one query.
      */
     private function hasActingVideo(): bool
     {
+        if (array_key_exists('has_acting_video', $this->attributes)) {
+            return (bool) $this->attributes['has_acting_video'];
+        }
+
         if ($this->relationLoaded('videos')) {
             return $this->videos->contains(
                 fn (FaceVideo $video): bool => $video->type === FaceVideoType::Acting
@@ -627,26 +646,20 @@ class Face extends Model
 
     /**
      * Get the average rating score for this Face.
+     *
+     * Reads the aggregates pre-loaded by withRatingAggregates() when present.
      */
     protected function averageRating(): Attribute
     {
         return Attribute::make(
             get: function (): ?float {
-                $candidatureRatings = $this->ratingsReceived()->selectRaw('COALESCE(SUM(score), 0) as score_sum, COUNT(*) as score_count')->first();
-                $bookingRatings = $this->bookingRatingsReceived()->selectRaw('COALESCE(SUM(score), 0) as score_sum, COUNT(*) as score_count')->groupBy('users.userable_id')->first();
+                $totals = $this->ratingTotals();
 
-                $candidatureCount = (int) data_get($candidatureRatings, 'score_count', 0);
-                $bookingCount = (int) data_get($bookingRatings, 'score_count', 0);
-                $totalCount = $candidatureCount + $bookingCount;
-
-                if ($totalCount === 0) {
+                if ($totals['count'] === 0) {
                     return null;
                 }
 
-                $totalScore = (float) data_get($candidatureRatings, 'score_sum', 0.0)
-                    + (float) data_get($bookingRatings, 'score_sum', 0.0);
-
-                $avg = $totalScore / $totalCount;
+                $avg = $totals['sum'] / $totals['count'];
                 $penalized = $avg - (float) ($this->rating_penalty ?? 0.0);
 
                 return max(1.0, $penalized);
@@ -660,7 +673,7 @@ class Face extends Model
     protected function ratingsCount(): Attribute
     {
         return Attribute::make(
-            get: fn (): int => $this->ratingsReceived()->count() + $this->bookingRatingsReceived()->count(),
+            get: fn (): int => $this->ratingTotals()['count'],
         );
     }
 }

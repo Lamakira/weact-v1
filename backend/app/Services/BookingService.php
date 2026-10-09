@@ -30,6 +30,7 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Services\Ugc\UgcCommissionService;
 use App\Services\Ugc\UgcRefundService;
+use App\Support\FedapayPollCache;
 use App\ValueObjects\BookingPricing;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -1024,7 +1025,10 @@ class BookingService
             return $booking;
         }
 
-        $transaction = $this->fedapayService->retrieveTransaction($booking->fedapay_transaction_id);
+        $transaction = FedapayPollCache::remember(
+            (int) $booking->fedapay_transaction_id,
+            fn () => $this->fedapayService->retrieveTransaction($booking->fedapay_transaction_id),
+        );
 
         if ($transaction->status === 'approved') {
             return $this->markAsPaid($booking, $transaction->reference ?? 'fedapay_poll');

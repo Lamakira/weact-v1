@@ -197,6 +197,43 @@ export interface MissionsListResponse {
   message?: string
 }
 
+// Server-side sort keys accepted by GET /producer/missions
+export const MISSION_SORT_KEYS = [
+  'created_at',
+  'date_tournage',
+  'date_limite_candidature',
+  'status',
+  'candidatures_count',
+] as const
+export type MissionSortKey = (typeof MISSION_SORT_KEYS)[number]
+
+// Query parameters of the paginated producer missions list
+export interface MissionListParams {
+  page: number
+  perPage: number
+  status?: MissionStatusType | ''
+  sort?: MissionSortKey | null
+  direction?: 'asc' | 'desc'
+}
+
+// Paginated producer missions list (opt-in: sent when page / per_page are given)
+export interface PaginatedMissionsResponse {
+  data: Mission[]
+  message?: string
+  links: {
+    first: string | null
+    last: string | null
+    prev: string | null
+    next: string | null
+  }
+  meta: {
+    current_page: number
+    last_page: number
+    per_page: number
+    total: number
+  }
+}
+
 // Mission filters for Face browse
 export interface MissionFilters {
   lieu?: string

@@ -11,6 +11,7 @@ use App\Console\Commands\ExpireUnpaidBookingsCommand;
 use App\Console\Commands\ExpireUnreconfirmedUgcCandidaturesCommand;
 use App\Console\Commands\FailStalePendingFaceSubscriptionsCommand;
 use App\Console\Commands\ProcessUgcDeadlinesCommand;
+use App\Console\Commands\PurgeExpiredCacheCommand;
 use App\Console\Commands\PurgeExpiredMediaCommand;
 use App\Console\Commands\RebuildFaceListingRanksCommand;
 use App\Console\Commands\ReconcileWalletCommand;
@@ -55,6 +56,13 @@ app(Schedule::class)->command(FailStalePendingFaceSubscriptionsCommand::class)->
 app(Schedule::class)->command(RemindFaceSubscriptionRenewalsCommand::class)->hourly();
 app(Schedule::class)->command(PurgeExpiredMediaCommand::class)
     ->dailyAt('03:00')
+    ->timezone('UTC')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// Le cache `database` ne purge jamais ses lignes expirées : nettoyage quotidien (no-op hors store database).
+app(Schedule::class)->command(PurgeExpiredCacheCommand::class)
+    ->dailyAt('04:00')
     ->timezone('UTC')
     ->withoutOverlapping()
     ->onOneServer();

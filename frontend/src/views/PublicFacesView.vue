@@ -207,11 +207,11 @@ watch(faces, async () => {
              elements each owns its own transition, and neither depends on the
              layer order to get it. -->
         <div
-          v-for="face in faces"
+          v-for="(face, index) in faces"
           :key="face.id"
           class="stagger-item"
         >
-          <FaceCard :face="face" />
+          <FaceCard :face="face" :priority="index < 4" />
         </div>
       </div>
 

@@ -79,7 +79,7 @@ class BookingResource extends JsonResource
             'can_pay' => $user && $user->can('pay', $this->resource),
             // Short-circuit: skip the DB exists() check for non-completed bookings
             // to avoid N+1 on list endpoints.
-            'can_rate' => $user && $this->status === BookingStatus::Completed && $user->can('rate', $this->resource),
+            'can_rate' => $user && $this->status === BookingStatus::Completed && $this->canRate($user),
             'my_rating' => $this->when(
                 $this->resource->relationLoaded('raterBookingRating'),
                 fn () => $this->raterBookingRating ? new BookingRatingResource($this->raterBookingRating) : null,
@@ -88,5 +88,21 @@ class BookingResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * The policy (the real gate for POST rate) always runs its own query. The list
+     * pre-loads `viewer_has_rated` for the authenticated viewer (BookingController::index):
+     * only this resource trusts it, to avoid one exists() per completed booking.
+     */
+    private function canRate(object $user): bool
+    {
+        if (! array_key_exists('viewer_has_rated', $this->resource->getAttributes())) {
+            return $user->can('rate', $this->resource);
+        }
+
+        $isParty = $user->id === $this->face_id || $user->id === $this->producer_id;
+
+        return $isParty && ! (bool) $this->resource->getAttribute('viewer_has_rated');
     }
 }
