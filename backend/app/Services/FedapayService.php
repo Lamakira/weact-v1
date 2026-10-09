@@ -31,8 +31,10 @@ class FedapayService
     public const TERMINAL_FAILED_STATUSES = ['declined', 'canceled', 'refunded', 'expired'];
 
     /**
-     * SDK defaults are 80 s read / 30 s connect: a slow FedaPay would pin a PHP
-     * worker for over a minute inside the polled endpoints.
+     * Timeouts applied ONLY around the status reads of the polled endpoints
+     * (SDK defaults: 80 s read / 30 s connect). Writes — transaction create,
+     * token, payouts, refunds — keep the SDK defaults: a payout executed
+     * remotely but answered late must never surface here as a timeout.
      */
     public const HTTP_TIMEOUT_SECONDS = 10;
 
@@ -42,10 +44,6 @@ class FedapayService
     {
         FedaPay::setApiKey(config('services.fedapay.secret_key'));
         FedaPay::setEnvironment(config('services.fedapay.environment'));
-
-        CurlClient::instance()
-            ->setTimeout(self::HTTP_TIMEOUT_SECONDS)
-            ->setConnectTimeout(self::HTTP_CONNECT_TIMEOUT_SECONDS);
     }
 
     /**
@@ -292,8 +290,17 @@ class FedapayService
      */
     public function retrieveTransaction(int $id): Transaction
     {
-        /** @var Transaction $transaction */
-        $transaction = Transaction::retrieve($id);
+        $client = CurlClient::instance();
+        $previousTimeout = $client->getTimeout();
+        $previousConnectTimeout = $client->getConnectTimeout();
+        $client->setTimeout(self::HTTP_TIMEOUT_SECONDS)->setConnectTimeout(self::HTTP_CONNECT_TIMEOUT_SECONDS);
+
+        try {
+            /** @var Transaction $transaction */
+            $transaction = Transaction::retrieve($id);
+        } finally {
+            $client->setTimeout($previousTimeout)->setConnectTimeout($previousConnectTimeout);
+        }
 
         return $transaction;
     }

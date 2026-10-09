@@ -12,7 +12,6 @@ use App\Models\Producer;
 use App\Models\User;
 use App\Services\FedapayService;
 use App\Support\FedapayPollCache;
-use FedaPay\HttpClient\CurlClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -22,14 +21,6 @@ use Tests\TestCase;
 class FedapayPollCacheTest extends TestCase
 {
     use RefreshDatabase;
-
-    public function test_fedapay_sdk_client_gets_short_timeouts(): void
-    {
-        new FedapayService;
-
-        $this->assertSame(10, CurlClient::instance()->getTimeout());
-        $this->assertSame(5, CurlClient::instance()->getConnectTimeout());
-    }
 
     public function test_mission_payment_status_polled_twice_reads_fedapay_once(): void
     {
