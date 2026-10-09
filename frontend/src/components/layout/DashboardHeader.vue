@@ -98,7 +98,7 @@ onUnmounted(() => {
     data-testid="dashboard-header"
   >
     <!-- Left: Mobile menu + Title badge -->
-    <div class="flex items-center gap-4">
+    <div class="flex min-w-0 items-center gap-4">
       <!-- Mobile hamburger menu -->
       <button
         @click="openMobile"
@@ -111,7 +111,7 @@ onUnmounted(() => {
 
       <!-- Title badge -->
       <div
-        class="text-[17px] font-semibold tracking-[-0.02em] text-ink"
+        class="truncate text-[17px] font-semibold tracking-[-0.02em] text-ink"
         data-testid="header-title"
       >
         {{ title }}
@@ -119,7 +119,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Right: User info + Actions -->
-    <div class="flex items-center gap-3">
+    <div class="flex flex-shrink-0 items-center gap-2 sm:gap-3">
       <!-- Secondary page actions (slot, optional) -->
       <slot name="actions" />
 
