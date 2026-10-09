@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\Face;
+use App\Services\Messaging\ConversationContextBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -31,6 +32,7 @@ class ConversationResource extends JsonResource
             'candidature_id' => $this->candidature_id,
             'mission_title' => data_get($this->candidature, 'mission.titre', ''),
             'other_participant' => $this->getOtherParticipant($currentUser),
+            'context' => $currentUser ? app(ConversationContextBuilder::class)->build($this->resource, $currentUser, true) : null,
             'messages' => MessageResource::collection($this->whenLoaded('messages')),
             'unread_count' => $currentUser ? $this->resource->unreadCountFor($currentUser) : 0,
         ];
