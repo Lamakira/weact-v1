@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Briefcase, AlertCircle, RefreshCw } from 'lucide-vue-next'
-import { UgcDiscoveryBanner } from '@/components/ugc'
+import UgcDiscoveryBanner from '@/components/ugc/UgcDiscoveryBanner.vue'
 import { usePaginatedMissions } from '@/features/public/composables/usePaginatedMissions'
 import type { PublicMissionFilters } from '@/features/public/services/publicMissionsApi'
 import PublicMissionCard from '@/features/public/components/PublicMissionCard.vue'

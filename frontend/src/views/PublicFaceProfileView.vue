@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, watchEffect, onUnmounted, nextTick } from 'vue'
+import { ref, watch, computed, watchEffect, onUnmounted, nextTick, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTitle } from '@vueuse/core'
 import { ChevronLeft, AlertCircle, RefreshCw, UserX, Lock, CalendarPlus } from 'lucide-vue-next'
@@ -15,11 +15,15 @@ import CandidateExperiencesSection from '@/features/candidature/components/Candi
 import ReviewsList from '@/components/ReviewsList.vue'
 import { publicApi } from '@/features/public/services/publicApi'
 import { Skeleton } from '@/components/ui/skeleton'
-import { BookingFormSheet } from '@/features/booking/components'
 import type { Booking } from '@/features/booking/types'
 import type { Review } from '@/features/rating/types'
 import type { CandidateFullProfile } from '@/features/candidature/types'
 import { useScrollReveal } from '@/composables/useScrollReveal'
+
+// Formulaire de réservation (zod + vee-validate) : chunk séparé, hors du chemin critique
+const BookingFormSheet = defineAsyncComponent(
+  () => import('@/features/booking/components/BookingFormSheet.vue'),
+)
 
 const { reinit } = useScrollReveal()
 

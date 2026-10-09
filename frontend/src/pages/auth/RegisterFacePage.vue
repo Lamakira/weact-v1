@@ -7,6 +7,7 @@ import { authApi } from '@/features/auth/services/authApi'
 import { safeRedirect } from '@/lib/safeRedirect'
 import logoNoir from '@/assets/images/logonoir.png'
 import registerFaceIllustration from '@/assets/images/register-face-illustration.webp'
+import LargeScreenImage from '@/components/auth/LargeScreenImage.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -130,7 +131,7 @@ function handleSuccess() {
     <div class="hidden lg:flex lg:w-1/2 relative flex-col justify-center overflow-hidden bg-gray-900">
       <!-- Background Image with Overlay -->
       <div class="absolute inset-0 z-0">
-        <img
+        <LargeScreenImage
           :src="registerFaceIllustration"
           alt="Talent Creative"
           class="h-full w-full object-cover opacity-60"

@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ArrowRight } from 'lucide-vue-next'
 import heroLandscape from '@/assets/images/hero-section/full-shot-woman-posing-chair.webp'
+import LargeScreenImage from '@/components/auth/LargeScreenImage.vue'
 import heroPortrait from '@/assets/images/hero-section/photo-1.webp'
 
 // --- Hero Text Cycling Animation ---
@@ -74,23 +75,29 @@ onUnmounted(() => {
             <img
               :src="heroPortrait"
               alt="Femme souriante en studio"
+              width="640"
+              height="1046"
               class="w-full max-w-xs md:max-w-none md:w-full h-[280px] sm:h-[320px] md:h-[420px] object-cover object-top rounded-2xl"
               loading="eager"
+              fetchpriority="high"
+              decoding="async"
             />
           </div>
           <!-- Desktop: Both images -->
           <div class="hidden lg:grid grid-cols-[1fr_auto] gap-4 items-center">
-            <img
+            <LargeScreenImage
               :src="heroLandscape"
               alt="Femme posant sur une chaise"
               class="w-full rounded-2xl object-cover"
-              loading="eager"
             />
             <img
               :src="heroPortrait"
               alt="Femme souriante en studio"
+              width="640"
+              height="1046"
               class="w-52 h-[32rem] object-cover object-top rounded-2xl"
               loading="eager"
+              decoding="async"
             />
           </div>
         </div>

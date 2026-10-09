@@ -53,13 +53,13 @@ const userName = computed(() => {
 
 // Fetch profile on mount to get avatar
 onMounted(async () => {
-  try {
-    await fetchProfile()
-  } catch {
-    // Silently fail - avatar will show fallback
-  }
-
-  await fetchWhatsappStatus()
+  // Independent requests: run them in parallel (profile avatar + WhatsApp status)
+  await Promise.all([
+    fetchProfile().catch(() => {
+      // Silently fail - avatar will show fallback
+    }),
+    fetchWhatsappStatus(),
+  ])
 })
 
 async function fetchWhatsappStatus(): Promise<void> {

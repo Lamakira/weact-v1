@@ -93,12 +93,19 @@ vi.mock('@/features/dashboard', () => ({
     fetchBookingChartStats: mockFetchBookingChartStats,
     retry: mockRetryBookingCharts,
   }),
-  ActivityChart: {
+}))
+
+vi.mock('@/features/dashboard/components/ActivityChart.vue', () => ({
+  __esModule: true,
+  default: {
     name: 'ActivityChart',
     template: '<div data-testid="activity-chart" :data-loading="isLoading" :data-error="error">Mon évolution</div>',
     props: ['candidaturesByMonth', 'missionsCompletedByMonth', 'isLoading', 'error'],
   },
-  BookingActivityChart: {
+}))
+vi.mock('@/features/dashboard/components/BookingActivityChart.vue', () => ({
+  __esModule: true,
+  default: {
     name: 'BookingActivityChart',
     template: '<div data-testid="booking-activity-chart" :data-loading="isLoading" :data-error="error">Mes bookings</div>',
     props: ['bookingsByMonth', 'bookingsCompletedByMonth', 'isLoading', 'error'],
@@ -274,5 +281,35 @@ describe('FaceDashboardPage', () => {
     expect(wrapper.find('[data-testid="activity-chart"]').attributes('data-error')).toBe('Erreur candidatures')
     expect(wrapper.find('[data-testid="booking-activity-chart"]').attributes('data-loading')).toBe('true')
     expect(wrapper.find('[data-testid="booking-activity-chart"]').attributes('data-error')).toBe('Erreur bookings')
+  })
+
+  it('shows fixed-height skeletons while the chart chunks load, then swaps them for the charts', async () => {
+    const wrapper = mountPage()
+
+    expect(wrapper.findAll('[data-testid="charts-skeleton"]')).toHaveLength(2)
+    expect(wrapper.find('[data-testid="activity-chart"]').exists()).toBe(false)
+
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="charts-skeleton"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="activity-chart"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="booking-activity-chart"]').exists()).toBe(true)
+  })
+
+  it('affiche un message explicite si le chunk des graphiques ne se charge pas', async () => {
+    vi.resetModules()
+    const { defineAsyncComponent, h } = await import('vue')
+    const ChartsError = (await import('@/features/dashboard/components/ChartsError.vue')).default
+    const Broken = defineAsyncComponent({
+      loader: () => Promise.reject(new Error('Failed to fetch dynamically imported module')),
+      errorComponent: ChartsError,
+      delay: 0,
+    })
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const wrapper = mount({ render: () => h(Broken) })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="charts-error"]').text()).toContain('Graphiques indisponibles')
   })
 })

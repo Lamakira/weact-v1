@@ -198,6 +198,8 @@ watch(
       }
     }
   },
+  // Le composant est chargé en asynchrone : il peut se monter déjà ouvert
+  { immediate: true },
 )
 
 // Handle Escape key and focus trap

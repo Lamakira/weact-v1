@@ -75,6 +75,9 @@ const lastMessagePreview = computed(() => {
         :alt="conversation.other_participant.name"
         class="h-full w-full object-cover"
         loading="lazy"
+        width="48"
+        height="48"
+        decoding="async"
       />
       <div
         v-else

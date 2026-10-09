@@ -5,9 +5,8 @@
 // Types
 export * from './types'
 
-// Components
-export { default as ActivityChart } from './components/ActivityChart.vue'
-export { default as BookingActivityChart } from './components/BookingActivityChart.vue'
+// Components: ActivityChart / BookingActivityChart (chart.js) volontairement hors du barrel,
+// importés en asynchrone par FaceDashboardPage pour rester dans un chunk séparé.
 
 // Composables
 export { useDashboardStats } from './composables/useDashboardStats'

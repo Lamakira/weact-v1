@@ -295,4 +295,26 @@ describe('useBookingChat', () => {
 
     expect(mockEcho.leave).toHaveBeenCalledWith(`booking.${REALTIME_CHANNEL_KEY}`)
   })
+
+  describe('chargement différé d\'Echo', () => {
+    it('ne crée pas de canal si le composant est démonté avant la fin du chargement', async () => {
+      vi.mocked(bookingChatApi.fetchMessages).mockResolvedValue(makeListResponse([]))
+      mockEcho.private.mockClear()
+
+      const wrapper = mount(
+        defineComponent({
+          setup() {
+            useBookingChat('b-1', 10, 100)
+            return {}
+          },
+          template: '<div />',
+        }),
+      )
+      wrapper.unmount()
+      await flushPromises()
+      await flushPromises()
+
+      expect(mockEcho.private).not.toHaveBeenCalled()
+    })
+  })
 })
