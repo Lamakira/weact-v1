@@ -108,6 +108,37 @@ export interface BookingChartStatsResponse {
 }
 
 /**
+ * Item of the Face « À faire » queue (GET /face/dashboard/todo).
+ * `url` is a front route already built from uuids; `urgent_meta` is the part of the
+ * meta line shown in amber (deadline under 48 h, contest window...).
+ */
+export type FaceTodoType =
+  | 'booking_proposal'
+  | 'ugc_proposal'
+  | 'no_show_contest'
+  | 'confirm_prestation'
+  | 'ugc_deliverable'
+  | 'pending_candidatures'
+  | 'profile_completion'
+
+export interface FaceTodoItem {
+  type: FaceTodoType
+  title: string
+  meta: string | null
+  urgent_meta: string | null
+  action_label: string
+  url: string
+}
+
+/**
+ * API response for the Face todo queue
+ */
+export interface FaceTodoResponse {
+  data: FaceTodoItem[]
+  message: string
+}
+
+/**
  * Available missions count data
  */
 export interface MissionsCount {

@@ -31,7 +31,7 @@ const hasWhatsapp = computed(() => !!personalInfo.value?.whatsapp_number)
 
 // Sidebar navigation items for Face dashboard
 const sidebarItems: SidebarItem[] = [
-  { label: 'Dashboard', icon: LayoutDashboard, to: '/face/dashboard' },
+  { label: 'Tableau de bord', icon: LayoutDashboard, to: '/face/dashboard' },
   { label: 'Voir les missions', icon: Briefcase, to: '/face/missions' },
   { label: 'Missions UGC', icon: Video, to: '/face/ugc-missions' },
   { label: 'Mes candidatures', icon: FileText, to: '/face/candidatures' },
@@ -95,7 +95,7 @@ async function handleLogout(): Promise<void> {
   <DashboardLayout
     :sidebar-items="sidebarItems"
     :mobile-tabs="mobileTabs"
-    title="Face Dashboard"
+    title="Tableau de bord"
     :user-email="authStore.user?.email"
     :user-name="userName"
     :avatar-url="profile?.profile_photo_url"

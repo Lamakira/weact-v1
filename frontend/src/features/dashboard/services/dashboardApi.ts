@@ -6,6 +6,7 @@ import type {
   ProducerDashboardStatsResponse,
   BookingStatsResponse,
   BookingChartStatsResponse,
+  FaceTodoResponse,
 } from '../types'
 
 /**
@@ -60,6 +61,14 @@ export const dashboardApi = {
    */
   async getBookingChartStats(): Promise<BookingChartStatsResponse> {
     const response = await apiClient.get<BookingChartStatsResponse>('/face/dashboard/booking-chart-stats')
+    return response.data
+  },
+
+  /**
+   * Get the Face « À faire » queue (up to 8 items, most urgent first)
+   */
+  async getFaceTodo(): Promise<FaceTodoResponse> {
+    const response = await apiClient.get<FaceTodoResponse>('/face/dashboard/todo')
     return response.data
   },
 
