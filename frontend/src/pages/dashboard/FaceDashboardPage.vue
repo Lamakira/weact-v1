@@ -4,7 +4,7 @@
  * Dashboard home for Face users — profile card + KPIs + quick access.
  * Two-column layout: profile photo (left) and stats/actions (right).
  */
-import { computed, onMounted } from 'vue'
+import { computed, defineAsyncComponent, onMounted } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
@@ -27,12 +27,23 @@ import {
   useMissionsCount,
   useBookingStats,
   useDashboardBookingCharts,
-  ActivityChart,
-  BookingActivityChart,
 } from '@/features/dashboard'
+import ChartsSkeleton from '@/features/dashboard/components/ChartsSkeleton.vue'
 import { useWallet } from '@/features/wallet'
 import { Skeleton } from '@/components/ui/skeleton'
 import CurrentPlanCard from '@/features/face/components/CurrentPlanCard.vue'
+
+// chart.js n'est chargé qu'avec ces deux composants : chunk séparé, skeleton à hauteur fixe
+const ActivityChart = defineAsyncComponent({
+  loader: () => import('@/features/dashboard/components/ActivityChart.vue'),
+  loadingComponent: ChartsSkeleton,
+  delay: 0,
+})
+const BookingActivityChart = defineAsyncComponent({
+  loader: () => import('@/features/dashboard/components/BookingActivityChart.vue'),
+  loadingComponent: ChartsSkeleton,
+  delay: 0,
+})
 
 const router = useRouter()
 const {

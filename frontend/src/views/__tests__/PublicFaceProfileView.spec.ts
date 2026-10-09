@@ -138,8 +138,9 @@ vi.mock('@/components/RatingDisplay.vue', () => ({
 vi.mock('@/components/ReviewsList.vue', () => ({
   default: { template: '<div></div>', props: ['reviews', 'isLoading'] },
 }))
-vi.mock('@/features/booking/components', () => ({
-  BookingFormSheet: {
+vi.mock('@/features/booking/components/BookingFormSheet.vue', () => ({
+  __esModule: true,
+  default: {
     template: '<div data-testid="booking-form-sheet"></div>',
     props: ['isOpen', 'faceId', 'faceName', 'tarifHoraire', 'tarifJournalier'],
   },
