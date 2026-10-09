@@ -29,6 +29,7 @@ import {
   useDashboardBookingCharts,
 } from '@/features/dashboard'
 import ChartsSkeleton from '@/features/dashboard/components/ChartsSkeleton.vue'
+import ChartsError from '@/features/dashboard/components/ChartsError.vue'
 import { useWallet } from '@/features/wallet'
 import { Skeleton } from '@/components/ui/skeleton'
 import CurrentPlanCard from '@/features/face/components/CurrentPlanCard.vue'
@@ -37,11 +38,13 @@ import CurrentPlanCard from '@/features/face/components/CurrentPlanCard.vue'
 const ActivityChart = defineAsyncComponent({
   loader: () => import('@/features/dashboard/components/ActivityChart.vue'),
   loadingComponent: ChartsSkeleton,
+  errorComponent: ChartsError,
   delay: 0,
 })
 const BookingActivityChart = defineAsyncComponent({
   loader: () => import('@/features/dashboard/components/BookingActivityChart.vue'),
   loadingComponent: ChartsSkeleton,
+  errorComponent: ChartsError,
   delay: 0,
 })
 

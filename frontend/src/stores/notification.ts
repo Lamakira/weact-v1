@@ -35,6 +35,10 @@ let focusHandler: (() => void) | null = null
 let reconnectHandler: (() => void) | null = null
 let safetyPollIntervalId: ReturnType<typeof setInterval> | null = null
 let lastFocusRefetchAt = 0
+// Incrémenté à chaque (re)subscribe / unsubscribe / reset : invalide les appels asynchrones périmés
+let subscribeGeneration = 0
+// Le chargement du client temps réel a échoué : on retentera au prochain focus
+let realtimeLoadFailed = false
 
 function getEchoConnection(): EchoConnection | null {
   const connection = echoInstance?.connector?.pusher?.connection
@@ -151,6 +155,10 @@ export const useNotificationStore = defineStore('notification', () => {
       if (now - lastFocusRefetchAt < FOCUS_REFETCH_MIN_INTERVAL_MS) return
       lastFocusRefetchAt = now
 
+      if (realtimeLoadFailed && !isSubscribed.value && !isSubscribing.value) {
+        void subscribe()
+      }
+
       void fetchUnreadCount()
 
       if (hasFetchedItems.value) {
@@ -217,6 +225,7 @@ export const useNotificationStore = defineStore('notification', () => {
     const userId = authStore.user?.id
     if (!userId) return
 
+    const generation = ++subscribeGeneration
     isSubscribing.value = true
     startFocusListener()
     startSafetyPoll()
@@ -225,15 +234,18 @@ export const useNotificationStore = defineStore('notification', () => {
     try {
       echo = await getEcho()
     } catch (error) {
+      if (generation !== subscribeGeneration) return
+      // Chunk périmé / réseau coupé : le compteur reste alimenté par le focus et le poll
+      // de sécurité, et l'abonnement temps réel est retenté au prochain focus.
       isSubscribing.value = false
-      stopFocusListener()
-      stopSafetyPoll()
+      realtimeLoadFailed = true
       console.error('[NotificationStore] Failed to load realtime client:', error)
       return
     }
+    realtimeLoadFailed = false
 
-    // unsubscribe() / $reset() appelé pendant le chargement du module : abandon
-    if (!isSubscribing.value) return
+    // unsubscribe() / $reset() / nouveau subscribe() pendant le chargement du module : abandon
+    if (generation !== subscribeGeneration) return
 
     // Refresh Echo auth headers from current token/cookie
     const token = getAuthToken()
@@ -266,6 +278,7 @@ export const useNotificationStore = defineStore('notification', () => {
       startReconnectListener()
 
       channel.error?.(() => {
+        if (generation !== subscribeGeneration) return
         isSubscribing.value = false
         isSubscribed.value = false
         stopFocusListener()
@@ -281,6 +294,7 @@ export const useNotificationStore = defineStore('notification', () => {
 
       if (typeof channel.subscribed === 'function') {
         channel.subscribed(() => {
+          if (generation !== subscribeGeneration) return
           isSubscribing.value = false
           isSubscribed.value = true
         })
@@ -313,6 +327,8 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   function $reset(): void {
+    subscribeGeneration++
+    realtimeLoadFailed = false
     unreadCount.value = 0
     items.value = []
     isLoading.value = false

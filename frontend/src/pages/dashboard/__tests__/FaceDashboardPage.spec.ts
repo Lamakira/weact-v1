@@ -295,4 +295,21 @@ describe('FaceDashboardPage', () => {
     expect(wrapper.find('[data-testid="activity-chart"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="booking-activity-chart"]').exists()).toBe(true)
   })
+
+  it('affiche un message explicite si le chunk des graphiques ne se charge pas', async () => {
+    vi.resetModules()
+    const { defineAsyncComponent, h } = await import('vue')
+    const ChartsError = (await import('@/features/dashboard/components/ChartsError.vue')).default
+    const Broken = defineAsyncComponent({
+      loader: () => Promise.reject(new Error('Failed to fetch dynamically imported module')),
+      errorComponent: ChartsError,
+      delay: 0,
+    })
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    const wrapper = mount({ render: () => h(Broken) })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="charts-error"]').text()).toContain('Graphiques indisponibles')
+  })
 })

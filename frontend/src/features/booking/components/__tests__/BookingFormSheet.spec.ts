@@ -388,3 +388,19 @@ describe('BookingFormSheet — UGC', () => {
     )
   })
 })
+
+describe('BookingFormSheet — monté déjà ouvert (chargement asynchrone)', () => {
+  it('déplace le focus vers le premier champ quand le composant se monte avec isOpen=true', async () => {
+    const wrapper = mount(BookingFormSheet, {
+      attachTo: document.body,
+      props: { isOpen: true, faceId: '1', faceName: 'Jane Doe', tarifHoraire: 5000, tarifJournalier: 30000 },
+      global: { stubs: { Teleport: { template: '<slot />' } } },
+    })
+    await flushPromises()
+
+    const firstInput = wrapper.find('input, select, textarea')
+    expect(firstInput.exists()).toBe(true)
+    expect(document.activeElement).toBe(firstInput.element)
+    wrapper.unmount()
+  })
+})

@@ -107,6 +107,7 @@ describe('App.vue notification bootstrap', () => {
 
     const wrapper = shallowMount(App)
 
-    expect(wrapper.find('main').classes()).toContain('min-h-[100dvh]')
+    expect(wrapper.find('main').classes()).toContain('supports-[height:100dvh]:min-h-[100dvh]')
+    expect(wrapper.find('main').classes()).toContain('min-h-screen')
   })
 })
