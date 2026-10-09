@@ -40,7 +40,11 @@ class ConversationListResource extends JsonResource
                 'is_mine' => $latestMessage->sender_id === $currentUser?->id,
                 'created_at' => $latestMessage->created_at->toIso8601String(),
             ] : null,
-            'unread_count' => $currentUser ? $this->resource->unreadCountFor($currentUser) : 0,
+            'unread_count' => $currentUser
+                ? (array_key_exists('unread_count', $this->resource->getAttributes())
+                    ? (int) $this->resource->getAttribute('unread_count')
+                    : $this->resource->unreadCountFor($currentUser))
+                : 0,
             'updated_at' => $this->updated_at->toIso8601String(),
         ];
     }

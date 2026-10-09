@@ -39,6 +39,7 @@ class ConversationController extends Controller
                 'candidature.face',
                 'latestMessage.sender.userable',
             ])
+            ->withUnreadCountFor($user)
             ->orderByRaw('COALESCE((SELECT MAX(created_at) FROM messages WHERE conversation_id = conversations.id), conversations.updated_at) DESC')
             ->paginate(15);
 
