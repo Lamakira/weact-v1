@@ -424,6 +424,43 @@ class BookingCancellationTest extends TestCase
             ->assertJsonPath('data.face_cancellation_deadline', '2026-11-09T00:00:00+00:00');
     }
 
+    public function test_booking_show_exposes_was_paid_from_escrow_existence(): void
+    {
+        $paid = Booking::factory()->paid()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+        EscrowTransaction::create([
+            'booking_id' => $paid->id,
+            'amount' => $paid->montant_face_recoit,
+            'status' => 'locked',
+        ]);
+        $pending = Booking::factory()->pending()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $this->actingAs($this->faceUser)->withApiToken($this->faceUser)
+            ->getJson("/api/v1/bookings/{$paid->uuid}")
+            ->assertOk()->assertJsonPath('data.was_paid', true);
+        $this->actingAs($this->faceUser)->withApiToken($this->faceUser)
+            ->getJson("/api/v1/bookings/{$pending->uuid}")
+            ->assertOk()->assertJsonPath('data.was_paid', false);
+    }
+
+    public function test_booking_index_omits_was_paid_to_avoid_n_plus_one(): void
+    {
+        Booking::factory()->count(3)->paid()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $this->actingAs($this->faceUser)->withApiToken($this->faceUser)
+            ->getJson('/api/v1/bookings')
+            ->assertOk()
+            ->assertJsonMissingPath('data.0.was_paid');
+    }
+
     public function test_producer_cancellation_is_not_affected_by_the_face_deadline(): void
     {
         Event::fake([BookingCancelled::class]);

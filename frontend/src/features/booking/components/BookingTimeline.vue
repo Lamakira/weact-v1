@@ -7,6 +7,10 @@ import { BookingStatus, type BookingStatusType } from '../types'
 const props = defineProps<{
   status: BookingStatusType
   cancellationReason?: string | null
+  /** Date d'acceptation réelle (statuts négatifs) ; absent = comportement par défaut. */
+  acceptedAt?: string | null
+  /** Un paiement (escrow) a réellement eu lieu (statuts négatifs). */
+  wasPaid?: boolean
 }>()
 
 type StepState = 'completed' | 'current' | 'future' | 'failed'
@@ -73,8 +77,14 @@ const negativeProgress: Record<string, { done: TimelineStep['key'][]; label: str
 const steps = computed<TimelineStep[]>(() => {
   const negative = negativeProgress[props.status]
   if (negative) {
+    // Avec les données réelles (props fournies), les jalons atteints en découlent ; no_show implique
+    // toujours un booking payé.
+    const hasRealData = props.acceptedAt !== undefined || props.wasPaid !== undefined
+    const done = !hasRealData || props.status === BookingStatus.NO_SHOW
+      ? negative.done
+      : ['pending', ...(props.acceptedAt ? ['accepted'] : []), ...(props.wasPaid ? ['accepted', 'paid'] : [])]
     const reached = cashFlow
-      .filter((s) => negative.done.includes(s.key))
+      .filter((s) => done.includes(s.key))
       .map((s): TimelineStep => ({ ...s, state: 'completed' }))
     return [...reached, { label: negative.label, key: props.status, state: 'failed' }]
   }

@@ -117,6 +117,9 @@ class BookingController extends Controller
     {
         Gate::authorize('view', $booking);
 
+        // was_paid (timeline) : exists-check unique, jamais calculé sur les listes (pas de N+1).
+        $booking->loadExists('escrowTransaction');
+
         $booking->load([
             'face.userable',
             'producer.userable',

@@ -53,6 +53,11 @@ class BookingResource extends JsonResource
             'fedapay_transaction_id' => $user && $user->id === $this->producer_id ? $this->fedapay_transaction_id : null,
             'payment_mode' => $this->payment_mode,
             'accepted_at' => $this->accepted_at?->toISOString(),
+            // Présent uniquement quand le contrôleur a fait loadExists('escrowTransaction') (show).
+            'was_paid' => $this->when(
+                array_key_exists('escrow_transaction_exists', $this->resource->getAttributes()),
+                fn () => (bool) $this->resource->getAttribute('escrow_transaction_exists'),
+            ),
             'settlement_due_at' => $this->settlement_due_at?->toIso8601String(),
             'disputed_at' => $this->disputed_at?->toIso8601String(),
             'dispute_resolved_at' => $this->dispute_resolved_at?->toIso8601String(),

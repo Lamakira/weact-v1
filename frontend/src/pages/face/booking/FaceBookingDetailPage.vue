@@ -821,7 +821,12 @@ onUnmounted(() => {
         <div v-if="!isUgc" class="lg:col-span-1">
           <div class="bg-white rounded-xl border border-gray-200 p-5">
             <h2 class="text-sm font-semibold text-gray-700 mb-4">Progression</h2>
-            <BookingTimeline :status="booking.status" :cancellation-reason="booking.cancellation_reason" />
+            <BookingTimeline
+              :status="booking.status"
+              :cancellation-reason="booking.cancellation_reason"
+              :accepted-at="booking.accepted_at"
+              :was-paid="booking.was_paid"
+            />
           </div>
         </div>
 

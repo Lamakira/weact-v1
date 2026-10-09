@@ -162,6 +162,8 @@ export interface Booking {
   fedapay_transaction_id: number | null
   payment_mode: string | null
   accepted_at: string | null
+  // Un paiement (escrow) a eu lieu ; fourni par le détail (show) uniquement
+  was_paid?: boolean
   // Fenêtre de contestation 72 h (absence Face / annulation Producteur tardive).
   // `settlement_due_at` null = booking sans règlement en attente (ou déjà réglé).
   settlement_due_at?: string | null

@@ -91,3 +91,55 @@ describe('BookingTimeline — statuts négatifs (dernière étape rouge)', () =>
     expect(html).toContain('text-red-700')
   })
 })
+
+describe('BookingTimeline — statuts négatifs avec données réelles', () => {
+  function stepsWith(status: BookingStatusType, props: Record<string, unknown>): Array<[string, string]> {
+    const wrapper = mount(BookingTimeline, { props: { status, ...props } })
+    return wrapper.findAll('[data-testid="timeline-step"]').map((el) => [
+      el.text(),
+      el.attributes('data-state') ?? '',
+    ])
+  }
+
+  it('cancelled_by_producer après paiement : demande, acceptation, paiement cochés puis rouge', () => {
+    expect(
+      stepsWith(BookingStatus.CANCELLED_BY_PRODUCER, { acceptedAt: '2026-10-01T10:00:00Z', wasPaid: true }),
+    ).toEqual([
+      ['Demande envoyée', C],
+      ['Acceptation', C],
+      ['Paiement', C],
+      ['Annulée par le Producteur', 'failed'],
+    ])
+  })
+
+  it('expired après acceptation sans paiement : demande, acceptation puis rouge', () => {
+    expect(stepsWith(BookingStatus.EXPIRED, { acceptedAt: '2026-10-01T10:00:00Z', wasPaid: false })).toEqual([
+      ['Demande envoyée', C],
+      ['Acceptation', C],
+      ['Expirée', 'failed'],
+    ])
+  })
+
+  it('refused reste après la demande, même avec des props', () => {
+    expect(stepsWith(BookingStatus.REFUSED, { acceptedAt: null, wasPaid: false })).toEqual([
+      ['Demande envoyée', C],
+      ['Refusée', 'failed'],
+    ])
+  })
+
+  it('cancelled_by_face sans acceptation : demande puis rouge', () => {
+    expect(stepsWith(BookingStatus.CANCELLED_BY_FACE, { acceptedAt: null, wasPaid: false })).toEqual([
+      ['Demande envoyée', C],
+      ['Annulée par la Face', 'failed'],
+    ])
+  })
+
+  it('no_show garde demande/acceptation/paiement', () => {
+    expect(stepsWith(BookingStatus.NO_SHOW, { acceptedAt: '2026-10-01T10:00:00Z', wasPaid: true })).toEqual([
+      ['Demande envoyée', C],
+      ['Acceptation', C],
+      ['Paiement', C],
+      ['Absence signalée', 'failed'],
+    ])
+  })
+})
