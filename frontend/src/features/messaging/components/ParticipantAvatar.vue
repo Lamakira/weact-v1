@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { OtherParticipant } from '../types'
 
 const props = withDefaults(
@@ -14,6 +14,11 @@ const props = withDefaults(
 const src = computed(
   () => props.participant.profile_photo_thumbnail_url || props.participant.photo_url || null,
 )
+// Échec de chargement : même rendu que sans photo (initiales)
+const failed = ref(false)
+watch(src, () => {
+  failed.value = false
+})
 const initials = computed(() =>
   props.participant.name
     .split(' ')
@@ -32,11 +37,12 @@ const initials = computed(() =>
     data-testid="participant-avatar"
   >
     <img
-      v-if="src"
+      v-if="src && !failed"
       :src="src"
       :alt="participant.name"
       class="size-full object-cover"
       loading="lazy"
+      @error="failed = true"
     />
     <span v-else aria-hidden="true">{{ initials }}</span>
   </span>
