@@ -31,7 +31,7 @@ class FaceReviewController extends Controller
         $candidatureRatings = $face->ratingsReceived()->with('rater.userable')->get();
         $bookingRatings = $face->bookingRatingsReceived()->with('rater.userable')->get();
 
-        $all = $candidatureRatings->merge($bookingRatings)
+        $all = $candidatureRatings->toBase()->concat($bookingRatings)
             ->sortByDesc('created_at')
             ->values();
 

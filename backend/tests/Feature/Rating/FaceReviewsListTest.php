@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Rating;
 
+use App\Models\Booking;
+use App\Models\BookingRating;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
@@ -127,6 +129,43 @@ class FaceReviewsListTest extends TestCase
         $response = $this->getJson('/api/v1/public/faces/nonexistentuser/reviews');
 
         $response->assertStatus(404);
+    }
+
+    public function test_candidature_and_booking_ratings_sharing_the_same_id_are_both_returned(): void
+    {
+        $mission = Mission::factory()->create(['producer_id' => $this->producer->id]);
+        $candidature = Candidature::factory()->completed()->create([
+            'face_id' => $this->face->id,
+            'mission_id' => $mission->id,
+        ]);
+
+        $rating = Rating::create([
+            'candidature_id' => $candidature->id,
+            'rater_id' => $this->producerUser->id,
+            'rated_id' => $this->face->id,
+            'rated_type' => Face::class,
+            'score' => 5,
+        ]);
+
+        $faceUser = $this->face->user;
+        $booking = Booking::factory()->completed()->create([
+            'face_id' => $faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $bookingRating = new BookingRating([
+            'booking_id' => $booking->id,
+            'rater_id' => $this->producerUser->id,
+            'rated_id' => $faceUser->id,
+            'score' => 4,
+        ]);
+        $bookingRating->id = $rating->id;
+        $bookingRating->save();
+
+        $this->getJson("/api/v1/public/faces/{$this->face->username}/reviews")
+            ->assertOk()
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonCount(2, 'data');
     }
 
     // ========================================================================
