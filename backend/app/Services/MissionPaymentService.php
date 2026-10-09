@@ -26,6 +26,7 @@ use App\Models\MissionPaymentCandidature;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
+use App\Support\FedapayPollCache;
 use App\ValueObjects\BookingPricing;
 use App\ValueObjects\MissionPricing;
 use Illuminate\Contracts\Cache\LockTimeoutException;
@@ -1265,7 +1266,10 @@ class MissionPaymentService
             return ['candidature' => $candidature, 'payment_status' => 'pending', 'is_trackable' => false];
         }
 
-        $transaction = $this->fedapayService->retrieveTransaction((int) $entry->fedapay_transaction_id);
+        $transaction = FedapayPollCache::remember(
+            (int) $entry->fedapay_transaction_id,
+            fn () => $this->fedapayService->retrieveTransaction((int) $entry->fedapay_transaction_id),
+        );
 
         if ($transaction->status === 'approved') {
             $this->markUgcMissionCandidaturePaid(

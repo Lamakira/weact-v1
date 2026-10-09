@@ -13,6 +13,7 @@ use App\Models\Producer;
 use App\Models\User;
 use FedaPay\Balance;
 use FedaPay\FedaPay;
+use FedaPay\HttpClient\CurlClient;
 use FedaPay\Payout;
 use FedaPay\Transaction;
 use FedaPay\Webhook;
@@ -29,10 +30,22 @@ class FedapayService
      */
     public const TERMINAL_FAILED_STATUSES = ['declined', 'canceled', 'refunded', 'expired'];
 
+    /**
+     * SDK defaults are 80 s read / 30 s connect: a slow FedaPay would pin a PHP
+     * worker for over a minute inside the polled endpoints.
+     */
+    public const HTTP_TIMEOUT_SECONDS = 10;
+
+    public const HTTP_CONNECT_TIMEOUT_SECONDS = 5;
+
     public function __construct()
     {
         FedaPay::setApiKey(config('services.fedapay.secret_key'));
         FedaPay::setEnvironment(config('services.fedapay.environment'));
+
+        CurlClient::instance()
+            ->setTimeout(self::HTTP_TIMEOUT_SECONDS)
+            ->setConnectTimeout(self::HTTP_CONNECT_TIMEOUT_SECONDS);
     }
 
     /**
