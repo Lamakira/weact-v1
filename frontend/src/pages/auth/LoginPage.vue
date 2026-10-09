@@ -9,6 +9,7 @@ import { safeRedirect } from '@/lib/safeRedirect'
 import { useToast } from '@/composables/useToast'
 import logoNoir from '@/assets/images/logonoir.png'
 import loginIllustration from '@/assets/images/login-weact-illustration.webp'
+import LargeScreenImage from '@/components/auth/LargeScreenImage.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -182,7 +183,7 @@ function handleLoginSuccess(): void {
     <div class="hidden lg:flex lg:w-1/2 relative flex-col justify-center overflow-hidden bg-gray-900">
       <!-- Background Image with Overlay -->
       <div class="absolute inset-0 z-0">
-        <img
+        <LargeScreenImage
           :src="loginIllustration"
           alt="Creative Studio"
           class="h-full w-full object-cover opacity-60"
