@@ -194,6 +194,26 @@ describe('FaceDashboardPage', () => {
       expect(wrapper.find('[data-testid="profile-plan-badge"]').text()).toBe('Pro')
     })
 
+    it('retombe sur les initiales (teal) quand la photo ne charge pas', async () => {
+      const { useProfilePhoto } = await import('@/features/face/composables/useProfilePhoto')
+      const wrapper = mountPage()
+      await flushPromises()
+      const { profile } = useProfilePhoto()
+      profile.value = { ...profile.value!, profile_photo_url: 'https://x/broken.jpg', thumbnail_url: null }
+      await flushPromises()
+
+      const card = wrapper.find('[data-testid="profile-photo-card"]')
+      await card.find('img').trigger('error')
+
+      expect(card.find('img').exists()).toBe(false)
+      const fallback = card.find('[data-testid="profile-avatar-fallback"]')
+      expect(fallback.text()).toBe('AD')
+      expect(fallback.classes()).toContain('bg-weact-50')
+      expect(fallback.classes()).toContain('text-weact-700')
+
+      profile.value = { ...profile.value!, profile_photo_url: null }
+    })
+
     it('le badge caméra et « Modifier le profil » ouvrent la fiche (flux photo existant)', async () => {
       const wrapper = mountPage()
       await flushPromises()

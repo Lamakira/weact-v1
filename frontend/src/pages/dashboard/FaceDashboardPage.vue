@@ -4,7 +4,7 @@
  * Dashboard home for Face users — direction « Régie » :
  * en-tête profil + « À faire » + matrice d'activité + portefeuille / profil / abonnement.
  */
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { Camera, Eye } from 'lucide-vue-next'
 import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
@@ -101,6 +101,15 @@ const initials = computed(() => {
   return 'U'
 })
 
+// Photo illisible (URL cassée) : repli sur les initiales ; réarmé si l'URL change
+const photoFailed = ref(false)
+watch(
+  () => profile.value?.profile_photo_url,
+  () => {
+    photoFailed.value = false
+  },
+)
+
 const categoryDisplay = computed(() => {
   const parts: string[] = []
   if (categoryNiche.value?.categories?.length) {
@@ -166,12 +175,17 @@ function goToProfile(): void {
         <div class="relative shrink-0" data-testid="profile-photo-card">
           <div class="size-10 overflow-hidden rounded-full bg-sidebar ring-1 ring-line">
             <img
-              v-if="profile?.profile_photo_url"
+              v-if="profile?.profile_photo_url && !photoFailed"
               :src="profile.thumbnail_url || profile.profile_photo_url"
               :alt="fullName"
               class="size-full object-cover"
+              @error="photoFailed = true"
             />
-            <span v-else class="grid size-full place-items-center bg-weact-600 text-[13px] font-semibold text-white">
+            <span
+              v-else
+              class="grid size-full place-items-center bg-weact-50 text-[13px] font-semibold text-weact-700"
+              data-testid="profile-avatar-fallback"
+            >
               {{ initials }}
             </span>
           </div>
