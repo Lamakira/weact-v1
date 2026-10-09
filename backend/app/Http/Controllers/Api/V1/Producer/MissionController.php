@@ -39,7 +39,8 @@ class MissionController extends Controller
         }
 
         $missions = Mission::where('producer_id', $user->userable_id)
-            ->with('producer')
+            ->with(['producer' => fn ($q) => $q->withRatingAggregates()])
+            ->withPaidPaymentFlag()
             ->withCount('candidatures')
             ->orderBy('created_at', 'desc')
             ->get();

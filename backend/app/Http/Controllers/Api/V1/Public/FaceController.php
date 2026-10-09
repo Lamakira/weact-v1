@@ -36,7 +36,7 @@ class FaceController extends Controller
             ->select('faces.*')
             ->publiclyListable()
             ->with('activeSubscription')
-            ->withAvg('ratingsReceived', 'score')
+            ->withRatingAggregates()
             ->when($request->validated('categorie'), fn ($q, $cat) => $q->whereJsonContains('categories', $cat))
             ->when($request->validated('niche'), fn ($q, $niche) => $q->whereJsonContains('niches', $niche))
             ->when($request->validated('ville'), fn ($q, $ville) => $q->where('ville', $ville))
@@ -214,6 +214,7 @@ class FaceController extends Controller
             ->where('username', $username)
             ->publiclyListable()
             ->with(['photos', 'videos', 'experiences', 'user', 'activeSubscription'])
+            ->withRatingAggregates()
             ->first();
 
         if (! $face) {

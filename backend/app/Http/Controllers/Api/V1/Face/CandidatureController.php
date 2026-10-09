@@ -50,7 +50,13 @@ class CandidatureController extends Controller
         $face = $request->user()->userable;
 
         $query = Candidature::where('face_id', $face->id)
-            ->with(['mission', 'mission.producer', 'conversation', 'shipment.receptionPhotos', 'deliverables'])
+            ->with([
+                'mission' => fn ($q) => $q->withPaidPaymentFlag()->withCount('candidatures'),
+                'mission.producer' => fn ($q) => $q->withRatingAggregates(),
+                'conversation',
+                'shipment.receptionPhotos',
+                'deliverables',
+            ])
             ->latest();
 
         // Optional status filter
