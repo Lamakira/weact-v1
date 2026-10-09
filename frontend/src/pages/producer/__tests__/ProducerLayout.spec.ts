@@ -239,4 +239,53 @@ describe('ProducerLayout', () => {
     // Expected contract: a route.path watcher re-fetches the count (cf. FaceLayout)
     expect(producerApi.listDeliverablesToReview).toHaveBeenCalledTimes(2)
   })
+
+  describe('header title', () => {
+    async function mountAt(path: string) {
+      routeHolder.route.path = path
+      routeHolder.route.fullPath = path
+      vi.mocked(producerApi.listDeliverablesToReview).mockResolvedValue({ data: [] as never })
+      const wrapper = mount(ProducerLayout, {
+        global: { stubs: { DashboardLayout: DashboardLayoutStub, EmailVerificationBanner: true, RouterView: true } },
+      })
+      wrappers.push(wrapper)
+      await flushPromises()
+      return wrapper
+    }
+
+    it.each([
+      ['/producer/dashboard', 'Tableau de bord'],
+      ['/producer/missions', 'Mes missions'],
+      ['/producer/missions/publish', 'Publier une mission'],
+      ['/producer/missions/abc/edit', 'Mes missions'],
+      ['/producer/faces', 'Liste des faces'],
+      ['/producer/bookings', 'Mes bookings'],
+      ['/producer/messages', 'Messages'],
+      ['/producer/profile', 'Mon profil'],
+    ])('shows a specific French title on %s', async (path, expected) => {
+      const wrapper = await mountAt(path)
+      expect(wrapper.findComponent({ name: 'DashboardLayout' }).props('title')).toBe(expected)
+    })
+
+    it('names the dashboard « Tableau de bord » in the sidebar', async () => {
+      const wrapper = await mountAt('/producer/dashboard')
+      const items = wrapper.findComponent({ name: 'DashboardLayout' }).props('sidebarItems') as SidebarItem[]
+      expect(items.find((i) => i.to === '/producer/dashboard')?.label).toBe('Tableau de bord')
+    })
+  })
+
+  it('does not show the WhatsApp banner on the profile page (it has its own field)', async () => {
+    basicInfoHolder.fetch.mockImplementation(async () => {
+      basicInfoHolder.info.value = { type: 'particulier', whatsapp_number: null }
+    })
+    vi.mocked(producerApi.listDeliverablesToReview).mockResolvedValue({ data: [] as never })
+    routeHolder.route.path = '/producer/profile'
+    const wrapper = mount(ProducerLayout, {
+      global: { stubs: { DashboardLayout: DashboardLayoutStub, EmailVerificationBanner: true, RouterView: true } },
+    })
+    wrappers.push(wrapper)
+    await flushPromises()
+
+    expect(wrapper.findComponent({ name: 'WhatsappMissingBanner' }).exists()).toBe(false)
+  })
 })

@@ -81,10 +81,10 @@ async function handleDrop(event: DragEvent) {
 </script>
 
 <template>
-  <div class="space-y-3" data-testid="agency-logo-upload">
+  <div class="flex flex-wrap items-center gap-x-5 gap-y-3" data-testid="agency-logo-upload">
     <!-- Logo Preview Area -->
     <div
-      class="relative w-32 h-32 rounded-xl overflow-hidden border-2 transition-colors duration-200"
+      class="relative w-24 h-24 shrink-0 rounded-xl overflow-hidden border-2 transition-colors duration-200"
       :class="[
         isDragging
           ? 'border-weact-500 bg-weact-50'
@@ -144,8 +144,9 @@ async function handleDrop(event: DragEvent) {
       data-testid="file-input"
     />
 
+    <div class="min-w-0 space-y-2">
     <!-- Action Buttons -->
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
       <button
         type="button"
         class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-weact-500 rounded-lg hover:bg-weact-600 focus:outline-none focus:ring-2 focus:ring-weact-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -184,5 +185,6 @@ async function handleDrop(event: DragEvent) {
     <p class="text-xs text-gray-500" data-testid="help-text">
       Format JPG ou PNG. Taille maximale : 2 Mo.
     </p>
+    </div>
   </div>
 </template>

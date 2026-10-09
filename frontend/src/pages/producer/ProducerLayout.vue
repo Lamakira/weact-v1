@@ -43,7 +43,7 @@ const ugcValidationCountStore = useUgcValidationCountStore()
 // Sidebar navigation items for Producer dashboard. Computed so the « Validation
 // livrables » badge reactively follows the in_review count (only that item).
 const sidebarItems = computed<SidebarItem[]>(() => [
-  { label: 'Dashboard', icon: LayoutDashboard, to: '/producer/dashboard' },
+  { label: 'Tableau de bord', icon: LayoutDashboard, to: '/producer/dashboard' },
   { label: 'Mes missions', icon: FileText, to: '/producer/missions' },
   { label: 'Publier une mission', icon: PlusCircle, to: '/producer/missions/publish' },
   { label: 'Liste des faces', icon: Users, to: '/producer/faces' },
@@ -63,6 +63,18 @@ const mobileTabs: SidebarItem[] = [
   { label: 'Messages', icon: MessageCircle, to: '/producer/messages' },
   { label: 'Profil', icon: User, to: '/producer/profile' },
 ]
+
+// Header title = label of the sidebar item owning the current route (longest matching
+// prefix, so /producer/missions/publish wins over /producer/missions).
+const pageTitle = computed(() => {
+  const owner = sidebarItems.value
+    .filter((i) => route.path === i.to || route.path.startsWith(`${i.to}/`))
+    .sort((a, b) => b.to.length - a.to.length)[0]
+  return owner?.label ?? 'Tableau de bord'
+})
+
+// The profile page has its own WhatsApp field: no reminder there.
+const isProfilePage = computed(() => route.path === '/producer/profile')
 
 // Computed user name from Producer profile
 const userName = computed(() => {
@@ -112,7 +124,7 @@ async function handleLogout(): Promise<void> {
   <DashboardLayout
     :sidebar-items="sidebarItems"
     :mobile-tabs="mobileTabs"
-    title="Producer Dashboard"
+    :title="pageTitle"
     :user-email="authStore.user?.email"
     :user-name="userName"
     :avatar-url="avatarUrl"
@@ -128,7 +140,7 @@ async function handleLogout(): Promise<void> {
 
     <!-- WhatsApp reminder (shown until the Producer sets their number; admin-only data) -->
     <WhatsappMissingBanner
-      v-if="basicInfoLoaded && !hasWhatsapp"
+      v-if="basicInfoLoaded && !hasWhatsapp && !isProfilePage"
       title="Renseignez votre numéro WhatsApp"
       message="Ajoutez votre numéro WhatsApp pour que l'équipe WeAct puisse vous joindre rapidement."
       cta-label="Renseigner mon WhatsApp"
