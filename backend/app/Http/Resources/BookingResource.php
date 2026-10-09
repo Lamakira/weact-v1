@@ -32,6 +32,7 @@ class BookingResource extends JsonResource
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'date_debut' => $this->date_debut?->toIso8601String(),
+            'face_cancellation_deadline' => $this->faceCancellationDeadline()?->toIso8601String(),
             'date_fin' => $this->date_fin?->toIso8601String(),
             'duree_heures' => $this->duree_heures,
             'type_contenu' => $this->type_contenu,

@@ -315,6 +315,25 @@ class Booking extends Model
     }
 
     /**
+     * Last instant at which the Face may still cancel: 24 h before the shoot day
+     * (bookings carry no shoot time — date_debut is a date at 00:00 UTC).
+     */
+    public function faceCancellationDeadline(): ?CarbonInterface
+    {
+        return $this->date_debut?->copy()->startOfDay()->subDay();
+    }
+
+    /**
+     * Whether the Face is still within the cancellation window (now < deadline).
+     */
+    public function faceCancellationWindowOpen(): bool
+    {
+        $deadline = $this->faceCancellationDeadline();
+
+        return $deadline !== null && now()->lt($deadline);
+    }
+
+    /**
      * Get the chat messages for this booking.
      */
     public function messages(): HasMany

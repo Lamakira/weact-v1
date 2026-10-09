@@ -13,9 +13,13 @@ use App\Models\EscrowTransaction;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\BookingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class BookingCancellationTest extends TestCase
@@ -33,6 +37,12 @@ class BookingCancellationTest extends TestCase
     private function withApiToken(User $user): static
     {
         return $this->withToken($user->createToken('test-token')->plainTextToken);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        parent::tearDown();
     }
 
     protected function setUp(): void
@@ -321,6 +331,111 @@ class BookingCancellationTest extends TestCase
                 && ! str_contains($mail->render(), 'Le booking <strong>#')
                 && ($expectedDate === null || str_contains($mail->render(), $expectedDate));
         });
+    }
+
+    // ===========================
+    // FACE CANCELLATION DEADLINE (24 h before the shoot day)
+    // ===========================
+
+    private function faceBookingStartingOn(string $date, string $state = 'accepted'): Booking
+    {
+        return Booking::factory()->{$state}()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'date_debut' => $date.' 00:00:00',
+            'date_fin' => $date.' 00:00:00',
+        ]);
+    }
+
+    public function test_face_policy_allows_cancel_one_second_before_the_deadline(): void
+    {
+        $booking = $this->faceBookingStartingOn('2026-11-10');
+        Carbon::setTestNow('2026-11-08 23:59:59');
+
+        $this->assertTrue(Gate::forUser($this->faceUser)->allows('cancelByFace', $booking));
+    }
+
+    public function test_face_policy_denies_cancel_at_the_deadline(): void
+    {
+        $booking = $this->faceBookingStartingOn('2026-11-10');
+        Carbon::setTestNow('2026-11-09 00:00:00');
+
+        $this->assertFalse(Gate::forUser($this->faceUser)->allows('cancelByFace', $booking));
+    }
+
+    public function test_face_policy_denies_cancel_after_the_shoot(): void
+    {
+        $booking = $this->faceBookingStartingOn('2026-11-10', 'paid');
+        Carbon::setTestNow('2026-11-12 10:00:00');
+
+        $this->assertFalse(Gate::forUser($this->faceUser)->allows('cancelByFace', $booking));
+    }
+
+    public function test_face_cancel_endpoint_is_forbidden_after_the_deadline(): void
+    {
+        $booking = $this->faceBookingStartingOn('2026-11-10');
+        Carbon::setTestNow('2026-11-09 08:00:00');
+
+        $this->actingAs($this->faceUser)->withApiToken($this->faceUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
+                'cancellation_reason' => 'other',
+                'custom_cancellation_reason' => 'Imprévu',
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('bookings', ['id' => $booking->id, 'status' => BookingStatus::Accepted->value]);
+    }
+
+    public function test_service_rechecks_the_deadline_inside_the_lock(): void
+    {
+        $booking = $this->faceBookingStartingOn('2026-11-10');
+        Carbon::setTestNow('2026-11-09 00:00:00');
+
+        try {
+            app(BookingService::class)->cancelByFace($booking, 'other', 'Imprévu');
+            $this->fail('ValidationException attendue');
+        } catch (ValidationException $e) {
+            $this->assertSame(
+                ["L'annulation n'est plus possible à moins de 24 h du jour du tournage."],
+                $e->errors()['date_debut'],
+            );
+        }
+
+        $this->assertDatabaseHas('bookings', ['id' => $booking->id, 'status' => BookingStatus::Accepted->value]);
+    }
+
+    public function test_service_allows_cancel_one_second_before_the_deadline(): void
+    {
+        $booking = $this->faceBookingStartingOn('2026-11-10');
+        Carbon::setTestNow('2026-11-08 23:59:59');
+
+        $result = app(BookingService::class)->cancelByFace($booking, 'other', 'Imprévu');
+
+        $this->assertSame(BookingStatus::CancelledByFace, $result->status);
+    }
+
+    public function test_booking_resource_exposes_the_face_cancellation_deadline(): void
+    {
+        $booking = $this->faceBookingStartingOn('2026-11-10');
+
+        $this->actingAs($this->faceUser)->withApiToken($this->faceUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.face_cancellation_deadline', '2026-11-09T00:00:00+00:00');
+    }
+
+    public function test_producer_cancellation_is_not_affected_by_the_face_deadline(): void
+    {
+        Event::fake([BookingCancelled::class]);
+        $booking = $this->faceBookingStartingOn('2026-11-10');
+        Carbon::setTestNow('2026-11-09 12:00:00');
+
+        $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", [
+                'cancellation_reason' => 'other',
+                'custom_cancellation_reason' => 'Report',
+            ])
+            ->assertOk();
     }
 
     public function test_cancellation_with_other_reason_stores_custom_reason_and_exposes_it(): void
