@@ -99,6 +99,39 @@
   --font-family-heading: 'Zalando Sans', ui-sans-serif, system-ui, sans-serif;
 }
 
+/* ── Régie tokens (direction B, dashboards) ──
+   Semantic tokens consumed by components/regie/* and the dashboard shell.
+   `static` so they are always emitted (SVG fills reference them via var()).
+   `--color-sidebar` already exists above (oklch 0.985 = #FAFAFA). Never use
+   weact-500 for small text (4.4:1 on white, below AA): use 600/700. */
+@theme static {
+  --color-canvas: #ffffff;
+  --color-thread: #fafafa;
+  --color-line: #e5e5e5;
+
+  --color-ink: #0a0a0a;
+  --color-ink-2: #525252;
+  --color-ink-3: #737373;
+
+  /* State dots (7 px): always a dot, never a background fill */
+  --color-state-pending: #d97706;
+  --color-state-progress: #2563eb;
+  --color-state-success: #16a34a;
+  --color-state-done: #a3a3a3;
+  --color-state-neutral: #d4d4d4;
+  --color-state-danger: var(--destructive);
+  /* Amber text for urgent meta (readable on white) */
+  --color-urgent: #b45309;
+  --color-urgent-soft: #fef3c7;
+  --color-positive: #15803d;
+
+  --radius-panel: 14px;
+  --radius-control: 10px;
+
+  --text-dash: 13.5px;
+  --text-dash--line-height: 1.45;
+}
+
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);
