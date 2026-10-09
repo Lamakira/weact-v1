@@ -17,6 +17,7 @@ export function useProducerConversation() {
   const messages = computed(() => conversation.value?.messages ?? [])
   const otherParticipant = computed(() => conversation.value?.other_participant)
   const missionTitle = computed(() => conversation.value?.mission_title ?? '')
+  const context = computed(() => conversation.value?.context ?? null)
   const unreadCount = computed(() => conversation.value?.unread_count ?? 0)
 
   /**
@@ -111,6 +112,7 @@ export function useProducerConversation() {
     messages,
     otherParticipant,
     missionTitle,
+    context,
     unreadCount,
     isLoading,
     isRefreshing,

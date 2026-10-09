@@ -264,7 +264,7 @@ const router = createRouter({
         {
           path: 'conversations/:conversationId',
           name: 'face-conversation',
-          component: () => import('../features/messaging/components/ConversationView.vue'),
+          component: () => import('../pages/face/messaging/FaceConversationsPage.vue'),
         },
         {
           path: 'bookings',
@@ -390,7 +390,7 @@ const router = createRouter({
         {
           path: 'conversations/:conversationId',
           name: 'producer-conversation',
-          component: () => import('../features/messaging/components/ProducerConversationView.vue'),
+          component: () => import('../pages/producer/messaging/ProducerConversationsPage.vue'),
         },
         {
           path: 'wallet',

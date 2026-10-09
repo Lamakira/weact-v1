@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { Send, Loader2 } from 'lucide-vue-next'
+import { Button } from '@/components/ui/button'
 
 interface Props {
   modelValue: string
@@ -42,8 +43,9 @@ const handleSubmit = () => {
   emit('submit', props.modelValue.trim())
 }
 
+// Entrée envoie, Maj+Entrée insère un retour à la ligne
 const onKeydown = (e: KeyboardEvent) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
     e.preventDefault()
     handleSubmit()
   }
@@ -65,62 +67,52 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="sticky bottom-0 w-full bg-background border-t border-border p-4 sm:px-6">
-    <div class="mx-auto max-w-4xl">
-      <div class="flex items-end gap-2">
-        <div class="relative flex-1">
-          <textarea
-            ref="textareaRef"
-            :value="modelValue"
-            :placeholder="placeholder"
-            :disabled="isLoading"
-            rows="1"
-            class="w-full resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm ring-ring transition-shadow focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
-            @input="handleInput"
-            @keydown="onKeydown"
-          />
-        </div>
-
-        <button
+  <div
+    class="shrink-0 border-t border-line bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+    data-testid="message-input"
+  >
+    <div class="rounded-[12px] ring-1 ring-line focus-within:ring-2 focus-within:ring-weact-600">
+      <textarea
+        ref="textareaRef"
+        :value="modelValue"
+        :placeholder="placeholder"
+        :disabled="isLoading"
+        :aria-label="placeholder"
+        rows="1"
+        class="block max-h-40 min-h-[44px] w-full resize-none rounded-t-[12px] bg-transparent px-3 pb-1 pt-2.5 text-[14px] text-ink placeholder:text-ink-3 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+        @input="handleInput"
+        @keydown="onKeydown"
+      />
+      <div class="flex items-center justify-end gap-3 px-2 pb-2">
+        <span class="hidden text-[11.5px] text-ink-3 lg:inline">
+          Entrée pour envoyer · Maj+Entrée pour un retour à la ligne
+        </span>
+        <Button
           type="button"
+          variant="regie"
+          size="regie"
           :disabled="isLoading || !modelValue.trim()"
-          class="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm transition-all hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          data-testid="message-send"
           @click="handleSubmit"
         >
-          <Loader2 v-if="isLoading" class="h-5 w-5 animate-spin" />
-          <Send v-else class="h-5 w-5 translate-x-0.5" />
-          <span class="sr-only">Envoyer</span>
-        </button>
+          <Loader2 v-if="isLoading" class="animate-spin" />
+          <Send v-else />
+          Envoyer
+        </Button>
       </div>
-
-      <!-- Error State -->
-      <Transition
-        enter-active-class="transition duration-200 ease-out"
-        enter-from-class="transform -translate-y-2 opacity-0"
-        enter-to-class="transform translate-y-0 opacity-100"
-        leave-active-class="transition duration-150 ease-in"
-        leave-from-class="transform translate-y-0 opacity-100"
-        leave-to-class="transform -translate-y-2 opacity-0"
-      >
-        <p v-if="error" class="mt-2 text-xs font-medium text-destructive">
-          {{ error }}
-        </p>
-      </Transition>
     </div>
+
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="transform -translate-y-2 opacity-0"
+      enter-to-class="transform translate-y-0 opacity-100"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="transform translate-y-0 opacity-100"
+      leave-to-class="transform -translate-y-2 opacity-0"
+    >
+      <p v-if="error" class="mt-2 text-xs font-medium text-destructive" role="alert">
+        {{ error }}
+      </p>
+    </Transition>
   </div>
 </template>
-
-<style scoped>
-/* Ensure the textarea doesn't show scrollbar until max-height reached */
-textarea {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-border) transparent;
-}
-textarea::-webkit-scrollbar {
-  width: 4px;
-}
-textarea::-webkit-scrollbar-thumb {
-  background-color: var(--color-border);
-  border-radius: 10px;
-}
-</style>
