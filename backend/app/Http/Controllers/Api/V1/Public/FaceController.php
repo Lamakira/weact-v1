@@ -60,7 +60,7 @@ class FaceController extends Controller
         if ($hasFilter) {
             [$ids, $total] = $this->filteredPage($request, $generation, $servesLatest, $perPage, $page);
         } else {
-            [$ids, $total] = $this->unfilteredPage($generation, $servesLatest, $perPage, $page);
+            [$ids, $total] = $this->unfilteredPage($generation, $perPage, $page);
         }
 
         $faces = new LengthAwarePaginator(
@@ -138,8 +138,13 @@ class FaceController extends Controller
      *
      * @return array{0: list<int>, 1: int}
      */
-    private function unfilteredPage(?int $generation, bool $servesLatest, int $perPage, int $page): array
+    private function unfilteredPage(?int $generation, int $perPage, int $page): array
     {
+        // The generation was resolved ONCE for this request and is bound in every
+        // statement below (ranked page, ranked count, unranked tail): a rotation
+        // committing mid-request cannot make two statements disagree and skip or
+        // repeat a Face. (A retention purge never removes the latest generation.)
+
         $offset = ($page - 1) * $perPage;
 
         // Cached 60 s per generation: the total only feeds the page count.
@@ -150,7 +155,7 @@ class FaceController extends Controller
         );
 
         $rankedIds = DB::table('face_listing_ranks as r')
-            ->tap(fn ($q) => $this->constrainGeneration($q, 'r.generation', $generation, $servesLatest))
+            ->tap(fn ($q) => $this->constrainGeneration($q, 'r.generation', $generation, false))
             ->whereExists($this->activeFaceUser('r.face_id'))
             ->orderBy('r.rank')
             ->orderByDesc('r.face_id')
@@ -173,7 +178,7 @@ class FaceController extends Controller
 
         if ($rankedIds === []) {
             $rankedTotal = DB::table('face_listing_ranks as r')
-                ->tap(fn ($q) => $this->constrainGeneration($q, 'r.generation', $generation, $servesLatest))
+                ->tap(fn ($q) => $this->constrainGeneration($q, 'r.generation', $generation, false))
                 ->whereExists($this->activeFaceUser('r.face_id'))
                 ->count();
 
@@ -182,12 +187,12 @@ class FaceController extends Controller
 
         $unrankedIds = DB::table('faces')
             ->whereExists($this->activeFaceUser('faces.id'))
-            ->whereNotExists(function ($q) use ($generation, $servesLatest): void {
+            ->whereNotExists(function ($q) use ($generation): void {
                 $q->select(DB::raw('1'))
                     ->from('face_listing_ranks as r2')
                     ->whereColumn('r2.face_id', 'faces.id');
 
-                $this->constrainGeneration($q, 'r2.generation', $generation, $servesLatest);
+                $this->constrainGeneration($q, 'r2.generation', $generation, false);
             })
             ->orderByDesc('faces.id')
             ->offset($unrankedOffset)

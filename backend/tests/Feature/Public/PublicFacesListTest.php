@@ -1278,38 +1278,38 @@ class PublicFacesListTest extends TestCase
         $this->getJson('/api/v1/public/faces?generation=abc')->assertStatus(422);
     }
 
-    public function test_the_unpinned_listing_resolves_the_current_generation_inside_the_query(): void
+    public function test_the_unpinned_listing_resolves_the_current_generation_once_for_every_statement(): void
     {
-        // "The current window" must be resolved by a CORRELATED subquery, in
-        // the same statement as the join — not frozen into a number read by a
-        // separate SELECT. A retention purge committing between the two would
-        // leave the join matching nothing and drop the WHOLE public listing
-        // onto its id-DESC fallback, silently.
+        // The current window is resolved ONCE per request and bound in EVERY
+        // statement that reads the ranking (ranked page, unranked tail, ranked
+        // count): a rotation committing mid-request cannot make two statements
+        // disagree and skip or repeat a Face.
         $a = $this->makeListedFace();
         $b = $this->makeListedFace();
+        $unranked = $this->makeListedFace();
+        $this->seedRankGeneration(6, [$a->id, $b->id], 'nightly');
         $this->seedRankGeneration(7, [$b->id, $a->id], 'tick');
 
-        /** @var list<string> $executed */
+        /** @var list<array{sql: string, bindings: array<int, mixed>}> $executed */
         $executed = [];
         DB::listen(function ($query) use (&$executed): void {
-            $executed[] = $query->sql;
+            $executed[] = ['sql' => $query->sql, 'bindings' => $query->bindings];
         });
 
-        $this->getJson('/api/v1/public/faces?per_page=10')->assertOk();
+        $response = $this->getJson('/api/v1/public/faces?per_page=10')->assertOk();
 
-        // The statement that reads the ranking order (the deferred-join ids query).
-        $joined = array_values(array_filter(
+        $this->assertSame([$b->uuid, $a->uuid, $unranked->uuid], array_column($response->json('data'), 'id'));
+
+        $rankReaders = array_values(array_filter(
             $executed,
-            fn (string $sql): bool => str_contains($sql, 'face_listing_ranks') && str_contains($sql, '`rank`'),
+            fn (array $q): bool => str_contains($q['sql'], 'face_listing_ranks')
+                && ! str_contains($q['sql'], 'max(`generation`)'),
         ));
 
-        $this->assertNotEmpty($joined, 'The listing must read the ranking table.');
-        foreach ($joined as $sql) {
-            $this->assertStringContainsString(
-                'select max(generation) from face_listing_ranks',
-                $sql,
-                'The unpinned listing must resolve MAX(generation) inside its own statement.',
-            );
+        $this->assertGreaterThanOrEqual(2, count($rankReaders), 'Ranked page and unranked tail both read the ranking.');
+        foreach ($rankReaders as $query) {
+            $this->assertStringNotContainsString('select max(generation)', $query['sql']);
+            $this->assertContains(7, $query['bindings'], 'Every ranking read is bound to the one resolved generation: '.$query['sql']);
         }
     }
 
