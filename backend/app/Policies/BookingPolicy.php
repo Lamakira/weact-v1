@@ -206,6 +206,12 @@ class BookingPolicy
             return false;
         }
 
+        // Listings pre-load `viewer_has_rated` (withExists scoped to the listing's viewer):
+        // no per-row exists query. Any other caller falls back to the query.
+        if (array_key_exists('viewer_has_rated', $booking->getAttributes())) {
+            return ! (bool) $booking->getAttribute('viewer_has_rated');
+        }
+
         return ! BookingRating::query()
             ->where('booking_id', $booking->id)
             ->where('rater_id', $user->id)

@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -288,6 +289,24 @@ class Booking extends Model
     public static function formatForBusiness(CarbonInterface $date, string $format = 'd/m/Y H:i'): string
     {
         return $date->copy()->setTimezone((string) config('app.business_timezone'))->format($format);
+    }
+
+    /**
+     * Eager-load map for the two parties rendered by BookingResource (UserResource
+     * -> FaceResource / ProducerResource): everything those resources read
+     * (subscription tier, rating aggregates, acting-video flag) comes in bulk,
+     * so rendering a booking costs no per-row query.
+     *
+     * @return array<string, \Closure(MorphTo<\Illuminate\Database\Eloquent\Model, User>): mixed>
+     */
+    public static function partiesEagerLoad(): array
+    {
+        $constrain = fn (MorphTo $morph) => $morph->constrain([
+            Face::class => fn ($q) => $q->with('activeSubscription')->withRatingAggregates()->withActingVideoFlag(),
+            Producer::class => fn ($q) => $q->withRatingAggregates(),
+        ]);
+
+        return ['face.userable' => $constrain, 'producer.userable' => $constrain];
     }
 
     /**
