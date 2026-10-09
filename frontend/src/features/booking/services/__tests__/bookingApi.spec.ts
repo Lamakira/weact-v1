@@ -2,12 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { CreateBookingData } from '../../types'
 
 const mockPost = vi.fn()
+const mockGet = vi.fn()
 const mockGetCsrfCookie = vi.fn()
 
 vi.mock('@/services/apiClient', () => ({
   default: {
     post: (...args: unknown[]) => mockPost(...args),
-    get: vi.fn(),
+    get: (...args: unknown[]) => mockGet(...args),
     delete: vi.fn(),
   },
   getCsrfCookie: (...args: unknown[]) => mockGetCsrfCookie(...args),
@@ -93,5 +94,27 @@ describe('bookingApi.createBooking — FormData photos produit', () => {
     expect(formData.has('nombre_videos')).toBe(false)
     expect(formData.has('montant_remuneration')).toBe(false)
     expect(formData.has('date_debut')).toBe(false)
+  })
+})
+
+describe('bookingApi.getBookings — tri et pagination serveur', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGet.mockResolvedValue({ data: { data: [], meta: {} } })
+  })
+
+  it('keeps the historical query (page + status) when no option is given', async () => {
+    await bookingApi.getBookings(2, 'active')
+    expect(mockGet).toHaveBeenCalledWith('/bookings?page=2&status=active')
+  })
+
+  it('adds sort, direction and per_page when provided', async () => {
+    await bookingApi.getBookings(1, '', { sort: 'montant', direction: 'desc', perPage: 25 })
+    expect(mockGet).toHaveBeenCalledWith('/bookings?page=1&sort=montant&direction=desc&per_page=25')
+  })
+
+  it('omits direction when no sort is set', async () => {
+    await bookingApi.getBookings(1, 'pending', { sort: null, direction: 'desc', perPage: 15 })
+    expect(mockGet).toHaveBeenCalledWith('/bookings?page=1&status=pending&per_page=15')
   })
 })

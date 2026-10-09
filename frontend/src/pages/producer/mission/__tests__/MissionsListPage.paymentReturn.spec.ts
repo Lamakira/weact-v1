@@ -26,7 +26,7 @@ vi.mock('@/composables/useToast', () => ({
 }))
 
 vi.mock('@/features/mission/services/missionApi', () => ({
-  missionApi: { getCommissionStatus: vi.fn(), getPaymentStatus: vi.fn() },
+  missionApi: { getCommissionStatus: vi.fn(), getPaymentStatus: vi.fn(), getMission: vi.fn() },
 }))
 
 const ugcPendingMission = {
@@ -43,15 +43,14 @@ const mockRefreshMissions = vi.fn().mockResolvedValue(undefined)
 vi.mock('@/features/mission/composables', () => ({
   useMissionsList: () => ({
     missions: mockMissions,
-    allMissions: mockMissions,
     isLoading: ref(false),
     error: ref(null),
-    isEmpty: ref(false),
-    hasNoMissions: ref(false),
-    statusFilter: ref(''),
+    currentPage: ref(1),
+    lastPage: ref(1),
+    total: ref(1),
+    hasLoaded: ref(true),
     fetchMissions: mockFetchMissions,
     refreshMissions: mockRefreshMissions,
-    setStatusFilter: vi.fn(),
   }),
   useDeleteMission: () => ({ deleteMission: vi.fn(), isDeleting: ref(false) }),
   useCloseMission: () => ({ closeMission: vi.fn(), isClosing: ref(false) }),
@@ -60,7 +59,7 @@ vi.mock('@/features/mission/composables', () => ({
 }))
 
 vi.mock('@/features/mission/components', () => ({
-  MissionCard: defineComponent({ name: 'MissionCardStub', setup: () => () => h('div') }),
+  MissionsTable: defineComponent({ name: 'MissionsTableStub', setup: () => () => h('div') }),
   DeleteMissionDialog: defineComponent({ name: 'DeleteMissionDialogStub', setup: () => () => h('div') }),
   CloseMissionDialog: defineComponent({ name: 'CloseMissionDialogStub', setup: () => () => h('div') }),
   ReopenMissionDialog: defineComponent({ name: 'ReopenMissionDialogStub', setup: () => () => h('div') }),

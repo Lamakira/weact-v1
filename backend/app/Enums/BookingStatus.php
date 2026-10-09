@@ -51,4 +51,29 @@ enum BookingStatus: string
     {
         return array_column(self::cases(), 'value');
     }
+
+    /**
+     * Statuses in lifecycle order, used to sort lists (FIELD()). Must list EVERY case
+     * (guarded by StatusLifecycleOrderTest).
+     *
+     * @return list<self>
+     */
+    public static function lifecycleOrder(): array
+    {
+        return [
+            self::Pending,
+            self::CommissionPaid,
+            self::Accepted,
+            self::Paid,
+            self::InProgress,
+            self::ConfirmedByFace,
+            self::ConfirmedByProducer,
+            self::Completed,
+            self::Refused,
+            self::Expired,
+            self::CancelledByFace,
+            self::CancelledByProducer,
+            self::NoShow,
+        ];
+    }
 }

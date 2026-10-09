@@ -4,6 +4,7 @@ import type {
   BookingResponse,
   BookingListResponse,
   BookingFilterStatus,
+  BookingListOptions,
   CancellationReasonValue,
   BookingRatingResponse,
 } from '../types'
@@ -16,11 +17,22 @@ export const bookingApi = {
   /**
    * Get paginated list of authenticated user's bookings
    */
-  async getBookings(page: number = 1, status?: BookingFilterStatus): Promise<BookingListResponse> {
+  async getBookings(
+    page: number = 1,
+    status?: BookingFilterStatus,
+    options: BookingListOptions = {},
+  ): Promise<BookingListResponse> {
     const params = new URLSearchParams()
     params.append('page', String(page))
     if (status) {
       params.append('status', status)
+    }
+    if (options.sort) {
+      params.append('sort', options.sort)
+      params.append('direction', options.direction ?? 'asc')
+    }
+    if (options.perPage) {
+      params.append('per_page', String(options.perPage))
     }
     const response = await apiClient.get<BookingListResponse>(`/bookings?${params.toString()}`)
     return response.data

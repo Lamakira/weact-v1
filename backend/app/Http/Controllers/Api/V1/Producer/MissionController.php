@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Mission\CloseMissionRequest;
 use App\Http\Requests\Mission\CompleteMissionRequest;
 use App\Http\Requests\Mission\DeleteMissionRequest;
+use App\Http\Requests\Mission\IndexProducerMissionsRequest;
 use App\Http\Requests\Mission\ReopenMissionRequest;
 use App\Http\Requests\Mission\StoreMissionRequest;
 use App\Http\Requests\Mission\UpdateMissionRequest;
@@ -16,6 +17,7 @@ use App\Http\Resources\MissionResource;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Services\MissionService;
+use App\Support\LifecycleSort;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -27,9 +29,13 @@ class MissionController extends Controller
 
     /**
      * Display a listing of the producer's missions.
-     * Filtered by authenticated producer, ordered by most recent first.
+     * Filtered by authenticated producer, ordered by most recent first by default.
+     *
+     * Contrat historique conservé : sans `page` ni `per_page`, la réponse reste le
+     * tableau complet non paginé. La pagination (data/links/meta) est opt-in ; `sort`,
+     * `direction` et `status` s'appliquent dans les deux modes.
      */
-    public function index(Request $request): JsonResponse
+    public function index(IndexProducerMissionsRequest $request): JsonResponse
     {
         $user = $request->user();
 
@@ -38,12 +44,42 @@ class MissionController extends Controller
             abort(403, 'Cette action n\'est pas autorisée');
         }
 
-        $missions = Mission::where('producer_id', $user->userable_id)
+        $query = Mission::where('producer_id', $user->userable_id)
             ->with(['producer' => fn ($q) => $q->withRatingAggregates()])
             ->withPaidPaymentFlag()
-            ->withCount('candidatures')
-            ->orderBy('created_at', 'desc')
-            ->get();
+            ->withCount('candidatures');
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->validated('status'));
+        }
+
+        $sort = $request->validated('sort', 'created_at');
+        $direction = $request->validated('direction', 'desc') === 'asc' ? 'asc' : 'desc';
+
+        if (in_array($sort, ['date_tournage', 'date_limite_candidature'], true)) {
+            // Missions UGC : date de tournage NULL => toujours en fin de liste.
+            $query->orderByRaw("`{$sort}` IS NULL");
+        }
+        if ($sort === 'status') {
+            // Ordre de cycle de vie explicite (pas l'index de la colonne ENUM).
+            LifecycleSort::apply($query, 'status', MissionStatus::lifecycleOrder(), $direction);
+        } else {
+            $query->orderBy($sort, $direction);
+        }
+        $query->orderBy('id', $direction);
+
+        if ($request->wantsPagination()) {
+            $perPage = (int) $request->validated('per_page', IndexProducerMissionsRequest::DEFAULT_PER_PAGE);
+            $paginator = $query->paginate($perPage);
+
+            return MissionResource::collection($paginator)
+                ->additional(['message' => $paginator->isEmpty()
+                    ? 'Aucune mission trouvée'
+                    : 'Missions récupérées avec succès'])
+                ->response();
+        }
+
+        $missions = $query->get();
 
         $message = $missions->isEmpty()
             ? 'Aucune mission trouvée'
