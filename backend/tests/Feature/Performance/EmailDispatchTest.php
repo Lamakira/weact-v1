@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -143,5 +144,90 @@ class EmailDispatchTest extends TestCase
 
         $this->assertNotNull($lockFreeWhenSending, 'The admin mail must still go out');
         $this->assertTrue($lockFreeWhenSending, 'The admin mail must be dispatched after the withdrawal lock is released');
+    }
+
+    private function failMailer(): void
+    {
+        Event::listen(MessageSending::class, function (): void {
+            throw new \RuntimeException('smtp down');
+        });
+    }
+
+    public function test_a_failing_mailer_after_the_response_only_logs_a_warning_on_registration(): void
+    {
+        Log::spy();
+        $this->failMailer();
+
+        $this->postJson('/api/v1/auth/register/face', [
+            'nom' => 'Doe',
+            'prenom' => 'John',
+            'email' => 'john@example.com',
+            'date_naissance' => '1995-06-15',
+            'password' => 'Password123',
+            'accept_cgu' => true,
+        ])->assertCreated();
+
+        Log::shouldHaveReceived('warning')->withArgs(
+            fn (string $message): bool => str_contains($message, 'verification')
+        )->once();
+    }
+
+    public function test_a_failing_mailer_after_the_response_only_logs_a_warning_on_email_change(): void
+    {
+        $face = Face::factory()->create();
+        $user = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+            'password' => Hash::make('password123'),
+            'email_verified_at' => now(),
+        ]);
+        Log::spy();
+        $this->failMailer();
+
+        $this->actingAs($user)->postJson('/api/v1/email/change', [
+            'email' => 'new@example.com',
+            'password' => 'password123',
+        ])->assertOk();
+
+        Log::shouldHaveReceived('warning')->atLeast()->once();
+    }
+
+    public function test_resend_verification_stays_synchronous_and_surfaces_a_mail_failure(): void
+    {
+        $face = Face::factory()->create();
+        $user = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+            'email_verified_at' => null,
+        ]);
+        $this->failMailer();
+
+        $this->actingAs($user)->postJson('/api/v1/email/verification-notification')->assertStatus(500);
+    }
+
+    public function test_after_response_mail_is_sent_for_a_user_holding_a_resolved_token(): void
+    {
+        config(['queue.default' => 'database']);
+        $sent = [];
+        $this->trackSending($sent);
+
+        $face = Face::factory()->create();
+        $user = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+            'password' => Hash::make('password123'),
+            'email_verified_at' => now(),
+        ]);
+        $plain = $user->createToken('t')->plainTextToken;
+
+        // Bearer-authenticated: the request user carries a token resolved during the
+        // request (private WeakReference). The after-response closure captures that
+        // user and must still run (a protected property would break serialisation).
+        $this->withToken($plain)->postJson('/api/v1/email/change', [
+            'email' => 'tokened@example.com',
+            'password' => 'password123',
+        ])->assertOk();
+
+        $this->assertTrue($sent['tokened@example.com'] ?? false, 'Mail sent in terminate()');
     }
 }

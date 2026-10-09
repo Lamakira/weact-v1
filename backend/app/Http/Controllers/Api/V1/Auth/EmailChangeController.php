@@ -11,6 +11,7 @@ use App\Notifications\EmailChangeRequestedNotification;
 use App\Notifications\VerifyEmailChangeNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -29,11 +30,30 @@ class EmailChangeController extends Controller
 
         // Send verification to NEW email (not the user's current email)
         // After the response, never queued: the signed link must not be written to `jobs`.
-        dispatch(fn () => Notification::route('mail', $newEmail)
-            ->notify(new VerifyEmailChangeNotification($newEmail, $user)))->afterResponse();
+        // A mail failure is logged there; it must neither reach terminate() nor change the response.
+        dispatch(function () use ($user, $newEmail): void {
+            try {
+                Notification::route('mail', $newEmail)
+                    ->notify(new VerifyEmailChangeNotification($newEmail, $user));
+            } catch (\Throwable $e) {
+                Log::warning('auth.email_change_verification_failed', [
+                    'user_id' => $user->id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        })->afterResponse();
 
-        // Send informational notification to old email
-        $user->notify(new EmailChangeRequestedNotification($newEmail));
+        // Informational notice to the old address (no token, no link): same pattern.
+        dispatch(function () use ($user, $newEmail): void {
+            try {
+                $user->notify(new EmailChangeRequestedNotification($newEmail));
+            } catch (\Throwable $e) {
+                Log::warning('auth.email_change_notice_failed', [
+                    'user_id' => $user->id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        })->afterResponse();
 
         return response()->json([
             'data' => ['pending_email' => $newEmail],
