@@ -69,4 +69,31 @@ trait HasRatingAggregates
                 + (int) data_get($bookingRatings, 'score_count', 0),
         ];
     }
+
+    /**
+     * Number of ratings per score (5 down to 1), over the same two sources as
+     * ratingTotals() so the distribution always sums to ratings_count.
+     * Two grouped queries, whatever the volume.
+     *
+     * @return array<int, int>
+     */
+    public function ratingDistribution(): array
+    {
+        $candidatureCounts = $this->ratingsReceived()
+            ->selectRaw('ratings.score as score, COUNT(*) as score_count')
+            ->groupBy('ratings.score')
+            ->pluck('score_count', 'score');
+
+        $bookingCounts = $this->bookingRatingsReceived()
+            ->selectRaw('booking_ratings.score as score, COUNT(*) as score_count')
+            ->groupBy('booking_ratings.score')
+            ->pluck('score_count', 'score');
+
+        $distribution = [];
+        foreach ([5, 4, 3, 2, 1] as $score) {
+            $distribution[$score] = (int) ($candidatureCounts[$score] ?? 0) + (int) ($bookingCounts[$score] ?? 0);
+        }
+
+        return $distribution;
+    }
 }

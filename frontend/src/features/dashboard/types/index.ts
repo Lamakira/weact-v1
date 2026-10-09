@@ -180,6 +180,32 @@ export interface ProducerDashboardStats {
   acceptance_rate: number // 0-100 percentage
   average_response_time_hours: number | null // null if no decisions made
   completed_missions_count: number // AC #5 explicit field (alias for completed)
+  // Ratings count per score (same sources as average_rating), sums to ratings_count
+  rating_distribution: Record<'5' | '4' | '3' | '2' | '1', number>
+}
+
+/**
+ * Active mission row for the Producer dashboard « Missions actives » module
+ */
+export interface ProducerActiveMission {
+  id: string
+  titre: string
+  type_mission: string | null
+  status: string
+  status_label: string
+  candidatures_count: number
+  new_candidatures_count: number
+  confirmed_count: number
+  faces_wanted: number | null
+}
+
+/**
+ * API response for Producer active missions (meta.total = all active missions)
+ */
+export interface ProducerActiveMissionsResponse {
+  data: ProducerActiveMission[]
+  meta: { total: number }
+  message: string
 }
 
 /**
