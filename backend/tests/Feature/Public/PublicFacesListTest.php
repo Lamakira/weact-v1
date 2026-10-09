@@ -11,6 +11,7 @@ use App\Models\FaceSubscription;
 use App\Models\User;
 use App\Services\FaceListingRankingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -974,31 +975,40 @@ class PublicFacesListTest extends TestCase
 
     public function test_rank_join_adds_no_per_row_queries(): void
     {
-        // The rank is a single LEFT JOIN inside the paginated SELECT — it
-        // must add zero per-Face queries. Proven by querying the same
-        // 10-Face list with and without rank rows: the count is identical.
+        // The ranking is read for the whole page in set-based statements — it
+        // must add zero per-Face queries. Proven by querying a 5-Face ranked
+        // list and a 10-Face ranked list (cached total warmed on both): the
+        // count is identical.
         $faces = [];
-        for ($i = 0; $i < 10; $i++) {
+        for ($i = 0; $i < 5; $i++) {
             $faces[] = $this->makeListedFace();
         }
+        $this->seedRankGeneration(1, array_map(fn (Face $f) => $f->id, $faces));
 
         DB::enableQueryLog();
 
         try {
             $this->getJson('/api/v1/public/faces?per_page=15')->assertOk();
-            $withoutRanks = count(DB::getQueryLog());
-
-            $this->seedRankGeneration(1, array_map(fn (Face $f) => $f->id, $faces));
-
             DB::flushQueryLog();
             $this->getJson('/api/v1/public/faces?per_page=15')->assertOk();
-            $withRanks = count(DB::getQueryLog());
+            $fiveFaces = count(DB::getQueryLog());
 
-            $this->assertGreaterThan(0, $withoutRanks);
+            for ($i = 0; $i < 5; $i++) {
+                $faces[] = $this->makeListedFace();
+            }
+            $this->seedRankGeneration(2, array_map(fn (Face $f) => $f->id, $faces));
+
+            Cache::flush();
+            $this->getJson('/api/v1/public/faces?per_page=15')->assertOk();
+            DB::flushQueryLog();
+            $this->getJson('/api/v1/public/faces?per_page=15')->assertOk();
+            $tenFaces = count(DB::getQueryLog());
+
+            $this->assertGreaterThan(0, $fiveFaces);
             $this->assertSame(
-                $withoutRanks,
-                $withRanks,
-                'The materialized-rank join must not add a query per ranked Face.',
+                $fiveFaces,
+                $tenFaces,
+                'The materialized-rank read must not add a query per ranked Face.',
             );
         } finally {
             DB::disableQueryLog();
@@ -1287,12 +1297,13 @@ class PublicFacesListTest extends TestCase
 
         $this->getJson('/api/v1/public/faces?per_page=10')->assertOk();
 
+        // The statement that reads the ranking order (the deferred-join ids query).
         $joined = array_values(array_filter(
             $executed,
-            fn (string $sql): bool => str_contains($sql, 'left join') && str_contains($sql, 'face_listing_ranks'),
+            fn (string $sql): bool => str_contains($sql, 'face_listing_ranks') && str_contains($sql, '`rank`'),
         ));
 
-        $this->assertNotEmpty($joined, 'The listing must join the ranking table.');
+        $this->assertNotEmpty($joined, 'The listing must read the ranking table.');
         foreach ($joined as $sql) {
             $this->assertStringContainsString(
                 'select max(generation) from face_listing_ranks',

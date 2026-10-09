@@ -16,10 +16,18 @@ use App\Support\FaceListingRotation;
 use App\Support\Sql;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class FaceController extends Controller
 {
+    /**
+     * TTL of the cached public total (filter-less listing).
+     */
+    private const TOTAL_CACHE_SECONDS = 60;
+
     /**
      * Display a paginated list of public Faces.
      *
@@ -28,64 +36,39 @@ class FaceController extends Controller
     public function index(ListFacesRequest $request): JsonResponse
     {
         $perPage = $request->getPerPage();
+        $page = max(1, $request->getPage());
         ['generation' => $generation, 'latest' => $servesLatest] = $this->resolveGeneration($request);
 
-        $faces = Face::query()
-            // The LEFT JOIN below adds face_listing_ranks columns to the row:
-            // keep the hydrated model on faces.* only.
-            ->select('faces.*')
-            ->publiclyListable()
-            ->with('activeSubscription')
-            ->withRatingAggregates()
-            ->when($request->validated('categorie'), fn ($q, $cat) => $q->whereJsonContains('categories', $cat))
-            ->when($request->validated('niche'), fn ($q, $niche) => $q->whereJsonContains('niches', $niche))
-            ->when($request->validated('ville'), fn ($q, $ville) => $q->where('ville', $ville))
-            ->when($request->validated('search'), function ($q, $search) {
-                $escaped = Sql::escapeLike($search);
+        // Deferred join: the page is first resolved to a list of face ids on
+        // narrow rows, then ONLY those Faces are loaded (with their rating
+        // aggregates). The order and the filter semantics are the ones of the
+        // former single statement (rank, unranked last, faces.id DESC).
+        //
+        // Rotation: the order comes from the materialized ranking built by
+        // faces:rebuild-listing-ranks (nightly fairness) and permuted by
+        // faces:rotate-listing-ranks (carousel). Which generation is
+        // served is decided ONCE, above, by resolveGeneration(); each
+        // generation is written in a single transaction, so it only ever
+        // becomes visible complete. The rank ORDERS, it never FILTERS:
+        // eligibility stays live (publiclyListable), so a Face
+        // deactivated after the rebuild is just a hole.
+        $hasFilter = $request->filled('categorie')
+            || $request->filled('niche')
+            || $request->filled('ville')
+            || $request->filled('search');
 
-                return $q->where(function ($query) use ($escaped) {
-                    $query->where('prenom', 'like', "%{$escaped}%")
-                        ->orWhere('username', 'like', "%{$escaped}%")
-                        ->orWhere('bio', 'like', "%{$escaped}%");
-                });
-            })
-            // Rotation: the order comes from the materialized ranking built by
-            // faces:rebuild-listing-ranks (nightly fairness) and permuted by
-            // faces:rotate-listing-ranks (carousel). Which generation is
-            // served is decided ONCE, above, by resolveGeneration(); each
-            // generation is written in a single transaction, so it only ever
-            // becomes visible complete. The rank ORDERS, it never FILTERS:
-            // eligibility stays live (publiclyListable above), so a Face
-            // deactivated after the rebuild is just a hole.
-            ->leftJoin('face_listing_ranks', function (JoinClause $join) use ($generation, $servesLatest): void {
-                $join->on('face_listing_ranks.face_id', '=', 'faces.id');
+        if ($hasFilter) {
+            [$ids, $total] = $this->filteredPage($request, $generation, $servesLatest, $perPage, $page);
+        } else {
+            [$ids, $total] = $this->unfilteredPage($generation, $servesLatest, $perPage, $page);
+        }
 
-                if ($servesLatest) {
-                    // "The current window" is resolved INSIDE the statement, as
-                    // a correlated subquery: a retention purge committing
-                    // between a separate SELECT MAX(...) and this query would
-                    // otherwise leave the join matching nothing at all, and the
-                    // WHOLE public listing would silently fall back to id DESC.
-                    $join->whereRaw('face_listing_ranks.generation = (select max(generation) from face_listing_ranks)');
-
-                    return;
-                }
-
-                // A generation explicitly resolved (pinned by the visitor, or
-                // the nightly base of a filtered request). 0 is impossible
-                // (generations start at 1): an empty table matches nothing and
-                // the whole list falls back to id DESC.
-                $join->where('face_listing_ranks.generation', '=', $generation ?? 0);
-            })
-            // Unranked Faces (created after the rebuild, or empty table before
-            // the first run) sort after ranked ones: `rank IS NULL` is 0 for
-            // ranked rows and 1 for unranked — no sentinel value to keep in
-            // sync with the column type. faces.id DESC is the deterministic
-            // tiebreak (and the whole-list fallback while the table is empty).
-            ->orderByRaw('face_listing_ranks.rank is null')
-            ->orderBy('face_listing_ranks.rank')
-            ->orderBy('faces.id', 'desc')
-            ->paginate($perPage);
+        $faces = new LengthAwarePaginator(
+            $this->loadFacesInOrder($ids),
+            $total,
+            $perPage,
+            $page,
+        );
 
         return response()->json([
             'data' => PublicFaceResource::collection($faces),
@@ -103,6 +86,182 @@ class FaceController extends Controller
             ],
             'message' => 'Faces retrieved successfully',
         ]);
+    }
+
+    /**
+     * Filtered request (categorie / niche / ville / search): same single
+     * statement as before, but selecting only the ids of the page.
+     *
+     * @return array{0: list<int>, 1: int}
+     */
+    private function filteredPage(ListFacesRequest $request, ?int $generation, bool $servesLatest, int $perPage, int $page): array
+    {
+        $paginator = Face::query()
+            ->publiclyListable()
+            ->when($request->validated('categorie'), fn ($q, $cat) => $q->whereJsonContains('categories', $cat))
+            ->when($request->validated('niche'), fn ($q, $niche) => $q->whereJsonContains('niches', $niche))
+            ->when($request->validated('ville'), fn ($q, $ville) => $q->where('ville', $ville))
+            ->when($request->validated('search'), function ($q, $search) {
+                $escaped = Sql::escapeLike($search);
+
+                return $q->where(function ($query) use ($escaped) {
+                    $query->where('prenom', 'like', "%{$escaped}%")
+                        ->orWhere('username', 'like', "%{$escaped}%")
+                        ->orWhere('bio', 'like', "%{$escaped}%");
+                });
+            })
+            ->leftJoin('face_listing_ranks', function (JoinClause $join) use ($generation, $servesLatest): void {
+                $join->on('face_listing_ranks.face_id', '=', 'faces.id');
+
+                $this->constrainGeneration($join, 'face_listing_ranks.generation', $generation, $servesLatest);
+            })
+            // Unranked Faces (created after the rebuild, or empty table before
+            // the first run) sort after ranked ones: `rank IS NULL` is 0 for
+            // ranked rows and 1 for unranked — no sentinel value to keep in
+            // sync with the column type. faces.id DESC is the deterministic
+            // tiebreak (and the whole-list fallback while the table is empty).
+            ->orderByRaw('face_listing_ranks.rank is null')
+            ->orderBy('face_listing_ranks.rank')
+            ->orderBy('faces.id', 'desc')
+            ->paginate($perPage, ['faces.id'], 'page', $page);
+
+        /** @var list<int> $ids */
+        $ids = $paginator->getCollection()->pluck('id')->map(fn ($id): int => (int) $id)->all();
+
+        return [$ids, $paginator->total()];
+    }
+
+    /**
+     * Unfiltered request (the hot path): ranked Faces come straight from the
+     * (generation, rank) index, unranked ones (created after the rebuild)
+     * follow by id DESC. Nothing is sorted across all the active Faces.
+     *
+     * @return array{0: list<int>, 1: int}
+     */
+    private function unfilteredPage(?int $generation, bool $servesLatest, int $perPage, int $page): array
+    {
+        $offset = ($page - 1) * $perPage;
+
+        // Cached 60 s per generation: the total only feeds the page count.
+        $total = (int) Cache::remember(
+            'public_faces:total:'.($generation ?? 'none'),
+            self::TOTAL_CACHE_SECONDS,
+            fn (): int => Face::query()->publiclyListable()->count(),
+        );
+
+        $rankedIds = DB::table('face_listing_ranks as r')
+            ->tap(fn ($q) => $this->constrainGeneration($q, 'r.generation', $generation, $servesLatest))
+            ->whereExists($this->activeFaceUser('r.face_id'))
+            ->orderBy('r.rank')
+            ->orderByDesc('r.face_id')
+            ->offset($offset)
+            ->limit($perPage)
+            ->pluck('r.face_id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        $missing = $perPage - count($rankedIds);
+
+        if ($missing <= 0) {
+            return [$rankedIds, $total];
+        }
+
+        // The ranked part is exhausted. When this page already holds ranked
+        // rows the unranked ones start at their first; otherwise skip the
+        // ranked rows that precede this page.
+        $unrankedOffset = 0;
+
+        if ($rankedIds === []) {
+            $rankedTotal = DB::table('face_listing_ranks as r')
+                ->tap(fn ($q) => $this->constrainGeneration($q, 'r.generation', $generation, $servesLatest))
+                ->whereExists($this->activeFaceUser('r.face_id'))
+                ->count();
+
+            $unrankedOffset = max(0, $offset - $rankedTotal);
+        }
+
+        $unrankedIds = DB::table('faces')
+            ->whereExists($this->activeFaceUser('faces.id'))
+            ->whereNotExists(function ($q) use ($generation, $servesLatest): void {
+                $q->select(DB::raw('1'))
+                    ->from('face_listing_ranks as r2')
+                    ->whereColumn('r2.face_id', 'faces.id');
+
+                $this->constrainGeneration($q, 'r2.generation', $generation, $servesLatest);
+            })
+            ->orderByDesc('faces.id')
+            ->offset($unrankedOffset)
+            ->limit($missing)
+            ->pluck('faces.id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        return [[...$rankedIds, ...$unrankedIds], $total];
+    }
+
+    /**
+     * Restrict a ranks table (or join) to the generation this request serves.
+     *
+     * "The current window" is resolved INSIDE the statement, as a correlated
+     * subquery: a retention purge committing between a separate SELECT
+     * MAX(...) and the ranks read would otherwise leave it matching nothing,
+     * and the WHOLE public listing would silently fall back to id DESC.
+     * A generation explicitly resolved (pinned by the visitor, or the nightly
+     * base of a filtered request) is a fixed number; 0 is impossible
+     * (generations start at 1): an empty table matches nothing.
+     *
+     * @param  \Illuminate\Database\Query\Builder|JoinClause  $query
+     */
+    private function constrainGeneration($query, string $column, ?int $generation, bool $servesLatest): void
+    {
+        if ($servesLatest) {
+            $query->whereRaw("{$column} = (select max(generation) from face_listing_ranks)");
+
+            return;
+        }
+
+        $query->where($column, '=', $generation ?? 0);
+    }
+
+    /**
+     * EXISTS clause: the Face behind $faceIdColumn has an active user account
+     * (same rule as Face::scopePubliclyListable).
+     */
+    private function activeFaceUser(string $faceIdColumn): \Closure
+    {
+        return function ($q) use ($faceIdColumn): void {
+            $q->select(DB::raw('1'))
+                ->from('users')
+                ->whereColumn('users.userable_id', $faceIdColumn)
+                ->where('users.userable_type', (new Face)->getMorphClass())
+                ->where('users.is_active', true);
+        };
+    }
+
+    /**
+     * Load the page's Faces (rating aggregates computed for these ids only)
+     * and put them back in the order of $ids.
+     *
+     * @param  list<int>  $ids
+     * @return Collection<int, Face>
+     */
+    private function loadFacesInOrder(array $ids): Collection
+    {
+        if ($ids === []) {
+            return new Collection;
+        }
+
+        $byId = Face::query()
+            ->select('faces.*')
+            ->whereIn('faces.id', $ids)
+            ->with('activeSubscription')
+            ->withRatingAggregates()
+            ->get()
+            ->keyBy('id');
+
+        return new Collection(array_values(array_filter(
+            array_map(fn (int $id): ?Face => $byId->get($id), $ids),
+        )));
     }
 
     /**

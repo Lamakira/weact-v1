@@ -82,6 +82,7 @@ class RatingAggregatesQueryCountTest extends TestCase
 
     private function listingQueryCount(): int
     {
+        $this->getJson('/api/v1/public/faces')->assertOk(); // warms the cached public total
         DB::flushQueryLog();
         DB::enableQueryLog();
         $this->getJson('/api/v1/public/faces')->assertOk();
