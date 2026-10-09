@@ -157,6 +157,8 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function sendEmailVerificationNotification(): void
     {
-        $this->notify(new VerifyEmailNotification);
+        // Sent after the response (not queued): registration does not wait for SMTP, and the
+        // signed verification link is never written to `jobs`.
+        dispatch(fn () => $this->notify(new VerifyEmailNotification))->afterResponse();
     }
 }

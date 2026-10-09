@@ -142,7 +142,7 @@ class WithdrawalRequestController extends Controller
             );
         }
 
-        Mail::to($processedRequest->user->email)->send(new WithdrawalApprovedMail($processedRequest));
+        Mail::to($processedRequest->user->email)->queue(new WithdrawalApprovedMail($processedRequest));
 
         return response()->json([
             'data' => [
@@ -184,7 +184,7 @@ class WithdrawalRequestController extends Controller
             return $lockedRequest->fresh(['user.userable']);
         });
 
-        Mail::to($processedRequest->user->email)->send(new WithdrawalRejectedMail($processedRequest));
+        Mail::to($processedRequest->user->email)->queue(new WithdrawalRejectedMail($processedRequest));
 
         return response()->json([
             'data' => [

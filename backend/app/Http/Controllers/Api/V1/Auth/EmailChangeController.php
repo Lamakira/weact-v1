@@ -28,8 +28,9 @@ class EmailChangeController extends Controller
         $user->update(['pending_email' => $newEmail]);
 
         // Send verification to NEW email (not the user's current email)
-        Notification::route('mail', $newEmail)
-            ->notify(new VerifyEmailChangeNotification($newEmail, $user));
+        // After the response, never queued: the signed link must not be written to `jobs`.
+        dispatch(fn () => Notification::route('mail', $newEmail)
+            ->notify(new VerifyEmailChangeNotification($newEmail, $user)))->afterResponse();
 
         // Send informational notification to old email
         $user->notify(new EmailChangeRequestedNotification($newEmail));
