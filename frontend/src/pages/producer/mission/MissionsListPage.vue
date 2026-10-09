@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { RefreshCw, ClipboardList, Inbox, ArrowRight, Plus } from 'lucide-vue-next'
+import { RefreshCw, Inbox, ArrowRight, Plus } from 'lucide-vue-next'
 import type { SortingState } from '@tanstack/vue-table'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
@@ -65,8 +65,14 @@ function currentParams(): MissionListParams {
   }
 }
 
-function loadMissions(): Promise<void> {
-  return fetchMissions(currentParams())
+async function loadMissions(): Promise<void> {
+  const params = currentParams()
+  await fetchMissions(params)
+  // Page past the end (stale bookmark, rows gone after an action): jump to the last
+  // page instead of showing a « no data » state for a list that has data.
+  if (missions.value.length === 0 && total.value > 0 && params.page > lastPage.value) {
+    await navigateList({ page: lastPage.value })
+  }
 }
 
 async function navigateList(patch: Partial<ListQueryState>): Promise<void> {
@@ -144,8 +150,10 @@ async function maybeOpenPayTunnel(): Promise<void> {
   if (route.query.payment_return !== undefined) return
   const payId = route.query.pay
   if (typeof payId === 'string' && payId) {
-    const didOpen = await handlePayCommission(payId)
-    if (!didOpen) return
+    const resolution = await resolvePayCommission(payId)
+    // Mission unknown for now (network error): keep ?pay to retry on the next refresh.
+    // Opened or definitively not payable: consume it either way.
+    if (resolution === 'not-found') return
 
     // Consume ?pay: rewrite the current history entry without it (other keys
     // preserved), so a later Back to this URL can't replay the tunnel once the
@@ -186,7 +194,9 @@ function handleViewAttendance(id: string): void {
   router.push({ name: 'producer-mission-attendance', params: { id } })
 }
 
-async function handlePayCommission(id: string): Promise<boolean> {
+type PayResolution = 'opened' | 'not-payable' | 'not-found'
+
+async function resolvePayCommission(id: string): Promise<PayResolution> {
   // The list is paginated / filtered / sorted server-side, so the mission a ?pay
   // return must open the tunnel for may not be in the current page: fall back to
   // fetching it by id (a failed lookup keeps ?pay, retried on the next refresh).
@@ -195,7 +205,7 @@ async function handlePayCommission(id: string): Promise<boolean> {
     try {
       mission = (await missionApi.getMission(id)).data
     } catch {
-      return false
+      return 'not-found'
     }
   }
   // Status guard: only a pending_payment mission has a commission to pay — a
@@ -204,10 +214,14 @@ async function handlePayCommission(id: string): Promise<boolean> {
   if (mission && mission.status === MissionStatus.PENDING_PAYMENT) {
     payingMission.value = mission
     isUgcPayOpen.value = true
-    return true
+    return 'opened'
   }
 
-  return false
+  return 'not-payable'
+}
+
+async function handlePayCommission(id: string): Promise<boolean> {
+  return (await resolvePayCommission(id)) === 'opened'
 }
 
 function handleDeleteClick(id: string): void {
@@ -362,12 +376,8 @@ async function confirmComplete(): Promise<void> {
     </div>
 
     <div>
-      <!-- Count + manual refresh (only once there is something to list) -->
-      <div v-if="hasLoaded && !error && (total > 0 || statusFilter)" class="mb-4 flex items-center justify-between">
-        <div class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <ClipboardList class="h-4 w-4" />
-          <span>{{ total }} mission{{ total > 1 ? 's' : '' }}</span>
-        </div>
+      <!-- Manual refresh (the result count lives in the table footer) -->
+      <div v-if="hasLoaded && !error && (total > 0 || statusFilter)" class="mb-2 flex justify-end">
         <button
           type="button"
           class="group p-2 text-muted-foreground transition-colors hover:text-primary"

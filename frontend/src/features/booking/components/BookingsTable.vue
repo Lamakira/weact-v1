@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatXof } from '@/lib/formatCurrency'
 import { computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { ArrowRight } from 'lucide-vue-next'
@@ -73,14 +74,6 @@ function formatDateRange(booking: Booking): string {
   const start = formatDate(booking.date_debut)
   const end = formatDate(booking.date_fin)
   return start === end ? start : `${start} — ${end}`
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    maximumFractionDigits: 0,
-  }).format(amount)
 }
 
 function amountOf(booking: Booking): number {
@@ -167,7 +160,7 @@ function goToDetail(booking: Booking): void {
     </template>
 
     <template #cell-montant="{ row }">
-      <span class="font-semibold text-foreground">{{ formatCurrency(amountOf(row)) }}</span>
+      <span class="font-semibold text-foreground">{{ formatXof(amountOf(row)) }}</span>
     </template>
 
     <template #cell-status="{ row }">

@@ -41,6 +41,12 @@ export function useBookingsListPage(routeName: string) {
       perPage: state.perPage,
     })
     await list.fetchBookings(state.page)
+    // Page past the end (stale bookmark, rows gone after an action): jump to the last page
+    // instead of showing a « no data » state for a list that has data.
+    if (list.bookings.value.length === 0 && list.total.value > 0 && state.page > list.lastPage.value) {
+      await navigate({ page: list.lastPage.value })
+      return
+    }
     hasLoaded.value = true
   }
 

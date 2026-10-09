@@ -45,7 +45,8 @@ const props = withDefaults(
     view?: 'table' | 'cards'
     /** Accessible table caption (visually hidden). */
     caption?: string
-    rowClickable?: boolean
+    /** Rows react to a click (`row-click`); a predicate restricts it to some rows. */
+    rowClickable?: boolean | ((row: T) => boolean)
     pageSizeOptions?: readonly number[]
     /** Label of the retry button in the error state. */
     errorTitle?: string
@@ -130,8 +131,12 @@ function onPageSizeChange(event: Event): void {
   table.setPageSize(size)
 }
 
+function isRowClickable(row: T): boolean {
+  return typeof props.rowClickable === 'function' ? props.rowClickable(row) : props.rowClickable
+}
+
 function onRowClick(event: MouseEvent, row: T): void {
-  if (!props.rowClickable) return
+  if (!isRowClickable(row)) return
   // Inner controls (links, buttons) handle their own click.
   if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label')) return
   emit('row-click', row)
@@ -214,7 +219,7 @@ function onRowClick(event: MouseEvent, row: T): void {
           <TableRow
             v-for="row in rows"
             :key="row.id"
-            :class="{ 'cursor-pointer': rowClickable }"
+            :class="{ 'cursor-pointer': isRowClickable(row.original) }"
             @click="onRowClick($event, row.original)"
           >
             <TableCell v-for="cell in row.getAllCells()" :key="cell.id" class="px-3 py-3">
@@ -229,7 +234,7 @@ function onRowClick(event: MouseEvent, row: T): void {
 
     <!-- Cards (mobile / cards view) -->
     <ul v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" :class="{ 'opacity-60': loading }">
-      <li v-for="row in rows" :key="row.id" class="contents">
+      <li v-for="row in rows" :key="row.id" class="flex [&>*]:w-full">
         <slot name="card" :row="row.original" />
       </li>
     </ul>

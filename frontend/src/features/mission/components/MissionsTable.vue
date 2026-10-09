@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatXof } from '@/lib/formatCurrency'
 import { computed } from 'vue'
 import { Calendar, Users, Wallet } from 'lucide-vue-next'
 import type { SortingState } from '@tanstack/vue-table'
@@ -66,15 +67,6 @@ function formatDate(value: string | null | undefined): string {
   )
 }
 
-function formatCurrency(amount: number): string {
-  return (
-    new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', currencyDisplay: 'code' })
-      .format(amount)
-      .replace('XOF', '')
-      .trim() + ' XOF'
-  )
-}
-
 const columns = computed<DataTableColumn<Mission>[]>(() => [
   { id: 'titre', accessorFn: (m) => m.titre, header: 'Mission', enableSorting: false },
   { id: 'status', accessorFn: (m) => m.status, header: 'Statut', enableSorting: true },
@@ -118,7 +110,7 @@ function onRowClick(mission: Mission): void {
     :view="view"
     caption="Liste de vos missions"
     error-hint="Impossible de charger vos missions pour le moment."
-    row-clickable
+    :row-clickable="(m: Mission) => getMissionActionState(m, emailVerified).canEdit"
     @update:sorting="emit('update:sorting', $event)"
     @page-change="emit('page-change', $event)"
     @page-size-change="emit('page-size-change', $event)"
@@ -174,7 +166,7 @@ function onRowClick(mission: Mission): void {
     </template>
 
     <template #cell-budget="{ row }">
-      <span class="font-semibold text-foreground">{{ formatCurrency(row.budget) }}</span>
+      <span class="font-semibold text-foreground">{{ formatXof(row.budget) }}</span>
     </template>
 
     <template #cell-created_at="{ row }">
@@ -230,7 +222,7 @@ function onRowClick(mission: Mission): void {
           </span>
           <span class="inline-flex items-center gap-1.5 font-semibold text-foreground">
             <Wallet class="h-4 w-4 text-primary/70" aria-hidden="true" />
-            {{ formatCurrency(row.budget) }}
+            {{ formatXof(row.budget) }}
           </span>
         </div>
 

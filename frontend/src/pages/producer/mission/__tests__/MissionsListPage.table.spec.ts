@@ -220,6 +220,30 @@ describe('MissionsListPage — table (md and up)', () => {
     expect(getMissionsPage).toHaveBeenLastCalledWith({ ...defaultParams, page: 2 })
   })
 
+  it('redirects to the last page when the requested page is past the end', async () => {
+    getMissionsPage.mockResolvedValueOnce(listResponse([], { current_page: 5, last_page: 3, total: 40 }))
+    const { wrapper, router } = await mountPage('/producer/missions?page=5')
+    await flushPromises()
+
+    expect(router.currentRoute.value.query.page).toBe('3')
+    expect(getMissionsPage).toHaveBeenLastCalledWith({ ...defaultParams, page: 3 })
+    expect(wrapper.text()).not.toContain("Vous n'avez pas encore de missions")
+  })
+
+  it('only marks editable rows as clickable', async () => {
+    const { wrapper } = await mountPage()
+    const rows = wrapper.findAll('tbody tr')
+    expect(rows[0]!.classes()).toContain('cursor-pointer')
+    expect(rows[1]!.classes()).not.toContain('cursor-pointer')
+    expect(rows[2]!.classes()).not.toContain('cursor-pointer')
+  })
+
+  it('shows the total only once (table footer)', async () => {
+    const { wrapper } = await mountPage()
+    expect(wrapper.text().match(/40 mission/g) ?? []).toHaveLength(0)
+    expect(wrapper.text().match(/40 résultat/g)).toHaveLength(1)
+  })
+
   it('does not refetch when only a foreign query key (?pay) changes', async () => {
     const { router } = await mountPage()
     expect(getMissionsPage).toHaveBeenCalledTimes(1)

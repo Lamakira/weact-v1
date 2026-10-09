@@ -137,6 +137,23 @@ describe('useMissionsList (server-driven)', () => {
     expect(missionApi.getMissionsPage).toHaveBeenCalledTimes(1)
   })
 
+  it('refreshMissions never reuses an in-flight request (fresh data after a mutation)', async () => {
+    const resolvers: Array<(value: PaginatedMissionsResponse) => void> = []
+    vi.mocked(missionApi.getMissionsPage).mockImplementation(
+      () => new Promise((resolve) => { resolvers.push(resolve) }),
+    )
+
+    const list = useMissionsList()
+    const first = list.fetchMissions(params)
+    const refresh = list.refreshMissions()
+    expect(missionApi.getMissionsPage).toHaveBeenCalledTimes(2)
+
+    resolvers[0]!(pageOf([createMockMission({ id: 'stale' })]))
+    resolvers[1]!(pageOf([createMockMission({ id: 'fresh' })]))
+    await Promise.all([first, refresh])
+    expect(list.missions.value.map((m) => m.id)).toEqual(['fresh'])
+  })
+
   it('removeMissionFromList drops the row locally', async () => {
     vi.mocked(missionApi.getMissionsPage).mockResolvedValueOnce(
       pageOf([createMockMission({ id: 'a' }), createMockMission({ id: 'b' })]),

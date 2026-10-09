@@ -29,9 +29,9 @@ export function useMissionsList() {
    * URL watcher firing together) share a single request; a stale response never
    * overwrites a newer one.
    */
-  function fetchMissions(params: MissionListParams): Promise<void> {
+  function fetchMissions(params: MissionListParams, options: { force?: boolean } = {}): Promise<void> {
     const key = JSON.stringify(params)
-    if (inFlight && inFlight.key === key) return inFlight.promise
+    if (!options.force && inFlight && inFlight.key === key) return inFlight.promise
 
     lastParams = params
     const id = ++requestId
@@ -65,10 +65,11 @@ export function useMissionsList() {
   }
 
   /**
-   * Re-run the last request (after a mutation, on keep-alive return, on retry).
+   * Re-run the last request (after a mutation). Always a NEW request: a mutation must
+   * never be answered by a response that was already in flight before it.
    */
   async function refreshMissions(): Promise<void> {
-    if (lastParams) await fetchMissions(lastParams)
+    if (lastParams) await fetchMissions(lastParams, { force: true })
   }
 
   /**

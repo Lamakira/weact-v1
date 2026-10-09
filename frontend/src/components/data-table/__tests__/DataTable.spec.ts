@@ -135,6 +135,20 @@ describe('DataTable', () => {
     expect(wrapper.find('[data-testid="card-b"]').exists()).toBe(true)
   })
 
+  it('keeps list semantics in cards view (li children of the ul)', () => {
+    const wrapper = mountTable({ view: 'cards' })
+    const items = wrapper.findAll('ul > li')
+    expect(items).toHaveLength(2)
+    expect(items[0]!.find('[data-testid="card-a"]').exists()).toBe(true)
+  })
+
+  it('accepts a per-row rowClickable predicate', () => {
+    const wrapper = mountTable({ rowClickable: (r: Row) => r.id === 'a' })
+    const rowsEl = wrapper.findAll('tbody tr')
+    expect(rowsEl[0]!.classes()).toContain('cursor-pointer')
+    expect(rowsEl[1]!.classes()).not.toContain('cursor-pointer')
+  })
+
   it('emits row-click when a row is clicked but not when an inner link is', async () => {
     const wrapper = mountTable({ rowClickable: true })
     await wrapper.findAll('tbody tr')[0]!.trigger('click')

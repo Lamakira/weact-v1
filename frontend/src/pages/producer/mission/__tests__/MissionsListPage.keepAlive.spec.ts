@@ -326,6 +326,8 @@ describe('MissionsListPage — stale ?pay in history / already-paid mission (bug
     await flushPromises()
 
     expect(wrapper.findComponent(overlayStub).exists()).toBe(false)
-    expect(mockRouter.replace).not.toHaveBeenCalled()
+    // The stale ?pay is consumed (replace without it) so later keep-alive returns stop re-checking it.
+    expect(mockRouter.replace).toHaveBeenCalledTimes(1)
+    expect(mockRouter.replace).toHaveBeenCalledWith({ query: {} })
   })
 })

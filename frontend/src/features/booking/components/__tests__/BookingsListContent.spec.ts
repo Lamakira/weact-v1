@@ -233,6 +233,17 @@ describe('BookingsListContent', () => {
     expect(getBookings).toHaveBeenLastCalledWith(1, 'completed', { sort: 'status', direction: 'asc', perPage: 15 })
   })
 
+  it('redirects to the last page when the requested page is past the end', async () => {
+    getBookings.mockResolvedValueOnce(listResponse([], { current_page: 5, last_page: 3, total: 40 }))
+    const { wrapper, router } = await mountContent('producer', '/producer/bookings?page=5')
+    await flushPromises()
+
+    expect(router.currentRoute.value.query.page).toBe('3')
+    expect(getBookings).toHaveBeenLastCalledWith(3, '', { sort: null, direction: 'asc', perPage: 15 })
+    // Never flashes the « no data » state for a list that does have data.
+    expect(wrapper.text()).not.toContain('Pas encore de booking')
+  })
+
   it('changes the page size and resets to page 1', async () => {
     const { wrapper, router } = await mountContent('producer', '/producer/bookings?page=2')
     await wrapper.find('select[data-testid="data-table-page-size"]').setValue('50')
