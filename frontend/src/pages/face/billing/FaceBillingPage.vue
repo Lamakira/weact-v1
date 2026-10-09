@@ -19,6 +19,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CreditCard, Calendar, Check, Receipt, ChevronDown, AlertTriangle, Loader2 } from 'lucide-vue-next'
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui'
 import WBadge from '@/components/ui/WBadge.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { faceBillingApi, type FaceBillingHistoryItem } from '@/features/face/services/faceBillingApi'
@@ -639,16 +640,16 @@ function toggleHistory(id: string): void {
         </div>
 
         <div v-else class="flex flex-col gap-2.5">
-          <div
+          <CollapsibleRoot
             v-for="item in historyRows"
             :key="item.id"
+            :open="openId === item.id"
             class="border border-gray-200 rounded-xl overflow-hidden transition-all"
             :data-testid="`history-row-${item.id}`"
+            @update:open="toggleHistory(item.id)"
           >
-            <button
-              @click="toggleHistory(item.id)"
+            <CollapsibleTrigger
               class="w-full flex items-center gap-4 px-4 sm:px-5 py-4 hover:bg-gray-50/60 transition-colors text-left"
-              :aria-expanded="openId === item.id"
             >
               <div class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
                 <Receipt :size="18" />
@@ -671,9 +672,10 @@ function toggleHistory(id: string): void {
                 <span class="hidden sm:inline">Voir détails</span>
                 <ChevronDown :size="16" :style="{ transform: openId === item.id ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }" />
               </span>
-            </button>
+            </CollapsibleTrigger>
 
-            <div v-if="openId === item.id" class="px-4 sm:px-5 pb-5 pt-1 border-t border-gray-100 bg-gray-50/30">
+            <CollapsibleContent class="collapsible-smooth">
+             <div class="px-4 sm:px-5 pb-5 pt-1 border-t border-gray-100 bg-gray-50/30">
               <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 mt-4">
                 <div class="flex items-center justify-between sm:block">
                   <dt class="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Plan</dt>
@@ -700,8 +702,9 @@ function toggleHistory(id: string): void {
                   <dd class="text-xs font-mono font-medium text-gray-900 sm:mt-0.5">{{ item.ref }}</dd>
                 </div>
               </dl>
-            </div>
-          </div>
+             </div>
+            </CollapsibleContent>
+          </CollapsibleRoot>
         </div>
       </section>
     </div>
