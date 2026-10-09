@@ -139,6 +139,8 @@ export interface Booking {
   status_label: string
   // null for UGC dotations (no shoot date / duration — the Face films at home)
   date_debut: string | null
+  // Dernier instant où la Face peut annuler (24 h avant le jour du tournage) ; null sans date
+  face_cancellation_deadline?: string | null
   date_fin: string | null
   duree_heures: number | null
   type_contenu: string

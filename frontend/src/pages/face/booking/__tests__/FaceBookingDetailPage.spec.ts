@@ -1358,3 +1358,50 @@ describe('FaceBookingDetailPage — fenêtre de contestation 72 h', () => {
     wrapper.unmount()
   })
 })
+
+describe('FaceBookingDetailPage — délai d\'annulation Face (24 h avant le jour du tournage)', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    mockFetchBooking.mockReset()
+  })
+
+  it('avant l\'échéance : bouton Annuler visible et échéance affichée', async () => {
+    const deadline = new Date(Date.now() + 2 * 86400000).toISOString()
+    const wrapper = await mountPage(
+      makeBooking({ status: 'accepted', face_cancellation_deadline: deadline }),
+    )
+
+    expect(wrapper.find('[data-testid="face-cancel-btn"]').exists()).toBe(true)
+    const info = wrapper.find('[data-testid="face-cancel-deadline"]')
+    expect(info.exists()).toBe(true)
+    expect(info.text()).toContain('Annulation possible jusqu\'au')
+    wrapper.unmount()
+  })
+
+  it('après l\'échéance : bouton masqué et explication affichée', async () => {
+    const deadline = new Date(Date.now() - 60000).toISOString()
+    const wrapper = await mountPage(
+      makeBooking({ status: 'paid', face_cancellation_deadline: deadline }),
+    )
+
+    expect(wrapper.find('[data-testid="face-cancel-btn"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="face-cancel-closed"]').text()).toContain(
+      'Annulation impossible à moins de 24 h du jour du tournage',
+    )
+    wrapper.unmount()
+  })
+
+  it('le Producteur n\'est pas concerné par l\'échéance', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const deadline = new Date(Date.now() - 60000).toISOString()
+    const wrapper = await mountPage(
+      makeBooking({ status: 'accepted', producer_id: 2, face_cancellation_deadline: deadline }),
+    )
+
+    expect(wrapper.find('[data-testid="face-cancel-closed"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+})

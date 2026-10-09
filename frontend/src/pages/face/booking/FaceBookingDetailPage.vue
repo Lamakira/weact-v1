@@ -231,11 +231,35 @@ const faceName = computed(() => {
 
 const ratedName = computed(() => (isFace.value ? producerName.value : faceName.value))
 
+// Délai d'annulation de la Face (fourni par le backend) : sans échéance connue, on laisse le backend trancher.
+const faceCancelDeadline = computed<Date | null>(() => {
+  const raw = booking.value?.face_cancellation_deadline
+  return raw ? new Date(raw) : null
+})
+
+const isFaceCancelWindowOpen = computed(
+  () => faceCancelDeadline.value === null || nowTimestamp.value < faceCancelDeadline.value.getTime(),
+)
+
+const formattedFaceCancelDeadline = computed(() =>
+  faceCancelDeadline.value
+    ? new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }).format(
+        faceCancelDeadline.value,
+      )
+    : '',
+)
+
+// La Face voit le délai (avant) ou l'explication (après) tant que le statut reste annulable.
+const showFaceCancelInfo = computed(
+  () => !!booking.value && isFace.value && faceCancelDeadline.value !== null
+    && CANCELLABLE_BY_FACE_STATUSES.includes(booking.value.status),
+)
+
 const canCancelBooking = computed(() => {
   if (!booking.value) return false
 
   if (isFace.value) {
-    return CANCELLABLE_BY_FACE_STATUSES.includes(booking.value.status)
+    return CANCELLABLE_BY_FACE_STATUSES.includes(booking.value.status) && isFaceCancelWindowOpen.value
   }
 
   return CANCELLABLE_BY_PRODUCER_STATUSES.includes(booking.value.status)
@@ -1038,12 +1062,27 @@ onUnmounted(() => {
           <div v-if="canCancelBooking" class="flex gap-3">
             <button
               class="flex-1 flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+              data-testid="face-cancel-btn"
               @click="showCancellationDialog = true"
             >
               <XCircle class="w-4 h-4" />
               Annuler le booking
             </button>
           </div>
+          <p
+            v-if="showFaceCancelInfo && isFaceCancelWindowOpen"
+            class="text-sm text-gray-500"
+            data-testid="face-cancel-deadline"
+          >
+            Annulation possible jusqu'au {{ formattedFaceCancelDeadline }}
+          </p>
+          <p
+            v-else-if="showFaceCancelInfo"
+            class="text-sm text-amber-600"
+            data-testid="face-cancel-closed"
+          >
+            Annulation impossible à moins de 24 h du jour du tournage.
+          </p>
 
           <!-- No-show report (Producer only) -->
           <div v-if="canReportNoShow" class="flex gap-3">
