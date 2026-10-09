@@ -15,6 +15,7 @@ use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
+use App\Services\FaceDashboardTodoService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,27 @@ use Illuminate\Support\Facades\DB;
 
 class FaceDashboardController extends Controller
 {
+    /**
+     * Get the « À faire » queue for the authenticated Face (up to 8 items, most urgent first).
+     *
+     * Each item: { type, title, meta, urgent_meta|null, action_label, url } — `url` is a
+     * front route built from uuids. Types: booking_proposal, ugc_proposal, no_show_contest,
+     * confirm_prestation, ugc_deliverable, pending_candidatures, profile_completion.
+     */
+    public function todo(Request $request, FaceDashboardTodoService $todoService): JsonResponse
+    {
+        $result = $this->getAuthenticatedFace($request);
+
+        if ($result instanceof JsonResponse) {
+            return $result;
+        }
+
+        return response()->json([
+            'data' => $todoService->forFace($request->user(), $result),
+            'message' => 'Dashboard todo retrieved successfully',
+        ]);
+    }
+
     /**
      * Get dashboard statistics for the authenticated Face.
      *
