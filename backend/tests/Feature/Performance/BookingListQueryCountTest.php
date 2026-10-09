@@ -12,6 +12,7 @@ use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Tests\TestCase;
 
 /**
@@ -132,5 +133,20 @@ class BookingListQueryCountTest extends TestCase
         foreach (["/api/v1/bookings/{$booking->uuid}", "/api/v1/bookings/{$booking->uuid}/payment-status"] as $url) {
             $this->assertLessThanOrEqual(30, $this->queryCount($url), $url);
         }
+    }
+
+    public function test_rate_policy_ignores_a_preloaded_or_forged_attribute(): void
+    {
+        $booking = $this->addBooking();
+        $faceUser = User::query()->findOrFail($booking->face_id);
+        $completed = Booking::query()
+            ->where('face_id', $faceUser->id)
+            ->where('status', BookingStatus::Completed)
+            ->firstOrFail();
+
+        // The viewer already rated this booking (see addBooking()).
+        $completed->setAttribute('viewer_has_rated', false);
+
+        $this->assertFalse(Gate::forUser($this->producerUser)->allows('rate', $completed));
     }
 }
