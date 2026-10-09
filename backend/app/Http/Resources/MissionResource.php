@@ -56,7 +56,10 @@ class MissionResource extends JsonResource
             // et sur la découverte UGC (vitrine des cartes, écran 6A).
             'product_photos' => ProductPhotoResource::collection($this->whenLoaded('productPhotos')),
             'is_accepting_candidatures' => $this->isAcceptingCandidatures(),
-            'has_paid_payment' => \App\Models\MissionPayment::where('mission_id', $this->id)->where('status', 'paid')->exists(),
+            // Listings pre-load the flag (Mission::scopeWithPaidPaymentFlag); the query is the fallback.
+            'has_paid_payment' => array_key_exists('has_paid_payment', $this->resource->getAttributes())
+                ? (bool) $this->resource->getAttribute('has_paid_payment')
+                : \App\Models\MissionPayment::where('mission_id', $this->id)->where('status', 'paid')->exists(),
             'candidatures_count' => $this->candidatures_count ?? ($this->whenLoaded('candidatures') ? $this->candidatures->count() : 0),
             'producer' => new ProducerResource($this->whenLoaded('producer')),
             'created_at' => $this->created_at?->toIso8601String(),

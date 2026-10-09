@@ -239,7 +239,7 @@ class AdminWithdrawalRequestTest extends TestCase
             ])
             ->assertOk();
 
-        Mail::assertSent(WithdrawalApprovedMail::class, function (WithdrawalApprovedMail $mail): bool {
+        Mail::assertQueued(WithdrawalApprovedMail::class, function (WithdrawalApprovedMail $mail): bool {
             return str_contains($mail->render(), 'Bonjour Kofi Mensah');
         });
     }
@@ -271,7 +271,7 @@ class AdminWithdrawalRequestTest extends TestCase
             ])
             ->assertOk();
 
-        Mail::assertSent(WithdrawalRejectedMail::class, function (WithdrawalRejectedMail $mail): bool {
+        Mail::assertQueued(WithdrawalRejectedMail::class, function (WithdrawalRejectedMail $mail): bool {
             return str_contains($mail->render(), 'Bonjour Kofi Mensah');
         });
     }

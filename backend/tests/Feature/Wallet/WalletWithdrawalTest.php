@@ -184,7 +184,7 @@ class WalletWithdrawalTest extends TestCase
 
         $this->assertDatabaseCount('wallet_transactions', 0);
         $this->assertDatabaseCount('financial_events', 0);
-        Mail::assertSent(WithdrawalRequestSubmittedMail::class);
+        Mail::assertQueued(WithdrawalRequestSubmittedMail::class);
     }
 
     public function test_withdrawal_fails_when_amount_exceeds_balance(): void

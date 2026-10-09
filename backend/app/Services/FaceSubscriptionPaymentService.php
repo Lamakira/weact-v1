@@ -12,6 +12,7 @@ use App\Exceptions\FaceSubscriptionPaymentInitiationException;
 use App\Models\Face;
 use App\Models\FaceSubscription;
 use App\Models\User;
+use App\Support\FedapayPollCache;
 use Carbon\Carbon;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
@@ -906,7 +907,10 @@ class FaceSubscriptionPaymentService
             return $subscription;
         }
 
-        $transaction = $this->fedapayService->retrieveTransaction((int) $subscription->provider_reference);
+        $transaction = FedapayPollCache::remember(
+            (int) $subscription->provider_reference,
+            fn () => $this->fedapayService->retrieveTransaction((int) $subscription->provider_reference),
+        );
         $fedapayRef = (string) ($transaction->reference ?? $subscription->provider_reference);
         $remoteStatus = (string) ($transaction->status ?? '');
         $providerReference = (string) $subscription->provider_reference;

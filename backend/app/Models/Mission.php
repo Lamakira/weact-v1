@@ -248,6 +248,16 @@ class Mission extends Model
     }
 
     /**
+     * Pre-load the `has_paid_payment` flag read by MissionResource (no per-row query).
+     */
+    public function scopeWithPaidPaymentFlag(Builder $query): Builder
+    {
+        return $query->withExists([
+            'payment as has_paid_payment' => fn ($q) => $q->where('status', MissionPaymentStatus::Paid),
+        ]);
+    }
+
+    /**
      * Scope a query to only include missions pending payment.
      */
     public function scopePendingPayment(Builder $query): Builder

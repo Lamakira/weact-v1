@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Concerns\HasRouteUuid;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -74,6 +75,19 @@ class Conversation extends Model
     public function getProducerAttribute(): ?Producer
     {
         return $this->candidature?->mission?->producer;
+    }
+
+    /**
+     * Pre-load `unread_count` for a user (same rule as unreadCountFor) so lists
+     * need no per-row count query.
+     *
+     * @param  Builder<static>  $query
+     */
+    public function scopeWithUnreadCountFor(Builder $query, User $user): void
+    {
+        $query->withCount([
+            'messages as unread_count' => fn ($q) => $q->whereNull('read_at')->where('sender_id', '!=', $user->id),
+        ]);
     }
 
     /**

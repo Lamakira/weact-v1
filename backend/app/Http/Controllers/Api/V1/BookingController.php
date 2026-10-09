@@ -66,7 +66,9 @@ class BookingController extends Controller
 
         $user = $request->user();
 
-        $query = Booking::with(['face.userable', 'producer.userable', 'shipment.receptionPhotos'])
+        $query = Booking::with([...Booking::partiesEagerLoad(), 'shipment.receptionPhotos'])
+            // can_rate (policy rate) reads this flag instead of one exists() per completed booking.
+            ->withExists(['bookingRatings as viewer_has_rated' => fn ($q) => $q->where('rater_id', $user->id)])
             ->where(function ($q) use ($user) {
                 $q->where('face_id', $user->id)
                     ->orWhere('producer_id', $user->id);
@@ -121,8 +123,7 @@ class BookingController extends Controller
         $booking->loadExists('escrowTransaction');
 
         $booking->load([
-            'face.userable',
-            'producer.userable',
+            ...Booking::partiesEagerLoad(),
             'shipment.receptionPhotos',
             'deliverables',
             'productPhotos',
@@ -160,7 +161,7 @@ class BookingController extends Controller
         $booking = $this->bookingService->accept($booking);
 
         return response()->json([
-            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+            'data' => new BookingResource($booking->load(Booking::partiesEagerLoad())),
             'message' => 'Booking accepté',
         ]);
     }
@@ -178,7 +179,7 @@ class BookingController extends Controller
         );
 
         return response()->json([
-            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+            'data' => new BookingResource($booking->load(Booking::partiesEagerLoad())),
             'message' => 'Booking refusé',
         ]);
     }
@@ -205,7 +206,7 @@ class BookingController extends Controller
         }
 
         return response()->json([
-            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+            'data' => new BookingResource($booking->load(Booking::partiesEagerLoad())),
             'message' => 'Booking annulé',
         ]);
     }
@@ -222,7 +223,7 @@ class BookingController extends Controller
         $booking = $this->bookingService->confirm($booking, $request->user());
 
         return response()->json([
-            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+            'data' => new BookingResource($booking->load(Booking::partiesEagerLoad())),
             'message' => 'Confirmation enregistrée',
         ]);
     }
@@ -237,7 +238,7 @@ class BookingController extends Controller
         $booking = $this->bookingService->reportNoShow($booking, $request->user());
 
         return response()->json([
-            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+            'data' => new BookingResource($booking->load(Booking::partiesEagerLoad())),
             'message' => 'Absence signalée',
         ]);
     }
@@ -252,7 +253,7 @@ class BookingController extends Controller
         $booking = $this->bookingService->contest($booking, $request->user(), $request->validated('message'));
 
         return response()->json([
-            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+            'data' => new BookingResource($booking->load(Booking::partiesEagerLoad())),
             'message' => 'Contestation enregistrée',
         ]);
     }
@@ -267,7 +268,7 @@ class BookingController extends Controller
         $result = $this->bookingService->initiatePayment($booking);
 
         return response()->json([
-            'data' => new BookingResource($result['booking']->load(['face.userable', 'producer.userable'])),
+            'data' => new BookingResource($result['booking']->load(Booking::partiesEagerLoad())),
             'checkout_url' => $result['checkout_url'],
             'message' => 'Paiement initié',
         ]);
@@ -284,7 +285,7 @@ class BookingController extends Controller
         $booking = $this->bookingService->checkAndProcessPayment($booking);
 
         return response()->json([
-            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+            'data' => new BookingResource($booking->load(Booking::partiesEagerLoad())),
         ]);
     }
 
@@ -297,7 +298,7 @@ class BookingController extends Controller
         $result = $this->ugcCommissionPaymentService->initiateForBooking($booking);
 
         return response()->json([
-            'data' => new BookingResource($result['booking']->load(['face.userable', 'producer.userable'])),
+            'data' => new BookingResource($result['booking']->load(Booking::partiesEagerLoad())),
             'checkout_url' => $result['checkout_url'],
             'message' => 'Paiement de la commission initié',
         ]);
@@ -314,7 +315,7 @@ class BookingController extends Controller
         $booking = $this->ugcCommissionPaymentService->checkAndProcessBooking($booking);
 
         return response()->json([
-            'data' => new BookingResource($booking->load(['face.userable', 'producer.userable'])),
+            'data' => new BookingResource($booking->load(Booking::partiesEagerLoad())),
             'commission_payment_status' => $this->ugcCommissionPaymentService->lastCommissionPaymentStatus(),
         ]);
     }

@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Logging\CriticalLogAlerter;
 use App\Models\Notification;
+use App\Models\PersonalAccessToken;
 use App\Observers\NotificationObserver;
 use Carbon\Carbon;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Sanctum\Sanctum;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -35,6 +37,9 @@ class AppServiceProvider extends ServiceProvider
         DB::prohibitDestructiveCommands(
             ! $this->app->environment('testing')
         );
+
+        // Custom token model: last_used_at is persisted at most once a minute.
+        Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
 
         // Broadcast NotificationCreated event whenever a notification is persisted
         Notification::observe(NotificationObserver::class);

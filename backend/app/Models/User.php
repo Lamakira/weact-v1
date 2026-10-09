@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Log;
 use Laravel\Sanctum\HasApiTokens;
 
 /**
@@ -158,5 +159,25 @@ class User extends Authenticatable implements MustVerifyEmail
     public function sendEmailVerificationNotification(): void
     {
         $this->notify(new VerifyEmailNotification);
+    }
+
+    /**
+     * First-send flows (registration): the verification mail goes out after the response
+     * — registration does not wait for SMTP — and is never queued, so the signed link is
+     * not written to `jobs`. A mail failure must neither reach terminate() nor fail the
+     * signup. The resend endpoint keeps the synchronous method above so a failure is
+     * surfaced and the user can retry.
+     */
+    public function sendEmailVerificationNotificationAfterResponse(): void
+    {
+        dispatch(function (): void {
+            try {
+                $this->notify(new VerifyEmailNotification);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to send verification email: '.$e->getMessage(), [
+                    'user_id' => $this->getKey(),
+                ]);
+            }
+        })->afterResponse();
     }
 }

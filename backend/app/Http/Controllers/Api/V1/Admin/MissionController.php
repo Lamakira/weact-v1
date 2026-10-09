@@ -19,7 +19,8 @@ class MissionController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Mission::with('producer.user')
+        $query = Mission::with(['producer' => fn ($q) => $q->withRatingAggregates(), 'producer.user'])
+            ->withPaidPaymentFlag()
             ->withCount('candidatures')
             ->orderBy('created_at', 'desc');
 
