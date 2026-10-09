@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Producer;
 
+use App\Models\Booking;
+use App\Models\BookingRating;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
@@ -11,6 +13,7 @@ use App\Models\Producer;
 use App\Models\Rating;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class ProducerDashboardStatsTest extends TestCase
@@ -972,5 +975,103 @@ class ProducerDashboardStatsTest extends TestCase
         $response->assertOk();
         // 1/3 = 33.333... rounded to 1 decimal = 33.3
         $this->assertEquals(33.3, $response->json('data.acceptance_rate'));
+    }
+
+    /**
+     * @param  array<int, int>  $candidatureScores
+     * @param  array<int, int>  $bookingScores
+     */
+    private function seedRatingsFor(User $producerUser, Producer $producer, array $candidatureScores, array $bookingScores): void
+    {
+        foreach ($candidatureScores as $score) {
+            $face = Face::factory()->create();
+            $faceUser = User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+            $mission = Mission::factory()->completed()->create(['producer_id' => $producer->id]);
+            $candidature = Candidature::factory()->completed()->create(['face_id' => $face->id, 'mission_id' => $mission->id]);
+            Rating::factory()->create([
+                'candidature_id' => $candidature->id,
+                'rater_id' => $faceUser->id,
+                'rated_id' => $producer->id,
+                'rated_type' => Producer::class,
+                'score' => $score,
+            ]);
+        }
+
+        foreach ($bookingScores as $score) {
+            $faceUser = User::factory()->create([
+                'userable_type' => Face::class,
+                'userable_id' => Face::factory()->create()->id,
+            ]);
+            $booking = Booking::factory()->completed()->create([
+                'face_id' => $faceUser->id,
+                'producer_id' => $producerUser->id,
+            ]);
+            BookingRating::create([
+                'booking_id' => $booking->id,
+                'rater_id' => $faceUser->id,
+                'rated_id' => $producerUser->id,
+                'score' => $score,
+            ]);
+        }
+    }
+
+    public function test_stats_returns_zeroed_rating_distribution_without_ratings(): void
+    {
+        $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats')
+            ->assertOk()
+            ->assertJsonPath('data.rating_distribution', ['5' => 0, '4' => 0, '3' => 0, '2' => 0, '1' => 0]);
+    }
+
+    public function test_rating_distribution_merges_candidature_and_booking_sources_and_matches_average(): void
+    {
+        $this->seedRatingsFor($this->producerUser, $this->producer, [5, 4, 5], [5, 3]);
+
+        $response = $this->actingAs($this->producerUser)->getJson('/api/v1/producer/dashboard/stats');
+
+        $response->assertOk();
+        $distribution = $response->json('data.rating_distribution');
+        $this->assertSame(['5' => 3, '4' => 1, '3' => 1, '2' => 0, '1' => 0], $distribution);
+        $this->assertSame($response->json('data.ratings_count'), array_sum($distribution));
+
+        $weighted = 0;
+        foreach ($distribution as $score => $count) {
+            $weighted += (int) $score * $count;
+        }
+        $this->assertEqualsWithDelta($response->json('data.average_rating'), $weighted / array_sum($distribution), 0.0001);
+    }
+
+    public function test_rating_distribution_excludes_other_producers_ratings(): void
+    {
+        $otherProducer = Producer::factory()->create();
+        $otherUser = User::factory()->create(['userable_type' => Producer::class, 'userable_id' => $otherProducer->id]);
+        $this->seedRatingsFor($otherUser, $otherProducer, [1, 1], [2]);
+        $this->seedRatingsFor($this->producerUser, $this->producer, [4], []);
+
+        $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/dashboard/stats')
+            ->assertOk()
+            ->assertJsonPath('data.rating_distribution', ['5' => 0, '4' => 1, '3' => 0, '2' => 0, '1' => 0]);
+    }
+
+    public function test_rating_distribution_adds_a_constant_number_of_queries(): void
+    {
+        $this->actingAs($this->producerUser)->getJson('/api/v1/producer/dashboard/stats')->assertOk();
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->getJson('/api/v1/producer/dashboard/stats')->assertOk();
+        $small = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->seedRatingsFor($this->producerUser, $this->producer, [5, 4, 3, 2, 1], [5, 5, 4]);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->getJson('/api/v1/producer/dashboard/stats')->assertOk();
+        $large = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->assertSame($small, $large);
     }
 }

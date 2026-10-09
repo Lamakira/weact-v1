@@ -6,10 +6,12 @@ namespace App\Http\Controllers\Api\V1\Producer;
 
 use App\Enums\CandidatureStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Producer\IndexActiveMissionsRequest;
 use App\Http\Resources\ProducerDashboardStatsResource;
 use App\Models\Candidature;
 use App\Models\Mission;
 use App\Models\Producer;
+use App\Services\ProducerDashboardService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -116,9 +118,36 @@ class ProducerDashboardController extends Controller
                 $averageRating,
                 $ratingsCount,
                 $acceptanceRate,
-                $averageResponseTimeHours
+                $averageResponseTimeHours,
+                $producer->ratingDistribution()
             ),
             'message' => 'Dashboard stats retrieved successfully',
+        ]);
+    }
+
+    /**
+     * Missions actives du Producteur (module du dashboard) : publiées ou en cours,
+     * avec candidatures reçues / nouvelles (24 h) / Faces confirmées vs voulues.
+     */
+    public function activeMissions(IndexActiveMissionsRequest $request, ProducerDashboardService $service): JsonResponse
+    {
+        $producer = Producer::findOrFail($request->user()->userable_id);
+        $result = $service->activeMissions($producer, $request->limit());
+
+        return response()->json([
+            'data' => $result['missions']->map(fn ($mission) => [
+                'id' => $mission->uuid,
+                'titre' => $mission->titre,
+                'type_mission' => $mission->type_mission?->value,
+                'status' => $mission->status->value,
+                'status_label' => $mission->status->label(),
+                'candidatures_count' => (int) $mission->candidatures_count,
+                'new_candidatures_count' => (int) $mission->new_candidatures_count,
+                'confirmed_count' => (int) $mission->confirmed_count,
+                'faces_wanted' => $mission->nombre_faces_voulu,
+            ])->values(),
+            'meta' => ['total' => $result['total']],
+            'message' => 'Missions actives récupérées avec succès',
         ]);
     }
 
