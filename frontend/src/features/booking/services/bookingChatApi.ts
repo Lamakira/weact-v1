@@ -7,7 +7,7 @@ import type { BookingMessageListResponse, BookingMessageResponse } from '../type
  */
 export const bookingChatApi = {
   /**
-   * Fetch paginated messages for a booking (oldest first, 30 per page).
+   * Fetch paginated messages for a booking (page 1 = 30 most recent, each page in chronological order).
    */
   async fetchMessages(bookingId: string, page = 1): Promise<BookingMessageListResponse> {
     const response = await apiClient.get<BookingMessageListResponse>(
