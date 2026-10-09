@@ -62,7 +62,7 @@ export function useAuth(): UseAuthReturn {
       authStore.setUser(response.data.user)
 
       // Initialize notification store (subscribe to WebSocket + fetch unread count)
-      notificationStore.subscribe()
+      void notificationStore.subscribe()
       notificationStore.fetchUnreadCount()
 
       return { success: true }
@@ -91,7 +91,7 @@ export function useAuth(): UseAuthReturn {
       authStore.setUser(response.data.user)
 
       // Initialize notification store
-      notificationStore.subscribe()
+      void notificationStore.subscribe()
       notificationStore.fetchUnreadCount()
 
       return { success: true }
@@ -119,7 +119,7 @@ export function useAuth(): UseAuthReturn {
       authStore.setUser(response.data.user)
 
       // Initialize notification store
-      notificationStore.subscribe()
+      void notificationStore.subscribe()
       notificationStore.fetchUnreadCount()
 
       return { success: true }
@@ -150,7 +150,7 @@ export function useAuth(): UseAuthReturn {
     authStore.setToken(token)
     authStore.setUser(newUser)
 
-    notificationStore.subscribe()
+    void notificationStore.subscribe()
     notificationStore.fetchUnreadCount()
   }
 

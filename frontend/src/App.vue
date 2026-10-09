@@ -38,7 +38,7 @@ function cancelEnteringPublicRoute(element: Element): void {
 // Bootstrap notification store on app reload for authenticated users
 onMounted(() => {
   if (authStore.isAuthenticated && !notificationStore.isSubscribed) {
-    notificationStore.subscribe()
+    void notificationStore.subscribe()
     notificationStore.fetchUnreadCount()
   }
 })

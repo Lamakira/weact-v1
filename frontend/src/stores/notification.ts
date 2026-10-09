@@ -2,7 +2,6 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { Notification } from '@/features/notification/types'
 import { notificationApi } from '@/features/notification/services/notificationApi'
-import { echo } from '@/plugins/echo'
 import { useAuthStore } from '@/stores/auth'
 import { getAuthToken } from '@/services/apiClient'
 import { getXsrfTokenFromCookie } from '@/utils/csrf'
@@ -18,12 +17,27 @@ interface EchoConnection {
   unbind: (event: 'connected', callback: () => void) => void
 }
 
+type EchoInstance = (typeof import('@/plugins/echo'))['echo']
+
+// Echo (pusher-js + laravel-echo) est chargé à la demande : jamais pour un visiteur anonyme.
+let echoInstance: EchoInstance | null = null
+
+async function getEcho(): Promise<EchoInstance> {
+  if (!echoInstance) {
+    echoInstance = (await import('@/plugins/echo')).echo
+  }
+  return echoInstance
+}
+
+const FOCUS_REFETCH_MIN_INTERVAL_MS = 30_000
+
 let focusHandler: (() => void) | null = null
 let reconnectHandler: (() => void) | null = null
 let safetyPollIntervalId: ReturnType<typeof setInterval> | null = null
+let lastFocusRefetchAt = 0
 
 function getEchoConnection(): EchoConnection | null {
-  const connection = echo.connector?.pusher?.connection
+  const connection = echoInstance?.connector?.pusher?.connection
   if (
     !connection
     || typeof connection.bind !== 'function'
@@ -133,6 +147,10 @@ export const useNotificationStore = defineStore('notification', () => {
     if (typeof window === 'undefined' || focusHandler) return
 
     focusHandler = () => {
+      const now = Date.now()
+      if (now - lastFocusRefetchAt < FOCUS_REFETCH_MIN_INTERVAL_MS) return
+      lastFocusRefetchAt = now
+
       void fetchUnreadCount()
 
       if (hasFetchedItems.value) {
@@ -148,6 +166,7 @@ export const useNotificationStore = defineStore('notification', () => {
 
     window.removeEventListener('focus', focusHandler)
     focusHandler = null
+    lastFocusRefetchAt = 0
   }
 
   function startReconnectListener(): void {
@@ -191,7 +210,7 @@ export const useNotificationStore = defineStore('notification', () => {
     safetyPollIntervalId = null
   }
 
-  function subscribe(): void {
+  async function subscribe(): Promise<void> {
     if (isSubscribed.value || isSubscribing.value) return
 
     const authStore = useAuthStore()
@@ -201,6 +220,20 @@ export const useNotificationStore = defineStore('notification', () => {
     isSubscribing.value = true
     startFocusListener()
     startSafetyPoll()
+
+    let echo: EchoInstance
+    try {
+      echo = await getEcho()
+    } catch (error) {
+      isSubscribing.value = false
+      stopFocusListener()
+      stopSafetyPoll()
+      console.error('[NotificationStore] Failed to load realtime client:', error)
+      return
+    }
+
+    // unsubscribe() / $reset() appelé pendant le chargement du module : abandon
+    if (!isSubscribing.value) return
 
     // Refresh Echo auth headers from current token/cookie
     const token = getAuthToken()
@@ -272,8 +305,8 @@ export const useNotificationStore = defineStore('notification', () => {
 
     const authStore = useAuthStore()
     const userId = authStore.user?.id
-    if (userId) {
-      echo.leave(`App.Models.User.${userId}`)
+    if (userId && echoInstance) {
+      echoInstance.leave(`App.Models.User.${userId}`)
     }
 
     $reset()
