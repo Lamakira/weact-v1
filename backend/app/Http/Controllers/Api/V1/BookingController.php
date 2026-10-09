@@ -12,14 +12,17 @@ use App\Http\Requests\Booking\CancelBookingRequest;
 use App\Http\Requests\Booking\ConfirmBookingRequest;
 use App\Http\Requests\Booking\ContestBookingRequest;
 use App\Http\Requests\Booking\CreateBookingRequest;
+use App\Http\Requests\Booking\IndexBookingsRequest;
 use App\Http\Requests\Booking\PayBookingRequest;
 use App\Http\Requests\Booking\PayUgcCommissionRequest;
 use App\Http\Requests\Booking\RefuseBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
+use App\Models\Face;
 use App\Services\BookingService;
 use App\Services\FaceEntitlementService;
 use App\Services\Ugc\UgcCommissionPaymentService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -58,9 +61,10 @@ class BookingController extends Controller
     ) {}
 
     /**
-     * List authenticated user's bookings with optional status filter.
+     * List authenticated user's bookings with optional status filter,
+     * server-side sort (sort/direction) and page size (per_page).
      */
-    public function index(Request $request): AnonymousResourceCollection
+    public function index(IndexBookingsRequest $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', Booking::class);
 
@@ -72,8 +76,9 @@ class BookingController extends Controller
             ->where(function ($q) use ($user) {
                 $q->where('face_id', $user->id)
                     ->orWhere('producer_id', $user->id);
-            })
-            ->orderBy('updated_at', 'desc');
+            });
+
+        $this->applySort($query, $request, $user->userable_type === Face::class);
 
         // Apply status filter group
         $statusFilter = $request->query('status');
@@ -93,7 +98,32 @@ class BookingController extends Controller
             }
         }
 
-        return BookingResource::collection($query->paginate(15));
+        $perPage = (int) $request->validated('per_page', IndexBookingsRequest::DEFAULT_PER_PAGE);
+
+        return BookingResource::collection($query->paginate($perPage));
+    }
+
+    /**
+     * Tri allowlisté (cf. IndexBookingsRequest::SORT_KEYS). `montant` est une clé
+     * publique unique : colonne « reçu » pour la Face, « total payé » pour le Producteur.
+     * Sans `sort` : ordre historique (updated_at desc). Tie-breaker `id` toujours ajouté.
+     */
+    private function applySort(Builder $query, IndexBookingsRequest $request, bool $viewerIsFace): void
+    {
+        $sort = $request->validated('sort');
+        if ($sort === null) {
+            $query->orderBy('updated_at', 'desc')->orderBy('id', 'desc');
+
+            return;
+        }
+
+        $column = match ($sort) {
+            'montant' => $viewerIsFace ? 'montant_face_recoit' : 'montant_total_producteur',
+            default => $sort,
+        };
+        $direction = $request->validated('direction', 'asc') === 'desc' ? 'desc' : 'asc';
+
+        $query->orderBy($column, $direction)->orderBy('id', $direction);
     }
 
     /**
