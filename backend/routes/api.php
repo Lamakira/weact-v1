@@ -116,10 +116,10 @@ Route::prefix('v1')->group(function (): void {
         // session-based auth which may cache the user across requests.
         // This ensures token validity is checked on each request.
         Route::get('/user', function (Request $request) {
-            $plainTextToken = $request->bearerToken();
-            $token = $plainTextToken ? PersonalAccessToken::findToken($plainTextToken) : null;
+            // api.token already validated the bearer and pinned it on the user.
+            $token = $request->user()->currentAccessToken();
 
-            if ($token === null) {
+            if (! $token instanceof PersonalAccessToken) {
                 return response()->json([
                     'error' => [
                         'message' => 'Unauthenticated',
