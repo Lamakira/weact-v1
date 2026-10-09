@@ -89,7 +89,7 @@ describe('ProducerLayout', () => {
     wrappers.splice(0).forEach((w) => w.unmount())
   })
 
-  it('feeds the in_review count as a badge on the Validation livrables item', async () => {
+  it('feeds the in_review count as a badge on the Validation des livrables item', async () => {
     vi.mocked(producerApi.listDeliverablesToReview).mockResolvedValue({ data: [{}, {}, {}] as never })
     const wrapper = mount(ProducerLayout, {
       global: { stubs: { DashboardLayout: DashboardLayoutStub, EmailVerificationBanner: true, RouterView: true } },
@@ -258,7 +258,7 @@ describe('ProducerLayout', () => {
       ['/producer/missions', 'Mes missions'],
       ['/producer/missions/publish', 'Publier une mission'],
       ['/producer/missions/abc/edit', 'Mes missions'],
-      ['/producer/faces', 'Liste des faces'],
+      ['/producer/faces', 'Liste des Faces'],
       ['/producer/bookings', 'Mes bookings'],
       ['/producer/messages', 'Messages'],
       ['/producer/profile', 'Mon profil'],

@@ -11,6 +11,7 @@ import { LayoutDashboard, FileText, MessageCircle, User, PlusCircle, Users, Cale
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { DashboardLayout, KeepAliveRouterView, type SidebarItem } from '@/components/layout'
+import { resolveSidebarTitle } from '@/components/layout/resolveSidebarTitle'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
 import { useProducerBasicInfo } from '@/features/producer/composables/useProducerBasicInfo'
 import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
@@ -41,14 +42,14 @@ async function loadBasicInfo(): Promise<void> {
 const ugcValidationCountStore = useUgcValidationCountStore()
 
 // Sidebar navigation items for Producer dashboard. Computed so the « Validation
-// livrables » badge reactively follows the in_review count (only that item).
+// des livrables » badge reactively follows the in_review count (only that item).
 const sidebarItems = computed<SidebarItem[]>(() => [
   { label: 'Tableau de bord', icon: LayoutDashboard, to: '/producer/dashboard' },
   { label: 'Mes missions', icon: FileText, to: '/producer/missions' },
   { label: 'Publier une mission', icon: PlusCircle, to: '/producer/missions/publish' },
-  { label: 'Liste des faces', icon: Users, to: '/producer/faces' },
+  { label: 'Liste des Faces', icon: Users, to: '/producer/faces' },
   { label: 'Mes bookings', icon: CalendarCheck, to: '/producer/bookings' },
-  { label: 'Validation livrables', icon: BadgeCheck, to: '/producer/ugc/validation',
+  { label: 'Validation des livrables', icon: BadgeCheck, to: '/producer/ugc/validation',
     badge: ugcValidationCountStore.count },
   { label: 'Mes vidéos UGC', icon: FolderDown, to: '/producer/ugc/videos' },
   { label: 'Messages', icon: MessageCircle, to: '/producer/messages' },
@@ -64,14 +65,8 @@ const mobileTabs: SidebarItem[] = [
   { label: 'Profil', icon: User, to: '/producer/profile' },
 ]
 
-// Header title = label of the sidebar item owning the current route (longest matching
-// prefix, so /producer/missions/publish wins over /producer/missions).
-const pageTitle = computed(() => {
-  const owner = sidebarItems.value
-    .filter((i) => route.path === i.to || route.path.startsWith(`${i.to}/`))
-    .sort((a, b) => b.to.length - a.to.length)[0]
-  return owner?.label ?? 'Tableau de bord'
-})
+// Header title = label of the sidebar item owning the current route.
+const pageTitle = computed(() => resolveSidebarTitle(sidebarItems.value, route.path))
 
 // The profile page has its own WhatsApp field: no reminder there.
 const isProfilePage = computed(() => route.path === '/producer/profile')
@@ -103,7 +98,7 @@ onMounted(async () => {
 })
 
 // The layout now persists across child navigations (App.vue keys it by the
-// layout's own route): refresh the sidebar "Validation livrables" badge on
+// layout's own route): refresh the sidebar "Validation des livrables" badge on
 // each one, as the per-navigation remount used to do before keep-alive.
 // (Mirrors the route.path watch FaceLayout already has for its banner.)
 watch(
