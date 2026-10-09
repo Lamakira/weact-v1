@@ -68,7 +68,7 @@ function handlePageChange(page: number): void {
   <div class="space-y-6">
     <!-- Page Header -->
     <div>
-      <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Liste des faces</h1>
+      <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Liste des Faces</h1>
       <p class="mt-1 text-sm text-slate-500">
         Recherchez et filtrez les talents disponibles sur la plateforme.
       </p>
