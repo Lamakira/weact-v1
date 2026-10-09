@@ -42,6 +42,7 @@ import {
 } from 'lucide-vue-next'
 import { authApi } from '@/features/auth/services/authApi'
 import { useToast } from '@/composables/useToast'
+import { addDaysIso, tomorrowIso } from '@/lib/dates'
 
 const props = withDefaults(defineProps<{
   mode?: 'create' | 'edit'
@@ -142,6 +143,15 @@ const { value: nombre_faces_voulu, errorMessage: nombreFacesError } =
 const { value: date_limite_candidature, errorMessage: dateLimiteError } =
   useField<string>('date_limite_candidature')
 const { value: date_tournage, errorMessage: dateTournageError } = useField<string>('date_tournage')
+
+// Bornes alignées sur les règles backend : clôture `after:today`, tournage `after:date_limite_candidature`.
+const dateLimiteMin = tomorrowIso()
+const dateLimiteMax = computed(() =>
+  date_tournage.value && !isUgc.value ? addDaysIso(date_tournage.value, -1) : undefined,
+)
+const dateTournageMin = computed(() =>
+  addDaysIso(date_limite_candidature.value || dateLimiteMin, 1),
+)
 
 // UGC dotation fields (rendus uniquement quand type_mission === 'ugc')
 const { value: type_compensation, errorMessage: typeCompensationError } =
@@ -592,6 +602,7 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
           v-model="date_tournage"
           type="date"
           label="Date de tournage"
+          :min="dateTournageMin"
           :icon="Calendar"
           :error="dateTournageError"
           required
@@ -604,6 +615,8 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
           v-model="date_limite_candidature"
           type="date"
           label="Clôture des candidatures"
+          :min="dateLimiteMin"
+          :max="dateLimiteMax"
           :icon="Calendar"
           :error="dateLimiteError"
           required
