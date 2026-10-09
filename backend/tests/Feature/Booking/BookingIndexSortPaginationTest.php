@@ -88,6 +88,28 @@ class BookingIndexSortPaginationTest extends TestCase
         $this->assertSame([$c->uuid, $a->uuid, $b->uuid], $this->ids($this->producerUser, 'sort=date_debut&direction=desc'));
     }
 
+    public function test_sort_status_follows_the_full_lifecycle_order(): void
+    {
+        $expected = [];
+        foreach (BookingStatus::lifecycleOrder() as $status) {
+            $expected[] = $this->booking(['status' => $status])->uuid;
+        }
+
+        $this->assertSame($expected, $this->ids($this->producerUser, 'sort=status&direction=asc&per_page=50'));
+        $this->assertSame(array_reverse($expected), $this->ids($this->producerUser, 'sort=status&direction=desc&per_page=50'));
+    }
+
+    public function test_sort_date_debut_puts_ugc_bookings_without_dates_last(): void
+    {
+        $dated = $this->booking(['date_debut' => now()->addDays(5), 'date_fin' => now()->addDays(6)]);
+        $later = $this->booking(['date_debut' => now()->addDays(9), 'date_fin' => now()->addDays(10)]);
+        $ugc = $this->booking();
+        DB::table('bookings')->where('id', $ugc->id)->update(['date_debut' => null, 'date_fin' => null]);
+
+        $this->assertSame([$dated->uuid, $later->uuid, $ugc->uuid], $this->ids($this->producerUser, 'sort=date_debut&direction=asc'));
+        $this->assertSame([$later->uuid, $dated->uuid, $ugc->uuid], $this->ids($this->producerUser, 'sort=date_debut&direction=desc'));
+    }
+
     public function test_sort_created_at_asc_and_desc(): void
     {
         $a = $this->booking(['created_at' => now()->subDays(3)]);
@@ -104,12 +126,13 @@ class BookingIndexSortPaginationTest extends TestCase
         $completed = $this->booking(['status' => BookingStatus::Completed]);
         $accepted = $this->booking(['status' => BookingStatus::Accepted]);
 
+        // Ordre de cycle de vie (pending, ..., accepted, ..., completed), pas alphabétique.
         $this->assertSame(
-            [$accepted->uuid, $completed->uuid, $pending->uuid],
+            [$pending->uuid, $accepted->uuid, $completed->uuid],
             $this->ids($this->producerUser, 'sort=status&direction=asc')
         );
         $this->assertSame(
-            [$pending->uuid, $completed->uuid, $accepted->uuid],
+            [$completed->uuid, $accepted->uuid, $pending->uuid],
             $this->ids($this->producerUser, 'sort=status&direction=desc')
         );
     }
@@ -153,21 +176,21 @@ class BookingIndexSortPaginationTest extends TestCase
 
     public function test_sort_combines_with_status_filter_and_pagination(): void
     {
-        $lowest = $this->booking(['status' => BookingStatus::Pending, 'montant_total_producteur' => 100]);
-        $this->booking(['status' => BookingStatus::Pending, 'montant_total_producteur' => 300]);
-        $this->booking(['status' => BookingStatus::Pending, 'montant_total_producteur' => 200]);
-        $this->booking(['status' => BookingStatus::Completed, 'montant_total_producteur' => 999]);
-
-        $response = $this->actingAs($this->producerUser)
-            ->getJson('/api/v1/bookings?status=pending&sort=montant&direction=desc&per_page=10')
-            ->assertOk()
-            ->assertJsonPath('meta.total', 3);
-        $this->assertSame($lowest->uuid, collect($response->json('data'))->last()['id']);
+        $pending = [];
+        for ($i = 1; $i <= 12; $i++) {
+            $pending[] = $this->booking(['status' => BookingStatus::Pending, 'montant_total_producteur' => $i * 100])->uuid;
+        }
+        // Hors filtre : ne doit jamais apparaître, même avec le montant le plus bas.
+        $this->booking(['status' => BookingStatus::Completed, 'montant_total_producteur' => 1]);
 
         $page2 = $this->actingAs($this->producerUser)
-            ->getJson('/api/v1/bookings?status=pending&sort=montant&direction=desc&per_page=10&page=1')
-            ->assertOk();
-        $this->assertCount(3, $page2->json('data'));
+            ->getJson('/api/v1/bookings?status=pending&sort=montant&direction=asc&per_page=10&page=2')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 12)
+            ->assertJsonPath('meta.current_page', 2)
+            ->assertJsonPath('meta.last_page', 2);
+
+        $this->assertSame([$pending[10], $pending[11]], collect($page2->json('data'))->pluck('id')->all());
     }
 
     public function test_per_page_is_honoured_and_defaults_to_15(): void

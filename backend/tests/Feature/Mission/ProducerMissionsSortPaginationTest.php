@@ -119,6 +119,17 @@ class ProducerMissionsSortPaginationTest extends TestCase
         $this->assertSame([$completed->uuid, $closed->uuid, $published->uuid], $this->ids('sort=status&direction=desc'));
     }
 
+    public function test_sort_status_follows_the_full_lifecycle_order(): void
+    {
+        $expected = [];
+        foreach (MissionStatus::lifecycleOrder() as $status) {
+            $expected[] = $this->mission(['status' => $status])->uuid;
+        }
+
+        $this->assertSame($expected, $this->ids('sort=status&direction=asc&page=1&per_page=50'));
+        $this->assertSame(array_reverse($expected), $this->ids('sort=status&direction=desc&page=1&per_page=50'));
+    }
+
     public function test_sort_candidatures_count(): void
     {
         $none = $this->mission();

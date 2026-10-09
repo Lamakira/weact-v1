@@ -22,6 +22,7 @@ use App\Models\Face;
 use App\Services\BookingService;
 use App\Services\FaceEntitlementService;
 use App\Services\Ugc\UgcCommissionPaymentService;
+use App\Support\LifecycleSort;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -117,13 +118,24 @@ class BookingController extends Controller
             return;
         }
 
-        $column = match ($sort) {
-            'montant' => $viewerIsFace ? 'montant_face_recoit' : 'montant_total_producteur',
-            default => $sort,
-        };
         $direction = $request->validated('direction', 'asc') === 'desc' ? 'desc' : 'asc';
 
-        $query->orderBy($column, $direction)->orderBy('id', $direction);
+        if ($sort === 'status') {
+            // Ordre de cycle de vie explicite (pas l'ordre alphabétique de la clé anglaise).
+            LifecycleSort::apply($query, 'status', BookingStatus::lifecycleOrder(), $direction);
+        } else {
+            $column = match ($sort) {
+                'montant' => $viewerIsFace ? 'montant_face_recoit' : 'montant_total_producteur',
+                default => $sort,
+            };
+            if ($column === 'date_debut') {
+                // Bookings UGC sans date de tournage : toujours en fin de liste.
+                $query->orderByRaw('`date_debut` IS NULL');
+            }
+            $query->orderBy($column, $direction);
+        }
+
+        $query->orderBy('id', $direction);
     }
 
     /**

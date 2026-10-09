@@ -17,6 +17,7 @@ use App\Http\Resources\MissionResource;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Services\MissionService;
+use App\Support\LifecycleSort;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -59,7 +60,13 @@ class MissionController extends Controller
             // Missions UGC : date de tournage NULL => toujours en fin de liste.
             $query->orderByRaw("`{$sort}` IS NULL");
         }
-        $query->orderBy($sort, $direction)->orderBy('id', $direction);
+        if ($sort === 'status') {
+            // Ordre de cycle de vie explicite (pas l'index de la colonne ENUM).
+            LifecycleSort::apply($query, 'status', MissionStatus::lifecycleOrder(), $direction);
+        } else {
+            $query->orderBy($sort, $direction);
+        }
+        $query->orderBy('id', $direction);
 
         if ($request->wantsPagination()) {
             $perPage = (int) $request->validated('per_page', IndexProducerMissionsRequest::DEFAULT_PER_PAGE);
