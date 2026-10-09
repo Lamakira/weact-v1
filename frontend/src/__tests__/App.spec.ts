@@ -100,4 +100,13 @@ describe('App.vue notification bootstrap', () => {
     expect(mockNotificationStore.subscribe).not.toHaveBeenCalled()
     expect(mockNotificationStore.fetchUnreadCount).not.toHaveBeenCalled()
   })
+
+  it('reserves a full viewport of height for <main> on regular public routes (anti-CLS footer)', () => {
+    mockRoute.path = '/faces'
+    mockRoute.name = 'faces'
+
+    const wrapper = shallowMount(App)
+
+    expect(wrapper.find('main').classes()).toContain('min-h-[100dvh]')
+  })
 })

@@ -135,7 +135,7 @@ const isLandingPage = computed(() => {
       <SitewideSubscriptionPaymentBanner />
 
       <!-- Main Content -->
-      <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
+      <main class="flex-1 min-h-[100dvh] max-w-7xl w-full mx-auto px-4 py-8">
         <RouterView v-slot="{ Component }">
           <Transition
             name="page"
