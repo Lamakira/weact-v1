@@ -35,8 +35,9 @@ vi.mock('@/features/notification/components/NotificationBell.vue', () => ({
 }))
 
 describe('DashboardHeader', () => {
-  function mountHeader(props = {}) {
+  function mountHeader(props = {}, slots = {}) {
     return mount(DashboardHeader, {
+      slots,
       props: {
         title: 'Dashboard',
         userEmail: 'test@example.com',
@@ -151,6 +152,19 @@ describe('DashboardHeader', () => {
       // Open the avatar dropdown first
       await wrapper.find('[data-testid="header-avatar"]').trigger('click')
       expect(wrapper.find('[data-testid="dropdown-logout-button"]').attributes('disabled')).toBeDefined()
+    })
+  })
+
+  describe('Régie header', () => {
+    it('renders the secondary actions slot next to the bell', () => {
+      const wrapper = mountHeader({}, { actions: '<button data-testid="extra-action">Fiche publique</button>' })
+      expect(wrapper.find('[data-testid="extra-action"]').exists()).toBe(true)
+    })
+
+    it('shows the page title in ink with tight tracking', () => {
+      const classes = mountHeader().find('[data-testid="header-title"]').classes()
+      expect(classes).toContain('text-ink')
+      expect(classes.some((c) => c.startsWith('tracking-'))).toBe(true)
     })
   })
 })

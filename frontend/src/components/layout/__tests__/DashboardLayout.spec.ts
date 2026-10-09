@@ -182,6 +182,26 @@ describe('DashboardLayout', () => {
     })
   })
 
+  describe('Mobile bottom tab bar', () => {
+    it('is absent when no mobileTabs are given (admin layout)', () => {
+      const wrapper = mountLayout()
+      expect(wrapper.find('[data-testid="mobile-tabbar"]').exists()).toBe(false)
+    })
+
+    it('renders the main destinations while the drawer still lists every item', () => {
+      mockIsMobileOpen.value = true
+      const wrapper = mountLayout({ mobileTabs: defaultItems.slice(0, 2) })
+      expect(wrapper.findAll('[data-testid="mobile-tabbar"] a')).toHaveLength(2)
+      expect(wrapper.find('[data-testid="mobile-sidebar-item-mon-profil"]').exists()).toBe(true)
+    })
+
+    it('uses the dynamic viewport height so the bar is never hidden by browser chrome', () => {
+      const wrapper = mountLayout({ mobileTabs: defaultItems })
+      const main = wrapper.find('[data-testid="dashboard-content"]').element.parentElement!
+      expect(main.className).toContain('h-dvh')
+    })
+  })
+
   describe('Keyboard Navigation', () => {
     it('closes mobile sidebar on Escape key', async () => {
       mockIsMobileOpen.value = true

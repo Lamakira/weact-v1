@@ -7,7 +7,7 @@
  */
 import { onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { LayoutDashboard, FileText, MessageCircle, User, PlusCircle, Users, CalendarCheck, Wallet, BadgeCheck, FolderDown } from 'lucide-vue-next'
+import { LayoutDashboard, FileText, MessageCircle, User, PlusCircle, Users, CalendarCheck, Wallet, BadgeCheck, FolderDown, House, Briefcase } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { DashboardLayout, KeepAliveRouterView, type SidebarItem } from '@/components/layout'
@@ -56,6 +56,14 @@ const sidebarItems = computed<SidebarItem[]>(() => [
   { label: 'Mon profil', icon: User, to: '/producer/profile' },
 ])
 
+// Bottom tab bar (mobile): the 4 main destinations; the drawer keeps the rest
+const mobileTabs: SidebarItem[] = [
+  { label: 'Accueil', icon: House, to: '/producer/dashboard' },
+  { label: 'Missions', icon: Briefcase, to: '/producer/missions' },
+  { label: 'Messages', icon: MessageCircle, to: '/producer/messages' },
+  { label: 'Profil', icon: User, to: '/producer/profile' },
+]
+
 // Computed user name from Producer profile
 const userName = computed(() => {
   if (profile.value) {
@@ -103,6 +111,7 @@ async function handleLogout(): Promise<void> {
 <template>
   <DashboardLayout
     :sidebar-items="sidebarItems"
+    :mobile-tabs="mobileTabs"
     title="Producer Dashboard"
     :user-email="authStore.user?.email"
     :user-name="userName"

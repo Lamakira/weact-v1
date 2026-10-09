@@ -2,7 +2,8 @@
 /**
  * DashboardHeader Component
  * Header with user info and actions for dashboard layouts.
- * Design: Creative Flow (Soft & Organic)
+ * Design: Régie — titre de page à gauche, actions secondaires (slot `actions`),
+ * cloche, avatar.
  */
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { Menu, LogOut, Loader2, User } from 'lucide-vue-next'
@@ -93,7 +94,7 @@ onUnmounted(() => {
 
 <template>
   <header
-    class="h-20 flex items-center justify-between px-6 lg:px-10 bg-white/50 backdrop-blur-sm relative z-20"
+    class="h-16 flex items-center justify-between px-4 lg:px-7 border-b border-line bg-white relative z-20"
     data-testid="dashboard-header"
   >
     <!-- Left: Mobile menu + Title badge -->
@@ -101,7 +102,7 @@ onUnmounted(() => {
       <!-- Mobile hamburger menu -->
       <button
         @click="openMobile"
-        class="lg:hidden w-10 h-10 rounded-2xl flex items-center justify-center text-primary hover:text-primary/70 transition-colors"
+        class="lg:hidden w-11 h-11 -ml-2 rounded-lg flex items-center justify-center text-ink-2 hover:bg-sidebar hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-weact-600"
         aria-label="Ouvrir le menu"
         data-testid="header-menu-button"
       >
@@ -110,7 +111,7 @@ onUnmounted(() => {
 
       <!-- Title badge -->
       <div
-        class="text-primary text-sm font-semibold"
+        class="text-[17px] font-semibold tracking-[-0.02em] text-ink"
         data-testid="header-title"
       >
         {{ title }}
@@ -119,10 +120,13 @@ onUnmounted(() => {
 
     <!-- Right: User info + Actions -->
     <div class="flex items-center gap-3">
+      <!-- Secondary page actions (slot, optional) -->
+      <slot name="actions" />
+
       <!-- User email (hidden on mobile) -->
       <span
         v-if="userEmail"
-        class="hidden md:block text-sm text-slate-500"
+        class="hidden md:block text-dash text-ink-3"
         data-testid="header-user-email"
       >
         {{ userEmail }}
@@ -138,8 +142,8 @@ onUnmounted(() => {
           ref="avatarButtonRef"
           @click="toggleDropdown"
           type="button"
-          class="relative flex h-10 w-10 items-center justify-center rounded-full overflow-hidden transition-all hover:ring-2 hover:ring-[#198496]/30 focus:outline-none focus:ring-2 focus:ring-[#198496] focus:ring-offset-2"
-          :class="avatarUrl ? '' : 'bg-gradient-to-tr from-primary to-teal-300'"
+          class="relative flex h-9 w-9 items-center justify-center rounded-full overflow-hidden transition-all hover:ring-2 hover:ring-weact-600/30 focus:outline-none focus:ring-2 focus:ring-weact-600 focus:ring-offset-2"
+          :class="avatarUrl ? '' : 'bg-gradient-to-tr from-weact-600 to-weact-300'"
           aria-haspopup="true"
           :aria-expanded="isDropdownOpen"
           aria-label="Menu utilisateur"
@@ -207,15 +211,3 @@ onUnmounted(() => {
     </div>
   </header>
 </template>
-
-<style scoped>
-.text-primary {
-  color: var(--color-weact, #198496);
-}
-.bg-primary {
-  background-color: var(--color-weact, #198496);
-}
-.from-primary {
-  --tw-gradient-from: var(--color-weact, #198496);
-}
-</style>

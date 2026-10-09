@@ -173,7 +173,16 @@ describe('DashboardSidebar', () => {
       await router.push('/face/dashboard')
       const wrapper = mountSidebar()
       const dashboardItem = wrapper.find('[data-testid="sidebar-item-dashboard"]')
-      expect(dashboardItem.classes().some(c => c.includes('primary'))).toBe(true)
+      // Actif = panneau blanc à anneau, icône teal 700 (direction Régie)
+      expect(dashboardItem.classes()).toEqual(expect.arrayContaining(['bg-white', 'ring-1', 'ring-line']))
+      expect(dashboardItem.classes()).toContain('[&_svg]:text-weact-700')
+      expect(wrapper.find('[data-testid="sidebar-item-messages"]').classes()).not.toContain('bg-white')
+    })
+
+    it('utilise le fond sidebar et la typographie dense du tableau de bord', () => {
+      const wrapper = mountSidebar()
+      expect(wrapper.find('[data-testid="dashboard-sidebar"]').classes()).toContain('bg-sidebar')
+      expect(wrapper.find('[data-testid="sidebar-item-messages"]').classes()).toContain('text-dash')
     })
   })
 
@@ -185,6 +194,7 @@ describe('DashboardSidebar', () => {
       const wrapper = mountSidebar({ items: itemsWithBadge })
       expect(wrapper.find('[data-testid="sidebar-badge"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="sidebar-badge"]').text()).toBe('5')
+      expect(wrapper.find('[data-testid="sidebar-badge"]').classes()).toContain('bg-weact-600')
     })
 
     it('hides badge when value is 0', () => {
