@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { AlertCircle, RefreshCw, ClipboardList, Inbox, ArrowRight, Plus } from 'lucide-vue-next'
+import { RefreshCw, ClipboardList, Inbox, ArrowRight, Plus } from 'lucide-vue-next'
+import type { SortingState } from '@tanstack/vue-table'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useMissionsList, useDeleteMission, useCloseMission, useReopenMission, useCompleteMission } from '@/features/mission/composables'
-import { MissionCard, DeleteMissionDialog, CloseMissionDialog, ReopenMissionDialog, CompleteMissionDialog, MissionStatusFilter } from '@/features/mission/components'
+import { MissionsTable, DeleteMissionDialog, CloseMissionDialog, ReopenMissionDialog, CompleteMissionDialog, MissionStatusFilter } from '@/features/mission/components'
+import { missionApi } from '@/features/mission/services/missionApi'
+import { buildListQuery, parseListQuery, type ListQueryState } from '@/components/data-table/listQuery'
+import { useIsDesktop } from '@/composables/useMediaQuery'
 import { UgcPaymentOverlay } from '@/components/ugc'
-import { MissionStatus, type MissionStatusType } from '@/features/mission/types'
+import { MissionStatus, MISSION_SORT_KEYS, type MissionStatusType, type MissionSortKey, type MissionListParams } from '@/features/mission/types'
 import type { Mission } from '@/features/mission/types'
 import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 import { usePaymentReturn } from '@/composables/usePaymentReturn'
@@ -25,22 +29,62 @@ const authStore = useAuthStore()
 const { success, error: toastError } = useToast()
 const {
   missions,
-  allMissions,
   isLoading,
   error,
-  isEmpty,
-  hasNoMissions,
-  statusFilter,
+  currentPage,
+  lastPage,
+  total,
+  hasLoaded,
   fetchMissions,
   refreshMissions,
-  setStatusFilter,
 } = useMissionsList()
 
+const isDesktop = useIsDesktop()
+const view = computed<'table' | 'cards'>(() => (isDesktop.value ? 'table' : 'cards'))
+
 /**
- * Handle status filter change
+ * URL = single source of truth of the list view (?status=&sort=&direction=&page=&per_page=).
+ * Foreign keys (?pay, ?payment_return, ?mission) are preserved by buildListQuery.
  */
+const urlState = computed(() =>
+  parseListQuery(route.query, { sorts: MISSION_SORT_KEYS, statuses: Object.values(MissionStatus) }),
+)
+const statusFilter = computed(() => urlState.value.status as MissionStatusType | '')
+const sorting = computed<SortingState>(() =>
+  urlState.value.sort ? [{ id: urlState.value.sort, desc: urlState.value.direction === 'desc' }] : [],
+)
+
+function currentParams(): MissionListParams {
+  const state = urlState.value
+  return {
+    page: state.page,
+    perPage: state.perPage,
+    status: state.status as MissionStatusType | '',
+    sort: state.sort as MissionSortKey | null,
+    direction: state.direction,
+  }
+}
+
+function loadMissions(): Promise<void> {
+  return fetchMissions(currentParams())
+}
+
+async function navigateList(patch: Partial<ListQueryState>): Promise<void> {
+  await router.replace({ query: buildListQuery(route.query, { ...urlState.value, ...patch }) })
+}
+
+/** Any filter / sort / page size change goes back to page 1. */
 function handleFilterChange(status: MissionStatusType | ''): void {
-  setStatusFilter(status)
+  void navigateList({ status, page: 1 })
+}
+function handleSortingChange(next: SortingState): void {
+  void navigateList({ sort: next[0]?.id ?? null, direction: next[0]?.desc ? 'desc' : 'asc', page: 1 })
+}
+function handlePageChange(page: number): void {
+  void navigateList({ page })
+}
+function handlePageSizeChange(perPage: number): void {
+  void navigateList({ perPage, page: 1 })
 }
 
 const { deleteMission, isDeleting } = useDeleteMission()
@@ -69,27 +113,38 @@ const paymentReturn = usePaymentReturn({
     await refreshMissions()
   },
   onRetry: (_kind, ids) => {
-    if (ids.missionId) handlePayCommission(ids.missionId)
+    if (ids.missionId) void handlePayCommission(ids.missionId)
   },
 })
 
 onMounted(async () => {
-  await fetchMissions()
+  await loadMissions()
   if (route.query.payment_return !== undefined) {
     await paymentReturn.start()
     return
   }
-  maybeOpenPayTunnel()
+  await maybeOpenPayTunnel()
 })
+
+// A filter / sort / page change rewrites the URL: reload the list. Only the list
+// keys matter (consuming ?pay must not refetch), and only while this (keep-alive
+// cached) page is the active route.
+watch(
+  () => JSON.stringify(urlState.value),
+  () => {
+    if (route.name !== 'producer-missions') return
+    void loadMissions()
+  },
+)
 
 // Auto-open the commission tunnel when arriving from UGC mission creation
 // (?pay={id}). Extracted so it also runs on keep-alive re-activation below.
-function maybeOpenPayTunnel(): void {
+async function maybeOpenPayTunnel(): Promise<void> {
   // A ?payment_return is being verified: never also auto-open the tunnel.
   if (route.query.payment_return !== undefined) return
   const payId = route.query.pay
   if (typeof payId === 'string' && payId) {
-    const didOpen = handlePayCommission(payId)
+    const didOpen = await handlePayCommission(payId)
     if (!didOpen) return
 
     // Consume ?pay: rewrite the current history entry without it (other keys
@@ -106,13 +161,13 @@ function maybeOpenPayTunnel(): void {
 // instance — onMounted no longer runs — so without this the commission tunnel
 // never opens and the mission stays pending_payment (revenue gap).
 useRefreshOnReturn(async () => {
-  await refreshMissions()
-  maybeOpenPayTunnel()
+  await loadMissions()
+  await maybeOpenPayTunnel()
 })
 
 async function retryMissions(): Promise<void> {
-  await refreshMissions()
-  maybeOpenPayTunnel()
+  await loadMissions()
+  await maybeOpenPayTunnel()
 }
 
 function navigateToPublish(): void {
@@ -131,11 +186,18 @@ function handleViewAttendance(id: string): void {
   router.push({ name: 'producer-mission-attendance', params: { id } })
 }
 
-function handlePayCommission(id: string): boolean {
-  // Search the UNFILTERED list: this cached page can keep an active status
-  // filter across a keep-alive round-trip, and no filter option matches the
-  // pending_payment mission a ?pay return must open the tunnel for.
-  const mission = allMissions.value.find((m) => m.id === id)
+async function handlePayCommission(id: string): Promise<boolean> {
+  // The list is paginated / filtered / sorted server-side, so the mission a ?pay
+  // return must open the tunnel for may not be in the current page: fall back to
+  // fetching it by id (a failed lookup keeps ?pay, retried on the next refresh).
+  let mission: Mission | undefined = missions.value.find((m) => m.id === id)
+  if (!mission) {
+    try {
+      mission = (await missionApi.getMission(id)).data
+    } catch {
+      return false
+    }
+  }
   // Status guard: only a pending_payment mission has a commission to pay — a
   // stale ?pay (deep link, history entry) for an already-paid mission must not
   // reopen the payment tunnel.
@@ -207,6 +269,10 @@ async function confirmDelete(): Promise<void> {
   if (result.success) {
     success('Mission supprimée avec succès!')
     await refreshMissions()
+    // Deleting the last row of a page > 1 leaves it empty: step back one page.
+    if (missions.value.length === 0 && urlState.value.page > 1) {
+      handlePageChange(urlState.value.page - 1)
+    }
     closeDeleteDialog()
   } else {
     toastError(result.message)
@@ -296,149 +362,99 @@ async function confirmComplete(): Promise<void> {
     </div>
 
     <div>
-      <!-- Loading State -->
-      <div v-if="isLoading && !missions.length" class="grid gap-6 md:grid-cols-2 lg:grid-cols-1">
-        <div
-          v-for="i in 3"
-          :key="i"
-          class="relative overflow-hidden rounded-xl border border-border bg-card p-6 shadow-sm"
-        >
-          <div class="flex items-start justify-between">
-            <div class="h-6 w-3/4 animate-pulse rounded bg-muted" />
-            <div class="h-8 w-8 animate-pulse rounded-full bg-muted" />
-          </div>
-          <div class="mt-4 space-y-3">
-            <div class="h-4 w-full animate-pulse rounded bg-muted" />
-            <div class="h-4 w-2/3 animate-pulse rounded bg-muted" />
-          </div>
-          <div class="mt-6 flex gap-2">
-            <div class="h-9 w-24 animate-pulse rounded-lg bg-muted" />
-            <div class="h-9 w-24 animate-pulse rounded-lg bg-muted" />
-          </div>
+      <!-- Count + manual refresh (only once there is something to list) -->
+      <div v-if="hasLoaded && !error && (total > 0 || statusFilter)" class="mb-4 flex items-center justify-between">
+        <div class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <ClipboardList class="h-4 w-4" />
+          <span>{{ total }} mission{{ total > 1 ? 's' : '' }}</span>
         </div>
-      </div>
-
-      <!-- Error State -->
-      <div
-        v-else-if="error"
-        class="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-destructive/20 bg-destructive/5 py-16 text-center"
-      >
-        <div class="mb-4 rounded-full bg-destructive/10 p-4 text-destructive">
-          <AlertCircle class="h-10 w-10" />
-        </div>
-        <h3 class="text-xl font-bold text-foreground">Oups ! Une erreur est survenue</h3>
-        <p class="mt-2 max-w-xs text-muted-foreground">
-          Impossible de charger vos missions pour le moment.
-        </p>
-        <p v-if="error" class="mt-2 text-sm text-destructive">{{ error }}</p>
         <button
           type="button"
-          class="mt-6 flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-2 text-sm font-medium transition-colors hover:bg-muted"
+          class="group p-2 text-muted-foreground transition-colors hover:text-primary"
+          title="Rafraîchir la liste"
+          aria-label="Rafraîchir la liste"
           @click="retryMissions"
         >
-          <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': isLoading }" />
-          Réessayer
+          <RefreshCw class="h-5 w-5" :class="{ 'animate-spin': isLoading }" />
         </button>
       </div>
 
-      <!-- Empty State: No missions at all -->
-      <div v-else-if="hasNoMissions" class="flex flex-col items-center justify-center py-24 text-center">
-        <div class="relative mb-6">
-          <div class="absolute -inset-4 animate-pulse rounded-full bg-primary/5 blur-2xl" />
-          <div
-            class="relative flex h-24 w-24 items-center justify-center rounded-full bg-muted text-muted-foreground"
-          >
-            <Inbox class="h-12 w-12 opacity-50" />
+      <MissionsTable
+        :missions="missions"
+        :email-verified="authStore.isEmailVerified"
+        :sorting="sorting"
+        :page="currentPage"
+        :page-size="urlState.perPage"
+        :total="total"
+        :last-page="lastPage"
+        :loading="isLoading || (!hasLoaded && !error)"
+        :error="error"
+        :view="view"
+        @update:sorting="handleSortingChange"
+        @page-change="handlePageChange"
+        @page-size-change="handlePageSizeChange"
+        @retry="retryMissions"
+        @edit="handleEdit"
+        @delete="handleDeleteClick"
+        @close="handleCloseClick"
+        @reopen="handleReopenClick"
+        @complete="handleCompleteClick"
+        @view-candidatures="handleViewCandidatures"
+        @view-attendance="handleViewAttendance"
+        @pay-commission="handlePayCommission"
+      >
+        <template #empty>
+          <!-- Empty State: No missions at all -->
+          <div v-if="!statusFilter" class="flex flex-col items-center justify-center py-24 text-center">
+            <div class="relative mb-6">
+              <div class="absolute -inset-4 animate-pulse rounded-full bg-primary/5 blur-2xl" />
+              <div
+                class="relative flex h-24 w-24 items-center justify-center rounded-full bg-muted text-muted-foreground"
+              >
+                <Inbox class="h-12 w-12 opacity-50" />
+              </div>
+            </div>
+            <h3 class="text-2xl font-bold text-foreground">Vous n'avez pas encore de missions</h3>
+            <p class="mt-3 max-w-sm text-muted-foreground">
+              Commencez à collaborer avec des talents en publiant votre première mission sur WEACT.
+            </p>
+            <button
+              v-if="authStore.isEmailVerified"
+              type="button"
+              class="mt-8 flex items-center gap-2 rounded-full bg-primary px-8 py-3 text-base font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/30 active:scale-95"
+              @click="navigateToPublish"
+            >
+              Publier ma première mission
+              <ArrowRight class="h-5 w-5" />
+            </button>
+            <p v-else class="mt-4 text-sm text-amber-600">
+              Veuillez vérifier votre email pour publier des missions.
+            </p>
           </div>
-        </div>
-        <h3 class="text-2xl font-bold text-foreground">Vous n'avez pas encore de missions</h3>
-        <p class="mt-3 max-w-sm text-muted-foreground">
-          Commencez à collaborer avec des talents en publiant votre première mission sur WEACT.
-        </p>
-        <button
-          v-if="authStore.isEmailVerified"
-          type="button"
-          class="mt-8 flex items-center gap-2 rounded-full bg-primary px-8 py-3 text-base font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/30 active:scale-95"
-          @click="navigateToPublish"
-        >
-          Publier ma première mission
-          <ArrowRight class="h-5 w-5" />
-        </button>
-        <p v-else class="mt-4 text-sm text-amber-600">
-          Veuillez vérifier votre email pour publier des missions.
-        </p>
-      </div>
 
-      <!-- Empty State: No missions matching filter -->
-      <div v-else-if="isEmpty" class="flex flex-col items-center justify-center py-24 text-center">
-        <div class="relative mb-6">
-          <div
-            class="relative flex h-24 w-24 items-center justify-center rounded-full bg-muted text-muted-foreground"
-          >
-            <Inbox class="h-12 w-12 opacity-50" />
+          <!-- Empty State: No missions matching filter -->
+          <div v-else class="flex flex-col items-center justify-center py-24 text-center">
+            <div class="relative mb-6">
+              <div
+                class="relative flex h-24 w-24 items-center justify-center rounded-full bg-muted text-muted-foreground"
+              >
+                <Inbox class="h-12 w-12 opacity-50" />
+              </div>
+            </div>
+            <h3 class="text-xl font-bold text-foreground">Aucune mission trouvée</h3>
+            <p class="mt-3 max-w-sm text-muted-foreground">
+              Aucune mission ne correspond à ce filtre.
+            </p>
+            <button
+              type="button"
+              class="mt-6 flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-2 text-sm font-medium transition-colors hover:bg-muted"
+              @click="handleFilterChange('')"
+            >
+              Voir toutes les missions
+            </button>
           </div>
-        </div>
-        <h3 class="text-xl font-bold text-foreground">Aucune mission trouvée</h3>
-        <p class="mt-3 max-w-sm text-muted-foreground">
-          Aucune mission ne correspond à ce filtre.
-        </p>
-        <button
-          type="button"
-          class="mt-6 flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-2 text-sm font-medium transition-colors hover:bg-muted"
-          @click="handleFilterChange('')"
-        >
-          Voir toutes les missions
-        </button>
-      </div>
-
-      <!-- Content List -->
-      <div v-else>
-        <div class="mb-6 flex items-center justify-between">
-          <div class="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <ClipboardList class="h-4 w-4" />
-            <span>
-              {{ missions.length }} mission{{ missions.length > 1 ? 's' : '' }}
-              <template v-if="statusFilter && missions.length !== allMissions.length">
-                sur {{ allMissions.length }}
-              </template>
-            </span>
-          </div>
-          <button
-            type="button"
-            class="group p-2 text-muted-foreground transition-colors hover:text-primary"
-            title="Rafraîchir la liste"
-            @click="retryMissions"
-          >
-            <RefreshCw class="h-5 w-5" :class="{ 'animate-spin': isLoading }" />
-          </button>
-        </div>
-
-        <TransitionGroup
-          tag="div"
-          enter-active-class="transition duration-500 ease-out"
-          enter-from-class="opacity-0 translate-y-4"
-          enter-to-class="opacity-100 translate-y-0"
-          leave-active-class="transition duration-300 ease-in"
-          leave-from-class="opacity-100"
-          leave-to-class="opacity-0"
-          class="flex flex-col gap-4"
-        >
-          <MissionCard
-            v-for="mission in missions"
-            :key="mission.id"
-            :mission="mission"
-            :email-verified="authStore.isEmailVerified"
-            @edit="handleEdit"
-            @delete="handleDeleteClick"
-            @close="handleCloseClick"
-            @reopen="handleReopenClick"
-            @complete="handleCompleteClick"
-            @view-candidatures="handleViewCandidatures"
-            @view-attendance="handleViewAttendance"
-            @pay-commission="handlePayCommission"
-          />
-        </TransitionGroup>
-      </div>
+        </template>
+      </MissionsTable>
     </div>
 
     <!-- Delete Confirmation Dialog -->

@@ -1,118 +1,113 @@
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { missionApi } from '../services/missionApi'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
-import type { Mission, MissionStatusType } from '../types'
+import type { Mission, MissionListParams } from '../types'
 
 /**
- * Composable for managing the producer's missions list
- * Handles fetching, loading states, error handling, and filtering
+ * Composable for the producer's missions list.
+ *
+ * Server-driven: sort, status filter and pagination are applied by the API
+ * (`GET /producer/missions?page=&per_page=&sort=&direction=&status=`); this
+ * composable only holds the current page and its pagination meta.
  */
 export function useMissionsList() {
   const missions = ref<Mission[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const message = ref<string | null>(null)
-  const statusFilter = ref<MissionStatusType | ''>('')
-
-  /**
-   * Filtered missions based on status filter
-   */
-  const filteredMissions = computed(() => {
-    if (!statusFilter.value) {
-      return missions.value
-    }
-    return missions.value.filter((m) => m.status === statusFilter.value)
-  })
-
-  /**
-   * Whether the filtered missions list is empty
-   */
-  const isEmpty = computed(() => filteredMissions.value.length === 0)
-
-  /**
-   * Whether the original missions list is empty (no missions at all)
-   */
-  const hasNoMissions = computed(() => missions.value.length === 0)
-
-  /**
-   * Whether missions have been successfully loaded
-   */
+  const currentPage = ref(1)
+  const lastPage = ref(1)
+  const total = ref(0)
   const hasLoaded = ref(false)
 
+  let lastParams: MissionListParams | null = null
+  let requestId = 0
+  let inFlight: { key: string; promise: Promise<void> } | null = null
+
   /**
-   * Fetch all missions for the authenticated producer
-   * Orders by most recent first
+   * Fetch one page. Identical concurrent calls (e.g. keep-alive reactivation +
+   * URL watcher firing together) share a single request; a stale response never
+   * overwrites a newer one.
    */
-  async function fetchMissions(): Promise<void> {
+  function fetchMissions(params: MissionListParams): Promise<void> {
+    const key = JSON.stringify(params)
+    if (inFlight && inFlight.key === key) return inFlight.promise
+
+    lastParams = params
+    const id = ++requestId
     isLoading.value = true
     error.value = null
 
-    try {
-      const response = await missionApi.getMissions()
-      missions.value = response.data
-      message.value = response.message ?? null
-      hasLoaded.value = true
-    } catch (err: unknown) {
-      error.value = getApiErrorMessage(err)
-      missions.value = []
-    } finally {
-      isLoading.value = false
-    }
+    const promise = (async () => {
+      try {
+        const response = await missionApi.getMissionsPage(params)
+        if (id !== requestId) return
+        missions.value = response.data
+        message.value = response.message ?? null
+        currentPage.value = response.meta.current_page
+        lastPage.value = response.meta.last_page
+        total.value = response.meta.total
+        hasLoaded.value = true
+      } catch (err: unknown) {
+        if (id !== requestId) return
+        error.value = getApiErrorMessage(err)
+        missions.value = []
+      } finally {
+        if (id === requestId) {
+          isLoading.value = false
+          inFlight = null
+        }
+      }
+    })()
+
+    inFlight = { key, promise }
+    return promise
   }
 
   /**
-   * Refresh the missions list (alias for fetchMissions)
-   * Useful after deletion or other mutations
+   * Re-run the last request (after a mutation, on keep-alive return, on retry).
    */
   async function refreshMissions(): Promise<void> {
-    await fetchMissions()
+    if (lastParams) await fetchMissions(lastParams)
   }
 
   /**
    * Remove a mission from the local list by ID
    * Used for optimistic updates after successful deletion
-   * @param missionId The ID of the mission to remove
    */
   function removeMissionFromList(missionId: string): void {
     missions.value = missions.value.filter((m) => m.id !== missionId)
   }
 
-  /**
-   * Set the status filter
-   */
-  function setStatusFilter(status: MissionStatusType | ''): void {
-    statusFilter.value = status
-  }
-
-  /**
-   * Reset all state
-   */
   function reset(): void {
     missions.value = []
     isLoading.value = false
     error.value = null
     message.value = null
+    currentPage.value = 1
+    lastPage.value = 1
+    total.value = 0
     hasLoaded.value = false
-    statusFilter.value = ''
+    lastParams = null
+    inFlight = null
+    requestId++
   }
 
   return {
     // State
-    missions: filteredMissions,
-    allMissions: missions,
+    missions,
     isLoading,
     error,
     message,
-    isEmpty,
-    hasNoMissions,
+    currentPage,
+    lastPage,
+    total,
     hasLoaded,
-    statusFilter,
 
     // Actions
     fetchMissions,
     refreshMissions,
     removeMissionFromList,
-    setStatusFilter,
     reset,
   }
 }

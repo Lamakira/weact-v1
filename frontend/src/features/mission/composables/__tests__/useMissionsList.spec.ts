@@ -1,24 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useMissionsList } from '../useMissionsList'
 import { missionApi } from '../../services/missionApi'
-import type { Mission } from '../../types'
+import type { Mission, MissionListParams, PaginatedMissionsResponse } from '../../types'
 
-// Mock the mission API
 vi.mock('../../services/missionApi', () => ({
   missionApi: {
-    getMissions: vi.fn(),
+    getMissionsPage: vi.fn(),
   },
 }))
 
-// Mock getApiErrorMessage
 vi.mock('@/features/auth/services/authApi', () => ({
   getApiErrorMessage: vi.fn((err) => err?.message || 'Unknown error'),
 }))
 
-// Factory for creating mock missions
 function createMockMission(overrides: Partial<Mission> = {}): Mission {
   return {
-    id: 1,
+    id: 'm-1',
     titre: 'Test Mission',
     description: 'Test description',
     date_tournage: '2026-03-01',
@@ -38,171 +35,127 @@ function createMockMission(overrides: Partial<Mission> = {}): Mission {
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     ...overrides,
+  } as Mission
+}
+
+function pageOf(
+  missions: Mission[],
+  meta: Partial<PaginatedMissionsResponse['meta']> = {},
+): PaginatedMissionsResponse {
+  return {
+    data: missions,
+    message: 'Success',
+    links: { first: null, last: null, prev: null, next: null },
+    meta: { current_page: 1, last_page: 1, per_page: 15, total: missions.length, ...meta },
   }
 }
 
-describe('useMissionsList', () => {
+const params: MissionListParams = { page: 1, perPage: 15 }
+
+describe('useMissionsList (server-driven)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  describe('status filtering', () => {
-    it('returns all missions when no filter is set', async () => {
-      const mockMissions = [
-        createMockMission({ id: 1, status: 'published' }),
-        createMockMission({ id: 2, status: 'closed' }),
-        createMockMission({ id: 3, status: 'completed' }),
-      ]
+  it('fetches a page with the given params and exposes data + pagination meta', async () => {
+    vi.mocked(missionApi.getMissionsPage).mockResolvedValueOnce(
+      pageOf([createMockMission({ id: 'a' }), createMockMission({ id: 'b' })], {
+        current_page: 2,
+        last_page: 4,
+        per_page: 10,
+        total: 33,
+      }),
+    )
 
-      vi.mocked(missionApi.getMissions).mockResolvedValueOnce({
-        data: mockMissions,
-        message: 'Success',
-      })
+    const list = useMissionsList()
+    await list.fetchMissions({ ...params, page: 2, perPage: 10, sort: 'status', direction: 'desc' })
 
-      const { missions, fetchMissions, statusFilter } = useMissionsList()
-
-      await fetchMissions()
-
-      expect(statusFilter.value).toBe('')
-      expect(missions.value).toHaveLength(3)
+    expect(missionApi.getMissionsPage).toHaveBeenCalledWith({
+      page: 2,
+      perPage: 10,
+      sort: 'status',
+      direction: 'desc',
     })
-
-    it('filters missions by status when filter is set', async () => {
-      const mockMissions = [
-        createMockMission({ id: 1, status: 'published' }),
-        createMockMission({ id: 2, status: 'closed' }),
-        createMockMission({ id: 3, status: 'completed' }),
-        createMockMission({ id: 4, status: 'published' }),
-      ]
-
-      vi.mocked(missionApi.getMissions).mockResolvedValueOnce({
-        data: mockMissions,
-        message: 'Success',
-      })
-
-      const { missions, fetchMissions, setStatusFilter } = useMissionsList()
-
-      await fetchMissions()
-
-      // Filter by published
-      setStatusFilter('published')
-      expect(missions.value).toHaveLength(2)
-      expect(missions.value.every((m) => m.status === 'published')).toBe(true)
-
-      // Filter by closed
-      setStatusFilter('closed')
-      expect(missions.value).toHaveLength(1)
-      expect(missions.value[0].status).toBe('closed')
-
-      // Clear filter
-      setStatusFilter('')
-      expect(missions.value).toHaveLength(4)
-    })
-
-    it('returns empty array when no missions match filter', async () => {
-      const mockMissions = [
-        createMockMission({ id: 1, status: 'published' }),
-        createMockMission({ id: 2, status: 'published' }),
-      ]
-
-      vi.mocked(missionApi.getMissions).mockResolvedValueOnce({
-        data: mockMissions,
-        message: 'Success',
-      })
-
-      const { missions, fetchMissions, setStatusFilter, isEmpty } = useMissionsList()
-
-      await fetchMissions()
-
-      setStatusFilter('completed')
-      expect(missions.value).toHaveLength(0)
-      expect(isEmpty.value).toBe(true)
-    })
+    expect(list.missions.value.map((m) => m.id)).toEqual(['a', 'b'])
+    expect(list.currentPage.value).toBe(2)
+    expect(list.lastPage.value).toBe(4)
+    expect(list.total.value).toBe(33)
+    expect(list.hasLoaded.value).toBe(true)
+    expect(list.error.value).toBeNull()
   })
 
-  describe('hasNoMissions computed', () => {
-    it('returns true when no missions exist at all', async () => {
-      vi.mocked(missionApi.getMissions).mockResolvedValueOnce({
-        data: [],
-        message: 'Success',
-      })
+  it('refreshMissions replays the last params', async () => {
+    vi.mocked(missionApi.getMissionsPage).mockResolvedValue(pageOf([]))
+    const list = useMissionsList()
+    await list.fetchMissions({ ...params, status: 'closed' })
+    await list.refreshMissions()
 
-      const { hasNoMissions, fetchMissions } = useMissionsList()
-
-      await fetchMissions()
-
-      expect(hasNoMissions.value).toBe(true)
-    })
-
-    it('returns false when missions exist even if filtered to empty', async () => {
-      const mockMissions = [
-        createMockMission({ id: 1, status: 'published' }),
-      ]
-
-      vi.mocked(missionApi.getMissions).mockResolvedValueOnce({
-        data: mockMissions,
-        message: 'Success',
-      })
-
-      const { hasNoMissions, fetchMissions, setStatusFilter, isEmpty } = useMissionsList()
-
-      await fetchMissions()
-
-      expect(hasNoMissions.value).toBe(false)
-
-      // Filter to show nothing
-      setStatusFilter('completed')
-      expect(isEmpty.value).toBe(true)
-      expect(hasNoMissions.value).toBe(false) // Still has missions, just filtered
-    })
+    expect(missionApi.getMissionsPage).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(missionApi.getMissionsPage).mock.calls[1]![0]).toEqual({ ...params, status: 'closed' })
   })
 
-  describe('allMissions vs missions', () => {
-    it('allMissions contains all missions regardless of filter', async () => {
-      const mockMissions = [
-        createMockMission({ id: 1, status: 'published' }),
-        createMockMission({ id: 2, status: 'closed' }),
-        createMockMission({ id: 3, status: 'completed' }),
-      ]
+  it('exposes the error and clears the rows on failure', async () => {
+    vi.mocked(missionApi.getMissionsPage).mockResolvedValueOnce(pageOf([createMockMission()]))
+    const list = useMissionsList()
+    await list.fetchMissions(params)
 
-      vi.mocked(missionApi.getMissions).mockResolvedValueOnce({
-        data: mockMissions,
-        message: 'Success',
-      })
+    vi.mocked(missionApi.getMissionsPage).mockRejectedValueOnce(new Error('Boom'))
+    await list.fetchMissions(params)
 
-      const { missions, allMissions, fetchMissions, setStatusFilter } = useMissionsList()
-
-      await fetchMissions()
-
-      // All missions should have 3
-      expect(allMissions.value).toHaveLength(3)
-
-      // Filter to published only
-      setStatusFilter('published')
-      expect(missions.value).toHaveLength(1)
-      expect(allMissions.value).toHaveLength(3) // Still 3
-    })
+    expect(list.error.value).toBe('Boom')
+    expect(list.missions.value).toEqual([])
+    expect(list.isLoading.value).toBe(false)
   })
 
-  describe('reset', () => {
-    it('resets statusFilter along with other state', async () => {
-      const mockMissions = [
-        createMockMission({ id: 1, status: 'published' }),
-      ]
+  it('ignores a stale response when a newer request was issued', async () => {
+    let resolveFirst!: (value: PaginatedMissionsResponse) => void
+    vi.mocked(missionApi.getMissionsPage)
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve }))
+      .mockResolvedValueOnce(pageOf([createMockMission({ id: 'new' })]))
 
-      vi.mocked(missionApi.getMissions).mockResolvedValueOnce({
-        data: mockMissions,
-        message: 'Success',
-      })
+    const list = useMissionsList()
+    const first = list.fetchMissions({ ...params, status: 'closed' })
+    await list.fetchMissions({ ...params, status: 'published' })
+    resolveFirst(pageOf([createMockMission({ id: 'stale' })]))
+    await first
 
-      const { fetchMissions, setStatusFilter, statusFilter, reset } = useMissionsList()
+    expect(list.missions.value.map((m) => m.id)).toEqual(['new'])
+  })
 
-      await fetchMissions()
-      setStatusFilter('published')
-      expect(statusFilter.value).toBe('published')
+  it('shares one request between identical concurrent calls', async () => {
+    let resolveIt!: (value: PaginatedMissionsResponse) => void
+    vi.mocked(missionApi.getMissionsPage).mockImplementation(
+      () => new Promise((resolve) => { resolveIt = resolve }),
+    )
 
-      reset()
-      expect(statusFilter.value).toBe('')
-    })
+    const list = useMissionsList()
+    const a = list.fetchMissions(params)
+    const b = list.fetchMissions({ ...params })
+    resolveIt(pageOf([createMockMission()]))
+    await Promise.all([a, b])
+
+    expect(missionApi.getMissionsPage).toHaveBeenCalledTimes(1)
+  })
+
+  it('removeMissionFromList drops the row locally', async () => {
+    vi.mocked(missionApi.getMissionsPage).mockResolvedValueOnce(
+      pageOf([createMockMission({ id: 'a' }), createMockMission({ id: 'b' })]),
+    )
+    const list = useMissionsList()
+    await list.fetchMissions(params)
+    list.removeMissionFromList('a')
+    expect(list.missions.value.map((m) => m.id)).toEqual(['b'])
+  })
+
+  it('reset clears all state', async () => {
+    vi.mocked(missionApi.getMissionsPage).mockResolvedValueOnce(pageOf([createMockMission()]))
+    const list = useMissionsList()
+    await list.fetchMissions(params)
+    list.reset()
+
+    expect(list.missions.value).toEqual([])
+    expect(list.total.value).toBe(0)
+    expect(list.hasLoaded.value).toBe(false)
+    expect(list.error.value).toBeNull()
   })
 })

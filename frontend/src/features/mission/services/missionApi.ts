@@ -2,7 +2,9 @@ import apiClient, { getCsrfCookie } from '@/services/apiClient'
 import type {
   CreateMissionData,
   MissionResponse,
+  MissionListParams,
   MissionsListResponse,
+  PaginatedMissionsResponse,
   UpdateMissionData,
 } from '../types'
 import type {
@@ -54,6 +56,28 @@ export const missionApi = {
    */
   async getMissions(): Promise<MissionsListResponse> {
     const response = await apiClient.get<MissionsListResponse>('/producer/missions')
+    return response.data
+  },
+
+  /**
+   * Paginated, sortable and filterable list of the producer's missions.
+   * Always sends page + per_page: that is what opts in to pagination server-side
+   * (without them the endpoint keeps returning the full array).
+   */
+  async getMissionsPage(params: MissionListParams): Promise<PaginatedMissionsResponse> {
+    const query = new URLSearchParams()
+    query.append('page', String(params.page))
+    query.append('per_page', String(params.perPage))
+    if (params.status) {
+      query.append('status', params.status)
+    }
+    if (params.sort) {
+      query.append('sort', params.sort)
+      query.append('direction', params.direction ?? 'asc')
+    }
+    const response = await apiClient.get<PaginatedMissionsResponse>(
+      `/producer/missions?${query.toString()}`,
+    )
     return response.data
   },
 
