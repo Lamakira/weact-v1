@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { ref, nextTick } from 'vue'
 import BookingFormSheet from '../BookingFormSheet.vue'
 import { calculatePricingPreview } from '@/features/booking/types'
+import { addDaysIso, tomorrowIso } from '@/lib/dates'
 
 // Hoisted so the UGC submission tests can drive the resolved value.
 // The 3 existing describe blocks never call createBooking, so this is inert for them.
@@ -58,6 +59,23 @@ const mountForm = (propsOverride: Record<string, unknown> = {}) =>
       },
     },
   })
+
+describe('BookingFormSheet — bornes des dates', () => {
+  it('date_debut min = demain (règle backend after:today)', () => {
+    const wrapper = mountForm()
+    expect(wrapper.find('input#date_debut').attributes('min')).toBe(tomorrowIso())
+  })
+
+  it('date_fin min = demain tant que date_debut est vide, puis = date_debut', async () => {
+    const wrapper = mountForm()
+    expect(wrapper.find('input#date_fin').attributes('min')).toBe(tomorrowIso())
+
+    const target = addDaysIso(tomorrowIso(), 5)
+    await wrapper.find('input#date_debut').setValue(target)
+    await nextTick()
+    expect(wrapper.find('input#date_fin').attributes('min')).toBe(target)
+  })
+})
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('fr-FR', {

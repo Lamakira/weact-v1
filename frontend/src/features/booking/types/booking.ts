@@ -139,6 +139,8 @@ export interface Booking {
   status_label: string
   // null for UGC dotations (no shoot date / duration — the Face films at home)
   date_debut: string | null
+  // Dernier instant où la Face peut annuler (24 h avant le jour du tournage) ; null sans date
+  face_cancellation_deadline?: string | null
   date_fin: string | null
   duree_heures: number | null
   type_contenu: string
@@ -160,6 +162,8 @@ export interface Booking {
   fedapay_transaction_id: number | null
   payment_mode: string | null
   accepted_at: string | null
+  // Un paiement (escrow) a eu lieu ; fourni par le détail (show) uniquement
+  was_paid?: boolean
   // Fenêtre de contestation 72 h (absence Face / annulation Producteur tardive).
   // `settlement_due_at` null = booking sans règlement en attente (ou déjà réglé).
   settlement_due_at?: string | null

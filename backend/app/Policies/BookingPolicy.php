@@ -105,7 +105,7 @@ class BookingPolicy
 
     /**
      * Determine if the Face can cancel the booking.
-     * Face can cancel only accepted or paid bookings.
+     * Face can cancel only accepted or paid bookings, until 24 h before the shoot day.
      */
     public function cancelByFace(User $user, Booking $booking): bool
     {
@@ -122,7 +122,8 @@ class BookingPolicy
         ];
 
         return $user->id === $booking->face_id
-            && in_array($booking->status, $cancellableStatuses, true);
+            && in_array($booking->status, $cancellableStatuses, true)
+            && $booking->faceCancellationWindowOpen();
     }
 
     /**

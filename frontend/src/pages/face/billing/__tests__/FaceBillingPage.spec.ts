@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
@@ -302,6 +304,16 @@ describe('FaceBillingPage', () => {
     await row.find('button').trigger('click')
     expect(row.text()).toContain('TX-ABC')
     expect(row.find('button').attributes('aria-expanded')).toBe('true')
+    // Panneau animé (hauteur + opacité) via la classe globale, et collapse au second clic.
+    expect(row.find('.collapsible-smooth').exists()).toBe(true)
+    await row.find('button').trigger('click')
+    expect(row.find('button').attributes('aria-expanded')).toBe('false')
+  })
+
+  it('the smooth collapsible animation is declared with a reduced-motion opt-out', () => {
+    const css = readFileSync(resolve(__dirname, '../../../../assets/main.css'), 'utf-8')
+    expect(css).toContain('--reka-collapsible-content-height')
+    expect(css).toMatch(/prefers-reduced-motion: reduce\)\s*\{\s*\.collapsible-smooth/)
   })
 
   it('dedups the current representative row out of the history list (cancelled current)', async () => {

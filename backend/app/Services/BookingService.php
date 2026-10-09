@@ -430,6 +430,12 @@ class BookingService
                 ]);
             }
 
+            if (! $booking->faceCancellationWindowOpen()) {
+                throw ValidationException::withMessages([
+                    'date_debut' => ["L'annulation n'est plus possible à moins de 24 h du jour du tournage."],
+                ]);
+            }
+
             if ($booking->status === BookingStatus::Paid) {
                 $this->escrowService->refund($booking, $this->walletService);
             }

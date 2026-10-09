@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Gate;
 class BookingMessageController extends Controller
 {
     /**
-     * List messages for a booking (oldest first, paginated).
+     * List messages for a booking (newest page first, each page in chronological order).
      *
      * Requires: booking is in a chat-eligible status (paid or beyond).
      * Both parties (face and producer) can read messages.
@@ -28,8 +28,14 @@ class BookingMessageController extends Controller
         }
 
         $messages = $booking->messages()
+            ->reorder()
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->with('sender.userable')
             ->paginate(30);
+
+        // Page 1 = most recent messages; each page is displayed in chronological order.
+        $messages->setCollection($messages->getCollection()->reverse()->values());
 
         return BookingMessageResource::collection($messages);
     }

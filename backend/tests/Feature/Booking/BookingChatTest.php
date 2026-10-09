@@ -276,6 +276,42 @@ class BookingChatTest extends TestCase
             ->assertJsonCount(3, 'data');
     }
 
+    public function test_first_page_returns_the_most_recent_messages_in_chronological_order(): void
+    {
+        $booking = Booking::factory()->paid()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        foreach (range(1, 35) as $i) {
+            BookingMessage::factory()->create([
+                'booking_id' => $booking->id,
+                'sender_id' => $this->faceUser->id,
+                'content' => "msg-{$i}",
+                'created_at' => now()->subMinutes(100)->addMinutes($i),
+            ]);
+        }
+
+        $page1 = $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}/messages")
+            ->assertOk()
+            ->assertJsonCount(30, 'data')
+            ->assertJsonPath('meta.last_page', 2);
+
+        $contents = collect($page1->json('data'))->pluck('content')->all();
+        $this->assertSame('msg-6', $contents[0]);
+        $this->assertSame('msg-35', $contents[29]);
+
+        $page2 = $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}/messages?page=2")
+            ->assertOk()
+            ->assertJsonCount(5, 'data');
+
+        $contents = collect($page2->json('data'))->pluck('content')->all();
+        $this->assertSame('msg-1', $contents[0]);
+        $this->assertSame('msg-5', $contents[4]);
+    }
+
     public function test_producer_can_list_messages_in_paid_booking(): void
     {
         $booking = Booking::factory()->paid()->create([

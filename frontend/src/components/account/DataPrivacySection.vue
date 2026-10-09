@@ -217,6 +217,8 @@ async function handleDelete() {
               id="delete-password"
               v-model="deletePassword"
               type="password"
+              name="delete_account_password"
+              autocomplete="current-password"
               class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-red-300 focus:border-red-400 outline-none"
               placeholder="Votre mot de passe actuel"
               @keyup.enter="handleDelete"

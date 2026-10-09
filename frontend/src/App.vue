@@ -181,7 +181,7 @@ const isLandingPage = computed(() => {
   <CookieConsentBanner />
 
   <!-- Toasts (global, all layouts) — réglages repris à l'identique de l'ancien
-       plugin vue-toastification : haut-droite, 5 s, couleurs par type, fermeture
+       plugin vue-toastification : haut-centre (décision PO UX-1), 5 s, couleurs par type, fermeture
        possible. Monté ici et nulle part ailleurs : un second <Toaster> dupliquerait
        chaque notification.
        close-button-position : sonner ancre sa croix en haut à GAUCHE par défaut,
@@ -189,7 +189,7 @@ const isLandingPage = computed(() => {
        de bouton d'action, donc on la remet à droite comme partout ailleurs — à
        revérifier le jour où un toast portera une action. -->
   <Toaster
-    position="top-right"
+    position="top-center"
     close-button-position="top-right"
     :duration="5000"
     rich-colors
