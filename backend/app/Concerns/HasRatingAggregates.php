@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Query-time rating aggregates for Face and Producer.
@@ -13,8 +12,8 @@ use Illuminate\Database\Eloquent\Collection;
  * The rating accessors (average_rating, ratings_count) combine two sources:
  * candidature ratings (ratingsReceived) and booking ratings
  * (bookingRatingsReceived). Computed lazily they cost 2 queries each per model;
- * on a listing that is an N+1. withRatingAggregates() / loadRatingAggregates()
- * pull the four numbers in bulk, and the accessors read them when present
+ * on a listing that is an N+1. withRatingAggregates() pulls the four numbers in
+ * the listing query, and the accessors read them when present
  * (same formula, same rounding), falling back to the lazy queries otherwise.
  *
  * @mixin \Illuminate\Database\Eloquent\Model
@@ -33,24 +32,6 @@ trait HasRatingAggregates
             ->withCount('ratingsReceived as rating_candidature_count')
             ->withSum('bookingRatingsReceived as rating_booking_sum', 'score')
             ->withCount('bookingRatingsReceived as rating_booking_count');
-    }
-
-    /**
-     * Load the four rating aggregates on models already fetched (single
-     * homogeneous collection of this model). No-op on an empty collection.
-     *
-     * @param  Collection<int, static>  $models
-     */
-    public static function loadRatingAggregates(Collection $models): void
-    {
-        if ($models->isEmpty()) {
-            return;
-        }
-
-        $models->loadSum('ratingsReceived as rating_candidature_sum', 'score');
-        $models->loadCount('ratingsReceived as rating_candidature_count');
-        $models->loadSum('bookingRatingsReceived as rating_booking_sum', 'score');
-        $models->loadCount('bookingRatingsReceived as rating_booking_count');
     }
 
     /**

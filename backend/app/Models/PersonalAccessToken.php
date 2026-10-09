@@ -24,6 +24,11 @@ class PersonalAccessToken extends SanctumPersonalAccessToken
     /**
      * The HTTP request during which this instance was looked up, if any.
      *
+     * MUST stay private: a User captured by an after-response closure carries
+     * its current token, and the closure is serialised. Eloquent only serialises
+     * attributes/relations, but a protected/public WeakReference property would
+     * be walked by the serializer and fail (WeakReference cannot be serialised).
+     *
      * @var \WeakReference<Request>|null
      */
     private ?\WeakReference $resolvedFor = null;

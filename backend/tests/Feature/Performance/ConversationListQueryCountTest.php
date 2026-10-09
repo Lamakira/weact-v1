@@ -107,4 +107,28 @@ class ConversationListQueryCountTest extends TestCase
         $faceRows = $this->actingAs($faceUser)->getJson('/api/v1/face/conversations')->assertOk()->json('data');
         $this->assertSame(4, collect($faceRows)->firstWhere('id', $conversation->uuid)['unread_count']);
     }
+
+    public function test_face_conversation_list_query_count_is_constant(): void
+    {
+        [, $faceUser] = $this->addConversation(1, 1, 1);
+        $small = $this->queryCount($faceUser, '/api/v1/face/conversations');
+
+        // More conversations for the SAME Face (one candidature per mission).
+        for ($i = 0; $i < 5; $i++) {
+            $mission = Mission::factory()->create(['producer_id' => $this->producer->id]);
+            $candidature = Candidature::factory()->accepted()->create([
+                'face_id' => $faceUser->userable_id,
+                'mission_id' => $mission->id,
+            ]);
+            $conversation = Conversation::factory()->create(['candidature_id' => $candidature->id]);
+            Message::factory()->count(2)->create([
+                'conversation_id' => $conversation->id,
+                'sender_id' => $this->producerUser->id,
+                'read_at' => null,
+            ]);
+        }
+        $large = $this->queryCount($faceUser, '/api/v1/face/conversations');
+
+        $this->assertSame($small, $large, "Face conversation list queries grew: {$small} -> {$large}");
+    }
 }

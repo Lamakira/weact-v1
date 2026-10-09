@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Performance;
 
+use App\Models\Admin;
 use App\Models\Face;
 use App\Models\PersonalAccessToken;
 use App\Models\User;
@@ -87,5 +88,20 @@ class AuthOverheadTest extends TestCase
 
         PersonalAccessToken::query()->update(['expires_at' => now()->subMinute()]);
         $this->withToken($this->plainToken)->getJson('/api/v1/user')->assertUnauthorized();
+    }
+
+    public function test_an_admin_token_is_refused_on_a_user_route_when_the_token_is_reused(): void
+    {
+        $adminToken = Admin::factory()->create()->createToken('admin-token', ['2fa'])->plainTextToken;
+
+        $this->withToken($adminToken)->getJson('/api/v1/user')->assertForbidden();
+    }
+
+    public function test_a_user_token_is_refused_on_an_admin_route_when_the_token_is_reused(): void
+    {
+        $response = $this->withToken($this->plainToken)->getJson('/api/v1/admin/me');
+
+        $this->assertContains($response->getStatusCode(), [401, 403]);
+        $this->assertSame(403, $response->getStatusCode());
     }
 }
