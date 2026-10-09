@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { isAxiosError } from 'axios'
-import type { Booking, BookingFilterStatus } from '../types'
+import type { Booking, BookingFilterStatus, BookingSortKey } from '../types'
 import { bookingApi } from '../services/bookingApi'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
 
@@ -21,6 +21,11 @@ export function useBookingsList() {
   // Filter state
   const statusFilter = ref<BookingFilterStatus>('')
 
+  // Sort state (server-side). `sort = null` keeps the API default order (updated_at desc).
+  const sort = ref<BookingSortKey | null>(null)
+  const direction = ref<'asc' | 'desc'>('asc')
+  const requestedPerPage = ref(15)
+
   // Request tracking to prevent race conditions
   let currentRequestId = 0
 
@@ -38,7 +43,11 @@ export function useBookingsList() {
     error.value = null
 
     try {
-      const response = await bookingApi.getBookings(page, statusFilter.value)
+      const response = await bookingApi.getBookings(page, statusFilter.value, {
+        sort: sort.value,
+        direction: direction.value,
+        perPage: requestedPerPage.value,
+      })
 
       // Ignore stale responses
       if (requestId !== currentRequestId) return
@@ -90,6 +99,22 @@ export function useBookingsList() {
     await fetchBookings(1)
   }
 
+  /**
+   * Set filter / sort / page size WITHOUT fetching (the page then calls
+   * fetchBookings with the page read from the URL).
+   */
+  function applyListState(state: {
+    status: BookingFilterStatus
+    sort: BookingSortKey | null
+    direction: 'asc' | 'desc'
+    perPage: number
+  }): void {
+    statusFilter.value = state.status
+    sort.value = state.sort
+    direction.value = state.direction
+    requestedPerPage.value = state.perPage
+  }
+
   async function clearFilter(): Promise<void> {
     await setStatusFilter('')
   }
@@ -113,7 +138,10 @@ export function useBookingsList() {
     isEmpty,
     // Filter
     statusFilter,
+    sort,
+    direction,
     // Actions
+    applyListState,
     fetchBookings,
     nextPage,
     prevPage,
