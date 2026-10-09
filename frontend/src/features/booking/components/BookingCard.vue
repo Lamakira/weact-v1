@@ -105,6 +105,10 @@ const formattedDateRange = computed(() => {
           :src="counterpartAvatar"
           :alt="counterpartName"
           class="h-full w-full object-cover"
+          width="40"
+          height="40"
+          decoding="async"
+          loading="lazy"
         />
         <div
           v-else

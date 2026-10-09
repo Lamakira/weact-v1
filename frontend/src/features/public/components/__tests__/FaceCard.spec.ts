@@ -93,6 +93,38 @@ describe('FaceCard', () => {
       expect(wrapper.find('img').attributes('src')).toBe('https://example.com/grid.webp')
     })
 
+    it('exposes grid/medium variants as srcset with dimensions and async decoding', () => {
+      const wrapper = mountCard({
+        profile_photo_grid_url: 'https://example.com/grid.webp',
+        profile_photo_medium_url: 'https://example.com/medium.webp',
+      })
+      const img = wrapper.find('img')
+
+      expect(img.attributes('srcset')).toBe('https://example.com/grid.webp 400w, https://example.com/medium.webp 800w')
+      expect(img.attributes('sizes')).toContain('50vw')
+      expect(img.attributes('width')).toBe('400')
+      expect(img.attributes('height')).toBe('500')
+      expect(img.attributes('decoding')).toBe('async')
+    })
+
+    it('omits srcset when only one variant is available', () => {
+      const wrapper = mountCard({ profile_photo_grid_url: 'https://example.com/grid.webp', profile_photo_medium_url: null })
+
+      expect(wrapper.find('img').attributes('srcset')).toBeUndefined()
+      expect(wrapper.find('img').attributes('sizes')).toBeUndefined()
+    })
+
+    it('loads eagerly with high priority when flagged as first row', () => {
+      const wrapper = mount(FaceCard, {
+        props: { face: mockFace, priority: true },
+        global: { plugins: [router] },
+      })
+      const img = wrapper.find('img')
+
+      expect(img.attributes('loading')).toBe('eager')
+      expect(img.attributes('fetchpriority')).toBe('high')
+    })
+
     it('falls back to medium then original when grid is missing', () => {
       const withMedium = mountCard({
         profile_photo_grid_url: null,

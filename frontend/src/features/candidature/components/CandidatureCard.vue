@@ -217,6 +217,9 @@ const formattedReconfirmDeadline = computed(() => {
           :alt="candidature.producer.display_name"
           class="h-full w-full object-cover"
           loading="lazy"
+          width="32"
+          height="32"
+          decoding="async"
         />
         <div
           v-else
