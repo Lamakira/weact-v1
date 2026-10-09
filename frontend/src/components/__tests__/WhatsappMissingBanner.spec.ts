@@ -56,4 +56,13 @@ describe('WhatsappMissingBanner', () => {
     await cta.trigger('click')
     expect(mockPush).toHaveBeenCalledWith('/producer/profile?focus=whatsapp')
   })
+
+  it('uses the Régie look: neutral white panel, no off-system blue/indigo', () => {
+    const wrapper = mountBanner()
+    const root = wrapper.get('[data-testid="whatsapp-missing-banner"]')
+
+    expect(root.classes()).toEqual(expect.arrayContaining(['bg-white', 'ring-1', 'ring-line']))
+    expect(wrapper.html()).not.toMatch(/blue-|indigo-/)
+    expect(wrapper.get('[data-testid="whatsapp-banner-cta"]').classes()).toContain('bg-weact-600')
+  })
 })

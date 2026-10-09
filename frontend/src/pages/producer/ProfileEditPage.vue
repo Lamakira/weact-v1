@@ -435,7 +435,7 @@ const inputClass =
       <nav
         role="tablist"
         aria-label="Sections du profil"
-        class="mt-5 flex gap-5 overflow-x-auto whitespace-nowrap border-b border-line"
+        class="mt-5 flex gap-5 overflow-x-auto whitespace-nowrap border-b border-line [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-md:[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]"
         data-testid="profile-tabs"
       >
         <button
