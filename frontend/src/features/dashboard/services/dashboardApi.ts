@@ -4,6 +4,7 @@ import type {
   ChartStatsResponse,
   MissionsCountResponse,
   ProducerDashboardStatsResponse,
+  ProducerActiveMissionsResponse,
   BookingStatsResponse,
   BookingChartStatsResponse,
 } from '../types'
@@ -70,6 +71,18 @@ export const dashboardApi = {
    */
   async getProducerStats(): Promise<ProducerDashboardStatsResponse> {
     const response = await apiClient.get<ProducerDashboardStatsResponse>('/producer/dashboard/stats')
+    return response.data
+  },
+
+  /**
+   * Get the Producer's active missions (published or in progress) for the dashboard module
+   * @param limit Number of rows to return (meta.total counts all active missions)
+   */
+  async getProducerActiveMissions(limit = 5): Promise<ProducerActiveMissionsResponse> {
+    const response = await apiClient.get<ProducerActiveMissionsResponse>(
+      '/producer/dashboard/active-missions',
+      { params: { limit } },
+    )
     return response.data
   },
 }
