@@ -242,6 +242,8 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
         ->middleware(['face', 'throttle:60,1']);
     Route::get('/conversations/{conversation}', [ConversationController::class, 'show'])
         ->middleware(['face', 'throttle:60,1']);
+    Route::post('/conversations/{conversation}/read', [ConversationController::class, 'markRead'])
+        ->middleware(['face', 'throttle:60,1']);
     Route::post('/conversations/{conversation}/messages', [MessageController::class, 'store'])
         ->middleware(['face', 'throttle:30,1']);
 });

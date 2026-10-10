@@ -167,6 +167,8 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
         ->middleware('producer');
     Route::get('/conversations/{conversation}', [ConversationController::class, 'show'])
         ->middleware('throttle:ui-read');
+    Route::post('/conversations/{conversation}/read', [ConversationController::class, 'markRead'])
+        ->middleware('throttle:60,1');
     Route::post('/conversations/{conversation}/messages', [MessageController::class, 'store'])
         ->middleware('throttle:30,1'); // Override: stricter rate limit for message creation
 });

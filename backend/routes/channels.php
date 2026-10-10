@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use App\Models\Booking;
+use App\Models\Conversation;
 use App\Models\User;
 use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\Gate;
 
 // Admins and users share numeric ids: every callback must reject a non-User
 // principal (e.g. an Admin token) BEFORE comparing ids. The first parameter is
@@ -34,4 +36,21 @@ Broadcast::channel('booking.{bookingId}', function ($user, int $bookingId): bool
 
     return $user->id === $booking->producer_id
         || $user->id === $booking->face_id;
+});
+
+/**
+ * Private channel for Face <-> Producer conversations.
+ *
+ * Channel: conversation.{uuid}
+ * Authorization: only the two participants (ConversationPolicy::view), User
+ * principals only (admin tokens refused), lookup by uuid.
+ */
+Broadcast::channel('conversation.{uuid}', function ($user, string $uuid): bool {
+    if (! $user instanceof User) {
+        return false;
+    }
+
+    $conversation = Conversation::where('uuid', $uuid)->first();
+
+    return $conversation !== null && Gate::forUser($user)->allows('view', $conversation);
 });
