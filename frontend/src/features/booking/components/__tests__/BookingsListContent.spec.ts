@@ -128,6 +128,19 @@ describe('BookingsListContent', () => {
     expect(wrapper.text()).toContain('En attente')
   })
 
+  it('renders the status column as a status dot for both roles', async () => {
+    const producer = await mountContent('producer')
+    const dot = producer.wrapper.find('tbody tr td:nth-child(6) [data-testid="r-status-dot"]')
+    expect(dot.exists()).toBe(true)
+    expect(dot.attributes('data-tone')).toBe('pending')
+    expect(dot.text()).toBe('En attente')
+    producer.wrapper.unmount()
+
+    userRef.value = { id: 8, userable_type: 'Face' }
+    const face = await mountContent('face')
+    expect(face.wrapper.find('tbody tr td:nth-child(6) [data-testid="r-status-dot"]').text()).toBe('En attente')
+  })
+
   it('renders the Face columns with the received amount', async () => {
     userRef.value = { id: 8, userable_type: 'Face' }
     const { wrapper } = await mountContent('face')

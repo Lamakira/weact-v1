@@ -2,10 +2,12 @@
 import { formatXof } from '@/lib/formatCurrency'
 import { computed } from 'vue'
 import { Calendar, Users, Wallet } from 'lucide-vue-next'
+import RStatusDot from '@/components/regie/RStatusDot.vue'
+import { missionStatusDot } from '@/components/regie/statusTone'
 import type { SortingState } from '@tanstack/vue-table'
 import DataTable from '@/components/data-table/DataTable.vue'
 import type { DataTableColumn } from '@/components/data-table/dataTableFeatures'
-import type { Mission, MissionStatusType } from '../types'
+import type { Mission } from '../types'
 import { getMissionActionState } from '../composables/missionActionState'
 import MissionRowActions from './MissionRowActions.vue'
 
@@ -42,19 +44,6 @@ const emit = defineEmits<{
 }>()
 
 defineSlots<{ empty?: () => unknown }>()
-
-const statusClasses: Record<MissionStatusType, string> = {
-  draft: 'bg-gray-100 text-gray-800 border-gray-200',
-  published: 'bg-green-100 text-green-800 border-green-200',
-  pending_payment: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  closed: 'bg-orange-100 text-orange-800 border-orange-200',
-  pending_attendance_validation: 'bg-amber-100 text-amber-800 border-amber-200',
-  completed: 'bg-blue-100 text-blue-800 border-blue-200',
-}
-
-function statusClass(status: MissionStatusType): string {
-  return statusClasses[status] ?? statusClasses.draft
-}
 
 function isUgc(mission: Mission): boolean {
   return getMissionActionState(mission, true).isUgc
@@ -122,22 +111,14 @@ function onRowClick(mission: Mission): void {
     <template #cell-titre="{ row }">
       <div class="min-w-0 max-w-[18rem]">
         <p class="truncate font-semibold text-foreground">{{ row.titre }}</p>
-        <span
-          class="mt-1 inline-block rounded-full border px-2 py-0.5 text-[11px] font-medium"
-          :class="isUgc(row) ? 'border-primary/20 bg-primary/10 text-primary' : 'border-border bg-muted text-muted-foreground'"
-        >
+        <span class="mt-1 inline-block rounded-full px-2 py-0.5 text-[11px] font-medium text-ink-2 ring-1 ring-line">
           {{ isUgc(row) ? 'UGC' : row.type_mission_label }}
         </span>
       </div>
     </template>
 
     <template #cell-status="{ row }">
-      <span
-        class="inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold"
-        :class="statusClass(row.status)"
-      >
-        {{ row.status_label }}
-      </span>
+      <RStatusDot v-bind="missionStatusDot(row.status)" class="text-[13px] text-ink" />
     </template>
 
     <template #cell-date_limite_candidature="{ row }">
@@ -150,15 +131,12 @@ function onRowClick(mission: Mission): void {
     </template>
 
     <template #cell-candidatures_count="{ row }">
-      <button
-        type="button"
-        class="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/30 hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      <span
+        class="tabular-nums text-ink"
         :aria-label="`${row.candidatures_count ?? 0} candidature${(row.candidatures_count ?? 0) > 1 ? 's' : ''} pour ${row.titre}`"
-        @click.stop="emit('viewCandidatures', row.id)"
       >
-        <Users class="h-3.5 w-3.5 text-primary" aria-hidden="true" />
         {{ row.candidatures_count ?? 0 }}
-      </button>
+      </span>
     </template>
 
     <template #cell-faces="{ row }">
@@ -196,16 +174,11 @@ function onRowClick(mission: Mission): void {
       >
         <div class="flex items-start justify-between gap-3">
           <h3 class="min-w-0 text-base font-bold leading-tight text-foreground">{{ row.titre }}</h3>
-          <span
-            class="shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-semibold"
-            :class="statusClass(row.status)"
-          >
-            {{ row.status_label }}
-          </span>
+          <RStatusDot v-bind="missionStatusDot(row.status)" class="shrink-0 text-[13px] text-ink" />
         </div>
 
         <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
-          <span class="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-medium">
+          <span class="rounded-full px-2 py-0.5 text-[11px] font-medium text-ink-2 ring-1 ring-line">
             {{ isUgc(row) ? 'UGC' : row.type_mission_label }}
           </span>
           <span class="inline-flex items-center gap-1.5">
@@ -230,7 +203,6 @@ function onRowClick(mission: Mission): void {
           class="mt-3 border-t border-border pt-3"
           :mission="row"
           :email-verified="emailVerified"
-          show-labels
           @edit="emit('edit', $event)"
           @delete="emit('delete', $event)"
           @close="emit('close', $event)"
