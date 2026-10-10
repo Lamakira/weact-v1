@@ -76,10 +76,11 @@ const tiers: PricingTier[] = [
   {
     key: 'starter',
     name: 'Starter',
-    tagline: 'Décroche tes premiers contrats UGC',
+    tagline: 'Postule aux missions et décroche tes premiers contrats',
     priceLabel: '12 000',
     isFree: false,
-    description: 'Pour les talents prêts à se lancer dans les missions UGC rémunérées.',
+    description:
+      'Pour les talents prêts à postuler aux missions : casting, pub, clip, court métrage.',
     cta: 'Choisir Starter',
     ctaTo: '/login?redirect=/pricing?plan=starter',
     badge: null,
@@ -87,7 +88,8 @@ const tiers: PricingTier[] = [
       { text: 'Photo de profil', included: true },
       { text: '2 photos dans la galerie', included: true },
       { text: '1 vidéo de présentation', included: true },
-      { text: 'Accès complet au module UGC', included: true },
+      { text: 'Postuler aux missions (casting, pub, clip, court métrage)', included: true },
+      { text: 'Missions UGC non incluses (à partir de Pro)', included: false },
       { text: 'Mise en avant Boostée', included: true },
     ],
   },
@@ -106,6 +108,7 @@ const tiers: PricingTier[] = [
       { text: '4 photos dans la galerie', included: true },
       { text: '1 vidéo de présentation', included: true },
       { text: '1 vidéo démo Acting', included: true },
+      { text: 'Postuler aux missions', included: true },
       { text: 'Accès complet au module UGC', included: true },
       { text: 'Mise en avant Premium', included: true },
     ],
@@ -125,6 +128,8 @@ const tiers: PricingTier[] = [
       { text: 'Portfolio complet : 6 photos', included: true },
       { text: '1 vidéo de présentation', included: true },
       { text: '2 vidéos Acting', included: true },
+      { text: 'Postuler aux missions', included: true },
+      { text: 'Accès complet au module UGC', included: true },
       { text: '1 vidéo modèle UGC', included: true },
       { text: 'Commission réduite à 5% (au lieu de 10%)', included: true, highlight: true },
       { text: 'Badge "VIP / Elite" sur le profil', included: true, highlight: true },
@@ -151,15 +156,16 @@ const comparisonGroups: ComparisonGroup[] = [
   {
     label: 'Missions & revenus',
     rows: [
+      { name: 'Postuler aux missions', decouverte: false, starter: true, pro: true, elite: true },
       {
         name: 'Accès aux missions UGC',
         decouverte: false,
-        starter: true,
+        starter: false,
         pro: true,
         elite: true,
       },
-      { name: 'Dotation produit', decouverte: false, starter: true, pro: true, elite: true },
-      { name: 'Missions rémunérées', decouverte: true, starter: true, pro: true, elite: true },
+      { name: 'Dotation produit', decouverte: false, starter: false, pro: true, elite: true },
+      { name: 'Réservation directe par les Producteurs', decouverte: true, starter: true, pro: true, elite: true },
       {
         name: 'Commission plateforme',
         decouverte: '15 %',
@@ -226,7 +232,7 @@ const faqs: FAQItem[] = [
   {
     question: 'Que se passe-t-il si mon abonnement expire ?',
     answer:
-      'Ton profil bascule automatiquement sur l\'offre Découverte gratuite. Tes photos et vidéos restent stockées 90 jours, le temps de te réabonner si tu le souhaites.',
+      'Ton profil bascule automatiquement sur l\'offre Découverte gratuite. Tu ne peux plus postuler aux missions, mais les producteurs peuvent toujours te réserver directement. Tes photos et vidéos restent stockées 90 jours, le temps de te réabonner si tu le souhaites.',
   },
   {
     question: 'Comment fonctionne la mise en avant ?',
@@ -623,7 +629,7 @@ watchEffect(() => {
       <p class="text-base text-gray-500 leading-relaxed max-w-3xl mx-auto">
         Quatre paliers pensés pour les talents béninois et ouest-africains. Du profil découverte
         gratuit au statut VIP, chaque palier débloque plus de portfolio, de visibilité et de
-        missions UGC.
+        missions.
       </p>
     </section>
 
@@ -838,7 +844,7 @@ watchEffect(() => {
             v-if="tier.key === 'decouverte'"
             class="mt-4 pt-4 border-t border-gray-100 text-[11px] text-gray-400 leading-snug"
           >
-            Pas d'accès aux missions UGC
+            Pas de candidature aux missions
           </div>
         </div>
       </div>
@@ -1052,7 +1058,7 @@ watchEffect(() => {
           </h3>
           <p class="text-sm text-gray-500 leading-relaxed mb-6 max-w-md mx-auto">
             Commence avec l'offre Découverte, crée ton profil, et passe à un palier supérieur dès
-            que tu veux candidater à des missions UGC.
+            que tu veux candidater à des missions.
           </p>
           <div class="flex flex-col sm:flex-row gap-3 justify-center">
             <RouterLink

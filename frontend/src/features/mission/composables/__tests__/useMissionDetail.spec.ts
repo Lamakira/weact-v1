@@ -80,7 +80,7 @@ const CANDIDATURE: MissionCandidature = {
   updated_at: '2026-06-02T00:00:00Z',
 }
 
-const PAYWALL_MESSAGE = "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus)."
+const PAYWALL_MESSAGE = "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite."
 
 describe('useMissionDetail', () => {
   beforeEach(() => {

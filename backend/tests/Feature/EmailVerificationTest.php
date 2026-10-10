@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Face;
+use App\Models\FaceSubscription;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
@@ -273,6 +274,7 @@ class EmailVerificationTest extends TestCase
     public function test_allows_verified_face_to_apply_to_mission(): void
     {
         $face = Face::factory()->create();
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $face->id]);
         $user = User::factory()->create([
             'userable_type' => Face::class,
             'userable_id' => $face->id,

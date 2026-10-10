@@ -410,7 +410,7 @@ class FaceViewMissionDetailTest extends TestCase
 
     public function test_subscribed_face_can_view_ugc_mission_detail(): void
     {
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
         $mission = $this->makePublishedUgcMission();
 
         $response = $this->actingAs($this->faceUser)

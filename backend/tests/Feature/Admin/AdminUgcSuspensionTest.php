@@ -59,7 +59,7 @@ class AdminUgcSuspensionTest extends TestCase
             'userable_id' => $this->face->id,
         ]);
 
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
     }
 
     // ===================================================================

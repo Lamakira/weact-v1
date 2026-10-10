@@ -387,6 +387,20 @@ describe('BookingFormSheet — UGC', () => {
       'Valeur produit invalide côté serveur',
     )
   })
+
+  it('affiche le message serveur sur type_contenu quand la Face est indisponible pour l\'UGC', async () => {
+    createBookingMock.mockResolvedValue({
+      success: false,
+      errors: { type_contenu: ["Cette Face n'est pas disponible pour les contenus UGC."] },
+    })
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await fillValidUgcForm(wrapper)
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(wrapper.text()).toContain("Cette Face n'est pas disponible pour les contenus UGC.")
+  })
 })
 
 describe('BookingFormSheet — monté déjà ouvert (chargement asynchrone)', () => {

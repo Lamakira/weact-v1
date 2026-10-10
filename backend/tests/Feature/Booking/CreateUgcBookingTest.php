@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace Tests\Feature\Booking;
 
 use App\Enums\BookingStatus;
+use App\Enums\UgcSuspensionAppealStatus;
+use App\Enums\UgcSuspensionReason;
 use App\Events\BookingCreated;
 use App\Models\Face;
+use App\Models\FaceSubscription;
 use App\Models\Producer;
+use App\Models\UgcSuspension;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -50,6 +54,8 @@ class CreateUgcBookingTest extends TestCase
             'userable_type' => Face::class,
             'userable_id' => $this->face->id,
         ]);
+        // Un booking UGC n'est créable que pour une Face éligible (Pro+ non suspendue).
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
     }
 
     /**
@@ -81,7 +87,7 @@ class CreateUgcBookingTest extends TestCase
             'type_compensation' => 'hybrid',
             'valeur_produit' => 50000,        // hybride : valeur produit NON commissionnée (produit off-platform)
             'nombre_videos' => 3,
-            'montant_remuneration' => 15000,  // → règlement BookingPricing : Free 0.15 → total 16500 / Face 12750 / WeAct 3750
+            'montant_remuneration' => 15000,  // → règlement BookingPricing : Pro 0.10 → total 16500 / Face 13500 / WeAct 3000
         ]);
     }
 
@@ -147,24 +153,24 @@ class CreateUgcBookingTest extends TestCase
 
         // Face fixture sans abonnement → palier Free (0.15). RH.2 : le cash (15000) se tarife comme un
         // booking cash via BookingPricing — Producteur +10 % flat (1500), Face −0.15 (2250), WeAct les deux.
-        // total 16500 · net Face 12750 · revenu WeAct 3750. La valeur produit n'est jamais commissionnée.
+        // total 16500 · net Face 13500 · revenu WeAct 3000. La valeur produit n'est jamais commissionnée.
         $response->assertCreated()
             ->assertJsonPath('data.type_compensation', 'hybrid')
             ->assertJsonPath('data.type_compensation_label', 'Produit + argent')
             ->assertJsonPath('data.valeur_produit', 50000)
             ->assertJsonPath('data.nombre_videos', 3)
-            ->assertJsonPath('data.commission_ugc', 3750)
+            ->assertJsonPath('data.commission_ugc', 3000)
             ->assertJsonPath('data.montant_remuneration', 15000)
             ->assertJsonPath('data.tarif_base', 0)
-            ->assertJsonPath('data.montant_face_recoit', 12750)
+            ->assertJsonPath('data.montant_face_recoit', 13500)
             ->assertJsonPath('data.montant_total_producteur', 16500);
 
         $this->assertDatabaseHas('bookings', [
             'type_contenu' => 'UGC',
             'type_compensation' => 'hybrid',
-            'commission_ugc' => 3750,
+            'commission_ugc' => 3000,
             'montant_remuneration' => 15000,
-            'montant_face_recoit' => 12750,
+            'montant_face_recoit' => 13500,
             'montant_total_producteur' => 16500,
             'nombre_videos' => 3,
         ]);
@@ -423,6 +429,7 @@ class CreateUgcBookingTest extends TestCase
             'userable_type' => Face::class,
             'userable_id' => $faceNoTarif->id,
         ]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $faceNoTarif->id]);
 
         $data = $this->getValidUgcProductData();
         $data['face_id'] = $faceNoTarif->uuid;
@@ -516,5 +523,74 @@ class CreateUgcBookingTest extends TestCase
             'user_id' => $this->faceUser->id,
             'type' => 'booking_received',
         ]);
+    }
+
+    public function test_producer_cannot_create_ugc_booking_for_free_face(): void
+    {
+        FaceSubscription::query()->where('face_id', $this->face->id)->delete();
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $this->getValidUgcProductData())
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('type_contenu')
+            ->assertJsonPath('errors.type_contenu.0', "Cette Face n'est pas disponible pour les contenus UGC.");
+
+        $this->assertDatabaseCount('bookings', 0);
+    }
+
+    public function test_producer_cannot_create_ugc_booking_for_starter_face(): void
+    {
+        FaceSubscription::query()->where('face_id', $this->face->id)->delete();
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $this->getValidUgcProductData())
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('type_contenu');
+
+        $this->assertDatabaseCount('bookings', 0);
+    }
+
+    public function test_producer_cannot_create_ugc_booking_for_suspended_pro_face(): void
+    {
+        UgcSuspension::create([
+            'face_id' => $this->face->id,
+            'reason' => UgcSuspensionReason::AvisDeadlineMissed,
+            'appeal_status' => UgcSuspensionAppealStatus::None,
+            'suspended_at' => now(),
+        ]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $this->getValidUgcProductData())
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('type_contenu');
+
+        $this->assertDatabaseCount('bookings', 0);
+    }
+
+    public function test_producer_can_create_ugc_booking_for_pro_face(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $this->getValidUgcProductData())
+            ->assertCreated();
+    }
+
+    public function test_producer_can_still_create_non_ugc_booking_for_free_face(): void
+    {
+        Event::fake([BookingCreated::class]);
+        FaceSubscription::query()->where('face_id', $this->face->id)->delete();
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', [
+                'face_id' => $this->face->uuid,
+                'date_debut' => now()->addWeek()->toDateString(),
+                'date_fin' => now()->addWeek()->toDateString(),
+                'duree_heures' => 8,
+                'type_contenu' => 'Publicité',
+                'lieu' => 'Cotonou',
+            ])
+            ->assertCreated();
     }
 }

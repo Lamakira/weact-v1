@@ -61,4 +61,21 @@ describe('useApplyToMission', () => {
       'Cette mission recherche un profil Femme. Votre profil ne correspond pas au genre requis.',
     )
   })
+
+  it.each(['SUBSCRIPTION_REQUIRED', 'UGC_SUBSCRIPTION_REQUIRED'])(
+    'preserves the %s code and backend message on 403',
+    async (backendCode) => {
+      const backendMessage = 'Postuler aux missions est réservé aux Faces abonnées.'
+      vi.mocked(candidatureApi.applyToMission).mockRejectedValue(
+        makeAxiosError(403, { error: { code: backendCode, message: backendMessage } }),
+      )
+
+      const { apply, errorCode } = useApplyToMission()
+      const result = await apply('42')
+
+      expect(result.success).toBe(false)
+      expect(result.error).toEqual({ code: backendCode, message: backendMessage })
+      expect(errorCode.value).toBe(backendCode)
+    },
+  )
 })

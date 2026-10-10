@@ -16,7 +16,7 @@ use Tests\TestCase;
 /**
  * GET /api/v1/face/ugc/missions — découverte gated des missions UGC (FR5, UGC 2.1).
  *
- * Face Starter+ active → liste MissionResource complète + meta.can_access_ugc=true ;
+ * Face Pro+ active → liste MissionResource complète + meta.can_access_ugc=true ;
  * Face free/expirée → teasers UgcMissionTeaserResource + meta.paywall (200, pas 403).
  */
 class UgcMissionDiscoveryTest extends TestCase
@@ -82,9 +82,9 @@ class UgcMissionDiscoveryTest extends TestCase
     // Face éligible (AC3)
     // ===================================================================
 
-    public function test_starter_face_sees_full_ugc_missions_list(): void
+    public function test_pro_face_sees_full_ugc_missions_list_with_meta(): void
     {
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
         $this->makePublishedUgcMission();
 
         $response = $this->actingAs($this->faceUser)->getJson('/api/v1/face/ugc/missions');
@@ -109,7 +109,7 @@ class UgcMissionDiscoveryTest extends TestCase
 
     public function test_excludes_ugc_missions_whose_candidature_deadline_has_passed(): void
     {
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
         $this->makePublishedUgcMission(['titre' => 'UGC ouverte', 'date_limite_candidature' => now()->addWeek()]);
         // Candidatures fermées → obsolète, ne doit pas apparaître dans la découverte.
         $this->makePublishedUgcMission(['titre' => 'UGC expirée', 'date_limite_candidature' => now()->subDay()]);
@@ -148,7 +148,7 @@ class UgcMissionDiscoveryTest extends TestCase
 
     public function test_list_is_paginated_12_per_page(): void
     {
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
         for ($i = 0; $i < 15; $i++) {
             $this->makePublishedUgcMission(['titre' => "Appel UGC {$i}"]);
         }
@@ -164,7 +164,7 @@ class UgcMissionDiscoveryTest extends TestCase
 
     public function test_list_is_ordered_by_created_at_desc(): void
     {
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
         $old = $this->makePublishedUgcMission(['titre' => 'Ancien appel']);
         $old->forceFill(['created_at' => now()->subDays(3)])->save();
         $recent = $this->makePublishedUgcMission(['titre' => 'Appel récent']);
@@ -178,7 +178,7 @@ class UgcMissionDiscoveryTest extends TestCase
 
     public function test_pending_payment_ugc_missions_are_not_listed(): void
     {
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
         $this->makePublishedUgcMission([
             'status' => MissionStatus::PendingPayment,
             'commission_paid_at' => null,
@@ -191,7 +191,7 @@ class UgcMissionDiscoveryTest extends TestCase
 
     public function test_standard_missions_are_not_listed(): void
     {
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
         Mission::factory()->create([
             'producer_id' => $this->producer->id,
             'status' => MissionStatus::Published,
@@ -268,7 +268,7 @@ class UgcMissionDiscoveryTest extends TestCase
 
     public function test_eligible_face_list_exposes_product_photos_ordered_by_position(): void
     {
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
         $mission = $this->makePublishedUgcMission();
         $this->attachProductPhotos($mission, 2);
 
@@ -303,7 +303,7 @@ class UgcMissionDiscoveryTest extends TestCase
 
     public function test_missions_without_product_photos_expose_an_empty_array(): void
     {
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
         $this->makePublishedUgcMission();
 
         $response = $this->actingAs($this->faceUser)->getJson('/api/v1/face/ugc/missions');
@@ -322,13 +322,13 @@ class UgcMissionDiscoveryTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonPath('meta.can_access_ugc', false)
             ->assertJsonPath('meta.paywall.code', 'UGC_SUBSCRIPTION_REQUIRED')
-            ->assertJsonPath('meta.paywall.message', "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus).")
+            ->assertJsonPath('meta.paywall.message', "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.")
             ->assertJsonPath('meta.paywall.pricing_url', '/pricing');
     }
 
     public function test_expired_subscription_face_gets_teasers(): void
     {
-        FaceSubscription::factory()->starter()->expired()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->pro()->expired()->create(['face_id' => $this->face->id]);
         $this->makePublishedUgcMission();
 
         $response = $this->actingAs($this->faceUser)->getJson('/api/v1/face/ugc/missions');
@@ -345,7 +345,7 @@ class UgcMissionDiscoveryTest extends TestCase
 
     public function test_ugc_missions_from_inactive_producer_are_excluded(): void
     {
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
         $visible = $this->makePublishedUgcMission(['titre' => 'Appel UGC visible']);
 
         $inactiveProducer = Producer::factory()->create();

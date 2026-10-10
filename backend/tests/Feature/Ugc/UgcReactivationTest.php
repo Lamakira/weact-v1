@@ -37,7 +37,7 @@ use Tests\TestCase;
  * (Avis validé, booking ET candidature) via le listener ReactivateFaceOnLateUgcCompletion,
  * et la suppression de la notif « X XOF crédités » quand l'escrow est déjà Refunded
  * (D-5.0.a). Temps figé → fenêtre J+30 déterministe. La Face a une souscription active
- * (Starter) → canAccessUgc reflète UNIQUEMENT l'état de suspension.
+ * (Pro) → canAccessUgc reflète UNIQUEMENT l'état de suspension.
  */
 class UgcReactivationTest extends TestCase
 {
@@ -72,7 +72,7 @@ class UgcReactivationTest extends TestCase
         ]);
 
         // Souscription active : ugcAccess=true → canAccessUgc ne dépend QUE de la suspension.
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
     }
 
     // ===================================================================
