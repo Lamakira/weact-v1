@@ -1,119 +1,105 @@
-import { onActivated, onBeforeUnmount, onDeactivated, onMounted, watch } from 'vue'
+import { onBeforeUnmount, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import {
-  LIST_POLL_INTERVAL_MS,
-  loadEcho,
-  useVisiblePolling,
-  type EchoChannel,
-  type EchoInstance,
-} from '../utils/realtime'
+import { useNotificationStore } from '@/stores/notification'
+import { LIST_POLL_INTERVAL_MS, loadEcho, useVisiblePolling, watchConnection } from '../utils/realtime'
 import type { ConversationUpdatedBroadcast } from '../types'
 
 interface ConversationListRealtimeHandlers {
   onUpdated: (update: ConversationUpdatedBroadcast) => void
-  /** Resynchronisation silencieuse de la liste (repli par polling) */
+  /** Resynchronisation silencieuse de la liste (repli par polling et rattrapage) */
   poll: () => Promise<unknown> | unknown
 }
 
+const EVENT = '.conversation.updated'
+
 /**
- * Temps réel de la liste des conversations : écoute `.conversation.updated` sur le canal
- * privé de l'utilisateur (`App.Models.User.{id}`).
+ * Temps réel de la liste des conversations : `.conversation.updated` sur le canal privé de
+ * l'utilisateur (`App.Models.User.{id}`).
  *
- * Echo renvoie la MÊME instance de canal pour un nom donné : le store de notifications
- * y est déjà abonné, on n'ouvre donc ni seconde connexion ni second abonnement. On
- * n'enlève que NOTRE écouteur (jamais `leave`, le canal appartient au store).
+ * Le store de notifications POSSÈDE ce canal (abonnement, `leave` sur erreur,
+ * ré-abonnement) : on s'y inscrit via `onUserChannelEvent`, qui ré-attache l'écouteur à
+ * chaque (ré)abonnement. Aucune référence au canal n'est conservée ici, donc aucune
+ * référence morte possible.
  *
- * Repli : liste resynchronisée toutes les 30 s (onglet visible) si Echo ne charge pas ou
- * si le canal est en erreur ; arrêt dès que le temps réel est connecté.
+ * Repli : liste resynchronisée toutes les 30 s (onglet visible) tant que le canal du store
+ * n'est pas abonné (Echo non chargé, canal en erreur) ou que Reverb est injoignable ;
+ * arrêt dès que le temps réel est (re)connecté, avec un rattrapage unique.
  */
 export function useConversationListRealtime(handlers: ConversationListRealtimeHandlers) {
   const authStore = useAuthStore()
-  const EVENT = '.conversation.updated'
-
-  let generation = 0
-  let channel: EchoChannel | null = null
-  let listener: ((payload: never) => void) | null = null
-  let isActive = false
+  const notificationStore = useNotificationStore()
 
   const polling = useVisiblePolling(() => handlers.poll(), LIST_POLL_INTERVAL_MS)
 
-  async function subscribe(): Promise<void> {
-    const userId = authStore.user?.id
-    if (!userId || channel) return // jamais d'abonnement pour un visiteur anonyme
+  let off: (() => void) | null = null
+  let stopWatchingConnection: (() => void) | null = null
+  let generation = 0
+  let socketDown = false
 
-    const current = ++generation
-
-    let echo: EchoInstance
-    try {
-      echo = await loadEcho()
-    } catch {
-      if (current === generation) polling.start()
+  // Pas de temps réel tant que le canal du store n'est pas abonné ; le premier tick du
+  // polling n'arrive qu'après 30 s, le temps que l'abonnement s'établisse.
+  function syncPolling(): void {
+    if (!authStore.user?.id) {
+      polling.stop()
       return
     }
-    if (current !== generation) return
+    if (socketDown || !notificationStore.isSubscribed) polling.start()
+    else polling.stop()
+  }
 
+  async function watchSocket(): Promise<void> {
+    const current = generation
     try {
-      const userChannel = echo.private(`App.Models.User.${userId}`) as unknown as EchoChannel
-      const callback = ((event: ConversationUpdatedBroadcast) => {
-        if (current !== generation) return
-        handlers.onUpdated(event)
-      }) as (payload: never) => void
-
-      userChannel.listen(EVENT, callback).error(() => {
-        if (current !== generation) return
-        polling.start()
+      const echo = await loadEcho()
+      if (current !== generation) return
+      stopWatchingConnection = watchConnection(echo, {
+        onDown: () => {
+          socketDown = true
+          syncPolling()
+        },
+        onUp: () => {
+          socketDown = false
+          syncPolling()
+          void handlers.poll() // rattrapage des événements manqués pendant la coupure
+        },
       })
-      if (typeof userChannel.subscribed === 'function') {
-        userChannel.subscribed(() => {
-          if (current !== generation) return
-          polling.stop()
-        })
-      }
-      channel = userChannel
-      listener = callback
     } catch {
-      if (current === generation) polling.start()
+      // Echo indisponible : le store n'est pas abonné non plus, le polling couvre
     }
   }
 
-  function unsubscribe(): void {
+  function start(): void {
+    stop()
+    if (!authStore.user?.id) return
+    off = notificationStore.onUserChannelEvent(EVENT, ((event: ConversationUpdatedBroadcast) => {
+      handlers.onUpdated(event)
+    }) as (payload: never) => void)
+    syncPolling()
+    void watchSocket()
+  }
+
+  function stop(): void {
     generation++
+    off?.()
+    off = null
+    stopWatchingConnection?.()
+    stopWatchingConnection = null
+    socketDown = false
     polling.stop()
-    if (channel && listener) {
-      try {
-        channel.stopListening(EVENT, listener)
-      } catch {
-        // Ignore cleanup errors
-      }
-    }
-    channel = null
-    listener = null
   }
 
-  function activate(): void {
-    if (isActive) return
-    isActive = true
-    void subscribe()
-  }
+  onMounted(start)
+  onBeforeUnmount(stop)
 
-  function deactivate(): void {
-    isActive = false
-    unsubscribe()
-  }
-
-  onMounted(activate)
-  onActivated(activate)
-  onDeactivated(deactivate)
-  onBeforeUnmount(deactivate)
-
-  // Déconnexion : on retire l'écouteur immédiatement
+  // Connexion / déconnexion de l'utilisateur
   watch(
     () => authStore.user?.id,
     (userId) => {
-      if (!userId) unsubscribe()
-      else if (isActive) void subscribe()
+      if (userId) start()
+      else stop()
     },
   )
+  watch(() => notificationStore.isSubscribed, syncPolling)
 
   return { isPolling: polling.isActive }
 }

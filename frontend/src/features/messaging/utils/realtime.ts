@@ -45,6 +45,52 @@ export async function loadEcho(): Promise<EchoInstance> {
   return echo
 }
 
+interface PusherConnectionLike {
+  state?: string
+  bind: (event: 'state_change', callback: (states: { previous: string; current: string }) => void) => void
+  unbind: (event: 'state_change', callback: (states: { previous: string; current: string }) => void) => void
+}
+
+/**
+ * Surveille la connexion WebSocket (Pusher `state_change`).
+ *
+ * - `unavailable` / `failed` (Reverb injoignable, réseau coupé) : `onDown` => repli par polling ;
+ * - retour à `connected` APRÈS une coupure : `onUp` => rattrapage unique + arrêt du polling.
+ *   La toute première connexion est ignorée (les données viennent d'être chargées),
+ *   comme le fait le store de notifications.
+ *
+ * @returns fonction de nettoyage
+ */
+export function watchConnection(
+  echo: EchoInstance,
+  handlers: { onDown: () => void; onUp: () => void },
+): () => void {
+  const connection = (echo as unknown as { connector?: { pusher?: { connection?: PusherConnectionLike } } })
+    .connector?.pusher?.connection
+  if (!connection || typeof connection.bind !== 'function' || typeof connection.unbind !== 'function') {
+    return () => {}
+  }
+
+  let needsCatchUp = false
+  const onChange = ({ previous, current }: { previous: string; current: string }): void => {
+    if (current === 'unavailable' || current === 'failed') {
+      needsCatchUp = true
+      handlers.onDown()
+      return
+    }
+    if (current === 'connected') {
+      if (!needsCatchUp) return
+      needsCatchUp = false
+      handlers.onUp()
+      return
+    }
+    if (previous === 'connected') needsCatchUp = true
+  }
+
+  connection.bind('state_change', onChange)
+  return () => connection.unbind('state_change', onChange)
+}
+
 /**
  * En-tête X-Socket-ID : permet au serveur d'exclure cette connexion de la diffusion
  * (`toOthers()`), l'expéditeur ne reçoit jamais son propre message en retour.

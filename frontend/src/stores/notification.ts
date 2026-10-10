@@ -6,8 +6,11 @@ import { useAuthStore } from '@/stores/auth'
 import { getAuthToken } from '@/services/apiClient'
 import { getXsrfTokenFromCookie } from '@/utils/csrf'
 
+type UserChannelListener = (payload: never) => void
+
 interface EchoChannel {
   listen: (event: string, callback: (payload: Notification) => void) => EchoChannel
+  stopListening?: (event: string, callback?: UserChannelListener) => EchoChannel
   error?: (callback: () => void) => EchoChannel
   subscribed?: (callback: () => void) => EchoChannel
 }
@@ -38,6 +41,21 @@ let safetyPollIntervalId: ReturnType<typeof setInterval> | null = null
 let lastFocusRefetchAt = 0
 // Incrémenté à chaque (re)subscribe / unsubscribe / reset : invalide les appels asynchrones périmés
 let subscribeGeneration = 0
+// Registre d'écouteurs sur le canal privé de l'utilisateur. Le store POSSÈDE ce canal
+// (abonnement, `leave` sur erreur, ré-abonnement) : les autres fonctionnalités (liste des
+// conversations) s'y inscrivent ici au lieu de garder une référence qui deviendrait morte
+// après un `leave`. Les écouteurs sont ré-attachés à chaque (ré)abonnement.
+const userChannelListeners = new Map<string, Set<UserChannelListener>>()
+let currentUserChannel: EchoChannel | null = null
+
+function bindUserChannelListener(
+  channel: EchoChannel,
+  event: string,
+  callback: UserChannelListener,
+): void {
+  ;(channel.listen as (event: string, callback: UserChannelListener) => EchoChannel)(event, callback)
+}
+
 // Le chargement du client temps réel a échoué : on retentera au prochain focus
 let realtimeLoadFailed = false
 
@@ -285,10 +303,17 @@ export const useNotificationStore = defineStore('notification', () => {
         }
       })
 
+      // Ré-attache les écouteurs enregistrés par d'autres fonctionnalités
+      for (const [event, callbacks] of userChannelListeners) {
+        for (const callback of callbacks) bindUserChannelListener(channel, event, callback)
+      }
+      currentUserChannel = channel
+
       startReconnectListener()
 
       channel.error?.(() => {
         if (generation !== subscribeGeneration) return
+        currentUserChannel = null
         isSubscribing.value = false
         isSubscribed.value = false
         stopFocusListener()
@@ -313,6 +338,7 @@ export const useNotificationStore = defineStore('notification', () => {
         isSubscribed.value = true
       }
     } catch (error) {
+      currentUserChannel = null
       isSubscribing.value = false
       isSubscribed.value = false
       stopFocusListener()
@@ -336,7 +362,25 @@ export const useNotificationStore = defineStore('notification', () => {
     $reset()
   }
 
+  /**
+   * S'inscrit à un événement du canal privé de l'utilisateur (attaché tout de suite si le
+   * canal est actif, sinon à l'abonnement suivant). Retourne la fonction de désinscription.
+   */
+  function onUserChannelEvent(event: string, callback: UserChannelListener): () => void {
+    const callbacks = userChannelListeners.get(event) ?? new Set<UserChannelListener>()
+    callbacks.add(callback)
+    userChannelListeners.set(event, callbacks)
+    if (currentUserChannel) bindUserChannelListener(currentUserChannel, event, callback)
+    return () => offUserChannelEvent(event, callback)
+  }
+
+  function offUserChannelEvent(event: string, callback: UserChannelListener): void {
+    userChannelListeners.get(event)?.delete(callback)
+    currentUserChannel?.stopListening?.(event, callback)
+  }
+
   function $reset(): void {
+    currentUserChannel = null
     subscribeGeneration++
     realtimeLoadFailed = false
     unreadCount.value = 0
@@ -362,6 +406,8 @@ export const useNotificationStore = defineStore('notification', () => {
     markAllAsRead,
     subscribe,
     unsubscribe,
+    onUserChannelEvent,
+    offUserChannelEvent,
     $reset,
   }
 })

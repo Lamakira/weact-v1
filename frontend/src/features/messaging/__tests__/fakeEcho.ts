@@ -50,8 +50,29 @@ export class FakeChannel {
 
 export const channels = new Map<string, FakeChannel>()
 
+type StateChange = (states: { previous: string; current: string }) => void
+
+/** Connexion Pusher factice : état + `state_change`. */
+export const fakeConnection = {
+  state: 'connecting',
+  handlers: [] as StateChange[],
+  bind: vi.fn((event: string, callback: StateChange) => {
+    if (event === 'state_change') fakeConnection.handlers.push(callback)
+  }),
+  unbind: vi.fn((event: string, callback: StateChange) => {
+    if (event === 'state_change') {
+      fakeConnection.handlers = fakeConnection.handlers.filter((h) => h !== callback)
+    }
+  }),
+  setState(next: string): void {
+    const previous = fakeConnection.state
+    fakeConnection.state = next
+    for (const handler of [...fakeConnection.handlers]) handler({ previous, current: next })
+  },
+}
+
 export const fakeEcho = {
-  connector: { options: {} as Record<string, unknown> },
+  connector: { options: {} as Record<string, unknown>, pusher: { connection: fakeConnection } },
   private: vi.fn((name: string) => {
     let channel = channels.get(name)
     if (!channel) {
@@ -68,6 +89,8 @@ export const fakeEcho = {
 
 export function resetFakeEcho(): void {
   channels.clear()
+  fakeConnection.handlers = []
+  fakeConnection.state = 'connecting'
   fakeEcho.private.mockClear()
   fakeEcho.leave.mockClear()
 }

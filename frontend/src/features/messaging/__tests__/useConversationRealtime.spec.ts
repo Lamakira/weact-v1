@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { defineComponent, h, nextTick, ref, type Ref } from 'vue'
-import { flushPromises, mount } from '@vue/test-utils'
-import { channels, fakeEcho, resetFakeEcho } from './fakeEcho'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import { channels, fakeConnection, fakeEcho, resetFakeEcho } from './fakeEcho'
+import { useNotificationStore } from '@/stores/notification'
 import { useConversationRealtime } from '../composables/useConversationRealtime'
 import { useConversationListRealtime } from '../composables/useConversationListRealtime'
 import { useAuthStore } from '@/stores/auth'
@@ -10,6 +12,10 @@ vi.mock('@/plugins/echo', async () => {
   const { fakeEcho } = await import('./fakeEcho')
   return { echo: fakeEcho }
 })
+
+vi.mock('@/features/notification/services/notificationApi', () => ({
+  notificationApi: { getUnreadCount: vi.fn(), getNotifications: vi.fn(), markAsRead: vi.fn(), markAllAsRead: vi.fn() },
+}))
 
 vi.mock('@/stores/auth', async () => {
   const { reactive } = await import('vue')
@@ -37,7 +43,10 @@ function mountThread(uuid: Ref<string | null>, handlers = {}) {
   return { wrapper, calls }
 }
 
+enableAutoUnmount(afterEach)
+
 beforeEach(() => {
+  setActivePinia(createPinia())
   resetFakeEcho()
   auth.user = { id: 1 }
 })
@@ -189,6 +198,59 @@ describe('useConversationRealtime', () => {
   })
 })
 
+describe('useConversationRealtime — connexion WebSocket', () => {
+  it('repli quand Reverb devient injoignable (unavailable), rattrapage unique et arrêt au retour', async () => {
+    vi.useFakeTimers()
+    const { calls } = mountThread(ref('conv-1'))
+    await flushPromises()
+    channels.get('conversation.conv-1')!.connect()
+    fakeConnection.setState('connected') // première connexion : ignorée
+
+    fakeConnection.setState('unavailable')
+    await vi.advanceTimersByTimeAsync(15_000)
+    expect(calls.poll).toHaveBeenCalledTimes(1)
+
+    fakeConnection.setState('connected')
+    expect(calls.poll).toHaveBeenCalledTimes(2) // rattrapage unique
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(calls.poll).toHaveBeenCalledTimes(2) // polling arrêté
+  })
+
+  it('ignore la toute première connexion (pas de rattrapage inutile)', async () => {
+    const { calls } = mountThread(ref('conv-1'))
+    await flushPromises()
+
+    fakeConnection.setState('connecting')
+    fakeConnection.setState('connected')
+
+    expect(calls.poll).not.toHaveBeenCalled()
+  })
+
+  it('rattrape après une reconnexion (connected -> connecting -> connected)', async () => {
+    const { calls } = mountThread(ref('conv-1'))
+    await flushPromises()
+    fakeConnection.setState('connected')
+
+    fakeConnection.setState('connecting')
+    fakeConnection.setState('connected')
+
+    expect(calls.poll).toHaveBeenCalledTimes(1)
+  })
+
+  it('repli aussi sur état failed, et plus aucun écouteur après démontage', async () => {
+    vi.useFakeTimers()
+    const { wrapper, calls } = mountThread(ref('conv-1'))
+    await flushPromises()
+
+    fakeConnection.setState('failed')
+    await vi.advanceTimersByTimeAsync(15_000)
+    expect(calls.poll).toHaveBeenCalledTimes(1)
+
+    wrapper.unmount()
+    expect(fakeConnection.handlers).toHaveLength(0)
+  })
+})
+
 describe('useConversationListRealtime', () => {
   function mountList() {
     const calls = { onUpdated: vi.fn(), poll: vi.fn().mockResolvedValue(undefined) }
@@ -203,20 +265,59 @@ describe('useConversationListRealtime', () => {
     return { wrapper, calls }
   }
 
-  it('écoute conversation.updated sur le canal privé de l\'utilisateur (même instance que le store)', async () => {
+  async function subscribeStore() {
+    await useNotificationStore().subscribe()
+    await vi.waitFor(() => expect(channels.has('App.Models.User.1')).toBe(true))
+    channels.get('App.Models.User.1')!.connect()
+  }
+
+  it('reçoit conversation.updated via le canal du store (une seule connexion)', async () => {
+    await subscribeStore()
     const { calls } = mountList()
     await flushPromises()
 
-    const channel = channels.get('App.Models.User.1')!
-    channel.emit('.conversation.updated', { conversation_id: 'c1' })
+    channels.get('App.Models.User.1')!.emit('.conversation.updated', { conversation_id: 'c1' })
 
     expect(calls.onUpdated).toHaveBeenCalledWith({ conversation_id: 'c1' })
+    expect(fakeEcho.private.mock.calls.filter(([n]) => n === 'App.Models.User.1')).toHaveLength(1)
+  })
+
+  it('l\'écouteur est ré-attaché quand le store quitte puis rejoint le canal (plus de référence morte)', async () => {
+    await subscribeStore()
+    const { calls } = mountList()
+    await flushPromises()
+    const first = channels.get('App.Models.User.1')!
+
+    // Erreur d'autorisation : le store fait `leave` du canal (l'objet est détruit)
+    first.fail()
+    expect(channels.has('App.Models.User.1')).toBe(false)
+
+    // Le store se ré-abonne (reconnexion / nouveau login) : nouveau canal
+    await useNotificationStore().subscribe()
+    await vi.waitFor(() => expect(channels.has('App.Models.User.1')).toBe(true))
+    const second = channels.get('App.Models.User.1')!
+    expect(second).not.toBe(first)
+
+    second.emit('.conversation.updated', { conversation_id: 'c2' })
+    expect(calls.onUpdated).toHaveBeenCalledWith({ conversation_id: 'c2' })
+  })
+
+  it('un écouteur enregistré avant l\'abonnement du store est attaché à l\'abonnement', async () => {
+    const { calls } = mountList()
+    await flushPromises()
+
+    await subscribeStore()
+    channels.get('App.Models.User.1')!.emit('.conversation.updated', { conversation_id: 'c3' })
+
+    expect(calls.onUpdated).toHaveBeenCalledWith({ conversation_id: 'c3' })
   })
 
   it('retire uniquement son écouteur au démontage (sans quitter le canal du store)', async () => {
+    await subscribeStore()
     const { wrapper } = mountList()
     await flushPromises()
     const channel = channels.get('App.Models.User.1')!
+    expect(channel.listenerCount('.conversation.updated')).toBe(1)
 
     wrapper.unmount()
 
@@ -224,7 +325,7 @@ describe('useConversationListRealtime', () => {
     expect(fakeEcho.leave).not.toHaveBeenCalled()
   })
 
-  it('ne s\'abonne pas pour un utilisateur anonyme', async () => {
+  it('ne s\'inscrit pas pour un utilisateur anonyme', async () => {
     auth.user = null
     mountList()
     await flushPromises()
@@ -232,24 +333,8 @@ describe('useConversationListRealtime', () => {
     expect(fakeEcho.private).not.toHaveBeenCalled()
   })
 
-  it('repli : poll de la liste toutes les 30 s sur erreur, arrêt à la connexion', async () => {
-    vi.useFakeTimers()
-    const { calls } = mountList()
-    await flushPromises()
-    const channel = channels.get('App.Models.User.1')!
-
-    channel.fail()
-    await vi.advanceTimersByTimeAsync(29_000)
-    expect(calls.poll).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(1_000)
-    expect(calls.poll).toHaveBeenCalledTimes(1)
-
-    channel.connect()
-    await vi.advanceTimersByTimeAsync(90_000)
-    expect(calls.poll).toHaveBeenCalledTimes(1)
-  })
-
   it('retire l\'écouteur à la déconnexion', async () => {
+    await subscribeStore()
     mountList()
     await flushPromises()
     const channel = channels.get('App.Models.User.1')!
@@ -258,5 +343,37 @@ describe('useConversationListRealtime', () => {
     await nextTick()
 
     expect(channel.listenerCount('.conversation.updated')).toBe(0)
+  })
+
+  it('repli : poll de la liste toutes les 30 s tant que le canal n\'est pas abonné, arrêt à la connexion', async () => {
+    vi.useFakeTimers()
+    const { calls } = mountList()
+    await flushPromises()
+
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(calls.poll).toHaveBeenCalledTimes(1)
+
+    await useNotificationStore().subscribe()
+    await vi.advanceTimersByTimeAsync(0)
+    channels.get('App.Models.User.1')!.connect()
+    await vi.advanceTimersByTimeAsync(90_000)
+    expect(calls.poll).toHaveBeenCalledTimes(1)
+  })
+
+  it('socket coupée : repli 30 s puis rattrapage unique au retour', async () => {
+    vi.useFakeTimers()
+    await subscribeStore()
+    const { calls } = mountList()
+    await flushPromises()
+    fakeConnection.setState('connected')
+
+    fakeConnection.setState('unavailable')
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(calls.poll).toHaveBeenCalledTimes(1)
+
+    fakeConnection.setState('connected')
+    expect(calls.poll).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(90_000)
+    expect(calls.poll).toHaveBeenCalledTimes(2)
   })
 })

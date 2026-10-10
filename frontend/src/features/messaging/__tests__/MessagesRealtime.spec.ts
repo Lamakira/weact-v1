@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import { useNotificationStore } from '@/stores/notification'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import MessagesWorkspace from '../components/MessagesWorkspace.vue'
 import { messagingApi } from '../services/messagingApi'
-import { channels, resetFakeEcho } from './fakeEcho'
+import { channels, fakeConnection, fakeEcho, resetFakeEcho } from './fakeEcho'
 import { makeConversation, makeListItem, makeMessage } from './fixtures'
 
 vi.mock('@/plugins/echo', async () => {
@@ -11,8 +13,11 @@ vi.mock('@/plugins/echo', async () => {
   return { echo: fakeEcho }
 })
 
-vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({ isEmailVerified: true, user: { id: 1 } }),
+const authState = vi.hoisted(() => ({ isEmailVerified: true, user: { id: 1 } }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => authState }))
+
+vi.mock('@/features/notification/services/notificationApi', () => ({
+  notificationApi: { getUnreadCount: vi.fn(), getNotifications: vi.fn(), markAsRead: vi.fn(), markAllAsRead: vi.fn() },
 }))
 
 vi.mock('../services/messagingApi', () => ({
@@ -26,6 +31,8 @@ vi.mock('../services/messagingApi', () => ({
     markConversationRead: vi.fn(),
   },
 }))
+
+enableAutoUnmount(afterEach)
 
 const api = vi.mocked(messagingApi)
 
@@ -42,7 +49,17 @@ function mockMatchMedia(desktop: boolean) {
   })
 }
 
-async function mountOpenThread(role: 'face' | 'producer' = 'face') {
+// L'App abonne le store de notifications (canal utilisateur) à la connexion
+async function connectUserChannel() {
+  const store = useNotificationStore()
+  await store.subscribe()
+  await vi.waitFor(() => expect(channels.has('App.Models.User.1')).toBe(true))
+  channels.get('App.Models.User.1')!.connect()
+  fakeConnection.setState('connected')
+}
+
+async function mountOpenThread(role: 'face' | 'producer' = 'face', index = 0) {
+  await connectUserChannel()
   const stub = { template: '<div />' }
   const router = createRouter({
     history: createMemoryHistory(),
@@ -60,7 +77,7 @@ async function mountOpenThread(role: 'face' | 'producer' = 'face') {
   const wrapper = mount(MessagesWorkspace, { props: { role }, global: { plugins: [router] } })
   await vi.waitFor(() => expect(channels.has('App.Models.User.1')).toBe(true))
   await flushPromises()
-  await wrapper.findAll('[data-testid="conversation-item"]')[0]!.trigger('click')
+  await wrapper.findAll('[data-testid="conversation-item"]')[index]!.trigger('click')
   await vi.waitFor(() => expect(channels.has('conversation.conv-1')).toBe(true))
   await flushPromises()
   return wrapper
@@ -79,6 +96,8 @@ const incoming = (overrides = {}) => ({
 })
 
 beforeEach(() => {
+  authState.isEmailVerified = true
+  setActivePinia(createPinia())
   vi.clearAllMocks()
   resetFakeEcho()
   mockMatchMedia(true)
@@ -266,5 +285,76 @@ describe('Messagerie temps réel — liste', () => {
 
     expect(wrapper.findAll('[data-testid="message-bubble"]')).toHaveLength(2)
     expect(api.markConversationRead).toHaveBeenCalledWith('producer', 'conv-1')
+  })
+})
+
+describe('Messagerie temps réel — robustesse', () => {
+  it('après un marquage lu réussi, le retour sur l\'onglet ne renvoie pas POST /read', async () => {
+    await mountOpenThread()
+    channels.get('conversation.conv-1')!.emit('.message.sent', incoming())
+    await flushPromises()
+    expect(api.markConversationRead).toHaveBeenCalledTimes(1)
+
+    document.dispatchEvent(new Event('visibilitychange'))
+    await flushPromises()
+
+    expect(api.markConversationRead).toHaveBeenCalledTimes(1)
+  })
+
+  it('utilisateur bloqué par la vérification d\'e-mail : aucun marquage lu, aucun abonnement au fil', async () => {
+    authState.isEmailVerified = false
+    await connectUserChannel()
+    const wrapper = mount(MessagesWorkspace, {
+      props: { role: 'face' },
+      global: {
+        plugins: [
+          createRouter({
+            history: createMemoryHistory(),
+            routes: [{ path: '/', component: { template: '<div />' } }],
+          }),
+        ],
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="conversation-list"]').exists()).toBe(false)
+    expect(api.markConversationRead).not.toHaveBeenCalled()
+    expect([...channels.keys()].some((name) => name.startsWith('conversation.'))).toBe(false)
+  })
+
+  it('envoi réussi : la conversation remonte en tête avec le nouvel aperçu', async () => {
+    api.getConversations.mockResolvedValue({
+      data: [makeListItem({ id: 'conv-2' }), makeListItem({ id: 'conv-1' })],
+      meta: { current_page: 1, last_page: 1, per_page: 15, total: 2 },
+    })
+    api.sendMessage.mockResolvedValue({
+      data: makeMessage({ id: 99, content: 'Ma réponse', sender_id: 1, is_own_message: true, created_at: '2030-10-09T13:00:00+00:00' }),
+    })
+    const wrapper = await mountOpenThread('face', 1) // conv-1 est en 2e position
+
+    await wrapper.find('textarea').setValue('Ma réponse')
+    await wrapper.find('textarea').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+
+    const first = wrapper.findAll('[data-testid="conversation-item"]')[0]!
+    expect(first.text()).toContain('Ma réponse')
+  })
+
+  it('un 403 pendant le polling coupe l\'abonnement et affiche l\'état d\'erreur', async () => {
+    await mountOpenThread()
+    vi.useFakeTimers()
+    api.getConversation.mockRejectedValue({ response: { status: 403 } })
+    channels.get('conversation.conv-1')!.fail()
+
+    await vi.advanceTimersByTimeAsync(15_000)
+    vi.useRealTimers()
+    await flushPromises()
+
+    expect(fakeEcho.leave).toHaveBeenCalledWith('conversation.conv-1')
+    api.getConversation.mockClear()
+    vi.useFakeTimers()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(api.getConversation).not.toHaveBeenCalled()
+    vi.useRealTimers()
   })
 })

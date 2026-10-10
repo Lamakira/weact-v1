@@ -1,9 +1,10 @@
-import { onActivated, onBeforeUnmount, onDeactivated, watch, type Ref } from 'vue'
+import { onBeforeUnmount, watch, type Ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import {
   THREAD_POLL_INTERVAL_MS,
   loadEcho,
   useVisiblePolling,
+  watchConnection,
   type EchoChannel,
   type EchoInstance,
 } from '../utils/realtime'
@@ -21,12 +22,15 @@ interface ConversationRealtimeHandlers {
 /**
  * Temps réel du fil ouvert : abonnement à `conversation.{uuid}` (canal privé Reverb).
  *
- * - s'abonne à l'ouverture d'un fil, quitte le canal au changement de fil, à la
- *   désactivation (keep-alive), au démontage et à la déconnexion ;
+ * - s'abonne à l'ouverture d'un fil, quitte le canal au changement de fil, au démontage
+ *   et à la déconnexion ;
+ * - un uuid `null` (aucun fil, ou fil en erreur 403/404) coupe l'abonnement ET le polling ;
  * - garde de génération contre les courses (chargement d'Echo asynchrone) ;
  * - repli : si Echo ne charge pas ou si le canal est en erreur, le fil est resynchronisé
  *   toutes les 15 s (onglet visible uniquement) ; le polling s'arrête dès que le temps
- *   réel est connecté. Aucun polling quand le temps réel fonctionne.
+ *   réel est connecté. Aucun polling quand le temps réel fonctionne ;
+ * - connexion WebSocket coupée (`unavailable`/`failed`) : même repli ; au retour de la
+ *   connexion, un rattrapage unique puis arrêt du polling.
  */
 export function useConversationRealtime(
   conversationUuid: Ref<string | null>,
@@ -38,7 +42,7 @@ export function useConversationRealtime(
   let generation = 0
   let echo: EchoInstance | null = null
   let channelName: string | null = null
-  let isActive = true
+  let stopWatchingConnection: (() => void) | null = null
 
   const polling = useVisiblePolling(() => {
     const uuid = conversationUuid.value
@@ -62,6 +66,18 @@ export function useConversationRealtime(
     }
     if (current !== generation) return
     echo = loaded
+
+    stopWatchingConnection?.()
+    stopWatchingConnection = watchConnection(loaded, {
+      onDown: () => {
+        if (current === generation) polling.start()
+      },
+      onUp: () => {
+        if (current !== generation) return
+        polling.stop()
+        void handlers.poll(uuid) // rattrapage des messages manqués pendant la coupure
+      },
+    })
 
     try {
       const channel = loaded.private(name) as unknown as EchoChannel
@@ -97,6 +113,8 @@ export function useConversationRealtime(
   function unsubscribe(): void {
     generation++
     polling.stop()
+    stopWatchingConnection?.()
+    stopWatchingConnection = null
     if (echo && channelName) {
       try {
         echo.leave(channelName)
@@ -111,7 +129,7 @@ export function useConversationRealtime(
     conversationUuid,
     (uuid) => {
       unsubscribe()
-      if (uuid && isActive) void subscribe(uuid)
+      if (uuid) void subscribe(uuid)
     },
     { immediate: true },
   )
@@ -124,17 +142,7 @@ export function useConversationRealtime(
     },
   )
 
-  onDeactivated(() => {
-    isActive = false
-    unsubscribe()
-  })
-  onActivated(() => {
-    if (isActive) return
-    isActive = true
-    if (conversationUuid.value) void subscribe(conversationUuid.value)
-  })
   onBeforeUnmount(() => {
-    isActive = false
     unsubscribe()
   })
 

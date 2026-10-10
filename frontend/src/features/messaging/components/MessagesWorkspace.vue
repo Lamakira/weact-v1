@@ -9,7 +9,7 @@
  * `<role>-conversation`, ce qui garde le bouton retour du navigateur cohérent ;
  * ce même composant sert les deux routes (liste et deep link vers un fil).
  */
-import { computed, onActivated, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { MessageSquare } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
@@ -24,7 +24,7 @@ import { useSendProducerMessage } from '../composables/useSendProducerMessage'
 import { useConversationRealtime } from '../composables/useConversationRealtime'
 import { useConversationListRealtime } from '../composables/useConversationListRealtime'
 import { messagingApi } from '../services/messagingApi'
-import { applyConversationUpdate } from '../utils/conversationList'
+import { applyConversationUpdate, previewContent } from '../utils/conversationList'
 import ConversationContextPanel from './ConversationContextPanel.vue'
 import ConversationListPane from './ConversationListPane.vue'
 import MessageThread from './MessageThread.vue'
@@ -69,6 +69,7 @@ const {
   refreshConversation,
   addMessage,
   markOwnMessagesRead,
+  markReceivedMessagesRead,
   syncConversation,
   clearRefreshError,
   reset: resetConversation,
@@ -142,17 +143,25 @@ async function handleSend(): Promise<void> {
   resetSendError()
   const sent = await sendMessage(id, content)
   if (sent) {
-    addMessage(sent)
+    if (selectedId.value === id) addMessage(sent)
     newMessageText.value = ''
-    const item = conversations.value.find((conversation) => conversation.id === id)
-    if (item) {
-      item.latest_message = {
-        content: sent.content,
-        sender_name: sent.sender_name,
-        is_mine: true,
-        created_at: sent.created_at,
-      }
-    }
+    // Onglet courant : aperçu + remontée en tête (les autres onglets reçoivent l'événement)
+    applyConversationUpdate(
+      conversations.value,
+      {
+        conversation_id: id,
+        latest_message: {
+          id: sent.id,
+          content: previewContent(sent.content),
+          sender_id: sent.sender_id,
+          sender_name: sent.sender_name,
+          created_at: sent.created_at,
+        },
+        unread_count: 0,
+        updated_at: sent.created_at,
+      },
+      sent.sender_id, // l'expéditeur, c'est moi : is_mine = true
+    )
   }
 }
 
@@ -178,12 +187,21 @@ function isTabVisible(): boolean {
 }
 
 // Le destinataire a le fil ouvert et l'onglet visible : on marque lu côté serveur
+function hasUnreadIncoming(): boolean {
+  return messages.value.some((message) => !message.is_own_message && !message.read_at)
+}
+
 async function markOpenThreadRead(): Promise<void> {
   const id = selectedId.value
-  if (!id || !isTabVisible()) return
+  // Jamais de marquage « lu » derrière le mur de vérification d'e-mail
+  if (!id || !isTabVisible() || !authStore.isEmailVerified) return
   try {
     await messagingApi.markConversationRead(props.role, id)
-    if (selectedId.value === id) markListItemRead(id)
+    if (selectedId.value === id) {
+      markListItemRead(id)
+      // Évite un POST /read inutile au prochain retour sur l'onglet
+      markReceivedMessagesRead(new Date().toISOString())
+    }
   } catch {
     // Non bloquant : le prochain message ou le retour sur l'onglet réessaiera
   }
@@ -219,12 +237,17 @@ function handleConversationUpdated(update: ConversationUpdatedBroadcast): void {
   if (!known) void syncConversations()
 }
 
-useConversationRealtime(selectedId, props.role, {
+// Aucun abonnement ni polling pour un fil en erreur (403/404) ou derrière le mur d'e-mail
+const realtimeConversationId = computed(() =>
+  authStore.isEmailVerified && !conversationError.value ? selectedId.value : null,
+)
+
+useConversationRealtime(realtimeConversationId, props.role, {
   onMessage: handleIncomingMessage,
   onRead: handleReadReceipt,
   poll: async (uuid) => {
     await syncConversation(uuid)
-    if (selectedId.value === uuid) void markOpenThreadRead()
+    if (selectedId.value === uuid && hasUnreadIncoming()) void markOpenThreadRead()
   },
 })
 
@@ -236,22 +259,8 @@ useConversationListRealtime({
 // Retour sur l'onglet : les messages reçus pendant l'absence sont marqués lus
 function handleVisibilityChange(): void {
   if (!isTabVisible()) return
-  if (messages.value.some((message) => !message.is_own_message && !message.read_at)) {
-    void markOpenThreadRead()
-  }
+  if (hasUnreadIncoming()) void markOpenThreadRead()
 }
-
-// Page en cache (keep-alive) : à la réactivation, resynchroniser ce qui a pu changer
-// (la toute première activation suit le montage, déjà chargé).
-let isFirstActivation = true
-onActivated(() => {
-  if (isFirstActivation) {
-    isFirstActivation = false
-    return
-  }
-  void syncConversations()
-  if (selectedId.value) void syncConversation(selectedId.value)
-})
 
 function goToMissions(): void {
   void router.push({ name: props.role === 'face' ? 'face-missions' : 'producer-missions' })

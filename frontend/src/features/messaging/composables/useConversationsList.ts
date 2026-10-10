@@ -86,8 +86,16 @@ export function useConversationsList() {
   async function syncConversations(): Promise<void> {
     try {
       const response = await messagingApi.getConversations(1)
-      conversations.value = response.data
-      meta.value = response.meta
+      // Rafraîchit la page 1 SANS perdre les pages déjà chargées (« charger plus »)
+      const freshIds = new Set(response.data.map((conversation) => conversation.id))
+      conversations.value = [
+        ...response.data,
+        ...conversations.value.filter((conversation) => !freshIds.has(conversation.id)),
+      ]
+      meta.value = {
+        ...response.meta,
+        current_page: Math.max(meta.value?.current_page ?? 1, response.meta.current_page),
+      }
     } catch {
       // Silencieux : le prochain tick réessaiera
     }

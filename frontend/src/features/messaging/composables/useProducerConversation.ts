@@ -13,6 +13,11 @@ export function useProducerConversation() {
   const error = ref<string | null>(null)
   const refreshError = ref<string | null>(null)
 
+  // Incrémenté à chaque ouverture / réinitialisation de fil : toute réponse réseau qui
+  // revient après un changement de fil est périmée et ne doit JAMAIS être appliquée
+  // (sinon le fil B afficherait A alors que l'envoi part vers B).
+  let epoch = 0
+
   // Computed properties
   const messages = computed(() => conversation.value?.messages ?? [])
   const otherParticipant = computed(() => conversation.value?.other_participant)
@@ -25,14 +30,17 @@ export function useProducerConversation() {
    * @param conversationId The conversation ID to load
    */
   async function loadConversation(conversationId: string): Promise<boolean> {
+    const requestEpoch = ++epoch
     isLoading.value = true
     error.value = null
 
     try {
       const response = await messagingApi.getProducerConversation(conversationId)
+      if (requestEpoch !== epoch || response.data.id !== conversationId) return false
       conversation.value = response.data
       return true
     } catch (err: unknown) {
+      if (requestEpoch !== epoch) return false
       // Handle API error response
       if (err && typeof err === 'object' && 'response' in err) {
         const axiosError = err as {
@@ -51,7 +59,7 @@ export function useProducerConversation() {
       console.error('Failed to load conversation:', err)
       return false
     } finally {
-      isLoading.value = false
+      if (requestEpoch === epoch) isLoading.value = false
     }
   }
 
@@ -77,14 +85,37 @@ export function useProducerConversation() {
   }
 
   /**
+   * After a successful POST /read: the messages received so far are read server-side
+   */
+  function markReceivedMessagesRead(readAt: string): void {
+    for (const message of conversation.value?.messages ?? []) {
+      if (!message.is_own_message && !message.read_at) message.read_at = readAt
+    }
+  }
+
+  /**
    * Silent resync (polling fallback): replaces messages without touching loading/error state
    */
   async function syncConversation(conversationId: string): Promise<void> {
+    const requestEpoch = epoch
     try {
       const response = await messagingApi.getProducerConversation(conversationId)
-      if (conversation.value) conversation.value = response.data
-    } catch {
-      // Silencieux : le prochain tick réessaiera
+      if (
+        requestEpoch !== epoch
+        || response.data.id !== conversationId
+        || conversation.value?.id !== conversationId
+      ) {
+        return
+      }
+      conversation.value = response.data
+    } catch (err: unknown) {
+      if (requestEpoch !== epoch) return
+      // Accès retiré / conversation supprimée : état d'erreur existant, le temps réel
+      // et le polling s'arrêtent (le composant passe l'uuid à null quand `error` est posé)
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 403) error.value = "Vous n'avez pas accès à cette conversation"
+      else if (status === 404) error.value = 'Conversation introuvable'
+      // Autres erreurs : silencieux, le prochain tick réessaiera
     }
   }
 
@@ -97,14 +128,17 @@ export function useProducerConversation() {
     // Prevent double refresh
     if (isRefreshing.value) return false
 
+    const requestEpoch = epoch
     isRefreshing.value = true
     refreshError.value = null
 
     try {
       const response = await messagingApi.getProducerConversation(conversationId)
+      if (requestEpoch !== epoch || response.data.id !== conversationId) return false
       conversation.value = response.data
       return true
     } catch (err: unknown) {
+      if (requestEpoch !== epoch) return false
       // Don't clear existing messages on refresh failure
       refreshError.value = 'Impossible de rafraîchir les messages'
       console.error('Failed to refresh conversation:', err)
@@ -125,6 +159,9 @@ export function useProducerConversation() {
    * Reset conversation state
    */
   function reset(): void {
+    epoch++
+    isLoading.value = false
+    isRefreshing.value = false
     conversation.value = null
     error.value = null
     refreshError.value = null
@@ -145,6 +182,7 @@ export function useProducerConversation() {
     refreshConversation,
     addMessage,
     markOwnMessagesRead,
+    markReceivedMessagesRead,
     syncConversation,
     clearRefreshError,
     reset,

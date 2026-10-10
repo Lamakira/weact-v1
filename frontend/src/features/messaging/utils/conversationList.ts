@@ -18,6 +18,13 @@ export function applyConversationUpdate(
   if (index === -1) return false
 
   const item = conversations[index]!
+
+  // Événements dans le désordre (plusieurs workers) : on ignore une mise à jour plus
+  // ancienne que le dernier message déjà affiché (la conversation reste « connue »).
+  const shownAt = item.latest_message ? Date.parse(item.latest_message.created_at) : Number.NaN
+  const incomingAt = Date.parse(update.latest_message.created_at)
+  if (!Number.isNaN(shownAt) && !Number.isNaN(incomingAt) && incomingAt < shownAt) return true
+
   item.latest_message = {
     content: update.latest_message.content,
     sender_name: update.latest_message.sender_name,
@@ -32,4 +39,9 @@ export function applyConversationUpdate(
     conversations.unshift(item)
   }
   return true
+}
+
+/** Aperçu de la liste : même troncature que le serveur (50 caractères + « ... »). */
+export function previewContent(content: string): string {
+  return content.length > 50 ? `${content.slice(0, 50)}...` : content
 }
