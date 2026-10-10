@@ -10,8 +10,14 @@ set -euo pipefail
 # --- Configuration -----------------------------------------------------------
 BACKUP_DIR="/var/backups/weact-mysql"
 DB_NAME="weact"
-DB_USER="root"
-DB_PASS="CHANGE_ME"    # <-- CHANGE THIS to your MySQL password
+# Identifiants MySQL lus dans un fichier d'options protégé (chmod 600), jamais dans ce script :
+#   /root/.my.cnf
+#   [mysqldump]
+#   user=...
+#   password=...
+# Le script reste ainsi identique au dépôt (aucune modification locale qui bloquerait `git pull` au déploiement)
+# et le mot de passe n'apparaît plus dans la liste des processus.
+MYSQL_DEFAULTS_FILE="${MYSQL_DEFAULTS_FILE:-/root/.my.cnf}"
 RETENTION_DAYS=7
 DATE=$(date +%Y-%m-%d_%H%M)
 FILENAME="${DB_NAME}_${DATE}.sql.gz"
@@ -27,9 +33,13 @@ log() {
 # --- Backup ------------------------------------------------------------------
 log "Starting backup: $FILENAME"
 
+if [ ! -r "$MYSQL_DEFAULTS_FILE" ]; then
+  log "ERROR: fichier d'identifiants MySQL introuvable ou illisible : $MYSQL_DEFAULTS_FILE"
+  exit 1
+fi
+
 if mysqldump \
-  -u"$DB_USER" \
-  -p"$DB_PASS" \
+  --defaults-extra-file="$MYSQL_DEFAULTS_FILE" \
   --single-transaction \
   --routines \
   --triggers \
