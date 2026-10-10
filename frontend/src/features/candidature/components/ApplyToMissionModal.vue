@@ -19,6 +19,7 @@ const props = defineProps<{
  */
 const emit = defineEmits<{
   (e: 'close'): void
+  (e: 'subscription-required', message: string): void
   (e: 'success', candidature: { id: string; status: string; status_label: string }): void
 }>()
 
@@ -62,6 +63,16 @@ async function handleSubmit(): Promise<void> {
   if (!canSubmit.value) return
 
   const result = await apply(props.missionId, undefined)
+
+  if (
+    !result.success &&
+    (result.error?.code === 'SUBSCRIPTION_REQUIRED' ||
+      result.error?.code === 'UGC_SUBSCRIPTION_REQUIRED')
+  ) {
+    // Paywall : la page ferme la modale, informe et redirige vers /pricing.
+    emit('subscription-required', result.error.message)
+    return
+  }
 
   if (result.success && result.data) {
     emit('success', {

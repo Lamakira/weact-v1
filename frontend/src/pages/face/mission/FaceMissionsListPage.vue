@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Inbox,
@@ -11,7 +11,12 @@ import {
   X,
 } from 'lucide-vue-next'
 import { useFaceMissions, useMissionFilters } from '@/features/mission/composables'
-import { AvailableMissionCard, MissionFiltersPanel } from '@/features/mission/components'
+import {
+  AvailableMissionCard,
+  MissionFiltersPanel,
+  ApplySubscriptionBanner,
+} from '@/features/mission/components'
+import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'
 import { UgcDiscoveryBanner } from '@/components/ugc'
 import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 import { useDismissOnDeactivate } from '@/composables/useDismissOnDeactivate'
@@ -58,6 +63,14 @@ const {
   reinitFromUrl,
 } = useMissionFilters()
 
+// Candidatures réservées aux Faces abonnées : bandeau pour le tier Free, jamais pendant
+// le chargement du statut (`data` null = inconnu).
+const { data: subscriptionData, tier: subscriptionTier, fetchStatus: fetchSubscriptionStatus } =
+  useSubscriptionStatus()
+const showApplyPaywall = computed(
+  () => subscriptionData.value !== null && subscriptionTier.value === 'free',
+)
+
 // Mobile filter panel visibility
 const showFiltersPanel = ref(false)
 
@@ -68,6 +81,7 @@ onMounted(() => {
   // Initialize filters from URL then fetch
   initFromUrl()
   fetchMissions(1, filters.value)
+  void fetchSubscriptionStatus()
 })
 
 // #7 — this page is cached under <keep-alive> in FaceLayout, so onMounted does
@@ -82,6 +96,7 @@ onMounted(() => {
 // shows when the list is empty), so there's no flash on return.
 useRefreshOnReturn(() => {
   reinitFromUrl()
+  void fetchSubscriptionStatus()
   return refreshMissions(filters.value)
 })
 
@@ -229,6 +244,9 @@ function toggleFiltersPanel(): void {
           test-id="ugc-discovery-cta"
           class="mb-6"
         />
+
+        <!-- Candidatures réservées aux Faces abonnées (tier Free) -->
+        <ApplySubscriptionBanner v-if="showApplyPaywall" />
 
         <!-- Loading State -->
         <div v-if="isLoading && !missions.length" class="grid gap-4 min-[376px]:gap-6 sm:grid-cols-2 xl:grid-cols-3">

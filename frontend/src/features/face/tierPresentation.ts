@@ -28,7 +28,7 @@ export const TIER_PRESENTATION: Record<FaceSubscriptionTier, TierPresentation> =
   },
   starter: {
     name: 'Starter',
-    tagline: 'Décroche tes premiers contrats UGC',
+    tagline: 'Postule aux missions et décroche tes premiers contrats',
     badge: null,
     miseEnAvant: 'Boostée',
   },
@@ -79,6 +79,9 @@ export function buildTierFeatureLines(
   }
   if (capabilities.max_ugc_videos > 0) {
     lines.push({ text: '1 vidéo modèle UGC', highlight: false })
+  }
+  if (tier !== 'free') {
+    lines.push({ text: 'Postuler aux missions', highlight: false })
   }
   if (capabilities.ugc_access) {
     lines.push({ text: 'Accès complet au module UGC', highlight: false })

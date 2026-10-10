@@ -43,6 +43,7 @@ defineProps<{
   isReconfirming: boolean
   isCancelling: boolean
   canApply: boolean
+  isSubscriptionGated: boolean
   isResendingVerification: boolean
   isGenderContextUnknown: boolean
   isRefreshingGenderContext: boolean
@@ -56,6 +57,7 @@ defineEmits<{
   cancel: []
   reconfirm: []
   'resend-verification': []
+  'view-pricing': []
   'confirm-receipt': []
   upload: [file: File]
 }>()
@@ -153,6 +155,27 @@ defineEmits<{
           <Mail v-if="!isResendingVerification" class="h-4 w-4" />
           <Loader2 v-else class="h-4 w-4 animate-spin" />
           {{ isResendingVerification ? 'Envoi...' : "Renvoyer l'email" }}
+        </button>
+      </div>
+    </div>
+
+    <!-- State 2b: Candidatures réservées aux Faces abonnées (missions standard, tier Free) -->
+    <div
+      v-else-if="mission.is_accepting_candidatures && isSubscriptionGated"
+      class="rounded-[10px] bg-white p-3 ring-1 ring-[#E5E5E5] min-[376px]:p-4"
+      data-testid="subscription-required-block"
+    >
+      <div class="flex flex-col gap-3">
+        <p class="text-xs min-[376px]:text-sm text-[#525252]">
+          Les candidatures sont réservées aux Faces abonnées. Les Producteurs peuvent toujours vous réserver directement.
+        </p>
+        <button
+          type="button"
+          class="w-full inline-flex items-center justify-center gap-2 rounded-[10px] bg-[#167686] px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#126676]"
+          data-testid="view-pricing-button"
+          @click="$emit('view-pricing')"
+        >
+          Voir les abonnements
         </button>
       </div>
     </div>
