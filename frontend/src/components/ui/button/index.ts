@@ -17,12 +17,19 @@ export const buttonVariants = cva(
           'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
+        // Direction « Régie » (dashboards) : primaire teal 600, secondaire blanc + anneau
+        regie:
+          'rounded-[10px] bg-weact-600 text-white font-semibold hover:bg-weact-700 focus-visible:ring-2 focus-visible:ring-weact-600 focus-visible:ring-offset-1',
+        'regie-secondary':
+          'rounded-[10px] bg-white text-ink font-semibold ring-1 ring-line hover:bg-sidebar focus-visible:ring-2 focus-visible:ring-weact-600',
       },
       size: {
         default: 'h-9 px-4 py-2',
         sm: 'h-8 rounded-md px-3 text-xs',
         lg: 'h-10 rounded-md px-8',
         icon: 'h-9 w-9',
+        // 40 px tactile sur mobile, 32 px dès md
+        regie: 'h-10 px-3 text-[13px] md:h-8',
       },
     },
     defaultVariants: {

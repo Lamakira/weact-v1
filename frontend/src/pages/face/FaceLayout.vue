@@ -7,7 +7,7 @@
  */
 import { onMounted, ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { LayoutDashboard, FileText, MessageCircle, User, Briefcase, CalendarCheck, Wallet, CreditCard, Tags, Video } from 'lucide-vue-next'
+import { LayoutDashboard, FileText, MessageCircle, User, Briefcase, CalendarCheck, Wallet, CreditCard, Tags, Video, House } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { DashboardLayout, KeepAliveRouterView, type SidebarItem } from '@/components/layout'
@@ -41,6 +41,14 @@ const sidebarItems: SidebarItem[] = [
   { label: 'Facturation', icon: CreditCard, to: '/face/billing' },
   { label: 'Tarifs', icon: Tags, to: '/pricing' },
   { label: 'Mon profil', icon: User, to: '/face/profile' },
+]
+
+// Bottom tab bar (mobile): the 4 main destinations; the drawer keeps the rest
+const mobileTabs: SidebarItem[] = [
+  { label: 'Accueil', icon: House, to: '/face/dashboard' },
+  { label: 'Missions', icon: Briefcase, to: '/face/missions' },
+  { label: 'Messages', icon: MessageCircle, to: '/face/messages' },
+  { label: 'Profil', icon: User, to: '/face/profile' },
 ]
 
 // Computed user name from Face profile
@@ -86,6 +94,7 @@ async function handleLogout(): Promise<void> {
 <template>
   <DashboardLayout
     :sidebar-items="sidebarItems"
+    :mobile-tabs="mobileTabs"
     title="Face Dashboard"
     :user-email="authStore.user?.email"
     :user-name="userName"
