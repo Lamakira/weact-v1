@@ -13,6 +13,7 @@ interface EchoChannel {
 }
 
 interface EchoConnection {
+  state?: string
   bind: (event: 'connected', callback: () => void) => void
   unbind: (event: 'connected', callback: () => void) => void
 }
@@ -181,7 +182,16 @@ export const useNotificationStore = defineStore('notification', () => {
     const connection = getEchoConnection()
     if (!connection || reconnectHandler) return
 
+    // Pusher émet `connected` aussi à la PREMIÈRE connexion : le compteur vient
+    // d'être chargé au démarrage, seul un vrai retour de connexion doit recharger.
+    let skipInitialConnect = connection.state !== 'connected'
+
     reconnectHandler = () => {
+      if (skipInitialConnect) {
+        skipInitialConnect = false
+        return
+      }
+
       void fetchUnreadCount()
 
       if (hasFetchedItems.value) {
