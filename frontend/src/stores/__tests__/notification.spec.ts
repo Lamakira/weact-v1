@@ -565,12 +565,24 @@ describe('useNotificationStore', () => {
       expect(mockGetUnreadCount).toHaveBeenCalledTimes(2)
     })
 
+    it('ignores the initial `connected` event (count already loaded at boot)', async () => {
+      mockGetUnreadCount.mockResolvedValue({ count: 7 })
+      await subscribeWithAuthenticatedUser()
+
+      const connectedHandler = mockBind.mock.calls[0][1] as () => void
+      connectedHandler()
+      await Promise.resolve()
+
+      expect(mockGetUnreadCount).not.toHaveBeenCalled()
+    })
+
     it('triggers fetchUnreadCount on reconnect', async () => {
       mockGetUnreadCount.mockResolvedValue({ count: 7 })
       await subscribeWithAuthenticatedUser()
 
       const reconnectHandler = mockBind.mock.calls[0][1] as () => void
-      reconnectHandler()
+      reconnectHandler() // première connexion : ignorée
+      reconnectHandler() // reconnexion
       await Promise.resolve()
 
       expect(mockGetUnreadCount).toHaveBeenCalledOnce()
@@ -583,7 +595,8 @@ describe('useNotificationStore', () => {
       mockGetNotifications.mockClear()
 
       const reconnectHandler = mockBind.mock.calls[0][1] as () => void
-      reconnectHandler()
+      reconnectHandler() // première connexion : ignorée
+      reconnectHandler() // reconnexion
       await Promise.resolve()
 
       expect(mockGetNotifications).toHaveBeenCalledWith(1)

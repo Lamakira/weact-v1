@@ -1,129 +1,98 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { RouterLink } from 'vue-router'
+import RStatusDot from '@/components/regie/RStatusDot.vue'
+import { candidatureStatusDot } from '@/components/regie/statusTone'
+import ParticipantAvatar from './ParticipantAvatar.vue'
 import type { ConversationListItem } from '../types'
+import { formatListTime } from '../utils/messageFormat'
 
-/**
- * Props
- */
 const props = defineProps<{
   conversation: ConversationListItem
-  routeName: 'face-conversation' | 'producer-conversation'
+  selected?: boolean
 }>()
 
-/**
- * Computed: Has unread messages
- */
+const emit = defineEmits<{ (e: 'select', conversation: ConversationListItem): void }>()
+
 const hasUnread = computed(() => props.conversation.unread_count > 0)
 
-/**
- * Computed: Participant initials for fallback avatar
- */
-const participantInitials = computed(() => {
-  return props.conversation.other_participant.name.charAt(0).toUpperCase()
+const time = computed(() =>
+  props.conversation.latest_message
+    ? formatListTime(props.conversation.latest_message.created_at)
+    : '',
+)
+
+const dot = computed(() =>
+  props.conversation.context ? candidatureStatusDot(props.conversation.context.candidature_status) : null,
+)
+
+const contextLine = computed(() => {
+  const context = props.conversation.context
+  return context ? `${context.type_label} · ${context.title}` : props.conversation.mission_title
 })
 
-/**
- * Computed: Format relative time for last message
- */
-const formattedTime = computed(() => {
-  if (!props.conversation.latest_message) return ''
-
-  const messageDate = new Date(props.conversation.latest_message.created_at)
-  const now = new Date()
-  const diffMs = now.getTime() - messageDate.getTime()
-  const diffMins = Math.floor(diffMs / (1000 * 60))
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-
-  if (diffMins < 1) return "À l'instant"
-  if (diffMins < 60) return `${diffMins} min`
-  if (diffHours < 24) return `${diffHours}h`
-  if (diffDays < 7) return `${diffDays}j`
-
-  return new Intl.DateTimeFormat('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-  }).format(messageDate)
-})
-
-/**
- * Computed: Last message preview text
- */
-const lastMessagePreview = computed(() => {
-  if (!props.conversation.latest_message) return 'Nouvelle conversation'
-
-  const prefix = props.conversation.latest_message.is_mine ? 'Vous: ' : ''
-  return prefix + props.conversation.latest_message.content
+const preview = computed(() => {
+  const latest = props.conversation.latest_message
+  if (!latest) return 'Nouvelle conversation'
+  return (latest.is_mine ? 'Vous : ' : '') + latest.content
 })
 </script>
 
 <template>
-  <RouterLink
-    :to="{ name: routeName, params: { conversationId: conversation.id } }"
-    class="flex items-center gap-3 rounded-xl border border-border bg-card p-3 transition-all hover:border-primary/50 hover:shadow-md sm:p-4"
-    :class="{ 'bg-primary/5 border-primary/20': hasUnread }"
-  >
-    <!-- Avatar -->
-    <div
-      class="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border-2"
-      :class="hasUnread ? 'border-primary' : 'border-border'"
+  <li class="relative">
+    <span
+      v-if="selected"
+      class="absolute inset-y-0 left-0 w-[3px] bg-weact-600"
+      aria-hidden="true"
+    />
+    <button
+      type="button"
+      class="flex w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-sidebar focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-weact-600"
+      :class="selected ? 'bg-weact-600/5' : ''"
+      :aria-current="selected ? 'true' : undefined"
+      data-testid="conversation-item"
+      :data-unread="hasUnread"
+      @click="emit('select', conversation)"
     >
-      <img
-        v-if="conversation.other_participant.profile_photo_thumbnail_url || conversation.other_participant.photo_url"
-        :src="conversation.other_participant.profile_photo_thumbnail_url || conversation.other_participant.photo_url || undefined"
-        :alt="conversation.other_participant.name"
-        class="h-full w-full object-cover"
-        loading="lazy"
-        width="48"
-        height="48"
-        decoding="async"
+      <ParticipantAvatar
+        :participant="conversation.other_participant"
+        size-class="size-11 lg:size-9"
       />
-      <div
-        v-else
-        class="flex h-full w-full items-center justify-center bg-primary/10 text-sm font-bold uppercase text-primary"
-      >
-        {{ participantInitials }}
-      </div>
-    </div>
-
-    <!-- Content Area -->
-    <div class="min-w-0 flex-1">
-      <!-- Name and Time -->
-      <div class="flex items-center justify-between gap-2">
-        <p
-          class="truncate text-sm"
-          :class="hasUnread ? 'font-semibold text-foreground' : 'font-medium text-foreground'"
-        >
-          {{ conversation.other_participant.name }}
-        </p>
-        <span class="shrink-0 text-xs text-muted-foreground">
-          {{ formattedTime }}
+      <span class="min-w-0 flex-1">
+        <span class="flex items-baseline justify-between gap-2">
+          <span
+            class="truncate text-[14.5px] text-ink lg:text-[13.5px]"
+            :class="hasUnread ? 'font-semibold' : 'font-medium'"
+          >
+            {{ conversation.other_participant.name }}
+          </span>
+          <span
+            class="shrink-0 text-[12px] lg:text-[11.5px]"
+            :class="hasUnread ? 'font-semibold text-weact-700' : 'text-ink-3'"
+          >
+            {{ time }}
+          </span>
         </span>
-      </div>
-
-      <!-- Mission Title -->
-      <p class="mt-0.5 truncate text-xs text-muted-foreground">
-        {{ conversation.mission_title }}
-      </p>
-
-      <!-- Last Message Preview and Unread Badge -->
-      <div class="mt-1 flex items-center justify-between gap-2">
-        <p
-          class="truncate text-sm"
-          :class="hasUnread ? 'font-medium text-foreground' : 'text-muted-foreground'"
-        >
-          {{ lastMessagePreview }}
-        </p>
-
-        <!-- Unread Badge -->
-        <span
-          v-if="hasUnread"
-          class="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground"
-        >
-          {{ conversation.unread_count > 99 ? '99+' : conversation.unread_count }}
+        <span class="flex items-center gap-1.5 text-[12px] text-ink-3 lg:text-[11.5px]">
+          <RStatusDot v-if="dot" :tone="dot.tone" :label="dot.label" hide-label />
+          <span class="truncate">{{ contextLine }}</span>
         </span>
-      </div>
-    </div>
-  </RouterLink>
+        <span class="mt-0.5 flex items-center gap-2">
+          <span
+            class="flex-1 truncate text-[13.5px] lg:text-[12.5px]"
+            :class="hasUnread ? 'font-semibold text-ink' : 'text-ink-3'"
+          >
+            {{ preview }}
+          </span>
+          <span
+            v-if="hasUnread"
+            class="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-weact-600 px-1.5 text-[11px] font-semibold text-white"
+            data-testid="unread-badge"
+          >
+            {{ conversation.unread_count > 99 ? '99+' : conversation.unread_count }}
+            <span class="sr-only">message{{ conversation.unread_count > 1 ? 's' : '' }} non lu{{ conversation.unread_count > 1 ? 's' : '' }}</span>
+          </span>
+        </span>
+      </span>
+    </button>
+  </li>
 </template>

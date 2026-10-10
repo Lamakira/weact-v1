@@ -5,7 +5,7 @@
  * Design: Régie — titre de page à gauche, actions secondaires (slot `actions`),
  * cloche, avatar.
  */
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { Menu, LogOut, Loader2, User } from 'lucide-vue-next'
 import { RouterLink } from 'vue-router'
 import NotificationBell from '@/features/notification/components/NotificationBell.vue'
@@ -21,7 +21,7 @@ interface Props {
   profileRoute?: string
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   title: 'Dashboard',
   userEmail: '',
   userName: '',
@@ -36,6 +36,16 @@ const emit = defineEmits<{
 }>()
 
 const { openMobile } = useSidebarState()
+
+// Photo illisible : repli sur les initiales ; réarmé si l'URL change
+const avatarFailed = ref(false)
+watch(
+  () => props.avatarUrl,
+  () => {
+    avatarFailed.value = false
+  },
+)
+const showAvatarImage = computed(() => !!props.avatarUrl && !avatarFailed.value)
 
 // Avatar dropdown state
 const isDropdownOpen = ref(false)
@@ -143,19 +153,20 @@ onUnmounted(() => {
           @click="toggleDropdown"
           type="button"
           class="relative flex h-9 w-9 items-center justify-center rounded-full overflow-hidden transition-all hover:ring-2 hover:ring-weact-600/30 focus:outline-none focus:ring-2 focus:ring-weact-600 focus:ring-offset-2"
-          :class="avatarUrl ? '' : 'bg-gradient-to-tr from-weact-600 to-weact-300'"
+          :class="showAvatarImage ? '' : 'bg-weact-50'"
           aria-haspopup="true"
           :aria-expanded="isDropdownOpen"
           aria-label="Menu utilisateur"
           data-testid="header-avatar"
         >
           <img
-            v-if="avatarUrl"
-            :src="avatarUrl"
+            v-if="showAvatarImage"
+            :src="avatarUrl ?? undefined"
             :alt="userName || userEmail || 'User'"
             class="h-full w-full object-cover"
+            @error="avatarFailed = true"
           />
-          <span v-else class="text-white font-bold text-sm">
+          <span v-else class="text-weact-700 font-bold text-sm">
             {{ userName ? userName.charAt(0).toUpperCase() : userEmail ? userEmail.charAt(0).toUpperCase() : 'U' }}
           </span>
         </button>

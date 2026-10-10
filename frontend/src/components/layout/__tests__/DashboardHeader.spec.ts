@@ -109,6 +109,18 @@ describe('DashboardHeader', () => {
       expect(avatar.find('img').attributes('src')).toBe('https://example.com/avatar.jpg')
     })
 
+    it('falls back to initials on a teal circle when the image fails to load', async () => {
+      const wrapper = mountHeader({ userName: 'John Doe', avatarUrl: 'https://example.com/broken.jpg' })
+      const avatar = wrapper.find('[data-testid="header-avatar"]')
+
+      await avatar.find('img').trigger('error')
+
+      expect(avatar.find('img').exists()).toBe(false)
+      expect(avatar.text()).toBe('J')
+      expect(avatar.classes()).toContain('bg-weact-50')
+      expect(avatar.find('span').classes()).toContain('text-weact-700')
+    })
+
     it('shows initials when no avatarUrl', () => {
       const wrapper = mountHeader({ userName: 'John Doe', avatarUrl: null })
       const avatar = wrapper.find('[data-testid="header-avatar"]')

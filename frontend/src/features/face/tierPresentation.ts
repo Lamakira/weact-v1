@@ -1,4 +1,16 @@
-import type { FaceSubscriptionTier, TierCapabilities } from './types'
+import type { FaceSubscriptionTier, SubscriptionCurrent, TierCapabilities } from './types'
+
+/**
+ * Tier shown to the Face: a cancelled / expired subscription surfaces the lapsed plan
+ * (not « Découverte »), like the Facturation tab.
+ */
+export function displayTierOf(current: SubscriptionCurrent | null): FaceSubscriptionTier {
+  if (!current) return 'free'
+  if ((current.status === 'cancelled' || current.status === 'expired') && current.plan) {
+    return current.plan
+  }
+  return current.tier
+}
 
 interface TierPresentation {
   name: string

@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { dataTableFeatures, type DataTableColumn } from './dataTableFeatures'
+import { dataTableFeatures, type DataTableColumn, type DataTableColumnMeta } from './dataTableFeatures'
 import { PER_PAGE_OPTIONS } from './listQuery'
 
 /**
@@ -122,6 +122,18 @@ function ariaSort(sorted: false | 'asc' | 'desc'): 'none' | 'ascending' | 'desce
   return 'none'
 }
 
+function metaOf(column: { columnDef: unknown }): DataTableColumnMeta {
+  return ((column.columnDef as { meta?: DataTableColumnMeta }).meta ?? {}) as DataTableColumnMeta
+}
+
+const STICKY_HEAD = 'sticky right-0 z-10 bg-[color-mix(in_oklab,var(--color-muted)_40%,var(--color-card))] shadow-[-1px_0_0_0_var(--color-border)]'
+const STICKY_CELL = 'sticky right-0 z-10 bg-card shadow-[-1px_0_0_0_var(--color-border)]'
+
+function columnClass(column: { columnDef: unknown }, part: 'head' | 'cell'): (string | undefined)[] {
+  const meta = metaOf(column)
+  return [meta.sticky === 'right' ? (part === 'head' ? STICKY_HEAD : STICKY_CELL) : undefined, meta.class]
+}
+
 function onPageChange(page: number): void {
   table.setPageIndex(page - 1)
 }
@@ -197,6 +209,7 @@ function onRowClick(event: MouseEvent, row: T): void {
               :key="header.id"
               scope="col"
               :aria-sort="header.column.getCanSort() ? ariaSort(header.column.getIsSorted()) : undefined"
+              :class="columnClass(header.column, 'head')"
               class="px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
             >
               <button
@@ -222,7 +235,12 @@ function onRowClick(event: MouseEvent, row: T): void {
             :class="{ 'cursor-pointer': isRowClickable(row.original) }"
             @click="onRowClick($event, row.original)"
           >
-            <TableCell v-for="cell in row.getAllCells()" :key="cell.id" class="px-3 py-3">
+            <TableCell
+              v-for="cell in row.getAllCells()"
+              :key="cell.id"
+              :class="columnClass(cell.column, 'cell')"
+              class="px-3 py-3"
+            >
               <slot :name="`cell-${cell.column.id}`" :row="row.original">
                 {{ cell.getValue() }}
               </slot>

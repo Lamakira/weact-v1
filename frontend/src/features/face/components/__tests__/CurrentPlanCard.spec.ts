@@ -147,4 +147,44 @@ describe('CurrentPlanCard', () => {
 
     expect(ctx.status.refreshStatus).toHaveBeenCalledTimes(1)
   })
+
+  it('shows the commission rate of the current tier', async () => {
+    setStatus(makeCurrent({ tier: 'pro', plan: 'pro', status: 'active', capabilities: { ...CAPS, commission_rate: 0.05 } }))
+    const wrapper = mount(CurrentPlanCard)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="plan-details"]').text()).toContain('Commission 5 %')
+  })
+
+  it('shows the expiry date of an active paid subscription', async () => {
+    setStatus(makeCurrent({ tier: 'pro', plan: 'pro', status: 'active', expires_at: '2026-11-02T12:00:00Z' }))
+    const wrapper = mount(CurrentPlanCard)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="plan-details"]').text()).toContain('expire le 2 novembre')
+  })
+
+  it('says the cancelled plan stays active until its end date', async () => {
+    setStatus(makeCurrent({ tier: 'pro', plan: 'pro', status: 'cancelled', expires_at: '2026-11-02T12:00:00Z' }))
+    const wrapper = mount(CurrentPlanCard)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="plan-details"]').text()).toContain("actif jusqu'au 2 novembre")
+  })
+
+  it('shows no date on the free tier', async () => {
+    setStatus(makeCurrent({ tier: 'free', status: 'free' }))
+    const wrapper = mount(CurrentPlanCard)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="plan-details"]').text()).toBe('Commission 10 %')
+  })
+
+  it('renders the status as a dot with its label (no filled badge)', async () => {
+    setStatus(makeCurrent({ tier: 'pro', plan: 'pro', status: 'active' }))
+    const wrapper = mount(CurrentPlanCard)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="plan-status"] [data-testid="r-status-dot-mark"]').exists()).toBe(true)
+  })
 })

@@ -11,6 +11,7 @@ import { LayoutDashboard, FileText, MessageCircle, User, Briefcase, CalendarChec
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { DashboardLayout, KeepAliveRouterView, type SidebarItem } from '@/components/layout'
+import { resolveSidebarTitle } from '@/components/layout/resolveSidebarTitle'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
 import { usePersonalInfo } from '@/features/face/composables/usePersonalInfo'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
@@ -31,7 +32,7 @@ const hasWhatsapp = computed(() => !!personalInfo.value?.whatsapp_number)
 
 // Sidebar navigation items for Face dashboard
 const sidebarItems: SidebarItem[] = [
-  { label: 'Dashboard', icon: LayoutDashboard, to: '/face/dashboard' },
+  { label: 'Tableau de bord', icon: LayoutDashboard, to: '/face/dashboard' },
   { label: 'Voir les missions', icon: Briefcase, to: '/face/missions' },
   { label: 'Missions UGC', icon: Video, to: '/face/ugc-missions' },
   { label: 'Mes candidatures', icon: FileText, to: '/face/candidatures' },
@@ -50,6 +51,9 @@ const mobileTabs: SidebarItem[] = [
   { label: 'Messages', icon: MessageCircle, to: '/face/messages' },
   { label: 'Profil', icon: User, to: '/face/profile' },
 ]
+
+// Header title = label of the sidebar item owning the current route.
+const pageTitle = computed(() => resolveSidebarTitle(sidebarItems, route.path))
 
 // Computed user name from Face profile
 const userName = computed(() => {
@@ -95,7 +99,7 @@ async function handleLogout(): Promise<void> {
   <DashboardLayout
     :sidebar-items="sidebarItems"
     :mobile-tabs="mobileTabs"
-    title="Face Dashboard"
+    :title="pageTitle"
     :user-email="authStore.user?.email"
     :user-name="userName"
     :avatar-url="profile?.profile_photo_url"

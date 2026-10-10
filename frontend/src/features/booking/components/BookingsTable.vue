@@ -7,7 +7,8 @@ import type { SortingState } from '@tanstack/vue-table'
 import DataTable from '@/components/data-table/DataTable.vue'
 import type { DataTableColumn } from '@/components/data-table/dataTableFeatures'
 import type { Booking, BookingFaceUserable, BookingProducerUserable } from '../types'
-import BookingStatusBadge from './BookingStatusBadge.vue'
+import RStatusDot from '@/components/regie/RStatusDot.vue'
+import { bookingStatusDot } from '@/components/regie/statusTone'
 import BookingCard from './BookingCard.vue'
 
 const props = withDefaults(
@@ -164,7 +165,7 @@ function goToDetail(booking: Booking): void {
     </template>
 
     <template #cell-status="{ row }">
-      <BookingStatusBadge :status="row.status" />
+      <RStatusDot v-bind="bookingStatusDot(row.status)" class="text-[13px] text-ink" />
     </template>
 
     <template #cell-created_at="{ row }">

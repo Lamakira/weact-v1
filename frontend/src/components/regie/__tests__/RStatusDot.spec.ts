@@ -69,4 +69,13 @@ describe('statusTone', () => {
     expect(bookingStatusDot(BookingStatus.COMPLETED).tone).toBe('done')
     expect(missionStatusDot(MissionStatus.PENDING_PAYMENT).tone).toBe('pending')
   })
+
+  it('aligne les statuts de mission sur les KPI du dashboard Producteur', () => {
+    expect(missionStatusDot(MissionStatus.PUBLISHED).tone).toBe('success')
+    expect(missionStatusDot(MissionStatus.CLOSED).tone).toBe('pending')
+    expect(missionStatusDot(MissionStatus.PENDING_ATTENDANCE_VALIDATION).tone).toBe('progress')
+    expect(missionStatusDot(MissionStatus.COMPLETED).tone).toBe('done')
+    expect(missionStatusDot(MissionStatus.DRAFT).tone).toBe('neutral')
+    expect(missionStatusDot(MissionStatus.CLOSED).tone).not.toBe(missionStatusDot(MissionStatus.COMPLETED).tone)
+  })
 })

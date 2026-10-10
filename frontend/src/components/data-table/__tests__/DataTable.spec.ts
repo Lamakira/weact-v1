@@ -47,6 +47,24 @@ function mountTable(props: Record<string, unknown> = {}, slots: Record<string, u
 }
 
 describe('DataTable', () => {
+  it('applies the column meta (sticky right + class) to header and cells', () => {
+    const metaColumns: DataTableColumn<Row>[] = [
+      { id: 'name', accessorFn: (r) => r.name, header: 'Nom', enableSorting: false },
+      { id: 'amount', accessorFn: (r) => r.amount, header: 'Montant', enableSorting: false, meta: { class: 'hidden 2xl:table-cell' } },
+      { id: 'actions', header: 'Actions', enableSorting: false, meta: { sticky: 'right' } },
+    ]
+    const wrapper = mountTable({ columns: metaColumns })
+    const ths = wrapper.findAll('th')
+    expect(ths[0]!.classes()).not.toContain('sticky')
+    expect(ths[1]!.classes()).toContain('hidden')
+    expect(ths[1]!.classes()).toContain('2xl:table-cell')
+    expect(ths[2]!.classes()).toEqual(expect.arrayContaining(['sticky', 'right-0']))
+    const tds = wrapper.findAll('tbody tr')[0]!.findAll('td')
+    expect(tds[1]!.classes()).toContain('hidden')
+    expect(tds[2]!.classes()).toEqual(expect.arrayContaining(['sticky', 'right-0', 'bg-card']))
+    expect(tds[0]!.classes()).not.toContain('sticky')
+  })
+
   it('renders headers and rows through the cell slots', () => {
     const wrapper = mountTable()
     expect(wrapper.findAll('th').map((th) => th.text())).toEqual(['Nom', 'Montant', 'Actions'])

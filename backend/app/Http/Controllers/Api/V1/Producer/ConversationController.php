@@ -37,6 +37,7 @@ class ConversationController extends Controller
             ->with([
                 'candidature.mission.producer',
                 'candidature.face',
+                'candidature.paymentEntry.missionPayment',
                 'latestMessage.sender.userable',
             ])
             ->withUnreadCountFor($user)
@@ -78,6 +79,7 @@ class ConversationController extends Controller
             'messages.sender.userable',
             'candidature.mission.producer',
             'candidature.face',
+            'candidature.paymentEntry.missionPayment',
         ]);
 
         return response()->json([

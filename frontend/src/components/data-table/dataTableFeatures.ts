@@ -13,4 +13,14 @@ import {
  */
 export const dataTableFeatures = tableFeatures({ rowSortingFeature, rowPaginationFeature })
 
-export type DataTableColumn<T extends RowData> = ColumnDef<typeof dataTableFeatures, T>
+/** Per-column presentation options, read from the column `meta`. */
+export interface DataTableColumnMeta {
+  /** Pin the column to the right edge (kept visible while the table scrolls horizontally). */
+  sticky?: 'right'
+  /** Extra classes applied to the header and body cells (e.g. responsive visibility). */
+  class?: string
+}
+
+export type DataTableColumn<T extends RowData> = ColumnDef<typeof dataTableFeatures, T> & {
+  meta?: DataTableColumnMeta
+}

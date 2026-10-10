@@ -55,6 +55,8 @@ use Illuminate\Support\Str;
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property int|null $candidatures_count
+ * @property int|null $new_candidatures_count Candidatures created in the last 24 h (ProducerDashboardService::activeMissions)
+ * @property int|null $confirmed_count Confirmed / in-progress / completed candidatures (ProducerDashboardService::activeMissions)
  * @property-read \App\Models\Producer|null $producer
  * @property-read \App\Models\MissionPayment|null $payment
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Candidature> $candidatures

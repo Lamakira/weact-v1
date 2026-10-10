@@ -59,6 +59,8 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
         ->middleware('throttle:ui-read');
     Route::get('/dashboard/booking-chart-stats', [FaceDashboardController::class, 'bookingChartStats'])
         ->middleware('throttle:ui-read');
+    Route::get('/dashboard/todo', [FaceDashboardController::class, 'todo'])
+        ->middleware('throttle:ui-read');
 
     // Basic info routes (nom, prenom, username)
     Route::get('/basic-info', [BasicInfoController::class, 'show'])

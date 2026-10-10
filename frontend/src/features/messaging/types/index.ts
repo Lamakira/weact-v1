@@ -1,6 +1,7 @@
 /**
  * Messaging feature types
  */
+import type { CandidatureStatusType } from '@/features/candidature/types'
 
 // Message data from API
 export interface Message {
@@ -25,12 +26,58 @@ export interface OtherParticipant {
   type: 'face' | 'producer'
 }
 
+// Étapes Demandé -> Accepté -> Payé -> Réalisé (dérivées du statut de candidature côté serveur)
+export type ContextStepKey = 'requested' | 'accepted' | 'paid' | 'done'
+
+export interface ContextStep {
+  key: ContextStepKey
+  label: string
+  state: 'done' | 'current' | 'todo'
+}
+
+// Version compacte du contexte (liste des conversations)
+export interface ConversationContextSummary {
+  type: 'mission' | 'ugc'
+  type_label: string
+  title: string
+  candidature_status: CandidatureStatusType
+  // null quand la candidature est close (refusée / annulée)
+  step: { key: ContextStepKey; label: string } | null
+  date_tournage: string | null
+}
+
+// Montants visibles par la Face : ce qu'elle reçoit (net), jamais les frais Producteur
+export interface FaceContextAmounts {
+  face_receives: number | null
+  product_value: number | null
+}
+
+// Montants visibles par le Producteur : cachet + frais de service + total
+export interface ProducerContextAmounts {
+  cachet: number | null
+  service_fee: number | null
+  total: number | null
+  product_value: number | null
+}
+
+// Contexte complet (détail de conversation)
+export interface ConversationContext extends ConversationContextSummary {
+  candidature_status_label: string
+  closed: boolean
+  steps: ContextStep[]
+  lieu: string | null
+  mission_id: string
+  candidature_id: string
+  amounts: FaceContextAmounts | ProducerContextAmounts
+}
+
 // Conversation data from API
 export interface Conversation {
   id: string
   candidature_id: string
   mission_title: string
   other_participant: OtherParticipant
+  context: ConversationContext | null
   messages: Message[]
   unread_count: number
 }
@@ -75,6 +122,7 @@ export interface ConversationListItem {
   candidature_id: string
   mission_title: string
   other_participant: OtherParticipant
+  context: ConversationContextSummary | null
   latest_message: LatestMessagePreview | null
   unread_count: number
   updated_at: string

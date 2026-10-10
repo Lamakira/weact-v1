@@ -33,6 +33,8 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
     // Note: Controller-level authorization (same pattern as Face) for proper JSON error format
     Route::get('/dashboard/stats', [ProducerDashboardController::class, 'stats'])
         ->middleware('throttle:ui-read');
+    Route::get('/dashboard/active-missions', [ProducerDashboardController::class, 'activeMissions'])
+        ->middleware('throttle:ui-read');
 
     // Basic info routes (agency_name or first_name/last_name based on type)
     Route::get('/basic-info', [BasicInfoController::class, 'show'])

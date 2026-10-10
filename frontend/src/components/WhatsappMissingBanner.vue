@@ -24,27 +24,25 @@ const router = useRouter()
 
 <template>
   <div
-    class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6"
+    class="mb-6 rounded-panel bg-white p-4 ring-1 ring-line"
     role="status"
     data-testid="whatsapp-missing-banner"
   >
     <div class="flex items-start gap-3">
-      <div class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-        <MessageCircle class="w-5 h-5 text-blue-600" aria-hidden="true" />
-      </div>
+      <MessageCircle class="mt-0.5 h-4 w-4 shrink-0 text-weact-600" aria-hidden="true" />
 
-      <div class="flex-1 min-w-0">
-        <h3 class="text-sm font-semibold text-blue-800">
+      <div class="min-w-0 flex-1">
+        <h3 class="text-[13.5px] font-semibold text-ink">
           {{ title }}
         </h3>
-        <p class="mt-1 text-sm text-blue-700">
+        <p class="mt-1 text-[13px] text-ink-2">
           {{ message }}
         </p>
 
         <div class="mt-3">
           <button
             type="button"
-            class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            class="inline-flex h-8 items-center rounded-control bg-weact-600 px-3 text-[13px] font-semibold text-white transition-colors hover:bg-weact-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-weact-600 focus-visible:ring-offset-2 max-md:h-11"
             data-testid="whatsapp-banner-cta"
             @click="router.push(to)"
           >

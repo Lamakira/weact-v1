@@ -53,6 +53,13 @@ class ProducerDashboardStatsResource extends JsonResource
     private ?float $averageResponseTimeHours;
 
     /**
+     * Ratings count per score, 5 down to 1 (same sources as the average).
+     *
+     * @var array<int, int>
+     */
+    private array $ratingDistribution;
+
+    /**
      * Create a new resource instance.
      *
      * @param  array<string, int>  $statusCounts  Mission counts by status
@@ -63,6 +70,7 @@ class ProducerDashboardStatsResource extends JsonResource
      * @param  int  $ratingsCount  Total ratings received (FR58)
      * @param  float  $acceptanceRate  Candidature acceptance rate percentage (FR59)
      * @param  float|null  $averageResponseTimeHours  Average response time in hours (FR59)
+     * @param  array<int, int>  $ratingDistribution  Ratings count per score, 5 down to 1
      */
     public function __construct(
         array $statusCounts,
@@ -72,7 +80,8 @@ class ProducerDashboardStatsResource extends JsonResource
         ?float $averageRating = null,
         int $ratingsCount = 0,
         float $acceptanceRate = 0.0,
-        ?float $averageResponseTimeHours = null
+        ?float $averageResponseTimeHours = null,
+        array $ratingDistribution = [5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0]
     ) {
         parent::__construct($statusCounts);
         $this->inProgressCount = $inProgressCount;
@@ -82,6 +91,7 @@ class ProducerDashboardStatsResource extends JsonResource
         $this->ratingsCount = $ratingsCount;
         $this->acceptanceRate = $acceptanceRate;
         $this->averageResponseTimeHours = $averageResponseTimeHours;
+        $this->ratingDistribution = $ratingDistribution;
     }
 
     /**
@@ -95,7 +105,7 @@ class ProducerDashboardStatsResource extends JsonResource
      *
      * Note: 'draft' missions are intentionally excluded from stats.
      *
-     * @return array<string, int|float|null>
+     * @return array<string, int|float|object|null>
      */
     public function toArray(Request $request): array
     {
@@ -117,6 +127,8 @@ class ProducerDashboardStatsResource extends JsonResource
             'ratings_count' => $this->ratingsCount,
             'acceptance_rate' => $this->acceptanceRate,
             'average_response_time_hours' => $this->averageResponseTimeHours,
+            // Ratings count per score {5..1}; sums to ratings_count
+            'rating_distribution' => (object) $this->ratingDistribution,
             // AC #5 requires this explicit field name (alias for 'completed')
             'completed_missions_count' => $completed,
         ];

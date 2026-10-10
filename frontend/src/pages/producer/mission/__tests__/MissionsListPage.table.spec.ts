@@ -26,6 +26,25 @@ vi.mock('@/features/mission/services/missionApi', () => ({
 
 import MissionsListPage from '../MissionsListPage.vue'
 
+// reka-ui measures its popper with ResizeObserver, absent from jsdom.
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver
+
+/** Opens the « Plus d'actions » menu of a row/card (portaled to document.body). */
+async function openRowMenu(scope: { find: (s: string) => { trigger: (e: string, o?: object) => Promise<void> } }) {
+  await scope.find('[data-testid="actions-menu-trigger"]').trigger('keydown', { key: 'Enter' })
+  await flushPromises()
+}
+function menuItem(testId: string): HTMLElement {
+  return document.body.querySelector(`[role="menuitem"][data-testid="${testId}"]`) as HTMLElement
+}
+function menuLabels(): string[] {
+  return Array.from(document.body.querySelectorAll('[role="menuitem"]')).map((el) => el.textContent!.trim())
+}
+
 function makeMission(id: string, overrides: Partial<Mission> = {}): Mission {
   return {
     id,
@@ -144,7 +163,7 @@ describe('MissionsListPage — table (md and up)', () => {
     const { wrapper } = await mountPage()
     expect(wrapper.find('table').exists()).toBe(true)
     expect(wrapper.findAll('th').map((th) => th.text())).toEqual([
-      'Mission', 'Statut', 'Limite candidature', 'Tournage', 'Candidatures', 'Faces voulues', 'Budget', 'Créée le', 'Actions',
+      'Mission', 'Statut', 'Limite candidature', 'Tournage', 'Candidatures', 'Budget', 'Créée le', 'Actions',
     ])
     const rows = wrapper.findAll('tbody tr')
     expect(rows).toHaveLength(3)
@@ -252,17 +271,30 @@ describe('MissionsListPage — table (md and up)', () => {
     expect(getMissionsPage).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps every action of the former cards on the right rows', async () => {
+  it('offers one labelled primary action per row and the others in the menu', async () => {
     const { wrapper } = await mountPage()
     const rows = wrapper.findAll('tbody tr')
-    const actionsOf = (i: number) => rows[i]!.findAll('[data-testid^="action-"], [data-testid="pay-commission-button"]').map((b) => b.attributes('data-testid'))
+    const primaryOf = (i: number) => rows[i]!.find('[data-primary-action]').text()
 
-    // published standard mission: candidatures, edit, close, delete
-    expect(actionsOf(0)).toEqual(['action-candidatures', 'action-edit', 'action-close', 'action-delete'])
-    // closed + paid payment: candidatures, attendance, complete (no reopen: payment exists)
-    expect(actionsOf(1)).toEqual(['action-candidatures', 'action-attendance', 'action-complete'])
-    // UGC awaiting commission: candidatures + pay commission (no edit / delete)
-    expect(actionsOf(2)).toEqual(['action-candidatures', 'pay-commission-button'])
+    // published standard mission: candidatures primary; edit, close, delete in the menu
+    expect(primaryOf(0)).toBe('Candidatures · 3')
+    await openRowMenu(rows[0]!)
+    expect(menuLabels()).toEqual(['Modifier', 'Clôturer', 'Supprimer'])
+    document.body.querySelector('[role="menu"]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await flushPromises()
+
+    // closed + paid payment: attendance primary; candidatures + complete (no reopen: payment exists)
+    expect(primaryOf(1)).toBe('Valider les présences')
+    await openRowMenu(rows[1]!)
+    expect(menuLabels()).toEqual(['Candidatures · 3', 'Terminer'])
+  })
+
+  it('makes the commission the primary action of an UGC mission awaiting payment', async () => {
+    const { wrapper } = await mountPage()
+    const row = wrapper.findAll('tbody tr')[2]!
+    expect(row.find('[data-primary-action]').text()).toBe('Régler la commission')
+    await openRowMenu(row)
+    expect(menuLabels()).toEqual(['Candidatures · 3'])
   })
 
   it('wires the actions: navigation, dialogs and the commission tunnel', async () => {
@@ -275,7 +307,9 @@ describe('MissionsListPage — table (md and up)', () => {
 
     await router.push('/producer/missions')
     await flushPromises()
-    await wrapper.findAll('tbody tr')[0]!.find('[data-testid="action-delete"]').trigger('click')
+    await openRowMenu(wrapper.findAll('tbody tr')[0]!)
+    menuItem('action-delete').click()
+    await flushPromises()
     expect(wrapper.findComponent(DeleteMissionDialog).props('isOpen')).toBe(true)
 
     await wrapper.findAll('tbody tr')[2]!.find('[data-testid="pay-commission-button"]').trigger('click')
@@ -283,14 +317,36 @@ describe('MissionsListPage — table (md and up)', () => {
     expect(wrapper.find('[data-testid="ugc-overlay-stub"]').attributes('data-open')).toBe('true')
   })
 
-  it('opens candidatures from the count chip and the edit form from an editable row click', async () => {
-    const { wrapper, router } = await mountPage()
-    await wrapper.findAll('tbody tr')[0]!.find('td:nth-child(5) button').trigger('click')
-    await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/producer/missions/pub/candidatures')
+  it('renders status dots (not coloured pills) and a plain candidatures number', async () => {
+    const { wrapper } = await mountPage()
+    const rows = wrapper.findAll('tbody tr')
+    const dot = rows[0]!.find('td:nth-child(2) [data-testid="r-status-dot"]')
+    expect(dot.exists()).toBe(true)
+    expect(dot.text()).toBe('Publiée')
+    expect(dot.attributes('data-tone')).toBe('success')
+    expect(rows[2]!.find('td:nth-child(2) [data-testid="r-status-dot"]').attributes('data-tone')).toBe('pending')
+    // candidatures column: plain number, no button, no icon
+    const cell = rows[0]!.find('td:nth-child(5)')
+    expect(cell.text()).toBe('3 / 2')
+    expect(cell.find('span').attributes('aria-label')).toBe('3 candidatures, 2 Faces voulues')
+    expect(cell.html()).not.toMatch(/tabular-nums|font-mono/)
+    expect(cell.find('button').exists()).toBe(false)
+    expect(cell.find('svg').exists()).toBe(false)
+  })
 
-    await router.push('/producer/missions')
-    await flushPromises()
+  it('pins the Actions column to the right and hides « Créée le » below 2xl', async () => {
+    const { wrapper } = await mountPage()
+    const ths = wrapper.findAll('th')
+    const actions = ths[ths.length - 1]!
+    expect(actions.text()).toBe('Actions')
+    expect(actions.classes()).toEqual(expect.arrayContaining(['sticky', 'right-0']))
+    const created = ths[ths.length - 2]!
+    expect(created.text()).toContain('Créée le')
+    expect(created.classes()).toEqual(expect.arrayContaining(['hidden', '2xl:table-cell']))
+  })
+
+  it('opens the edit form from an editable row click only', async () => {
+    const { wrapper, router } = await mountPage()
     await wrapper.findAll('tbody tr')[0]!.trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/producer/missions/pub/edit')
@@ -306,8 +362,10 @@ describe('MissionsListPage — table (md and up)', () => {
   it('only keeps candidatures and delete when the email is not verified', async () => {
     emailVerified.value = false
     const { wrapper } = await mountPage()
-    const ids = wrapper.findAll('tbody tr')[0]!.findAll('[data-testid^="action-"]').map((b) => b.attributes('data-testid'))
-    expect(ids).toEqual(['action-candidatures', 'action-delete'])
+    const row = wrapper.findAll('tbody tr')[0]!
+    expect(row.find('[data-primary-action]').text()).toBe('Candidatures · 3')
+    await openRowMenu(row)
+    expect(menuLabels()).toEqual(['Supprimer'])
     expect(wrapper.text()).not.toContain('Publier une mission')
   })
 
@@ -364,7 +422,8 @@ describe('MissionsListPage — compact cards (below md)', () => {
 
   it('keeps actions working from the cards', async () => {
     const { wrapper, router } = await mountPage()
-    await wrapper.find('[data-testid="mission-card-pub"] [data-testid="action-edit"]').trigger('click')
+    await openRowMenu(wrapper.find('[data-testid="mission-card-pub"]'))
+    menuItem('action-edit').click()
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/producer/missions/pub/edit')
   })
