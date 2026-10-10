@@ -82,9 +82,35 @@ self.addEventListener('activate', function (event) {
   event.waitUntil(self.clients.claim())
 })
 
+/** True when a focused WeAct window is already showing the target screen (e.g. the open conversation). */
+function isTargetAlreadyFocused(scope, targetUrl) {
+  return scope.clients
+    .matchAll({ type: 'window', includeUncontrolled: true })
+    .then(function (windowClients) {
+      var targetPath = new URL(targetUrl, scope.location.origin).pathname
+      return windowClients.some(function (client) {
+        try {
+          return client.focused === true && new URL(client.url).pathname === targetPath
+        } catch (e) {
+          return false
+        }
+      })
+    })
+    .catch(function () {
+      return false
+    })
+}
+
 self.addEventListener('push', function (event) {
   var notification = buildNotification(parsePushPayload(event))
-  event.waitUntil(self.registration.showNotification(notification.title, notification.options))
+
+  event.waitUntil(
+    isTargetAlreadyFocused(self, notification.options.data.url).then(function (alreadyViewing) {
+      // The user is reading that very screen: the in-app realtime already shows it.
+      if (alreadyViewing) return undefined
+      return self.registration.showNotification(notification.title, notification.options)
+    }),
+  )
 })
 
 self.addEventListener('notificationclick', function (event) {

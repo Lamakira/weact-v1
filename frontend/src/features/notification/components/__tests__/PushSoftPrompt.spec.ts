@@ -11,9 +11,10 @@ vi.mock('../../push/webPush', () => ({
   getExistingSubscription: () => mockExisting(),
   subscribeThisDevice: () => mockSubscribe(),
   unsubscribeThisDevice: vi.fn(),
+  syncSubscriptionToServer: vi.fn().mockResolvedValue(true),
 }))
 
-vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: { id: 42 } }) }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: { id: 42 }, isEmailVerified: true }) }))
 vi.mock('@/composables/useToast', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }),
 }))

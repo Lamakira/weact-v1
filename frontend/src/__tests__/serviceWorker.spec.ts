@@ -114,6 +114,33 @@ describe('service worker (push only)', () => {
     })
   })
 
+  it('stays silent when a focused window already shows the target screen', async () => {
+    const focusedSame: FakeClient & { focused: boolean } = {
+      url: `${ORIGIN}/face/conversations/abc?x=1`,
+      focus: vi.fn(),
+      focused: true,
+    }
+    const { listeners, showNotification } = loadWorker([focusedSame])
+    const { event, settled } = pushEvent({ title: 'Nouveau message', data: { url: '/face/conversations/abc' } })
+
+    listeners.push!(event)
+    await settled()
+
+    expect(showNotification).not.toHaveBeenCalled()
+  })
+
+  it('still shows it when the matching window is not focused or shows another screen', async () => {
+    const unfocusedSame = { url: `${ORIGIN}/face/conversations/abc`, focus: vi.fn(), focused: false }
+    const focusedOther = { url: `${ORIGIN}/face/dashboard`, focus: vi.fn(), focused: true }
+    const { listeners, showNotification } = loadWorker([unfocusedSame, focusedOther])
+    const { event, settled } = pushEvent({ title: 'Nouveau message', data: { url: '/face/conversations/abc' } })
+
+    listeners.push!(event)
+    await settled()
+
+    expect(showNotification).toHaveBeenCalledOnce()
+  })
+
   it('falls back to a generic notification on an empty or non-JSON payload', async () => {
     const { listeners, showNotification } = loadWorker()
 

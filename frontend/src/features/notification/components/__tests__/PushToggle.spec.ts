@@ -6,12 +6,16 @@ const mockFetchKey = vi.fn()
 const mockExisting = vi.fn()
 const mockSubscribe = vi.fn()
 const mockUnsubscribe = vi.fn()
+const mockSync = vi.fn()
+const mockAuth = { isEmailVerified: true }
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => mockAuth }))
 vi.mock('../../push/webPush', () => ({
   getPushSupport: () => mockSupport(),
   fetchVapidPublicKey: () => mockFetchKey(),
   getExistingSubscription: () => mockExisting(),
   subscribeThisDevice: () => mockSubscribe(),
   unsubscribeThisDevice: () => mockUnsubscribe(),
+  syncSubscriptionToServer: (...args: unknown[]) => mockSync(...args),
 }))
 
 const toast = { success: vi.fn(), error: vi.fn(), info: vi.fn() }
@@ -39,6 +43,8 @@ describe('PushToggle', () => {
     mockExisting.mockResolvedValue(null)
     mockSubscribe.mockResolvedValue('enabled')
     mockUnsubscribe.mockResolvedValue(undefined)
+    mockSync.mockResolvedValue(true)
+    mockAuth.isEmailVerified = true
     setPermission('default')
   })
 
@@ -111,6 +117,38 @@ describe('PushToggle', () => {
     await flushPromises()
 
     expect(mockUnsubscribe).toHaveBeenCalledOnce()
+    expect(wrapper.get('[data-testid="push-toggle-switch"]').attributes('aria-checked')).toBe('false')
+  })
+
+  it('asks to verify the e-mail first and disables the switch', async () => {
+    mockAuth.isEmailVerified = false
+
+    const wrapper = await mountToggle()
+
+    expect(wrapper.get('[data-testid="push-toggle-unverified-hint"]').text()).toContain(
+      'Vérifiez votre adresse e-mail pour activer les notifications',
+    )
+    expect(wrapper.get('[data-testid="push-toggle-switch"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('re-attaches an existing browser subscription to the current account before showing it enabled', async () => {
+    setPermission('granted')
+    const existing = { endpoint: 'https://push.example/x' }
+    mockExisting.mockResolvedValue(existing)
+
+    const wrapper = await mountToggle()
+
+    expect(mockSync).toHaveBeenCalledWith(existing)
+    expect(wrapper.get('[data-testid="push-toggle-switch"]').attributes('aria-checked')).toBe('true')
+  })
+
+  it('shows disabled (no phantom enabled) when the server refuses the re-attach', async () => {
+    setPermission('granted')
+    mockExisting.mockResolvedValue({ endpoint: 'https://push.example/x' })
+    mockSync.mockResolvedValue(false)
+
+    const wrapper = await mountToggle()
+
     expect(wrapper.get('[data-testid="push-toggle-switch"]').attributes('aria-checked')).toBe('false')
   })
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, defineAsyncComponent, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { CheckCircle, XCircle, Bell, Loader2, Clock } from 'lucide-vue-next'
@@ -7,7 +7,8 @@ import type { Notification } from '../types'
 import { NotificationType } from '../types'
 import { useNotificationStore } from '@/stores/notification'
 import { useToast } from '@/composables/useToast'
-import PushToggle from './PushToggle.vue'
+// Chargé à la demande : le code web push n'alourdit pas le chunk d'entrée (l'en-tête embarque la cloche).
+const PushToggle = defineAsyncComponent(() => import('./PushToggle.vue'))
 
 const emit = defineEmits<{
   close: []

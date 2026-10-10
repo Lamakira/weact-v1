@@ -99,6 +99,12 @@ export const useAuthStore = defineStore('auth', () => {
     resetAllSharedCachedResources()
     // Per-account sessionStorage state (`weact.auth.*`) dies with the session.
     clearAuthScopedSessionStorage()
+    // Sessions that collapse without useAuth.logout (401 anywhere, account deletion)
+    // must not leave this browser subscribed to the previous account's web push.
+    // Best effort, async, never blocking nor throwing (browser-side only: the token is gone).
+    void import('@/features/notification/push/webPush')
+      .then((m) => m.unsubscribeBrowserOnly())
+      .catch(() => undefined)
   }
 
   /**

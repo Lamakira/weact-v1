@@ -129,13 +129,8 @@ export async function subscribeThisDevice(): Promise<SubscribeResult> {
       applicationServerKey: urlBase64ToUint8Array(key),
     }))
 
-  const json = subscription.toJSON()
   try {
-    await apiClient.post('/me/push-subscriptions', {
-      endpoint: json.endpoint,
-      keys: json.keys,
-      content_encoding: pickContentEncoding(),
-    })
+    await postSubscription(subscription)
   } catch (error) {
     // Pas d'abonnement orphelin côté navigateur si le serveur ne l'a pas retenu
     await subscription.unsubscribe().catch(() => undefined)
@@ -143,6 +138,51 @@ export async function subscribeThisDevice(): Promise<SubscribeResult> {
   }
 
   return 'enabled'
+}
+
+async function postSubscription(subscription: PushSubscription): Promise<void> {
+  const json = subscription.toJSON()
+  await apiClient.post('/me/push-subscriptions', {
+    endpoint: json.endpoint,
+    keys: json.keys,
+    content_encoding: pickContentEncoding(),
+  })
+}
+
+/**
+ * Ré-attache l'abonnement du navigateur au compte COURANT (upsert serveur : un
+ * endpoint d'un autre compte est repris). Sans cela, l'état « activé » de la
+ * bascule viendrait du navigateur seul et pourrait mentir pour un autre compte.
+ * Retourne false si le serveur refuse (e-mail non vérifié, hôte non pris en charge…).
+ */
+export async function syncSubscriptionToServer(subscription: PushSubscription): Promise<boolean> {
+  try {
+    await postSubscription(subscription)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Démarrage d'une session : si la permission est accordée et un abonnement existe, le ré-attache. */
+export async function resyncExistingSubscription(): Promise<void> {
+  if (getPushSupport() !== 'supported' || Notification.permission !== 'granted') return
+  const subscription = await getExistingSubscription()
+  if (subscription) await syncSubscriptionToServer(subscription)
+}
+
+/**
+ * Coupe l'abonnement du NAVIGATEUR uniquement (aucun appel serveur, aucun token
+ * requis) : utilisé quand la session s'effondre (401, suppression de compte) pour
+ * qu'un appareil partagé ne reste pas abonné au compte précédent. Ne lève jamais.
+ */
+export async function unsubscribeBrowserOnly(): Promise<void> {
+  try {
+    const subscription = await getExistingSubscription()
+    await subscription?.unsubscribe()
+  } catch {
+    // Meilleur effort.
+  }
 }
 
 /**

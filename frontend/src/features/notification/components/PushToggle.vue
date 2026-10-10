@@ -16,7 +16,9 @@ const isVisible = computed(
 )
 const isOn = computed(() => status.value === 'enabled')
 const isToggleDisabled = computed(
-  () => isBusy.value || status.value === 'denied' || status.value === 'ios-install-required',
+  () => isBusy.value || status.value === 'denied' ||
+    status.value === 'ios-install-required' ||
+    status.value === 'email-unverified',
 )
 
 async function handleToggle(): Promise<void> {
@@ -74,6 +76,13 @@ onMounted(() => {
       data-testid="push-toggle-ios-hint"
     >
       Sur iPhone, ajoutez d'abord WeAct à l'écran d'accueil (Partager → Sur l'écran d'accueil).
+    </p>
+    <p
+      v-else-if="status === 'email-unverified'"
+      class="mt-2 text-xs text-muted-foreground"
+      data-testid="push-toggle-unverified-hint"
+    >
+      Vérifiez votre adresse e-mail pour activer les notifications.
     </p>
     <p
       v-else-if="status === 'denied'"

@@ -1,8 +1,10 @@
 import { computed, ref } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import {
   fetchVapidPublicKey,
   getExistingSubscription,
   getPushSupport,
+  syncSubscriptionToServer,
   subscribeThisDevice,
   unsubscribeThisDevice,
 } from './webPush'
@@ -12,6 +14,7 @@ import {
  * - unsupported : navigateur sans push (toggle masqué)
  * - ios-install-required : iPhone/iPad hors écran d'accueil (explication)
  * - unavailable : push désactivé côté serveur, clés VAPID absentes (toggle masqué)
+ * - email-unverified : le serveur refuse l'abonnement tant que l'e-mail n'est pas vérifié
  * - denied : permission refusée dans le navigateur (explication)
  * - disabled / enabled : bascule disponible
  */
@@ -20,6 +23,7 @@ export type PushStatus =
   | 'unsupported'
   | 'ios-install-required'
   | 'unavailable'
+  | 'email-unverified'
   | 'denied'
   | 'disabled'
   | 'enabled'
@@ -45,13 +49,19 @@ async function refresh(): Promise<void> {
     return
   }
 
+  if (!useAuthStore().isEmailVerified) {
+    status.value = 'email-unverified'
+    return
+  }
+
   if (Notification.permission === 'denied') {
     status.value = 'denied'
     return
   }
 
   const subscription = Notification.permission === 'granted' ? await getExistingSubscription() : null
-  status.value = subscription ? 'enabled' : 'disabled'
+  // « Activé » seulement si le serveur a bien (ré)attaché cet appareil au compte courant.
+  status.value = subscription && (await syncSubscriptionToServer(subscription)) ? 'enabled' : 'disabled'
 }
 
 async function enable(): Promise<'enabled' | 'denied' | 'dismissed' | 'unavailable' | 'error'> {

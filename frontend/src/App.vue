@@ -44,13 +44,17 @@ onMounted(() => {
 })
 
 // Service worker web push (push uniquement, aucun cache) : enregistré seulement pour un
-// utilisateur connecté et un navigateur qui sait faire du push. Import différé : rien
-// de ce code ne pèse sur le chunk d'entrée pour un visiteur anonyme.
+// utilisateur connecté et un navigateur qui sait faire du push. Import différé : ce
+// module n'est chargé que pour un utilisateur connecté, hors du chunk d'entrée.
 watch(
   () => authStore.isAuthenticated,
   (isAuthenticated) => {
     if (isAuthenticated) {
-      void import('@/features/notification/push/webPush').then((m) => m.registerPushServiceWorker())
+      void import('@/features/notification/push/webPush').then(async (m) => {
+        await m.registerPushServiceWorker()
+        // Ré-attache l'abonnement existant au compte courant (compte changé sans déconnexion propre).
+        await m.resyncExistingSubscription().catch(() => undefined)
+      })
     }
   },
   { immediate: true },

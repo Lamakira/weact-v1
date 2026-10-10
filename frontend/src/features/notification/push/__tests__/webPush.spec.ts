@@ -16,6 +16,9 @@ import {
   getPushSupport,
   registerPushServiceWorker,
   resetVapidPublicKeyCache,
+  resyncExistingSubscription,
+  syncSubscriptionToServer,
+  unsubscribeBrowserOnly,
   subscribeThisDevice,
   unsubscribeThisDevice,
   urlBase64ToUint8Array,
@@ -259,6 +262,50 @@ describe('webPush', () => {
       setEnv({ serviceWorker: false })
       await unsubscribeThisDevice()
       expect(mockDelete).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('session collapse and account switch', () => {
+    it('unsubscribeBrowserOnly cuts the browser subscription without any server call', async () => {
+      pushManager.getSubscription.mockResolvedValue(subscription)
+
+      await unsubscribeBrowserOnly()
+
+      expect(subscription.unsubscribe).toHaveBeenCalled()
+      expect(mockDelete).not.toHaveBeenCalled()
+      expect(mockPost).not.toHaveBeenCalled()
+    })
+
+    it('unsubscribeBrowserOnly never throws', async () => {
+      pushManager.getSubscription.mockRejectedValue(new Error('boom'))
+      await expect(unsubscribeBrowserOnly()).resolves.toBeUndefined()
+    })
+
+    it('syncSubscriptionToServer posts the subscription and reports refusals', async () => {
+      expect(await syncSubscriptionToServer(subscription as unknown as PushSubscription)).toBe(true)
+      expect(mockPost).toHaveBeenCalledWith(
+        '/me/push-subscriptions',
+        expect.objectContaining({ endpoint: 'https://push.example/device' }),
+      )
+
+      mockPost.mockRejectedValue(new Error('403'))
+      expect(await syncSubscriptionToServer(subscription as unknown as PushSubscription)).toBe(false)
+    })
+
+    it('resyncExistingSubscription re-attaches only when permission is granted and a subscription exists', async () => {
+      setEnv({ permission: 'default' })
+      pushManager.getSubscription.mockResolvedValue(subscription)
+      await resyncExistingSubscription()
+      expect(mockPost).not.toHaveBeenCalled()
+
+      setEnv({ permission: 'granted' })
+      pushManager.getSubscription.mockResolvedValue(null)
+      await resyncExistingSubscription()
+      expect(mockPost).not.toHaveBeenCalled()
+
+      pushManager.getSubscription.mockResolvedValue(subscription)
+      await resyncExistingSubscription()
+      expect(mockPost).toHaveBeenCalledOnce()
     })
   })
 })
