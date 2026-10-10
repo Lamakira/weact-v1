@@ -36,6 +36,8 @@ class ContactFormMail extends Mailable
             with: [
                 'senderName' => $this->senderName,
                 'senderEmail' => $this->senderEmail,
+                // Le gabarit affiche l'objet saisi par le visiteur sous le nom `$subject`.
+                'subject' => $this->messageSubject,
                 'senderMessage' => $this->senderMessage,
             ],
         );

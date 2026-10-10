@@ -37,6 +37,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ['middleware' => ['auth:sanctum']]
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // API sans route `login` : un invité ne doit jamais être redirigé (sinon
+        // « Route [login] not defined » -> 500). L'AuthenticationException est rendue en 401 JSON plus bas.
+        $middleware->redirectGuestsTo(fn (Request $request): ?string => null);
+
         // Trust reverse proxies (ngrok in dev, Nginx/LB in prod)
         // Dev:  TRUSTED_PROXIES=*  in .env
         // Prod: TRUSTED_PROXIES=10.0.0.0/8 (internal LB subnet)
