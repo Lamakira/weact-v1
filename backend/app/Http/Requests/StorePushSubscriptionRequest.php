@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Rules\PushEndpointHost;
 use Illuminate\Foundation\Http\FormRequest;
 use NotificationChannels\WebPush\PushSubscription;
 
@@ -19,12 +20,12 @@ class StorePushSubscriptionRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
         return [
-            'endpoint' => ['required', 'string', 'url:https', 'max:'.PushSubscription::ENDPOINT_MAX_LENGTH],
+            'endpoint' => ['required', 'string', 'url:https', new PushEndpointHost, 'max:'.PushSubscription::ENDPOINT_MAX_LENGTH],
             'keys' => ['required', 'array'],
             'keys.p256dh' => ['required', 'string', 'max:255'],
             'keys.auth' => ['required', 'string', 'max:255'],

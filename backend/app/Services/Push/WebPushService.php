@@ -6,7 +6,6 @@ namespace App\Services\Push;
 
 use App\Jobs\SendWebPush;
 use App\Models\Face;
-use App\Models\Message;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
@@ -15,6 +14,7 @@ use App\Support\Push\PushAllowlist;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use NotificationChannels\WebPush\PushSubscription;
 use Throwable;
 
 /**
@@ -44,7 +44,9 @@ class WebPushService
      */
     public function queueForNotification(Notification $notification): void
     {
-        if (! $this->isEnabled() || ! PushAllowlist::isAllowed($notification->type)) {
+        if (! $this->isEnabled()
+            || ! PushAllowlist::isAllowed($notification->type)
+            || ! PushSubscription::where('subscribable_type', User::class)->where('subscribable_id', $notification->user_id)->exists()) {
             return;
         }
 
@@ -55,32 +57,34 @@ class WebPushService
             'title' => (string) PushAllowlist::titleFor($notification->type),
             'body' => Str::limit(trim((string) ($data['message'] ?? '')), self::BODY_LIMIT - 1, '…'),
             'url' => $url,
-            'tag' => $notification->type.':'.md5($url),
+            'tag' => $notification->type.':'.$notification->uuid,
             'ttl' => 86400,
         ])->afterCommit();
     }
 
     /**
-     * Queue a push to the other participant of a conversation for a new message,
-     * throttled to one push per conversation per recipient every 5 minutes.
+     * Queue a push for a new chat message ($scope: 'conversation' or 'booking'),
+     * throttled to one push per chat and recipient every 5 minutes. The tag is per
+     * chat, so several messages collapse into one notification.
      */
-    public function queueForMessage(Message $message, User $recipient, string $conversationUuid): void
+    public function queueForChatMessage(User $sender, string $content, User $recipient, string $scope, string $uuid): void
     {
         if (! $this->isEnabled() || ! $recipient->pushSubscriptions()->exists()) {
             return;
         }
 
-        if (! Cache::add("push:message:{$conversationUuid}:{$recipient->id}", 1, self::MESSAGE_THROTTLE_SECONDS)) {
+        if (! Cache::add("push:message:{$scope}:{$uuid}:{$recipient->id}", 1, self::MESSAGE_THROTTLE_SECONDS)) {
             return;
         }
 
         $area = $recipient->userable_type === Face::class ? 'face' : 'producer';
+        $path = $scope === 'booking' ? 'bookings' : 'conversations';
 
         SendWebPush::dispatch($recipient->id, [
             'title' => 'Nouveau message',
-            'body' => Str::limit($this->senderFirstName($message).': '.trim($message->content), self::BODY_LIMIT - 1, '…'),
-            'url' => "/{$area}/conversations/{$conversationUuid}",
-            'tag' => "conversation:{$conversationUuid}",
+            'body' => Str::limit($this->senderFirstName($sender).': '.trim($content), self::BODY_LIMIT - 1, '…'),
+            'url' => "/{$area}/{$path}/{$uuid}",
+            'tag' => "{$scope}:{$uuid}",
             'ttl' => 3600,
         ])->afterCommit();
     }
@@ -107,10 +111,10 @@ class WebPushService
         }
     }
 
-    private function senderFirstName(Message $message): string
+    private function senderFirstName(User $sender): string
     {
-        $message->loadMissing('sender.userable');
-        $profile = $message->sender?->userable;
+        $sender->loadMissing('userable');
+        $profile = $sender->userable;
 
         $name = match (true) {
             $profile instanceof Face => $profile->prenom,

@@ -61,7 +61,7 @@ class PushAllowlistTest extends TestCase
         $this->assertGreaterThan(40, count($types));
         $this->assertContains('booking_received', $types);
         $this->assertContains('mission_candidature_refunded', $types);
-        $this->assertContains('candidature_reset_from_accepted', $types);
+        $this->assertContains('candidature_reset_from_rejected', $types);
         $this->assertContains('face_subscription_renewal_reminder_7d', $types);
 
         $undecided = array_values(array_filter(
@@ -70,6 +70,42 @@ class PushAllowlistTest extends TestCase
         ));
 
         $this->assertSame([], $undecided, 'Add these notification types to PushAllowlist::ALLOWED or ::EXCLUDED.');
+    }
+
+    public function test_non_literal_types_only_live_in_the_known_dynamic_files(): void
+    {
+        $dynamic = [];
+
+        foreach (File::allFiles(dirname(__DIR__, 3).'/app') as $file) {
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+
+            if (preg_match("/Notification::create\(\[.{0,400}?'type' => (?!')/s", $file->getContents())) {
+                $dynamic[] = $file->getFilename();
+            }
+        }
+
+        // MissionPaymentService::notifySafely, the reconcile command (result arrays)
+        // and the renewal reminder (30d/7d ternary). Any other dynamic type escapes the scan above.
+        $known = [
+            'MissionPaymentService.php',
+            'ReconcileStaleSelectionsCommand.php',
+            'RemindFaceSubscriptionRenewalsCommand.php',
+        ];
+
+        $this->assertSame([], array_values(array_diff($dynamic, $known)), 'A new dynamic notification type must be added to emittedTypes().');
+    }
+
+    public function test_product_decisions_on_the_edge_types(): void
+    {
+        $this->assertTrue(PushAllowlist::isAllowed('candidature_reset_from_accepted'));
+        $this->assertTrue(PushAllowlist::isAllowed('face_subscription_renewal_reminder_7d'));
+
+        foreach (['candidature_reset_from_rejected', 'face_subscription_renewal_reminder_30d', 'booking_rating_received'] as $type) {
+            $this->assertTrue(PushAllowlist::isExcluded($type), $type);
+            $this->assertFalse(PushAllowlist::isAllowed($type), $type);
+        }
     }
 
     public function test_allowed_and_excluded_are_disjoint_and_only_reference_emitted_types(): void

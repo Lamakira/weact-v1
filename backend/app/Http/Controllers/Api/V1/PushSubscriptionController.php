@@ -17,6 +17,8 @@ use NotificationChannels\WebPush\PushSubscription;
  */
 class PushSubscriptionController extends Controller
 {
+    public const MAX_SUBSCRIPTIONS_PER_USER = 10;
+
     /**
      * VAPID public key for PushManager.subscribe(); null when push is disabled
      * (the frontend then hides the toggle).
@@ -41,6 +43,13 @@ class PushSubscriptionController extends Controller
             $data['keys']['auth'],
             $data['content_encoding'] ?? 'aes128gcm',
         );
+
+        // Cap per user: prune the least recently refreshed devices.
+        $request->user()->pushSubscriptions()
+            ->orderByDesc('updated_at')->orderByDesc('id')
+            ->skip(self::MAX_SUBSCRIPTIONS_PER_USER)->take(PHP_INT_MAX)
+            ->pluck('id')
+            ->whenNotEmpty(fn ($ids) => PushSubscription::whereIn('id', $ids)->delete());
 
         return response()->json(['data' => null, 'message' => 'Notifications activées sur cet appareil'], 201);
     }

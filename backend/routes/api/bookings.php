@@ -100,7 +100,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'api.token'])->group(function (
         ->name('push.public-key');
 
     Route::post('/me/push-subscriptions', [PushSubscriptionController::class, 'store'])
-        ->middleware('throttle:30,1')
+        ->middleware(['verified', 'throttle:30,1'])
         ->name('me.push-subscriptions.store');
 
     Route::delete('/me/push-subscriptions', [PushSubscriptionController::class, 'destroy'])

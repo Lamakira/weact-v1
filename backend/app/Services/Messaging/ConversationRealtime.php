@@ -47,7 +47,7 @@ class ConversationRealtime
 
             foreach ($participants as $participant) {
                 if ($participant->id !== $message->sender_id) {
-                    app(WebPushService::class)->queueForMessage($message, $participant, $conversation->uuid);
+                    app(WebPushService::class)->queueForChatMessage($message->sender, $message->content, $participant, 'conversation', $conversation->uuid);
                 }
             }
         });

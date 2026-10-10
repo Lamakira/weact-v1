@@ -65,3 +65,11 @@ php artisan tinker
 - Rien n'arrive : vérifier `VAPID_*` (`php artisan tinker`, `config('webpush.vapid.public_key')`), qu'un worker tourne, et `storage/logs` (message « Web push failed »).
 - Bascule absente : navigateur sans push, clés absentes, ou iPhone non installé (message d'explication affiché dans ce dernier cas).
 - Permission bloquée : réactiver les notifications dans les réglages du site du navigateur, puis revenir à la bascule.
+
+## À tester sur vrai iPhone avant d'annoncer l'installation
+
+Une fois WeAct ajouté à l'écran d'accueil, l'app tourne en mode standalone : toute navigation hors du périmètre de l'app (autre origine) s'ouvre dans un navigateur intégré séparé, dont la session et le stockage ne sont pas ceux de l'app. À vérifier avec l'app installée (pas dans Safari) :
+
+1. Retour de paiement FedaPay : lancer un paiement (booking ou abonnement), payer sur la page FedaPay, puis vérifier que le retour atterrit bien dans l'app installée, connectée, avec le statut du paiement à jour (et non dans une fenêtre intégrée où l'utilisateur serait déconnecté ou bloqué).
+2. Connexion Google : se connecter avec Google depuis l'app installée, vérifier que le retour d'OAuth ramène l'utilisateur connecté dans l'app (et non dans le navigateur intégré, sans session).
+3. Ne pas annoncer l'installation tant que ces deux parcours ne sont pas validés ; sinon, documenter le contournement (ouvrir dans Safari).

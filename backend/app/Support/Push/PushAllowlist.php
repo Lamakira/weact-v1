@@ -69,6 +69,8 @@ final class PushAllowlist
         'mission_deleted_candidature_cancelled' => self::MISSION,
         'mission_selection_reset_producer' => self::MISSION,
         'mission_selection_reset' => self::MISSION,
+        // The Face loses an acceptance after a failed Producer payment: she must know.
+        'candidature_reset_from_accepted' => self::MISSION,
         'mission_completed_producer' => self::MISSION,
         'mission_closed_pending_candidature' => self::MISSION,
         'mission_participation_confirmation_required' => self::MISSION,
@@ -90,6 +92,7 @@ final class PushAllowlist
         'face_subscription_activated' => self::SUBSCRIPTION,
         'face_subscription_expired' => self::SUBSCRIPTION,
         'face_subscription_cancelled' => self::SUBSCRIPTION,
+        'face_subscription_renewal_reminder_7d' => self::REMINDER,
     ];
 
     /**
@@ -99,10 +102,8 @@ final class PushAllowlist
      */
     public const EXCLUDED = [
         'booking_rating_received' => 'Purement informatif, aucune action ni argent en jeu.',
-        'candidature_reset_from_accepted' => 'Conséquence d\'un paiement Producteur non abouti (retour en attente), non urgente et bruyante.',
-        'candidature_reset_from_rejected' => 'Conséquence d\'un paiement Producteur non abouti (retour en attente), non urgente et bruyante.',
+        'candidature_reset_from_rejected' => 'La Face n\'avait pas été retenue : le retour en attente n\'appelle aucune action.',
         'face_subscription_renewal_reminder_30d' => 'Rappel trop anticipé, déjà couvert par l\'e-mail et la notification in-app.',
-        'face_subscription_renewal_reminder_7d' => 'Déjà couvert par l\'e-mail de renouvellement et la notification in-app.',
     ];
 
     public static function titleFor(string $type): ?string

@@ -64,10 +64,17 @@ class WebPushDeliveryTest extends TestCase
         ]);
     }
 
+    /** Dispatch is skipped for users without any device. */
+    private function withDevice(): void
+    {
+        $this->user->updatePushSubscription('https://fcm.googleapis.com/fcm/send/base', 'k', 'a');
+    }
+
     // --- Dispatch from the Notification observer ---------------------------------
 
     public function test_allowlisted_type_queues_a_push_for_the_notifications_user_only(): void
     {
+        $this->withDevice();
         Bus::fake([SendWebPush::class]);
 
         $this->notify($this->user, 'booking_received');
@@ -78,6 +85,7 @@ class WebPushDeliveryTest extends TestCase
                 && $job->payload['body'] === 'Un message de test'
                 && $job->payload['url'] === '/face/bookings/abc'
                 && str_starts_with($job->payload['tag'], 'booking_received:')
+                && $job->payload['tag'] !== 'booking_received:'
                 && $job->afterCommit === true;
         });
         Bus::assertDispatchedTimes(SendWebPush::class, 1);
@@ -85,6 +93,7 @@ class WebPushDeliveryTest extends TestCase
 
     public function test_excluded_type_queues_nothing(): void
     {
+        $this->withDevice();
         Bus::fake([SendWebPush::class]);
 
         $this->notify($this->user, 'booking_rating_received');
@@ -95,6 +104,7 @@ class WebPushDeliveryTest extends TestCase
 
     public function test_nothing_is_queued_when_vapid_keys_are_missing(): void
     {
+        $this->withDevice();
         config(['webpush.vapid.public_key' => null, 'webpush.vapid.private_key' => null]);
         Bus::fake([SendWebPush::class]);
 
@@ -105,6 +115,7 @@ class WebPushDeliveryTest extends TestCase
 
     public function test_payload_truncates_the_body_and_sanitises_the_url(): void
     {
+        $this->withDevice();
         Bus::fake([SendWebPush::class]);
 
         $this->notify($this->user, 'booking_paid', ['message' => str_repeat('a', 400), 'url' => 'https://evil.example/x']);
@@ -120,6 +131,7 @@ class WebPushDeliveryTest extends TestCase
 
     public function test_notification_creation_survives_a_dispatch_failure(): void
     {
+        $this->withDevice();
         Bus::shouldReceive('dispatch')->andThrow(new \RuntimeException('queue down'));
         Log::spy();
 

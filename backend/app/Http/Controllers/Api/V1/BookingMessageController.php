@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\SendBookingMessageRequest;
 use App\Http\Resources\BookingMessageResource;
 use App\Models\Booking;
+use App\Services\Push\WebPushService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
@@ -61,6 +62,18 @@ class BookingMessageController extends Controller
         $message->load('sender.userable');
 
         broadcast(new BookingMessageSent($message))->toOthers();
+
+        // Throttled web push to the other party; never fails the send.
+        try {
+            $booking->loadMissing('face', 'producer');
+            $recipient = $request->user()->id === $booking->face_id ? $booking->producer : $booking->face;
+
+            if ($recipient !== null) {
+                app(WebPushService::class)->queueForChatMessage($message->sender, $message->content, $recipient, 'booking', $booking->uuid);
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         return response()->json([
             'data' => new BookingMessageResource($message),

@@ -108,6 +108,7 @@ class ProducerController extends Controller
         // Revoke all tokens when deactivating
         if (! $newStatus) {
             $user->tokens()->delete();
+            $user->pushSubscriptions()->delete();
         }
 
         return response()->json([
@@ -182,6 +183,7 @@ class ProducerController extends Controller
 
             if ($user !== null) {
                 $user->tokens()->delete();
+                $user->pushSubscriptions()->delete();
                 $user->delete();
             }
 

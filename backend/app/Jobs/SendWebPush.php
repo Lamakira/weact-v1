@@ -19,6 +19,11 @@ class SendWebPush implements ShouldQueue
 
     public int $tries = 1;
 
+    /** Below the worker's 90 s: a hung push service must not stall the queue. */
+    public int $timeout = 45;
+
+    public bool $failOnTimeout = true;
+
     /**
      * @param  array{title: string, body: string, url: string, tag: string, ttl: int}  $payload
      */
