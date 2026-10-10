@@ -233,6 +233,41 @@ class PublicMissionDetailTest extends TestCase
             ]);
     }
 
+    public function test_mission_with_passed_candidature_deadline_returns_404(): void
+    {
+        $mission = $this->createPublishedMission([
+            'date_limite_candidature' => now()->subDays(2)->toDateString(),
+            'date_tournage' => now()->addDays(10)->toDateString(),
+        ]);
+
+        $this->getJson("/api/v1/public/missions/{$mission->slug}")
+            ->assertNotFound()
+            ->assertJson(['error' => ['code' => 'MISSION_NOT_FOUND']]);
+    }
+
+    public function test_mission_with_passed_shooting_date_returns_404(): void
+    {
+        $mission = $this->createPublishedMission([
+            'date_limite_candidature' => now()->addDays(2)->toDateString(),
+            'date_tournage' => now()->subDays(2)->toDateString(),
+        ]);
+
+        $this->getJson("/api/v1/public/missions/{$mission->slug}")
+            ->assertNotFound()
+            ->assertJson(['error' => ['code' => 'MISSION_NOT_FOUND']]);
+    }
+
+    public function test_mission_with_deadline_today_is_visible(): void
+    {
+        $mission = $this->createPublishedMission([
+            'date_limite_candidature' => now((string) config('app.business_timezone'))->toDateString(),
+            'date_tournage' => now()->addDays(10)->toDateString(),
+        ]);
+
+        $this->getJson("/api/v1/public/missions/{$mission->slug}")
+            ->assertOk();
+    }
+
     // ─── Auth & Access Tests ─────────────────────────────────────────
 
     public function test_does_not_require_authentication(): void
@@ -290,8 +325,8 @@ class PublicMissionDetailTest extends TestCase
         $producer = $this->createProducerWithUser();
         $mission = $this->createPublishedMission([
             'producer' => $producer,
-            'date_tournage' => '2026-03-15',
-            'date_limite_candidature' => '2026-02-28',
+            'date_tournage' => $tournage = now()->addDays(30)->toDateString(),
+            'date_limite_candidature' => $limite = now()->addDays(15)->toDateString(),
         ]);
 
         $response = $this->getJson("/api/v1/public/missions/{$mission->slug}");
@@ -301,8 +336,8 @@ class PublicMissionDetailTest extends TestCase
         $data = $response->json('data');
 
         // Date fields should be ISO date strings (YYYY-MM-DD)
-        $this->assertEquals('2026-03-15', $data['date_tournage']);
-        $this->assertEquals('2026-02-28', $data['date_limite_candidature']);
+        $this->assertEquals($tournage, $data['date_tournage']);
+        $this->assertEquals($limite, $data['date_limite_candidature']);
     }
 
     // ─── Budget Tests ────────────────────────────────────────────────

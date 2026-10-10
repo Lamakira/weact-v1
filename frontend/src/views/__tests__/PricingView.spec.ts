@@ -209,10 +209,10 @@ describe('PricingView (public /pricing — FP-2.13)', () => {
       expect(ugcRow!.findAllComponents(Minus).length).toBe(3)
     })
 
-    it('shows Découverte as included in the "Missions rémunérées" row (FP-3.4 — AC #1)', () => {
+    it('shows Découverte as included in the "Réservation directe par les Producteurs" row (FP-3.4 — AC #1)', () => {
       const wrapper = mountPricing()
       const rows = wrapper.findAll('table tbody tr')
-      const row = rows.find((tr) => tr.find('td')?.text() === 'Missions rémunérées')
+      const row = rows.find((tr) => tr.find('td')?.text() === 'Réservation directe par les Producteurs')
       expect(row).toBeTruthy()
       const cells = row!.findAll('td')
       // [name, decouverte, starter, pro, elite] — Découverte is now "Oui" (Check), not a Minus

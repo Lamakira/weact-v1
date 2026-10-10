@@ -6,6 +6,7 @@ namespace Tests\Feature\Candidature;
 
 use App\Enums\FaceGender;
 use App\Models\Face;
+use App\Models\FaceSubscription;
 use App\Models\Mission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,6 +20,8 @@ class CandidatureGenderValidationTest extends TestCase
     {
         $faceData = $sexe !== null ? ['sexe' => $sexe->value] : [];
         $face = Face::factory()->create($faceData);
+        // Candidatures réservées aux Faces abonnées : ces tests ciblent le genre, pas le paywall.
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $face->id]);
         $user = User::factory()->create([
             'userable_type' => Face::class,
             'userable_id' => $face->id,

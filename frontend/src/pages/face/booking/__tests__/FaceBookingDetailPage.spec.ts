@@ -779,7 +779,7 @@ describe('FaceBookingDetailPage — UGC commission CTA (story 1.6)', () => {
 
   it('routes to pricing on a UGC_SUBSCRIPTION_REQUIRED accept failure (story 2.4)', async () => {
     mockAccept.mockImplementationOnce(async () => {
-      mockActionError.value = "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus)."
+      mockActionError.value = "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite."
       mockActionErrorCode.value = 'UGC_SUBSCRIPTION_REQUIRED'
       return null
     })

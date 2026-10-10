@@ -73,6 +73,18 @@ vi.mock('@/features/mission/composables', () => ({
   }),
 }))
 
+// useSubscriptionStatus — `data` null = statut inconnu (pas de bandeau)
+const mockSubscriptionData = ref<unknown>(null)
+const mockSubscriptionTier = ref<'free' | 'starter' | 'pro' | 'elite'>('free')
+const mockFetchSubscriptionStatus = vi.fn()
+vi.mock('@/features/face/composables/useSubscriptionStatus', () => ({
+  useSubscriptionStatus: () => ({
+    data: mockSubscriptionData,
+    tier: mockSubscriptionTier,
+    fetchStatus: mockFetchSubscriptionStatus,
+  }),
+}))
+
 function createMission(overrides: Partial<Mission> = {}): Mission {
   // AvailableMissionCard is stubbed, so only a key is exercised by the page.
   return { id: 'mission-uuid-1', titre: 'Test mission', ...overrides } as Mission
@@ -139,5 +151,49 @@ describe('FaceMissionsListPage — UGC discovery entry point (ugc-disc-1)', () =
     await flushPromises()
 
     expect(wrapper.find('[data-testid="ugc-discovery-cta"]').exists()).toBe(true)
+  })
+})
+
+describe('FaceMissionsListPage — apply paywall banner', () => {
+  beforeEach(() => {
+    mockMissions.value = [createMission()]
+    mockIsLoading.value = false
+    mockError.value = null
+    mockIsEmpty.value = false
+    mockSubscriptionData.value = null
+    mockSubscriptionTier.value = 'free'
+    vi.clearAllMocks()
+  })
+
+  it('shows the banner for a Free-tier Face', async () => {
+    mockSubscriptionData.value = { current: null }
+    mockSubscriptionTier.value = 'free'
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    const banner = wrapper.find('[data-testid="apply-subscription-banner"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('Postuler aux missions est réservé aux Faces abonnées.')
+    expect(mockFetchSubscriptionStatus).toHaveBeenCalled()
+  })
+
+  it('does not show the banner while the status is loading', async () => {
+    mockSubscriptionData.value = null
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="apply-subscription-banner"]').exists()).toBe(false)
+  })
+
+  it('does not show the banner for a subscribed Face', async () => {
+    mockSubscriptionData.value = { current: { tier: 'starter' } }
+    mockSubscriptionTier.value = 'starter'
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="apply-subscription-banner"]').exists()).toBe(false)
   })
 })

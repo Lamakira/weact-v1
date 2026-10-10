@@ -40,6 +40,18 @@ vi.mock('vue-router', () => ({
   useRouter: () => mockRouter,
 }))
 
+// Mock useSubscriptionStatus — `data` null = statut inconnu (pas de paywall), tier piloté par test
+const mockSubscriptionData = ref<unknown>(null)
+const mockSubscriptionTier = ref<'free' | 'starter' | 'pro' | 'elite'>('free')
+const mockFetchSubscriptionStatus = vi.fn()
+vi.mock('@/features/face/composables/useSubscriptionStatus', () => ({
+  useSubscriptionStatus: () => ({
+    data: mockSubscriptionData,
+    tier: mockSubscriptionTier,
+    fetchStatus: mockFetchSubscriptionStatus,
+  }),
+}))
+
 // Mock the composable
 const mockMission = ref<Mission | null>(null)
 const mockCandidature = ref<MissionCandidature | null>(null)
@@ -213,6 +225,9 @@ describe('FaceMissionDetailPage', () => {
     mockUgcPaywall.value = false
     mockUgcPaywallMessage.value = null
     mockFetchMission.mockClear()
+    mockSubscriptionData.value = null
+    mockSubscriptionTier.value = 'free'
+    mockFetchSubscriptionStatus.mockClear()
     mockSetCandidature.mockClear()
     mockIsReconfirming.value = false
     mockReconfirmError.value = null
@@ -1378,7 +1393,7 @@ describe('FaceMissionDetailPage', () => {
   describe('UGC paywall redirect', () => {
     it('redirects to pricing with an info toast when the paywall flag is set', async () => {
       mockUgcPaywall.value = true
-      mockUgcPaywallMessage.value = "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus)."
+      mockUgcPaywallMessage.value = "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite."
 
       mount(FaceMissionDetailPage, {
         global: {
@@ -1393,9 +1408,115 @@ describe('FaceMissionDetailPage', () => {
       await flushPromises()
 
       expect(mockToast.info).toHaveBeenCalledWith(
-        "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus).",
+        "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.",
       )
       expect(mockRouter.replace).toHaveBeenCalledWith({ name: 'pricing' })
+    })
+  })
+
+  describe('candidatures réservées aux Faces abonnées', () => {
+    function mountGate() {
+      return mount(FaceMissionDetailPage, {
+        global: {
+          plugins: [
+            createTestingPinia({
+              initialState: {
+                auth: {
+                  user: {
+                    id: 1,
+                    email: 'test@test.com',
+                    email_verified: true,
+                    email_verified_at: '2026-01-01',
+                    userable_type: 'Face',
+                    userable: { sexe: 'homme' },
+                  },
+                  token: 'fake-token',
+                },
+              },
+              stubActions: false,
+            }),
+          ],
+          stubs: {
+            ApplyToMissionModal: true,
+            RatingDisplay: true,
+            ConfirmModal: true,
+            RouterLink: { template: '<a><slot /></a>', props: ['to'] },
+          },
+        },
+      })
+    }
+
+    it('shows the paywall notice instead of Postuler for a Free Face on a standard mission', async () => {
+      mockMission.value = createMission({ genre_voulu: 'tous' })
+      mockSubscriptionData.value = { current: null }
+      mockSubscriptionTier.value = 'free'
+
+      const wrapper = mountGate()
+      await flushPromises()
+
+      expect(mockFetchSubscriptionStatus).toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="subscription-required-block"]').exists()).toBe(true)
+      expect(wrapper.text()).toContain('Les candidatures sont réservées aux Faces abonnées.')
+      expect(wrapper.text()).not.toContain('Postuler à cette mission')
+
+      await wrapper.find('[data-testid="view-pricing-button"]').trigger('click')
+      expect(mockRouter.push).toHaveBeenCalledWith({ name: 'pricing' })
+    })
+
+    it('does not flash the paywall while the subscription status is unknown', async () => {
+      mockMission.value = createMission({ genre_voulu: 'tous' })
+      mockSubscriptionData.value = null
+
+      const wrapper = mountGate()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="subscription-required-block"]').exists()).toBe(false)
+      expect(wrapper.text()).toContain('Postuler à cette mission')
+    })
+
+    it('shows Postuler for a subscribed Face', async () => {
+      mockMission.value = createMission({ genre_voulu: 'tous' })
+      mockSubscriptionData.value = { current: { tier: 'starter' } }
+      mockSubscriptionTier.value = 'starter'
+
+      const wrapper = mountGate()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="subscription-required-block"]').exists()).toBe(false)
+      expect(wrapper.text()).toContain('Postuler à cette mission')
+    })
+
+    it('does not show the notice for a UGC mission (gated server-side)', async () => {
+      mockMission.value = createUgcMission({ genre_voulu: 'tous' })
+      mockSubscriptionData.value = { current: null }
+      mockSubscriptionTier.value = 'free'
+
+      const wrapper = mountGate()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="subscription-required-block"]').exists()).toBe(false)
+    })
+
+    it('keeps the existing candidature state for a Free Face who already applied', async () => {
+      mockMission.value = createMission({ genre_voulu: 'tous' })
+      mockCandidature.value = {
+        id: 'cand-1',
+        mission_id: 'mission-uuid-1',
+        face_id: 1,
+        status: 'pending',
+        status_label: 'En attente',
+        message_motivation: null,
+        created_at: '2026-01-02T00:00:00Z',
+        updated_at: '2026-01-02T00:00:00Z',
+      } as MissionCandidature
+      mockSubscriptionData.value = { current: null }
+      mockSubscriptionTier.value = 'free'
+
+      const wrapper = mountGate()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="subscription-required-block"]').exists()).toBe(false)
+      expect(wrapper.text()).toContain('Candidature envoyée')
     })
   })
 })

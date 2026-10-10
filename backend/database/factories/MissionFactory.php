@@ -29,7 +29,7 @@ class MissionFactory extends Factory
     public function definition(): array
     {
         $dateTournage = fake()->dateTimeBetween('+1 week', '+3 months');
-        $dateLimiteCandidature = fake()->dateTimeBetween('now', $dateTournage);
+        $dateLimiteCandidature = fake()->dateTimeBetween('+1 day', $dateTournage);
 
         return [
             'uuid' => fake()->uuid(),

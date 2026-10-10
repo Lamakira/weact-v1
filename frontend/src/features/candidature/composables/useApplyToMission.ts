@@ -95,6 +95,17 @@ export function useApplyToMission() {
             }
           }
 
+          // Paywall : on conserve le code et le message backend (le composant redirige vers /pricing).
+          if (code === 'SUBSCRIPTION_REQUIRED' || code === 'UGC_SUBSCRIPTION_REQUIRED') {
+            return {
+              success: false,
+              error: {
+                code,
+                message,
+              },
+            }
+          }
+
           error.value = 'Vous devez être connecté en tant que Face pour postuler'
           return {
             success: false,

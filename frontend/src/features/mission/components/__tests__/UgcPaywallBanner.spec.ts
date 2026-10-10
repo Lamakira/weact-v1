@@ -15,7 +15,7 @@ const mountOptions = {
   },
 }
 
-const MESSAGE = "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus)."
+const MESSAGE = "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite."
 
 describe('UgcPaywallBanner', () => {
   it('renders the backend-driven paywall message and the static title', () => {

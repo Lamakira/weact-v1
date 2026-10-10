@@ -338,7 +338,7 @@ class ProducerAcceptUgcCandidatureTest extends TestCase
         ]);
         // ugc-8-2 (revue, D-2.4.c) : l'accept re-vérifie canAccessUgc ⇒ Face abonnée
         // Starter active (sinon 403). Calque le S8 makeSubscribedFace de la story.
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $face->id]);
 
         return [$face, $user];
     }

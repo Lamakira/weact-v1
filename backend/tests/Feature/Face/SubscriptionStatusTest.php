@@ -566,7 +566,7 @@ class SubscriptionStatusTest extends TestCase
                 'max_presentation_videos' => 1,
                 'max_acting_videos' => 0,
                 'max_ugc_videos' => 0,
-                'ugc_access' => true,
+                'ugc_access' => false,
                 'commission_rate' => 0.1,
                 'sort_priority' => 3,
                 'has_elite_badge' => false,

@@ -64,7 +64,7 @@ onMounted(async () => {
       <h1 class="text-3xl font-bold text-gray-900 mb-2">Bienvenue sur WEACT 🎉</h1>
       <p class="text-gray-600 mb-8">
         Votre profil Découverte est prêt. Passez à un palier supérieur pour débloquer plus de
-        portfolio, de visibilité et de missions UGC rémunérées — ou commencez gratuitement.
+        portfolio, de visibilité et de missions rémunérées — ou commencez gratuitement.
       </p>
 
       <!-- Email not verified: show the reusable banner (with resend) and disable

@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Services\MissionPaymentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
@@ -169,6 +170,54 @@ class UgcReconfirmDeadlineSweepTest extends TestCase
         // Un seul crédit Producteur au total.
         $this->assertSame($before + 14250, (int) $producerUser->fresh()->balance);
         $this->assertSame(1, WalletTransaction::where('user_id', $producerUser->id)->count());
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
+
+    public function test_sweep_does_not_reopen_on_deadline_day_after_benin_midnight(): void
+    {
+        // 23:30 UTC le 10/10 = 00:30 le 11/10 au Bénin : la deadline du 10/10 est passée.
+        Carbon::setTestNow(Carbon::parse('2026-10-10 23:30:00', 'UTC'));
+        [$producer] = $this->makeProducerWithUser();
+        [$face] = $this->makeSubscribedFace('elite');
+        $mission = $this->makePublishedHybridMission($producer, [
+            'nombre_faces_voulu' => 1,
+            'date_limite_candidature' => '2026-10-10',
+            'date_tournage' => '2026-11-15',
+        ]);
+        $candidature = $this->makeAcceptedCandidaturePast48h($mission, $face);
+        $this->lockHybridEscrow($candidature);
+        $mission->update(['status' => MissionStatus::Closed]);
+
+        $this->artisan('ugc:expire-unreconfirmed-candidatures')->assertExitCode(0);
+
+        $this->assertSame(CandidatureStatus::Cancelled, $candidature->fresh()->status);
+        $this->assertSame(MissionStatus::Closed, $mission->fresh()->status);
+    }
+
+    public function test_sweep_reopens_on_deadline_day_before_benin_midnight(): void
+    {
+        // 22:30 UTC le 10/10 = 23:30 le 10/10 au Bénin : deadline du jour encore ouverte.
+        Carbon::setTestNow(Carbon::parse('2026-10-10 22:30:00', 'UTC'));
+        [$producer] = $this->makeProducerWithUser();
+        [$face] = $this->makeSubscribedFace('elite');
+        $mission = $this->makePublishedHybridMission($producer, [
+            'nombre_faces_voulu' => 1,
+            'date_limite_candidature' => '2026-10-10',
+            'date_tournage' => '2026-11-15',
+        ]);
+        $candidature = $this->makeAcceptedCandidaturePast48h($mission, $face);
+        $this->lockHybridEscrow($candidature);
+        $mission->update(['status' => MissionStatus::Closed]);
+
+        $this->artisan('ugc:expire-unreconfirmed-candidatures')->assertExitCode(0);
+
+        $this->assertSame(MissionStatus::Published, $mission->fresh()->status);
     }
 
     public function test_sweep_does_not_reopen_when_deadline_passed(): void

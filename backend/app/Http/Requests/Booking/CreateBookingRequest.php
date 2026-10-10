@@ -10,6 +10,7 @@ use App\Models\Booking;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\FaceEntitlementService;
 use App\Support\UploadedMedia;
 use App\ValueObjects\BookingPricing;
 use Carbon\CarbonImmutable;
@@ -146,6 +147,8 @@ class CreateBookingRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            $this->validateFaceCanReceiveUgc($validator);
+
             $faceUuid = $this->input('face_id');
             $dateDebut = $this->input('date_debut');
             $dateFin = $this->input('date_fin');
@@ -202,6 +205,25 @@ class CreateBookingRequest extends FormRequest
 
             $this->validateUgcTotalFitsStorage($validator);
         });
+    }
+
+    /**
+     * Refuse la création d'un booking UGC pour une Face qui ne pourrait pas l'accepter
+     * (non abonnée Pro+ ou suspendue) : sinon la commission serait encaissée pour rien.
+     * Message volontairement neutre (ne révèle ni l'abonnement ni la suspension) et code
+     * 422 standard — jamais UGC_SUBSCRIPTION_REQUIRED (le frontend y lit « tu dois t'abonner »).
+     */
+    private function validateFaceCanReceiveUgc(Validator $validator): void
+    {
+        $faceUuid = $this->input('face_id');
+        if ($this->input('type_contenu') !== 'UGC' || ! is_string($faceUuid)) {
+            return;
+        }
+
+        $face = Face::where('uuid', $faceUuid)->first();
+        if ($face && ! app(FaceEntitlementService::class)->canAccessUgc($face)) {
+            $validator->errors()->add('type_contenu', "Cette Face n'est pas disponible pour les contenus UGC.");
+        }
     }
 
     private function validateUgcTotalFitsStorage(Validator $validator): void

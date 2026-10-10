@@ -308,7 +308,7 @@ class UgcAutoSuspensionTest extends TestCase
 
     public function test_premium_frozen_after_suspension(): void
     {
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
         $entitlement = app(FaceEntitlementService::class);
         $this->assertTrue($entitlement->canAccessUgc($this->face)); // AVANT : accès UGC ouvert
 

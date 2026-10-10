@@ -28,6 +28,7 @@ import { useCancelCandidature, useReconfirmCandidature } from '@/features/candid
 import { authApi } from '@/features/auth/services/authApi'
 import type { Face } from '@/features/auth/types'
 import { useToast } from '@/composables/useToast'
+import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'
 import { useUgcShipment } from '@/composables/useUgcShipment'
 import { useUgcDeliverable } from '@/composables/useUgcDeliverable'
 
@@ -51,7 +52,7 @@ watch(
     if (blocked) {
       // `||` (pas `??`) : un message backend vide ne doit pas produire un toast vide
       toast.info(
-        ugcPaywallMessage.value || "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus).",
+        ugcPaywallMessage.value || "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.",
       )
       router.replace({ name: 'pricing' })
     }
@@ -153,6 +154,27 @@ const canCancelCandidature = computed(() => candidature.value?.status === 'pendi
 
 // Computed: Can the user apply? (must have verified email)
 const canApply = computed(() => authStore.isEmailVerified)
+
+// Candidatures réservées aux Faces abonnées (missions standard) : pas de flash du paywall
+// tant que le statut d'abonnement n'est pas chargé (`data` null = inconnu).
+const { data: subscriptionData, tier: subscriptionTier, fetchStatus: fetchSubscriptionStatus } =
+  useSubscriptionStatus()
+const isSubscriptionGated = computed(
+  () =>
+    subscriptionData.value !== null &&
+    subscriptionTier.value === 'free' &&
+    !isUgc.value,
+)
+
+function goToPricing(): void {
+  router.push({ name: 'pricing' })
+}
+
+function handleSubscriptionRequired(message: string): void {
+  closeApplyModal()
+  toast.info(message)
+  goToPricing()
+}
 
 const currentFaceSexe = computed<Face['sexe'] | undefined>(() => {
   if (!authStore.isFace) return undefined
@@ -430,6 +452,7 @@ const applyBlockProps = computed(() => ({
   isReconfirming: isReconfirming.value,
   isCancelling: isCancelling.value,
   canApply: canApply.value,
+  isSubscriptionGated: isSubscriptionGated.value,
   isResendingVerification: isResendingVerification.value,
   isGenderContextUnknown: isGenderContextUnknown.value,
   isRefreshingGenderContext: isRefreshingGenderContext.value,
@@ -442,6 +465,8 @@ const applyBlockProps = computed(() => ({
  * LIFECYCLE
  */
 onMounted(() => {
+  void fetchSubscriptionStatus()
+
   if (isGenderContextUnknown.value) {
     isRefreshingGenderContext.value = true
 
@@ -729,6 +754,7 @@ onMounted(() => {
               @cancel="openCancelModal"
               @reconfirm="handleReconfirm"
               @resend-verification="handleResendVerification"
+              @view-pricing="goToPricing"
               @confirm-receipt="openReceiptModal"
               @upload="handleUploadDeliverable"
             />
@@ -775,6 +801,7 @@ onMounted(() => {
                 @cancel="openCancelModal"
                 @reconfirm="handleReconfirm"
                 @resend-verification="handleResendVerification"
+                @view-pricing="goToPricing"
                 @confirm-receipt="openReceiptModal"
                 @upload="handleUploadDeliverable"
               />
@@ -832,6 +859,7 @@ onMounted(() => {
           @cancel="openCancelModal"
           @reconfirm="handleReconfirm"
           @resend-verification="handleResendVerification"
+          @view-pricing="goToPricing"
           @confirm-receipt="openReceiptModal"
           @upload="handleUploadDeliverable"
         />
@@ -846,6 +874,7 @@ onMounted(() => {
       :mission-title="mission.titre"
       @close="closeApplyModal"
       @success="handleApplySuccess"
+      @subscription-required="handleSubscriptionRequired"
     />
 
     <!-- Cancel Confirmation Modal -->

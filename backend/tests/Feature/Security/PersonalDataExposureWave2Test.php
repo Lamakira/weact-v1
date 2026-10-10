@@ -14,6 +14,7 @@ use App\Models\Booking;
 use App\Models\BookingMessage;
 use App\Models\Candidature;
 use App\Models\Face;
+use App\Models\FaceSubscription;
 use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
@@ -45,6 +46,7 @@ class PersonalDataExposureWave2Test extends TestCase
             'show_age' => false,
             'date_naissance' => now()->subYears(16)->format('Y-m-d'),
         ]);
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
         $this->faceUser = User::factory()->create([
             'email' => 'face.secret@example.test',
             'userable_type' => Face::class,

@@ -20,6 +20,7 @@ use App\Services\EscrowService;
 use App\Services\Ugc\UgcRefundService;
 use App\Services\WalletService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Tests\Feature\Ugc\Concerns\DispatchesFedapayWebhooks;
@@ -198,6 +199,43 @@ class UgcMissionRefundTest extends TestCase
         $this->assertNotNull($mission->commission_refund_requested_at);
         $this->assertNotNull($mission->commission_refunded_at);
         $this->assertSame($before + 2500, (int) $this->producerUser->fresh()->balance);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
+    }
+
+    public function test_cron_closes_deadline_day_mission_after_benin_midnight(): void
+    {
+        // 23:30 UTC le 10/10 = 00:30 le 11/10 au Bénin : deadline du 10/10 passée.
+        Carbon::setTestNow(Carbon::parse('2026-10-10 23:30:00', 'UTC'));
+        $mission = $this->makeExpiredPaidUgcMission(transactionId: 912);
+        $mission->update(['date_limite_candidature' => '2026-10-10']);
+        $before = (int) $this->producerUser->balance;
+
+        $this->artisan('ugc:expire-unaccepted-deals')->assertSuccessful();
+
+        $mission->refresh();
+        $this->assertSame(MissionStatus::Closed, $mission->status);
+        $this->assertNotNull($mission->commission_refunded_at);
+        $this->assertSame($before + 2500, (int) $this->producerUser->fresh()->balance);
+    }
+
+    public function test_cron_ignores_deadline_day_mission_before_benin_midnight(): void
+    {
+        // 22:30 UTC le 10/10 = 23:30 le 10/10 au Bénin : deadline du jour encore ouverte.
+        Carbon::setTestNow(Carbon::parse('2026-10-10 22:30:00', 'UTC'));
+        $mission = $this->makeExpiredPaidUgcMission(transactionId: 913);
+        $mission->update(['date_limite_candidature' => '2026-10-10']);
+
+        $this->artisan('ugc:expire-unaccepted-deals')->assertSuccessful();
+
+        $mission->refresh();
+        $this->assertSame(MissionStatus::Published, $mission->status);
+        $this->assertNull($mission->commission_refunded_at);
     }
 
     public function test_cron_ignores_mission_with_deadline_today(): void

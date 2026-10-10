@@ -60,7 +60,7 @@ class UgcBookingAcceptanceTest extends TestCase
 
     private function subscribeFace(): void
     {
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
     }
 
     private function makeUgcBooking(BookingStatus $status, string $compensation = 'product'): Booking
@@ -208,7 +208,7 @@ class UgcBookingAcceptanceTest extends TestCase
             ->postJson("/api/v1/bookings/{$booking->uuid}/accept")
             ->assertForbidden()
             ->assertJsonPath('error.code', 'UGC_SUBSCRIPTION_REQUIRED')
-            ->assertJsonPath('error.message', "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus).");
+            ->assertJsonPath('error.message', "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.");
 
         $this->assertSame(BookingStatus::CommissionPaid, $booking->fresh()->status);
     }
