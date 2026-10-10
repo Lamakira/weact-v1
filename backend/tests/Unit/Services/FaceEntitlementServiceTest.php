@@ -60,7 +60,7 @@ class FaceEntitlementServiceTest extends TestCase
         $this->assertSame(1, $caps->maxPresentationVideos);
         $this->assertSame(0, $caps->maxActingVideos);
         $this->assertSame(0, $caps->maxUgcVideos);
-        $this->assertTrue($caps->ugcAccess);
+        $this->assertFalse($caps->ugcAccess);
         $this->assertSame(0.10, $caps->commissionRate);
         $this->assertSame(3, $caps->sortPriority);
         $this->assertFalse($caps->hasEliteBadge);
@@ -353,9 +353,9 @@ class FaceEntitlementServiceTest extends TestCase
         $this->assertFalse($this->service->canAccessUgc($face));
     }
 
-    public function test_can_access_ugc_is_true_for_starter_pro_elite_active(): void
+    public function test_can_access_ugc_is_true_for_pro_elite_active(): void
     {
-        foreach (['starter', 'pro', 'elite'] as $tierState) {
+        foreach (['pro', 'elite'] as $tierState) {
             $face = Face::factory()->create();
             FaceSubscription::factory()->{$tierState}()->active()->create(['face_id' => $face->id]);
 
@@ -364,6 +364,14 @@ class FaceEntitlementServiceTest extends TestCase
                 "An active {$tierState} subscription must grant UGC access."
             );
         }
+    }
+
+    public function test_can_access_ugc_is_false_for_starter_active(): void
+    {
+        $face = Face::factory()->create();
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $face->id]);
+
+        $this->assertFalse($this->service->canAccessUgc($face));
     }
 
     public function test_can_access_ugc_is_false_for_expired_subscription(): void
@@ -412,7 +420,7 @@ class FaceEntitlementServiceTest extends TestCase
     public function test_can_access_ugc_is_false_when_suspended_even_if_subscribed(): void
     {
         $face = Face::factory()->create();
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $face->id]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $face->id]);
 
         $suspendedService = new class extends FaceEntitlementService
         {
@@ -470,7 +478,7 @@ class FaceEntitlementServiceTest extends TestCase
     {
         $cases = [
             [FaceSubscriptionTier::Free, 1, 0, 0, 0, false, 0.15, 4, false], // FP-3.1a: Découverte 0.10 → 0.15
-            [FaceSubscriptionTier::Starter, 2, 1, 0, 0, true, 0.10, 3, false],
+            [FaceSubscriptionTier::Starter, 2, 1, 0, 0, false, 0.10, 3, false],
             [FaceSubscriptionTier::Pro, 4, 1, 1, 0, true, 0.10, 2, false],
             [FaceSubscriptionTier::Elite, 6, 1, 2, 1, true, 0.05, 1, true],
         ];

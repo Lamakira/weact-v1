@@ -8,6 +8,7 @@ use App\Enums\CandidatureStatus;
 use App\Enums\CompensationType;
 use App\Enums\ErrorCodes;
 use App\Enums\EscrowStatus;
+use App\Enums\FaceSubscriptionTier;
 use App\Enums\MissionGender;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
@@ -78,6 +79,9 @@ class CandidatureController extends Controller
      * Creates a candidature with status "pending" if:
      * - Mission is published and accepting candidatures
      * - Face hasn't already applied to this mission
+     * - Face holds an active paid subscription (UGC: UGC_SUBSCRIPTION_REQUIRED,
+     *   standard: SUBSCRIPTION_REQUIRED)
+     * - Gender is compatible with the mission
      */
     public function store(StoreCandidatureRequest $request, Mission $mission): JsonResponse
     {
@@ -114,14 +118,27 @@ class CandidatureController extends Controller
             ], 422);
         }
 
-        // Gate UGC (FR5) : seules les Faces abonnées Starter+ postulent aux missions UGC.
+        // Gate UGC (FR5) : seules les Faces abonnées Pro+ postulent aux missions UGC.
         // Après le check duplicate : une Face détentrice d'une candidature reçoit
         // ALREADY_APPLIED, pas le paywall (cohérent avec l'exception candidature de show()).
         if ($mission->type_mission === MissionType::Ugc
             && ! $this->entitlement->canAccessUgc($face)) {
             return response()->json(
                 ErrorCodes::UgcSubscriptionRequired->envelope(
-                    "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus)."
+                    'Postuler aux missions UGC est réservé aux Faces abonnées Pro ou Élite.'
+                ),
+                403
+            );
+        }
+
+        // Candidatures réservées aux Faces abonnées (Starter et plus) ; le booking direct reste ouvert à toutes.
+        // Après le check duplicate : une Face qui a déjà postulé reçoit ALREADY_APPLIED, pas le paywall.
+        if ($mission->type_mission !== MissionType::Ugc
+            && $this->entitlement->capabilities($face)->tier === FaceSubscriptionTier::Free) {
+            return response()->json(
+                ErrorCodes::SubscriptionRequired->envelope(
+                    'Postuler aux missions est réservé aux Faces abonnées (Starter et plus). Les Producteurs peuvent toujours vous réserver directement.',
+                    ['pricing_url' => '/pricing']
                 ),
                 403
             );

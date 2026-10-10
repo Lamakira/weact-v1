@@ -61,7 +61,7 @@ class FaceEntitlementService
     }
 
     /**
-     * FR5/AR10 — gate des opportunités UGC : souscription active Starter+ requise,
+     * FR5/AR10 — gate des opportunités UGC : souscription active Pro+ requise (config ugc_access),
      * et Face non suspendue.
      */
     public function canAccessUgc(Face $face): bool

@@ -330,7 +330,7 @@ class UgcProductPhotosTest extends TestCase
         $mission = Mission::firstOrFail();
 
         // Face abonnée (gate FR5) : le détail expose les photos aux candidates.
-        \App\Models\FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        \App\Models\FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
 
         $items = $this->actingAs($this->faceUser)
             ->getJson('/api/v1/face/missions/'.$mission->uuid)

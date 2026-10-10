@@ -29,6 +29,7 @@ class FaceApplyToMissionTest extends TestCase
         parent::setUp();
 
         $this->face = Face::factory()->create(['sexe' => 'homme']);
+        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
         $this->faceUser = User::factory()->create([
             'userable_type' => Face::class,
             'userable_id' => $this->face->id,
@@ -134,6 +135,97 @@ class FaceApplyToMissionTest extends TestCase
             'face_id' => $this->face->id,
             'mission_id' => $draftMission->id,
         ]);
+    }
+
+    public function test_free_face_cannot_apply_to_standard_mission(): void
+    {
+        FaceSubscription::query()->where('face_id', $this->face->id)->delete();
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/missions/{$this->publishedMission->uuid}/apply", [
+                'message_motivation' => 'Très motivé',
+            ]);
+
+        $response->assertStatus(403)
+            ->assertJsonPath('error.code', 'SUBSCRIPTION_REQUIRED')
+            ->assertJsonPath('error.pricing_url', '/pricing');
+
+        $this->assertDatabaseCount('candidatures', 0);
+    }
+
+    public function test_face_with_expired_subscription_cannot_apply_to_standard_mission(): void
+    {
+        FaceSubscription::query()->where('face_id', $this->face->id)->delete();
+        FaceSubscription::factory()->starter()->expired()->create(['face_id' => $this->face->id]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/missions/{$this->publishedMission->uuid}/apply");
+
+        $response->assertStatus(403)
+            ->assertJsonPath('error.code', 'SUBSCRIPTION_REQUIRED');
+        $this->assertDatabaseCount('candidatures', 0);
+    }
+
+    public function test_face_with_pending_payment_subscription_cannot_apply_to_standard_mission(): void
+    {
+        FaceSubscription::query()->where('face_id', $this->face->id)->delete();
+        FaceSubscription::factory()->starter()->pendingPayment()->create(['face_id' => $this->face->id]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/missions/{$this->publishedMission->uuid}/apply");
+
+        $response->assertStatus(403)
+            ->assertJsonPath('error.code', 'SUBSCRIPTION_REQUIRED');
+        $this->assertDatabaseCount('candidatures', 0);
+    }
+
+    public function test_free_face_with_existing_candidature_on_standard_mission_gets_already_applied(): void
+    {
+        Candidature::factory()->create([
+            'face_id' => $this->face->id,
+            'mission_id' => $this->publishedMission->id,
+        ]);
+        FaceSubscription::query()->where('face_id', $this->face->id)->delete();
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/missions/{$this->publishedMission->uuid}/apply");
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'ALREADY_APPLIED');
+    }
+
+    public function test_free_face_gets_mission_closed_before_subscription_gate_when_deadline_passed(): void
+    {
+        FaceSubscription::query()->where('face_id', $this->face->id)->delete();
+        $expiredMission = Mission::factory()->published()->create([
+            'date_limite_candidature' => now()->subDays(1),
+        ]);
+        User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $expiredMission->producer_id,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/missions/{$expiredMission->uuid}/apply");
+
+        $response->assertStatus(422)
+            ->assertJsonPath('error.code', 'MISSION_CLOSED');
+    }
+
+    public function test_free_face_can_still_cancel_existing_candidature(): void
+    {
+        $candidature = Candidature::factory()->create([
+            'face_id' => $this->face->id,
+            'mission_id' => $this->publishedMission->id,
+            'status' => CandidatureStatus::Pending,
+        ]);
+        FaceSubscription::query()->where('face_id', $this->face->id)->delete();
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/candidatures/{$candidature->uuid}/cancel");
+
+        $response->assertOk();
+        $this->assertSame(CandidatureStatus::Cancelled, $candidature->fresh()->status);
     }
 
     public function test_face_cannot_apply_to_closed_mission(): void
@@ -400,6 +492,7 @@ class FaceApplyToMissionTest extends TestCase
 
     public function test_free_face_cannot_apply_to_ugc_mission(): void
     {
+        FaceSubscription::query()->where('face_id', $this->face->id)->delete();
         $ugcMission = $this->makePublishedUgcMission();
 
         $response = $this->actingAs($this->faceUser)
@@ -422,6 +515,7 @@ class FaceApplyToMissionTest extends TestCase
         // Précédence des gardes (review 2.1) : le check duplicate passe avant le
         // gate UGC — une Face détentrice d'une candidature (abonnée au moment du
         // apply, expirée depuis) reçoit ALREADY_APPLIED, pas le paywall.
+        FaceSubscription::query()->where('face_id', $this->face->id)->delete();
         $ugcMission = $this->makePublishedUgcMission();
         Candidature::factory()->create([
             'face_id' => $this->face->id,
@@ -437,9 +531,44 @@ class FaceApplyToMissionTest extends TestCase
             ->assertJsonPath('error.code', 'ALREADY_APPLIED');
     }
 
+    public function test_starter_face_cannot_apply_to_ugc_mission(): void
+    {
+        // Starter = missions standard uniquement ; UGC à partir de Pro.
+        $ugcMission = $this->makePublishedUgcMission();
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/missions/{$ugcMission->uuid}/apply", [
+                'message_motivation' => 'Très motivé',
+            ]);
+
+        $response->assertStatus(403)
+            ->assertJsonPath('error.code', 'UGC_SUBSCRIPTION_REQUIRED');
+        $this->assertDatabaseCount('candidatures', 0);
+    }
+
+    public function test_pro_face_can_apply_to_ugc_mission(): void
+    {
+        FaceSubscription::query()->where('face_id', $this->face->id)->delete();
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
+        $ugcMission = $this->makePublishedUgcMission();
+
+        $response = $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/missions/{$ugcMission->uuid}/apply", [
+                'message_motivation' => 'Très motivé',
+            ]);
+
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('candidatures', [
+            'face_id' => $this->face->id,
+            'mission_id' => $ugcMission->id,
+            'status' => 'pending',
+        ]);
+    }
+
     public function test_subscribed_face_can_apply_to_ugc_mission(): void
     {
-        FaceSubscription::factory()->starter()->active()->create(['face_id' => $this->face->id]);
+        FaceSubscription::query()->where('face_id', $this->face->id)->delete();
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
         $ugcMission = $this->makePublishedUgcMission();
 
         $response = $this->actingAs($this->faceUser)

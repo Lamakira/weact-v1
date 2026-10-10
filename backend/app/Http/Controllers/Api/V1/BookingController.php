@@ -194,7 +194,7 @@ class BookingController extends Controller
             && ! $this->entitlement->canAccessUgc($request->user()->userable)) {
             return response()->json(
                 ErrorCodes::UgcSubscriptionRequired->envelope(
-                    "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus)."
+                    "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite."
                 ),
                 403
             );

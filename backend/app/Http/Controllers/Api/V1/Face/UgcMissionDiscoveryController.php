@@ -54,7 +54,7 @@ class UgcMissionDiscoveryController extends Controller
         $response['meta']['can_access_ugc'] = false;
         $response['meta']['paywall'] = [
             'code' => ErrorCodes::UgcSubscriptionRequired->value,
-            'message' => "L'accès aux missions UGC est réservé aux Faces abonnées (Starter et plus).",
+            'message' => "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.",
             'pricing_url' => '/pricing',
         ];
 

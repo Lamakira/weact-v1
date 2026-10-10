@@ -54,6 +54,7 @@ enum ErrorCodes: string
     case InvalidStatus = 'INVALID_STATUS';
     case MissionClosed = 'MISSION_CLOSED';
     case UgcSubscriptionRequired = 'UGC_SUBSCRIPTION_REQUIRED';
+    case SubscriptionRequired = 'SUBSCRIPTION_REQUIRED';
     case AlreadyApplied = 'ALREADY_APPLIED';
     case MissionFull = 'MISSION_FULL';
     case AlreadyAccepted = 'ALREADY_ACCEPTED';
