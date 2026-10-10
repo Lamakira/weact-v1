@@ -46,6 +46,8 @@ class PasswordChangeController extends Controller
         // Invalidate all other sessions/tokens (keep current)
         $currentToken = $request->user()->currentAccessToken();
         $user->tokens()->where('id', '!=', $currentToken->id)->delete();
+        // Push subscriptions are device-bound sessions too: the current device re-attaches on its next boot.
+        $user->pushSubscriptions()->delete();
 
         // The password is already written (and a re-auth ticket may be spent): a mail
         // failure must not turn this into a 500.

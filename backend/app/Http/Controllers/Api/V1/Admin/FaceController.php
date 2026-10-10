@@ -110,6 +110,7 @@ class FaceController extends Controller
         // Revoke all tokens when deactivating
         if (! $newStatus) {
             $user->tokens()->delete();
+            $user->pushSubscriptions()->delete();
         }
 
         return response()->json([
@@ -164,6 +165,7 @@ class FaceController extends Controller
 
             // Delete associated user first
             $face->user?->tokens()->delete();
+            $face->user?->pushSubscriptions()->delete();
             $face->user?->delete();
             $face->delete();
         });

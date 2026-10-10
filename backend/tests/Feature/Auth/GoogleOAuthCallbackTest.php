@@ -163,6 +163,7 @@ class GoogleOAuthCallbackTest extends TestCase
 
         // A pre-registered squatter's credentials and sessions.
         $user->createToken('squatter');
+        $user->updatePushSubscription('https://fcm.googleapis.com/fcm/send/squatter', 'k', 'a');
         $this->assertSame(1, $user->tokens()->count());
 
         $this->fakeGoogleUser();
@@ -183,6 +184,8 @@ class GoogleOAuthCallbackTest extends TestCase
         // Only the session minted by this very login survives.
         $this->assertSame(1, $user->tokens()->count());
         $this->assertSame(0, $user->tokens()->where('name', 'squatter')->count());
+        // ...nor a push channel to the victim's phone.
+        $this->assertSame(0, $user->pushSubscriptions()->count());
     }
 
     public function test_a_matching_verified_local_account_keeps_its_password_and_tokens(): void

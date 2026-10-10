@@ -63,6 +63,13 @@ vi.mock('@/components/cookie/CookieConsentBanner.vue', () => ({
   }),
 }))
 
+const mockRegisterPushServiceWorker = vi.fn()
+const mockResyncExistingSubscription = vi.fn().mockResolvedValue(undefined)
+vi.mock('@/features/notification/push/webPush', () => ({
+  registerPushServiceWorker: () => mockRegisterPushServiceWorker(),
+  resyncExistingSubscription: () => mockResyncExistingSubscription(),
+}))
+
 import App from '../App.vue'
 
 describe('App.vue notification bootstrap', () => {
@@ -99,6 +106,24 @@ describe('App.vue notification bootstrap', () => {
 
     expect(mockNotificationStore.subscribe).not.toHaveBeenCalled()
     expect(mockNotificationStore.fetchUnreadCount).not.toHaveBeenCalled()
+  })
+
+  it('registers the push-only service worker for authenticated users', async () => {
+    mockAuthStore.isAuthenticated = true
+
+    shallowMount(App)
+    await vi.dynamicImportSettled()
+
+    expect(mockRegisterPushServiceWorker).toHaveBeenCalledOnce()
+    expect(mockResyncExistingSubscription).toHaveBeenCalledOnce()
+  })
+
+  it('never registers the service worker for anonymous visitors', async () => {
+    shallowMount(App)
+    await vi.dynamicImportSettled()
+
+    expect(mockRegisterPushServiceWorker).not.toHaveBeenCalled()
+    expect(mockResyncExistingSubscription).not.toHaveBeenCalled()
   })
 
   it('reserves a full viewport of height for <main> on regular public routes (anti-CLS footer)', () => {

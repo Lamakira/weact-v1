@@ -26,6 +26,7 @@ import FaceWalletPanel from '@/features/dashboard/components/FaceWalletPanel.vue
 import FaceProfilePanel from '@/features/dashboard/components/FaceProfilePanel.vue'
 import { useWallet } from '@/features/wallet'
 import { Button } from '@/components/ui/button'
+import PushSoftPrompt from '@/features/notification/components/PushSoftPrompt.vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import CurrentPlanCard from '@/features/face/components/CurrentPlanCard.vue'
 
@@ -240,6 +241,9 @@ function goToProfile(): void {
         </Button>
       </div>
     </header>
+
+    <!-- Invite web push (une fois, fermable) -->
+    <PushSoftPrompt audience="face" />
 
     <!-- À faire -->
     <FaceTodoPanel :items="todoItems" :is-loading="isTodoLoading" :error="todoError" @retry="retryTodo" />

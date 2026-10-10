@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
@@ -42,6 +42,23 @@ onMounted(() => {
     notificationStore.fetchUnreadCount()
   }
 })
+
+// Service worker web push (push uniquement, aucun cache) : enregistré seulement pour un
+// utilisateur connecté et un navigateur qui sait faire du push. Import différé : ce
+// module n'est chargé que pour un utilisateur connecté, hors du chunk d'entrée.
+watch(
+  () => authStore.isAuthenticated,
+  (isAuthenticated) => {
+    if (isAuthenticated) {
+      void import('@/features/notification/push/webPush').then(async (m) => {
+        await m.registerPushServiceWorker()
+        // Ré-attache l'abonnement existant au compte courant (compte changé sans déconnexion propre).
+        await m.resyncExistingSubscription().catch(() => undefined)
+      })
+    }
+  },
+  { immediate: true },
+)
 
 /** Check if current route uses dashboard layout (no AppHeader/footer) */
 const isDashboardRoute = computed(() => {

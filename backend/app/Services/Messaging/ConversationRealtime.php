@@ -11,6 +11,7 @@ use App\Models\Conversation;
 use App\Models\Face;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\Push\WebPushService;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -33,6 +34,22 @@ class ConversationRealtime
             broadcast(new ConversationMessageSent($message, $conversation->uuid))->toOthers();
 
             $this->dispatchListUpdates($conversation, $message);
+        });
+
+        // Throttled web push to the other participant; independent of the broadcast outcome.
+        $this->safely(function () use ($conversation, $message): void {
+            $conversation->loadMissing('candidature.face.user', 'candidature.mission.producer.user');
+
+            $participants = array_filter([
+                $conversation->candidature?->face?->user,
+                $conversation->candidature?->mission?->producer?->user,
+            ]);
+
+            foreach ($participants as $participant) {
+                if ($participant->id !== $message->sender_id) {
+                    app(WebPushService::class)->queueForChatMessage($message->sender, $message->content, $participant, 'conversation', $conversation->uuid);
+                }
+            }
         });
     }
 

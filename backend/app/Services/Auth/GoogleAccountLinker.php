@@ -157,6 +157,7 @@ class GoogleAccountLinker
 
             if ($wasUnverified) {
                 $locked->tokens()->delete();
+                $locked->pushSubscriptions()->delete();
             }
 
             return $wasUnverified;

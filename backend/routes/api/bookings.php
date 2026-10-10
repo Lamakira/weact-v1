@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\BookingMessageController;
 use App\Http\Controllers\Api\V1\BookingRatingController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\ProductPhotoMediaController;
+use App\Http\Controllers\Api\V1\PushSubscriptionController;
 use App\Http\Controllers\Api\V1\WalletController;
 use Illuminate\Support\Facades\Route;
 
@@ -92,6 +93,19 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'api.token'])->group(function (
     Route::post('/me/notifications/read-all', [NotificationController::class, 'markAllAsRead'])
         ->middleware('throttle:30,1')
         ->name('me.notifications.mark-all-read');
+
+    // Web push subscriptions (Face + Producer; admins are refused by api.token)
+    Route::get('/push/public-key', [PushSubscriptionController::class, 'publicKey'])
+        ->middleware('throttle:60,1')
+        ->name('push.public-key');
+
+    Route::post('/me/push-subscriptions', [PushSubscriptionController::class, 'store'])
+        ->middleware(['verified', 'throttle:30,1'])
+        ->name('me.push-subscriptions.store');
+
+    Route::delete('/me/push-subscriptions', [PushSubscriptionController::class, 'destroy'])
+        ->middleware('throttle:30,1')
+        ->name('me.push-subscriptions.destroy');
 
     // Wallet (Face + Producer read access)
     Route::get('/wallet', [WalletController::class, 'index'])
