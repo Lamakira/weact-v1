@@ -320,7 +320,7 @@ class Mission extends Model
      * Date du jour (Y-m-d) dans le fuseau métier (Bénin), pas en UTC : la date
      * limite est un jour calendaire béninois.
      */
-    private static function businessToday(): string
+    public static function businessToday(): string
     {
         return Carbon::now((string) config('app.business_timezone'))->toDateString();
     }
