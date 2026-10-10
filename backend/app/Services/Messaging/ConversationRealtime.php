@@ -115,10 +115,11 @@ class ConversationRealtime
     {
         $conversation->loadMissing('candidature.face.user', 'candidature.mission.producer.user');
 
-        $participantIds = array_filter([
-            $conversation->candidature?->face?->user?->id,
-            $conversation->candidature?->mission?->producer?->user?->id,
+        $participants = array_filter([
+            $conversation->candidature?->face?->user,
+            $conversation->candidature?->mission?->producer?->user,
         ]);
+        $counter = app(ConversationUnreadCounter::class);
 
         $excerpt = [
             'id' => $latest->id,
@@ -128,7 +129,9 @@ class ConversationRealtime
             'created_at' => $latest->created_at->toIso8601String(),
         ];
 
-        foreach ($participantIds as $userId) {
+        foreach ($participants as $participant) {
+            $userId = $participant->id;
+
             if ($onlyUserIds !== null && ! in_array($userId, $onlyUserIds, true)) {
                 continue;
             }
@@ -145,6 +148,7 @@ class ConversationRealtime
                 $excerpt,
                 $unread,
                 $latest->created_at->toIso8601String(),
+                $counter->countFor($participant),
             ))->toOthers();
         }
     }

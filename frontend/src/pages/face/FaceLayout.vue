@@ -5,7 +5,7 @@
  * Uses DashboardLayout with Face-specific sidebar items.
  * Child routes render via <router-view> in the content area.
  */
-import { onMounted, ref, computed, watch } from 'vue'
+import { onMounted, onBeforeUnmount, ref, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { LayoutDashboard, FileText, MessageCircle, User, Briefcase, CalendarCheck, Wallet, CreditCard, Tags, Video, House } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
@@ -14,6 +14,7 @@ import { DashboardLayout, KeepAliveRouterView, type SidebarItem } from '@/compon
 import { resolveSidebarTitle } from '@/components/layout/resolveSidebarTitle'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
 import { usePersonalInfo } from '@/features/face/composables/usePersonalInfo'
+import { useMessagesUnreadStore } from '@/stores/messagesUnread'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 import TarifsMissingBanner from '@/components/TarifsMissingBanner.vue'
 import WhatsappMissingBanner from '@/components/WhatsappMissingBanner.vue'
@@ -30,30 +31,35 @@ const hasTarifs = computed(() => !!profile.value?.tarif_journalier)
 const personalInfoLoaded = ref(false)
 const hasWhatsapp = computed(() => !!personalInfo.value?.whatsapp_number)
 
-// Sidebar navigation items for Face dashboard
-const sidebarItems: SidebarItem[] = [
+const messagesUnreadStore = useMessagesUnreadStore()
+
+// Sidebar navigation items for Face dashboard. Computed so the « Messages » badge
+// reactively follows the unread-conversations count (only that item).
+const sidebarItems = computed<SidebarItem[]>(() => [
   { label: 'Tableau de bord', icon: LayoutDashboard, to: '/face/dashboard' },
   { label: 'Voir les missions', icon: Briefcase, to: '/face/missions' },
   { label: 'Missions UGC', icon: Video, to: '/face/ugc-missions' },
   { label: 'Mes candidatures', icon: FileText, to: '/face/candidatures' },
   { label: 'Mes bookings', icon: CalendarCheck, to: '/face/bookings' },
-  { label: 'Messages', icon: MessageCircle, to: '/face/messages', match: ['/face/conversations'] },
+  { label: 'Messages', icon: MessageCircle, to: '/face/messages', match: ['/face/conversations'],
+    badge: messagesUnreadStore.count, badgeMax: 9 },
   { label: 'Portefeuille', icon: Wallet, to: '/face/wallet' },
   { label: 'Facturation', icon: CreditCard, to: '/face/billing' },
   { label: 'Tarifs', icon: Tags, to: '/pricing' },
   { label: 'Mon profil', icon: User, to: '/face/profile' },
-]
+])
 
 // Bottom tab bar (mobile): the 4 main destinations; the drawer keeps the rest
-const mobileTabs: SidebarItem[] = [
+const mobileTabs = computed<SidebarItem[]>(() => [
   { label: 'Accueil', icon: House, to: '/face/dashboard' },
   { label: 'Missions', icon: Briefcase, to: '/face/missions' },
-  { label: 'Messages', icon: MessageCircle, to: '/face/messages', match: ['/face/conversations'] },
+  { label: 'Messages', icon: MessageCircle, to: '/face/messages', match: ['/face/conversations'],
+    badge: messagesUnreadStore.count, badgeMax: 9 },
   { label: 'Profil', icon: User, to: '/face/profile' },
-]
+])
 
 // Header title = label of the sidebar item owning the current route.
-const pageTitle = computed(() => resolveSidebarTitle(sidebarItems, route.path))
+const pageTitle = computed(() => resolveSidebarTitle(sidebarItems.value, route.path))
 
 // Computed user name from Face profile
 const userName = computed(() => {
@@ -65,6 +71,8 @@ const userName = computed(() => {
 
 // Fetch profile on mount to get avatar
 onMounted(async () => {
+  // Badge « Messages » : 1 fetch au boot, puis événements / focus / repli (pas de fetch par navigation)
+  messagesUnreadStore.start('face')
   // Independent requests: run them in parallel (profile avatar + WhatsApp status)
   await Promise.all([
     fetchProfile().catch(() => {
@@ -83,6 +91,8 @@ async function fetchWhatsappStatus(): Promise<void> {
     personalInfoLoaded.value = true
   }
 }
+
+onBeforeUnmount(() => messagesUnreadStore.stop())
 
 // Re-check WhatsApp status when navigating between child routes
 // (e.g., user fills WhatsApp on /face/profile then navigates back)

@@ -7,6 +7,7 @@
  */
 import { useRoute } from 'vue-router'
 import type { SidebarItem } from './DashboardSidebar.vue'
+import { formatBadge } from './formatBadge'
 
 interface Props {
   tabs: SidebarItem[]
@@ -55,7 +56,7 @@ function accessibleName(tab: SidebarItem): string | undefined {
         aria-hidden="true"
         data-testid="mobile-tab-badge"
       >
-        {{ tab.badge }}
+        {{ formatBadge(tab.badge, tab.badgeMax) }}
       </span>
     </RouterLink>
   </nav>

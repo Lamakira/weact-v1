@@ -1,4 +1,5 @@
 import apiClient from '@/services/apiClient'
+import { syncMessagesUnreadFromServer } from '@/stores/messagesUnread'
 import { getSocketIdHeaders } from '../utils/realtime'
 import type {
   ConversationResponse,
@@ -22,6 +23,7 @@ export const messagingApi = {
     const response = await apiClient.get<ConversationsListResponse>('/face/conversations', {
       params: { page },
     })
+    syncMessagesUnreadFromServer(response.data?.meta?.unread_conversations_count)
     return response.data
   },
 
@@ -35,6 +37,7 @@ export const messagingApi = {
     const response = await apiClient.get<ConversationResponse>(
       `/face/conversations/${conversationId}`,
     )
+    syncMessagesUnreadFromServer(response.data?.meta?.unread_conversations_count)
     return response.data
   },
 
@@ -67,6 +70,7 @@ export const messagingApi = {
     const response = await apiClient.get<ConversationsListResponse>('/producer/conversations', {
       params: { page },
     })
+    syncMessagesUnreadFromServer(response.data?.meta?.unread_conversations_count)
     return response.data
   },
 
@@ -80,6 +84,7 @@ export const messagingApi = {
     const response = await apiClient.get<ConversationResponse>(
       `/producer/conversations/${conversationId}`,
     )
+    syncMessagesUnreadFromServer(response.data?.meta?.unread_conversations_count)
     return response.data
   },
 
@@ -113,6 +118,7 @@ export const messagingApi = {
       {},
       headers ? { headers } : undefined,
     )
+    syncMessagesUnreadFromServer(response.data?.data?.unread_conversations_count)
     return response.data
   },
 }

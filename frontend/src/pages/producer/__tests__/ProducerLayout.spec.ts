@@ -4,10 +4,15 @@ import { setActivePinia, createPinia } from 'pinia'
 import { ref } from 'vue'
 import ProducerLayout from '../ProducerLayout.vue'
 import { producerApi } from '@/features/producer/services/producerApi'
+import apiClient from '@/services/apiClient'
 import type { SidebarItem } from '@/components/layout'
 
 vi.mock('@/features/producer/services/producerApi', () => ({
   producerApi: { listDeliverablesToReview: vi.fn() },
+}))
+vi.mock('@/services/apiClient', () => ({
+  default: { get: vi.fn().mockResolvedValue({ data: { data: { count: 0 } } }) },
+  getAuthToken: vi.fn(() => null),
 }))
 vi.mock('@/features/auth/composables/useAuth', () => ({
   useAuth: () => ({ logout: vi.fn(), isLoading: ref(false) }),
@@ -71,7 +76,7 @@ const wrappers: Array<ReturnType<typeof mount>> = []
 
 const DashboardLayoutStub = {
   name: 'DashboardLayout',
-  props: ['sidebarItems', 'title', 'userEmail', 'userName', 'avatarUrl', 'isLoggingOut', 'profileRoute'],
+  props: ['sidebarItems', 'mobileTabs', 'title', 'userEmail', 'userName', 'avatarUrl', 'isLoggingOut', 'profileRoute'],
   template: '<div><slot /></div>',
 }
 
@@ -238,6 +243,51 @@ describe('ProducerLayout', () => {
 
     // Expected contract: a route.path watcher re-fetches the count (cf. FaceLayout)
     expect(producerApi.listDeliverablesToReview).toHaveBeenCalledTimes(2)
+  })
+
+  describe('Messages unread badge', () => {
+    async function mountLayoutWithCount(count: number) {
+      vi.mocked(apiClient.get).mockResolvedValue({ data: { data: { count } } })
+      vi.mocked(producerApi.listDeliverablesToReview).mockResolvedValue({ data: [] as never })
+      const wrapper = mount(ProducerLayout, {
+        global: { stubs: { DashboardLayout: DashboardLayoutStub, EmailVerificationBanner: true, RouterView: true } },
+      })
+      wrappers.push(wrapper)
+      await flushPromises()
+      return wrapper
+    }
+
+    it('feeds the same count to the sidebar item and the mobile tab, capped at 9+', async () => {
+      const wrapper = await mountLayoutWithCount(12)
+      const layout = wrapper.findComponent({ name: 'DashboardLayout' })
+      const item = (layout.props('sidebarItems') as SidebarItem[]).find((i) => i.to === '/producer/messages')
+      const tab = (layout.props('mobileTabs') as SidebarItem[]).find((i) => i.to === '/producer/messages')
+
+      expect(apiClient.get).toHaveBeenCalledWith('/producer/conversations/unread-count')
+      expect(item?.badge).toBe(12)
+      expect(tab?.badge).toBe(12)
+      expect(item?.badgeMax).toBe(9)
+      expect(tab?.badgeMax).toBe(9)
+    })
+
+    it('badge is 0 (hidden) when nothing is unread', async () => {
+      const wrapper = await mountLayoutWithCount(0)
+      const items = wrapper.findComponent({ name: 'DashboardLayout' }).props('sidebarItems') as SidebarItem[]
+      expect(items.find((i) => i.to === '/producer/messages')?.badge).toBe(0)
+    })
+
+    it('fetches once at boot and never again on route changes', async () => {
+      await mountLayoutWithCount(2)
+      expect(apiClient.get).toHaveBeenCalledTimes(1)
+
+      for (const path of ['/producer/missions', '/producer/wallet', '/producer/messages']) {
+        routeHolder.route.path = path
+        routeHolder.route.fullPath = path
+        await flushPromises()
+      }
+
+      expect(apiClient.get).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('header title', () => {

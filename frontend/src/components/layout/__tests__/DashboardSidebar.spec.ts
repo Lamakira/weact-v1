@@ -207,6 +207,25 @@ describe('DashboardSidebar', () => {
       expect(wrapper.find('[data-testid="sidebar-badge"]').classes()).toContain('bg-weact-600')
     })
 
+    it('caps the badge at « 9+ » when badgeMax is 9, shows exact values up to 9', () => {
+      const over = mountSidebar({
+        items: [{ label: 'Messages', icon: MessageCircle, to: '/face/messages', badge: 12, badgeMax: 9 }],
+      })
+      expect(over.find('[data-testid="sidebar-badge"]').text()).toBe('9+')
+
+      const exact = mountSidebar({
+        items: [{ label: 'Messages', icon: MessageCircle, to: '/face/messages', badge: 9, badgeMax: 9 }],
+      })
+      expect(exact.find('[data-testid="sidebar-badge"]').text()).toBe('9')
+    })
+
+    it('does not cap a badge without badgeMax', () => {
+      const wrapper = mountSidebar({
+        items: [{ label: 'Messages', icon: MessageCircle, to: '/face/messages', badge: 12 }],
+      })
+      expect(wrapper.find('[data-testid="sidebar-badge"]').text()).toBe('12')
+    })
+
     it('hides badge when value is 0', () => {
       const itemsWithZeroBadge = [
         { label: 'Messages', icon: MessageCircle, to: '/face/messages', badge: 0 },

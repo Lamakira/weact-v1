@@ -3,6 +3,7 @@ import type { ComputedRef, Ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notification'
 import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
+import { useMessagesUnreadStore } from '@/stores/messagesUnread'
 import { useRouter } from 'vue-router'
 import { authApi, getApiErrorDetails, getApiErrorMessage, getApiErrorCode } from '../services/authApi'
 import type {
@@ -247,6 +248,8 @@ export function useAuth(): UseAuthReturn {
       // Producteur à l'autre sur un re-login SPA sans reload (calque du reset
       // notification ci-dessus ; le store est un singleton non remis à 0 sinon).
       useUgcValidationCountStore().$reset()
+      // Idem pour le badge « Messages » (compteur serveur du compte précédent).
+      useMessagesUnreadStore().$reset()
       authStore.clearAuth()
       authStore.setLoading(false)
       await router.push('/login')

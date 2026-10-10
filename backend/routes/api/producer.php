@@ -165,6 +165,9 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
     Route::get('/conversations', [ConversationController::class, 'index'])
         ->middleware('throttle:ui-read')
         ->middleware('producer');
+    Route::get('/conversations/unread-count', [ConversationController::class, 'unreadCount'])
+        ->middleware('throttle:polling')
+        ->middleware('producer');
     Route::get('/conversations/{conversation}', [ConversationController::class, 'show'])
         ->middleware('throttle:ui-read');
     Route::post('/conversations/{conversation}/read', [ConversationController::class, 'markRead'])

@@ -11,6 +11,9 @@ vi.mock('@/features/auth/composables/useAuth', () => ({
   useAuth: () => ({ logout: vi.fn(), isLoading: ref(false) }),
 }))
 
+vi.mock('@/stores/messagesUnread', () => ({
+  useMessagesUnreadStore: () => ({ count: 0, start: vi.fn(), stop: vi.fn() }),
+}))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { email: 'face@test.com' }, isEmailVerified: true }),
 }))

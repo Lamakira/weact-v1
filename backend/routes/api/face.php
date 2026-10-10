@@ -240,6 +240,8 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
     // Conversation routes (Face only)
     Route::get('/conversations', [ConversationController::class, 'index'])
         ->middleware(['face', 'throttle:60,1']);
+    Route::get('/conversations/unread-count', [ConversationController::class, 'unreadCount'])
+        ->middleware(['face', 'throttle:polling']);
     Route::get('/conversations/{conversation}', [ConversationController::class, 'show'])
         ->middleware(['face', 'throttle:60,1']);
     Route::post('/conversations/{conversation}/read', [ConversationController::class, 'markRead'])
