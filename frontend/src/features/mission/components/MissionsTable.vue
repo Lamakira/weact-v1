@@ -49,6 +49,23 @@ function isUgc(mission: Mission): boolean {
   return getMissionActionState(mission, true).isUgc
 }
 
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n > 1 ? 's' : ''}`
+}
+
+/** « 1 / 3 » : candidatures reçues / Faces voulues (juste le nombre si les Faces voulues manquent). */
+function candidaturesText(m: Mission): string {
+  const count = m.candidatures_count ?? 0
+  return m.nombre_faces_voulu ? `${count} / ${m.nombre_faces_voulu}` : String(count)
+}
+
+function candidaturesAriaLabel(m: Mission): string {
+  const count = m.candidatures_count ?? 0
+  return m.nombre_faces_voulu
+    ? `${plural(count, 'candidature')}, ${plural(m.nombre_faces_voulu, 'Face')} voulue${m.nombre_faces_voulu > 1 ? 's' : ''}`
+    : plural(count, 'candidature')
+}
+
 function formatDate(value: string | null | undefined): string {
   if (!value) return '—'
   return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }).format(
@@ -72,10 +89,15 @@ const columns = computed<DataTableColumn<Mission>[]>(() => [
     header: 'Candidatures',
     enableSorting: true,
   },
-  { id: 'faces', accessorFn: (m) => m.nombre_faces_voulu, header: 'Faces voulues', enableSorting: false },
   { id: 'budget', accessorFn: (m) => m.budget, header: 'Budget', enableSorting: false },
-  { id: 'created_at', accessorFn: (m) => m.created_at, header: 'Créée le', enableSorting: true },
-  { id: 'actions', header: 'Actions', enableSorting: false },
+  {
+    id: 'created_at',
+    accessorFn: (m) => m.created_at,
+    header: 'Créée le',
+    enableSorting: true,
+    meta: { class: 'hidden 2xl:table-cell' },
+  },
+  { id: 'actions', header: 'Actions', enableSorting: false, meta: { sticky: 'right' } },
 ])
 
 // Same behaviour as the former card: a click on an editable mission opens its edit form.
@@ -131,16 +153,7 @@ function onRowClick(mission: Mission): void {
     </template>
 
     <template #cell-candidatures_count="{ row }">
-      <span
-        class="tabular-nums text-ink"
-        :aria-label="`${row.candidatures_count ?? 0} candidature${(row.candidatures_count ?? 0) > 1 ? 's' : ''} pour ${row.titre}`"
-      >
-        {{ row.candidatures_count ?? 0 }}
-      </span>
-    </template>
-
-    <template #cell-faces="{ row }">
-      <span class="text-muted-foreground">{{ row.nombre_faces_voulu }}</span>
+      <span class="text-ink" :aria-label="candidaturesAriaLabel(row)">{{ candidaturesText(row) }}</span>
     </template>
 
     <template #cell-budget="{ row }">

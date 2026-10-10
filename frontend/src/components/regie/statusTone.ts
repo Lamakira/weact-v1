@@ -46,8 +46,8 @@ export const missionTones: Record<MissionStatusType, StatusTone> = {
   [MissionStatus.DRAFT]: 'neutral',
   [MissionStatus.PUBLISHED]: 'success',
   [MissionStatus.PENDING_PAYMENT]: 'pending',
-  [MissionStatus.CLOSED]: 'done',
-  [MissionStatus.PENDING_ATTENDANCE_VALIDATION]: 'pending',
+  [MissionStatus.CLOSED]: 'pending',
+  [MissionStatus.PENDING_ATTENDANCE_VALIDATION]: 'progress',
   [MissionStatus.COMPLETED]: 'done',
 }
 

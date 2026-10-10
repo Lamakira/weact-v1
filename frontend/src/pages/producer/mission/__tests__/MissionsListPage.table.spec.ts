@@ -163,7 +163,7 @@ describe('MissionsListPage — table (md and up)', () => {
     const { wrapper } = await mountPage()
     expect(wrapper.find('table').exists()).toBe(true)
     expect(wrapper.findAll('th').map((th) => th.text())).toEqual([
-      'Mission', 'Statut', 'Limite candidature', 'Tournage', 'Candidatures', 'Faces voulues', 'Budget', 'Créée le', 'Actions',
+      'Mission', 'Statut', 'Limite candidature', 'Tournage', 'Candidatures', 'Budget', 'Créée le', 'Actions',
     ])
     const rows = wrapper.findAll('tbody tr')
     expect(rows).toHaveLength(3)
@@ -327,9 +327,22 @@ describe('MissionsListPage — table (md and up)', () => {
     expect(rows[2]!.find('td:nth-child(2) [data-testid="r-status-dot"]').attributes('data-tone')).toBe('pending')
     // candidatures column: plain number, no button, no icon
     const cell = rows[0]!.find('td:nth-child(5)')
-    expect(cell.text()).toBe('3')
+    expect(cell.text()).toBe('3 / 2')
+    expect(cell.find('span').attributes('aria-label')).toBe('3 candidatures, 2 Faces voulues')
+    expect(cell.html()).not.toMatch(/tabular-nums|font-mono/)
     expect(cell.find('button').exists()).toBe(false)
     expect(cell.find('svg').exists()).toBe(false)
+  })
+
+  it('pins the Actions column to the right and hides « Créée le » below 2xl', async () => {
+    const { wrapper } = await mountPage()
+    const ths = wrapper.findAll('th')
+    const actions = ths[ths.length - 1]!
+    expect(actions.text()).toBe('Actions')
+    expect(actions.classes()).toEqual(expect.arrayContaining(['sticky', 'right-0']))
+    const created = ths[ths.length - 2]!
+    expect(created.text()).toContain('Créée le')
+    expect(created.classes()).toEqual(expect.arrayContaining(['hidden', '2xl:table-cell']))
   })
 
   it('opens the edit form from an editable row click only', async () => {
