@@ -1,6 +1,8 @@
 import apiClient from '@/services/apiClient'
+import { getSocketIdHeaders } from '../utils/realtime'
 import type {
   ConversationResponse,
+  MarkReadResponse,
   ConversationsListResponse,
   MessageResponse,
   SendMessageData,
@@ -43,9 +45,11 @@ export const messagingApi = {
    * @returns Created message data
    */
   async sendMessage(conversationId: string, data: SendMessageData): Promise<MessageResponse> {
+    const headers = await getSocketIdHeaders()
     const response = await apiClient.post<MessageResponse>(
       `/face/conversations/${conversationId}/messages`,
       data,
+      headers ? { headers } : undefined,
     )
     return response.data
   },
@@ -89,9 +93,25 @@ export const messagingApi = {
     conversationId: string,
     data: SendMessageData,
   ): Promise<MessageResponse> {
+    const headers = await getSocketIdHeaders()
     const response = await apiClient.post<MessageResponse>(
       `/producer/conversations/${conversationId}/messages`,
       data,
+      headers ? { headers } : undefined,
+    )
+    return response.data
+  },
+
+  /**
+   * Mark the other participant's messages as read without reloading the thread (idempotent)
+   * @param role Which API namespace to use
+   */
+  async markConversationRead(role: 'face' | 'producer', conversationId: string): Promise<MarkReadResponse> {
+    const headers = await getSocketIdHeaders()
+    const response = await apiClient.post<MarkReadResponse>(
+      `/${role}/conversations/${conversationId}/read`,
+      {},
+      headers ? { headers } : undefined,
     )
     return response.data
   },

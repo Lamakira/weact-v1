@@ -60,8 +60,31 @@ export function useConversation() {
    * @param message The message to add
    */
   function addMessage(message: Message): void {
-    if (conversation.value) {
+    if (conversation.value && !conversation.value.messages.some((m) => m.id === message.id)) {
       conversation.value.messages.push(message)
+    }
+  }
+
+  /**
+   * Apply a read receipt: the other participant read my messages up to lastReadMessageId
+   */
+  function markOwnMessagesRead(lastReadMessageId: number, readAt: string): void {
+    for (const message of conversation.value?.messages ?? []) {
+      if (message.is_own_message && !message.read_at && message.id <= lastReadMessageId) {
+        message.read_at = readAt
+      }
+    }
+  }
+
+  /**
+   * Silent resync (polling fallback): replaces messages without touching loading/error state
+   */
+  async function syncConversation(conversationId: string): Promise<void> {
+    try {
+      const response = await messagingApi.getConversation(conversationId)
+      if (conversation.value) conversation.value = response.data
+    } catch {
+      // Silencieux : le prochain tick réessaiera
     }
   }
 
@@ -121,6 +144,8 @@ export function useConversation() {
     loadConversation,
     refreshConversation,
     addMessage,
+    markOwnMessagesRead,
+    syncConversation,
     clearRefreshError,
     reset,
   }

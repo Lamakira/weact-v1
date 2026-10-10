@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { ArrowLeft, Loader2, MessageSquare, RefreshCw } from 'lucide-vue-next'
+import { ArrowDown, ArrowLeft, Loader2, MessageSquare, RefreshCw } from 'lucide-vue-next'
 import ConversationContextBar from './ConversationContextBar.vue'
 import MessageBubble from './MessageBubble.vue'
 import MessageInput from './MessageInput.vue'
@@ -68,15 +68,46 @@ const lastReadOwnId = computed(() => {
 
 const roleLabel = computed(() => (props.participant?.type === 'producer' ? 'Producteur' : 'Face'))
 
+// Défilement automatique uniquement si l'utilisateur était déjà proche du bas ;
+// sinon un message entrant affiche la pastille « Nouveau message ».
+const NEAR_BOTTOM_PX = 80
+const isNearBottom = ref(true)
+const hasNewMessage = ref(false)
+
+function updateNearBottom(): void {
+  const el = scrollContainer.value
+  if (!el) return
+  isNearBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX
+  if (isNearBottom.value) hasNewMessage.value = false
+}
+
+function jumpToLatest(): void {
+  hasNewMessage.value = false
+  isNearBottom.value = true
+  void scrollToBottom('smooth')
+}
+
 watch(
-  () => props.messages,
-  () => void scrollToBottom('smooth'),
-  { deep: true },
+  () => [props.messages.length, props.messages[props.messages.length - 1]?.id] as const,
+  ([length, lastId], [previousLength, previousLastId]) => {
+    if (length === previousLength && lastId === previousLastId) return
+    const last = props.messages[length - 1]
+    if (!last) return
+    if (last.is_own_message || isNearBottom.value) {
+      void scrollToBottom('smooth')
+    } else if (length > previousLength) {
+      hasNewMessage.value = true
+    }
+  },
 )
 watch(
   () => props.isLoading,
   (loading, wasLoading) => {
-    if (wasLoading && !loading) void scrollToBottom('auto')
+    if (wasLoading && !loading) {
+      hasNewMessage.value = false
+      isNearBottom.value = true
+      void scrollToBottom('auto')
+    }
   },
 )
 onMounted(() => void scrollToBottom('auto'))
@@ -129,10 +160,12 @@ onMounted(() => void scrollToBottom('auto'))
       {{ refreshError }}
     </div>
 
+    <div class="relative flex min-h-0 flex-1 flex-col">
     <div
       ref="scrollContainer"
       class="relative min-h-0 flex-1 space-y-2 overflow-y-auto bg-thread px-3 py-4 lg:px-5"
       data-testid="thread-scroll"
+      @scroll.passive="updateNearBottom"
     >
       <div v-if="isLoading" class="absolute inset-0 flex flex-col items-center justify-center gap-3">
         <Loader2 class="size-8 animate-spin text-weact-600" />
@@ -187,6 +220,18 @@ onMounted(() => void scrollToBottom('auto'))
           />
         </template>
       </template>
+    </div>
+
+    <button
+      v-if="hasNewMessage"
+      type="button"
+      class="absolute bottom-3 left-1/2 inline-flex h-9 -translate-x-1/2 items-center gap-1.5 rounded-full bg-weact-600 px-4 text-[12.5px] font-semibold text-white shadow-lg hover:bg-weact-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-weact-600 focus-visible:ring-offset-2"
+      data-testid="new-message-pill"
+      @click="jumpToLatest"
+    >
+      Nouveau message
+      <ArrowDown class="size-4" />
+    </button>
     </div>
 
     <MessageInput

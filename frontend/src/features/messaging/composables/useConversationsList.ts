@@ -81,6 +81,19 @@ export function useConversationsList() {
   }
 
   /**
+   * Silent resync (polling fallback / unknown conversation): no spinner, no error state
+   */
+  async function syncConversations(): Promise<void> {
+    try {
+      const response = await messagingApi.getConversations(1)
+      conversations.value = response.data
+      meta.value = response.meta
+    } catch {
+      // Silencieux : le prochain tick réessaiera
+    }
+  }
+
+  /**
    * Load next page of conversations (append to existing)
    */
   async function loadMoreConversations(): Promise<boolean> {
@@ -118,6 +131,7 @@ export function useConversationsList() {
     hasMorePages,
     loadConversations,
     refreshConversations,
+    syncConversations,
     loadMoreConversations,
     reset,
   }
