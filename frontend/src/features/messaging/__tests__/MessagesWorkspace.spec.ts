@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 import MessagesWorkspace from '../components/MessagesWorkspace.vue'
 import { messagingApi } from '../services/messagingApi'
@@ -78,6 +79,7 @@ function setupFace() {
 }
 
 beforeEach(() => {
+  setActivePinia(createPinia())
   vi.clearAllMocks()
   Element.prototype.scrollTo = vi.fn() as unknown as typeof Element.prototype.scrollTo
 })

@@ -81,6 +81,27 @@ export function useProducerConversationsList() {
   }
 
   /**
+   * Silent resync (polling fallback / unknown conversation): no spinner, no error state
+   */
+  async function syncConversations(): Promise<void> {
+    try {
+      const response = await messagingApi.getProducerConversations(1)
+      // Rafraîchit la page 1 SANS perdre les pages déjà chargées (« charger plus »)
+      const freshIds = new Set(response.data.map((conversation) => conversation.id))
+      conversations.value = [
+        ...response.data,
+        ...conversations.value.filter((conversation) => !freshIds.has(conversation.id)),
+      ]
+      meta.value = {
+        ...response.meta,
+        current_page: Math.max(meta.value?.current_page ?? 1, response.meta.current_page),
+      }
+    } catch {
+      // Silencieux : le prochain tick réessaiera
+    }
+  }
+
+  /**
    * Load next page of conversations (append to existing)
    */
   async function loadMoreConversations(): Promise<boolean> {
@@ -118,6 +139,7 @@ export function useProducerConversationsList() {
     hasMorePages,
     loadConversations,
     refreshConversations,
+    syncConversations,
     loadMoreConversations,
     reset,
   }

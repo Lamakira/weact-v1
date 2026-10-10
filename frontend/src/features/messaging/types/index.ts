@@ -141,3 +141,47 @@ export interface ConversationsListResponse {
   data: ConversationListItem[]
   meta: PaginationMeta
 }
+
+// ==========================================================================
+// Temps réel (Reverb) — payloads diffusés par le backend
+// ==========================================================================
+
+// `.message.sent` sur private-conversation.{uuid} (is_own_message absent : calculé côté client)
+export interface MessageBroadcast {
+  id: number
+  conversation_id: string
+  content: string
+  sender_id: number
+  sender_type: string
+  sender_name: string
+  read_at: string | null
+  created_at: string
+}
+
+// `.messages.read` sur private-conversation.{uuid}
+export interface MessagesReadBroadcast {
+  conversation_id: string
+  reader_role: 'face' | 'producer'
+  reader_id: number
+  read_at: string
+  last_read_message_id: number
+}
+
+// `.conversation.updated` sur private-App.Models.User.{id} (unread_count propre au destinataire)
+export interface ConversationUpdatedBroadcast {
+  conversation_id: string
+  latest_message: {
+    id: number
+    content: string
+    sender_id: number
+    sender_name: string
+    created_at: string
+  }
+  unread_count: number
+  updated_at: string
+}
+
+// Réponse de POST /conversations/{id}/read
+export interface MarkReadResponse {
+  data: { marked: number }
+}

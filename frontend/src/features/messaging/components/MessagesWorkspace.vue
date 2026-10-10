@@ -9,7 +9,7 @@
  * `<role>-conversation`, ce qui garde le bouton retour du navigateur cohérent ;
  * ce même composant sert les deux routes (liste et deep link vers un fil).
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { MessageSquare } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
@@ -21,10 +21,19 @@ import { useConversation } from '../composables/useConversation'
 import { useProducerConversation } from '../composables/useProducerConversation'
 import { useSendMessage } from '../composables/useSendMessage'
 import { useSendProducerMessage } from '../composables/useSendProducerMessage'
+import { useConversationRealtime } from '../composables/useConversationRealtime'
+import { useConversationListRealtime } from '../composables/useConversationListRealtime'
+import { messagingApi } from '../services/messagingApi'
+import { applyConversationUpdate, previewContent } from '../utils/conversationList'
 import ConversationContextPanel from './ConversationContextPanel.vue'
 import ConversationListPane from './ConversationListPane.vue'
 import MessageThread from './MessageThread.vue'
-import type { ConversationListItem } from '../types'
+import type {
+  ConversationListItem,
+  ConversationUpdatedBroadcast,
+  MessageBroadcast,
+  MessagesReadBroadcast,
+} from '../types'
 
 const props = defineProps<{ role: 'face' | 'producer' }>()
 
@@ -45,6 +54,7 @@ const {
   error: listError,
   loadConversations,
   refreshConversations,
+  syncConversations,
 } = list
 
 const {
@@ -58,6 +68,9 @@ const {
   loadConversation,
   refreshConversation,
   addMessage,
+  markOwnMessagesRead,
+  markReceivedMessagesRead,
+  syncConversation,
   clearRefreshError,
   reset: resetConversation,
 } = active
@@ -130,17 +143,25 @@ async function handleSend(): Promise<void> {
   resetSendError()
   const sent = await sendMessage(id, content)
   if (sent) {
-    addMessage(sent)
+    if (selectedId.value === id) addMessage(sent)
     newMessageText.value = ''
-    const item = conversations.value.find((conversation) => conversation.id === id)
-    if (item) {
-      item.latest_message = {
-        content: sent.content,
-        sender_name: sent.sender_name,
-        is_mine: true,
-        created_at: sent.created_at,
-      }
-    }
+    // Onglet courant : aperçu + remontée en tête (les autres onglets reçoivent l'événement)
+    applyConversationUpdate(
+      conversations.value,
+      {
+        conversation_id: id,
+        latest_message: {
+          id: sent.id,
+          content: previewContent(sent.content),
+          sender_id: sent.sender_id,
+          sender_name: sent.sender_name,
+          created_at: sent.created_at,
+        },
+        unread_count: 0,
+        updated_at: sent.created_at,
+      },
+      sent.sender_id, // l'expéditeur, c'est moi : is_mine = true
+    )
   }
 }
 
@@ -154,13 +175,105 @@ function retryConversation(): void {
   if (selectedId.value) void openConversation(selectedId.value)
 }
 
+// ---------------------------------------------------------------------------
+// Temps réel (Reverb) : fil ouvert + liste, repli par polling géré par les composables
+// ---------------------------------------------------------------------------
+function currentUserId(): number | null {
+  return authStore.user?.id ?? null
+}
+
+function isTabVisible(): boolean {
+  return typeof document === 'undefined' || document.visibilityState !== 'hidden'
+}
+
+// Le destinataire a le fil ouvert et l'onglet visible : on marque lu côté serveur
+function hasUnreadIncoming(): boolean {
+  return messages.value.some((message) => !message.is_own_message && !message.read_at)
+}
+
+async function markOpenThreadRead(): Promise<void> {
+  const id = selectedId.value
+  // Jamais de marquage « lu » derrière le mur de vérification d'e-mail
+  if (!id || !isTabVisible() || !authStore.isEmailVerified) return
+  try {
+    await messagingApi.markConversationRead(props.role, id)
+    if (selectedId.value === id) {
+      markListItemRead(id)
+      // Évite un POST /read inutile au prochain retour sur l'onglet
+      markReceivedMessagesRead(new Date().toISOString())
+    }
+  } catch {
+    // Non bloquant : le prochain message ou le retour sur l'onglet réessaiera
+  }
+}
+
+function handleIncomingMessage(message: MessageBroadcast): void {
+  addMessage({
+    id: message.id,
+    content: message.content,
+    sender_id: message.sender_id,
+    sender_type: message.sender_type,
+    sender_name: message.sender_name,
+    // is_own_message absent du broadcast : calculé côté client
+    is_own_message: message.sender_id === currentUserId(),
+    read_at: message.read_at,
+    created_at: message.created_at,
+  })
+  if (message.sender_id !== currentUserId()) void markOpenThreadRead()
+}
+
+function handleReadReceipt(receipt: MessagesReadBroadcast): void {
+  markOwnMessagesRead(receipt.last_read_message_id, receipt.read_at)
+}
+
+function handleConversationUpdated(update: ConversationUpdatedBroadcast): void {
+  const me = currentUserId()
+  const viewing =
+    update.conversation_id === selectedId.value
+    && isTabVisible()
+    && update.latest_message.sender_id !== me
+  const known = applyConversationUpdate(conversations.value, update, me, viewing ? 0 : undefined)
+  // Conversation absente de la liste chargée (nouvelle, ou page suivante) : on recharge
+  if (!known) void syncConversations()
+}
+
+// Aucun abonnement ni polling pour un fil en erreur (403/404) ou derrière le mur d'e-mail
+const realtimeConversationId = computed(() =>
+  authStore.isEmailVerified && !conversationError.value ? selectedId.value : null,
+)
+
+useConversationRealtime(realtimeConversationId, props.role, {
+  onMessage: handleIncomingMessage,
+  onRead: handleReadReceipt,
+  poll: async (uuid) => {
+    await syncConversation(uuid)
+    if (selectedId.value === uuid && hasUnreadIncoming()) void markOpenThreadRead()
+  },
+})
+
+useConversationListRealtime({
+  onUpdated: handleConversationUpdated,
+  poll: syncConversations,
+})
+
+// Retour sur l'onglet : les messages reçus pendant l'absence sont marqués lus
+function handleVisibilityChange(): void {
+  if (!isTabVisible()) return
+  if (hasUnreadIncoming()) void markOpenThreadRead()
+}
+
 function goToMissions(): void {
   void router.push({ name: props.role === 'face' ? 'face-missions' : 'producer-missions' })
 }
 
 onMounted(() => {
+  document.addEventListener('visibilitychange', handleVisibilityChange)
   void loadConversations()
   if (selectedId.value) void openConversation(selectedId.value)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 
 // Auto-dismiss refresh error

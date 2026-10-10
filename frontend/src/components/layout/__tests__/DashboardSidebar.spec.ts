@@ -34,6 +34,7 @@ describe('DashboardSidebar', () => {
       { path: '/face/dashboard', name: 'face-dashboard', component: { template: '<div>Dashboard</div>' } },
       { path: '/face/candidatures', name: 'face-candidatures', component: { template: '<div>Candidatures</div>' } },
       { path: '/face/messages', name: 'face-messages', component: { template: '<div>Messages</div>' } },
+      { path: '/face/conversations/:id', name: 'face-conversation', component: { template: '<div>Conversation</div>' } },
       { path: '/face/profile', name: 'face-profile', component: { template: '<div>Profile</div>' } },
     ],
   })
@@ -177,6 +178,15 @@ describe('DashboardSidebar', () => {
       expect(dashboardItem.classes()).toEqual(expect.arrayContaining(['bg-white', 'ring-1', 'ring-line']))
       expect(dashboardItem.classes()).toContain('[&_svg]:text-weact-700')
       expect(wrapper.find('[data-testid="sidebar-item-messages"]').classes()).not.toContain('bg-white')
+    })
+
+    it('garde Messages actif quand une conversation est ouverte (préfixe match)', async () => {
+      await router.push('/face/conversations/abc-123')
+      const wrapper = mountSidebar({
+        items: defaultItems.map((i) => (i.label === 'Messages' ? { ...i, match: ['/face/conversations'] } : i)),
+      })
+      expect(wrapper.find('[data-testid="sidebar-item-messages"]').classes()).toContain('bg-white')
+      expect(wrapper.find('[data-testid="sidebar-item-dashboard"]').classes()).not.toContain('bg-white')
     })
 
     it('utilise le fond sidebar et la typographie dense du tableau de bord', () => {

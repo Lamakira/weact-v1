@@ -5,12 +5,17 @@ import type { SidebarItem } from './DashboardSidebar.vue'
  * prefix, so /producer/missions/publish wins over /producer/missions).
  */
 export function resolveSidebarTitle(
-  items: ReadonlyArray<Pick<SidebarItem, 'label' | 'to'>>,
+  items: ReadonlyArray<Pick<SidebarItem, 'label' | 'to' | 'match'>>,
   path: string,
   fallback = 'Tableau de bord',
 ): string {
-  const owner = items
-    .filter((i) => path === i.to || path.startsWith(`${i.to}/`))
-    .sort((a, b) => b.to.length - a.to.length)[0]
-  return owner?.label ?? fallback
+  let best: { label: string; length: number } | null = null
+  for (const item of items) {
+    for (const prefix of [item.to, ...(item.match ?? [])]) {
+      if ((path === prefix || path.startsWith(`${prefix}/`)) && (!best || prefix.length > best.length)) {
+        best = { label: item.label, length: prefix.length }
+      }
+    }
+  }
+  return best?.label ?? fallback
 }

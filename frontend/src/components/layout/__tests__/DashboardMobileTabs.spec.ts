@@ -12,6 +12,7 @@ describe('DashboardMobileTabs', () => {
       { path: '/face/missions', component: { template: '<div />' } },
       { path: '/face/missions/:id', component: { template: '<div />' } },
       { path: '/face/messages', component: { template: '<div />' } },
+      { path: '/face/conversations/:id', component: { template: '<div />' } },
       { path: '/face/profile', component: { template: '<div />' } },
     ],
   })
@@ -19,7 +20,7 @@ describe('DashboardMobileTabs', () => {
   const tabs = [
     { label: 'Accueil', icon: House, to: '/face/dashboard' },
     { label: 'Missions', icon: Briefcase, to: '/face/missions' },
-    { label: 'Messages', icon: MessageCircle, to: '/face/messages', badge: 3 },
+    { label: 'Messages', icon: MessageCircle, to: '/face/messages', badge: 3, match: ['/face/conversations'] },
     { label: 'Profil', icon: User, to: '/face/profile' },
   ]
 
@@ -59,6 +60,12 @@ describe('DashboardMobileTabs', () => {
     const wrapper = mountTabs()
     expect(wrapper.find('[data-testid="mobile-tab-missions"]').attributes('aria-current')).toBe('page')
     expect(wrapper.find('[data-testid="mobile-tab-accueil"]').attributes('aria-current')).toBeUndefined()
+  })
+
+  it('reste sur Messages quand une conversation est ouverte (préfixe match)', async () => {
+    await router.push('/face/conversations/abc-123')
+    const wrapper = mountTabs()
+    expect(wrapper.find('[data-testid="mobile-tab-messages"]').attributes('aria-current')).toBe('page')
   })
 
   it('affiche le compteur non lu et l’expose dans le nom accessible', () => {

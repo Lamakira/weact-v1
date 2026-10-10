@@ -22,4 +22,9 @@ describe('resolveSidebarTitle', () => {
   it('falls back when nothing matches', () => {
     expect(resolveSidebarTitle(items, '/other', 'Autre')).toBe('Autre')
   })
+  it('uses the extra `match` prefixes of an item (open conversation ⇒ Messages)', () => {
+    const withMessages = [...items, { label: 'Messages', to: '/x/messages', match: ['/x/conversations'] }]
+    expect(resolveSidebarTitle(withMessages, '/x/conversations/abc-123')).toBe('Messages')
+    expect(resolveSidebarTitle(withMessages, '/x/messages')).toBe('Messages')
+  })
 })

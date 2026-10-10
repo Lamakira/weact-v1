@@ -52,7 +52,7 @@ const sidebarItems = computed<SidebarItem[]>(() => [
   { label: 'Validation des livrables', icon: BadgeCheck, to: '/producer/ugc/validation',
     badge: ugcValidationCountStore.count },
   { label: 'Mes vidéos UGC', icon: FolderDown, to: '/producer/ugc/videos' },
-  { label: 'Messages', icon: MessageCircle, to: '/producer/messages' },
+  { label: 'Messages', icon: MessageCircle, to: '/producer/messages', match: ['/producer/conversations'] },
   { label: 'Portefeuille', icon: Wallet, to: '/producer/wallet' },
   { label: 'Mon profil', icon: User, to: '/producer/profile' },
 ])
@@ -61,7 +61,7 @@ const sidebarItems = computed<SidebarItem[]>(() => [
 const mobileTabs: SidebarItem[] = [
   { label: 'Accueil', icon: House, to: '/producer/dashboard' },
   { label: 'Missions', icon: Briefcase, to: '/producer/missions' },
-  { label: 'Messages', icon: MessageCircle, to: '/producer/messages' },
+  { label: 'Messages', icon: MessageCircle, to: '/producer/messages', match: ['/producer/conversations'] },
   { label: 'Profil', icon: User, to: '/producer/profile' },
 ]
 

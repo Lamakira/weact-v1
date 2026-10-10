@@ -16,6 +16,8 @@ export interface SidebarItem {
   icon: Component
   to: string
   badge?: number
+  /** Autres préfixes de route qui appartiennent à cet item (ex. /face/conversations pour Messages). */
+  match?: string[]
 }
 
 interface Props {
@@ -30,14 +32,15 @@ withDefaults(defineProps<Props>(), {
 const route = useRoute()
 const { isExpanded, toggle } = useSidebarState()
 
-/** Check if a route is active (exact match only) */
-const isActive = (path: string) => {
-  return route.path === path
+/** Active : route exacte de l'item, ou une route rattachée via `match` (ex. une conversation ouverte). */
+const isActive = (item: SidebarItem) => {
+  return route.path === item.to
+    || (item.match ?? []).some((p) => route.path === p || route.path.startsWith(`${p}/`))
 }
 
 /** Item classes: identical colors whether the sidebar is expanded or collapsed */
 const getItemClasses = (item: SidebarItem) => {
-  return isActive(item.to)
+  return isActive(item)
     ? 'bg-white text-ink font-semibold ring-1 ring-line [&_svg]:text-weact-700'
     : 'text-ink-2 hover:bg-white/70 hover:text-ink'
 }
