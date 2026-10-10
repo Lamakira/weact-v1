@@ -37,7 +37,7 @@ const sidebarItems: SidebarItem[] = [
   { label: 'Missions UGC', icon: Video, to: '/face/ugc-missions' },
   { label: 'Mes candidatures', icon: FileText, to: '/face/candidatures' },
   { label: 'Mes bookings', icon: CalendarCheck, to: '/face/bookings' },
-  { label: 'Messages', icon: MessageCircle, to: '/face/messages' },
+  { label: 'Messages', icon: MessageCircle, to: '/face/messages', match: ['/face/conversations'] },
   { label: 'Portefeuille', icon: Wallet, to: '/face/wallet' },
   { label: 'Facturation', icon: CreditCard, to: '/face/billing' },
   { label: 'Tarifs', icon: Tags, to: '/pricing' },
@@ -48,7 +48,7 @@ const sidebarItems: SidebarItem[] = [
 const mobileTabs: SidebarItem[] = [
   { label: 'Accueil', icon: House, to: '/face/dashboard' },
   { label: 'Missions', icon: Briefcase, to: '/face/missions' },
-  { label: 'Messages', icon: MessageCircle, to: '/face/messages' },
+  { label: 'Messages', icon: MessageCircle, to: '/face/messages', match: ['/face/conversations'] },
   { label: 'Profil', icon: User, to: '/face/profile' },
 ]
 

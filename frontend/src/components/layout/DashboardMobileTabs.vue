@@ -17,8 +17,8 @@ defineProps<Props>()
 const route = useRoute()
 
 /** Actif sur la route exacte ou une sous-route (ex. détail d'une mission) */
-function isActive(to: string): boolean {
-  return route.path === to || route.path.startsWith(`${to}/`)
+function isActive(tab: SidebarItem): boolean {
+  return [tab.to, ...(tab.match ?? [])].some((p) => route.path === p || route.path.startsWith(`${p}/`))
 }
 
 function slug(label: string): string {
@@ -42,8 +42,8 @@ function accessibleName(tab: SidebarItem): string | undefined {
       :key="tab.to"
       :to="tab.to"
       class="relative flex min-h-11 flex-col items-center justify-center gap-0.5 text-[10.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-weact-600"
-      :class="isActive(tab.to) ? 'font-semibold text-weact-700' : 'text-ink-3'"
-      :aria-current="isActive(tab.to) ? 'page' : undefined"
+      :class="isActive(tab) ? 'font-semibold text-weact-700' : 'text-ink-3'"
+      :aria-current="isActive(tab) ? 'page' : undefined"
       :aria-label="accessibleName(tab)"
       :data-testid="`mobile-tab-${slug(tab.label)}`"
     >
