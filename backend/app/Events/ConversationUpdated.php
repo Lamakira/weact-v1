@@ -26,6 +26,7 @@ class ConversationUpdated implements ShouldBroadcast
         public readonly array $latestMessage,
         public readonly int $unreadCount,
         public readonly string $updatedAt,
+        public readonly int $unreadConversationsCount = 0,
     ) {}
 
     /**
@@ -51,6 +52,7 @@ class ConversationUpdated implements ShouldBroadcast
             'latest_message' => $this->latestMessage,
             'unread_count' => $this->unreadCount,
             'updated_at' => $this->updatedAt,
+            'unread_conversations_count' => $this->unreadConversationsCount,
         ];
     }
 }
