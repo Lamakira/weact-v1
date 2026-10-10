@@ -15,6 +15,11 @@ const mockRouter = {
   push: vi.fn(),
 }
 
+// L'invite web push a ses propres tests (PushSoftPrompt.spec.ts) et dépend de Pinia.
+vi.mock('@/features/notification/components/PushSoftPrompt.vue', () => ({
+  default: { name: 'PushSoftPrompt', template: '<div data-testid="push-soft-prompt-stub" />' },
+}))
+
 vi.mock('vue-router', () => ({
   useRouter: () => mockRouter,
   RouterLink: {

@@ -17,6 +17,7 @@ import ToValidatePanel from '@/features/dashboard/components/producer/ToValidate
 import UnreadMessagesPanel from '@/features/dashboard/components/producer/UnreadMessagesPanel.vue'
 import ActiveMissionsPanel from '@/features/dashboard/components/producer/ActiveMissionsPanel.vue'
 import ReputationPanel from '@/features/dashboard/components/producer/ReputationPanel.vue'
+import PushSoftPrompt from '@/features/notification/components/PushSoftPrompt.vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -109,6 +110,9 @@ const publicProfileSlug = computed(() => {
         <span class="hidden sm:inline">Publier une mission</span>
       </RouterLink>
     </header>
+
+    <!-- Invite web push (une fois, fermable) -->
+    <PushSoftPrompt audience="producer" />
 
     <ProducerKpiRow :stats="stats" :is-loading="statsLoading" :error="statsError" @retry="retry" />
 

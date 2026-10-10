@@ -42,6 +42,24 @@ interface UseAuthReturn {
 /**
  * Composable for authentication operations
  */
+/**
+ * Désabonne l'appareil du web push AVANT la révocation du token (le DELETE est
+ * authentifié) : un téléphone partagé ne doit plus recevoir les notifications du
+ * compte précédent. Best effort, ne bloque jamais la déconnexion.
+ */
+async function unsubscribePushOnLogout(): Promise<void> {
+  try {
+    const [{ unsubscribeThisDevice }, { resetWebPushState }] = await Promise.all([
+      import('@/features/notification/push/webPush'),
+      import('@/features/notification/push/useWebPush'),
+    ])
+    await unsubscribeThisDevice()
+    resetWebPushState()
+  } catch (error) {
+    console.warn('[Auth] Push unsubscribe on logout failed', error)
+  }
+}
+
 export function useAuth(): UseAuthReturn {
   const authStore = useAuthStore()
   const notificationStore = useNotificationStore()
@@ -218,6 +236,7 @@ export function useAuth(): UseAuthReturn {
     authStore.setLoading(true)
 
     try {
+      await unsubscribePushOnLogout()
       await authApi.logout()
     } catch (error) {
       // API call failed but we still clear local state (graceful degradation)

@@ -7,6 +7,7 @@ import type { Notification } from '../types'
 import { NotificationType } from '../types'
 import { useNotificationStore } from '@/stores/notification'
 import { useToast } from '@/composables/useToast'
+import PushToggle from './PushToggle.vue'
 
 const emit = defineEmits<{
   close: []
@@ -211,6 +212,9 @@ onMounted(async () => {
           </li>
         </ul>
       </div>
+
+      <!-- Web push : bascule par appareil (permission demandée au clic uniquement) -->
+      <PushToggle />
 
       <!-- Footer -->
       <div

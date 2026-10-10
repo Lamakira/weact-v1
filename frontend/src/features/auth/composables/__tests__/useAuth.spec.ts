@@ -24,6 +24,12 @@ vi.mock('../../services/authApi', () => ({
   getApiErrorMessage: vi.fn(() => 'Error'),
 }))
 
+// Mock web push device unsubscribe (shared phone: stop pushes of the previous account)
+const mockUnsubscribeDevice = vi.fn()
+vi.mock('@/features/notification/push/webPush', () => ({
+  unsubscribeThisDevice: (...args: unknown[]) => mockUnsubscribeDevice(...args),
+}))
+
 // Import useAuth after mocks are set up
 import { useAuth } from '../useAuth'
 
@@ -32,6 +38,33 @@ describe('useAuth - logout', () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
     mockLogout.mockResolvedValue(undefined)
+    mockUnsubscribeDevice.mockResolvedValue(undefined)
+  })
+
+  it('unsubscribes the device from web push BEFORE revoking the token', async () => {
+    const order: string[] = []
+    mockUnsubscribeDevice.mockImplementation(async () => {
+      order.push('push')
+    })
+    mockLogout.mockImplementation(async () => {
+      order.push('logout')
+    })
+
+    const { logout } = useAuth()
+    await logout()
+
+    expect(order).toEqual(['push', 'logout'])
+  })
+
+  it('still logs out when the push unsubscribe throws', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    mockUnsubscribeDevice.mockRejectedValue(new Error('push down'))
+
+    const { logout } = useAuth()
+    await logout()
+
+    expect(mockLogout).toHaveBeenCalled()
+    expect(mockPush).toHaveBeenCalledWith('/login')
   })
 
   it('calls authApi.logout when logout is called', async () => {
