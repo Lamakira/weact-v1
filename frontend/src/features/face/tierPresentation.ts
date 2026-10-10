@@ -53,8 +53,8 @@ export interface TierFeatureLine {
 
 /**
  * Build a tier card's "Inclus" feature list from the live capabilities matrix
- * (decision #4 — config-driven, no static drift). `tier` only supplies the
- * mise-en-avant label.
+ * (decision #4 — config-driven, no static drift). `tier` supplies the
+ * mise-en-avant label and drives the « Postuler aux missions » line (any paid tier).
  */
 export function buildTierFeatureLines(
   tier: FaceSubscriptionTier,

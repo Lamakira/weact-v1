@@ -59,6 +59,8 @@ class UgcProductPhotosTest extends TestCase
             'userable_type' => Face::class,
             'userable_id' => $this->face->id,
         ]);
+        // Un booking UGC n'est créable que pour une Face éligible (Pro+).
+        \App\Models\FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
     }
 
     /**
@@ -330,7 +332,6 @@ class UgcProductPhotosTest extends TestCase
         $mission = Mission::firstOrFail();
 
         // Face abonnée (gate FR5) : le détail expose les photos aux candidates.
-        \App\Models\FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
 
         $items = $this->actingAs($this->faceUser)
             ->getJson('/api/v1/face/missions/'.$mission->uuid)

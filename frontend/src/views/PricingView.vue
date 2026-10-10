@@ -128,6 +128,8 @@ const tiers: PricingTier[] = [
       { text: 'Portfolio complet : 6 photos', included: true },
       { text: '1 vidéo de présentation', included: true },
       { text: '2 vidéos Acting', included: true },
+      { text: 'Postuler aux missions', included: true },
+      { text: 'Accès complet au module UGC', included: true },
       { text: '1 vidéo modèle UGC', included: true },
       { text: 'Commission réduite à 5% (au lieu de 10%)', included: true, highlight: true },
       { text: 'Badge "VIP / Elite" sur le profil', included: true, highlight: true },
@@ -163,7 +165,7 @@ const comparisonGroups: ComparisonGroup[] = [
         elite: true,
       },
       { name: 'Dotation produit', decouverte: false, starter: false, pro: true, elite: true },
-      { name: 'Missions rémunérées', decouverte: true, starter: true, pro: true, elite: true },
+      { name: 'Réservation directe par les Producteurs', decouverte: true, starter: true, pro: true, elite: true },
       {
         name: 'Commission plateforme',
         decouverte: '15 %',
@@ -230,7 +232,7 @@ const faqs: FAQItem[] = [
   {
     question: 'Que se passe-t-il si mon abonnement expire ?',
     answer:
-      'Ton profil bascule automatiquement sur l\'offre Découverte gratuite. Tes photos et vidéos restent stockées 90 jours, le temps de te réabonner si tu le souhaites.',
+      'Ton profil bascule automatiquement sur l\'offre Découverte gratuite. Tu ne peux plus postuler aux missions, mais les producteurs peuvent toujours te réserver directement. Tes photos et vidéos restent stockées 90 jours, le temps de te réabonner si tu le souhaites.',
   },
   {
     question: 'Comment fonctionne la mise en avant ?',
