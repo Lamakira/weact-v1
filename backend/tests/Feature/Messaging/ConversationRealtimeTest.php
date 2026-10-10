@@ -286,4 +286,108 @@ class ConversationRealtimeTest extends TestCase
         $this->authChannel('00000000-0000-0000-0000-000000000000', $this->faceUser)->assertStatus(403);
         $this->authChannel((string) $this->conversation->id, $this->faceUser)->assertStatus(403);
     }
+
+    // ---- wave 2 -----------------------------------------------------------
+
+    public function test_updated_and_read_events_exclude_the_sender_socket(): void
+    {
+        $this->fakeEvents();
+        $this->messageFrom($this->producerUser);
+
+        $this->actingAs($this->faceUser)->withHeader('X-Socket-ID', '123.456')
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", ['content' => 'Hi'])
+            ->assertCreated();
+        Event::assertDispatched(ConversationUpdated::class, fn (ConversationUpdated $e) => $e->socket === '123.456');
+
+        $this->actingAs($this->faceUser)->withHeader('X-Socket-ID', '123.456')
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/read")->assertOk();
+        Event::assertDispatched(ConversationMessagesRead::class, fn (ConversationMessagesRead $e) => $e->socket === '123.456');
+    }
+
+    public function test_mark_read_leaves_the_readers_own_messages_untouched(): void
+    {
+        $this->fakeEvents();
+        $own = $this->messageFrom($this->faceUser);
+        $theirs = $this->messageFrom($this->producerUser);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/read")
+            ->assertOk()->assertJsonPath('data.marked', 1);
+
+        $this->assertNull($own->fresh()->read_at);
+        $this->assertNotNull($theirs->fresh()->read_at);
+    }
+
+    public function test_unverified_user_does_not_mark_anything_as_read(): void
+    {
+        $this->fakeEvents();
+        $message = $this->messageFrom($this->producerUser);
+        $this->faceUser->forceFill(['email_verified_at' => null])->save();
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/read")
+            ->assertOk()->assertJsonPath('data.marked', 0);
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/conversations/{$this->conversation->uuid}")->assertOk();
+
+        $this->assertNull($message->fresh()->read_at);
+        Event::assertNotDispatched(ConversationMessagesRead::class);
+    }
+
+    public function test_broadcaster_failure_never_fails_the_request(): void
+    {
+        Broadcast::extend('boom', fn () => new class extends \Illuminate\Broadcasting\Broadcasters\Broadcaster
+        {
+            public function auth($request) {}
+
+            public function validAuthenticationResponse($request, $result) {}
+
+            public function broadcast(array $channels, $event, array $payload = []): void
+            {
+                throw new \RuntimeException('Reverb down');
+            }
+        });
+        config(['broadcasting.default' => 'boom', 'broadcasting.connections.boom' => ['driver' => 'boom']]);
+        Broadcast::forgetDrivers();
+        $message = $this->messageFrom($this->producerUser);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/messages", ['content' => 'Hi'])
+            ->assertCreated();
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/conversations/{$this->conversation->uuid}/read")
+            ->assertOk()->assertJsonPath('data.marked', 1);
+        $this->assertNotNull($message->fresh()->read_at);
+    }
+
+    public function test_policy_denies_an_orphaned_conversation_without_error(): void
+    {
+        $this->conversation->setRelation('candidature', null);
+
+        $this->assertFalse((new \App\Policies\ConversationPolicy)->view($this->faceUser, $this->conversation));
+        $this->assertFalse((new \App\Policies\ConversationPolicy)->view($this->producerUser, $this->conversation));
+    }
+
+    public function test_reverb_size_limits_hold_the_largest_accented_message(): void
+    {
+        $message = Message::factory()->create([
+            'conversation_id' => $this->conversation->id,
+            'sender_id' => $this->faceUser->id,
+            'sender_type' => User::class,
+            'content' => str_repeat('é', 5000),
+        ]);
+        $event = new ConversationMessageSent($message->load('sender.userable'), $this->conversation->uuid);
+
+        // Pusher protocol: the payload is JSON-encoded, then embedded as a string in the envelope
+        $frame = json_encode([
+            'event' => $event->broadcastAs(),
+            'channel' => 'private-conversation.'.$this->conversation->uuid,
+            'data' => json_encode($event->broadcastWith()),
+        ]);
+
+        $this->assertGreaterThan(10_000, strlen((string) $frame), 'Documents why the old 10 000 default was too small');
+        $this->assertLessThan((int) config('reverb.servers.reverb.max_request_size'), strlen((string) $frame));
+        $this->assertLessThan((int) config('reverb.apps.apps.0.max_message_size'), strlen((string) $frame));
+        $this->assertGreaterThanOrEqual(65_536, (int) config('reverb.apps.apps.0.max_message_size'));
+    }
 }

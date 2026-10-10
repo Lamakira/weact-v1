@@ -46,6 +46,11 @@ class ConversationRealtime
      */
     public function markRead(Conversation $conversation, User $reader): int
     {
+        // A user blocked by the email-verification wall must not mark anything as read
+        if (! $reader->hasVerifiedEmail()) {
+            return 0;
+        }
+
         $ids = $conversation->messages()
             ->reorder()
             ->whereNull('read_at')
