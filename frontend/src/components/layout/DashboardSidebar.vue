@@ -8,6 +8,7 @@ import { type Component } from 'vue'
 import { useRoute } from 'vue-router'
 import { Home, PanelLeftClose } from 'lucide-vue-next'
 import { useSidebarState } from '@/composables/useSidebarState'
+import { formatBadge } from './formatBadge'
 import logoPng from '@/assets/images/logonoir.png'
 import logoMark from '@/assets/images/logo-mark.svg'
 
@@ -16,6 +17,8 @@ export interface SidebarItem {
   icon: Component
   to: string
   badge?: number
+  /** Plafond d'affichage du badge : au-delà, « {badgeMax}+ » (ex. 9 pour Messages). */
+  badgeMax?: number
   /** Autres préfixes de route qui appartiennent à cet item (ex. /face/conversations pour Messages). */
   match?: string[]
 }
@@ -111,7 +114,7 @@ const getItemClasses = (item: SidebarItem) => {
               class="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-weact-600 px-1.5 text-[11px] font-semibold text-white"
               data-testid="sidebar-badge"
             >
-              {{ item.badge }}
+              {{ formatBadge(item.badge, item.badgeMax) }}
             </span>
           </RouterLink>
         </li>

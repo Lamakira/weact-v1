@@ -76,6 +76,21 @@ describe('DashboardMobileTabs', () => {
     expect(wrapper.find('[data-testid="mobile-tab-profil"]').attributes('aria-label')).toBeUndefined()
   })
 
+  it('plafonne le compteur à « 9+ » (badgeMax) et le masque à 0', () => {
+    const withMessages = (badge: number) =>
+      tabs.map((t) => (t.label === 'Messages' ? { ...t, badge, badgeMax: 9 } : t))
+
+    const over = mountTabs({ tabs: withMessages(14) })
+    expect(over.find('[data-testid="mobile-tab-badge"]').text()).toBe('9+')
+
+    const nine = mountTabs({ tabs: withMessages(9) })
+    expect(nine.find('[data-testid="mobile-tab-badge"]').text()).toBe('9')
+
+    const zero = mountTabs({ tabs: withMessages(0) })
+    expect(zero.find('[data-testid="mobile-tab-badge"]').exists()).toBe(false)
+    expect(zero.find('[data-testid="mobile-tab-messages"]').attributes('aria-label')).toBeUndefined()
+  })
+
   it('réserve la zone de sécurité en bas', () => {
     const wrapper = mountTabs()
     expect(wrapper.find('[data-testid="mobile-tabbar"]').classes().join(' ')).toContain('safe-area-inset-bottom')

@@ -5,7 +5,7 @@
  * Uses DashboardLayout with Producer-specific sidebar items.
  * Child routes render via <router-view> in the content area.
  */
-import { onMounted, computed, watch } from 'vue'
+import { onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { LayoutDashboard, FileText, MessageCircle, User, PlusCircle, Users, CalendarCheck, Wallet, BadgeCheck, FolderDown, House, Briefcase } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
@@ -15,6 +15,7 @@ import { resolveSidebarTitle } from '@/components/layout/resolveSidebarTitle'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
 import { useProducerBasicInfo } from '@/features/producer/composables/useProducerBasicInfo'
 import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
+import { useMessagesUnreadStore } from '@/stores/messagesUnread'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 import WhatsappMissingBanner from '@/components/WhatsappMissingBanner.vue'
 
@@ -40,6 +41,7 @@ async function loadBasicInfo(): Promise<void> {
   }
 }
 const ugcValidationCountStore = useUgcValidationCountStore()
+const messagesUnreadStore = useMessagesUnreadStore()
 
 // Sidebar navigation items for Producer dashboard. Computed so the « Validation
 // des livrables » badge reactively follows the in_review count (only that item).
@@ -52,18 +54,20 @@ const sidebarItems = computed<SidebarItem[]>(() => [
   { label: 'Validation des livrables', icon: BadgeCheck, to: '/producer/ugc/validation',
     badge: ugcValidationCountStore.count },
   { label: 'Mes vidéos UGC', icon: FolderDown, to: '/producer/ugc/videos' },
-  { label: 'Messages', icon: MessageCircle, to: '/producer/messages', match: ['/producer/conversations'] },
+  { label: 'Messages', icon: MessageCircle, to: '/producer/messages', match: ['/producer/conversations'],
+    badge: messagesUnreadStore.count, badgeMax: 9 },
   { label: 'Portefeuille', icon: Wallet, to: '/producer/wallet' },
   { label: 'Mon profil', icon: User, to: '/producer/profile' },
 ])
 
 // Bottom tab bar (mobile): the 4 main destinations; the drawer keeps the rest
-const mobileTabs: SidebarItem[] = [
+const mobileTabs = computed<SidebarItem[]>(() => [
   { label: 'Accueil', icon: House, to: '/producer/dashboard' },
   { label: 'Missions', icon: Briefcase, to: '/producer/missions' },
-  { label: 'Messages', icon: MessageCircle, to: '/producer/messages', match: ['/producer/conversations'] },
+  { label: 'Messages', icon: MessageCircle, to: '/producer/messages', match: ['/producer/conversations'],
+    badge: messagesUnreadStore.count, badgeMax: 9 },
   { label: 'Profil', icon: User, to: '/producer/profile' },
-]
+])
 
 // Header title = label of the sidebar item owning the current route.
 const pageTitle = computed(() => resolveSidebarTitle(sidebarItems.value, route.path))
@@ -88,6 +92,8 @@ const avatarUrl = computed(() => {
 // Fetch profile on mount to get avatar + the in_review validation count (badge)
 onMounted(async () => {
   void ugcValidationCountStore.fetchCount()
+  // Badge « Messages » : 1 fetch au boot, puis événements / focus / repli (pas de fetch par navigation)
+  messagesUnreadStore.start('producer')
   try {
     await fetchProfile()
   } catch {
@@ -96,6 +102,8 @@ onMounted(async () => {
 
   await loadBasicInfo()
 })
+
+onBeforeUnmount(() => messagesUnreadStore.stop())
 
 // The layout now persists across child navigations (App.vue keys it by the
 // layout's own route): refresh the sidebar "Validation des livrables" badge on

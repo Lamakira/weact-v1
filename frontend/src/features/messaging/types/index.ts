@@ -85,6 +85,7 @@ export interface Conversation {
 // API response for single conversation
 export interface ConversationResponse {
   data: Conversation
+  meta?: { unread_conversations_count?: number }
 }
 
 // API response for single message
@@ -126,6 +127,8 @@ export interface ConversationListItem {
   latest_message: LatestMessagePreview | null
   unread_count: number
   updated_at: string
+  /** Conversations non lues du destinataire, après cette mise à jour (badge « Messages ») */
+  unread_conversations_count?: number
 }
 
 // Pagination metadata
@@ -134,6 +137,8 @@ export interface PaginationMeta {
   last_page: number
   per_page: number
   total: number
+  /** Conversations avec au moins un message non lu (valeur serveur, toutes pages) */
+  unread_conversations_count?: number
 }
 
 // API response for conversations list
@@ -183,5 +188,5 @@ export interface ConversationUpdatedBroadcast {
 
 // Réponse de POST /conversations/{id}/read
 export interface MarkReadResponse {
-  data: { marked: number }
+  data: { marked: number; unread_conversations_count?: number }
 }
